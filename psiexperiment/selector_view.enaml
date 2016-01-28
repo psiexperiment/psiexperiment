@@ -1,0 +1,198 @@
+from enaml.application import deferred_call
+from enaml.core.api import Include, DynamicTemplate
+from enaml.layout.api import (vbox, hbox)
+from enaml.widgets.api import (PushButton, Field, Container, VGroup, HGroup, Label, ObjectCombo)
+
+from selector import SequenceSelector, SingleSetting
+
+
+enamldef DictField(Field):
+    attr obj
+    attr key
+    attr dtype
+    text << str(obj[key])
+    text ::
+        obj[key] = dtype(text)
+        selector.updated = True
+
+
+################################################################################
+# SequenceSelector 
+################################################################################
+enamldef SettingRemoveButton(PushButton):
+    attr setting
+    attr selector
+    text = '-'
+    clicked ::
+        selector.remove_setting(setting)
+        selector.updated = True
+
+
+class UpdateSelectorWidgets(object):
+
+    def __init__(self):
+        self.widgets = None
+        self.old_widgets = None
+
+    def __call__(self, selector, parameters, settings):
+        if len(parameters) == 0:
+            return []
+        lw = []
+        sw = [SettingRemoveButton(setting=s, selector=selector) \
+              for s in settings]
+        for i, p in enumerate(parameters):
+            lw.append(Label(text=p.label))
+            for j, s in enumerate(settings):
+                field = DictField(obj=s, key=p.name, dtype=p.dtype)
+                sw.append(field)
+        lw.extend(sw)
+        self.old_widgets = self.widgets
+        self.widgets = lw
+        deferred_call(self.destroy_old_widgets)
+        return lw
+
+    def destroy_old_widgets(self):
+        if self.old_widgets is not None:
+            for w in self.old_widgets:
+                w.destroy()
+            self.old_widgets = None
+
+
+class SelectorWidgetManager(object):
+
+    def __init__(self):
+        self.updaters = {}
+
+    def __call__(self, selector, *args, **kwargs):
+        if selector not in self.updaters:
+            self.updaters[selector] = UpdateSelectorWidgets()
+        return self.updaters[selector](selector, *args, **kwargs)
+
+
+update_selector_widgets = SelectorWidgetManager()
+
+
+template SelectorContainerTemplate(selector, MemberType: SequenceSelector):
+    VGroup:
+        HGroup:
+            spacing = 0
+            padding = 0
+            PushButton: add:
+                text = 'Add'
+                clicked ::
+                    selector.add_setting()
+                    selector.updated = True
+            PushButton: sort:
+                text = 'Sort'
+                clicked ::
+                    selector.sort_settings()
+                    selector.updated = True
+        HGroup:
+            spacing = 0
+            padding = 0
+            Label:
+                text = 'Order'
+            ObjectCombo:
+                items = list(selector.get_member('order').items)
+                selected := selector.order
+                to_string = lambda x: x.__name__
+                selected ::
+                    selector.updated = True
+
+    Container: labels:
+        share_layout = True
+        padding = 0
+        layout_constraints => ():
+            n_parameters = len(selector.parameters)
+            n_settings = len(selector.settings)
+
+            # There's a drop area on either side of the label widgets to
+            # facilitate reordering.
+            n_label_widgets = n_parameters
+
+            widgets = self.visible_widgets()
+            label_widgets = widgets[:n_label_widgets]
+
+            setting_widgets = widgets[n_label_widgets:]
+            setting_button_widgets = setting_widgets[:n_settings]
+            setting_value_widgets = setting_widgets[n_settings:]
+
+            if len(setting_widgets) == 0:
+                return []
+
+            # Setup hbox constraints for title row and each settings row.
+            # Embed all hboxes in a vbox.
+            box_constraints = [hbox(*label_widgets, spacing=0)]
+            for i in range(n_settings):
+                sw = [setting_button_widgets[i]]
+                sw.extend(setting_value_widgets[i::n_settings])
+                box_constraints.append(hbox(*sw, spacing=0))
+            constraints = [vbox(*box_constraints, spacing=0)]
+
+            for i, lw in enumerate(label_widgets):
+                o = i*n_settings
+                for sw in setting_value_widgets[o:o+n_settings]:
+                   constraints.append(lw.left == sw.left)
+
+            if setting_value_widgets:
+                sw_base = setting_value_widgets[0]
+                for sw in setting_value_widgets[1:]:
+                    constraints.append(sw_base.width == sw.width)
+
+            if setting_button_widgets:
+                for sw in setting_button_widgets:
+                    constraints.append(sw.width == 20)
+                    constraints.append(sw.width == sw.height)
+
+            if label_widgets:
+                t_base = label_widgets[0]
+                for t in label_widgets[1:]:
+                    constraints.append(t_base.v_center == t.v_center)
+
+            return constraints
+
+        Include: inc:
+            destroy_old = False
+            objects << update_selector_widgets(selector, selector.parameters,
+                                               selector.settings)
+
+
+################################################################################
+# SingleSetting
+################################################################################
+from enaml.core.api import Looper
+
+template SelectorContainerTemplate(selector, MemberType: SingleSetting):
+
+    Container:
+        layout_constraints => (): 
+            widgets = self.visible_widgets()
+            if len(widgets) == 0:
+                return []
+            label_widgets = widgets[::2]
+            setting_widgets = widgets[1::2]
+            row_constraints = [hbox(*label_widgets, spacing=0),
+                               hbox(*setting_widgets, spacing=0)]
+            constraints = [vbox(*row_constraints, spacing=0)]
+            for lw, sw in zip(label_widgets, setting_widgets):
+                constraints.append(lw.left == sw.left)
+            return constraints
+
+        Looper:
+            iterable << selector.parameters[:]
+            Label:
+                text := loop_item.label
+            DictField:
+                obj = selector.setting
+                key = loop_item.name
+                dtype = loop_item.dtype
+
+
+################################################################################
+# Tie it all together
+################################################################################
+enamldef SelectorContainer(Container):
+    attr selector
+    DynamicTemplate:
+        base = SelectorContainerTemplate
+        args = (selector, type(selector))

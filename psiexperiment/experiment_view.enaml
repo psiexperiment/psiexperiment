@@ -1,0 +1,133 @@
+from enaml.core.api import Looper, Include, DynamicTemplate
+from enaml.styling import StyleSheet, Style, Setter
+
+from atom.api import Atom, Int, List
+
+from enaml.layout.api import (vertical, horizontal, align, spacer, vbox, hbox,
+                              grid, VSplitLayout, TabLayout)
+from enaml.stdlib.fields import FloatField
+from enaml.styling import StyleSheet, Style
+from enaml.widgets.api import (
+    MainWindow, Label, Field, Form, CheckBox, GroupBox, Container, PushButton,
+    VGroup, HGroup, Feature, PushButton, Menu, Action, ObjectCombo,
+    ActionGroup, PopupView, Feature, DockArea, DockItem, Action, ToolBar,
+    MenuBar, Menu, ToolBar, Action, ActionGroup
+)
+
+from parameter_view import ParameterContainer
+from selector_view import SelectorContainer
+
+
+def get_style_classes(controller, name):
+    styles = []
+    if controller.value_changed(name):
+        styles.append('changed')
+    if controller.get_parameter(name).rove:
+        styles.append('roving')
+    return ' '.join(styles)
+
+
+enamldef CurrentValuesContainer(Container):
+    StyleSheet:
+        Style:
+            style_class = 'changed'
+            Setter:
+                field = 'font-weight'
+                value = 'bold'
+        Style:
+            style_class = 'roving'
+            Setter:
+                field = 'background-color'
+                value = 'white'
+
+    VGroup:
+        padding = 0
+        spacing = 0
+        Looper:
+            iterable << sorted(controller._namespace._locals.items())
+            HGroup:
+                padding = 0
+                spacing = 0
+                Label:
+                    style_class << get_style_classes(controller, loop_item[0])
+                    text << controller.get_parameter(loop_item[0]).label
+                Label:
+                    style_class << get_style_classes(controller, loop_item[0])
+                    text << str(loop_item[1])
+
+
+enamldef ExperimentView(MainWindow): main:
+    attr controller
+    title = 'Experiment'
+
+    ToolBar: 
+        Action:
+            text = 'Start'
+            enabled << controller.state == 'initialized'
+            triggered :: controller.start_experiment()
+        Action:
+            text = 'Pause'
+            enabled << controller.state in ('running', 'paused')
+            checkable = True
+            toggled ::
+                if checked:
+                    controller.pause_experiment()
+                else:
+                    controller.resume_experiment()
+        Action:
+            text = 'Stop'
+            enabled << controller.state in ('running', 'paused')
+            triggered :: controller.stop_experiment()
+        Action:
+            text = 'Apply'
+            enabled << controller._changes_pending \
+                and not controller._apply_requested
+            triggered :: controller.request_apply()
+
+        Action:
+            text = 'Next'
+            triggered :: 
+                controller.save_trial()
+                controller.next_trial('go')
+
+    Container:
+        DockArea: dock:
+            layout = VSplitLayout(
+                TabLayout('parameter', 'current'),
+                TabLayout('go_sequence', 'nogo_sequence', 'remind_sequence'),
+            )
+
+            DockItem:
+                closable = False
+                name = 'parameter'
+                title = 'Parameters'
+                ParameterContainer:
+                    parameters = controller.parameters
+
+            DockItem:
+                closable = False
+                name = 'current'
+                title = 'Current'
+                CurrentValuesContainer:
+                    pass
+
+            DockItem:
+                closable = False
+                name = 'go_sequence'
+                title = 'Go'
+                SelectorContainer:
+                    selector = controller.selectors['go']
+
+            DockItem:
+                closable = False
+                name = 'nogo_sequence'
+                title = 'Nogo'
+                SelectorContainer:
+                    selector = controller.selectors['nogo']
+
+            DockItem:
+                closable = False
+                name = 'remind_sequence'
+                title = 'Remind'
+                SelectorContainer:
+                    selector = controller.selectors['remind']
