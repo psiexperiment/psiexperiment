@@ -1,0 +1,101 @@
+from enaml.widgets.api import Action
+from enaml.workbench.api import Extension, PluginManifest
+from enaml.workbench.core.api import Command
+from enaml.workbench.ui.api import ActionItem, MenuItem
+
+from ..util import rpc
+
+
+enamldef ControllerManifest(PluginManifest): manifest:
+    '''
+    Defines the core functionality that most controller plugins will share
+    (start, stop, pause, apply/revert settings).
+    '''
+
+    Extension:
+        id = 'commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = 'psiexperiment.controller.start'
+            handler = rpc('psiexperiment.controller', 'start_experiment')
+        Command:
+            id = 'psiexperiment.controller.stop'
+            handler = rpc('psiexperiment.controller', 'stop_experiment')
+        Command:
+            id = 'psiexperiment.controller.next_trial'
+            handler = rpc('psiexperiment.controller', 'end_trial')
+        Command:
+            id = 'psiexperiment.controller.request_apply'
+            handler = rpc('psiexperiment.controller', 'request_apply')
+        Command:
+            id = 'psiexperiment.controller.request_pause'
+            handler = rpc('psiexperiment.controller', 'request_pause')
+        Command:
+            id = 'psiexperiment.controller.request_resume'
+            handler = rpc('psiexperiment.controller', 'request_resume')
+
+    # Uses unicode symbols as icons for sake of simplicity.
+    Extension:
+        id = 'toolbar'
+        rank = 1
+        point = 'psiexperiment.experiment.toolbar'
+        Action:
+            text = u'\u27A4'
+            tool_tip = 'Start experiment'
+            triggered ::
+                plugin = workbench.get_plugin('enaml.workbench.core')
+                plugin.invoke_command('psiexperiment.controller.start')
+            enabled << workbench.get_plugin('psiexperiment.controller').state \
+                == 'initialized'
+        Action:
+            text = u'\u23F9'
+            tool_tip = 'Stop experiment'
+            triggered ::
+                plugin = workbench.get_plugin('enaml.workbench.core')
+                plugin.invoke_command('psiexperiment.controller.stop')
+            enabled <<  workbench.get_plugin('psiexperiment.controller').state \
+                not in ('initialized', 'stopped')
+        Action:
+            separator = True
+        Action:
+            text << u'\u23E9' if checked else u'\u23F8'
+            checkable = True
+            enabled <<  workbench.get_plugin('psiexperiment.controller').state \
+                not in ('initialized', 'stopped')
+            tool_tip << 'Resume' if checked else 'Pause'
+            toggled ::
+                plugin = workbench.get_plugin('enaml.workbench.core')
+                if checked:
+                    plugin.invoke_command('psiexperiment.controller.request_resume')
+                else:
+                    plugin.invoke_command('psiexperiment.controller.request_pause')
+        Action:
+            separator = True
+
+        # Apply/Revert logic should pass through the controller so we can
+        # ensure that the changes occur at the appropriate time in a trial
+        # (i.e., in between trials). 
+        Action:
+            text = 'Apply'
+            enabled << workbench.get_plugin('psiexperiment.context').changes_pending \
+                and not workbench.get_plugin('psiexperiment.controller')._apply_requested \
+                and workbench.get_plugin('psiexperiment.controller').state \
+                in ('running', 'paused')
+            triggered :: 
+                plugin = workbench.get_plugin('enaml.workbench.core')
+                plugin.invoke_command('psiexperiment.controller.request_apply')
+        Action:
+            text = 'Revert'
+            enabled << workbench.get_plugin('psiexperiment.context').changes_pending \
+                and workbench.get_plugin('psiexperiment.controller').state \
+                in ('running', 'paused')
+            triggered :: 
+                plugin = workbench.get_plugin('enaml.workbench.core')
+                plugin.invoke_command('psiexperiment.context.revert_changes')
+
+    Extension:
+        id = 'actions'
+        point = 'enaml.workbench.ui.actions'
+        MenuItem:
+            path = '/equipment'
+            label = 'Equipment'

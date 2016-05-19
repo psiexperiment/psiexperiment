@@ -1,0 +1,201 @@
+import numpy as np
+
+
+from enaml.application import deferred_call
+from enaml.layout.api import InsertItem
+from enaml.widgets.api import Action, DockItem, Container, Label
+from enaml.workbench.api import Extension, PluginManifest, ExtensionPoint
+from enaml.workbench.core.api import Command
+from enaml.workbench.ui.api import ActionItem, MenuItem, Autostart
+
+from ..context.api import ContextGroup, Parameter, Result, RovingParameter
+from ..context.selector import SequenceSelector, SingleSetting
+
+from .base_manifest import ControllerManifest
+from .appetitive_plugin import AppetitivePlugin
+from ..util import rpc
+
+
+PLUGIN_ID = 'psiexperiment.controller'
+
+
+def get_status(trial, trial_type):
+    if trial == 0:
+        return 'Waiting for start'
+    if '_' in trial_type:
+        general, specific = trial_type.split('_') 
+        label = '{} ({})'.format(general, specific)
+    else:
+        label = trial_type
+    return 'Trial {}: {}'.format(trial, label)
+
+
+enamldef ControllerStateDockItem(DockItem):
+
+    attr controller
+
+    Container:
+        Label:
+            text << get_status(controller.trial, controller.trial_type)
+
+
+def contribute_to_workspace(workbench, workspace):
+    plugin = workbench.get_plugin(PLUGIN_ID)
+    item = ControllerStateDockItem(workspace.dock_area, controller=plugin,
+                                   name='controller_state', title='Status')
+    op = InsertItem(item=item.name, position='top')
+    deferred_call(workspace.dock_area.update_layout, op)
+
+
+enamldef AppetitiveManifest(ControllerManifest): manifest:
+    '''
+    Defines the core settings that any appetitive experiment may require. Does
+    not include timeout/reward settings as those are provided by plugins.
+    '''
+
+    id = PLUGIN_ID
+    factory = AppetitivePlugin
+
+    Extension:
+        id = 'debug_toolbar'
+        rank = 1000
+        point = 'psiexperiment.experiment.toolbar'
+        Action:
+            text = 'Spout'
+            tool_tip = 'Mark spout response'
+            triggered ::
+                plugin = workbench.get_plugin(PLUGIN_ID)
+                plugin.end_trial(response='spout')
+            enabled << workbench.get_plugin(PLUGIN_ID).state \
+                not in ('initialized', 'stopped')
+        Action:
+            text = 'Poke'
+            tool_tip = 'Mark nose poke'
+            triggered ::
+                plugin = workbench.get_plugin(PLUGIN_ID)
+                plugin.end_trial(response='poke')
+            enabled <<  workbench.get_plugin(PLUGIN_ID).state \
+                not in ('initialized', 'stopped')
+
+
+    # Parameters used by the appetitive Go-Nogo controller.
+    Extension:
+        id = 'items'
+        point = 'psiexperiment.context.items'
+
+        ContextGroup:
+            name = 'trial'
+            label = 'Trial Settings'
+
+        RovingParameter:
+            name = 'iti_duration'
+            label = 'Intertrial interval (s)'
+            compact_label = 'ITI'
+            dtype = np.float32
+            default = 0.1
+            expression = '0.1'
+            group = 'trial'
+        RovingParameter:
+            name = 'to_duration'
+            label = 'Timeout duration (s)'
+            compact_label = 'TO'
+            dtype = np.float32
+            default = 1.0
+            expression = '1'
+            group = 'trial'
+        RovingParameter:
+            name = 'hold_duration'
+            label = 'Hold duration (s)'
+            compact_label = 'Hold'
+            dtype = np.float32
+            default = 0.0
+            expression = '0'
+            group = 'trial'
+        RovingParameter:
+            name = 'response_duration'
+            label = 'Response duration (s)'
+            compact_label = 'Resp'
+            dtype = np.float32
+            default = 3.0
+            expression = '3'
+            group = 'trial'
+        RovingParameter:
+            name = 'np_duration'
+            label = 'Poke duration (s)'
+            compact_label = 'Poke'
+            dtype = np.float32
+            default = 0.2
+            expression = '0.2'
+            group = 'trial'
+                
+        ContextGroup:
+            name = 'selector'
+            label = 'Next value'
+
+        Parameter:
+            name = 'go_probability'
+            label = 'Go probability'
+            compact_label = 'Pr'
+            dtype = np.float32
+            expression = '0.5'
+            group = 'selector'
+        Parameter:
+            name = 'max_nogo'
+            label = 'Max. consecutive nogo trials'
+            compact_label = 'MG'
+            dtype = np.float32
+            expression = '5'
+            group = 'selector'
+        Parameter:
+            name = 'repeat_fa'
+            label = 'Repeat FA?'
+            compact_label = 'RFA'
+            dtype = np.bool
+            expression = 'True'
+            group = 'selector'
+
+        ContextGroup:
+            name = 'results'
+            label = 'Trial results'
+
+        Result:
+            name = 'response'
+            label = 'Response'
+            compact_label = 'R'
+            dtype = np.str
+            group = 'results'
+        Result:
+            name = 'trial_type'
+            label = 'Trial type'
+            compact_label = 'T'
+            group = 'results'
+            dtype = np.str
+        Result:
+            name = 'score'
+            label = 'Score'
+            compact_label = 'S'
+            group = 'results'
+            dtype = np.str
+        Result:
+            name = 'correct'
+            label = 'Correct'
+            compact_label = 'C'
+            group = 'results'
+            dtype = np.bool
+        
+
+    # Sequences used by the appetitive Go-Nogo controller.
+    Extension:
+        id = 'selectors'
+        point = 'psiexperiment.context.selectors'
+        SequenceSelector:
+            name = 'go'
+        SingleSetting:
+            name = 'nogo'
+        SingleSetting:
+            name = 'remind'
+
+    Extension:
+        id = 'workspace'
+        point = 'psiexperiment.experiment.workspace'
+        factory = contribute_to_workspace

@@ -1,20 +1,21 @@
 import unittest
+from copy import deepcopy
 
 import numpy as np
 
-from psiexperiment.parameter import Parameter
-from psiexperiment.selector import SequenceSelector
+from psiexperiment.context.api import RovingParameter
+from psiexperiment.context.selector import SequenceSelector
 
 
 class TestSettingSequence(unittest.TestCase):
 
     def setUp(self):
         self.parameters = [
-            Parameter('a', np.float32, expression='1'),
-            Parameter('b', np.float32, expression='1'),
-            Parameter('c', np.float32, expression='1'),
-            Parameter('d', np.float32, expression='1'),
-            Parameter('e', np.float32, expression='1'),
+            RovingParameter(name='a', dtype=np.float32, expression='1'),
+            RovingParameter(name='b', dtype=np.float32, expression='1'),
+            RovingParameter(name='c', dtype=np.float32, expression='1'),
+            RovingParameter(name='d', dtype=np.float32, expression='1'),
+            RovingParameter(name='e', dtype=np.float32, expression='1'),
         ]
         self.selector = SequenceSelector()
         for parameter in self.parameters:
@@ -48,3 +49,15 @@ class TestSettingSequence(unittest.TestCase):
         names = [p.name for p in self.selector.parameters]
         expected_names = [u'b', u'a', u'c', u'd', u'e']
         self.assertEqual(expected_names, names)
+
+    def test_deepcopy_equality(self):
+        c1 = deepcopy(self.selector.__getstate__())
+        self.selector.add_setting({'a': 4, 'b': 5})
+        self.selector.add_setting({'a': 7})
+        c2 = deepcopy(self.selector.__getstate__())
+        self.selector.set_value(0, 'a', 1)
+        c3 = deepcopy(self.selector.__getstate__())
+        c4 = deepcopy(self.selector.__getstate__())
+        self.assertFalse(c1 == c2)
+        self.assertFalse(c2 == c3)
+        self.assertTrue(c3 == c4)

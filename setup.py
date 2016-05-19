@@ -7,6 +7,7 @@ setup(
     author_email='bburan@alum.mit.edu',
     packages=[
         'psiexperiment',
+        'experiments',
     ],
     license='LICENSE.txt',
     description='Module for running trial-based experiments.',

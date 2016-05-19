@@ -1,0 +1,235 @@
+import cPickle as pickle
+import os.path
+
+from enaml.core.api import Looper
+from enaml.layout.api import VSplitLayout, TabLayout
+from enaml.styling import StyleSheet, Style, Setter
+from enaml.widgets.api import (Container, DockArea, DockItem, VGroup, HGroup,
+                               Label, FileDialogEx, Action)
+from enaml.workbench.api import Extension, ExtensionPoint, PluginManifest
+from enaml.workbench.core.api import Command
+from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
+from enaml.layout.api import InsertItem, InsertTab
+from enaml.application import deferred_call
+
+from .plugin import ContextPlugin
+
+from .context_view import ContextDockItem, CurrentValuesDockItem
+from .selector_view import SequenceDockItem
+
+from ..util import rpc
+from .. import get_config
+
+
+PLUGIN_ID = 'psiexperiment.context'
+
+fd_kwargs = {
+    'name_filters': [get_config('CONTEXT_WILDCARD')],
+    'current_path': get_config('CONTEXT_ROOT'),
+}
+
+
+def save_context(event):
+    file_name = FileDialogEx.get_save_file_name(**fd_kwargs)
+    if file_name:
+        _save_context(event, file_name)
+
+
+def _save_context(event, file_name):
+    if not file_name.endswith('.context'):
+        file_name += '.context'
+    plugin = event.workbench.get_plugin(PLUGIN_ID)
+    with open(file_name, 'wb') as fh:
+        pickle.dump(plugin.context_items, fh)
+        pickle.dump(plugin.selectors, fh)
+
+
+def load_context(event):
+    file_name = FileDialogEx.get_open_file_name(**fd_kwargs)
+    if file_name:
+        _load_context(event, file_name)
+
+
+def _load_context(event, file_name):
+    plugin = event.workbench.get_plugin(PLUGIN_ID)
+    with open(file_name, 'rb') as fh:
+        context_items = pickle.load(fh)
+        selectors = pickle.load(fh)
+        plugin._update_attrs(context_items, selectors)
+
+
+def set_default_context(event):
+    context_root = get_config('CONTEXT_ROOT')
+    file_name = os.path.join(context_root, '.default.context')
+    _save_context(event, file_name)
+
+
+def get_default_context(event):
+    try:
+        context_root = get_config('CONTEXT_ROOT')
+        file_name = os.path.join(context_root, '.default.context')
+        _load_context(event, file_name)
+    except IOError:
+        pass
+
+
+def changes_pending(event):
+    plugin = event.workbench.get_plugin(PLUGIN_ID)
+    return plugin.changes_pending
+
+
+def contribute_to_workspace(workbench, workspace):
+    plugin = workbench.get_plugin(PLUGIN_ID)
+
+    target = None
+    for group_name, group in plugin.context_groups.items():
+        item = ContextDockItem(workspace.dock_area, 
+                               plugin=plugin,
+                               group_name=group_name, 
+                               name=group_name,
+                               title=group.label, 
+                               closable=False)
+        if target is None:
+            op = InsertItem(item=item.name, position='left')
+        else:
+            op = InsertTab(item=item.name, target=target)
+        deferred_call(workspace.dock_area.update_layout, op)
+        target = group_name
+    last_target = target
+
+    target = None
+    for name, selector in plugin.selectors.items():
+        item = SequenceDockItem(workspace.dock_area,
+                                selector=selector,
+                                name=name,
+                                title=name,
+                                closable=False)
+        if target is None:
+            op = InsertItem(item=item.name, position='bottom',
+                            target=last_target)
+        else:
+            op = InsertTab(item=item.name, target=target)
+        deferred_call(workspace.dock_area.update_layout, op)
+        target = name
+
+    last_target = target
+    item = CurrentValuesDockItem(workspace.dock_area, 
+                                 context=plugin,
+                                 name='cv', 
+                                 title='Current values',
+                                 closable=False)
+    op = InsertItem(item=item.name, position='bottom', target=last_target)
+    deferred_call(workspace.dock_area.update_layout, op)
+
+
+def apply_changes(event):
+    context = event.workbench.get_plugin(PLUGIN_ID)
+    context.apply_changes()
+
+
+def revert_changes(event):
+    # Force a refresh of the workspace to load the new context
+    context = event.workbench.get_plugin(PLUGIN_ID)
+    context.revert_changes()
+
+
+enamldef ContextManifest(PluginManifest): manifest:
+    '''Manifest for the plugin handling the sequence selector
+    '''
+    id = PLUGIN_ID
+    factory = ContextPlugin
+
+    ExtensionPoint:
+        id = 'selectors'
+
+    ExtensionPoint:
+        id = 'items'
+
+    ExtensionPoint:
+        id = 'results'
+
+    ExtensionPoint:
+        id = 'symbols'
+
+    Extension:
+        id = 'commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = PLUGIN_ID + '.get_value'
+            handler = rpc(PLUGIN_ID, 'get_value')
+        Command:
+            id = PLUGIN_ID + '.set_value'
+            handler = rpc(PLUGIN_ID, 'set_value')
+        Command:
+            id = PLUGIN_ID + '.get_values'
+            handler = rpc(PLUGIN_ID, 'get_values')
+        Command:
+            id = PLUGIN_ID + '.apply_changes'
+            handler = apply_changes
+        Command:
+            id = PLUGIN_ID + '.revert_changes'
+            handler = revert_changes
+        Command:
+            id = PLUGIN_ID + '.value_changed'
+            handler = rpc(PLUGIN_ID, 'value_changed')
+        Command:
+            id = PLUGIN_ID + '.next_setting'
+            handler = rpc(PLUGIN_ID, 'next_setting')
+        Command:
+            id = PLUGIN_ID + '.get_parameters'
+            handler = rpc(PLUGIN_ID, 'get_parameters')
+        Command:
+            id = PLUGIN_ID + '.changes_pending'
+            handler = changes_pending
+        Command:
+            id = 'psiexperiment.save_context'
+            handler = rpc(PLUGIN_ID, 'save_context')
+        Command:
+            id = 'psiexperiment.load_context'
+            handler = rpc(PLUGIN_ID, 'load_context')
+        Command:
+            id = 'psiexperiment.set_default_context'
+            handler = set_default_context
+        Command:
+            id = 'psiexperiment.get_default_context'
+            handler = get_default_context
+
+    Extension:
+        id = 'actions'
+        point = 'enaml.workbench.ui.actions'
+        MenuItem:
+            path = '/configuration/settings'
+            label = 'Settings'
+            ItemGroup:
+                id = 'runtime'
+            ItemGroup:
+                id = 'context_io'
+            ItemGroup:
+                id = 'context_default'
+
+        ActionItem:
+            path = '/configuration/settings/save'
+            label = 'Save'
+            group = 'context_io'
+            command = 'psiexperiment.save_context'
+        ActionItem:
+            path = '/configuration/settings/load'
+            label = 'Load'
+            group = 'context_io'
+            command = 'psiexperiment.load_context'
+        ActionItem:
+            path = '/configuration/settings/set_default_context'
+            label = 'Set default'
+            group = 'context_default'
+            command = 'psiexperiment.set_default_context'
+        ActionItem:
+            path = '/configuration/settings/get_default_context'
+            label = 'Revert to default'
+            group = 'context_default'
+            command = 'psiexperiment.get_default_context'
+
+
+    Extension:
+        id = 'workspace'
+        point = 'psiexperiment.experiment.workspace'
+        factory = contribute_to_workspace

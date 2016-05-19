@@ -1,0 +1,16 @@
+from atom.api import List
+from enaml.core.api import Declarative, d_, d_func
+
+
+class Preferences(Declarative):
+
+    auto_save = d_(List())
+
+    @d_func
+    def get_preferences(self, plugin):
+        return dict((m, getattr(plugin, m)) for m in self.auto_save)
+
+    @d_func
+    def set_preferences(self, plugin, preferences):
+        for m, v in preferences.items():
+            setattr(plugin, m, v)

@@ -1,0 +1,43 @@
+import numpy as np
+
+from enaml.workbench.api import Extension, Plugin
+from psiexperiment.context.api import (ContextGroup, Parameter, Result,
+                                       RovingParameter, SequenceSelector)
+from psiexperiment.controller.base_manifest import ControllerManifest
+
+
+PLUGIN_ID = 'psiexperiment.controller'
+
+enamldef TestManifest(ControllerManifest): manifest:
+
+
+    id = PLUGIN_ID
+
+    Extension:
+        id = 'items'
+        point = 'psiexperiment.context.items'
+        ContextGroup:
+            name = 'default'
+
+        RovingParameter:
+            name = 'repetitions'
+            expression = '80'
+            dtype = np.int32
+            group = 'default'
+            rove = True
+        RovingParameter:
+            name = 'level'
+            expression = '60'
+            dtype = np.float64
+            group = 'default'
+        RovingParameter:
+            name = 'fc'
+            expression = '32e3/repetitions'
+            dtype = np.float64
+            group = 'default'
+
+    Extension:
+        id = 'selectors'
+        point = 'psiexperiment.context.selectors'
+        SequenceSelector:
+            name = 'default'

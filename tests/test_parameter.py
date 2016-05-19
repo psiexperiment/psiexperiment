@@ -1,12 +1,15 @@
 import unittest
 
-import numpy as np
-
-from psiexperiment.parameter import Parameter
+from psiexperiment.context.api import Parameter
 
 
 class TestParameter(unittest.TestCase):
 
-    def test_parameter_init(self):
-        parameter = Parameter('foo', np.float32, expression='1*2')
-        self.assertEqual(parameter.default_value, np.float32())
+    def setUp(self):
+        self.parameter1 = Parameter(name='foo')
+        self.parameter2 = Parameter(name='foo')
+        self.parameter3 = Parameter(name='biz')
+
+    def test_equality(self):
+        self.assertTrue(self.parameter1 == self.parameter2)
+        self.assertFalse(self.parameter1 == self.parameter3)

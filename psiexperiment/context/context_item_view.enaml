@@ -1,0 +1,49 @@
+from enaml.core.api import DynamicTemplate
+from enaml.layout.api import hbox
+from enaml.widgets.api import Container, Field, CheckBox, Label, HGroup
+
+from .context_item import Result, Parameter, RovingParameter
+
+
+template ContextItemTemplate(context_item, MemberType: Result):
+
+    HGroup:
+        spacing = 0
+        padding = 0
+        Label: label:
+            text = context_item.label
+        Label: field:
+            pass
+
+
+template ContextItemTemplate(context_item, MemberType: Parameter):
+
+    HGroup:
+        spacing = 0
+        padding = 0
+        Label: label:
+            text = context_item.label
+        Field: field:
+            text := context_item.expression
+
+
+template ContextItemTemplate(context_item, MemberType: RovingParameter):
+
+    HGroup:
+        spacing = 0
+        padding = 0
+        CheckBox: label:
+            checked := context_item.rove
+            text = context_item.label
+        Field: field:
+            text := context_item.expression
+            style_class << 'disabled' if context_item.rove else 'enabled'
+
+
+enamldef ContextItem(Container):
+    attr context_item
+    padding = 0
+
+    DynamicTemplate:
+        base = ContextItemTemplate
+        args = (context_item, type(context_item))

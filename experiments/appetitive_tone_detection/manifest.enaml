@@ -1,0 +1,50 @@
+import numpy as np
+
+from enaml.workbench.api import Extension
+from enaml.workbench.ui.api import Branding
+
+from psiexperiment.context.api import RovingParameter, ContextGroup
+
+from psiexperiment.controller.appetitive_manifest import AppetitiveManifest
+
+
+enamldef ControllerManifest(AppetitiveManifest):
+
+    Extension:
+        id = 'branding'
+        point = 'enaml.workbench.ui.branding'
+        Branding:
+            title = 'Appetitive tone detection'
+
+    Extension:
+        id = 'signal_parameters'
+        point = 'psiexperiment.context.items'
+
+        ContextGroup:
+            name = 'signal'
+            label = 'Signal Settings'
+
+        RovingParameter:
+            name = 'frequency'
+            label = 'Frequency (Hz)'
+            compact_label = 'Freq'
+            dtype = np.float32
+            default = 1000
+            expression = '1000'
+            group = 'signal'
+        RovingParameter:
+            name = 'level'
+            label = 'Level (dB SPL)'
+            compact_label = 'level'
+            dtype = np.float32
+            default = 60
+            expression = '60'
+            group = 'signal'
+        RovingParameter:
+            name = 'duration'
+            label = 'Duration (s)'
+            compact_label = 'dur'
+            dtype = np.float32
+            default = 60
+            expression = '1'
+            group = 'signal'

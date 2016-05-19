@@ -1,0 +1,12 @@
+from enaml.widgets.api import Container, DockArea, ToolBar
+
+
+enamldef ExperimentView(Container): experiment:
+
+    attr workspace
+
+    ToolBar:
+        name = 'tool_bar'
+        
+    DockArea:
+        name = 'dock_area'

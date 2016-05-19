@@ -1,0 +1,248 @@
+# TODO: Find a smart way to set defaults on a per-paradigm basis (e.g., how do
+# we set the ID?)
+
+import cPickle as pickle
+
+import os
+import numpy as np
+
+from enaml.widgets.api import FileDialogEx
+from enaml.workbench.api import Extension, PluginManifest, ExtensionPoint
+from enaml.workbench.core.api import Command
+from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
+from enaml.workbench.ui.api import Workspace
+
+from .. import get_config
+from .workspace import ExperimentWorkspace
+from .plugin import ExperimentPlugin
+
+PLUGIN_ID = 'psiexperiment.experiment'
+
+
+layout_fd_kwargs = {
+    'name_filters': [get_config('LAYOUT_WILDCARD')],
+    'current_path': get_config('LAYOUT_ROOT'),
+}
+
+
+preferences_fd_kwargs = {
+    'name_filters': [get_config('PREFERENCES_WILDCARD')],
+    'current_path': get_config('PREFERENCES_ROOT'),
+}
+
+
+def experiment_view_factory(workbench):
+    workspace = ExperimentWorkspace()
+    workspace.window_title = 'Persistent View'
+    return workspace
+
+
+def save_layout(event):
+    file_name = FileDialogEx.get_save_file_name(**fd_kwargs)
+    if file_name:
+        _save_layout(event, file_name)
+
+
+def _save_layout(event, file_name):
+    plugin = event.workbench.get_plugin('psiexperiment.experiment')
+    if not file_name.endswith('.layout'):
+        file_name += '.layout'
+    layout = plugin.get_layout()
+    with open(file_name, 'wb') as fh:
+        pickle.dump(layout, fh)
+
+
+def load_layout(event):
+    file_name = FileDialogEx.get_open_file_name(**fd_kwargs)
+    if file_name:
+        _load_layout(event, file_name)
+
+
+def _load_layout(event, file_name):
+    with open(file_name, 'rb') as fh:
+        layout = pickle.load(fh)
+    plugin = event.workbench.get_plugin('psiexperiment.experiment')
+    plugin.set_layout(layout)
+
+
+def set_default_layout(event):
+    layout_root = get_config('LAYOUT_ROOT')
+    file_name = os.path.join(layout_root, '.default.layout')
+    _save_layout(event, file_name)
+    
+
+def get_default_layout(event):
+    try:
+        layout_root = get_config('LAYOUT_ROOT')
+        file_name = os.path.join(layout_root, '.default.layout')
+        _load_layout(event, file_name)
+    except IOError:
+        pass
+
+
+def refresh_workspace(event, plugin_ids=None):
+    plugin = event.workbench.get_plugin(PLUGIN_ID)
+    plugin.refresh_workspace(plugin_ids)
+
+
+def save_preferences(event):
+    file_name = FileDialogEx.get_save_file_name(**fd_kwargs)
+    if file_name:
+        _save_preferences(event, file_name)
+
+
+def _save_preferences(event, file_name):
+    plugin = event.workbench.get_plugin('psiexperiment.experiment')
+    if not file_name.endswith('.preferences'):
+        file_name += '.preferences'
+    preferences = plugin.get_preferences()
+    with open(file_name, 'wb') as fh:
+        pickle.dump(preferences, fh)
+
+
+def load_preferences(event):
+    file_name = FileDialogEx.get_open_file_name(**fd_kwargs)
+    if file_name:
+        _load_preferences(event, file_name)
+
+
+def _load_preferences(event, file_name):
+    with open(file_name, 'rb') as fh:
+        preferences = pickle.load(fh)
+    plugin = event.workbench.get_plugin('psiexperiment.experiment')
+    plugin.set_preferences(preferences)
+
+
+def set_default_preferences(event):
+    preferences_root = get_config('PREFERENCES_ROOT')
+    file_name = os.path.join(preferences_root, '.default.preferences')
+    _save_preferences(event, file_name)
+    
+
+def get_default_preferences(event):
+    try:
+        preferences_root = get_config('PREFERENCES_ROOT')
+        file_name = os.path.join(preferences_root, '.default.preferences')
+        _load_preferences(event, file_name)
+    except IOError:
+        pass
+
+
+enamldef ExperimentManifest(PluginManifest):
+    '''
+    This plugin acts as the entry point for all other plugins in this example.
+    It contributes the window branding, default actions, and the workspace
+    definitions.
+    '''
+    id = PLUGIN_ID
+    factory = ExperimentPlugin
+
+    Extension:
+        id = 'workspace'
+        point = 'enaml.workbench.ui.workspaces'
+        factory = experiment_view_factory
+
+    Extension:
+        id = 'commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = 'psiexperiment.save_layout'
+            handler = save_layout
+        Command:
+            id = 'psiexperiment.load_layout'
+            handler = load_layout
+        Command:
+            id = 'psiexperiment.set_default_layout'
+            handler = set_default_layout
+        Command:
+            id = 'psiexperiment.get_default_layout'
+            handler = get_default_layout
+        Command:
+            id = 'psiexperiment.refresh_workspace'
+            handler = refresh_workspace
+        Command:
+            id = 'psiexperiment.save_preferences'
+            handler = save_preferences
+        Command:
+            id = 'psiexperiment.load_preferences'
+            handler = load_preferences
+        Command:
+            id = 'psiexperiment.set_default_preferences'
+            handler = set_default_preferences
+        Command:
+            id = 'psiexperiment.get_default_preferences'
+            handler = get_default_preferences
+
+    Extension:
+        id = 'actions'
+        point = 'enaml.workbench.ui.actions'
+        MenuItem:
+            path = '/configuration'
+            label = 'Configuration'
+        
+        MenuItem:
+            path = '/configuration/layout'
+            label = 'Layout'
+            ItemGroup:
+                id = 'layout_io'
+            ItemGroup:
+                id = 'layout_default'
+
+        ActionItem:
+            path = '/configuration/layout/save_layout'
+            label = 'Save'
+            command = 'psiexperiment.save_layout'
+            group = 'layout_io'
+        ActionItem:
+            path = '/configuration/layout/load_layout'
+            label = 'Load'
+            command = 'psiexperiment.load_layout'
+            group = 'layout_io'
+        ActionItem:
+            path = '/configuration/layout/set_default_layout'
+            label = 'Set default'
+            command = 'psiexperiment.set_default_layout'
+            group = 'layout_default'
+        ActionItem:
+            path = '/configuration/layout/get_default_layout'
+            label = 'Revert to default'
+            command = 'psiexperiment.get_default_layout'
+            group = 'layout_default'
+
+        MenuItem:
+            path = '/configuration/preferences'
+            label = 'Preferences'
+            ItemGroup:
+                id = 'preferences_io'
+            ItemGroup:
+                id = 'preferences_default'
+
+        ActionItem:
+            path = '/configuration/preferences/save_preferences'
+            label = 'Save'
+            command = 'psiexperiment.save_preferences'
+            group = 'preferences_io'
+        ActionItem:
+            path = '/configuration/preferences/load_preferences'
+            label = 'Load'
+            command = 'psiexperiment.load_preferences'
+            group = 'preferences_io'
+        ActionItem:
+            path = '/configuration/preferences/set_default_preferences'
+            label = 'Set default'
+            command = 'psiexperiment.set_default_preferences'
+            group = 'preferences_default'
+        ActionItem:
+            path = '/configuration/preferences/get_default_preferences'
+            label = 'Revert to default'
+            command = 'psiexperiment.get_default_preferences'
+            group = 'preferences_default'
+
+    ExtensionPoint:
+        id = 'toolbar'
+
+    ExtensionPoint:
+        id = 'workspace'
+
+    ExtensionPoint:
+        id = 'preferences'

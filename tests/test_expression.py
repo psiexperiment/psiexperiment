@@ -1,7 +1,9 @@
-import unittest2 as unittest
+import unittest
 import numpy as np
 
-from psiexperiment.expression import Expr, ExpressionNamespace, \
+from atom.api import Atom, Bool
+
+from psiexperiment.context.expression import Expr, ExpressionNamespace, \
     _RecursiveAttrDict
 
 
@@ -103,8 +105,6 @@ class TestRecursiveAttrDict(unittest.TestCase):
         self.assertFalse('bigbang.stars.planet.earth' in life)
         self.assertFalse('bigbang.d.x' in life)
 
-
-from atom.api import Atom, Bool
 
 class ANT(Atom):
 

@@ -1,0 +1,110 @@
+from atom.api import ContainerList, Typed, Dict
+from enaml.application import deferred_call
+from enaml.core.api import Looper
+from enaml.layout.api import InsertItem
+from enaml.widgets.api import (Container, Menu, Action, DockItem)
+from enaml.workbench.api import Extension, PluginManifest
+
+import pandas as pd
+
+from psiexperiment.core.utils import find_extension
+from psiexperiment.core.enaml.api import DataframeTable
+from psiexperiment.experiment.api import Preferences
+
+from ..trial_data import TrialData
+
+PLUGIN_ID = 'psiexperiment.data.trial_log'
+
+
+class TrialLog(TrialData):
+
+    trial_log = Typed(pd.DataFrame)
+    context_info = Dict()
+    column_info = Typed(dict, {})
+    visible_columns = ContainerList()
+
+    def prepare(self, context_info):
+        self.context_info = context_info.copy()
+        self.column_info = dict((k, v['compact_label']) \
+                                for k, v in context_info.items())
+        self.visible_columns = [k for k, v in context_info.items() if
+                                v['rove']]
+
+    def trial_log_updated(self, trial_log):
+        self.trial_log = trial_log
+
+
+enamldef PopupMenu(Menu):
+
+    Looper:
+        iterable << sorted(data.context_info.items())
+        Action:
+            text = '{} | {}'.format(loop_item[1]['compact_label'],
+                                    loop_item[1]['label'])
+            checkable = True
+            checked << loop_item[0] in data.visible_columns
+            toggled ::
+                if checked:
+                    data.visible_columns.append(loop_item[0])
+                else:
+                    data.visible_columns.remove(loop_item[0])
+
+
+enamldef TrialLogDockItem(DockItem):
+
+    attr data
+
+    Container:
+        DataframeTable:
+            dataframe << data.trial_log
+            columns << data.visible_columns[:]
+            column_info << data.column_info
+            PopupMenu:
+                context_menu = True
+
+            cell_color => (row, column):
+                tt = dataframe.at[row, 'trial_type']
+                if tt == 'go_remind':
+                    return 'forestgreen'
+                elif tt == 'go':
+                    return 'lightgreen'
+                elif tt == 'go_forced':
+                    return 'green'
+                elif tt == 'nogo':
+                    return 'lightpink'
+                elif tt == 'nogo_repeat':
+                    return 'pink'
+                else:
+                    return 'white'
+
+
+def contribute_to_workspace(workbench, workspace):
+    extension = find_extension(workbench, PLUGIN_ID, 'data', TrialLog)
+    item = TrialLogDockItem(workspace.dock_area, data=extension,
+                            name='trial_log', title='Trial Log')
+    op = InsertItem(item=item.name, position='right')
+    deferred_call(workspace.dock_area.update_layout, op)
+
+
+enamldef TrialLogManifest(PluginManifest): manifest:
+
+    id = PLUGIN_ID
+
+    Extension:
+        id = 'data'
+        point = 'psiexperiment.data.trial'
+        TrialLog:
+            pass
+
+    Extension:
+        id = 'workspace'
+        point = 'psiexperiment.experiment.workspace'
+        factory = contribute_to_workspace
+
+    Extension:
+        id = 'preferences'
+        point = 'psiexperiment.experiment.preferences'
+        Preferences:
+            auto_save = ['visible_columns']
+            get_object => (plugin):
+                return find_extension(workbench, PLUGIN_ID, 'data', TrialLog)

@@ -70,3 +70,5 @@ Session.vim
 
 __enamlcache__/
 sandbox/
+.ropeproject/
+.ipynb_checkpoints/
