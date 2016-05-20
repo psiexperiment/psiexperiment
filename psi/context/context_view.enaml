@@ -4,7 +4,7 @@ from enaml.core.api import Looper
 from enaml.layout.api import (vbox, hbox)
 from enaml.styling import StyleSheet, Style, Setter
 from enaml.widgets.api import (Field, Container, VGroup, HGroup, Label,
-                               DockItem, CheckBox)
+                               DockItem, CheckBox, ObjectCombo)
 
 
 from .context_item_view import ContextItem
@@ -72,6 +72,17 @@ def get_style_classes(plugin, context_name):
     return ' '.join(styles)
 
 
+def filter_current_values(plugin, current_values, mode):
+    items = sorted(current_values.items())
+    if mode == 'all':
+        return items
+    elif mode == 'changed':
+        return [(k, v) for k, v in items if plugin.value_changed(k)]
+    elif mode == 'roving':
+        return [(k, v) for k, v in items if \
+                getattr(plugin.context_items[k], 'rove', False)] 
+
+
 enamldef CurrentValuesDockItem(DockItem):
     attr context
 
@@ -91,6 +102,7 @@ enamldef CurrentValuesDockItem(DockItem):
         VGroup:
             padding = 0
             spacing = 0
+
             Looper:
                 iterable << sorted(context._namespace._locals.items())
                 HGroup:

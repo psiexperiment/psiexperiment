@@ -4,19 +4,19 @@ from enaml.workbench.core.api import Command
 from .plugin import DataPlugin
 
 
-PLUGIN_ID = 'psiexperiment.data'
+PLUGIN_ID = 'psi.data'
 
 
 def process_trial(event):
     plugin = event.workbench.get_plugin(PLUGIN_ID)
-    context = event.workbench.get_plugin('psiexperiment.context')
+    context = event.workbench.get_plugin('psi.context')
     values = context.get_values()
     return plugin.process_trial(values)
 
 
 def prepare(event):
     data = event.workbench.get_plugin(PLUGIN_ID)
-    context = event.workbench.get_plugin('psiexperiment.context')
+    context = event.workbench.get_plugin('psi.context')
     context_info = context.get_context_info()
     data.prepare_trial_data(context_info)
 

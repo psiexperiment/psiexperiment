@@ -16,7 +16,7 @@ from .. import get_config
 from .workspace import ExperimentWorkspace
 from .plugin import ExperimentPlugin
 
-PLUGIN_ID = 'psiexperiment.experiment'
+PLUGIN_ID = 'psi.experiment'
 
 
 layout_fd_kwargs = {
@@ -38,13 +38,13 @@ def experiment_view_factory(workbench):
 
 
 def save_layout(event):
-    file_name = FileDialogEx.get_save_file_name(**fd_kwargs)
+    file_name = FileDialogEx.get_save_file_name(**layout_fd_kwargs)
     if file_name:
         _save_layout(event, file_name)
 
 
 def _save_layout(event, file_name):
-    plugin = event.workbench.get_plugin('psiexperiment.experiment')
+    plugin = event.workbench.get_plugin('psi.experiment')
     if not file_name.endswith('.layout'):
         file_name += '.layout'
     layout = plugin.get_layout()
@@ -53,7 +53,7 @@ def _save_layout(event, file_name):
 
 
 def load_layout(event):
-    file_name = FileDialogEx.get_open_file_name(**fd_kwargs)
+    file_name = FileDialogEx.get_open_file_name(**layout_fd_kwargs)
     if file_name:
         _load_layout(event, file_name)
 
@@ -61,7 +61,7 @@ def load_layout(event):
 def _load_layout(event, file_name):
     with open(file_name, 'rb') as fh:
         layout = pickle.load(fh)
-    plugin = event.workbench.get_plugin('psiexperiment.experiment')
+    plugin = event.workbench.get_plugin('psi.experiment')
     plugin.set_layout(layout)
 
 
@@ -86,13 +86,13 @@ def refresh_workspace(event, plugin_ids=None):
 
 
 def save_preferences(event):
-    file_name = FileDialogEx.get_save_file_name(**fd_kwargs)
+    file_name = FileDialogEx.get_save_file_name(**preferences_fd_kwargs)
     if file_name:
         _save_preferences(event, file_name)
 
 
 def _save_preferences(event, file_name):
-    plugin = event.workbench.get_plugin('psiexperiment.experiment')
+    plugin = event.workbench.get_plugin('psi.experiment')
     if not file_name.endswith('.preferences'):
         file_name += '.preferences'
     preferences = plugin.get_preferences()
@@ -101,7 +101,7 @@ def _save_preferences(event, file_name):
 
 
 def load_preferences(event):
-    file_name = FileDialogEx.get_open_file_name(**fd_kwargs)
+    file_name = FileDialogEx.get_open_file_name(**preferences_fd_kwargs)
     if file_name:
         _load_preferences(event, file_name)
 
@@ -109,7 +109,7 @@ def load_preferences(event):
 def _load_preferences(event, file_name):
     with open(file_name, 'rb') as fh:
         preferences = pickle.load(fh)
-    plugin = event.workbench.get_plugin('psiexperiment.experiment')
+    plugin = event.workbench.get_plugin('psi.experiment')
     plugin.set_preferences(preferences)
 
 
@@ -146,31 +146,31 @@ enamldef ExperimentManifest(PluginManifest):
         id = 'commands'
         point = 'enaml.workbench.core.commands'
         Command:
-            id = 'psiexperiment.save_layout'
+            id = 'psi.save_layout'
             handler = save_layout
         Command:
-            id = 'psiexperiment.load_layout'
+            id = 'psi.load_layout'
             handler = load_layout
         Command:
-            id = 'psiexperiment.set_default_layout'
+            id = 'psi.set_default_layout'
             handler = set_default_layout
         Command:
-            id = 'psiexperiment.get_default_layout'
+            id = 'psi.get_default_layout'
             handler = get_default_layout
         Command:
-            id = 'psiexperiment.refresh_workspace'
+            id = 'psi.refresh_workspace'
             handler = refresh_workspace
         Command:
-            id = 'psiexperiment.save_preferences'
+            id = 'psi.save_preferences'
             handler = save_preferences
         Command:
-            id = 'psiexperiment.load_preferences'
+            id = 'psi.load_preferences'
             handler = load_preferences
         Command:
-            id = 'psiexperiment.set_default_preferences'
+            id = 'psi.set_default_preferences'
             handler = set_default_preferences
         Command:
-            id = 'psiexperiment.get_default_preferences'
+            id = 'psi.get_default_preferences'
             handler = get_default_preferences
 
     Extension:
@@ -191,22 +191,22 @@ enamldef ExperimentManifest(PluginManifest):
         ActionItem:
             path = '/configuration/layout/save_layout'
             label = 'Save'
-            command = 'psiexperiment.save_layout'
+            command = 'psi.save_layout'
             group = 'layout_io'
         ActionItem:
             path = '/configuration/layout/load_layout'
             label = 'Load'
-            command = 'psiexperiment.load_layout'
+            command = 'psi.load_layout'
             group = 'layout_io'
         ActionItem:
             path = '/configuration/layout/set_default_layout'
             label = 'Set default'
-            command = 'psiexperiment.set_default_layout'
+            command = 'psi.set_default_layout'
             group = 'layout_default'
         ActionItem:
             path = '/configuration/layout/get_default_layout'
             label = 'Revert to default'
-            command = 'psiexperiment.get_default_layout'
+            command = 'psi.get_default_layout'
             group = 'layout_default'
 
         MenuItem:
@@ -220,22 +220,22 @@ enamldef ExperimentManifest(PluginManifest):
         ActionItem:
             path = '/configuration/preferences/save_preferences'
             label = 'Save'
-            command = 'psiexperiment.save_preferences'
+            command = 'psi.save_preferences'
             group = 'preferences_io'
         ActionItem:
             path = '/configuration/preferences/load_preferences'
             label = 'Load'
-            command = 'psiexperiment.load_preferences'
+            command = 'psi.load_preferences'
             group = 'preferences_io'
         ActionItem:
             path = '/configuration/preferences/set_default_preferences'
             label = 'Set default'
-            command = 'psiexperiment.set_default_preferences'
+            command = 'psi.set_default_preferences'
             group = 'preferences_default'
         ActionItem:
             path = '/configuration/preferences/get_default_preferences'
             label = 'Revert to default'
-            command = 'psiexperiment.get_default_preferences'
+            command = 'psi.get_default_preferences'
             group = 'preferences_default'
 
     ExtensionPoint:

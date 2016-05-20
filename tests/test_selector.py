@@ -3,8 +3,8 @@ from copy import deepcopy
 
 import numpy as np
 
-from psiexperiment.context.api import RovingParameter
-from psiexperiment.context.selector import SequenceSelector
+from psi.context.api import RovingParameter
+from psi.context.selector import SequenceSelector
 
 
 class TestSettingSequence(unittest.TestCase):

@@ -7,13 +7,13 @@ from enaml.workbench.api import Extension, PluginManifest
 
 import pandas as pd
 
-from psiexperiment.core.utils import find_extension
-from psiexperiment.core.enaml.api import DataframeTable
-from psiexperiment.experiment.api import Preferences
+from psi.core.utils import find_extension
+from psi.core.enaml.api import DataframeTable
+from psi.experiment.api import Preferences
 
 from ..trial_data import TrialData
 
-PLUGIN_ID = 'psiexperiment.data.trial_log'
+PLUGIN_ID = 'psi.data.trial_log'
 
 
 class TrialLog(TrialData):
@@ -92,18 +92,18 @@ enamldef TrialLogManifest(PluginManifest): manifest:
 
     Extension:
         id = 'data'
-        point = 'psiexperiment.data.trial'
+        point = 'psi.data.trial'
         TrialLog:
             pass
 
     Extension:
         id = 'workspace'
-        point = 'psiexperiment.experiment.workspace'
+        point = 'psi.experiment.workspace'
         factory = contribute_to_workspace
 
     Extension:
         id = 'preferences'
-        point = 'psiexperiment.experiment.preferences'
+        point = 'psi.experiment.preferences'
         Preferences:
             auto_save = ['visible_columns']
             get_object => (plugin):

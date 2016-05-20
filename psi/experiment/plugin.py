@@ -6,9 +6,9 @@ from enaml.widgets.api import Action
 from .preferences import Preferences
 
 
-TOOLBAR_POINT = 'psiexperiment.experiment.toolbar'
-WORKSPACE_POINT = 'psiexperiment.experiment.workspace'
-PREFERENCES_POINT = 'psiexperiment.experiment.preferences'
+TOOLBAR_POINT = 'psi.experiment.toolbar'
+WORKSPACE_POINT = 'psi.experiment.workspace'
+PREFERENCES_POINT = 'psi.experiment.preferences'
 
 
 class ExperimentPlugin(Plugin):

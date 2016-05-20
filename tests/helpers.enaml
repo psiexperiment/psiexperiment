@@ -1,12 +1,12 @@
 import numpy as np
 
 from enaml.workbench.api import Extension, Plugin
-from psiexperiment.context.api import (ContextGroup, Parameter, Result,
+from psi.context.api import (ContextGroup, Parameter, Result,
                                        RovingParameter, SequenceSelector)
-from psiexperiment.controller.base_manifest import ControllerManifest
+from psi.controller.base_manifest import ControllerManifest
 
 
-PLUGIN_ID = 'psiexperiment.controller'
+PLUGIN_ID = 'psi.controller'
 
 enamldef TestManifest(ControllerManifest): manifest:
 
@@ -15,7 +15,7 @@ enamldef TestManifest(ControllerManifest): manifest:
 
     Extension:
         id = 'items'
-        point = 'psiexperiment.context.items'
+        point = 'psi.context.items'
         ContextGroup:
             name = 'default'
 
@@ -38,6 +38,6 @@ enamldef TestManifest(ControllerManifest): manifest:
 
     Extension:
         id = 'selectors'
-        point = 'psiexperiment.context.selectors'
+        point = 'psi.context.selectors'
         SequenceSelector:
             name = 'default'

@@ -3,9 +3,9 @@ import numpy as np
 from enaml.workbench.api import Extension
 from enaml.workbench.ui.api import Branding
 
-from psiexperiment.context.api import RovingParameter, ContextGroup
+from psi.context.api import RovingParameter, ContextGroup
 
-from psiexperiment.controller.appetitive_manifest import AppetitiveManifest
+from psi.controller.appetitive_manifest import AppetitiveManifest
 
 
 enamldef ControllerManifest(AppetitiveManifest):
@@ -18,7 +18,7 @@ enamldef ControllerManifest(AppetitiveManifest):
 
     Extension:
         id = 'signal_parameters'
-        point = 'psiexperiment.context.items'
+        point = 'psi.context.items'
 
         ContextGroup:
             name = 'signal'

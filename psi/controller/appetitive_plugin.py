@@ -41,7 +41,7 @@ class AppetitivePlugin(BaseController):
         try:
             self.rng = np.random.RandomState()
             self.context.apply_changes()
-            #self.core.invoke_command('psiexperiment.data.prepare')
+            #self.core.invoke_command('psi.data.prepare')
             selector = self.next_selector()
             self.context.next_setting(selector, save_prior=False)
             self.state = 'running'
@@ -54,6 +54,7 @@ class AppetitivePlugin(BaseController):
         # Hack to force the context to be computed. Usually we would do a lot
         # more here otherwise.
         self.trial += 1
+        #waveforms = self.core.invoke_command('psi.trial.get_waveforms')
         self.context.get_values()
 
     def end_trial(self, response):
@@ -77,7 +78,7 @@ class AppetitivePlugin(BaseController):
             'correct': score in ('CR', 'HIT'),
         }
         self.context.set_values(results)
-        self.core.invoke_command('psiexperiment.data.process_trial')
+        self.core.invoke_command('psi.data.process_trial')
 
         # Apply pending changes that way any parameters (such as repeat_FA or
         # go_probability) are reflected in determining the next trial type.

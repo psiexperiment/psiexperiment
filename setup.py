@@ -6,7 +6,7 @@ setup(
     author='Brad Buran',
     author_email='bburan@alum.mit.edu',
     packages=[
-        'psiexperiment',
+        'psi',
         'experiments',
     ],
     license='LICENSE.txt',

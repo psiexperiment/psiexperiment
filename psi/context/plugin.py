@@ -1,4 +1,3 @@
-# TODO: Implement mechanism to access results of prior trial?
 import cPickle as pickle
 from copy import deepcopy
 
@@ -12,9 +11,9 @@ from .context_group import ContextGroup
 from .selector import BaseSelector
 from .expression import ExpressionNamespace
 
-SELECTORS_POINT = 'psiexperiment.context.selectors'
-ITEMS_POINT = 'psiexperiment.context.items'
-#SYMBOLS_POINT = 'psiexperiment.context.symbols'
+SELECTORS_POINT = 'psi.context.selectors'
+ITEMS_POINT = 'psi.context.items'
+#SYMBOLS_POINT = 'psi.context.symbols'
 
 
 def copy_attrs(from_atom, to_atom):
@@ -57,9 +56,8 @@ class ContextPlugin(Plugin):
             # Attempt to load the default context settings. This may fail if we
             # have made changes to the code (i.e., added or removed parameters).
             core = self.workbench.get_plugin('enaml.workbench.core')
-            core.invoke_command('psiexperiment.get_default_context')
+            core.invoke_command('psi.get_default_context')
         except:
-            #raise
             pass
 
     def stop(self):

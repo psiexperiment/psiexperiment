@@ -3,7 +3,7 @@ import numpy as np
 
 from atom.api import Atom, Bool
 
-from psiexperiment.context.expression import Expr, ExpressionNamespace, \
+from psi.context.expression import Expr, ExpressionNamespace, \
     _RecursiveAttrDict
 
 

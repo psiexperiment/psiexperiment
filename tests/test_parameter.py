@@ -1,6 +1,6 @@
 import unittest
 
-from psiexperiment.context.api import Parameter
+from psi.context.api import Parameter
 
 
 class TestParameter(unittest.TestCase):

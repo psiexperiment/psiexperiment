@@ -21,7 +21,7 @@ from ..util import rpc
 from .. import get_config
 
 
-PLUGIN_ID = 'psiexperiment.context'
+PLUGIN_ID = 'psi.context'
 
 fd_kwargs = {
     'name_filters': [get_config('CONTEXT_WILDCARD')],
@@ -83,19 +83,19 @@ def contribute_to_workspace(workbench, workspace):
 
     target = None
     for group_name, group in plugin.context_groups.items():
-        item = ContextDockItem(workspace.dock_area, 
-                               plugin=plugin,
-                               group_name=group_name, 
-                               name=group_name,
-                               title=group.label, 
-                               closable=False)
-        if target is None:
-            op = InsertItem(item=item.name, position='left')
-        else:
-            op = InsertTab(item=item.name, target=target)
-        deferred_call(workspace.dock_area.update_layout, op)
-        target = group_name
-    last_target = target
+        if group.visible:
+            item = ContextDockItem(workspace.dock_area, 
+                                plugin=plugin,
+                                group_name=group_name, 
+                                name=group_name,
+                                title=group.label, 
+                                closable=False)
+            if target is None:
+                op = InsertItem(item=item.name, position='left')
+            else:
+                op = InsertTab(item=item.name, target=target)
+            deferred_call(workspace.dock_area.update_layout, op)
+            target = group_name
 
     target = None
     for name, selector in plugin.selectors.items():
@@ -105,20 +105,18 @@ def contribute_to_workspace(workbench, workspace):
                                 title=name,
                                 closable=False)
         if target is None:
-            op = InsertItem(item=item.name, position='bottom',
-                            target=last_target)
+            op = InsertItem(item=item.name, position='left')
         else:
             op = InsertTab(item=item.name, target=target)
         deferred_call(workspace.dock_area.update_layout, op)
         target = name
 
-    last_target = target
     item = CurrentValuesDockItem(workspace.dock_area, 
                                  context=plugin,
                                  name='cv', 
                                  title='Current values',
                                  closable=False)
-    op = InsertItem(item=item.name, position='bottom', target=last_target)
+    op = InsertItem(item=item.name, position='bottom')
     deferred_call(workspace.dock_area.update_layout, op)
 
 
@@ -182,16 +180,16 @@ enamldef ContextManifest(PluginManifest): manifest:
             id = PLUGIN_ID + '.changes_pending'
             handler = changes_pending
         Command:
-            id = 'psiexperiment.save_context'
-            handler = rpc(PLUGIN_ID, 'save_context')
+            id = 'psi.save_context'
+            handler = save_context
         Command:
-            id = 'psiexperiment.load_context'
-            handler = rpc(PLUGIN_ID, 'load_context')
+            id = 'psi.load_context'
+            handler = load_context
         Command:
-            id = 'psiexperiment.set_default_context'
+            id = 'psi.set_default_context'
             handler = set_default_context
         Command:
-            id = 'psiexperiment.get_default_context'
+            id = 'psi.get_default_context'
             handler = get_default_context
 
     Extension:
@@ -211,25 +209,25 @@ enamldef ContextManifest(PluginManifest): manifest:
             path = '/configuration/settings/save'
             label = 'Save'
             group = 'context_io'
-            command = 'psiexperiment.save_context'
+            command = 'psi.save_context'
         ActionItem:
             path = '/configuration/settings/load'
             label = 'Load'
             group = 'context_io'
-            command = 'psiexperiment.load_context'
+            command = 'psi.load_context'
         ActionItem:
             path = '/configuration/settings/set_default_context'
             label = 'Set default'
             group = 'context_default'
-            command = 'psiexperiment.set_default_context'
+            command = 'psi.set_default_context'
         ActionItem:
             path = '/configuration/settings/get_default_context'
             label = 'Revert to default'
             group = 'context_default'
-            command = 'psiexperiment.get_default_context'
+            command = 'psi.get_default_context'
 
 
     Extension:
         id = 'workspace'
-        point = 'psiexperiment.experiment.workspace'
+        point = 'psi.experiment.workspace'
         factory = contribute_to_workspace

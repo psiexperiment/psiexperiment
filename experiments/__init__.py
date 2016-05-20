@@ -5,15 +5,15 @@ from enaml.workbench.api import Workbench
 
 
 def initialize_default(extra_manifests,
-                       workspace='psiexperiment.experiment.workspace'):
+                       workspace='psi.experiment.workspace'):
 
     with enaml.imports():
         from enaml.workbench.core.core_manifest import CoreManifest
         from enaml.workbench.ui.ui_manifest import UIManifest
 
-        from psiexperiment.context.manifest import ContextManifest
-        from psiexperiment.data.manifest import DataManifest
-        from psiexperiment.experiment.manifest import ExperimentManifest
+        from psi.context.manifest import ContextManifest
+        from psi.data.manifest import DataManifest
+        from psi.experiment.manifest import ExperimentManifest
 
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
@@ -33,5 +33,5 @@ def initialize_default(extra_manifests,
         core.invoke_command('enaml.workbench.ui.select_workspace',
                             {'workspace': workspace})
 
-        experiment = workbench.get_plugin('psiexperiment.experiment')
+        experiment = workbench.get_plugin('psi.experiment')
         return workbench

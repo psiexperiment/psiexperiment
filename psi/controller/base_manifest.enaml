@@ -16,59 +16,59 @@ enamldef ControllerManifest(PluginManifest): manifest:
         id = 'commands'
         point = 'enaml.workbench.core.commands'
         Command:
-            id = 'psiexperiment.controller.start'
-            handler = rpc('psiexperiment.controller', 'start_experiment')
+            id = 'psi.controller.start'
+            handler = rpc('psi.controller', 'start_experiment')
         Command:
-            id = 'psiexperiment.controller.stop'
-            handler = rpc('psiexperiment.controller', 'stop_experiment')
+            id = 'psi.controller.stop'
+            handler = rpc('psi.controller', 'stop_experiment')
         Command:
-            id = 'psiexperiment.controller.next_trial'
-            handler = rpc('psiexperiment.controller', 'end_trial')
+            id = 'psi.controller.next_trial'
+            handler = rpc('psi.controller', 'end_trial')
         Command:
-            id = 'psiexperiment.controller.request_apply'
-            handler = rpc('psiexperiment.controller', 'request_apply')
+            id = 'psi.controller.request_apply'
+            handler = rpc('psi.controller', 'request_apply')
         Command:
-            id = 'psiexperiment.controller.request_pause'
-            handler = rpc('psiexperiment.controller', 'request_pause')
+            id = 'psi.controller.request_pause'
+            handler = rpc('psi.controller', 'request_pause')
         Command:
-            id = 'psiexperiment.controller.request_resume'
-            handler = rpc('psiexperiment.controller', 'request_resume')
+            id = 'psi.controller.request_resume'
+            handler = rpc('psi.controller', 'request_resume')
 
     # Uses unicode symbols as icons for sake of simplicity.
     Extension:
         id = 'toolbar'
         rank = 1
-        point = 'psiexperiment.experiment.toolbar'
+        point = 'psi.experiment.toolbar'
         Action:
             text = u'\u27A4'
             tool_tip = 'Start experiment'
             triggered ::
                 plugin = workbench.get_plugin('enaml.workbench.core')
-                plugin.invoke_command('psiexperiment.controller.start')
-            enabled << workbench.get_plugin('psiexperiment.controller').state \
+                plugin.invoke_command('psi.controller.start')
+            enabled << workbench.get_plugin('psi.controller').state \
                 == 'initialized'
         Action:
             text = u'\u23F9'
             tool_tip = 'Stop experiment'
             triggered ::
                 plugin = workbench.get_plugin('enaml.workbench.core')
-                plugin.invoke_command('psiexperiment.controller.stop')
-            enabled <<  workbench.get_plugin('psiexperiment.controller').state \
+                plugin.invoke_command('psi.controller.stop')
+            enabled <<  workbench.get_plugin('psi.controller').state \
                 not in ('initialized', 'stopped')
         Action:
             separator = True
         Action:
             text << u'\u23E9' if checked else u'\u23F8'
             checkable = True
-            enabled <<  workbench.get_plugin('psiexperiment.controller').state \
+            enabled <<  workbench.get_plugin('psi.controller').state \
                 not in ('initialized', 'stopped')
             tool_tip << 'Resume' if checked else 'Pause'
             toggled ::
                 plugin = workbench.get_plugin('enaml.workbench.core')
                 if checked:
-                    plugin.invoke_command('psiexperiment.controller.request_resume')
+                    plugin.invoke_command('psi.controller.request_resume')
                 else:
-                    plugin.invoke_command('psiexperiment.controller.request_pause')
+                    plugin.invoke_command('psi.controller.request_pause')
         Action:
             separator = True
 
@@ -77,21 +77,21 @@ enamldef ControllerManifest(PluginManifest): manifest:
         # (i.e., in between trials). 
         Action:
             text = 'Apply'
-            enabled << workbench.get_plugin('psiexperiment.context').changes_pending \
-                and not workbench.get_plugin('psiexperiment.controller')._apply_requested \
-                and workbench.get_plugin('psiexperiment.controller').state \
+            enabled << workbench.get_plugin('psi.context').changes_pending \
+                and not workbench.get_plugin('psi.controller')._apply_requested \
+                and workbench.get_plugin('psi.controller').state \
                 in ('running', 'paused')
             triggered :: 
                 plugin = workbench.get_plugin('enaml.workbench.core')
-                plugin.invoke_command('psiexperiment.controller.request_apply')
+                plugin.invoke_command('psi.controller.request_apply')
         Action:
             text = 'Revert'
-            enabled << workbench.get_plugin('psiexperiment.context').changes_pending \
-                and workbench.get_plugin('psiexperiment.controller').state \
+            enabled << workbench.get_plugin('psi.context').changes_pending \
+                and workbench.get_plugin('psi.controller').state \
                 in ('running', 'paused')
             triggered :: 
                 plugin = workbench.get_plugin('enaml.workbench.core')
-                plugin.invoke_command('psiexperiment.context.revert_changes')
+                plugin.invoke_command('psi.context.revert_changes')
 
     Extension:
         id = 'actions'

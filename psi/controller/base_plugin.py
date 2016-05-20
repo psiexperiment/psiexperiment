@@ -22,8 +22,8 @@ class BaseController(Plugin):
 
     def start(self):
         self.core = self.workbench.get_plugin('enaml.workbench.core')
-        self.context = self.workbench.get_plugin('psiexperiment.context')
-        self.core.invoke_command('psiexperiment.data.prepare')
+        self.context = self.workbench.get_plugin('psi.context')
+        self.core.invoke_command('psi.data.prepare')
 
     def request_apply(self):
         self._apply_requested = True

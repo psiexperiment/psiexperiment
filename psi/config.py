@@ -14,7 +14,7 @@ except KeyError:
     import textwrap
     # Default to the user's home directory and raise a warning.
     BASE_DIRECTORY = os.path.join(os.path.expanduser('~'), '.config',
-                                  'psiexperiment')
+                                  'psi')
     mesg = '''
     No PSIEXPERIMENT_BASE environment variable defined.  Defaulting to the
     user's home directory, {}.  In the future, it is recommended that you create

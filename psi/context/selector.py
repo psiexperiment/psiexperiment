@@ -12,6 +12,7 @@ from .. import SimpleState
 
 class BaseSelector(SimpleState, Declarative):
 
+    context_info = Typed(dict, {})
     parameters = ContainerList()
     updated = Event()
 
@@ -65,7 +66,6 @@ class SingleSetting(BaseSelector):
                 value = p.dtype(value)
                 break
         self.setting[parameter_name] = value
-        #self.setting = self.setting.copy()
         self.updated = True
 
     def __eq__(self, other):

@@ -16,7 +16,7 @@ from .appetitive_plugin import AppetitivePlugin
 from ..util import rpc
 
 
-PLUGIN_ID = 'psiexperiment.controller'
+PLUGIN_ID = 'psi.controller'
 
 
 def get_status(trial, trial_type):
@@ -59,7 +59,7 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
     Extension:
         id = 'debug_toolbar'
         rank = 1000
-        point = 'psiexperiment.experiment.toolbar'
+        point = 'psi.experiment.toolbar'
         Action:
             text = 'Spout'
             tool_tip = 'Mark spout response'
@@ -81,7 +81,7 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
     # Parameters used by the appetitive Go-Nogo controller.
     Extension:
         id = 'items'
-        point = 'psiexperiment.context.items'
+        point = 'psi.context.items'
 
         ContextGroup:
             name = 'trial'
@@ -157,6 +157,7 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
         ContextGroup:
             name = 'results'
             label = 'Trial results'
+            visible = False
 
         Result:
             name = 'response'
@@ -187,7 +188,7 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
     # Sequences used by the appetitive Go-Nogo controller.
     Extension:
         id = 'selectors'
-        point = 'psiexperiment.context.selectors'
+        point = 'psi.context.selectors'
         SequenceSelector:
             name = 'go'
         SingleSetting:
@@ -197,5 +198,5 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
 
     Extension:
         id = 'workspace'
-        point = 'psiexperiment.experiment.workspace'
+        point = 'psi.experiment.workspace'
         factory = contribute_to_workspace

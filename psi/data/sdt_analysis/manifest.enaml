@@ -7,12 +7,12 @@ from enaml.layout.api import InsertItem
 from enaml.widgets.api import (Container, DockItem, Label, Field)
 from enaml.workbench.api import Extension, PluginManifest
 
-from psiexperiment.core.utils import find_extension
-from psiexperiment.core.enaml.dataframe_table_widget \
+from psi.core.utils import find_extension
+from psi.core.enaml.dataframe_table_widget \
     import DataframeTable
 from ..plugin import TrialData
 
-PLUGIN_ID = 'psiexperiment.data.sdt_analysis'
+PLUGIN_ID = 'psi.data.sdt_analysis'
 
 
 class SDTAnalysis(TrialData):
@@ -81,11 +81,11 @@ enamldef SDTAnalysisManifest(PluginManifest): manifest:
 
     Extension:
         id = 'data'
-        point = 'psiexperiment.data.trial'
+        point = 'psi.data.trial'
         SDTAnalysis:
             pass
 
     Extension:
         id = 'workspace'
-        point = 'psiexperiment.experiment.workspace'
+        point = 'psi.experiment.workspace'
         factory = contribute_to_workspace

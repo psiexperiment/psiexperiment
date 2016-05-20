@@ -6,7 +6,7 @@ from enaml.workbench.api import Workbench
 
 with enaml.imports():
     from enaml.workbench.core.core_manifest import CoreManifest
-    from psiexperiment.context.manifest import ContextManifest
+    from psi.context.manifest import ContextManifest
     from .helpers import TestManifest
 
 
@@ -17,7 +17,7 @@ def workbench():
     workbench.register(ContextManifest())
     workbench.register(TestManifest())
 
-    context = workbench.get_plugin('psiexperiment.context')
+    context = workbench.get_plugin('psi.context')
     print context.selectors['default'].order
     print context.selectors['default'].parameters
     print context.context_items['repetitions'].rove
@@ -35,7 +35,7 @@ def test_eval(workbench):
         dict(repetitions=2, level=60, fc=32e3/2),
         dict(repetitions=10, level=60, fc=32e3/10),
     ]
-    context = workbench.get_plugin('psiexperiment.context')
+    context = workbench.get_plugin('psi.context')
 
     # Ensure that we loop properly through the selector sequence
     context.apply_changes()
@@ -69,7 +69,7 @@ def test_update(workbench):
     '''
     Tests whether the change detection algorithm works as intended.
     '''
-    context = workbench.get_plugin('psiexperiment.context')
+    context = workbench.get_plugin('psi.context')
     context.apply_changes()
 
     assert context.changes_pending == False
@@ -96,6 +96,7 @@ def test_update(workbench):
     context.revert_changes()
     assert context.changes_pending == False
 
+    print context.selectors['default'].parameters
     context.selectors['default'].set_value(0, 'repetitions', '5')
     assert context.changes_pending == True
     assert context.selectors['default'].get_value(0, 'repetitions') == 5

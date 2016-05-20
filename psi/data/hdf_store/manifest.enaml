@@ -7,7 +7,7 @@ import numpy as np
 
 from ..plugin import TrialData
 
-PLUGIN_ID = 'psiexperiment.data.hdf_store'
+PLUGIN_ID = 'psi.data.hdf_store'
 
 
 class HDFStore(TrialData):
@@ -39,6 +39,6 @@ enamldef HDFStoreManifest(PluginManifest): manifest:
 
     Extension:
         id = 'data'
-        point = 'psiexperiment.data.trial'
+        point = 'psi.data.trial'
         HDFStore:
             pass

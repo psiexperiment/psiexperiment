@@ -7,8 +7,8 @@ import pandas as pd
 from .trial_data import TrialData
 
 
-TRIAL_POINT = 'psiexperiment.data.trial'
-PHYSIOLOGY_POINT = 'psiexperiment.data.physiology'
+TRIAL_POINT = 'psi.data.trial'
+PHYSIOLOGY_POINT = 'psi.data.physiology'
 
 
 class DataPlugin(Plugin):

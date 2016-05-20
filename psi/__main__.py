@@ -9,10 +9,10 @@ if __name__ == '__main__':
         from enaml.workbench.core.core_manifest import CoreManifest
         from enaml.workbench.ui.ui_manifest import UIManifest
 
-        from psiexperiment.setting.manifest import SettingManifest
-        from psiexperiment.data.manifest import DataManifest
-        from psiexperiment.controller.manifest import ControllerManifest
-        from psiexperiment.experiment.manifest import ExperimentManifest
+        from psi.setting.manifest import SettingManifest
+        from psi.data.manifest import DataManifest
+        from psi.controller.manifest import ControllerManifest
+        from psi.experiment.manifest import ExperimentManifest
 
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
@@ -29,15 +29,15 @@ if __name__ == '__main__':
         core = workbench.get_plugin('enaml.workbench.core')
         ui = workbench.get_plugin('enaml.workbench.ui')
 
-        parameters = core.invoke_command('psiexperiment.setting.get_parameters')
+        parameters = core.invoke_command('psi.setting.get_parameters')
         parameters[0].rove = True
         name = parameters[0].name
 
-        setting = workbench.get_plugin('psiexperiment.setting')
+        setting = workbench.get_plugin('psi.setting')
         setting.selectors['go'].add_setting({name: 12.0})
 
         ui.show_window()
         core.invoke_command('enaml.workbench.ui.select_workspace',
-                            {'workspace': 'psiexperiment.experiment.view'})
-        core.invoke_command('psiexperiment.controller.start')
+                            {'workspace': 'psi.experiment.view'})
+        core.invoke_command('psi.controller.start')
         ui.start_application()

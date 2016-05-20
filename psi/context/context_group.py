@@ -11,3 +11,6 @@ class ContextGroup(Declarative):
 
     # Label to use in the GUI
     label = d_(Unicode())
+
+    # Are the parameters in this group visible?
+    visible = d_(Bool(True))
