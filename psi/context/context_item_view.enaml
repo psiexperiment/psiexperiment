@@ -2,7 +2,7 @@ from enaml.core.api import DynamicTemplate
 from enaml.layout.api import hbox
 from enaml.widgets.api import Container, Field, CheckBox, Label, HGroup
 
-from .context_item import Result, Parameter, RovingParameter
+from psi.context.context_item import Result, Parameter
 
 
 template ContextItemTemplate(context_item, MemberType: Result):
@@ -18,6 +18,13 @@ template ContextItemTemplate(context_item, MemberType: Result):
 
 template ContextItemTemplate(context_item, MemberType: Parameter):
 
+    DynamicTemplate:
+        base = ParameterTemplate
+        args = (context_item, context_item.scope)
+
+
+template ParameterTemplate(context_item, StringType: 'experiment'):
+
     HGroup:
         spacing = 0
         padding = 0
@@ -25,21 +32,36 @@ template ContextItemTemplate(context_item, MemberType: Parameter):
             text = context_item.label
         Field: field:
             text := context_item.expression
+            enabled << workbench.get_plugin('psi.controller').state \
+                not in ('running', 'paused')
 
 
-template ContextItemTemplate(context_item, MemberType: RovingParameter):
+template ParameterTemplate(context_item, StringType: 'trial'):
 
     HGroup:
         spacing = 0
         padding = 0
         CheckBox: label:
-            checked := context_item.rove
+            checked << context_item.name in \
+                workbench.get_plugin('psi.context').roving_items
+            toggled ::
+                context = workbench.get_plugin('psi.context')
+                if checked:
+                    context.rove_item(context_item.name)
+                else:
+                    context.unrove_item(context_item.name)
             text = context_item.label
         Field: field:
             text := context_item.expression
-            style_class << 'disabled' if context_item.rove else 'enabled'
+            style_class << 'disabled' if context_item.name in \
+                workbench.get_plugin('psi.context').roving_items else 'enabled'
 
 
+template ParameterTemplate(context_item, StringType: 'arbitrary'):
+
+    pass
+
+ 
 enamldef ContextItem(Container):
     attr context_item
     padding = 0

@@ -8,7 +8,6 @@ from enaml.workbench.plugin import Plugin
 
 from .context_item import ContextItem, Parameter
 from .context_group import ContextGroup
-from .selector import BaseSelector
 from .expression import ExpressionNamespace
 
 SELECTORS_POINT = 'psi.context.selectors'
@@ -19,10 +18,12 @@ ITEMS_POINT = 'psi.context.items'
 def copy_attrs(from_atom, to_atom):
     if to_atom.__class__ != from_atom.__class__:
         raise ValueError()
-    for member in to_atom.members():
+    for name, member in to_atom.members().items():
+        if member.metadata and member.metadata.get('transient', False):
+            continue
         try:
-            value = deepcopy(getattr(from_atom, member))
-            setattr(to_atom, member, value)
+            value = deepcopy(getattr(from_atom, name))
+            setattr(to_atom, name, value)
         except:
             pass
 
@@ -30,17 +31,19 @@ def copy_attrs(from_atom, to_atom):
 class ContextPlugin(Plugin):
     '''
     Plugin that provides a sequence of values that can be used by a controller
-    to determine the experiment parameters.
+    to determine the experiment context_items.
     '''
     context_groups = Typed(dict, {})
     context_items = Typed(dict, {})
+    roving_items = Typed(list, [])
 
     selectors = Typed(dict, ())
     symbols = Typed(dict, ())
 
-    # Reflects state of selectors and parameters as currently applied.
+    # Reflects state of selectors and context_items as currently applied.
     _selectors = Typed(dict, ())
     _context_items = Typed(dict, ())
+    _roving_items = Typed(list, ())
 
     changes_pending = Bool(False)
 
@@ -54,7 +57,8 @@ class ContextPlugin(Plugin):
         self._bind_observers()
         try:
             # Attempt to load the default context settings. This may fail if we
-            # have made changes to the code (i.e., added or removed parameters).
+            # have made changes to the code (i.e., added or removed
+            # context_items).
             core = self.workbench.get_plugin('enaml.workbench.core')
             core.invoke_command('psi.get_default_context')
         except:
@@ -64,6 +68,9 @@ class ContextPlugin(Plugin):
         self._unbind_observers()
 
     def _refresh_selectors(self):
+        # Hidden here to avoid circular import since selectors define a
+        # reference to the context plugin.
+        from .selector import BaseSelector
         selectors = {}
         point = self.workbench.get_extension_point(SELECTORS_POINT)
         for extension in point.extensions:
@@ -71,7 +78,7 @@ class ContextPlugin(Plugin):
                 selectors[selector.name] = selector
         self.selectors = selectors
 
-    def _refresh_items(self):
+    def _refresh_items(self, event=None):
         context_groups = {}
         context_items = {}
 
@@ -79,19 +86,31 @@ class ContextPlugin(Plugin):
         for extension in point.extensions:
             items = extension.get_children(ContextItem)
             groups = extension.get_children(ContextGroup)
+            factory = getattr(extension, 'factory')
+            if factory is not None:
+                items.extend(factory('items'))
+                groups.extend(factory('groups'))
+
             for group in groups:
                 if group.name in context_groups:
-                    raise ValueError('Context group %s already defined',
-                                     group.name)
+                    m = 'Context group {} already defined'.format(group.name)
+                    raise ValueError(m)
                 context_groups[group.name] = group
+
             for item in items:
-                if item.group not in context_groups:
-                    raise ValueError('Group %s for %s does not exist',
-                                     item.group, item.name)
                 if item.name in context_items:
-                    raise ValueError('Context item %s already defined',
-                                     item.name)
+                    m = 'Context item {} already defined'.format(item.name)
+                    raise ValueError(m)
                 context_items[item.name] = item
+
+        # Now that everything has been loaded, check to make sure we have no
+        # missing groups.
+        for item in context_items.values():
+            if item.group not in context_groups:
+                m = 'Group {} for {} does not exist'
+                m = m.format(item.group, item.name)
+                raise ValueError(m)
+
         self.context_items = context_items
         self.context_groups = context_groups
 
@@ -108,30 +127,22 @@ class ContextPlugin(Plugin):
     @observe('context_items')
     def _bind_context_items(self, change):
         for i in change.get('oldvalue', {}).values():
-            if hasattr(i, 'rove'):
-                i.unobserve('rove', self._observe_item_rove)
-                if i.rove:
-                    self.remove_parameter(i)
             if hasattr(i, 'expression'):
                 i.unobserve('expression', self._observe_item_expression)
         for i in change.get('value', {}).values():
-            if hasattr(i, 'rove'):
-                i.observe('rove', self._observe_item_rove)
-                if i.rove:
-                    self.append_parameter(i)
             if hasattr(i, 'expression'):
                 i.observe('expression', self._observe_item_expression)
 
     def _observe_item_expression(self, event):
         self._check_for_changes()
 
-    def _observe_item_rove(self, event):
-        parameter = event['object']
-        if parameter.rove:
-            self.append_parameter(parameter)
-        else:
-            self.remove_parameter(parameter)
-        self._check_for_changes()
+    #def _observe_item_rove(self, event):
+    #    parameter = event['object']
+    #    if parameter.rove:
+    #        self.rove_item(parameter.name)
+    #    else:
+    #        self.unrove_item(parameter.name)
+    #    self._check_for_changes()
 
     @observe('selectors')
     def _bind_selectors(self, change):
@@ -139,11 +150,12 @@ class ContextPlugin(Plugin):
             p.unobserve('updated', self._observe_selector_updated)
         for p in change.get('value', {}).values():
             p.observe('updated', self._observe_selector_updated)
+            p.context_plugin = self
 
     def _observe_selector_updated(self, event):
         self._check_for_changes()
 
-    def _update_attrs(self, context_items, selectors):
+    def _update_attrs(self, context_items, selectors, roving_items):
         for i in self.context_items:
             from_items = context_items[i]
             to_items = self.context_items[i]
@@ -152,19 +164,22 @@ class ContextPlugin(Plugin):
             from_selector = selectors[s]
             to_selector = self.selectors[s]
             copy_attrs(from_selector, to_selector)
+        self.roving_items = roving_items
 
     def _check_for_changes(self):
-        context_items_changed = self.context_items != self._context_items
-        selectors_changed = self.selectors != self._selectors
-        self.changes_pending = context_items_changed or selectors_changed
+        ci_changed = self.context_items != self._context_items
+        s_changed = self.selectors != self._selectors
+        ri_changed = self.roving_items != self._roving_items
+        self.changes_pending = ci_changed or s_changed or ri_changed
 
     def _get_expressions(self):
-        # Return a dictionary of expressions for all parameters that are not
+        # Return a dictionary of expressions for all context_items that are not
         # managed by the selectors.
         expressions = {}
-        for i in self.context_items.values():
-            if isinstance(i, Parameter) and not getattr(i, 'rove', False):
-                expressions[i.name] = i.expression
+        for item_name, item in self._context_items.items():
+            if isinstance(item, Parameter) and \
+                    item_name not in self._roving_items:
+                expressions[item_name] = item.expression
         return expressions
 
     def _get_sequences(self):
@@ -173,26 +188,36 @@ class ContextPlugin(Plugin):
     def _get_iterators(self):
         return dict((k, v.get_iterator()) for k, v in self.selectors.items())
 
+    def get_item_info(self, item_name):
+        item = self.context_items[item_name]
+        return {
+            'dtype': item.dtype,
+            'label': item.label,
+            'compact_label': item.compact_label,
+            'default': getattr(item, 'default', None),
+            'rove': item_name in self._roving_items,
+        }
+
+    def rove_item(self, item_name):
+        if self.context_items[item_name].scope != 'trial':
+            raise ValueError('Cannot rove {}'.format(item_name))
+        roving_items = self.roving_items[:]
+        roving_items.append(item_name)
+        self.roving_items = roving_items
+        for selector in self.selectors.values():
+            if item_name not in selector.context_items:
+                selector.append_item(item_name)
+
+    def unrove_item(self, item_name):
+        roving_items = self.roving_items[:]
+        roving_items.remove(item_name)
+        self.roving_items = roving_items
+        for selector in self.selectors.values():
+            if item_name in selector.context_items:
+                selector.remove_item(item_name)
+
     def get_context_info(self):
-        context_info = {}
-        for i in self.context_items.values():
-            info = dict(dtype=i.dtype,
-                        label=i.label,
-                        compact_label=i.compact_label,
-                        rove=getattr(i, 'rove', False)
-                        )
-            context_info[i.name] = info
-        return context_info
-
-    def append_parameter(self, parameter):
-        for selector in self.selectors.values():
-            if parameter not in selector.parameters:
-                selector.append_parameter(parameter)
-
-    def remove_parameter(self, parameter):
-        for selector in self.selectors.values():
-            if parameter in selector.parameters:
-                selector.remove_parameter(parameter)
+        return dict((i, self.get_item_info(i)) for i in self.context_items)
 
     def next(self, save_prior, selector, results):
         '''
@@ -249,11 +274,15 @@ class ContextPlugin(Plugin):
     def apply_changes(self):
         self._context_items = deepcopy(self.context_items)
         self._selectors = deepcopy(self.selectors)
+        self._roving_items = deepcopy(self.roving_items)
+
         self._namespace.update_expressions(self._get_expressions())
         self._namespace.update_symbols(self.symbols)
         self._iterators = self._get_iterators()
         self.changes_pending = False
 
     def revert_changes(self):
-        self._update_attrs(self._context_items, self._selectors)
+        self._update_attrs(self._context_items,
+                           self._selectors,
+                           self._roving_items)
         self._check_for_changes()

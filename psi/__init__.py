@@ -17,6 +17,8 @@ class SimpleState(object):
                 del state[k]
             elif k in exclude:
                 del state[k]
+            elif v.metadata and v.metadata.get('transient', False):
+                del state[k]
         return state
 
 

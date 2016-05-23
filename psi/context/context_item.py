@@ -68,22 +68,18 @@ class Parameter(ContextItem):
     determined before values are drawn from the selectors (e.g., probability of
     a go trial).
     '''
+    # Default value of the context item when used as part of a selector.
+    default = d_(Value())
 
     # Expression used to determine value of item.
     expression = d_(Unicode())
 
+    # Defines the span over which the item's value does not change:
+    # * experiment - the value cannot change once the experiment begins
+    # * trial - The value cannot change once a trial begins. This is the only
+    #   type of item that can be roved using a selector.
+    # * arbitrary - The value can be changd at any time but it does not make
+    #   sense for it to be a roving item.
+    scope = d_(Enum('experiment', 'trial', 'arbitrary'))
+
     _cmp_attrs = ContextItem._cmp_attrs + ['expression']
-
-
-class RovingParameter(Parameter):
-    '''
-    A context item that can be roved on a per-trial basis.
-    '''
-
-    # Default value of the context item when used as part of a selector.
-    default = d_(Value())
-
-    # Is the item set to rove as part of a selector?
-    rove = d_(Bool(False))
-
-    _cmp_attrs = Parameter._cmp_attrs + ['rove']

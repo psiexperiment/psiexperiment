@@ -1,0 +1,55 @@
+import numpy as np
+
+from enaml.workbench.api import Extension
+
+from .base_manifest import TokenManifest
+from psi.context.api import Parameter, ContextGroup
+
+
+
+enamldef BandlimitedNoiseManifest(TokenManifest): m:
+
+    id = 'token.bandlimited_noise.{}'.format(m.base)
+
+    Extension:
+        id = '{}_items'.format(m.id)
+        point = 'psi.context.items'
+
+        Parameter:
+            name = '{}_level'.format(m.base)
+            label = '{} level (dB SPL)'.format(m.label_base)
+            compact_label = '{} level'.format(m.compact_base)
+            dtype = np.float32
+            default = 60
+            expression = '60'
+            group = m.base
+            scope = m.scope
+
+        Parameter:
+            name = '{}_center_frequency'.format(m.base)
+            label = '{} center frequency (Hz)'.format(m.label_base)
+            compact_label = '{} fc'.format(m.compact_base)
+            dtype = np.float32
+            default = 1000
+            expression = '1000'
+            group = m.base
+            scope = m.scope
+
+        Parameter:
+            name = '{}_bandwidth'.format(m.base)
+            label = '{} bandwidth (Hz)'.format(m.label_base)
+            compact_label = '{} bw'.format(m.compact_base)
+            dtype = np.float32
+            default = 1000
+            expression = '1000'
+            group = m.base
+
+        Parameter:
+            name = '{}_duration'.format(m.base)
+            label = '{} duration (s)'.format(m.label_base)
+            compact_label = '{} dur.'.format(m.compact_base)
+            dtype = np.float32
+            default = 1
+            expression = '1'
+            group = m.base
+            scope = m.scope

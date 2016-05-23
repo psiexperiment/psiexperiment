@@ -1,9 +1,31 @@
+from enaml.application import deferred_call
+from enaml.layout.api import InsertItem
 from enaml.widgets.api import Action
-from enaml.workbench.api import Extension, PluginManifest
+from enaml.workbench.api import Extension, ExtensionPoint, PluginManifest
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem
 
 from ..util import rpc
+
+
+def contribute_to_workspace(workbench, workspace):
+    from .output_view import OutputDockItem
+    plugin = workbench.get_plugin('psi.controller')
+    item = OutputDockItem(workspace.dock_area, controller=plugin,
+                          name='controller_outputs', title='Outputs')
+    op = InsertItem(item=item.name, position='top')
+    deferred_call(workspace.dock_area.update_layout, op)
+
+
+def controller_running(event):
+    controller = event.workbench.get_plugin('psi.controller')
+    print 'result'
+    print 'result'
+    print 'result'
+    print 'result'
+    print 'result'
+    print 'result'
+    return controller.state in ('running', 'paused')
 
 
 enamldef ControllerManifest(PluginManifest): manifest:
@@ -11,6 +33,12 @@ enamldef ControllerManifest(PluginManifest): manifest:
     Defines the core functionality that most controller plugins will share
     (start, stop, pause, apply/revert settings).
     '''
+
+    ExtensionPoint:
+        id = 'psi.controller.output'
+
+    ExtensionPoint:
+        id = 'psi.controller.backend'
 
     Extension:
         id = 'commands'
@@ -33,6 +61,9 @@ enamldef ControllerManifest(PluginManifest): manifest:
         Command:
             id = 'psi.controller.request_resume'
             handler = rpc('psi.controller', 'request_resume')
+        Command:
+            id = 'psi.controller.running'
+            handler = controller_running
 
     # Uses unicode symbols as icons for sake of simplicity.
     Extension:
@@ -94,8 +125,13 @@ enamldef ControllerManifest(PluginManifest): manifest:
                 plugin.invoke_command('psi.context.revert_changes')
 
     Extension:
-        id = 'actions'
+        id = 'base_actions'
         point = 'enaml.workbench.ui.actions'
         MenuItem:
             path = '/equipment'
             label = 'Equipment'
+
+    Extension:
+        id = 'base_workspace'
+        point = 'psi.experiment.workspace'
+        factory = contribute_to_workspace

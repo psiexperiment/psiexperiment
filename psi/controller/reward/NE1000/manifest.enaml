@@ -6,7 +6,7 @@ from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
 
 from psi.core.utils import find_extension
-from psi.context.api import ContextGroup, RovingParameter
+from psi.context.api import ContextGroup, Parameter
 from ..reward import Reward
 
 PLUGIN_ID = 'psi.controller.reward.NE1000' 
@@ -16,10 +16,7 @@ class NE1000(Reward):
 
     def provide_reward(self, workbench):
         core = workbench.get_plugin('enaml.workbench.core')
-        rv = core.invoke_command('psi.context.get_value',
-                                 {'parameter_name': 'reward_volume', 
-                                  'fail_mode': 'default'})
-        print rv
+        rv = core.invoke_command('psi.context.get_value', parameters)
 
 
 def trigger(event):
@@ -38,7 +35,7 @@ enamldef NE1000Manifest(PluginManifest): manifest:
         ContextGroup:
             name = PLUGIN_ID
             label = 'Pump Settings'
-        RovingParameter:
+        Parameter:
             name = 'reward_volume'
             label = 'Reward volume (ul)'
             compact_label = 'Vol'
@@ -46,6 +43,7 @@ enamldef NE1000Manifest(PluginManifest): manifest:
             default = 20
             expression = '20'
             group = PLUGIN_ID
+            scope = 'trial'
 
     Extension:
         id = 'commands'

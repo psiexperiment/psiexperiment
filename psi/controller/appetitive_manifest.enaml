@@ -8,7 +8,7 @@ from enaml.workbench.api import Extension, PluginManifest, ExtensionPoint
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem, Autostart
 
-from ..context.api import ContextGroup, Parameter, Result, RovingParameter
+from ..context.api import ContextGroup, Parameter, Result
 from ..context.selector import SequenceSelector, SingleSetting
 
 from .base_manifest import ControllerManifest
@@ -87,7 +87,7 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
             name = 'trial'
             label = 'Trial Settings'
 
-        RovingParameter:
+        Parameter:
             name = 'iti_duration'
             label = 'Intertrial interval (s)'
             compact_label = 'ITI'
@@ -95,7 +95,8 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
             default = 0.1
             expression = '0.1'
             group = 'trial'
-        RovingParameter:
+            scope = 'trial'
+        Parameter:
             name = 'to_duration'
             label = 'Timeout duration (s)'
             compact_label = 'TO'
@@ -103,7 +104,8 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
             default = 1.0
             expression = '1'
             group = 'trial'
-        RovingParameter:
+            scope = 'trial'
+        Parameter:
             name = 'hold_duration'
             label = 'Hold duration (s)'
             compact_label = 'Hold'
@@ -111,7 +113,8 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
             default = 0.0
             expression = '0'
             group = 'trial'
-        RovingParameter:
+            scope = 'trial'
+        Parameter:
             name = 'response_duration'
             label = 'Response duration (s)'
             compact_label = 'Resp'
@@ -119,7 +122,8 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
             default = 3.0
             expression = '3'
             group = 'trial'
-        RovingParameter:
+            scope = 'trial'
+        Parameter:
             name = 'np_duration'
             label = 'Poke duration (s)'
             compact_label = 'Poke'
@@ -127,6 +131,7 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
             default = 0.2
             expression = '0.2'
             group = 'trial'
+            scope = 'trial'
                 
         ContextGroup:
             name = 'selector'
@@ -139,6 +144,7 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
             dtype = np.float32
             expression = '0.5'
             group = 'selector'
+            scope = 'arbitrary'
         Parameter:
             name = 'max_nogo'
             label = 'Max. consecutive nogo trials'
@@ -146,6 +152,7 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
             dtype = np.float32
             expression = '5'
             group = 'selector'
+            scope = 'arbitrary'
         Parameter:
             name = 'repeat_fa'
             label = 'Repeat FA?'
@@ -153,6 +160,7 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
             dtype = np.bool
             expression = 'True'
             group = 'selector'
+            scope = 'arbitrary'
 
         ContextGroup:
             name = 'results'

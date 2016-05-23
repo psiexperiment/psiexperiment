@@ -3,48 +3,63 @@ import numpy as np
 from enaml.workbench.api import Extension
 from enaml.workbench.ui.api import Branding
 
-from psi.context.api import RovingParameter, ContextGroup
-
 from psi.controller.appetitive_manifest import AppetitiveManifest
+from psi.controller.output import Continuous, Epoch
+
+from psi.context.api import ContextGroup
 
 
-enamldef ControllerManifest(AppetitiveManifest):
+enamldef ControllerManifest(AppetitiveManifest): manifest:
 
     Extension:
         id = 'branding'
         point = 'enaml.workbench.ui.branding'
         Branding:
-            title = 'Appetitive tone detection'
+            title = 'Go-Nogo'
 
     Extension:
-        id = 'signal_parameters'
+        id = 'output'
+        point = 'psi.controller.output'
+        Continuous:
+            engine = 'NI'
+            channel = 'Dev1/ao0'
+            label = 'Background'
+            name = 'background'
+            scope = 'experiment'
+        Epoch:
+            engine = 'NI'
+            channel = 'Dev1/ao0'
+            reference = 'trial'
+            label = 'Target'
+            name = 'target'
+            scope = 'trial'
+
+    Extension:
+        id = 'groups'
         point = 'psi.context.items'
-
         ContextGroup:
-            name = 'signal'
-            label = 'Signal Settings'
+            name = 'background'
+            label = 'Background'
+        ContextGroup:
+            name = 'target'
+            label = 'Target'
 
-        RovingParameter:
-            name = 'frequency'
-            label = 'Frequency (Hz)'
-            compact_label = 'Freq'
-            dtype = np.float32
-            default = 1000
-            expression = '1000'
-            group = 'signal'
-        RovingParameter:
-            name = 'level'
-            label = 'Level (dB SPL)'
-            compact_label = 'level'
-            dtype = np.float32
-            default = 60
-            expression = '60'
-            group = 'signal'
-        RovingParameter:
-            name = 'duration'
-            label = 'Duration (s)'
-            compact_label = 'dur'
-            dtype = np.float32
-            default = 60
-            expression = '1'
-            group = 'signal'
+    #Extension:
+    #    id = 'backend'
+    #    point = 'psi.controller.backend
+    #    NIDAQEngine:
+    #        name = 'NI'
+    #        device = 'Dev1'
+    #    SerialEngine:
+    #        name = 'serial'
+    #        device = '/dev/usb0'
+
+    #Extension:
+    #    point = 'psi.controller.trial'
+    #    TargetOnly:
+    #        pass
+
+    #Extension:
+    #    point = 'psi.controller.trial.target'
+    #    Tone:
+    #        pass

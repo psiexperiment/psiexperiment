@@ -27,11 +27,4 @@ def initialize_default(extra_manifests,
         for manifest in extra_manifests:
             workbench.register(manifest())
 
-        core = workbench.get_plugin('enaml.workbench.core')
-        ui = workbench.get_plugin('enaml.workbench.ui')
-        ui.show_window()
-        core.invoke_command('enaml.workbench.ui.select_workspace',
-                            {'workspace': workspace})
-
-        experiment = workbench.get_plugin('psi.experiment')
         return workbench
