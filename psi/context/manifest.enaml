@@ -42,6 +42,7 @@ def _save_context(event, file_name):
     with open(file_name, 'wb') as fh:
         pickle.dump(plugin.context_items, fh)
         pickle.dump(plugin.selectors, fh)
+        pickle.dump(plugin.roving_items, fh)
 
 
 def load_context(event):
@@ -55,7 +56,8 @@ def _load_context(event, file_name):
     with open(file_name, 'rb') as fh:
         context_items = pickle.load(fh)
         selectors = pickle.load(fh)
-        plugin._update_attrs(context_items, selectors)
+        roving_items = pickle.load(fh)
+        plugin._update_attrs(context_items, selectors, roving_items)
 
 
 def set_default_context(event):

@@ -1,15 +1,33 @@
 import numpy as np
 
-from enaml.workbench.api import Extension
+from atom.api import Unicode
+from enaml.workbench.api import Extension, Plugin
 
 from .base_manifest import TokenManifest
 from psi.context.api import Parameter, ContextGroup
 
 
+class TonePlugin(Plugin):
+
+    base = Unicode()
+
+    def get_waveform(self, fs, calibration):
+        context = self.workbench.get_plugin('psi.context')
+        frequency = context.get_value('{}_frequency'.format(self.base))
+        level = context.get_value('{}_level'.format(self.base))
+        phase = context.get_value('{}_phase'.format(self.base))
+        duration = context.get_value('{}_duration'.format(self.base))
+
+        t = np.arange(duration*fs, dtype=np.double)/fs
+        a = 1
+        #a = calibration.get_sf(frequency, level)
+        return a*np.sin(2*np.pi*frequency*t+phase)
+
 
 enamldef ToneManifest(TokenManifest): m:
 
     id = 'token.tone.{}'.format(m.base)
+    factory = lambda base=m.base: TonePlugin(base=base)
 
     Extension:
         id = '{}_items'.format(m.id)
@@ -32,6 +50,16 @@ enamldef ToneManifest(TokenManifest): m:
             dtype = np.float32
             default = 1000
             expression = '1000'
+            group = m.base
+            scope = m.scope
+
+        Parameter:
+            name = '{}_phase'.format(m.base)
+            label = '{} phase (rad.)'.format(m.label_base)
+            compact_label = '{} ph..'.format(m.compact_base)
+            dtype = np.float32
+            default = 0
+            expression = '0'
             group = m.base
             scope = m.scope
 

@@ -1,10 +1,14 @@
 from atom.api import Enum, Bool, Typed, Property
 from enaml.workbench.plugin import Plugin
 
-from .output import Output
+from .channel import Channel
+from .engine import Engine
+from ..token import get_token_manifest
 
 
-OUTPUT_POINT = 'psi.controller.output'
+CHANNEL_POINT = 'psi.controller.channels'
+ENGINE_POINT = 'psi.controller.engines'
+
 
 class BaseController(Plugin):
 
@@ -26,49 +30,71 @@ class BaseController(Plugin):
     _remind_requested = Bool(False)
     _pause_requested = Bool(False)
 
-    _outputs = Typed(list, [])
     _engines = Typed(dict, {})
+    _channels = Typed(dict, {})
+    _outputs = Typed(dict, {})
 
     def start(self):
         self.core = self.workbench.get_plugin('enaml.workbench.core')
         self.context = self.workbench.get_plugin('psi.context')
         self.core.invoke_command('psi.data.prepare')
-        self._refresh_outputs()
+        self._refresh_engines()
+        self._refresh_channels()
         self._bind_observers()
 
     def stop(self):
         self._unbind_observers()
 
     def _bind_observers(self):
-        self.workbench.get_extension_point(OUTPUT_POINT) \
-            .observe('extensions', self._refresh_outputs)
+        self.workbench.get_extension_point(CHANNEL_POINT) \
+            .observe('extensions', self._refresh_channels)
+        self.workbench.get_extension_point(ENGINE_POINT) \
+            .observe('extensions', self._refresh_engines)
 
     def _unbind_observers(self):
-        self.workbench.get_extension_point(OUTPUT_POINT) \
-            .unobserve('extensions', self._refresh_outputs)
+        self.workbench.get_extension_point(CHANNEL_POINT) \
+            .unobserve('extensions', self._refresh_channels)
+        self.workbench.get_extension_point(ENGINE_POINT) \
+            .unobserve('extensions', self._refresh_engines)
 
-    def _refresh_outputs(self):
-        outputs = []
-        point = self.workbench.get_extension_point(OUTPUT_POINT)
+    def _refresh_channels(self):
+        point = self.workbench.get_extension_point(CHANNEL_POINT)
+        channels = {}
+        outputs = {}
         for extension in point.extensions:
-            for output in extension.get_children(Output):
-                outputs.append(output)
+            for channel in extension.get_children(Channel):
+                engine_config = channels.setdefault(channel.engine, {})
+                engine_config.setdefault(channel.io_type, []).append(channel)
+                if channel.io_type == 'hw_ao':
+                    outputs[channel.name] = channel
+        self._channels = channels
         self._outputs = outputs
 
     def _refresh_engines(self):
         engines = {}
         point = self.workbench.get_extension_point(ENGINE_POINT)
         for extension in point.extensions:
-            for engine in selector.get_children(Engine):
+            for engine in extension.get_children(Engine):
                 engines[engine.name] = engine
         self._engines = engines
 
-    def configure_output(self, output, manifest_description):
+    def configure_engines(self):
+        for engine_name, engine_config in self._channels.items():
+            engine = self._engines[engine_name]
+            engine.configure(engine_config)
+
+    def configure_output(self, output_name, token_name):
+        output = self._outputs[output_name]
+        if output._token_name == token_name:
+            return
         if output._plugin_id:
             self.workbench.unregister(output._plugin_id)
-        manifest = manifest_description(output.name, label_base=output.label,
-                                        scope=output.scope)
+        manifest_description = get_token_manifest(token_name)
+        scope = 'experiment' if output.mode == 'continuous' else 'trial'
+        manifest = manifest_description(output.name, scope=scope,
+                                        label_base=output.label)
         output._plugin_id = manifest.id
+        output._token_name = token_name
         self.workbench.register(manifest)
 
     def request_apply(self):
@@ -88,6 +114,11 @@ class BaseController(Plugin):
         for output in self._outputs:
             if isinstance(output, Continuous):
                 output.start()
+
+    def get_epoch_waveforms(self):
+        for output in self._outputs.values():
+            if isinstance(output, Epoch):
+                output.prepare(self.workbench)
 
     def start_experiment(self):
         raise NotImplementedError

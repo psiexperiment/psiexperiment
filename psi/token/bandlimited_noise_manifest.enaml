@@ -6,7 +6,6 @@ from .base_manifest import TokenManifest
 from psi.context.api import Parameter, ContextGroup
 
 
-
 enamldef BandlimitedNoiseManifest(TokenManifest): m:
 
     id = 'token.bandlimited_noise.{}'.format(m.base)

@@ -39,23 +39,22 @@ class AppetitivePlugin(BaseController):
 
     def start_experiment(self):
         try:
-            self.rng = np.random.RandomState()
+            self.configure_engines()
             self.context.apply_changes()
-            #self.core.invoke_command('psi.data.prepare')
+
+            self.rng = np.random.RandomState()
             selector = self.next_selector()
             self.context.next_setting(selector, save_prior=False)
             self.state = 'running'
             self.start_trial()
+
         except Exception as e:
             # TODO - provide user interface
             raise
 
     def start_trial(self):
-        # Hack to force the context to be computed. Usually we would do a lot
-        # more here otherwise.
         self.trial += 1
-        #waveforms = self.core.invoke_command('psi.trial.get_waveforms')
-        self.context.get_values()
+        print self.get_epoch_waveforms()
 
     def end_trial(self, response):
         if self.trial_type in ('nogo', 'nogo_repeat'):

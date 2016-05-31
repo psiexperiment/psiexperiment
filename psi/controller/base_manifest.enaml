@@ -5,6 +5,7 @@ from enaml.workbench.api import Extension, ExtensionPoint, PluginManifest
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem
 
+from psi.experiment.api import Preferences
 from ..util import rpc
 
 
@@ -17,17 +18,6 @@ def contribute_to_workspace(workbench, workspace):
     deferred_call(workspace.dock_area.update_layout, op)
 
 
-def controller_running(event):
-    controller = event.workbench.get_plugin('psi.controller')
-    print 'result'
-    print 'result'
-    print 'result'
-    print 'result'
-    print 'result'
-    print 'result'
-    return controller.state in ('running', 'paused')
-
-
 enamldef ControllerManifest(PluginManifest): manifest:
     '''
     Defines the core functionality that most controller plugins will share
@@ -35,10 +25,10 @@ enamldef ControllerManifest(PluginManifest): manifest:
     '''
 
     ExtensionPoint:
-        id = 'psi.controller.output'
+        id = 'psi.controller.channels'
 
     ExtensionPoint:
-        id = 'psi.controller.backend'
+        id = 'psi.controller.engines'
 
     Extension:
         id = 'commands'
@@ -61,9 +51,6 @@ enamldef ControllerManifest(PluginManifest): manifest:
         Command:
             id = 'psi.controller.request_resume'
             handler = rpc('psi.controller', 'request_resume')
-        Command:
-            id = 'psi.controller.running'
-            handler = controller_running
 
     # Uses unicode symbols as icons for sake of simplicity.
     Extension:
@@ -135,3 +122,17 @@ enamldef ControllerManifest(PluginManifest): manifest:
         id = 'base_workspace'
         point = 'psi.experiment.workspace'
         factory = contribute_to_workspace
+
+    Extension:
+        id = 'preferences'
+        point = 'psi.experiment.preferences'
+        Preferences:
+            get_preferences => (plugin):
+                return dict((n, o._token_name) \
+                            for n, o in plugin._outputs.items())
+
+            set_preferences => (plugin, preferences):
+                if preferences is None:
+                    return
+                for output_name, token_name in preferences.items():
+                    plugin.configure_output(output_name, token_name)

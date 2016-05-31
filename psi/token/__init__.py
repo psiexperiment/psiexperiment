@@ -6,7 +6,18 @@ with enaml.imports():
     from .bandlimited_noise_manifest import BandlimitedNoiseManifest
 
 
-available_tokens = {
-    'tone': ToneManifest,
+continuous_tokens = {
     'bandlimited noise': BandlimitedNoiseManifest,
 }
+
+
+discrete_tokens = {
+    'tone': ToneManifest,
+}
+
+
+def get_token_manifest(token_name):
+    try:
+        return continuous_tokens[token_name]
+    except KeyError:
+        return discrete_tokens[token_name]

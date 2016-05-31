@@ -59,7 +59,13 @@ template ParameterTemplate(context_item, StringType: 'trial'):
 
 template ParameterTemplate(context_item, StringType: 'arbitrary'):
 
-    pass
+    HGroup:
+        spacing = 0
+        padding = 0
+        Label: label:
+            text = context_item.label
+        Field: field:
+            text := context_item.expression
 
  
 enamldef ContextItem(Container):

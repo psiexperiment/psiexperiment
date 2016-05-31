@@ -55,14 +55,6 @@ class ContextPlugin(Plugin):
         self._refresh_selectors()
         self._refresh_items()
         self._bind_observers()
-        try:
-            # Attempt to load the default context settings. This may fail if we
-            # have made changes to the code (i.e., added or removed
-            # context_items).
-            core = self.workbench.get_plugin('enaml.workbench.core')
-            core.invoke_command('psi.get_default_context')
-        except:
-            pass
 
     def stop(self):
         self._unbind_observers()

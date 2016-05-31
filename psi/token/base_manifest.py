@@ -20,6 +20,6 @@ class TokenManifest(PluginManifest):
         if compact_base is None:
             compact_base = label_base[:3] + '.'
         super(TokenManifest, self).__init__(base=base,
+                                            scope=scope,
                                             label_base=label_base,
-                                            compact_base=compact_base,
-                                            scope=scope)
+                                            compact_base=compact_base)

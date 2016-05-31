@@ -4,7 +4,8 @@ from enaml.workbench.api import Extension
 from enaml.workbench.ui.api import Branding
 
 from psi.controller.appetitive_manifest import AppetitiveManifest
-from psi.controller.output import Continuous, Epoch
+from psi.controller.channel import Channel
+#from psi.controller.engines.nidaq import NIDAQEngine
 
 from psi.context.api import ContextGroup
 
@@ -18,21 +19,39 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             title = 'Go-Nogo'
 
     Extension:
-        id = 'output'
-        point = 'psi.controller.output'
-        Continuous:
+        id = 'channels'
+        point = 'psi.controller.channels'
+
+        Channel:
             engine = 'NI'
             channel = 'Dev1/ao0'
             label = 'Background'
             name = 'background'
-            scope = 'experiment'
-        Epoch:
+            io_type = 'hw_ao'
+            mode = 'continuous'
+
+        Channel:
             engine = 'NI'
             channel = 'Dev1/ao0'
-            reference = 'trial'
             label = 'Target'
             name = 'target'
-            scope = 'trial'
+            io_type = 'hw_ao'
+            mode = 'epoch'
+
+        Channel:
+            engine = 'NI'
+            channel = 'Dev1/port0/line0'
+            label = 'nose_poke'
+            io_type = 'hw_di'
+            mode = 'event'
+
+        Channel:
+            engine = 'NI'
+            channel = 'Dev1/port0/line1'
+            label = 'nose_poke'
+            io_type = 'hw_di'
+            mode = 'event'
+
 
     Extension:
         id = 'groups'
@@ -44,22 +63,11 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             name = 'target'
             label = 'Target'
 
+
     #Extension:
     #    id = 'backend'
-    #    point = 'psi.controller.backend
+    #    point = 'psi.controller.engine'
     #    NIDAQEngine:
     #        name = 'NI'
-    #        device = 'Dev1'
-    #    SerialEngine:
-    #        name = 'serial'
-    #        device = '/dev/usb0'
-
-    #Extension:
-    #    point = 'psi.controller.trial'
-    #    TargetOnly:
-    #        pass
-
-    #Extension:
-    #    point = 'psi.controller.trial.target'
-    #    Tone:
-    #        pass
+    #        ao_fs = 100e3
+    #        ai_fs = 25e3
