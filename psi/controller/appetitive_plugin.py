@@ -92,3 +92,15 @@ class AppetitivePlugin(BaseController):
             self._pause_requested = False
         else:
             self.start_trial()
+
+    def ao_callback(self, engine_name, samples):
+        channels = self._channels[engine_name]['hw_ao']
+        engine = self._engines[engine_name]
+        waveforms = np.r_[c.get_waveform(samples) for c in channels]
+        engine.write_hw_ao(waveforms)
+
+    def ai_callback(self, engine_name, samples):
+        print 'acquired', samples.shape
+
+    def et_callback(self, engine_name, change, line, event_time):
+        print engine_name, change, line, event_time

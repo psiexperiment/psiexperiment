@@ -807,17 +807,17 @@ class NIDAQEngine(Engine):
 
     def _et_fired(self, change, line, event_time):
         for cb in self._callbacks.get('et', []):
-            cb(change, line, event_time)
+            cb(self.name, change, line, event_time)
 
     def _samples_acquired(self, samples):
         for cb in self._callbacks.get('ai', []):
-            cb(samples)
+            cb(self.name, samples)
         for generator in self._callbacks.get('ai_epoch', []):
-            generator.send(samples)
+            generator.send(self.name, samples)
 
     def _samples_needed(self, samples):
         for cb in self._callbacks.get('ao', []):
-            cb(samples)
+            cb(self.name, samples)
 
     def start(self):
         if 'hw_ao' in self._tasks:

@@ -82,6 +82,14 @@ class BaseController(Plugin):
         for engine_name, engine_config in self._channels.items():
             engine = self._engines[engine_name]
             engine.configure(engine_config)
+            engine.register_ao_callback(self.ao_callback)
+            engine.register_ai_callback(self.ai_callback)
+            engine.register_et_callback(self.et_callback)
+
+        for output in self._outputs.values():
+            if (output.io_type == 'hw_ao') and (output.mode == 'continuous'):
+                pass
+
 
     def configure_output(self, output_name, token_name):
         output = self._outputs[output_name]
@@ -130,4 +138,13 @@ class BaseController(Plugin):
         raise NotImplementedError
 
     def end_trial(self):
+        raise NotImplementedError
+
+    def ao_callback(self, engine, data):
+        raise NotImplementedError
+
+    def ai_callback(self, engine, data):
+        raise NotImplementedError
+
+    def et_callback(self, engine, data):
         raise NotImplementedError
