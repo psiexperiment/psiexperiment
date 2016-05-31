@@ -39,9 +39,8 @@ class AppetitivePlugin(BaseController):
 
     def start_experiment(self):
         try:
-            self.configure_engines()
             self.context.apply_changes()
-
+            self.configure_engines()
             self.rng = np.random.RandomState()
             selector = self.next_selector()
             self.context.next_setting(selector, save_prior=False)
@@ -54,7 +53,7 @@ class AppetitivePlugin(BaseController):
 
     def start_trial(self):
         self.trial += 1
-        print self.get_epoch_waveforms()
+        #print self.get_epoch_waveforms()
 
     def end_trial(self, response):
         if self.trial_type in ('nogo', 'nogo_repeat'):
@@ -93,10 +92,19 @@ class AppetitivePlugin(BaseController):
         else:
             self.start_trial()
 
-    def ao_callback(self, engine_name, samples):
-        channels = self._channels[engine_name]['hw_ao']
+    def ao_callback(self, engine_name, channel_names, offset, samples):
         engine = self._engines[engine_name]
-        waveforms = np.r_[c.get_waveform(samples) for c in channels]
+        waveforms = []
+        for channel_name in channel_names:
+            output = self._channel_outputs[channel_name]
+            waveforms.append(output.get_waveform(offset, samples))
+        print waveforms[0].shape
+        waveforms = np.r_[waveforms]
+        print waveforms.shape
+        print waveforms.shape
+        print waveforms.shape
+        print waveforms.shape
+        print waveforms.shape
         engine.write_hw_ao(waveforms)
 
     def ai_callback(self, engine_name, samples):

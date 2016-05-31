@@ -4,10 +4,10 @@ from enaml.workbench.api import Extension
 from enaml.workbench.ui.api import Branding
 
 from psi.controller.appetitive_manifest import AppetitiveManifest
-from psi.controller.channel import Channel
-#from psi.controller.engines.nidaq import NIDAQEngine
+from psi.controller.engines.nidaq import NIDAQEngine
 
 from psi.context.api import ContextGroup
+from psi.controller.api import Output, Channel
 
 
 enamldef ControllerManifest(AppetitiveManifest): manifest:
@@ -19,36 +19,45 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             title = 'Go-Nogo'
 
     Extension:
-        id = 'channels'
-        point = 'psi.controller.channels'
+        id = 'io'
+        point = 'psi.controller.io'
 
-        Channel:
-            engine = 'NI'
-            channel = 'Dev1/ao0'
+        Output:
             label = 'Background'
             name = 'background'
+            mode = 'continuous'
+            channel = 'speaker'
+
+        Output:
+            label = 'Target'
+            name = 'target'
+            mode = 'epoch'
+            channel = 'speaker'
+
+        Channel:
+            name = 'speaker'
+            engine = 'NI'
+            channel = 'Dev1/ao0'
             io_type = 'hw_ao'
             mode = 'continuous'
 
         Channel:
             engine = 'NI'
-            channel = 'Dev1/ao0'
-            label = 'Target'
-            name = 'target'
-            io_type = 'hw_ao'
-            mode = 'epoch'
+            channel = 'Dev1/ai0'
+            io_type = 'hw_ai'
+            mode = 'continuous'
 
         Channel:
             engine = 'NI'
             channel = 'Dev1/port0/line0'
-            label = 'nose_poke'
+            name = 'nose_poke'
             io_type = 'hw_di'
             mode = 'event'
 
         Channel:
             engine = 'NI'
             channel = 'Dev1/port0/line1'
-            label = 'nose_poke'
+            name = 'spout_contact'
             io_type = 'hw_di'
             mode = 'event'
 
@@ -64,10 +73,10 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             label = 'Target'
 
 
-    #Extension:
-    #    id = 'backend'
-    #    point = 'psi.controller.engine'
-    #    NIDAQEngine:
-    #        name = 'NI'
-    #        ao_fs = 100e3
-    #        ai_fs = 25e3
+    Extension:
+        id = 'backend'
+        point = 'psi.controller.engines'
+        NIDAQEngine:
+            name = 'NI'
+            ao_fs = 100e3
+            ai_fs = 25e3

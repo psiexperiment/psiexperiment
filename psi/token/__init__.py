@@ -1,9 +1,8 @@
 import enaml
 
 with enaml.imports():
-    from .base_manifest import TokenManifest
-    from .tone_manifest import ToneManifest
-    from .bandlimited_noise_manifest import BandlimitedNoiseManifest
+    from .discrete.tone_manifest import ToneManifest
+    from .continuous.bandlimited_noise_manifest import BandlimitedNoiseManifest
 
 
 continuous_tokens = {

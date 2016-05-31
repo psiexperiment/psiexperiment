@@ -3,13 +3,14 @@ import numpy as np
 from atom.api import Unicode
 from enaml.workbench.api import Extension, Plugin
 
-from .base_manifest import TokenManifest
+from ..api import TokenManifest, TokenPlugin
 from psi.context.api import Parameter, ContextGroup
 
 
-class TonePlugin(Plugin):
+class TonePlugin(TokenPlugin):
 
-    base = Unicode()
+    def initialize(self, fs):
+        pass
 
     def get_waveform(self, fs, calibration):
         context = self.workbench.get_plugin('psi.context')

@@ -1,14 +1,43 @@
 import numpy as np
 
+from atom.api import Typed
 from enaml.workbench.api import Extension
 
-from .base_manifest import TokenManifest
-from psi.context.api import Parameter, ContextGroup
+from ..api import TokenManifest, TokenPlugin
+from psi.context.api import Parameter
+
+
+class BandlimitedNoisePlugin(TokenPlugin):
+
+    player = Typed(object)
+
+    def initialize(self, fs):
+        from neurogen.block_definitions import BandlimitedNoise, Cos2Envelope
+        from neurogen.calibration import InterpCalibration
+        from neurogen.channel import Channel
+        from neurogen.player import Player
+
+        level = self.get_context_item('level')
+        bandwidth = self.get_context_item('bandwidth')
+        fc = self.get_context_item('center_frequency')
+        seed = self.get_context_item('seed')
+
+        carrier = BandlimitedNoise(name='noise', bandwidth=bandwidth, fc=fc,
+                                   level=level, seed=seed) 
+        channel = Channel(calibration=InterpCalibration.as_attenuation(),
+                          token=carrier, voltage_min=-10, voltage_max=10)
+        self.player = Player(fs=fs)
+        self.player.add_channel(channel)
+
+    def get_waveform(self, offset, samples):
+        print 'getting waveform'
+        return self.player.realize_samples(offset, samples)
 
 
 enamldef BandlimitedNoiseManifest(TokenManifest): m:
 
     id = 'token.bandlimited_noise.{}'.format(m.base)
+    factory = lambda base=m.base: BandlimitedNoisePlugin(base=base)
 
     Extension:
         id = '{}_items'.format(m.id)
@@ -44,11 +73,10 @@ enamldef BandlimitedNoiseManifest(TokenManifest): m:
             group = m.base
 
         Parameter:
-            name = '{}_duration'.format(m.base)
-            label = '{} duration (s)'.format(m.label_base)
-            compact_label = '{} dur.'.format(m.compact_base)
+            name = '{}_seed'.format(m.base)
+            label = '{} random seed'.format(m.label_base)
+            compact_label = '{} seed'.format(m.compact_base)
             dtype = np.float32
             default = 1
             expression = '1'
             group = m.base
-            scope = m.scope

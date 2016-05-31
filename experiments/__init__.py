@@ -27,4 +27,9 @@ def initialize_default(extra_manifests,
         for manifest in extra_manifests:
             workbench.register(manifest())
 
+        #from enaml.qt.QtGui import QApplication, QFont
+        #ui = workbench.get_plugin('enaml.workbench.ui')
+        #app = QApplication.instance()
+        #app.setFont(QFont('DejaVu Sans Mono'))
+
         return workbench
