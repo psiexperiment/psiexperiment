@@ -21,6 +21,9 @@ class NIDAQEngine(Engine, ni.Engine):
     # already been transfered to the onboard buffer. So, the onboard buffer size
     # determines how quickly we can change the analog output in response to an
     # event.
+
+    # TODO: this is not configurable on some systems. How do we figure out if
+    # it's configurable?
     #hw_ao_onboard_buffer = d_(Float(8191))
     hw_ao_onboard_buffer = d_(Float(4095))
 
@@ -32,9 +35,6 @@ class NIDAQEngine(Engine, ni.Engine):
     # determine an appropriate value for this based on the needs of your
     # program).
     hw_ao_min_writeahead = d_(Float(8191 + 1000))
-
-    ao_fs = d_(Float(100e3))
-    ai_fs = d_(Float(25e3))
 
     _tasks = Typed(dict, {})
     _callbacks = Typed(dict, {})

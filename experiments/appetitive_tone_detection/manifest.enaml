@@ -4,7 +4,8 @@ from enaml.workbench.api import Extension
 from enaml.workbench.ui.api import Branding
 
 from psi.controller.appetitive_manifest import AppetitiveManifest
-from psi.controller.engines.nidaq import NIDAQEngine
+#from psi.controller.engines.nidaq import NIDAQEngine
+from psi.controller.engines.dummy import DummyEngine
 
 from psi.context.api import ContextGroup
 from psi.controller.api import Output, Channel
@@ -76,7 +77,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
     Extension:
         id = 'backend'
         point = 'psi.controller.engines'
-        NIDAQEngine:
+        DummyEngine:
             name = 'NI'
             ao_fs = 100e3
             ai_fs = 25e3

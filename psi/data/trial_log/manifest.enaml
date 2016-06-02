@@ -2,7 +2,8 @@ from atom.api import ContainerList, Typed, Dict
 from enaml.application import deferred_call
 from enaml.core.api import Looper
 from enaml.layout.api import InsertItem
-from enaml.widgets.api import (Container, Menu, Action, DockItem)
+from enaml.widgets.api import (Container, Menu, Action, DockItem, PopupView,
+                               Form, CheckBox, Label, HGroup)
 from enaml.workbench.api import Extension, PluginManifest
 
 import pandas as pd
@@ -19,48 +20,53 @@ PLUGIN_ID = 'psi.data.trial_log'
 class TrialLog(TrialData):
 
     trial_log = Typed(pd.DataFrame)
-    context_info = Dict()
-    column_info = Typed(dict, {})
+    context_info = Typed(dict, {})
     visible_columns = ContainerList()
 
-    def prepare(self, context_info):
-        self.context_info = context_info.copy()
-        self.column_info = dict((k, v['compact_label']) \
-                                for k, v in context_info.items())
-        self.visible_columns = [k for k, v in context_info.items() if
-                                v['rove']]
+    def context_info_updated(self, context_info):
+        self.context_info = context_info
 
     def trial_log_updated(self, trial_log):
         self.trial_log = trial_log
 
 
-enamldef PopupMenu(Menu):
 
-    Looper:
-        iterable << sorted(data.context_info.items())
-        Action:
-            text = '{} | {}'.format(loop_item[1]['compact_label'],
-                                    loop_item[1]['label'])
-            checkable = True
-            checked << loop_item[0] in data.visible_columns
-            toggled ::
-                if checked:
-                    data.visible_columns.append(loop_item[0])
-                else:
-                    data.visible_columns.remove(loop_item[0])
+enamldef ColumnsPopup(PopupView):
+
+    attr data
+    parent_anchor = (0.0, 0.0)
+    arrow_size = 20
+    arrow_edge = 'right'
+    offset = (0, 0)
+
+    Form:
+        Looper:
+            iterable << sorted(data.context_info.items())
+            CheckBox:
+                checked << loop_item[0] in data.visible_columns
+                toggled ::
+                    if checked:
+                        data.visible_columns.append(loop_item[0])
+                    else:
+                        data.visible_columns.remove(loop_item[0])
+            Label:
+                text = '{} | {}'.format(loop_item[1]['label'],
+                                        loop_item[1]['compact_label'])
 
 
 enamldef TrialLogDockItem(DockItem):
 
     attr data
 
+    title_bar_right_clicked ::
+        ColumnsPopup(self, data=data).show()
+
     Container:
         DataframeTable:
+            hug_width = 'weak'
             dataframe << data.trial_log
             columns << data.visible_columns[:]
-            column_info << data.column_info
-            PopupMenu:
-                context_menu = True
+            column_info << data.context_info
 
             cell_color => (row, column):
                 tt = dataframe.at[row, 'trial_type']

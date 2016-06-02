@@ -1,3 +1,5 @@
+from functools import partial
+
 from atom.api import Enum, Bool, Typed, Property
 from enaml.workbench.plugin import Plugin
 
@@ -23,6 +25,7 @@ class BaseController(Plugin):
     # system.
     core = Typed(Plugin)
     context = Typed(Plugin)
+    data = Typed(Plugin)
 
     # We should not respond to changes during the course of a trial. These flags
     # indicate changes or requests from the user are pending and should be
@@ -40,7 +43,7 @@ class BaseController(Plugin):
     def start(self):
         self.core = self.workbench.get_plugin('enaml.workbench.core')
         self.context = self.workbench.get_plugin('psi.context')
-        self.core.invoke_command('psi.data.prepare')
+        self.data = self.workbench.get_plugin('psi.data')
         self._refresh_engines()
         self._refresh_io()
         self._bind_observers()
@@ -105,11 +108,12 @@ class BaseController(Plugin):
         for engine_name, engine_config in self._io.items():
             engine = self._engines[engine_name]
             engine.configure(engine_config)
-            engine.register_ao_callback(self.ao_callback)
-            engine.register_ai_callback(self.ai_callback)
-            engine.register_et_callback(self.et_callback)
+            engine.register_ao_callback(partial(self.ao_callback, engine_name))
+            engine.register_ai_callback(partial(self.ai_callback, engine_name))
+            engine.register_et_callback(partial(self.et_callback, engine_name))
 
         for channel_name, output in self._channel_outputs.items():
+            # TODO: Sort of a minor hack. We can clean this up eventually.
             engine_name = self._channels[channel_name].engine
             engine = self._engines[engine_name]
             output._plugin.initialize(engine.ao_fs)

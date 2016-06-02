@@ -44,6 +44,7 @@ class AppetitivePlugin(BaseController):
             self.rng = np.random.RandomState()
             selector = self.next_selector()
             self.context.next_setting(selector, save_prior=False)
+            self.core.invoke_command('psi.data.prepare')
             self.state = 'running'
             self.start_trial()
 

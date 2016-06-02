@@ -128,14 +128,6 @@ class ContextPlugin(Plugin):
     def _observe_item_expression(self, event):
         self._check_for_changes()
 
-    #def _observe_item_rove(self, event):
-    #    parameter = event['object']
-    #    if parameter.rove:
-    #        self.rove_item(parameter.name)
-    #    else:
-    #        self.unrove_item(parameter.name)
-    #    self._check_for_changes()
-
     @observe('selectors')
     def _bind_selectors(self, change):
         for p in change.get('oldvalue', {}).values():

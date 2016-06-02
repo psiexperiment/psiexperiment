@@ -1,10 +1,10 @@
 import numpy as np
 import pandas as pd
 
-from atom.api import ContainerList, Typed, Str, Int, observe
+from atom.api import ContainerList, Typed, Str, Int, observe, Bool
 from enaml.application import deferred_call
-from enaml.layout.api import InsertItem
-from enaml.widgets.api import (Container, DockItem, Label, Field)
+from enaml.layout.api import InsertItem, hbox, vbox, spacer
+from enaml.widgets.api import (Container, DockItem, CheckBox, Label, Field, HGroup)
 from enaml.workbench.api import Extension, PluginManifest
 
 from psi.core.utils import find_extension
@@ -14,24 +14,30 @@ from ..plugin import TrialData
 
 PLUGIN_ID = 'psi.data.sdt_analysis'
 
+EXTRA_COLS = {
+    'mean': {'compact_label': 'Average'}, 'size': {'compact_label': 'Trials'},
+    'sum': {'compact_label': 'Correct'},
+}
+
 
 class SDTAnalysis(TrialData):
 
     trial_log = Typed(pd.DataFrame)
     results = Typed(pd.DataFrame)
-    grouping = ContainerList()
-    visible_columns = ContainerList()
+    grouping = Typed(list, [])
+    visible_columns = Typed(list, [])
     column_info = Typed(dict, {})
-    limit = Int()
 
-    def prepare(self, context_info):
-        self.grouping = ['trial_type'] + [k for k, v in context_info.items() if v['rove']]
-        self.column_info = dict((k, v['compact_label']) \
-                                for k, v in context_info.items())
-        self.column_info.update({'mean': 'Average', 
-                                 'size': 'Trials', 
-                                 'sum': 'Correct'})
-        self.visible_columns = self.grouping[:] + ['mean', 'sum', 'size']
+    limit = Int()
+    include_repeat_nogo = Bool()
+
+    def prepare(self):
+        if not self.grouping:
+            self.grouping = ['trial_type']
+
+    def context_info_updated(self, context_info):
+        context_info.update(EXTRA_COLS)
+        self.context_info = context_info
 
     def trial_log_updated(self, trial_log):
         self.trial_log = trial_log
@@ -41,11 +47,26 @@ class SDTAnalysis(TrialData):
     def limit_changed(self, event):
         self.update_results()
 
+    @observe('include_repeat_nogo')
+    def include_repeat_nogo_changed(self, event):
+        self.update_results()
+
+    @observe('grouping')
+    def grouping_changed(self, event):
+        self.visible_columns = self.grouping + ['mean', 'size', 'sum']
+
     def update_results(self):
         if self.trial_log is None:
             return
-        trial_log = self.trial_log.iloc[-self.limit:]
-        self.results = trial_log.groupby(self.grouping)['correct'] \
+        if not self.grouping:
+            return
+        trial_log = self.trial_log.iloc[-self.limit:].copy()
+        if self.include_repeat_nogo:
+            m = trial_log.trial_type == 'nogo_repeat'
+            trial_log.loc[m, 'trial_type'] = 'nogo'
+
+        m = trial_log.trial_type.apply(lambda x: x in ('nogo', 'go'))
+        results = trial_log[m].groupby(self.grouping)['correct'] \
             .agg({'sum', 'size', 'mean'}).astype(np.float32).reset_index()
 
 
@@ -54,24 +75,40 @@ enamldef SDTAnalysisDockItem(DockItem):
     attr analysis
 
     Container:
-        Label:
-            text = 'Limit'
-        Field:
+        constraints = [
+            vbox(
+                hbox(
+                    limit_label,
+                    limit_field,
+                    spacer,
+                    repeat_nogo_field
+                ),
+                table,
+            )
+        ]
+
+        Label: limit_label:
+            text = 'Trial limit'
+            hug_width = 'strong'
+        Field: limit_field:
             text << str(analysis.limit)
             text ::
                 analysis.limit = int(text)
+        CheckBox: repeat_nogo_field:
+            checked := analysis.include_repeat_nogo
+            text = 'Include repeat NOGO?'
 
-        DataframeTable:
+        DataframeTable: table:
             dataframe << analysis.results
             columns << analysis.visible_columns[:]
-            column_info << analysis.column_info
+            column_info << analysis.context_info
 
 
 def contribute_to_workspace(workbench, workspace):
     extension = find_extension(workbench, PLUGIN_ID, 'data', SDTAnalysis)
     item = SDTAnalysisDockItem(workspace.dock_area, analysis=extension,
                                name='sdt_analysis', title='SDT Analysis')
-    op = InsertItem(item=item.name, position='bottom')
+    op = InsertItem(item=item.name, position='right')
     deferred_call(workspace.dock_area.update_layout, op)
 
 

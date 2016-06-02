@@ -118,7 +118,7 @@ def contribute_to_workspace(workbench, workspace):
                                  name='cv', 
                                  title='Current values',
                                  closable=False)
-    op = InsertItem(item=item.name, position='bottom')
+    op = InsertItem(item=item.name, position='left')
     deferred_call(workspace.dock_area.update_layout, op)
 
 

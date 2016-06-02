@@ -33,13 +33,13 @@ class QDataFrameTableModel(QAbstractTableModel):
         elif role == Qt.DisplayRole:
             if orientation == Qt.Horizontal:
                 c = self._columns[section]
-                return self._column_info[c]
+                return self._column_info[c]['compact_label']
             else:
                 return str(section+1)
-        elif role == Qt.FontRole:
-            font = QFont()
-            font.setPointSize(font.pointSize()-2)
-            return font
+        #elif role == Qt.FontRole:
+        #    font = QFont()
+        #    font.setPointSize(font.pointSize()-2)
+        #    return font
 
     def data(self, index, role=Qt.DisplayRole):
         # Do nothing if the dataframe is empty
@@ -53,10 +53,10 @@ class QDataFrameTableModel(QAbstractTableModel):
             return str(v)
         elif role == Qt.TextAlignmentRole:
             return int(Qt.AlignRight | Qt.AlignVCenter)
-        elif role == Qt.FontRole:
-            font = QFont()
-            font.setPointSize(font.pointSize()-2)
-            return font
+        #elif role == Qt.FontRole:
+        #    font = QFont()
+        #    font.setPointSize(font.pointSize()-2)
+        #    return font
         elif role == Qt.BackgroundRole:
             if self._cell_color is not None:
                 r = index.row()

@@ -1,0 +1,24 @@
+import numpy as np
+
+from atom.api import Typed
+from enaml.workbench.api import Extension
+
+from ..api import TokenManifest, TokenPlugin
+from psi.context.api import Parameter
+
+
+class SilencePlugin(TokenPlugin):
+
+    player = Typed(object)
+
+    def initialize(self, fs):
+        pass
+
+    def get_waveform(self, offset, samples):
+        return np.zeros(samples)
+
+
+enamldef SilenceManifest(TokenManifest): m:
+
+    id = 'token.silence.{}'.format(m.base)
+    factory = lambda base=m.base: SilencePlugin(base=base)

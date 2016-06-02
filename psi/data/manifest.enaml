@@ -15,10 +15,8 @@ def process_trial(event):
 
 
 def prepare(event):
-    data = event.workbench.get_plugin(PLUGIN_ID)
-    context = event.workbench.get_plugin('psi.context')
-    context_info = context.get_context_info()
-    data.prepare_trial_data(context_info)
+    data = event.workbench.get_plugin('psi.data')
+    data.prepare_trial_data()
 
 
 enamldef DataManifest(PluginManifest): manifest:
