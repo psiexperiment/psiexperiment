@@ -4,9 +4,11 @@ from enaml.widgets.api import Container, Field, CheckBox, Label, HGroup
 
 from psi.context.context_item import Result, Parameter
 
+from enaml.widgets.api import ComboBox
+
 
 template ContextItemTemplate(context_item, MemberType: Result):
-
+    # Template for Result context items
     HGroup:
         spacing = 0
         padding = 0
@@ -17,13 +19,14 @@ template ContextItemTemplate(context_item, MemberType: Result):
 
 
 template ContextItemTemplate(context_item, MemberType: Parameter):
-
+    # Generic template for Parameters that splits based on the scope (e.g.
+    # experiment vs trial)'
     DynamicTemplate:
         base = ParameterTemplate
         args = (context_item, context_item.scope)
 
 
-template ParameterTemplate(context_item, StringType: 'experiment'):
+template ParameterTemplate(context_item, scope: 'experiment'):
 
     HGroup:
         spacing = 0
@@ -36,7 +39,7 @@ template ParameterTemplate(context_item, StringType: 'experiment'):
                 not in ('running', 'paused')
 
 
-template ParameterTemplate(context_item, StringType: 'trial'):
+template ParameterTemplate(context_item, scope: 'trial'):
 
     HGroup:
         spacing = 0
@@ -57,7 +60,7 @@ template ParameterTemplate(context_item, StringType: 'trial'):
                 workbench.get_plugin('psi.context').roving_items else 'enabled'
 
 
-template ParameterTemplate(context_item, StringType: 'arbitrary'):
+template ParameterTemplate(context_item, scope: 'arbitrary'):
 
     HGroup:
         spacing = 0

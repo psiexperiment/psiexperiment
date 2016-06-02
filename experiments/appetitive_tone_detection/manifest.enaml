@@ -27,36 +27,36 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             label = 'Background'
             name = 'background'
             mode = 'continuous'
-            channel = 'speaker'
+            channel_name = 'speaker'
 
         Output:
             label = 'Target'
             name = 'target'
             mode = 'epoch'
-            channel = 'speaker'
+            channel_name = 'speaker'
 
         Channel:
             name = 'speaker'
-            engine = 'NI'
+            engine_name = 'NI'
             channel = 'Dev1/ao0'
             io_type = 'hw_ao'
             mode = 'continuous'
 
         Channel:
-            engine = 'NI'
+            engine_name = 'NI'
             channel = 'Dev1/ai0'
             io_type = 'hw_ai'
             mode = 'continuous'
 
         Channel:
-            engine = 'NI'
+            engine_name = 'NI'
             channel = 'Dev1/port0/line0'
             name = 'nose_poke'
             io_type = 'hw_di'
             mode = 'event'
 
         Channel:
-            engine = 'NI'
+            engine_name = 'NI'
             channel = 'Dev1/port0/line1'
             name = 'spout_contact'
             io_type = 'hw_di'
@@ -81,3 +81,4 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             name = 'NI'
             ao_fs = 100e3
             ai_fs = 25e3
+            master_clock = True

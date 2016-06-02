@@ -1,28 +1,44 @@
 import numpy as np
 
-from atom.api import Unicode
+from atom.api import Unicode, Typed
 from enaml.workbench.api import Extension, Plugin
 
 from ..api import TokenManifest, TokenPlugin
 from psi.context.api import Parameter, ContextGroup
 
+from neurogen.channel import Channel
+from neurogen.player import Player
 
 class TonePlugin(TokenPlugin):
 
-    def initialize(self, fs):
-        pass
+    channel = Typed(Channel)
+    player = Typed(Player)
 
-    def get_waveform(self, fs, calibration):
+    def initialize(self, fs):
+        from neurogen.block_definitions import Tone, Cos2Envelope
+        from neurogen.calibration import InterpCalibration
+        calibration = InterpCalibration.from_spl([0, 100e3], [100, 100], 1)
+        token = Tone(name='tone') >> Cos2Envelope(name='envelope')
+        self.channel = Channel(calibration=calibration, token=token,
+                               voltage_min=-10, voltage_max=10)
+        self.player = Player(fs=fs)
+        self.player.add_channel(self.channel)
+
+    def get_waveform(self, offset, samples):
         context = self.workbench.get_plugin('psi.context')
         frequency = context.get_value('{}_frequency'.format(self.base))
         level = context.get_value('{}_level'.format(self.base))
         phase = context.get_value('{}_phase'.format(self.base))
         duration = context.get_value('{}_duration'.format(self.base))
-
-        t = np.arange(duration*fs, dtype=np.double)/fs
-        a = 1
-        #a = calibration.get_sf(frequency, level)
-        return a*np.sin(2*np.pi*frequency*t+phase)
+        self.channel.set_values({
+            'tone.frequency': frequency,
+            'tone.level': level,
+            'tone.phase': phase,
+            'envelope.duration': duration
+        })
+        t = self.player.realize(duration=duration)
+        print 'generating', t.shape
+        return t
 
 
 enamldef ToneManifest(TokenManifest): m:

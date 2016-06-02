@@ -141,6 +141,9 @@ class ContextPlugin(Plugin):
 
     def _update_attrs(self, context_items, selectors, roving_items):
         for i in self.context_items:
+            if i not in context_items:
+                # TODO: how to handle this? warning?
+                continue
             from_items = context_items[i]
             to_items = self.context_items[i]
             copy_attrs(from_items, to_items)

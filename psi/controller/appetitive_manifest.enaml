@@ -12,7 +12,7 @@ from ..context.api import ContextGroup, Parameter, Result
 from ..context.selector import SequenceSelector, SingleSetting
 
 from .base_manifest import ControllerManifest
-from .appetitive_plugin import AppetitivePlugin
+from .appetitive_plugin import AppetitivePlugin, Event
 from ..util import rpc
 
 
@@ -30,6 +30,13 @@ def get_status(trial, trial_type):
     return 'Trial {}: {}'.format(trial, label)
 
 
+def get_state(trial_state):
+    if trial_state is None:
+        return ''
+    else:
+        return trial_state.value
+
+
 enamldef ControllerStateDockItem(DockItem):
 
     attr controller
@@ -37,6 +44,8 @@ enamldef ControllerStateDockItem(DockItem):
     Container:
         Label:
             text << get_status(controller.trial, controller.trial_type)
+        Label:
+            text << get_state(controller.trial_state)
 
 
 def contribute_to_workspace(workbench, workspace):
@@ -62,18 +71,25 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
         point = 'psi.experiment.toolbar'
         Action:
             text = 'Spout'
-            tool_tip = 'Mark spout response'
-            triggered ::
+            checkable = True
+            toggled ::
                 plugin = workbench.get_plugin(PLUGIN_ID)
+                if checked:
+                    plugin.handle_event(Event.spout_start)
+                else:
+                    plugin.handle_event(Event.spout_end)
                 plugin.end_trial(response='spout')
             enabled << workbench.get_plugin(PLUGIN_ID).state \
                 not in ('initialized', 'stopped')
         Action:
             text = 'Poke'
-            tool_tip = 'Mark nose poke'
+            checkable = True
             triggered ::
                 plugin = workbench.get_plugin(PLUGIN_ID)
-                plugin.end_trial(response='poke')
+                if checked:
+                    plugin.handle_event(Event.np_start)
+                else:
+                    plugin.handle_event(Event.np_end)
             enabled <<  workbench.get_plugin(PLUGIN_ID).state \
                 not in ('initialized', 'stopped')
 
@@ -190,7 +206,37 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
             compact_label = 'C'
             group = 'results'
             dtype = np.bool
-
+        Result:
+            name = 'np_start'
+            label = 'Nose-poke start'
+            compact_label = 'NP/'
+            group = 'results'
+            dtype = np.int
+        Result:
+            name = 'np_end'
+            label = 'Nose-poke end'
+            compact_label = 'NP\\'
+            group = 'results'
+            dtype = np.int
+        Result:
+            name = 'response_ts'
+            label = 'Response time'
+            compact_label = 'R|'
+            group = 'results'
+            dtype = np.int
+        Result:
+            name = 'target_start'
+            label = 'Target start'
+            compact_label = 'T/'
+            group = 'results'
+            dtype = np.int
+        Result:
+            name = 'target_end'
+            label = 'Target end'
+            compact_label = 'T\\'
+            group = 'results'
+            dtype = np.int
+            
     # Sequences used by the appetitive Go-Nogo controller.
     Extension:
         id = 'selectors'

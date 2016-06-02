@@ -29,7 +29,7 @@ class BaseController(Plugin):
 
     # We should not respond to changes during the course of a trial. These flags
     # indicate changes or requests from the user are pending and should be
-    # processed when the opportunity arisese (e.g., at the end of the trial).
+    # processed when the opportunity arises (e.g., at the end of the trial).
     _apply_requested = Bool(False)
     _remind_requested = Bool(False)
     _pause_requested = Bool(False)
@@ -39,6 +39,7 @@ class BaseController(Plugin):
     _outputs = Typed(dict, {})
     _channels = Typed(dict, {})
     _channel_outputs = Typed(dict, {})
+    _master_engine = Typed(Engine)
 
     def start(self):
         self.core = self.workbench.get_plugin('enaml.workbench.core')
@@ -72,25 +73,29 @@ class BaseController(Plugin):
 
         for extension in point.extensions:
             for channel in extension.get_children(Channel):
-                engine_io = io.setdefault(channel.engine, {})
+                engine = self._engines[channel.engine_name]
+                channel.engine = engine
+
+                engine_io = io.setdefault(channel.engine_name, {})
                 engine_io.setdefault(channel.io_type, []).append(channel)
                 channels[channel.name] = channel
 
         for extension in point.extensions:
             for output in extension.get_children(Output):
-                if output.channel not in channels:
-                    # Verify that the channel specified for the output exists
-                    m = 'Undefined channel {} for output {}' \
-                        .format(output.channel, output.name)
-                    raise ValueError(m)
+                channel = channels[output.channel_name]
+                output.channel = channel
                 outputs[output.name] = output
-                if output.mode == 'continuous':
-                    if output.channel in channel_outputs:
-                        m = 'Continuous output already defined for {}' \
-                            .format(output.channel)
-                        raise ValueError(m)
-                    channel_outputs[output.channel] = output
 
+                co = channel_outputs.setdefault(output.mode, {})
+                if output.channel in co:
+                    m = '{} output already defined for {}' \
+                        .format(output.mode, output.channel)
+                    raise ValueError(m)
+                co[output.channel_name] = output
+
+        # TODO: We have four different ways of organizing the information loaded
+        # under this extension point. Is there a simpler, more logical way to
+        # organize everything?
         self._io = io
         self._outputs = outputs
         self._channels = channels
@@ -98,10 +103,17 @@ class BaseController(Plugin):
 
     def _refresh_engines(self):
         engines = {}
+        master_engine = None
         point = self.workbench.get_extension_point(ENGINE_POINT)
         for extension in point.extensions:
             for engine in extension.get_children(Engine):
                 engines[engine.name] = engine
+                if engine.master_clock:
+                    if master_engine is not None:
+                        m = 'Only one engine can be defined as the master'
+                        raise ValueError(m)
+                    master_engine = engine
+        self._master_engine = master_engine
         self._engines = engines
 
     def configure_engines(self):
@@ -112,11 +124,11 @@ class BaseController(Plugin):
             engine.register_ai_callback(partial(self.ai_callback, engine_name))
             engine.register_et_callback(partial(self.et_callback, engine_name))
 
-        for channel_name, output in self._channel_outputs.items():
+        for output in self._outputs.values():
             # TODO: Sort of a minor hack. We can clean this up eventually.
-            engine_name = self._channels[channel_name].engine
-            engine = self._engines[engine_name]
-            output._plugin.initialize(engine.ao_fs)
+            ao_fs = output.channel.engine.ao_fs
+            output._plugin.initialize(ao_fs)
+
 
         for engine in self._engines.values():
             engine.start()
@@ -153,7 +165,20 @@ class BaseController(Plugin):
         raise NotImplementedError
 
     def stop_experiment(self):
+        import numpy as np
+        for engine in self._engines.values():
+            engine.stop()
         self.state = 'stopped'
+        engine = self._engines.values()[0]
+        b = np.concatenate(engine._hw_ao_buffer, axis=-1)
+        import pyqtgraph as pg
+        window = pg.GraphicsWindow()
+        window.resize(800, 350)
+
+        plot = window.addPlot()
+        curve = plot.plot(pen='y')
+        curve.setData(b.ravel())
+        time.sleep(10)
 
     def start_trial(self):
         raise NotImplementedError
@@ -169,3 +194,6 @@ class BaseController(Plugin):
 
     def et_callback(self, engine, data):
         raise NotImplementedError
+
+    def get_ts(self):
+        return self._master_engine.get_ts()

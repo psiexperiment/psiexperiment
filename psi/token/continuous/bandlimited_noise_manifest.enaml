@@ -24,13 +24,13 @@ class BandlimitedNoisePlugin(TokenPlugin):
 
         carrier = BandlimitedNoise(name='noise', bandwidth=bandwidth, fc=fc,
                                    level=level, seed=seed) 
-        channel = Channel(calibration=InterpCalibration.as_attenuation(),
+        c = InterpCalibration.from_spl([0, 100e3], [100, 100])
+        channel = Channel(calibration=c,
                           token=carrier, voltage_min=-10, voltage_max=10)
         self.player = Player(fs=fs)
         self.player.add_channel(channel)
 
     def get_waveform(self, offset, samples):
-        print 'getting waveform'
         return self.player.realize_samples(offset, samples)
 
 

@@ -82,4 +82,6 @@ class Parameter(ContextItem):
     #   sense for it to be a roving item.
     scope = d_(Enum('experiment', 'trial', 'arbitrary'))
 
+    template_type = d_(Unicode('default'))
+
     _cmp_attrs = ContextItem._cmp_attrs + ['expression']
