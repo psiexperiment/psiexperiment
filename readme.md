@@ -8,6 +8,14 @@ experiment, controller and data.
 Terminology
 -----------
 
+### Context
+
+Every experiment has a set of variables that define the behavior. These
+variables range from the stimulus frequency and level to the intertrial
+interval duration. Sometimes these variables need to be expressed as functions
+of other variables, or the value of the variable needs to vary in a random
+fashion.
+
 A *context item* provides information about a value that is managed by the
 context plugin. When defining a context item in one of your plugin manifests,
 you will provide basic information about the item (e.g., a GUI label, compact
@@ -41,6 +49,13 @@ remind trials and one for nogo trials). Right now, the only difference between
 different types of selectors will be the GUI that's presented to the user for
 configuring the sequence of values. Internally, all of them maintain a list of
 values that should be presented on successive trials.
+
+### Controller
+
+The controller is the central plugin of the experiment system. It's responsible
+for managing a series of *engines*, which communicate with connected hardware
+devices (e.g., NI-DAQmx cards, speakers, serial devices such as the NE1000
+pump, etc.)
 
 
 Plugins
