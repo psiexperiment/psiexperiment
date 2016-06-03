@@ -1,9 +1,13 @@
+import warnings
+
 import enaml
 
-from experiments import initialize_default
+from experiments import initialize_default, configure_logging
 
 
 if __name__ == '__main__':
+    configure_logging()
+
     with enaml.imports():
         from experiments.appetitive_tone_detection.manifest \
             import ControllerManifest
@@ -12,7 +16,6 @@ if __name__ == '__main__':
         from psi.data.trial_log.manifest import TrialLogManifest
         from psi.data.sdt_analysis.manifest import SDTAnalysisManifest
         from psi.data.hdf_store.manifest import HDFStoreManifest
-
 
         extra_manifests = [
             ControllerManifest,
@@ -27,6 +30,9 @@ if __name__ == '__main__':
         core.invoke_command('enaml.workbench.ui.select_workspace',
                             {'workspace': 'psi.experiment.workspace'})
 
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
         ui = workbench.get_plugin('enaml.workbench.ui')
         ui.show_window()
-        ui.start_application()
+
+    ui.start_application()

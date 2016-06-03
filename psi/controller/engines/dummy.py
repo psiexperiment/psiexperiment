@@ -16,16 +16,21 @@ class DummyEngine(Engine):
 
     _ao_offset = Int(0)
     _timer = Typed(object)
+    _last_tick = Float(0)
 
     _timer_interval = Float(1)
     _stop = Bool(False)
 
     _start_time = Float()
 
+    buffer_size = Float(30)
+    buffer_samples = Int()
+
     def start(self):
-        samples = int(self._timer_interval*self.ao_fs)*10
+        self.buffer_samples = int(self.buffer_size*self.ao_fs)
         for cb in self._callbacks['ao']:
-            cb(self._names['hw_ao'], self._ao_offset, samples)
+            cb(self._names['hw_ao'], self._ao_offset, self.buffer_samples)
+
         self._timer = Timer(self._timer_interval, self._tick)
         self._timer.start()
         self._start_time = time.time()
@@ -36,7 +41,12 @@ class DummyEngine(Engine):
     def _tick(self):
         if self._stop:
             return
-        samples = int(self._timer_interval*self.ao_fs)
+
+        current_tick = self.get_ts()
+
+        samples = int((current_tick-self._last_tick)*self.ao_fs)
+        self._last_tick = current_tick
+
         for cb_type, callbacks in self._callbacks.items():
             if cb_type == 'ao':
                 for cb in callbacks:
@@ -46,6 +56,7 @@ class DummyEngine(Engine):
         self._timer.start()
 
     def configure(self, configuration):
+        super(DummyEngine, self).configure(configuration)
         for key in ['hw_ao', 'hw_ai']:
             self._names[key] = [c.name for c in configuration.get('hw_ao', [])]
 
@@ -62,7 +73,6 @@ class DummyEngine(Engine):
         cb.append(callback)
 
     def write_hw_ao(self, waveforms, offset=None):
-        print 'writing', waveforms.shape
         if offset is None:
             if self._hw_ao_buffer is not None:
                 self._hw_ao_buffer = \
@@ -71,11 +81,10 @@ class DummyEngine(Engine):
                 self._hw_ao_buffer = waveforms
             self._ao_offset = self._hw_ao_buffer.shape[-1]
         else:
-            print 'current size', self._hw_ao_buffer.shape
             lb, ub = offset, offset+waveforms.shape[-1]
-            print 'offset', lb, ub
             self._hw_ao_buffer[..., lb:ub] = waveforms
-            self._ao_offset = ub
+            self._hw_ao_buffer = self._hw_ao_buffer[..., :ub]
+        self._ao_offset = self._hw_ao_buffer.shape[-1]
 
     def get_ts(self):
         return time.time()-self._start_time

@@ -159,7 +159,6 @@ class BaseController(Plugin):
 
     def request_resume(self):
         self.state == 'running'
-        self.start_trial()
 
     def start_experiment(self):
         raise NotImplementedError
@@ -178,7 +177,7 @@ class BaseController(Plugin):
         plot = window.addPlot()
         curve = plot.plot(pen='y')
         curve.setData(b.ravel())
-        time.sleep(10)
+        raise ValueError
 
     def start_trial(self):
         raise NotImplementedError

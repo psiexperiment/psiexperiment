@@ -27,3 +27,6 @@ class ExperimentWorkspace(Workspace):
         deferred_call(core.invoke_command, 'psi.get_default_layout')
         deferred_call(core.invoke_command, 'psi.get_default_preferences')
         deferred_call(core.invoke_command, 'psi.get_default_context')
+
+    def stop(self):
+        print 'stopping'

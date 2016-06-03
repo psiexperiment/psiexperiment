@@ -31,7 +31,7 @@ class BandlimitedNoisePlugin(TokenPlugin):
         self.player.add_channel(channel)
 
     def get_waveform(self, offset, samples):
-        return self.player.realize_samples(offset, samples)
+        return self.player.realize_samples(offset, samples)[0]
 
 
 enamldef BandlimitedNoiseManifest(TokenManifest): m:

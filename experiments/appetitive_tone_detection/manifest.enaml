@@ -7,7 +7,7 @@ from psi.controller.appetitive_manifest import AppetitiveManifest
 #from psi.controller.engines.nidaq import NIDAQEngine
 from psi.controller.engines.dummy import DummyEngine
 
-from psi.context.api import ContextGroup
+from psi.context.api import ContextGroup, Parameter
 from psi.controller.api import Output, Channel
 
 

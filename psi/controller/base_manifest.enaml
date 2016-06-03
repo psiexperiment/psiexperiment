@@ -23,7 +23,6 @@ enamldef ControllerManifest(PluginManifest): manifest:
     Defines the core functionality that most controller plugins will share
     (start, stop, pause, apply/revert settings).
     '''
-
     ExtensionPoint:
         id = 'psi.controller.io'
 

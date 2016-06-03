@@ -36,9 +36,7 @@ class TonePlugin(TokenPlugin):
             'tone.phase': phase,
             'envelope.duration': duration
         })
-        t = self.player.realize(duration=duration)
-        print 'generating', t.shape
-        return t
+        return self.player.realize(duration=duration)[0]
 
 
 enamldef ToneManifest(TokenManifest): m:

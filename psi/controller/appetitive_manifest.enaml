@@ -34,7 +34,7 @@ def get_state(trial_state):
     if trial_state is None:
         return ''
     else:
-        return trial_state.value
+        return trial_state.value.capitalize()
 
 
 enamldef ControllerStateDockItem(DockItem):
@@ -78,7 +78,6 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
                     plugin.handle_event(Event.spout_start)
                 else:
                     plugin.handle_event(Event.spout_end)
-                plugin.end_trial(response='spout')
             enabled << workbench.get_plugin(PLUGIN_ID).state \
                 not in ('initialized', 'stopped')
         Action:
@@ -211,31 +210,43 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
             label = 'Nose-poke start'
             compact_label = 'NP/'
             group = 'results'
-            dtype = np.int
+            dtype = np.float
         Result:
             name = 'np_end'
             label = 'Nose-poke end'
             compact_label = 'NP\\'
             group = 'results'
-            dtype = np.int
+            dtype = np.float
         Result:
             name = 'response_ts'
-            label = 'Response time'
+            label = 'Response timestamp'
             compact_label = 'R|'
             group = 'results'
-            dtype = np.int
+            dtype = np.float
         Result:
             name = 'target_start'
             label = 'Target start'
             compact_label = 'T/'
             group = 'results'
-            dtype = np.int
+            dtype = np.float
         Result:
             name = 'target_end'
             label = 'Target end'
             compact_label = 'T\\'
             group = 'results'
-            dtype = np.int
+            dtype = np.float
+        Result:
+            name = 'reaction_time'
+            label = 'Reaction time'
+            compact_label = 'RT'
+            group = 'results'
+            dtype = np.float
+        Result:
+            name = 'response_time'
+            label = 'Response time'
+            compact_label = 'Resp. Time'
+            group = 'results'
+            dtype = np.float
             
     # Sequences used by the appetitive Go-Nogo controller.
     Extension:

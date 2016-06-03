@@ -46,15 +46,3 @@ class NIDAQEngine(Engine, ni.Engine):
     def __init__(self, *args, **kwargs):
         ni.Engine.__init__(self)
         Engine.__init__(self, *args, **kwargs)
-
-    def configure(self, configuration):
-        if 'hw_ao' in configuration:
-            channels = configuration['hw_ao']
-            lines = ','.join(c.channel for c in channels)
-            names = [c.name for c in channels]
-            self.configure_hw_ao(self.ao_fs, lines, (-10, 10), names=names)
-        if 'hw_ai' in configuration:
-            channels = configuration['hw_ai']
-            lines = ','.join(c.channel for c in channels)
-            names = [c.name for c in channels]
-            self.configure_hw_ai(self.ai_fs, lines, (-10, 10), names=names)

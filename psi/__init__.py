@@ -1,6 +1,16 @@
 import logging
 from atom.api import Event
 
+
+# Set up a verbose debugger level for tracing
+TRACE_LEVEL_NUM = 5
+logging.addLevelName(TRACE_LEVEL_NUM, "TRACE")
+def trace(self, message, *args, **kws):
+    # Yes, logger takes its '*args' as 'args'.
+    if self.isEnabledFor(TRACE_LEVEL_NUM):
+        self._log(TRACE_LEVEL_NUM, message, args, **kws)
+logging.Logger.trace = trace
+
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
 

@@ -1,13 +1,17 @@
 import enum
 import threading
+from functools import partial
 
 import logging
 log = logging.getLogger(__name__)
 
-from atom.api import Int, Typed, Unicode
+from atom.api import Int, Typed, Unicode, observe
 import numpy as np
 
 from .base_plugin import BaseController
+
+
+from enaml.qt.QtCore import QTimer, QMutex
 
 
 class TrialState(enum.Enum):
@@ -19,6 +23,7 @@ class TrialState(enum.Enum):
 
     This is specific to appetitive reinforcement paradigms.
     '''
+    waiting_for_resume = 'waiting for resume'
     waiting_for_np_start = 'waiting for nose-poke start'
     waiting_for_np_duration = 'waiting for nose-poke duration'
     waiting_for_hold_period = 'waiting for hold period'
@@ -52,10 +57,11 @@ class AppetitivePlugin(BaseController):
     consecutive_nogo = Int(0)
     rng = Typed(np.random.RandomState)
     trial_type = Unicode()
-    trial_info = Typed(dict, {})
+    trial_info = Typed(dict, ())
     trial_state = Typed(TrialState)
-    _lock = threading.Lock()
-    timer = Typed(object)
+
+    timer = Typed(QTimer)
+    mutex = Typed(QMutex, ())
 
     event_map = {
         ('rising', 'np'): Event.np_start,
@@ -92,6 +98,7 @@ class AppetitivePlugin(BaseController):
 
     def start_experiment(self):
         try:
+            self.trial += 1
             self.context.apply_changes()
             self.configure_engines()
             self.rng = np.random.RandomState()
@@ -104,16 +111,13 @@ class AppetitivePlugin(BaseController):
             raise
 
     def start_trial(self):
+        log.debug('starting trial')
         epoch_output = self._channel_outputs['epoch']['speaker']
-        continuous_output = self._channel_outputs['continuous']['speaker']
-        target = epoch_output.get_waveform()
-        samples = target.shape[-1]
+        engine = epoch_output.channel.engine
+        waveform = epoch_output.get_waveform()
         ts = self.get_ts()+0.25
-        fs = continuous_output.channel.engine.ao_fs
-        offset = int(fs*ts)
-        masker = continuous_output.get_waveform(offset, samples)[0]
-        waveform = target+masker
-        epoch_output.channel.engine.write_hw_ao(waveform, offset=offset)
+        offset = int(ts*engine.ao_fs)
+        engine.modify_hw_ao(waveform, offset=offset)
 
         # TODO - the hold duration will include the update delay. Do we need
         # super-precise tracking of hold period or can it vary by a couple 10s
@@ -121,58 +125,76 @@ class AppetitivePlugin(BaseController):
         self.trial_state = TrialState.waiting_for_hold_period
         self.start_timer('hold_duration', Event.hold_duration_elapsed)
         self.trial_info['target_start'] = ts
-        self.trial_info['target_end'] = ts+(samples/fs)
+        self.trial_info['target_end'] = ts+(waveform.shape[-1]/engine.ao_fs)
 
     def end_trial(self, response):
+        import inspect
+        curframe = inspect.currentframe()
+        calframe = inspect.getouterframes(curframe, 2)
+        print 'caller name:', calframe[1][3]
+
+        log.debug('Animal responded by {}, ending trial'.format(response))
+        self.stop_timer()
+
         if self.trial_type in ('nogo', 'nogo_repeat'):
             self.consecutive_nogo += 1
             if response == 'spout':
                 score = 'FA'
-            elif response == 'poke':
+            elif response in ('poke', 'no response'):
                 score = 'CR'
         else:
             self.consecutive_nogo = 0
             if response == 'spout':
                 score = ' HIT'
-            elif response == 'poke':
+            elif response in ('poke', 'no response'):
                 score = 'MISS'
+
+        resp_time = self.trial_info['response_ts']-self.trial_info['target_start']
+        react_time = self.trial_info['np_end']-self.trial_info['np_start']
 
         self.trial_info.update({
             'response': response,
             'trial_type': self.trial_type,
             'score': score,
             'correct': score in ('CR', 'HIT'),
+            'response_time': resp_time,
+            'reaction_time': react_time,
         })
+        if score == 'FA':
+            self.trial_state = TrialState.waiting_for_to
+            self.start_timer('to_duration', Event.to_duration_elapsed)
+        else:
+            if score == 'HIT':
+                # TODO, deliver reward
+                pass
+            self.trial_state = TrialState.waiting_for_iti
+            self.start_timer('iti_duration', Event.iti_duration_elapsed)
+
         self.context.set_values(self.trial_info)
         self.core.invoke_command('psi.data.process_trial')
 
-        # Apply pending changes that way any parameters (such as repeat_FA or
-        # go_probability) are reflected in determining the next trial type.
-        if self._apply_requested:
-            self.context.apply_changes()
-            self._apply_requested = False
-        selector = self.next_selector()
-        self.context.next_setting(selector, save_prior=True)
-
-        if self._pause_requested:
-            self.state = 'paused'
-            self._pause_requested = False
-        else:
-            self.start_trial()
+    def request_resume(self):
+        super(AppetitivePlugin, self).request_resume()
+        self.trial_state = TrialState.waiting_for_np_start
 
     def ao_callback(self, engine_name, channel_names, offset, samples):
+        m = '{} requests {} samples starting at {} for {}' \
+            .format(engine_name, samples, offset, ', '.join(channel_names))
+        log.trace(m)
         waveforms = []
         for channel_name in channel_names:
             output = self._channel_outputs['continuous'][channel_name]
-            waveforms.append(output.get_waveform(offset, samples)[0])
+            waveforms.append(output.get_waveform(offset, samples))
         waveforms = np.r_[waveforms]
         engine = self._engines[engine_name]
-        engine.write_hw_ao(waveforms)
+        engine.append_hw_ao(waveforms)
 
     def ai_callback(self, engine_name, samples):
-        print 'acquired', samples.shape
+        pass
 
     def et_callback(self, engine_name, change, line, event_time):
+        log.debug('{} detected {} on {} at {}' \
+                  .format(engine_name, change, line, event_time))
         event = self.event_map[edge, line]
         self.handle_event(event, event_time)
 
@@ -181,7 +203,8 @@ class AppetitivePlugin(BaseController):
         # time. This essentially queues the events such that the next event
         # doesn't get processed until `_handle_event` finishes processing the
         # current one.
-        with self._lock:
+        try:
+            self.mutex.lock()
             # Only events generated by NI-DAQmx callbacks will have a timestamp.
             # Since we want all timing information to be in units of the analog
             # output sample clock, we will capture the value of the sample clock
@@ -197,8 +220,12 @@ class AppetitivePlugin(BaseController):
             # location of the target in the analog output buffer).
             if timestamp is None:
                 timestamp = self.get_ts()
-            print event, timestamp
+            log.debug('{} at {}'.format(event, timestamp))
             self._handle_event(event, timestamp)
+        except Exception as e:
+            log.exception(e)
+        finally:
+            self.mutex.unlock()
 
     def _handle_event(self, event, timestamp):
         '''
@@ -206,24 +233,29 @@ class AppetitivePlugin(BaseController):
         the event that occured. Depending on the experiment state, a particular
         event may not be processed.
         '''
-        # TODO: log event
+        log.debug('inside handle event')
+        # TODO: log event to HDF5 file? i.e. add a event logger.
         if self.trial_state == TrialState.waiting_for_np_start:
             if event == Event.np_start:
                 # Animal has nose-poked in an attempt to initiate a trial.
                 self.trial_state = TrialState.waiting_for_np_duration
                 self.start_timer('np_duration', Event.np_duration_elapsed)
                 # If the animal does not maintain the nose-poke long enough,
-                # this value will get overwritten with the next nose-poke.
+                # this value will get overwritten with the next nose-poke. In
+                # general, set np_end to NaN (sometimes the animal never
+                # withdraws).
                 self.trial_info['np_start'] = timestamp
+                self.trial_info['np_end'] = np.nan
 
         elif self.trial_state == TrialState.waiting_for_np_duration:
             if event == Event.np_end:
                 # Animal has withdrawn from nose-poke too early. Cancel the
                 # timer so that it does not fire a 'event_np_duration_elapsed'.
                 log.debug('Animal withdrew too early')
-                self.timer.cancel()
+                self.stop_timer()
                 self.trial_state = TrialState.waiting_for_np_start
             elif event == Event.np_duration_elapsed:
+                log.debug('Animal initiated trial')
                 self.start_trial()
 
         elif self.trial_state == TrialState.waiting_for_hold_period:
@@ -234,10 +266,11 @@ class AppetitivePlugin(BaseController):
                 # Record the time of nose-poke withdrawal if it is the first
                 # time since initiating a trial.
                 log.debug('Animal withdrew during hold period')
-                if 'np_end' not in self.trial_info:
+                if not np.isnan(self.trial_info['np_end']):
                     log.debug('Recording np_end')
                     self.trial_info['np_end'] = timestamp
             elif event == Event.hold_duration_elapsed:
+                log.debug('Animal maintained poke through hold period')
                 self.trial_state = TrialState.waiting_for_response
                 self.start_timer('response_duration',
                                  Event.response_duration_elapsed)
@@ -253,34 +286,72 @@ class AppetitivePlugin(BaseController):
                 if 'np_end' not in self.trial_info:
                     self.trial_info['np_end'] = timestamp
             elif event == Event.np_start:
+                log.debug('Animal repoked')
                 self.trial_info['response_ts'] = timestamp
-                self.stop_trial(response='nose poke')
+                self.end_trial(response='poke')
             elif event == Event.spout_start:
+                log.debug('Animal went to spout')
                 self.trial_info['response_ts'] = timestamp
-                self.stop_trial(response='spout contact')
+                self.end_trial(response='spout')
             elif event == Event.response_duration_elapsed:
-                self.trial_info['response_ts'] = timestamp
-                self.stop_trial(response='no response')
+                log.debug('Animal provided no response')
+                self.trial_info['response_ts'] = np.nan
+                self.end_trial(response='no response')
 
         elif self.trial_state == TrialState.waiting_for_to:
             if event == Event.to_duration_elapsed:
                 # Turn the light back on
                 #self.engine.set_sw_do('light', 1)
+                self.trial_state = TrialState.waiting_for_iti
                 self.start_timer('iti_duration',
                                  Event.iti_duration_elapsed)
-                self.trial_state = TrialState.waiting_for_iti
             elif event in (Event.spout_start, Event.np_start):
-                self.timer.cancel()
+                log.debug('Resetting timeout duration')
+                self.stop_timer()
                 self.start_timer('to_duration', Event.to_duration_elapsed)
 
         elif self.trial_state == TrialState.waiting_for_iti:
             if event == Event.iti_duration_elapsed:
-                self.trial_state = TrialState.waiting_for_np_start
+                log.debug('Setting up for next trial')
+                # Apply pending changes that way any parameters (such as
+                # repeat_FA or go_probability) are reflected in determining the
+                # next trial type.
+                if self._apply_requested:
+                    self.context.apply_changes()
+                    self._apply_requested = False
+                selector = self.next_selector()
+                self.context.next_setting(selector, save_prior=True)
+                self.trial += 1
+
+                if self._pause_requested:
+                    self.state = 'paused'
+                    self._pause_requested = False
+                    self.trial_state = TrialState.waiting_for_resume
+                else:
+                    self.trial_state = TrialState.waiting_for_np_start
+
+    def stop_timer(self):
+        self.timer.timeout.disconnect()
+        self.timer.stop()
 
     def start_timer(self, variable, event):
         # Even if the duration is 0, we should still create a timer because this
         # allows the `_handle_event` code to finish processing the event. The
         # timer will execute as soon as `_handle_event` finishes processing.
+        # Since the Enaml application is Qt-based, we need to use the QTimer to
+        # avoid issues with a Qt-based multithreading application.
+        log.debug('timer for {} set to {}'.format(event, variable))
         duration = self.context.get_value(variable)
-        self.timer = threading.Timer(duration, self.handle_event, [event])
-        self.timer.start()
+        receiver = partial(self.handle_event, event)
+
+        if self.timer is not None:
+            self.timer.deleteLater()
+
+        self.timer = QTimer()
+        self.timer.timeout.connect(receiver)    # set up new callback
+        self.timer.setSingleShot(True)          # call only once
+        self.timer.start(duration*1e3)
+
+    @observe('trial_state')
+    def _log_trial_state(self, event):
+        log.debug('trial state set to {}'.format(event['value']))
