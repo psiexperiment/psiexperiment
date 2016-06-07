@@ -20,7 +20,7 @@ def configure_logging(filename=None):
             'console': {
                 'class': 'logging.StreamHandler',
                 'formatter': 'simple',
-                'level': 'DEBUG',
+                'level': 'TRACE',
                 },
             },
         'loggers': {

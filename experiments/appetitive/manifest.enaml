@@ -41,6 +41,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             channel = 'Dev1/ao0'
             io_type = 'hw_ao'
             mode = 'continuous'
+            fs = 100e3
 
         Channel:
             engine_name = 'NI'
@@ -48,6 +49,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             channel = 'Dev1/ai0'
             io_type = 'hw_ai'
             mode = 'continuous'
+            fs = 100e3
 
         Channel:
             engine_name = 'NI'
@@ -56,6 +58,10 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             io_type = 'hw_di'
             mode = 'event'
 
+            # TODO: not implemented!
+            share_clock = 'microphone'
+            start_trigger = 'speaker'
+
         Channel:
             engine_name = 'NI'
             name = 'spout_contact'
@@ -63,9 +69,12 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             io_type = 'hw_di'
             mode = 'event'
 
+            # TODO: not implemented!
+            share_clock = 'microphone'
+            start_trigger = 'speaker'
 
     # TODO: Should these automatically be contributed by the controller when it
-    # loads the list of outputs?
+    # loads the list of outputs? I think so.
     Extension:
         id = 'groups'
         point = 'psi.context.items'
@@ -82,6 +91,4 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
         point = 'psi.controller.engines'
         NIDAQEngine:
             name = 'NI'
-            ao_fs = 50e3
-            ai_fs = 5e3
             master_clock = True

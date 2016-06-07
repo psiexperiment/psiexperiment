@@ -66,10 +66,10 @@ class AppetitivePlugin(BaseController):
     samples = Typed(list, ())
 
     event_map = {
-        ('rising', 'np'): Event.np_start,
-        ('falling', 'np'): Event.np_end,
-        ('rising', 'spout'): Event.spout_start,
-        ('falling', 'spout'): Event.spout_end,
+        ('rising', 'nose_poke'): Event.np_start,
+        ('falling', 'nose_poke'): Event.np_end,
+        ('rising', 'spout_contact'): Event.spout_start,
+        ('falling', 'spout_contact'): Event.spout_end,
     }
 
     def next_selector(self):
@@ -193,11 +193,17 @@ class AppetitivePlugin(BaseController):
         self.samples.append(data)
         log.trace(m)
 
+    def di_callback(self, engine_name, channel_names, data):
+        m = '{} acquired {} samples from {}' \
+            .format(engine_name, data.shape, ', '.join(channel_names))
+        self.samples.append(data)
+        log.trace(m)
+
     def et_callback(self, engine_name, line, change, event_time):
         log.debug('{} detected {} on {} at {}' \
                   .format(engine_name, change, line, event_time))
-        #event = self.event_map[edge, line]
-        #self.handle_event(event, event_time)
+        event = self.event_map[change, line]
+        self.handle_event(event, event_time)
 
     def stop_experiment(self):
         import numpy as np

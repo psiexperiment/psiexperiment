@@ -127,6 +127,7 @@ class BaseController(Plugin):
             engine.register_ao_callback(partial(self.ao_callback, name))
             engine.register_ai_callback(partial(self.ai_callback, name))
             engine.register_et_callback(partial(self.et_callback, name))
+            engine.register_di_callback(partial(self.di_callback, name))
             engine.register_di_change_callback(partial(self.et_callback, name))
 
         for output in self._outputs.values():

@@ -1,6 +1,6 @@
 import ctypes
 
-from atom.api import Float, Typed
+from atom.api import Float, Typed, Unicode
 from enaml.core.api import Declarative, d_
 
 from ..engine import Engine
@@ -36,6 +36,8 @@ class NIDAQEngine(ni.Engine, Engine):
     # program).
     hw_ao_min_writeahead = d_(Float(8191 + 1000))
 
+    start_trigger = d_(Unicode('ao/StartTrigger'))
+
     _tasks = Typed(dict, {})
     _callbacks = Typed(dict, {})
     _timers = Typed(dict, {})
@@ -56,12 +58,16 @@ class NIDAQEngine(ni.Engine, Engine):
             channels = configuration['hw_ai']
             lines = ','.join(c.channel for c in channels)
             names = [c.name for c in channels]
-            self.configure_hw_ai(self.ai_fs, lines, (-10, 10), names=names)
+            self.configure_hw_ai(self.ai_fs, lines, (-10, 10), names=names,
+                                 trigger=self.start_trigger)
+
         if 'hw_di' in configuration:
             channels = configuration['hw_di']
             lines = ','.join(c.channel for c in channels)
             names = [c.name for c in channels]
-            self.configure_hw_di(self.ai_fs, lines, names, 'ai/SampleClock') 
+            self.configure_hw_di(self.ai_fs, lines, names, '/Dev1/Ctr0',
+                                 trigger=self.start_trigger) 
+
         if 'hw_ao' in configuration:
             channels = configuration['hw_ao']
             lines = ','.join(c.channel for c in channels)
