@@ -1,6 +1,6 @@
 import numpy as np
 
-from atom.api import Unicode, Float, Bool, observe, Property, Int, Typed
+from atom.api import Unicode, Float, Bool, observe, Property, Int, Typed, Long
 from enaml.core.api import Declarative, d_
 
 
@@ -11,15 +11,9 @@ class Engine(Declarative):
     ai_fs = d_(Float(25e3))
     master_clock = d_(Bool(False))
 
-    # Size of buffer, in seconds
-    hw_ao_buffer_duration = d_(Float(30))
-
-    hw_ao_buffer_samples = Property()
+    hw_ao_buffer_samples = Long()
+    hw_ao_buffer_offset = Long()
     hw_ao_buffer = Typed(np.ndarray)
-    hw_ao_buffer_offset = Int()
-
-    def _get_hw_ao_buffer_samples(self):
-        return int(self.ao_fs*self.hw_ao_buffer_duration)
 
     def configure(self, configuration):
         if 'hw_ao' in configuration:
@@ -28,18 +22,6 @@ class Engine(Declarative):
             buffer_shape = len(channels), self.hw_ao_buffer_samples
             self.hw_ao_buffer = np.empty(buffer_shape, dtype=np.double)
             self.hw_ao_buffer_offset = -self.hw_ao_buffer_samples
-
-    def register_ao_callback(self, callback):
-        raise NotImplemneted
-
-    def register_ai_callback(self, callback):
-        raise NotImplemneted
-
-    def register_et_callback(self, callback):
-        raise NotImplemneted
-
-    def start(self):
-        raise NotImplementedError
 
     def append_hw_ao(self, data, offset=None):
         # Store information regarding the data we have written to the output
@@ -79,3 +61,18 @@ class Engine(Declarative):
 
         # Now, write the modified buffer to the hardware.
         self.write_hw_ao(self.hw_ao_buffer[..., lb:], offset)
+
+    def register_ao_callback(self, callback):
+        raise NotImplementedError
+
+    def register_ai_callback(self, callback):
+        raise NotImplementedError
+
+    def register_et_callback(self, callback):
+        raise NotImplementedError
+
+    def start(self):
+        raise NotImplementedError
+
+    def get_ts(self):
+        raise NotImplementedError

@@ -10,7 +10,7 @@ class Channel(Declarative):
 
     name = d_(Unicode())
     engine_name = d_(Unicode())
-    io_type = d_(Enum('hw_ao', 'hw_ai', 'hw_di', 'hw_do'))
+    io_type = d_(Enum('hw_ao', 'hw_ai', 'hw_di', 'hw_do', 'et'))
     mode = d_(Enum('continuous', 'epoch', 'event'))
     channel = d_(Unicode())
 

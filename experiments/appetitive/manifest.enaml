@@ -4,7 +4,7 @@ from enaml.workbench.api import Extension
 from enaml.workbench.ui.api import Branding
 
 from psi.controller.appetitive_manifest import AppetitiveManifest
-#from psi.controller.engines.nidaq import NIDAQEngine
+from psi.controller.engines.nidaq import NIDAQEngine
 from psi.controller.engines.dummy import DummyEngine
 
 from psi.context.api import ContextGroup, Parameter
@@ -44,25 +44,28 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
 
         Channel:
             engine_name = 'NI'
+            name = 'microphone'
             channel = 'Dev1/ai0'
             io_type = 'hw_ai'
             mode = 'continuous'
 
         Channel:
             engine_name = 'NI'
-            channel = 'Dev1/port0/line0'
             name = 'nose_poke'
+            channel = 'Dev1/port0/line0'
             io_type = 'hw_di'
             mode = 'event'
 
         Channel:
             engine_name = 'NI'
-            channel = 'Dev1/port0/line1'
             name = 'spout_contact'
+            channel = 'Dev1/port0/line1'
             io_type = 'hw_di'
             mode = 'event'
 
 
+    # TODO: Should these automatically be contributed by the controller when it
+    # loads the list of outputs?
     Extension:
         id = 'groups'
         point = 'psi.context.items'
@@ -77,8 +80,8 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
     Extension:
         id = 'backend'
         point = 'psi.controller.engines'
-        DummyEngine:
+        NIDAQEngine:
             name = 'NI'
-            ao_fs = 100e3
-            ai_fs = 25e3
+            ao_fs = 50e3
+            ai_fs = 5e3
             master_clock = True

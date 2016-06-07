@@ -57,7 +57,7 @@ enamldef ControllerManifest(PluginManifest): manifest:
         rank = 1
         point = 'psi.experiment.toolbar'
         Action:
-            text = u'\u27A4'
+            text = u'\u27A4 Start'
             tool_tip = 'Start experiment'
             triggered ::
                 plugin = workbench.get_plugin('enaml.workbench.core')
@@ -65,7 +65,7 @@ enamldef ControllerManifest(PluginManifest): manifest:
             enabled << workbench.get_plugin('psi.controller').state \
                 == 'initialized'
         Action:
-            text = u'\u23F9'
+            text = u'\u23F9 Stop'
             tool_tip = 'Stop experiment'
             triggered ::
                 plugin = workbench.get_plugin('enaml.workbench.core')
@@ -75,7 +75,7 @@ enamldef ControllerManifest(PluginManifest): manifest:
         Action:
             separator = True
         Action:
-            text << u'\u23E9' if checked else u'\u23F8'
+            text << u'\u23E9 Resume' if checked else u'\u23F8 Pause'
             checkable = True
             enabled <<  workbench.get_plugin('psi.controller').state \
                 not in ('initialized', 'stopped')

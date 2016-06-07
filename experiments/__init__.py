@@ -26,8 +26,9 @@ def configure_logging(filename=None):
         'loggers': {
             '__main__': {'level': 'DEBUG'},
             'neurogen': {'level': 'ERROR'},
-            'psi': {'level': 'DEBUG'},
+            'psi': {'level': 'TRACE'},
             'experiments': {'level': 'DEBUG'},
+            'daqengine': {'level': 'TRACE'},
             },
         'root': {
             'handlers': ['console'],
@@ -38,7 +39,7 @@ def configure_logging(filename=None):
             'class': 'logging.FileHandler',
             'formatter': 'time',
             'filename': filename,
-            'level': 'DEBUG',
+            'level': 'TRACE',
         }
         logging_config['root']['handlers'].append('file')
     logging.config.dictConfig(logging_config)

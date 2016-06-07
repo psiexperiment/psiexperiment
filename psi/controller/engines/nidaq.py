@@ -10,7 +10,7 @@ from daqengine import ni
 ################################################################################
 # engine
 ################################################################################
-class NIDAQEngine(Engine, ni.Engine):
+class NIDAQEngine(ni.Engine, Engine):
     # Even though data is written to the analog outputs, it is buffered in
     # computer memory until it's time to be transferred to the onboard buffer of
     # the NI acquisition card. NI-DAQmx handles this behind the scenes (i.e.,
@@ -46,3 +46,29 @@ class NIDAQEngine(Engine, ni.Engine):
     def __init__(self, *args, **kwargs):
         ni.Engine.__init__(self)
         Engine.__init__(self, *args, **kwargs)
+        
+    def configure(self, configuration):
+        # Configure the analog input first because acquisition is synced with
+        # the analog output signal (i.e., when the analog output starts, the
+        # analog input begins acquiring such that sample 0 of the input
+        # corresponds with sample 0 of the output).
+        if 'hw_ai' in configuration:
+            channels = configuration['hw_ai']
+            lines = ','.join(c.channel for c in channels)
+            names = [c.name for c in channels]
+            self.configure_hw_ai(self.ai_fs, lines, (-10, 10), names=names)
+        if 'hw_di' in configuration:
+            channels = configuration['hw_di']
+            lines = ','.join(c.channel for c in channels)
+            names = [c.name for c in channels]
+            self.configure_hw_di(self.ai_fs, lines, names, 'ai/SampleClock') 
+        if 'hw_ao' in configuration:
+            channels = configuration['hw_ao']
+            lines = ','.join(c.channel for c in channels)
+            names = [c.name for c in channels]
+            self.configure_hw_ao(self.ao_fs, lines, (-10, 10), names=names)
+
+        super(NIDAQEngine, self).configure(configuration)
+
+    def get_ts(self):
+        return self.ao_sample_clock()/self.ao_fs
