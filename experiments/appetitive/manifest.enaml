@@ -4,7 +4,7 @@ from enaml.workbench.api import Extension
 from enaml.workbench.ui.api import Branding
 
 from psi.controller.appetitive_manifest import AppetitiveManifest
-from psi.controller.engines.nidaq import NIDAQEngine
+#from psi.controller.engines.nidaq import NIDAQEngine
 from psi.controller.engines.dummy import DummyEngine
 
 from psi.context.api import ContextGroup, Parameter
@@ -35,43 +35,71 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             mode = 'epoch'
             channel_name = 'speaker'
 
+
+        # OUTPUT channels
         Channel:
             name = 'speaker'
             engine_name = 'NI'
             channel = 'Dev1/ao0'
             io_type = 'hw_ao'
-            mode = 'continuous'
             fs = 100e3
 
+        # INPUT channels
         Channel:
             engine_name = 'NI'
             name = 'microphone'
             channel = 'Dev1/ai0'
             io_type = 'hw_ai'
-            mode = 'continuous'
-            fs = 100e3
+            start_trigger = 'ao/StartTrigger'
+            fs = 25e3
+            expected_range = (-10, 10)
 
+        Channel:
+            engine_name = 'NI'
+            name = 'nose_poke_analog'
+            channel = 'Dev1/ai1'
+            io_type = 'hw_ai'
+            start_trigger = 'ao/StartTrigger'
+            fs = 25e3
+            expected_range = (-10, 10)
+
+        Channel:
+            engine_name = 'NI'
+            name = 'reward_contact_anlaog'
+            channel = 'Dev1/ai2'
+            io_type = 'hw_ai'
+            start_trigger = 'ao/StartTrigger'
+            fs = 25e3
+            expected_range = (-10, 10)
+
+        # DIGITAL input channels
         Channel:
             engine_name = 'NI'
             name = 'nose_poke'
             channel = 'Dev1/port0/line0'
             io_type = 'hw_di'
-            mode = 'event'
-
-            # TODO: not implemented!
-            share_clock = 'microphone'
-            start_trigger = 'speaker'
+            fs = 25e3
 
         Channel:
             engine_name = 'NI'
-            name = 'spout_contact'
+            name = 'reward_contact'
             channel = 'Dev1/port0/line1'
             io_type = 'hw_di'
-            mode = 'event'
+            fs = 25e3
 
-            # TODO: not implemented!
-            share_clock = 'microphone'
-            start_trigger = 'speaker'
+        # DIGITAL output channels
+        Channel:
+            engine_name = 'NI'
+            name = 'reward_dispense'
+            channel = 'Dev1/port1/line0'
+            io_type = 'sw_do'
+
+        Channel:
+            engine_name = 'NI'
+            name = 'room_light'
+            channel = 'Dev1/port1/line1'
+            io_type = 'sw_do'
+
 
     # TODO: Should these automatically be contributed by the controller when it
     # loads the list of outputs? I think so.
@@ -89,6 +117,6 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
     Extension:
         id = 'backend'
         point = 'psi.controller.engines'
-        NIDAQEngine:
+        DummyEngine:
             name = 'NI'
             master_clock = True

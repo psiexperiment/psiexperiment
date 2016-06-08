@@ -7,6 +7,17 @@ from ..engine import Engine
 from daqengine import ni
 
 
+def get_channel_property(channels, property, allow_unique=False):
+    values = [getattr(c, property) for c in channels]
+    if allow_unique:
+        return values
+    elif len(np.unique(values)) != 1:
+        m = 'NIDAQEngine does not support per-channel {}'.format(property)
+        raise ValueError(m)
+    else:
+        return m
+
+
 ################################################################################
 # engine
 ################################################################################
@@ -36,8 +47,6 @@ class NIDAQEngine(ni.Engine, Engine):
     # program).
     hw_ao_min_writeahead = d_(Float(8191 + 1000))
 
-    start_trigger = d_(Unicode('ao/StartTrigger'))
-
     _tasks = Typed(dict, {})
     _callbacks = Typed(dict, {})
     _timers = Typed(dict, {})
@@ -48,31 +57,53 @@ class NIDAQEngine(ni.Engine, Engine):
     def __init__(self, *args, **kwargs):
         ni.Engine.__init__(self)
         Engine.__init__(self, *args, **kwargs)
-        
+
     def configure(self, configuration):
-        # Configure the analog input first because acquisition is synced with
+        # Configure the analog output last because acquisition is synced with
         # the analog output signal (i.e., when the analog output starts, the
         # analog input begins acquiring such that sample 0 of the input
         # corresponds with sample 0 of the output).
+        # TODO: eventually we should be able to inspect the  'start_trigger'
+        # property on the channel configuration to decide the order in which the
+        # tasks are started.
+        if 'sw_do' in configuration:
+            channels = configuration['sw_do']
+            lines = ','.join(get_channel_property(channels, 'channel', True))
+            names = get_channel_property(channels, 'name', True)
+            self.configure_sw_do(lines, names)
+
         if 'hw_ai' in configuration:
             channels = configuration['hw_ai']
-            lines = ','.join(c.channel for c in channels)
-            names = [c.name for c in channels]
-            self.configure_hw_ai(self.ai_fs, lines, (-10, 10), names=names,
-                                 trigger=self.start_trigger)
+            lines = ','.join(get_channel_property(channels, 'channel', True))
+            names = get_channel_property(channels, 'name', True)
+            fs = get_channel_property(channels, 'fs')
+            start_trigger = get_channel_property(channels, 'start_trigger')
+            expected_range = get_channel_property(channels, 'expected_range')
+            self.configure_hw_ai(fs, lines, expected_range, names,
+                                 start_trigger)
 
         if 'hw_di' in configuration:
             channels = configuration['hw_di']
-            lines = ','.join(c.channel for c in channels)
-            names = [c.name for c in channels]
-            self.configure_hw_di(self.ai_fs, lines, names, '/Dev1/Ctr0',
-                                 trigger=self.start_trigger) 
+            lines = ','.join(get_channel_property(channels, 'channel', True))
+            names = get_channel_property(channels, 'name', True)
+            fs = get_channel_property(channels, 'fs')
+            start_trigger = get_channel_property(channels, 'start_trigger')
+            # Required for M-series to enable hardware-timed digital
+            # acquisition. TODO: Make this a setting that can be configured
+            # since X-series doesn't need this hack.
+            device = channels[0].channel.strip('/').split('/')[0]
+            clock = '/{}/Ctr0'.format(device)
+            self.configure_hw_di(fs, lines, names, start_trigger, clock)
 
         if 'hw_ao' in configuration:
             channels = configuration['hw_ao']
-            lines = ','.join(c.channel for c in channels)
-            names = [c.name for c in channels]
-            self.configure_hw_ao(self.ao_fs, lines, (-10, 10), names=names)
+            lines = ','.join(get_channel_property(channels, 'channel', True))
+            names = get_channel_property(channels, 'name', True)
+            fs = get_channel_property(channels, 'fs')
+            start_trigger = get_channel_property(channels, 'start_trigger')
+            expected_range = get_channel_property(channels, 'expected_range')
+            self.configure_hw_ao(fs, lines, expected_range, names,
+                                 start_trigger)
 
         super(NIDAQEngine, self).configure(configuration)
 

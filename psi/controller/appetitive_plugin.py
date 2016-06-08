@@ -62,7 +62,7 @@ class AppetitivePlugin(BaseController):
 
     timer = Typed(QTimer)
     mutex = Typed(QMutex, ())
-    
+
     samples = Typed(list, ())
 
     event_map = {
