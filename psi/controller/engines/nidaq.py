@@ -1,6 +1,6 @@
 import ctypes
 
-from atom.api import Float, Typed
+from atom.api import Float, Typed, Unicode
 from enaml.core.api import Declarative, d_
 
 from ..engine import Engine
@@ -10,7 +10,7 @@ from daqengine import ni
 ################################################################################
 # engine
 ################################################################################
-class NIDAQEngine(Engine, ni.Engine):
+class NIDAQEngine(ni.Engine, Engine):
     # Even though data is written to the analog outputs, it is buffered in
     # computer memory until it's time to be transferred to the onboard buffer of
     # the NI acquisition card. NI-DAQmx handles this behind the scenes (i.e.,
@@ -36,6 +36,8 @@ class NIDAQEngine(Engine, ni.Engine):
     # program).
     hw_ao_min_writeahead = d_(Float(8191 + 1000))
 
+    start_trigger = d_(Unicode('ao/StartTrigger'))
+
     _tasks = Typed(dict, {})
     _callbacks = Typed(dict, {})
     _timers = Typed(dict, {})
@@ -46,3 +48,33 @@ class NIDAQEngine(Engine, ni.Engine):
     def __init__(self, *args, **kwargs):
         ni.Engine.__init__(self)
         Engine.__init__(self, *args, **kwargs)
+        
+    def configure(self, configuration):
+        # Configure the analog input first because acquisition is synced with
+        # the analog output signal (i.e., when the analog output starts, the
+        # analog input begins acquiring such that sample 0 of the input
+        # corresponds with sample 0 of the output).
+        if 'hw_ai' in configuration:
+            channels = configuration['hw_ai']
+            lines = ','.join(c.channel for c in channels)
+            names = [c.name for c in channels]
+            self.configure_hw_ai(self.ai_fs, lines, (-10, 10), names=names,
+                                 trigger=self.start_trigger)
+
+        if 'hw_di' in configuration:
+            channels = configuration['hw_di']
+            lines = ','.join(c.channel for c in channels)
+            names = [c.name for c in channels]
+            self.configure_hw_di(self.ai_fs, lines, names, '/Dev1/Ctr0',
+                                 trigger=self.start_trigger) 
+
+        if 'hw_ao' in configuration:
+            channels = configuration['hw_ao']
+            lines = ','.join(c.channel for c in channels)
+            names = [c.name for c in channels]
+            self.configure_hw_ao(self.ao_fs, lines, (-10, 10), names=names)
+
+        super(NIDAQEngine, self).configure(configuration)
+
+    def get_ts(self):
+        return self.ao_sample_clock()/self.ao_fs

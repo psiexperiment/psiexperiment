@@ -62,12 +62,14 @@ class AppetitivePlugin(BaseController):
 
     timer = Typed(QTimer)
     mutex = Typed(QMutex, ())
+    
+    samples = Typed(list, ())
 
     event_map = {
-        ('rising', 'np'): Event.np_start,
-        ('falling', 'np'): Event.np_end,
-        ('rising', 'spout'): Event.spout_start,
-        ('falling', 'spout'): Event.spout_end,
+        ('rising', 'nose_poke'): Event.np_start,
+        ('falling', 'nose_poke'): Event.np_end,
+        ('rising', 'spout_contact'): Event.spout_start,
+        ('falling', 'spout_contact'): Event.spout_end,
     }
 
     def next_selector(self):
@@ -106,6 +108,7 @@ class AppetitivePlugin(BaseController):
             self.core.invoke_command('psi.data.prepare')
             self.state = 'running'
             self.trial_state = TrialState.waiting_for_np_start
+
         except Exception as e:
             # TODO - provide user interface
             raise
@@ -128,11 +131,6 @@ class AppetitivePlugin(BaseController):
         self.trial_info['target_end'] = ts+(waveform.shape[-1]/engine.ao_fs)
 
     def end_trial(self, response):
-        import inspect
-        curframe = inspect.currentframe()
-        calframe = inspect.getouterframes(curframe, 2)
-        print 'caller name:', calframe[1][3]
-
         log.debug('Animal responded by {}, ending trial'.format(response))
         self.stop_timer()
 
@@ -189,14 +187,36 @@ class AppetitivePlugin(BaseController):
         engine = self._engines[engine_name]
         engine.append_hw_ao(waveforms)
 
-    def ai_callback(self, engine_name, samples):
-        pass
+    def ai_callback(self, engine_name, channel_names, data):
+        m = '{} acquired {} samples from {}' \
+            .format(engine_name, data.shape, ', '.join(channel_names))
+        self.samples.append(data)
+        log.trace(m)
 
-    def et_callback(self, engine_name, change, line, event_time):
+    def di_callback(self, engine_name, channel_names, data):
+        m = '{} acquired {} samples from {}' \
+            .format(engine_name, data.shape, ', '.join(channel_names))
+        self.samples.append(data)
+        log.trace(m)
+
+    def et_callback(self, engine_name, line, change, event_time):
         log.debug('{} detected {} on {} at {}' \
                   .format(engine_name, change, line, event_time))
-        event = self.event_map[edge, line]
+        event = self.event_map[change, line]
         self.handle_event(event, event_time)
+
+    def stop_experiment(self):
+        import numpy as np
+        import pyqtgraph as pg
+        window = pg.GraphicsWindow()
+        window.resize(800, 350)
+
+        b = np.concatenate(self.samples)
+
+        plot = window.addPlot()
+        curve = plot.plot(pen='y')
+        curve.setData(b.ravel())
+        raise ValueError
 
     def handle_event(self, event, timestamp=None):
         # Ensure that we don't attempt to process several events at the same

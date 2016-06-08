@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 from functools import partial
 
 from atom.api import Enum, Bool, Typed, Property
@@ -117,18 +120,20 @@ class BaseController(Plugin):
         self._engines = engines
 
     def configure_engines(self):
-        for engine_name, engine_config in self._io.items():
-            engine = self._engines[engine_name]
-            engine.configure(engine_config)
-            engine.register_ao_callback(partial(self.ao_callback, engine_name))
-            engine.register_ai_callback(partial(self.ai_callback, engine_name))
-            engine.register_et_callback(partial(self.et_callback, engine_name))
+        for name, config in self._io.items():
+            log.debug('Configuring engine {}'.format(name))
+            engine = self._engines[name]
+            engine.configure(config)
+            engine.register_ao_callback(partial(self.ao_callback, name))
+            engine.register_ai_callback(partial(self.ai_callback, name))
+            engine.register_et_callback(partial(self.et_callback, name))
+            engine.register_di_callback(partial(self.di_callback, name))
+            engine.register_di_change_callback(partial(self.et_callback, name))
 
         for output in self._outputs.values():
             # TODO: Sort of a minor hack. We can clean this up eventually.
             ao_fs = output.channel.engine.ao_fs
             output._plugin.initialize(ao_fs)
-
 
         for engine in self._engines.values():
             engine.start()
@@ -164,20 +169,7 @@ class BaseController(Plugin):
         raise NotImplementedError
 
     def stop_experiment(self):
-        import numpy as np
-        for engine in self._engines.values():
-            engine.stop()
-        self.state = 'stopped'
-        engine = self._engines.values()[0]
-        b = np.concatenate(engine._hw_ao_buffer, axis=-1)
-        import pyqtgraph as pg
-        window = pg.GraphicsWindow()
-        window.resize(800, 350)
-
-        plot = window.addPlot()
-        curve = plot.plot(pen='y')
-        curve.setData(b.ravel())
-        raise ValueError
+        raise NotImplementedError
 
     def start_trial(self):
         raise NotImplementedError
@@ -191,7 +183,7 @@ class BaseController(Plugin):
     def ai_callback(self, engine, data):
         raise NotImplementedError
 
-    def et_callback(self, engine, data):
+    def et_callback(self, engine, line, edge, timestamp):
         raise NotImplementedError
 
     def get_ts(self):

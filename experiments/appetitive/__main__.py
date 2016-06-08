@@ -6,16 +6,16 @@ from experiments import initialize_default, configure_logging
 
 
 if __name__ == '__main__':
-    configure_logging()
-
     with enaml.imports():
-        from experiments.appetitive_tone_detection.manifest \
+        from experiments.appetitive.manifest \
             import ControllerManifest
         from psi.controller.reward.NE1000.manifest \
             import NE1000Manifest
         from psi.data.trial_log.manifest import TrialLogManifest
         from psi.data.sdt_analysis.manifest import SDTAnalysisManifest
         from psi.data.hdf_store.manifest import HDFStoreManifest
+
+
 
         extra_manifests = [
             ControllerManifest,
@@ -35,4 +35,5 @@ if __name__ == '__main__':
         ui = workbench.get_plugin('enaml.workbench.ui')
         ui.show_window()
 
+    configure_logging()
     ui.start_application()

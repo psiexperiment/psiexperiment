@@ -27,11 +27,13 @@ class BandlimitedNoisePlugin(TokenPlugin):
         c = InterpCalibration.from_spl([0, 100e3], [100, 100])
         channel = Channel(calibration=c,
                           token=carrier, voltage_min=-10, voltage_max=10)
+
+        channel.initialize()
         self.player = Player(fs=fs)
         self.player.add_channel(channel)
 
     def get_waveform(self, offset, samples):
-        return self.player.realize_samples(offset, samples)[0]
+        return self.player.realize_samples(offset, samples, initialize=False)[0]
 
 
 enamldef BandlimitedNoiseManifest(TokenManifest): m:
