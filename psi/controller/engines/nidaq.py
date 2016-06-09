@@ -1,5 +1,7 @@
 import ctypes
 
+import numpy as np
+
 from atom.api import Float, Typed, Unicode
 from enaml.core.api import Declarative, d_
 
@@ -11,11 +13,12 @@ def get_channel_property(channels, property, allow_unique=False):
     values = [getattr(c, property) for c in channels]
     if allow_unique:
         return values
-    elif len(np.unique(values)) != 1:
-        m = 'NIDAQEngine does not support per-channel {}'.format(property)
+    elif len(set(values)) != 1:
+        m = 'NIDAQEngine does not support per-channel {} as specified: {}' \
+            .format(property, values)
         raise ValueError(m)
     else:
-        return m
+        return values[0]
 
 
 ################################################################################
@@ -53,6 +56,8 @@ class NIDAQEngine(ni.Engine, Engine):
     _uint32 = Typed(ctypes.c_uint32)
     _uint64 = Typed(ctypes.c_uint64)
     _int32 = Typed(ctypes.c_int32)
+
+    ao_fs = Typed(float)
 
     def __init__(self, *args, **kwargs):
         ni.Engine.__init__(self)
@@ -104,6 +109,7 @@ class NIDAQEngine(ni.Engine, Engine):
             expected_range = get_channel_property(channels, 'expected_range')
             self.configure_hw_ao(fs, lines, expected_range, names,
                                  start_trigger)
+            self.ao_fs = fs
 
         super(NIDAQEngine, self).configure(configuration)
 

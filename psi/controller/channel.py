@@ -16,4 +16,4 @@ class Channel(Declarative):
     engine = Typed(Engine)
     fs = d_(Typed(object))
     start_trigger = d_(Unicode())
-    expected_range = d_(Tuple)
+    expected_range = d_(Tuple())

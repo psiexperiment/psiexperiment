@@ -153,7 +153,7 @@ class ExpressionNamespace(Atom):
         for name in self._expressions.keys():
             if name not in self._locals:
                 self._evaluate_value(name, context)
-        return self._locals.copy()
+        return dict(self._locals.copy())
 
     def set_value(self, name, value):
         _locals = self._locals.copy()

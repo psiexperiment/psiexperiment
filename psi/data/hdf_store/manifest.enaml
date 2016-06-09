@@ -15,22 +15,51 @@ class HDFStore(TrialData):
     Simple class for storing acquired trial data in a HDF5 file. No analysis or
     further processing is done.
     '''
-    file_name = Unicode()
-    table = Typed(tb.Table)
-    description = Typed(np.dtype)
+    file_name = Unicode('c:/users/bburan/desktop/temp.hdf5')
+    node_name = Unicode('/')
 
-    def prepare(self, parameters):
+    trial_log = Typed(tb.Table)
+    trial_log_dtype = Typed(np.dtype)
+    event_log = Typed(tb.Table)
+    event_log_dtype = Typed(np.dtype)
+
+    context_info = Typed(dict)
+
+    def prepare(self):
+        # Open the file
         fh = tb.open_file(self.file_name, 'w')
-        description = [(str(p.name), p.dtype) for p in parameters]
-        self.description = np.dtype(description)
-        self.table = fh.create_table('/', 'trial_log', self.description)
+
+        # Create a table to hold the trial log
+        dtype = [(str(name), item['dtype']) for name, item \
+                 in self.context_info.items()]
+        self.trial_log_dtype = np.dtype(dtype)
+        self.trial_log = fh.create_table(self.node_name, 'trial_log',
+                                         self.trial_log_dtype)
+
+        # Create a table to hold the event log
+        dtype = [('timestamp', np.dtype('float32')), 
+                 ('event', np.dtype('S512'))]
+        self.event_log_dtype = np.dtype(dtype)
+        self.event_log = fh.create_table(self.node_name, 'event_log',
+                                         self.event_log_dtype)
+
+    def context_info_updated(self, context_info):
+        self.context_info = context_info
 
     def process_trial(self, trial):
         # This is the simplest one-liner to convert the dictionary to the
         # format required for appending.
-        row = pd.DataFrame([trial]).to_records().astype(self.description)
-        self.table.append(row)
-        self.table.flush()
+        print type(trial), repr(trial)
+        print pd.DataFrame([trial])
+        print pd.DataFrame([trial]).to_records()
+        print pd.DataFrame([trial]).to_records().astype(self.trial_log_dtype)
+        row = pd.DataFrame([trial]).to_records().astype(self.trial_log_dtype)
+        self.trial_log.append(row)
+
+    def process_event(self, event, timestamp):
+        data = {'event': event, 'timestamp': timestamp}
+        row = pd.DataFrame([data]).to_records().astype(self.event_log_dtype)
+        self.event_log.append(row)
 
 
 enamldef HDFStoreManifest(PluginManifest): manifest:

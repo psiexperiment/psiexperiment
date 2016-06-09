@@ -12,7 +12,13 @@ class TrialData(Declarative):
     def trial_log_updated(self, trial_log):
         pass
 
+    def event_log_updated(self, event_log):
+        pass
+
     def process_trial(self, results):
+        pass
+
+    def process_event(self, event, timestamp):
         pass
 
     def prepare(self):

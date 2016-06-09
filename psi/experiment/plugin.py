@@ -55,7 +55,6 @@ class ExperimentPlugin(Plugin):
     def get_preferences(self):
         state = {}
         for plugin_id, preference in self._preferences.items():
-            print plugin_id
             plugin = self.workbench.get_plugin(plugin_id)
             state[plugin_id] = preference.get_preferences(plugin)
         return state

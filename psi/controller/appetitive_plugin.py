@@ -102,15 +102,15 @@ class AppetitivePlugin(BaseController):
         try:
             self.trial += 1
             self.context.apply_changes()
-            self.configure_engines()
+            self.start_engines()
             self.rng = np.random.RandomState()
             self.context.next_setting(self.next_selector(), save_prior=False)
             self.core.invoke_command('psi.data.prepare')
             self.state = 'running'
             self.trial_state = TrialState.waiting_for_np_start
-
         except Exception as e:
-            # TODO - provide user interface
+            # TODO - provide user interface to notify of errors. How to
+            # recover?
             raise
 
     def start_trial(self):
@@ -206,6 +206,9 @@ class AppetitivePlugin(BaseController):
         self.handle_event(event, event_time)
 
     def stop_experiment(self):
+        self.stop_engines()
+        self.state = 'stopped'
+
         import numpy as np
         import pyqtgraph as pg
         window = pg.GraphicsWindow()
@@ -241,6 +244,8 @@ class AppetitivePlugin(BaseController):
             if timestamp is None:
                 timestamp = self.get_ts()
             log.debug('{} at {}'.format(event, timestamp))
+            params = {'event': event.value, 'timestamp': timestamp}
+            self.core.invoke_command('psi.data.process_event', params)
             self._handle_event(event, timestamp)
         except Exception as e:
             log.exception(e)
@@ -253,7 +258,6 @@ class AppetitivePlugin(BaseController):
         the event that occured. Depending on the experiment state, a particular
         event may not be processed.
         '''
-        log.debug('inside handle event')
         # TODO: log event to HDF5 file? i.e. add a event logger.
         if self.trial_state == TrialState.waiting_for_np_start:
             if event == Event.np_start:

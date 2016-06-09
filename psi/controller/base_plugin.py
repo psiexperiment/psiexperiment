@@ -119,7 +119,7 @@ class BaseController(Plugin):
         self._master_engine = master_engine
         self._engines = engines
 
-    def configure_engines(self):
+    def start_engines(self):
         for name, config in self._io.items():
             log.debug('Configuring engine {}'.format(name))
             engine = self._engines[name]
@@ -132,11 +132,14 @@ class BaseController(Plugin):
 
         for output in self._outputs.values():
             # TODO: Sort of a minor hack. We can clean this up eventually.
-            ao_fs = output.channel.engine.ao_fs
-            output._plugin.initialize(ao_fs)
+            output._plugin.initialize(output.channel.fs)
 
         for engine in self._engines.values():
             engine.start()
+
+    def stop_engines(self):
+        for engine in self._engines.values():
+            engine.stop()
 
     def configure_output(self, output_name, token_name):
         output = self._outputs[output_name]

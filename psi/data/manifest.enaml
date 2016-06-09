@@ -14,6 +14,13 @@ def process_trial(event):
     return plugin.process_trial(values)
 
 
+def process_event(event):
+    plugin = event.workbench.get_plugin(PLUGIN_ID)
+    context = event.workbench.get_plugin('psi.context')
+    values = context.get_values()
+    return plugin.process_event(**event.parameters)
+
+
 def prepare(event):
     data = event.workbench.get_plugin('psi.data')
     data.prepare_trial_data()
@@ -35,6 +42,9 @@ enamldef DataManifest(PluginManifest): manifest:
         Command:
             id = PLUGIN_ID + '.process_trial'
             handler = process_trial
+        Command:
+            id = PLUGIN_ID + '.process_event'
+            handler = process_event
         Command:
             id = PLUGIN_ID + '.prepare'
             handler = prepare

@@ -12,17 +12,17 @@ if __name__ == '__main__':
         from psi.controller.reward.NE1000.manifest \
             import NE1000Manifest
         from psi.data.trial_log.manifest import TrialLogManifest
+        from psi.data.event_log.manifest import EventLogManifest
         from psi.data.sdt_analysis.manifest import SDTAnalysisManifest
         from psi.data.hdf_store.manifest import HDFStoreManifest
-
-
 
         extra_manifests = [
             ControllerManifest,
             NE1000Manifest,
             TrialLogManifest,
             SDTAnalysisManifest,
-            #HDFStoreManifest,
+            HDFStoreManifest,
+            EventLogManifest,
         ]
         workbench = initialize_default(extra_manifests)
 

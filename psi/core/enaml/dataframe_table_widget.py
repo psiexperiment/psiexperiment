@@ -53,10 +53,10 @@ class QDataFrameTableModel(QAbstractTableModel):
             return str(v)
         elif role == Qt.TextAlignmentRole:
             return int(Qt.AlignRight | Qt.AlignVCenter)
-        #elif role == Qt.FontRole:
-        #    font = QFont()
-        #    font.setPointSize(font.pointSize()-2)
-        #    return font
+        elif role == Qt.FontRole:
+            font = QFont()
+            font.setPointSize(font.pointSize()-1)
+            return font
         elif role == Qt.BackgroundRole:
             if self._cell_color is not None:
                 r = index.row()
@@ -96,7 +96,15 @@ class QDataFrameTableView(QTableView):
         self.vheader = QHeaderView(Qt.Vertical)
         self.setVerticalHeader(self.vheader)
         self.vheader.setResizeMode(QHeaderView.Fixed)
+        self.vheader.setDefaultSectionSize(20)
         self.hheader = self.horizontalHeader()
+        self.hheader.setMovable(True)
+
+    def save_state(self):
+        return self.hheader.saveState()
+
+    def set_state(self, state):
+        self.hheader.restoreState(state)
 
 
 class DataframeTable(RawWidget):
@@ -142,6 +150,12 @@ class DataframeTable(RawWidget):
             table.scrollToBottom()
             # This is a pretty slow operation, so only call this when the
             # columns actually change.
-            if len(old_model._columns) != len(new_model._columns):
-                table.resizeColumnsToContents()
+            #if len(old_model._columns) != len(new_model._columns):
+            #    table.resizeColumnsToContents()
             #table.resizeRowsToContents()
+
+    def save_state(self):
+        return self.get_widget().save_state()
+
+    def set_state(self, state):
+        self.get_widget().set_state(state)

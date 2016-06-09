@@ -10,6 +10,8 @@
 #   not want it to have an equation that depends on a rovable parameter. Is this
 #   worthwhile to implement?
 
+import numpy as np
+
 from enaml.core.declarative import Declarative, d_
 from atom.api import Unicode, Typed, Bool, Value, Enum
 
@@ -30,7 +32,7 @@ class ContextItem(SimpleState, Declarative):
 
     # Datatype of the value. Required for properly initializing some data
     # plugins (e.g., those that save data to a HDF5 file).
-    dtype = d_(Typed(type))
+    dtype = d_(Typed(np.dtype))
 
     # Name of the group to display the item under.
     group = d_(Unicode())

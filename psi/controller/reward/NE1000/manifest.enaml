@@ -39,7 +39,7 @@ enamldef NE1000Manifest(PluginManifest): manifest:
             name = 'reward_volume'
             label = 'Reward volume (ul)'
             compact_label = 'Vol'
-            dtype = np.float32
+            dtype = np.dtype('float32')
             default = 20
             expression = '20'
             group = PLUGIN_ID

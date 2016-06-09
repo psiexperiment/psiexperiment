@@ -4,8 +4,7 @@ from enaml.workbench.api import Extension
 from enaml.workbench.ui.api import Branding
 
 from psi.controller.appetitive_manifest import AppetitiveManifest
-#from psi.controller.engines.nidaq import NIDAQEngine
-from psi.controller.engines.dummy import DummyEngine
+from psi.controller.engines.nidaq import NIDAQEngine
 
 from psi.context.api import ContextGroup, Parameter
 from psi.controller.api import Output, Channel
@@ -40,9 +39,10 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
         Channel:
             name = 'speaker'
             engine_name = 'NI'
-            channel = 'Dev1/ao0'
+            channel = 'Dev1/ao1'
             io_type = 'hw_ao'
             fs = 100e3
+            expected_range = (-10, 10)
 
         # INPUT channels
         Channel:
@@ -78,6 +78,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             name = 'nose_poke'
             channel = 'Dev1/port0/line0'
             io_type = 'hw_di'
+            start_trigger = 'ao/StartTrigger'
             fs = 25e3
 
         Channel:
@@ -85,6 +86,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             name = 'reward_contact'
             channel = 'Dev1/port0/line1'
             io_type = 'hw_di'
+            start_trigger = 'ao/StartTrigger'
             fs = 25e3
 
         # DIGITAL output channels
@@ -117,6 +119,6 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
     Extension:
         id = 'backend'
         point = 'psi.controller.engines'
-        DummyEngine:
+        NIDAQEngine:
             name = 'NI'
             master_clock = True

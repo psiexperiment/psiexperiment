@@ -1,0 +1,67 @@
+from atom.api import ContainerList, Typed, Dict
+from enaml.application import deferred_call
+from enaml.core.api import Looper
+from enaml.layout.api import InsertItem
+from enaml.widgets.api import (Container, Menu, Action, DockItem, PopupView,
+                               Form, CheckBox, Label, HGroup)
+from enaml.workbench.api import Extension, PluginManifest
+
+import pandas as pd
+
+from psi.core.utils import find_extension
+from psi.core.enaml.api import DataframeTable
+from psi.experiment.api import Preferences
+
+from ..trial_data import TrialData
+
+PLUGIN_ID = 'psi.data.event_log'
+
+
+class EventLog(TrialData):
+    
+    event_log = Typed(pd.DataFrame)
+
+    def event_log_updated(self, event_log):
+        self.event_log = event_log
+
+
+enamldef EventLogDockItem(DockItem):
+
+    attr data
+
+    title_bar_right_clicked ::
+        ColumnsPopup(self, data=data).show()
+
+    Container:
+        DataframeTable:
+            hug_width = 'weak'
+            dataframe << data.event_log
+            columns = ['timestamp', 'event']
+            column_info = { 
+                'timestamp': {'compact_label': 'Time'}, 
+                'event': {'compact_label': 'Event'}, 
+            }
+
+
+def contribute_to_workspace(workbench, workspace):
+    extension = find_extension(workbench, PLUGIN_ID, 'data', EventLog)
+    item = EventLogDockItem(workspace.dock_area, data=extension,
+                            name='event_log', title='Event Log')
+    op = InsertItem(item=item.name, position='right')
+    deferred_call(workspace.dock_area.update_layout, op)
+
+
+enamldef EventLogManifest(PluginManifest): manifest:
+
+    id = PLUGIN_ID
+
+    Extension:
+        id = 'data'
+        point = 'psi.data.trial'
+        EventLog:
+            pass
+
+    Extension:
+        id = 'workspace'
+        point = 'psi.experiment.workspace'
+        factory = contribute_to_workspace

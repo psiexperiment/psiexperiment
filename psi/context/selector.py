@@ -50,7 +50,7 @@ class SingleSetting(BaseSelector):
 
     def set_value(self, item_name, value):
         dtype = self.get_item_info(item_name, 'dtype')
-        self.setting[item_name] = dtype(value)
+        self.setting[item_name] = dtype.type(value)
         self.updated = True
 
     def __eq__(self, other):
@@ -107,7 +107,7 @@ class SequenceSelector(BaseSelector):
 
     def set_value(self, setting_index, item_name, value):
         dtype = self.get_item_info(item_name, 'dtype')
-        self.settings[setting_index][item_name] = dtype(value)
+        self.settings[setting_index][item_name] = dtype.type(value)
         self.updated = True
 
     def get_value(self, setting_index, item_name):

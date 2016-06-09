@@ -105,7 +105,7 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
             name = 'iti_duration'
             label = 'Intertrial interval (s)'
             compact_label = 'ITI'
-            dtype = np.float32
+            dtype = np.dtype('float32')
             default = 0.1
             expression = '0.1'
             group = 'trial'
@@ -114,7 +114,7 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
             name = 'to_duration'
             label = 'Timeout duration (s)'
             compact_label = 'TO'
-            dtype = np.float32
+            dtype = np.dtype('float32')
             default = 1.0
             expression = '1'
             group = 'trial'
@@ -123,7 +123,7 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
             name = 'hold_duration'
             label = 'Hold duration (s)'
             compact_label = 'Hold'
-            dtype = np.float32
+            dtype = np.dtype('float32')
             default = 0.0
             expression = '0'
             group = 'trial'
@@ -132,7 +132,7 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
             name = 'response_duration'
             label = 'Response duration (s)'
             compact_label = 'Resp'
-            dtype = np.float32
+            dtype = np.dtype('float32')
             default = 3.0
             expression = '3'
             group = 'trial'
@@ -141,7 +141,7 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
             name = 'np_duration'
             label = 'Poke duration (s)'
             compact_label = 'Poke'
-            dtype = np.float32
+            dtype = np.dtype('float32')
             default = 0.2
             expression = '0.2'
             group = 'trial'
@@ -155,7 +155,7 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
             name = 'go_probability'
             label = 'Go probability'
             compact_label = 'Pr'
-            dtype = np.float32
+            dtype = np.dtype('float32')
             expression = '0.5'
             group = 'selector'
             scope = 'arbitrary'
@@ -163,7 +163,7 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
             name = 'max_nogo'
             label = 'Max. consecutive nogo trials'
             compact_label = 'MG'
-            dtype = np.float32
+            dtype = np.dtype('float32')
             expression = '5'
             group = 'selector'
             scope = 'arbitrary'
@@ -171,7 +171,7 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
             name = 'repeat_fa'
             label = 'Repeat FA?'
             compact_label = 'RFA'
-            dtype = np.bool
+            dtype = np.dtype('bool')
             expression = 'True'
             group = 'selector'
             scope = 'arbitrary'
@@ -185,68 +185,68 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
             name = 'response'
             label = 'Response'
             compact_label = 'R'
-            dtype = np.str
+            dtype = np.dtype('S32')
             group = 'results'
         Result:
             name = 'trial_type'
             label = 'Trial type'
             compact_label = 'T'
             group = 'results'
-            dtype = np.str
+            dtype = np.dtype('S32')
         Result:
             name = 'score'
             label = 'Score'
             compact_label = 'S'
             group = 'results'
-            dtype = np.str
+            dtype = np.dtype('S32')
         Result:
             name = 'correct'
             label = 'Correct'
             compact_label = 'C'
             group = 'results'
-            dtype = np.bool
+            dtype = np.dtype('bool')
         Result:
             name = 'np_start'
             label = 'Nose-poke start'
             compact_label = 'NP/'
             group = 'results'
-            dtype = np.float
+            dtype = np.dtype('float32')
         Result:
             name = 'np_end'
             label = 'Nose-poke end'
             compact_label = 'NP\\'
             group = 'results'
-            dtype = np.float
+            dtype = np.dtype('float32')
         Result:
             name = 'response_ts'
             label = 'Response timestamp'
             compact_label = 'R|'
             group = 'results'
-            dtype = np.float
+            dtype = np.dtype('float32')
         Result:
             name = 'target_start'
             label = 'Target start'
             compact_label = 'T/'
             group = 'results'
-            dtype = np.float
+            dtype = np.dtype('float32')
         Result:
             name = 'target_end'
             label = 'Target end'
             compact_label = 'T\\'
             group = 'results'
-            dtype = np.float
+            dtype = np.dtype('float32')
         Result:
             name = 'reaction_time'
             label = 'Reaction time'
             compact_label = 'RT'
             group = 'results'
-            dtype = np.float
+            dtype = np.dtype('float32')
         Result:
             name = 'response_time'
             label = 'Response time'
             compact_label = 'Resp. Time'
             group = 'results'
-            dtype = np.float
+            dtype = np.dtype('float32')
             
     # Sequences used by the appetitive Go-Nogo controller.
     Extension:

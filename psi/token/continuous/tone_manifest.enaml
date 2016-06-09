@@ -43,7 +43,7 @@ enamldef ToneManifest(TokenManifest): m:
             name = '{}_level'.format(m.base)
             label = '{} level (dB SPL)'.format(m.label_base)
             compact_label = '{} level'.format(m.compact_base)
-            dtype = np.float32
+            dtype = np.dtype('float32')
             default = 60
             expression = '60'
             group = m.base
@@ -53,7 +53,7 @@ enamldef ToneManifest(TokenManifest): m:
             name = '{}_frequency'.format(m.base)
             label = '{} frequency (Hz)'.format(m.label_base)
             compact_label = '{} fc'.format(m.compact_base)
-            dtype = np.float32
+            dtype = np.dtype('float32')
             default = 1000
             expression = '1000'
             group = m.base

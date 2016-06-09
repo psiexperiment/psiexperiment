@@ -30,7 +30,6 @@ class TrialLog(TrialData):
         self.trial_log = trial_log
 
 
-
 enamldef ColumnsPopup(PopupView):
 
     attr data
@@ -61,8 +60,9 @@ enamldef TrialLogDockItem(DockItem):
     title_bar_right_clicked ::
         ColumnsPopup(self, data=data).show()
 
-    Container:
+    Container: foo:
         DataframeTable:
+            name = 'trial-log-dataframe-table'
             hug_width = 'weak'
             dataframe << data.trial_log
             columns << data.visible_columns[:]
@@ -111,6 +111,17 @@ enamldef TrialLogManifest(PluginManifest): manifest:
         id = 'preferences'
         point = 'psi.experiment.preferences'
         Preferences:
-            auto_save = ['visible_columns']
-            get_object => (plugin):
-                return find_extension(workbench, PLUGIN_ID, 'data', TrialLog)
+            get_preferences => (plugin):
+                ext = find_extension(workbench, PLUGIN_ID, 'data', TrialLog) 
+                ui = workbench.get_plugin('enaml.workbench.ui')
+                widget = ui.workspace.content.find('trial-log-dataframe-table')
+                return {
+                    'visible_columns': ext.visible_columns,
+                    'widget': widget.save_state(),
+                }
+            set_preferences => (plugin, preferences):
+                ext = find_extension(workbench, PLUGIN_ID, 'data', TrialLog) 
+                ui = workbench.get_plugin('enaml.workbench.ui')
+                widget = ui.workspace.content.find('trial-log-dataframe-table')
+                ext.visible_columns = preferences['visible_columns']
+                widget.set_state(preferences['widget'])
