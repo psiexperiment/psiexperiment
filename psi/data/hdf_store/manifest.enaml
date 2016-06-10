@@ -49,10 +49,6 @@ class HDFStore(TrialData):
     def process_trial(self, trial):
         # This is the simplest one-liner to convert the dictionary to the
         # format required for appending.
-        print type(trial), repr(trial)
-        print pd.DataFrame([trial])
-        print pd.DataFrame([trial]).to_records()
-        print pd.DataFrame([trial]).to_records().astype(self.trial_log_dtype)
         row = pd.DataFrame([trial]).to_records().astype(self.trial_log_dtype)
         self.trial_log.append(row)
 

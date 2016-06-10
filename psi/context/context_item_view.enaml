@@ -35,8 +35,8 @@ template ParameterTemplate(context_item, scope: 'experiment'):
             text = context_item.label
         Field: field:
             text := context_item.expression
-            enabled << workbench.get_plugin('psi.controller').state \
-                not in ('running', 'paused')
+            enabled << workbench.get_plugin('psi.controller') \
+                .experiment_state not in ('running', 'paused')
 
 
 template ParameterTemplate(context_item, scope: 'trial'):

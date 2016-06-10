@@ -62,7 +62,7 @@ enamldef ControllerManifest(PluginManifest): manifest:
             triggered ::
                 plugin = workbench.get_plugin('enaml.workbench.core')
                 plugin.invoke_command('psi.controller.start')
-            enabled << workbench.get_plugin('psi.controller').state \
+            enabled << workbench.get_plugin('psi.controller').experiment_state \
                 == 'initialized'
         Action:
             text = u'\u23F9 Stop'
@@ -70,22 +70,22 @@ enamldef ControllerManifest(PluginManifest): manifest:
             triggered ::
                 plugin = workbench.get_plugin('enaml.workbench.core')
                 plugin.invoke_command('psi.controller.stop')
-            enabled <<  workbench.get_plugin('psi.controller').state \
+            enabled <<  workbench.get_plugin('psi.controller').experiment_state \
                 not in ('initialized', 'stopped')
         Action:
             separator = True
         Action:
             text << u'\u23E9 Resume' if checked else u'\u23F8 Pause'
             checkable = True
-            enabled <<  workbench.get_plugin('psi.controller').state \
+            enabled <<  workbench.get_plugin('psi.controller').experiment_state \
                 not in ('initialized', 'stopped')
             tool_tip << 'Resume' if checked else 'Pause'
             toggled ::
                 plugin = workbench.get_plugin('enaml.workbench.core')
                 if checked:
-                    plugin.invoke_command('psi.controller.request_resume')
-                else:
                     plugin.invoke_command('psi.controller.request_pause')
+                else:
+                    plugin.invoke_command('psi.controller.request_resume')
         Action:
             separator = True
 
@@ -96,7 +96,7 @@ enamldef ControllerManifest(PluginManifest): manifest:
             text = 'Apply'
             enabled << workbench.get_plugin('psi.context').changes_pending \
                 and not workbench.get_plugin('psi.controller')._apply_requested \
-                and workbench.get_plugin('psi.controller').state \
+                and workbench.get_plugin('psi.controller').experiment_state \
                 in ('running', 'paused')
             triggered :: 
                 plugin = workbench.get_plugin('enaml.workbench.core')
@@ -104,7 +104,7 @@ enamldef ControllerManifest(PluginManifest): manifest:
         Action:
             text = 'Revert'
             enabled << workbench.get_plugin('psi.context').changes_pending \
-                and workbench.get_plugin('psi.controller').state \
+                and workbench.get_plugin('psi.controller').experiment_state \
                 in ('running', 'paused')
             triggered :: 
                 plugin = workbench.get_plugin('enaml.workbench.core')

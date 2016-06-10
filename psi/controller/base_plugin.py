@@ -3,6 +3,8 @@ log = logging.getLogger(__name__)
 
 from functools import partial
 
+import numpy as np
+
 from atom.api import Enum, Bool, Typed, Property
 from enaml.workbench.plugin import Plugin
 
@@ -19,7 +21,7 @@ ENGINE_POINT = 'psi.controller.engines'
 class BaseController(Plugin):
 
     # Tracks the state of the controller.
-    state = Enum('initialized', 'running', 'paused', 'stopped')
+    experiment_state = Enum('initialized', 'running', 'paused', 'stopped')
     running = Property()
 
     # Provides direct access to plugins rather than going through the core
@@ -157,21 +159,30 @@ class BaseController(Plugin):
         output._token_name = token_name
 
     def request_apply(self):
-        self._apply_requested = True
+        if not self.apply_changes():
+            self._apply_requested = True
 
     def request_remind(self):
         self._remind_requested = True
 
     def request_pause(self):
-        self._pause_requested = True
+        if not self.pause_experiment():
+            self._pause_requested = True
 
     def request_resume(self):
-        self.state == 'running'
+        self._pause_requested = False
+        self.experiment_state = 'running'
+
+    def apply_changes(self):
+        raise NotImplementedError
 
     def start_experiment(self):
         raise NotImplementedError
 
     def stop_experiment(self):
+        raise NotImplementedError
+
+    def pause_experiment(self):
         raise NotImplementedError
 
     def start_trial(self):

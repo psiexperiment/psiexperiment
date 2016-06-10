@@ -19,9 +19,16 @@ from ..util import rpc
 PLUGIN_ID = 'psi.controller'
 
 
-def get_status(trial, trial_type):
-    if trial == 0:
-        return 'Waiting for start'
+def get_status(trial, trial_type, experiment_state):
+    # Experiment not running
+    if experiment_state == 'paused':
+        return 'Experiment paused'
+    elif experiment_state == 'initialized':
+        return 'Waiting to start'
+    elif experiment_state == 'stopped':
+        return 'Experiment complete'
+
+    # Experiment running
     if '_' in trial_type:
         general, specific = trial_type.split('_') 
         label = '{} ({})'.format(general, specific)
@@ -43,7 +50,8 @@ enamldef ControllerStateDockItem(DockItem):
 
     Container:
         Label:
-            text << get_status(controller.trial, controller.trial_type)
+            text << get_status(controller.trial, controller.trial_type,
+                               controller.experiment_state)
         Label:
             text << get_state(controller.trial_state)
 
@@ -78,7 +86,7 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
                     plugin.handle_event(Event.spout_start)
                 else:
                     plugin.handle_event(Event.spout_end)
-            enabled << workbench.get_plugin(PLUGIN_ID).state \
+            enabled << workbench.get_plugin(PLUGIN_ID).experiment_state \
                 not in ('initialized', 'stopped')
         Action:
             text = 'Poke'
@@ -89,7 +97,7 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
                     plugin.handle_event(Event.np_start)
                 else:
                     plugin.handle_event(Event.np_end)
-            enabled <<  workbench.get_plugin(PLUGIN_ID).state \
+            enabled <<  workbench.get_plugin(PLUGIN_ID).experiment_state \
                 not in ('initialized', 'stopped')
 
     # Parameters used by the appetitive Go-Nogo controller.
@@ -184,19 +192,19 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
         Result:
             name = 'response'
             label = 'Response'
-            compact_label = 'R'
+            compact_label = 'Resp.'
             dtype = np.dtype('S32')
             group = 'results'
         Result:
             name = 'trial_type'
             label = 'Trial type'
-            compact_label = 'T'
+            compact_label = 'Trial type'
             group = 'results'
             dtype = np.dtype('S32')
         Result:
             name = 'score'
             label = 'Score'
-            compact_label = 'S'
+            compact_label = 'Score'
             group = 'results'
             dtype = np.dtype('S32')
         Result:
@@ -238,13 +246,13 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
         Result:
             name = 'reaction_time'
             label = 'Reaction time'
-            compact_label = 'RT'
+            compact_label = 'React. time'
             group = 'results'
             dtype = np.dtype('float32')
         Result:
             name = 'response_time'
             label = 'Response time'
-            compact_label = 'Resp. Time'
+            compact_label = 'Resp. time'
             group = 'results'
             dtype = np.dtype('float32')
             

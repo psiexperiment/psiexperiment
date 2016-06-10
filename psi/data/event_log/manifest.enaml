@@ -46,7 +46,8 @@ enamldef EventLogDockItem(DockItem):
 def contribute_to_workspace(workbench, workspace):
     extension = find_extension(workbench, PLUGIN_ID, 'data', EventLog)
     item = EventLogDockItem(workspace.dock_area, data=extension,
-                            name='event_log', title='Event Log')
+                            name='event_log', title='Event Log',
+                            closable=False)
     op = InsertItem(item=item.name, position='right')
     deferred_call(workspace.dock_area.update_layout, op)
 

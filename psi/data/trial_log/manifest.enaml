@@ -56,6 +56,7 @@ enamldef ColumnsPopup(PopupView):
 enamldef TrialLogDockItem(DockItem):
 
     attr data
+    closable = False
 
     title_bar_right_clicked ::
         ColumnsPopup(self, data=data).show()
