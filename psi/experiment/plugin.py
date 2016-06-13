@@ -1,5 +1,7 @@
 from atom.api import Typed
 from enaml.application import deferred_call
+from enaml.layout.api import FloatItem, InsertItem
+from enaml.layout.dock_layout import DockLayoutValidator
 from enaml.workbench.plugin import Plugin
 from enaml.widgets.api import Action
 
@@ -9,6 +11,12 @@ from .preferences import Preferences
 TOOLBAR_POINT = 'psi.experiment.toolbar'
 WORKSPACE_POINT = 'psi.experiment.workspace'
 PREFERENCES_POINT = 'psi.experiment.preferences'
+
+
+class MissingDockLayoutValidator(DockLayoutValidator):
+
+    def result(self, node):
+        return self._available - self._seen_items
 
 
 class ExperimentPlugin(Plugin):
@@ -37,8 +45,13 @@ class ExperimentPlugin(Plugin):
 
     def set_layout(self, layout):
         ui = self.workbench.get_plugin('enaml.workbench.ui')
-        ui.workspace.dock_area.layout = layout['dock_layout']
         ui._window.set_geometry(layout['geometry'])
+        ui.workspace.dock_area.layout = layout['dock_layout']
+        available = [i.name for i in ui.workspace.dock_area.dock_items()]
+        missing = MissingDockLayoutValidator(available)(layout['dock_layout'])
+        for item in missing:
+            op = FloatItem(item=item)
+            deferred_call(ui.workspace.dock_area.update_layout, op)
 
     def _refresh_preferences(self):
         preferences = {}
