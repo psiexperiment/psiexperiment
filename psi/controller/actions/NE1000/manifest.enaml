@@ -7,21 +7,17 @@ from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
 
 from psi.core.utils import find_extension
 from psi.context.api import ContextGroup, Parameter
-from ..reward import Reward
+from ...experiment_action import ExperimentAction
 
-PLUGIN_ID = 'psi.controller.reward.NE1000' 
-
-
-class NE1000(Reward):
-
-    def provide_reward(self, workbench):
-        core = workbench.get_plugin('enaml.workbench.core')
-        rv = core.invoke_command('psi.context.get_value', parameters)
+PLUGIN_ID = 'psi.controller.action.NE1000' 
 
 
-def trigger(event):
-    extension = find_extension(event.workbench, PLUGIN_ID, 'reward', NE1000)
-    extension.provide_reward(event.workbench)
+def deliver_reward(event):
+    core = event.workbench.get_plugin('enaml.workbench.core')
+    rv = core.invoke_command('psi.context.get_value', 
+                             {'context_name': 'reward_volume',
+                              'fail_mode': 'default'})
+    print 'delivering reward volume of {}'.format(rv)
 
 
 enamldef NE1000Manifest(PluginManifest): manifest:
@@ -49,8 +45,8 @@ enamldef NE1000Manifest(PluginManifest): manifest:
         id = 'commands'
         point = 'enaml.workbench.core.commands'
         Command:
-            id = PLUGIN_ID + 'trigger'
-            handler = trigger
+            id = PLUGIN_ID + '.deliver_reward'
+            handler = deliver_reward
             
     Extension:
         id = 'actions'
@@ -64,10 +60,11 @@ enamldef NE1000Manifest(PluginManifest): manifest:
             path = '/equipment/pump/trigger'
             label = 'Trigger pump'
             group = 'pump'
-            command = PLUGIN_ID + 'trigger'
+            command = PLUGIN_ID + '.deliver_reward'
 
     Extension:
-        id = 'reward'
-        point = 'psi.controller.reward'
-        NE1000:
-            pass
+        id = 'action'
+        point = 'psi.controller.actions'
+        ExperimentAction:
+            event = 'reward'
+            command = PLUGIN_ID + '.deliver_reward'

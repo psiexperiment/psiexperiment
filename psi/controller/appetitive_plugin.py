@@ -14,6 +14,17 @@ from .base_plugin import BaseController
 from enaml.qt.QtCore import QTimer, QMutex
 
 
+ACTION_POINT = 'psi.controller.action'
+
+
+class TrialScore(enum.Enum):
+
+    hit = 'HIT'
+    miss = 'MISS'
+    correct_reject = 'CR'
+    false_alarm = 'FA'
+
+
 class TrialState(enum.Enum):
     '''
     Defines the possible states that the experiment can be in. We use an Enum to
@@ -99,7 +110,7 @@ class AppetitivePlugin(BaseController):
         elif self.consecutive_nogo >= max_nogo:
             self.trial_type = 'go_forced'
             return 'go'
-        elif score == 'FA':
+        elif score == TrialScore.false_alarm:
             self.trial_type = 'nogo_repeat'
             return 'nogo'
         else:
@@ -149,15 +160,15 @@ class AppetitivePlugin(BaseController):
         if self.trial_type in ('nogo', 'nogo_repeat'):
             self.consecutive_nogo += 1
             if response == 'spout':
-                score = 'FA'
+                score = TrialScore.false_alarm
             elif response in ('poke', 'no response'):
-                score = 'CR'
+                score = TrialScore.correct_reject
         else:
             self.consecutive_nogo = 0
             if response == 'spout':
-                score = ' HIT'
+                score = TrialScore.hit
             elif response in ('poke', 'no response'):
-                score = 'MISS'
+                score = TrialScore.miss
 
         resp_time = self.trial_info['response_ts']-self.trial_info['target_start']
         react_time = self.trial_info['np_end']-self.trial_info['np_start']
@@ -165,18 +176,18 @@ class AppetitivePlugin(BaseController):
         self.trial_info.update({
             'response': response,
             'trial_type': self.trial_type,
-            'score': score,
-            'correct': score in ('CR', 'HIT'),
+            'score': score.value,
+            'correct': score in (TrialScore.correct_reject, TrialScore.hit),
             'response_time': resp_time,
             'reaction_time': react_time,
         })
-        if score == 'FA':
+        if score == TrialScore.false_alarm:
+            self.invoke_actions('timeout_start')
             self.trial_state = TrialState.waiting_for_to
             self.start_timer('to_duration', Event.to_duration_elapsed)
         else:
-            if score == 'HIT':
-                # TODO, deliver reward
-                pass
+            if score == TrialScore.hit:
+                self.invoke_actions('reward')
             self.trial_state = TrialState.waiting_for_iti
             self.start_timer('iti_duration', Event.iti_duration_elapsed)
 
@@ -327,7 +338,7 @@ class AppetitivePlugin(BaseController):
                 # Record the time of nose-poke withdrawal if it is the first
                 # time since initiating a trial.
                 log.debug('Animal withdrew during hold period')
-                if not np.isnan(self.trial_info['np_end']):
+                if np.isnan(self.trial_info['np_end']):
                     log.debug('Recording np_end')
                     self.trial_info['np_end'] = timestamp
             elif event == Event.hold_duration_elapsed:
@@ -344,7 +355,8 @@ class AppetitivePlugin(BaseController):
                 # Record the time of nose-poke withdrawal if it is the first
                 # time since initiating a trial.
                 log.debug('Animal withdrew during response period')
-                if 'np_end' not in self.trial_info:
+                if np.isnan(self.trial_info['np_end']):
+                    log.debug('Recording np_end')
                     self.trial_info['np_end'] = timestamp
             elif event == Event.np_start:
                 log.debug('Animal repoked')
@@ -362,7 +374,7 @@ class AppetitivePlugin(BaseController):
         elif self.trial_state == TrialState.waiting_for_to:
             if event == Event.to_duration_elapsed:
                 # Turn the light back on
-                #self.engine.set_sw_do('light', 1)
+                self.invoke_actions('timeout_end')
                 self.trial_state = TrialState.waiting_for_iti
                 self.start_timer('iti_duration',
                                  Event.iti_duration_elapsed)

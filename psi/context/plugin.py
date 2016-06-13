@@ -238,7 +238,7 @@ class ContextPlugin(Plugin):
             elif fail_mode == 'ignore':
                 return None
             elif fail_mode == 'default':
-                return self.context_name[context_name].default
+                return self.context_items[context_name].default
             else:
                 raise ValueError('Unsupported fail mode {}'.format(fail_mode))
 

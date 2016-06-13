@@ -8,7 +8,7 @@ import numpy as np
 from atom.api import Enum, Bool, Typed, Property
 from enaml.workbench.plugin import Plugin
 
-from .api import Channel, Engine, Output
+from .api import Channel, Engine, Output, ExperimentAction
 
 from ..token import get_token_manifest
 
@@ -16,6 +16,7 @@ from ..token import get_token_manifest
 IO_POINT = 'psi.controller.io'
 OUTPUT_POINT = 'psi.controller.outputs'
 ENGINE_POINT = 'psi.controller.engines'
+ACTION_POINT = 'psi.controller.actions'
 
 
 class BaseController(Plugin):
@@ -46,12 +47,16 @@ class BaseController(Plugin):
     _channel_outputs = Typed(dict, {})
     _master_engine = Typed(Engine)
 
+    # TODO: Define action groups to minimize errors.
+    _actions = Typed(dict, {})
+
     def start(self):
         self.core = self.workbench.get_plugin('enaml.workbench.core')
         self.context = self.workbench.get_plugin('psi.context')
         self.data = self.workbench.get_plugin('psi.data')
         self._refresh_engines()
         self._refresh_io()
+        self._refresh_actions()
         self._bind_observers()
 
     def stop(self):
@@ -121,6 +126,15 @@ class BaseController(Plugin):
         self._master_engine = master_engine
         self._engines = engines
 
+    def _refresh_actions(self):
+        actions = {}
+        point = self.workbench.get_extension_point(ACTION_POINT)
+        for extension in point.extensions:
+            for action in extension.get_children(ExperimentAction):
+                subgroup = actions.setdefault(action.event, [])
+                subgroup.append(action)
+        self._actions = actions
+
     def start_engines(self):
         for name, config in self._io.items():
             log.debug('Configuring engine {}'.format(name))
@@ -158,8 +172,15 @@ class BaseController(Plugin):
         output._plugin = self.workbench.get_plugin(manifest.id)
         output._token_name = token_name
 
+    def invoke_actions(self, event):
+        log.debug('Invoking actions for {}'.format(event))
+        for action in self._actions[event]:
+            log.debug('Invoking command {}'.format(action.command))
+            self.core.invoke_command(action.command)
+
     def request_apply(self):
         if not self.apply_changes():
+            log.debug('Apply requested')
             self._apply_requested = True
 
     def request_remind(self):
@@ -167,6 +188,7 @@ class BaseController(Plugin):
 
     def request_pause(self):
         if not self.pause_experiment():
+            log.debug('Pause requested')
             self._pause_requested = True
 
     def request_resume(self):

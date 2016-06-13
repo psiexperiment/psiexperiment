@@ -9,8 +9,10 @@ if __name__ == '__main__':
     with enaml.imports():
         from experiments.appetitive.manifest \
             import ControllerManifest
-        from psi.controller.reward.NE1000.manifest \
+        from psi.controller.actions.NE1000.manifest \
             import NE1000Manifest
+        from psi.controller.actions.room_light.manifest \
+            import RoomLightManifest
         from psi.data.trial_log.manifest import TrialLogManifest
         from psi.data.event_log.manifest import EventLogManifest
         from psi.data.sdt_analysis.manifest import SDTAnalysisManifest
@@ -19,6 +21,7 @@ if __name__ == '__main__':
         extra_manifests = [
             ControllerManifest,
             NE1000Manifest,
+            RoomLightManifest,
             TrialLogManifest,
             SDTAnalysisManifest,
             HDFStoreManifest,
