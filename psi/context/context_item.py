@@ -35,7 +35,7 @@ class ContextItem(SimpleState, Declarative):
     dtype = d_(Typed(np.dtype))
 
     # Name of the group to display the item under.
-    group = d_(Unicode())
+    group = d_(Unicode()).tag(transient=True)
 
     # Compact label where there is less space in the GUI (e.g., under a column
     # heading for example).

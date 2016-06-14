@@ -12,7 +12,6 @@ from .expression import ExpressionNamespace
 
 SELECTORS_POINT = 'psi.context.selectors'
 ITEMS_POINT = 'psi.context.items'
-#SYMBOLS_POINT = 'psi.context.symbols'
 
 
 def copy_attrs(from_atom, to_atom):

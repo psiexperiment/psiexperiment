@@ -91,8 +91,8 @@ class AppetitivePlugin(BaseController):
     event_map = {
         ('rising', 'nose_poke'): Event.np_start,
         ('falling', 'nose_poke'): Event.np_end,
-        ('rising', 'spout_contact'): Event.spout_start,
-        ('falling', 'spout_contact'): Event.spout_end,
+        ('rising', 'reward_contact'): Event.spout_start,
+        ('falling', 'reward_contact'): Event.spout_end,
     }
 
     def next_selector(self):
@@ -214,18 +214,6 @@ class AppetitivePlugin(BaseController):
     def stop_experiment(self):
         self.stop_engines()
         self.experiment_state = 'stopped'
-
-        import numpy as np
-        import pyqtgraph as pg
-        window = pg.GraphicsWindow()
-        window.resize(800, 350)
-
-        b = np.concatenate(self.samples)
-
-        plot = window.addPlot()
-        curve = plot.plot(pen='y')
-        curve.setData(b.ravel())
-        raise ValueError
 
     def pause_experiment(self):
         with self.mutex:

@@ -60,7 +60,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
 
             AOChannel:
                 name = 'speaker'
-                channel = 'Dev1/ao1'
+                channel = 'Dev1/ao0'
                 fs = 100e3
                 expected_range = (-10, 10)
 
@@ -93,7 +93,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                     name = 'nose_poke_analog'
 
                 AnalogThreshold:
-                    name = 'nose_poke_threshold'
+                    name = 'nose_poke'
                     threshold = 2.5
                     debounce = 100
 
@@ -108,7 +108,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                     name = 'reward_contact_analog'
 
                 AnalogThreshold:
-                    name = 'reward_contact_threshold'
+                    name = 'reward_contact'
                     threshold = 2.5
                     debounce = 100
 

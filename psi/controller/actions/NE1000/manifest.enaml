@@ -71,12 +71,16 @@ class NE1000Plugin(Plugin):
     port = Int()
     iface = Typed(PumpInterface)
 
+    def start(self):
+        # TODO: connect to the pump interface
+        pass
+
     def _iface_default(self):
         iface = PumpInterface(port=self.port)
 
     def deliver_reward(self, volume=None):
         if volume is None:
-            core = event.workbench.get_plugin('enaml.workbench.core')
+            core = self.workbench.get_plugin('enaml.workbench.core')
             volume = core.invoke_command('psi.context.get_value',
                                          {'context_name': 'reward_volume',
                                           'fail_mode': 'default'})
@@ -84,13 +88,14 @@ class NE1000Plugin(Plugin):
 
 
 def deliver_reward(event):
-    plugin = event.workbench.get_plugin('enaml.workbench.core')
+    plugin = event.workbench.get_plugin(PLUGIN_ID)
     plugin.deliver_reward()
 
 
 enamldef NE1000Manifest(PluginManifest): manifest:
 
     id = PLUGIN_ID
+    factory = NE1000Plugin
 
     Extension:
         id = 'parameters'
