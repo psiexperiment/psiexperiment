@@ -50,6 +50,8 @@ class NIDAQEngine(ni.Engine, Engine):
     # program).
     hw_ao_min_writeahead = d_(Float(8191 + 1000))
 
+    hw_ai_monitor_period = d_(Float(0.1))
+
     _tasks = Typed(dict, {})
     _callbacks = Typed(dict, {})
     _timers = Typed(dict, {})
@@ -63,7 +65,7 @@ class NIDAQEngine(ni.Engine, Engine):
         ni.Engine.__init__(self)
         Engine.__init__(self, *args, **kwargs)
 
-    def configure(self, configuration):
+    def configure(self, plugin):
         # Configure the analog output last because acquisition is synced with
         # the analog output signal (i.e., when the analog output starts, the
         # analog input begins acquiring such that sample 0 of the input
@@ -71,14 +73,14 @@ class NIDAQEngine(ni.Engine, Engine):
         # TODO: eventually we should be able to inspect the  'start_trigger'
         # property on the channel configuration to decide the order in which the
         # tasks are started.
-        if 'sw_do' in configuration:
-            channels = configuration['sw_do']
+        if self.sw_do_channels:
+            channels = self.sw_do_channels
             lines = ','.join(get_channel_property(channels, 'channel', True))
             names = get_channel_property(channels, 'name', True)
             self.configure_sw_do(lines, names)
 
-        if 'hw_ai' in configuration:
-            channels = configuration['hw_ai']
+        if self.hw_ai_channels:
+            channels = self.hw_ai_channels
             lines = ','.join(get_channel_property(channels, 'channel', True))
             names = get_channel_property(channels, 'name', True)
             fs = get_channel_property(channels, 'fs')
@@ -87,8 +89,8 @@ class NIDAQEngine(ni.Engine, Engine):
             self.configure_hw_ai(fs, lines, expected_range, names,
                                  start_trigger)
 
-        if 'hw_di' in configuration:
-            channels = configuration['hw_di']
+        if self.hw_di_channels:
+            channels = self.hw_di_channels
             lines = ','.join(get_channel_property(channels, 'channel', True))
             names = get_channel_property(channels, 'name', True)
             fs = get_channel_property(channels, 'fs')
@@ -100,8 +102,8 @@ class NIDAQEngine(ni.Engine, Engine):
             clock = '/{}/Ctr0'.format(device)
             self.configure_hw_di(fs, lines, names, start_trigger, clock)
 
-        if 'hw_ao' in configuration:
-            channels = configuration['hw_ao']
+        if self.hw_ao_channels:
+            channels = self.hw_ao_channels
             lines = ','.join(get_channel_property(channels, 'channel', True))
             names = get_channel_property(channels, 'name', True)
             fs = get_channel_property(channels, 'fs')
@@ -111,7 +113,7 @@ class NIDAQEngine(ni.Engine, Engine):
                                  start_trigger)
             self.ao_fs = fs
 
-        super(NIDAQEngine, self).configure(configuration)
+        super(NIDAQEngine, self).configure(plugin)
 
     def get_ts(self):
         return self.ao_sample_clock()/self.ao_fs

@@ -3,6 +3,8 @@ import numpy as np
 from atom.api import Unicode, Float, Bool, observe, Property, Int, Typed, Long
 from enaml.core.api import Declarative, d_
 
+from .channel import Channel, AIChannel, AOChannel, DIChannel, DOChannel
+
 
 class Engine(Declarative):
 
@@ -13,13 +15,45 @@ class Engine(Declarative):
     hw_ao_buffer_offset = Long()
     hw_ao_buffer = Typed(np.ndarray)
 
-    def configure(self, configuration):
-        if 'hw_ao' in configuration:
-            channels = configuration['hw_ao']
+    channels = Property()
+    hw_ao_channels = Property()
+    hw_ai_channels = Property()
+    hw_do_channels = Property()
+    hw_di_channels = Property()
+    sw_do_channels = Property()
+
+    def _get_channels(self):
+        return [c for c in self.children if isinstance(c, Channel)]
+
+    def _get_hw_ao_channels(self):
+        return [c for c in self.children if \
+                isinstance(c, AOChannel) and c.fs != 0]
+
+    def _get_hw_ai_channels(self):
+        return [c for c in self.children if \
+                isinstance(c, AIChannel) and c.fs != 0]
+
+    def _get_hw_do_channels(self):
+        return [c for c in self.children if \
+                isinstance(c, DOChannel) and c.fs != 0]
+
+    def _get_hw_di_channels(self):
+        return [c for c in self.children if \
+                isinstance(c, DIChannel) and c.fs != 0]
+
+    def _get_sw_do_channels(self):
+        return [c for c in self.children if \
+                isinstance(c, DOChannel) and c.fs == 0]
+
+    def configure(self, plugin):
+        if self.hw_ao_channels:
             # Setup the ring buffer (so we can meld in existing data)
-            buffer_shape = len(channels), self.hw_ao_buffer_samples
+            buffer_shape = len(self.hw_ao_channels), self.hw_ao_buffer_samples
             self.hw_ao_buffer = np.empty(buffer_shape, dtype=np.double)
             self.hw_ao_buffer_offset = -self.hw_ao_buffer_samples
+
+        for channel in self.channels:
+            channel.configure(plugin)
 
     def append_hw_ao(self, data, offset=None):
         # Store information regarding the data we have written to the output
@@ -42,7 +76,10 @@ class Engine(Declarative):
         # Now, we actually write it.
         self.write_hw_ao(data)
 
-    def modify_hw_ao(self, data, offset, method='merge'):
+    def modify_hw_ao(self, data, offset, method='merge', reference='start'):
+        if reference == 'current':
+            offset += self.ao_sample_clock()
+
         buffer_lb = self.hw_ao_buffer_offset
         buffer_ub = self.hw_ao_buffer_offset + self.hw_ao_buffer_samples
         if not(buffer_lb <= offset < buffer_ub):

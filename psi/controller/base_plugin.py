@@ -8,14 +8,14 @@ import numpy as np
 from atom.api import Enum, Bool, Typed, Property
 from enaml.workbench.plugin import Plugin
 
-from .api import Channel, Engine, Output, ExperimentAction
-
+from .channel import Channel
+from .engine import Engine
+from .experiment_action import ExperimentAction
+from .output import ContinuousOutput
 from ..token import get_token_manifest
 
 
 IO_POINT = 'psi.controller.io'
-OUTPUT_POINT = 'psi.controller.outputs'
-ENGINE_POINT = 'psi.controller.engines'
 ACTION_POINT = 'psi.controller.actions'
 
 
@@ -40,11 +40,16 @@ class BaseController(Plugin):
     _remind_requested = Bool(False)
     _pause_requested = Bool(False)
 
+    # Available engines
     _engines = Typed(dict, {})
-    _io = Typed(dict, {})
+
+    # Available outputs
     _outputs = Typed(dict, {})
-    _channels = Typed(dict, {})
-    _channel_outputs = Typed(dict, {})
+
+    # Available inputs
+    _inputs = Typed(dict, {})
+
+    # This determines which engine is responsible for the clock
     _master_engine = Typed(Engine)
 
     # TODO: Define action groups to minimize errors.
@@ -54,7 +59,6 @@ class BaseController(Plugin):
         self.core = self.workbench.get_plugin('enaml.workbench.core')
         self.context = self.workbench.get_plugin('psi.context')
         self.data = self.workbench.get_plugin('psi.data')
-        self._refresh_engines()
         self._refresh_io()
         self._refresh_actions()
         self._bind_observers()
@@ -65,56 +69,21 @@ class BaseController(Plugin):
     def _bind_observers(self):
         self.workbench.get_extension_point(IO_POINT) \
             .observe('extensions', self._refresh_io)
-        self.workbench.get_extension_point(ENGINE_POINT) \
-            .observe('extensions', self._refresh_engines)
+        self.workbench.get_extension_point(ACTION_POINT) \
+            .observe('extensions', self._refresh_actions)
 
     def _unbind_observers(self):
         self.workbench.get_extension_point(IO_POINT) \
-            .unobserve('extensions', self._refresh_io)
-        self.workbench.get_extension_point(ENGINE_POINT) \
-            .unobserve('extensions', self._refresh_engines)
+            .unobserve('extensions',self._refresh_io)
+        self.workbench.get_extension_point(ACTION_POINT) \
+            .unobserve('extensions', self._refresh_actions)
 
     def _refresh_io(self):
-        point = self.workbench.get_extension_point(IO_POINT)
-        io = {}
-        outputs = {}
-        channels = {}
-        channel_outputs = {}
-
-        for extension in point.extensions:
-            for channel in extension.get_children(Channel):
-                engine = self._engines[channel.engine_name]
-                channel.engine = engine
-
-                engine_io = io.setdefault(channel.engine_name, {})
-                engine_io.setdefault(channel.io_type, []).append(channel)
-                channels[channel.name] = channel
-
-        for extension in point.extensions:
-            for output in extension.get_children(Output):
-                channel = channels[output.channel_name]
-                output.channel = channel
-                outputs[output.name] = output
-
-                co = channel_outputs.setdefault(output.mode, {})
-                if output.channel in co:
-                    m = '{} output already defined for {}' \
-                        .format(output.mode, output.channel)
-                    raise ValueError(m)
-                co[output.channel_name] = output
-
-        # TODO: We have four different ways of organizing the information loaded
-        # under this extension point. Is there a simpler, more logical way to
-        # organize everything?
-        self._io = io
-        self._outputs = outputs
-        self._channels = channels
-        self._channel_outputs = channel_outputs
-
-    def _refresh_engines(self):
         engines = {}
+        outputs = {}
+        inputs = {}
         master_engine = None
-        point = self.workbench.get_extension_point(ENGINE_POINT)
+        point = self.workbench.get_extension_point(IO_POINT)
         for extension in point.extensions:
             for engine in extension.get_children(Engine):
                 engines[engine.name] = engine
@@ -123,8 +92,16 @@ class BaseController(Plugin):
                         m = 'Only one engine can be defined as the master'
                         raise ValueError(m)
                     master_engine = engine
+                for channel in engine.channels:
+                    for output in getattr(channel, 'outputs', []):
+                        outputs[output.name] = output
+                    for input in getattr(channel, 'inputs', []):
+                        inputs[input.name] = input
+
         self._master_engine = master_engine
         self._engines = engines
+        self._outputs = outputs
+        self._inputs = inputs
 
     def _refresh_actions(self):
         actions = {}
@@ -136,20 +113,8 @@ class BaseController(Plugin):
         self._actions = actions
 
     def start_engines(self):
-        for name, config in self._io.items():
-            log.debug('Configuring engine {}'.format(name))
-            engine = self._engines[name]
-            engine.configure(config)
-            engine.register_ao_callback(partial(self.ao_callback, name))
-            engine.register_ai_callback(partial(self.ai_callback, name))
-            engine.register_et_callback(partial(self.et_callback, name))
-            engine.register_di_callback(partial(self.di_callback, name))
-            engine.register_di_change_callback(partial(self.et_callback, name))
-
-        for output in self._outputs.values():
-            # TODO: Sort of a minor hack. We can clean this up eventually.
-            output._plugin.initialize(output.channel.fs)
-
+        for engine in self._engines.values():
+            engine.configure(self)
         for engine in self._engines.values():
             engine.start()
 
@@ -158,13 +123,17 @@ class BaseController(Plugin):
             engine.stop()
 
     def configure_output(self, output_name, token_name):
+        log.debug('Setting {} to {}'.format(output_name, token_name))
         output = self._outputs[output_name]
         if output._token_name == token_name:
             return
         if output._plugin:
             self.workbench.unregister(output._plugin_id)
         manifest_description = get_token_manifest(token_name)
-        scope = 'experiment' if output.mode == 'continuous' else 'trial'
+        if isinstance(output, ContinuousOutput):
+            scope = 'experiment'
+        else:
+            scope = 'trial'
         manifest = manifest_description(output.name, scope=scope,
                                         label_base=output.label)
         self.workbench.register(manifest)
@@ -213,13 +182,13 @@ class BaseController(Plugin):
     def end_trial(self):
         raise NotImplementedError
 
-    def ao_callback(self, engine, data):
+    def ao_callback(self, name, data):
         raise NotImplementedError
 
-    def ai_callback(self, engine, data):
+    def ai_callback(self, name, data):
         raise NotImplementedError
 
-    def et_callback(self, engine, line, edge, timestamp):
+    def et_callback(self, name, edge, timestamp):
         raise NotImplementedError
 
     def get_ts(self):

@@ -2,6 +2,7 @@ from enaml.core.api import Looper
 from enaml.widgets.api import (DockItem, Container, VGroup, HGroup, Label,
                                Field, ObjectCombo)
 
+from .output import ContinuousOutput
 from ..token import continuous_tokens, discrete_tokens
 
 enamldef OutputDockItem(DockItem):
@@ -20,7 +21,7 @@ enamldef OutputDockItem(DockItem):
                         text = loop_item.label
                     ObjectCombo:
                         items << continuous_tokens.keys() \
-                            if loop_item.mode == 'continuous' \
+                            if isinstance(loop_item, ContinuousOutput) \
                             else discrete_tokens.keys()
                         selected << loop_item._token_name
                         selected ::

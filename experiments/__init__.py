@@ -1,5 +1,4 @@
 import logging.config
-import warnings
 
 import enaml
 from enaml.workbench.api import Workbench

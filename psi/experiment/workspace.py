@@ -21,9 +21,9 @@ class ExperimentWorkspace(Workspace):
     def start(self):
         self.content = ExperimentView(workspace=self)
         plugin = self.workbench.get_plugin('psi.experiment')
+        core = self.workbench.get_plugin('enaml.workbench.core')
         plugin.setup_toolbar(self)
         plugin.setup_workspace(self)
-        core = self.workbench.get_plugin('enaml.workbench.core')
         deferred_call(core.invoke_command, 'psi.get_default_layout')
         deferred_call(core.invoke_command, 'psi.get_default_preferences')
         deferred_call(core.invoke_command, 'psi.get_default_context')

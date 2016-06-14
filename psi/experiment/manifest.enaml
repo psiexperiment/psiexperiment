@@ -1,6 +1,5 @@
 # TODO: Find a smart way to set defaults on a per-paradigm basis (e.g., how do
 # we set the ID?)
-
 import cPickle as pickle
 
 import os
@@ -59,10 +58,10 @@ def load_layout(event):
 
 
 def _load_layout(event, file_name):
+    plugin = event.workbench.get_plugin('psi.experiment')
     with open(file_name, 'rb') as fh:
         layout = pickle.load(fh)
-    plugin = event.workbench.get_plugin('psi.experiment')
-    plugin.set_layout(layout)
+        plugin.set_layout(layout)
 
 
 def set_default_layout(event):

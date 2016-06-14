@@ -137,21 +137,12 @@ class AppetitivePlugin(BaseController):
             raise
 
     def start_trial(self):
-        log.debug('starting trial')
-        epoch_output = self._channel_outputs['epoch']['speaker']
-        engine = epoch_output.channel.engine
-        waveform = epoch_output.get_waveform()
-        ts = self.get_ts()+0.25
-        offset = int(ts*engine.ao_fs)
-        engine.modify_hw_ao(waveform, offset=offset)
-
+        self.invoke_actions('trial_start')
         # TODO - the hold duration will include the update delay. Do we need
         # super-precise tracking of hold period or can it vary by a couple 10s
         # to 100s of msec?
         self.trial_state = TrialState.waiting_for_hold_period
         self.start_timer('hold_duration', Event.hold_duration_elapsed)
-        self.trial_info['target_start'] = ts
-        self.trial_info['target_end'] = ts+(waveform.shape[-1]/engine.ao_fs)
 
     def end_trial(self, response):
         log.debug('Animal responded by {}, ending trial'.format(response))
@@ -198,33 +189,25 @@ class AppetitivePlugin(BaseController):
         super(AppetitivePlugin, self).request_resume()
         self.trial_state = TrialState.waiting_for_np_start
 
-    def ao_callback(self, engine_name, channel_names, offset, samples):
-        m = '{} requests {} samples starting at {} for {}' \
-            .format(engine_name, samples, offset, ', '.join(channel_names))
-        log.trace(m)
+    def ao_callback(self, name, offset, samples):
+        # TODO: This assumes there is only one output. Need to figure out how
+        # to handle two.
+        log.trace('{} samples at {} for {}'.format(samples, offset, name))
         waveforms = []
-        for channel_name in channel_names:
-            output = self._channel_outputs['continuous'][channel_name]
-            waveforms.append(output.get_waveform(offset, samples))
-        waveforms = np.r_[waveforms]
-        engine = self._engines[engine_name]
-        engine.append_hw_ao(waveforms)
+        output = self._outputs[name]
+        waveform = output.get_waveform(offset, samples)
+        output.engine.append_hw_ao(waveform)
 
-    def ai_callback(self, engine_name, channel_names, data):
-        m = '{} acquired {} samples from {}' \
-            .format(engine_name, data.shape, ', '.join(channel_names))
+    def ai_callback(self, name, data):
+        log.trace('Acquired {} samples from {}'.format(data.shape, name))
         self.samples.append(data)
-        log.trace(m)
 
-    def di_callback(self, engine_name, channel_names, data):
-        m = '{} acquired {} samples from {}' \
-            .format(engine_name, data.shape, ', '.join(channel_names))
+    def di_callback(self, name, data):
+        log.trace('Acquired {} samples from {}'.format(data.shape, name))
         self.samples.append(data)
-        log.trace(m)
 
-    def et_callback(self, engine_name, line, change, event_time):
-        log.debug('{} detected {} on {} at {}' \
-                  .format(engine_name, change, line, event_time))
+    def et_callback(self, *args):
+        log.debug('Detected {} on {} at {}'.format(change, name, event_time))
         event = self.event_map[change, line]
         self.handle_event(event, event_time)
 

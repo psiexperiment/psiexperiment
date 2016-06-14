@@ -27,12 +27,6 @@ enamldef ControllerManifest(PluginManifest): manifest:
         id = 'psi.controller.io'
 
     ExtensionPoint:
-        id = 'psi.controller.outputs'
-
-    ExtensionPoint:
-        id = 'psi.controller.engines'
-
-    ExtensionPoint:
         id = 'psi.controller.actions'
 
     Extension:

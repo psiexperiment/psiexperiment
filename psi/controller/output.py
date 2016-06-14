@@ -1,25 +1,44 @@
-from atom.api import Unicode, Enum, Typed
+from functools import partial
+
+from atom.api import Unicode, Enum, Typed, Property
 from enaml.core.api import Declarative, d_
 from enaml.workbench.api import Plugin
-
-from .engine import Engine
-from .channel import Channel
-
 
 class Output(Declarative):
 
     label = d_(Unicode())
     name = d_(Unicode())
-    channel_name = d_(Unicode())
-    mode = d_(Enum('continuous', 'epoch'))
 
+    channel = Property()
+    engine = Property()
+
+    # TODO: clean this up. it's sort of hackish.
     _token_name = Unicode()
     _plugin_id = Unicode()
     _plugin = Typed(Plugin)
 
-    channel = Typed(Channel)
+    def _get_channel(self):
+        return self.parent
+
+    def _get_engine(self):
+        return self.parent.parent
+
+
+class EpochOutput(Output):
 
     def get_waveform(self, offset=0, samples=None):
-        if self.mode == 'continuous' and samples is None:
-            raise ValueError('Must specify the number of samples')
         return self._plugin.get_waveform(offset, samples)
+
+    def configure(self, plugin):
+        self._plugin.initialize(self.channel.fs)
+
+
+class ContinuousOutput(Output):
+
+    def get_waveform(self, offset, samples):
+        return self._plugin.get_waveform(offset, samples)
+
+    def configure(self, plugin):
+        cb = partial(plugin.ao_callback, self.name)
+        self.engine.register_ao_callback(cb, self.channel.name)
+        self._plugin.initialize(self.channel.fs)

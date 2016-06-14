@@ -1,13 +1,30 @@
 import numpy as np
 
 from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import Branding
 
 from psi.controller.appetitive_manifest import AppetitiveManifest
 from psi.controller.engines.nidaq import NIDAQEngine
 
 from psi.context.api import ContextGroup, Parameter
-from psi.controller.api import Output, Channel
+from psi.controller.api import (ContinuousAnalogInput, AnalogThreshold,
+                                ContinuousOutput, EpochOutput, AIChannel,
+                                AOChannel, ExperimentAction)
+
+
+def insert_target(event):
+    controller = event.workbench.get_plugin('psi.controller')
+    ts = controller.get_ts()
+
+    target = controller._outputs['target']
+    waveform = target.get_waveform()
+    offset = int(target.channel.fs*(0.25+ts))
+    target.engine.modify_hw_ao(waveform, offset=offset)
+
+    controller.trial_info['target_start'] = ts
+    controller.trial_info['target_end'] = \
+        ts+(waveform.shape[-1]/target.channel.fs)
 
 
 enamldef ControllerManifest(AppetitiveManifest): manifest:
@@ -19,88 +36,81 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             title = 'Go-Nogo'
 
     Extension:
-        id = 'io'
+        id = 'appetitive_commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = 'psi.controller.insert_target'
+            handler = insert_target
+
+    Extension:
+        id = 'actions'
+        point = 'psi.controller.actions'
+        ExperimentAction:
+            event = 'trial_start'
+            command = 'psi.controller.insert_target'
+
+    Extension:
+        id = 'backend'
         point = 'psi.controller.io'
 
-        Output:
-            label = 'Background'
-            name = 'background'
-            mode = 'continuous'
-            channel_name = 'speaker'
+        NIDAQEngine:
+            name = 'NI'
+            master_clock = True
+            hw_ai_monitor_period = 0.01
 
-        Output:
-            label = 'Target'
-            name = 'target'
-            mode = 'epoch'
-            channel_name = 'speaker'
+            AOChannel:
+                name = 'speaker'
+                channel = 'Dev1/ao1'
+                fs = 100e3
+                expected_range = (-10, 10)
 
+                ContinuousOutput:
+                    name = 'background'
+                    label = 'Background'
 
-        # OUTPUT channels
-        Channel:
-            name = 'speaker'
-            engine_name = 'NI'
-            channel = 'Dev1/ao1'
-            io_type = 'hw_ao'
-            fs = 100e3
-            expected_range = (-10, 10)
+                EpochOutput:
+                    name = 'target'
+                    label = 'Target'
 
-        # INPUT channels
-        Channel:
-            engine_name = 'NI'
-            name = 'microphone'
-            channel = 'Dev1/ai0'
-            io_type = 'hw_ai'
-            start_trigger = 'ao/StartTrigger'
-            fs = 25e3
-            expected_range = (-10, 10)
+            AIChannel:
+                name = 'microphone'
+                channel = 'Dev1/ai0'
+                start_trigger = 'ao/StartTrigger'
+                fs = 25e3
+                expected_range = (-10, 10)
 
-        Channel:
-            engine_name = 'NI'
-            name = 'nose_poke_analog'
-            channel = 'Dev1/ai1'
-            io_type = 'hw_ai'
-            start_trigger = 'ao/StartTrigger'
-            fs = 25e3
-            expected_range = (-10, 10)
+                ContinuousAnalogInput:
+                    name = 'microphone'
 
-        Channel:
-            engine_name = 'NI'
-            name = 'reward_contact_anlaog'
-            channel = 'Dev1/ai2'
-            io_type = 'hw_ai'
-            start_trigger = 'ao/StartTrigger'
-            fs = 25e3
-            expected_range = (-10, 10)
+            AIChannel:
+                name = 'nose_poke'
+                channel = 'Dev1/ai1'
+                start_trigger = 'ao/StartTrigger'
+                fs = 25e3
+                expected_range = (-10, 10)
 
-        # DIGITAL input channels
-        Channel:
-            engine_name = 'NI'
-            name = 'nose_poke'
-            channel = 'Dev1/port0/line0'
-            io_type = 'hw_di'
-            start_trigger = 'ao/StartTrigger'
-            fs = 25e3
+                ContinuousAnalogInput:
+                    name = 'nose_poke_analog'
 
-        Channel:
-            engine_name = 'NI'
-            name = 'reward_contact'
-            channel = 'Dev1/port0/line1'
-            io_type = 'hw_di'
-            start_trigger = 'ao/StartTrigger'
-            fs = 25e3
+                AnalogThreshold:
+                    name = 'nose_poke_threshold'
+                    threshold = 2.5
+                    debounce = 100
 
-        # DIGITAL output channels
-        Channel:
-            engine_name = 'NI'
-            name = 'reward_dispense'
-            channel = 'Dev1/port1/line0'
-            io_type = 'sw_do'
+            AIChannel:
+                name = 'reward_contact'
+                channel = 'Dev1/ai2'
+                start_trigger = 'ao/StartTrigger'
+                fs = 25e3
+                expected_range = (-10, 10)
 
-        Channel:
-            engine_name = 'NI'
-            name = 'room_light'
-            channel = 'Dev1/port1/line1'
-            io_type = 'sw_do'
+                ContinuousAnalogInput:
+                    name = 'reward_contact_analog'
+
+                AnalogThreshold:
+                    name = 'reward_contact_threshold'
+                    threshold = 2.5
+                    debounce = 100
 
 
     # TODO: Should these automatically be contributed by the controller when it
@@ -116,9 +126,3 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             label = 'Target'
 
 
-    Extension:
-        id = 'backend'
-        point = 'psi.controller.engines'
-        NIDAQEngine:
-            name = 'NI'
-            master_clock = True

@@ -1,7 +1,8 @@
 import numpy as np
 
+from atom.api import Typed, Int, Bool
 from enaml.widgets.api import Action
-from enaml.workbench.api import PluginManifest, Extension
+from enaml.workbench.api import Plugin, PluginManifest, Extension
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
 
@@ -9,15 +10,82 @@ from psi.core.utils import find_extension
 from psi.context.api import ContextGroup, Parameter
 from ...experiment_action import ExperimentAction
 
+from new_era import PumpInterface
+
 PLUGIN_ID = 'psi.controller.action.NE1000' 
 
 
+def temporary_pause(f):
+    def wrapper(self, *args, **kwargs):
+        halted = self.iface.get_status() == 'halted'
+        if not halted:
+            self.iface.pause()
+        f(self, *args, **kwargs)
+        if not halted:
+            self.iface.resume()
+    return wrapper
+
+
+class NE1000Plugin(Plugin):
+
+    port = Int(1)
+    iface = Typed(PumpInterface)
+    pump_toggle = Bool(False)
+
+    pump_trigger_cache = Typed(tuple)
+    pump_volume_cache = Typed(float)
+
+    def total_infused(self):
+        return self.iface.get_infused(unit='ml')
+
+    def pump_override(self, info):
+        if not self.pump_toggle:
+            self.pump_trigger_cache = self.iface.get_trigger()
+            self.pump_volume_cache = self.iface.get_volume()
+            self.iface.set_volume(0)
+            self.iface.set_trigger('rising', None)
+            self.iface.run()
+            self.pump_toggle = True
+        else:
+            self.iface.stop()
+            self.iface.set_trigger(*self.pump_trigger_cache)
+            self.iface.set_volume(self.pump_volume_cache)
+            self.pump_toggle = False
+
+    @temporary_pause
+    def set_pump_volume(self, value):
+        self.iface.set_volume(value, unit='ul')
+
+    @temporary_pause
+    def set_pump_rate(self, value):
+        self.iface.set_rate(value, unit='ml/min')
+
+    @temporary_pause
+    def set_pump_syringe_diameter(self, value):
+        self.iface.set_diameter(value, unit='mm')
+
+
+class NE1000Plugin(Plugin):
+
+    # TODO: Accept strings (e.g., for use on Linux systems)
+    port = Int()
+    iface = Typed(PumpInterface)
+
+    def _iface_default(self):
+        iface = PumpInterface(port=self.port)
+
+    def deliver_reward(self, volume=None):
+        if volume is None:
+            core = event.workbench.get_plugin('enaml.workbench.core')
+            volume = core.invoke_command('psi.context.get_value',
+                                         {'context_name': 'reward_volume',
+                                          'fail_mode': 'default'})
+        print 'delivering reward volume of {}'.format(volume)
+
+
 def deliver_reward(event):
-    core = event.workbench.get_plugin('enaml.workbench.core')
-    rv = core.invoke_command('psi.context.get_value', 
-                             {'context_name': 'reward_volume',
-                              'fail_mode': 'default'})
-    print 'delivering reward volume of {}'.format(rv)
+    plugin = event.workbench.get_plugin('enaml.workbench.core')
+    plugin.deliver_reward()
 
 
 enamldef NE1000Manifest(PluginManifest): manifest:

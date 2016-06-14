@@ -1,5 +1,3 @@
-import warnings
-
 import enaml
 
 from experiments import initialize_default, configure_logging
@@ -33,10 +31,8 @@ if __name__ == '__main__':
         core.invoke_command('enaml.workbench.ui.select_workspace',
                             {'workspace': 'psi.experiment.workspace'})
 
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-        ui = workbench.get_plugin('enaml.workbench.ui')
-        ui.show_window()
+    ui = workbench.get_plugin('enaml.workbench.ui')
+    ui.show_window()
 
     configure_logging()
     ui.start_application()
