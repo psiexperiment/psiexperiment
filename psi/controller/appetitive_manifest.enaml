@@ -8,7 +8,7 @@ from enaml.workbench.api import Extension, PluginManifest, ExtensionPoint
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem, Autostart
 
-from ..context.api import ContextGroup, Parameter, Result, FileParameter
+from ..context.api import ContextGroup, Parameter, Result
 from ..context.selector import SequenceSelector, SingleSetting
 
 from .base_manifest import ControllerManifest
@@ -82,7 +82,7 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
             triggered ::
                 plugin = workbench.get_plugin(PLUGIN_ID)
                 plugin.start_trial()
-                plugin.end_trial()
+                plugin.end_trial('reward')
         Action:
             text = 'Poke'
             checkable = True
@@ -184,13 +184,6 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
             compact_label = 'RFA'
             dtype = np.dtype('bool')
             expression = 'True'
-            group = 'selector'
-            scope = 'arbitrary'
-        FileParameter:
-            name = 'example_file'
-            label = 'Example File'
-            compact_label = 'file'
-            dtype = np.dtype('S256')
             group = 'selector'
             scope = 'arbitrary'
 

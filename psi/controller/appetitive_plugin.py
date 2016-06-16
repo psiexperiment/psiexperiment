@@ -165,15 +165,11 @@ class AppetitivePlugin(BaseController):
             self.core.invoke_command('psi.data.prepare')
             self.experiment_state = 'running'
             self.trial_state = TrialState.waiting_for_np_start
+            self.invoke_actions('experiment_start')
         except Exception as e:
             # TODO - provide user interface to notify of errors. How to
             # recover?
             raise
-
-    def score_response(self, trial_type, response):
-        if response == 'no response':
-            return TrialScore.hit
-        return self.score_map[trial_type, response]
 
     def start_trial(self):
         self.invoke_actions('trial_start')
@@ -188,20 +184,21 @@ class AppetitivePlugin(BaseController):
         self.stop_timer()
 
         trial_type = self.trial_type.split('_', 1)[0]
-        score = self.score_response(trial_type, response)
+        score = self.score_map[trial_type, response]
         self.consecutive_nogo = self.consecutive_nogo + 1 \
             if trial_type == 'nogo' else 0
 
-        resp_time = self.trial_info['response_ts']-self.trial_info['target_start']
-        react_time = self.trial_info['np_end']-self.trial_info['np_start']
-
+        response_ts = self.trial_info.get('response_ts', np.nan)
+        target_start = self.trial_info.get('target_start', np.nan)
+        np_end = self.trial_info.get('np_end', np.nan)
+        np_start = self.trial_info.get('np_start', np.nan)
         self.trial_info.update({
             'response': response,
             'trial_type': self.trial_type,
             'score': score.value,
             'correct': score in (TrialScore.correct_reject, TrialScore.hit),
-            'response_time': resp_time,
-            'reaction_time': react_time,
+            'response_time': response_ts-target_start,
+            'reaction_time': np_end-np_start,
         })
         if score == TrialScore.false_alarm:
             self.invoke_actions('timeout_start')
@@ -209,7 +206,7 @@ class AppetitivePlugin(BaseController):
             self.start_timer('to_duration', Event.to_duration_elapsed)
         else:
             if score == TrialScore.hit:
-                self.invoke_actions('reward')
+                self.invoke_actions('deliver_reward')
             self.trial_state = TrialState.waiting_for_iti
             self.start_timer('iti_duration', Event.iti_duration_elapsed)
 
@@ -223,7 +220,7 @@ class AppetitivePlugin(BaseController):
     def ao_callback(self, name, offset, samples):
         # TODO: This assumes there is only one output. Need to figure out how
         # to handle two.
-        log.trace('{} samples at {} for {}'.format(samples, offset, name))
+        
         waveforms = []
         output = self._outputs[name]
         waveform = output.get_waveform(offset, samples)
