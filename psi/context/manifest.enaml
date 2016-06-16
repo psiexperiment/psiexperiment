@@ -40,7 +40,7 @@ def _save_context(event, file_name):
         file_name += '.context'
     plugin = event.workbench.get_plugin(PLUGIN_ID)
     with open(file_name, 'wb') as fh:
-        pickle.dump(plugin.context_items, fh)
+        pickle.dump(plugin._get_all_expressions(), fh)
         pickle.dump(plugin.selectors, fh)
         pickle.dump(plugin.roving_items, fh)
 

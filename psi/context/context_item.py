@@ -100,7 +100,20 @@ class EnumParameter(Parameter):
     selected = d_(Unicode())
 
     def _get_expression(self):
-        return self.choices[self.selected]
+        try:
+            return self.choices[self.selected]
+        except:
+            return None
+
+    def _set_expression(self, expression):
+        for k, v in self.choices.items():
+            if v == expression:
+                self.selected = k
+                break
+        else:
+            if expression is not None:
+                m = 'Could not map expression {} to choice'.format(expression)
+                raise ValueError(m)
 
     @observe('selected')
     def _notify_update(self, event):
@@ -117,6 +130,9 @@ class FileParameter(Parameter):
 
     def _get_expression(self):
         return '"{}"'.format(self.path)
+
+    def _set_expression(self, expression):
+        self.path = expression.strip('\"\'')
 
     @observe('path')
     def _notify_update(self, event):

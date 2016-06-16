@@ -41,7 +41,7 @@ class ContextPlugin(Plugin):
 
     # Reflects state of selectors and context_items as currently applied.
     _selectors = Typed(dict, ())
-    _context_items = Typed(dict, ())
+    _context_expressions = Typed(dict, ())
     _roving_items = Typed(list, ())
 
     changes_pending = Bool(False)
@@ -136,14 +136,9 @@ class ContextPlugin(Plugin):
     def _observe_selector_updated(self, event):
         self._check_for_changes()
 
-    def _update_attrs(self, context_items, selectors, roving_items):
-        for i in self.context_items:
-            if i not in context_items:
-                # TODO: how to handle this? warning?
-                continue
-            from_items = context_items[i]
-            to_items = self.context_items[i]
-            copy_attrs(from_items, to_items)
+    def _update_attrs(self, context_expressions, selectors, roving_items):
+        for name, expression in context_expressions.items():
+            self.context_items[name].expression = expression
         for s in self.selectors:
             from_selector = selectors[s]
             to_selector = self.selectors[s]
@@ -151,7 +146,7 @@ class ContextPlugin(Plugin):
         self.roving_items = roving_items
 
     def _check_for_changes(self):
-        ci_changed = self.context_items != self._context_items
+        ci_changed = self._context_expressions != self._get_all_expressions()
         s_changed = self.selectors != self._selectors
         ri_changed = self.roving_items != self._roving_items
         self.changes_pending = ci_changed or s_changed or ri_changed
@@ -159,18 +154,20 @@ class ContextPlugin(Plugin):
     def _get_expressions(self):
         # Return a dictionary of expressions for all context_items that are not
         # managed by the selectors.
-        expressions = {}
-        for item_name, item in self._context_items.items():
-            if isinstance(item, Parameter) and \
-                    item_name not in self._roving_items:
-                expressions[item_name] = item.expression
-        return expressions
+        expressions = self._get_all_expressions()
+        return {k: e for k, e in self._get_all_expressions().items() \
+                if e not in self._roving_items}
+
+    def _get_all_expressions(self):
+        # Return a dictionary of expressions for all context_items that are not # managed by the selectors.
+        return {k: c.expression for k, c in self.context_items.items() \
+                if isinstance(c, Parameter)}
 
     def _get_sequences(self):
-        return dict((n, s.__getstate__()) for n, s in self.selectors.items())
+        return {n: s.__getstate__() for n, s in self.selectors.items()}
 
     def _get_iterators(self):
-        return dict((k, v.get_iterator()) for k, v in self.selectors.items())
+        return {k: v.get_iterator() for k, v in self.selectors.items()}
 
     def get_item_info(self, item_name):
         item = self.context_items[item_name]
@@ -256,7 +253,7 @@ class ContextPlugin(Plugin):
         return old != new
 
     def apply_changes(self):
-        self._context_items = deepcopy(self.context_items)
+        self._context_expressions = self._get_all_expressions()
         self._selectors = deepcopy(self.selectors)
         self._roving_items = deepcopy(self.roving_items)
 
@@ -266,7 +263,7 @@ class ContextPlugin(Plugin):
         self.changes_pending = False
 
     def revert_changes(self):
-        self._update_attrs(self._context_items,
+        self._update_attrs(self._context_expressions,
                            self._selectors,
                            self._roving_items)
         self._check_for_changes()
