@@ -6,6 +6,7 @@ import logging
 log = logging.getLogger(__name__)
 
 from atom.api import Int, Typed, Unicode, observe
+from enaml.core.api import d_func
 import numpy as np
 
 from .base_plugin import BaseController
@@ -39,6 +40,7 @@ class TrialState(enum.Enum):
     waiting_for_np_duration = 'waiting for nose-poke duration'
     waiting_for_hold_period = 'waiting for hold period'
     waiting_for_response = 'waiting for response'
+    waiting_for_reward = 'waiting for reward retrieval'
     waiting_for_to = 'waiting for timeout'
     waiting_for_iti = 'waiting for intertrial interval'
 
@@ -55,14 +57,24 @@ class Event(enum.Enum):
     np_duration_elapsed = 'nose poke duration met'
     hold_duration_elapsed = 'hold period over'
     response_duration_elapsed = 'response timed out'
-    spout_start = 'spout contact'
-    spout_end = 'withdrew from spout'
+    reward_start = 'reward contact'
+    reward_end = 'withdrew from reward'
     to_duration_elapsed = 'timeout over'
     iti_duration_elapsed = 'ITI over'
     trial_start = 'trial start'
 
 
 class Mutex(object):
+    '''
+    Wrapper around the QMutex object for use with the Python context manager
+
+    Example
+    -------
+    mutex = Mutex()
+    with mutex:
+        # Mutex is automatically locked when entering this block. Do some work
+        # safely. When the block is complete, the mutex is unlocked.
+    '''
 
     def __init__(self):
         self.mutex = QMutex()
@@ -75,9 +87,19 @@ class Mutex(object):
 
 
 class AppetitivePlugin(BaseController):
+    '''
+    Plugin for controlling appetitive experiments that are based on a reward.
+    Eventually this may become generic enough that it can be used with aversive
+    experiments as well (it may already be sufficiently generic).
+    '''
 
+    # Current trial
     trial = Int(0)
+
+    # Current number of consecutive nogos 
     consecutive_nogo = Int(0)
+
+    # Used by the trial sequence selector to randomly select between go/nogo.
     rng = Typed(np.random.RandomState)
     trial_type = Unicode()
     trial_info = Typed(dict, ())
@@ -91,11 +113,23 @@ class AppetitivePlugin(BaseController):
     event_map = {
         ('rising', 'nose_poke'): Event.np_start,
         ('falling', 'nose_poke'): Event.np_end,
-        ('rising', 'reward_contact'): Event.spout_start,
-        ('falling', 'reward_contact'): Event.spout_end,
+        ('rising', 'reward_contact'): Event.reward_start,
+        ('falling', 'reward_contact'): Event.reward_end,
+    }
+
+    score_map = {
+        ('nogo', 'reward'): TrialScore.false_alarm,
+        ('nogo', 'poke'): TrialScore.correct_reject,
+        ('nogo', 'no response'): TrialScore.correct_reject,
+        ('go', 'reward'): TrialScore.hit,
+        ('go', 'poke'): TrialScore.miss,
+        ('go', 'no response'): TrialScore.miss,
     }
 
     def next_selector(self):
+        '''
+        Determine next trial type
+        '''
         try:
             max_nogo = self.context.get_value('max_nogo')
             go_probability = self.context.get_value('go_probability')
@@ -136,6 +170,11 @@ class AppetitivePlugin(BaseController):
             # recover?
             raise
 
+    def score_response(self, trial_type, response):
+        if response == 'no response':
+            return TrialScore.hit
+        return self.score_map[trial_type, response]
+
     def start_trial(self):
         self.invoke_actions('trial_start')
         # TODO - the hold duration will include the update delay. Do we need
@@ -148,18 +187,10 @@ class AppetitivePlugin(BaseController):
         log.debug('Animal responded by {}, ending trial'.format(response))
         self.stop_timer()
 
-        if self.trial_type in ('nogo', 'nogo_repeat'):
-            self.consecutive_nogo += 1
-            if response == 'spout':
-                score = TrialScore.false_alarm
-            elif response in ('poke', 'no response'):
-                score = TrialScore.correct_reject
-        else:
-            self.consecutive_nogo = 0
-            if response == 'spout':
-                score = TrialScore.hit
-            elif response in ('poke', 'no response'):
-                score = TrialScore.miss
+        trial_type = self.trial_type.split('_', 1)[0]
+        score = self.score_response(trial_type, response)
+        self.consecutive_nogo = self.consecutive_nogo + 1 \
+            if trial_type == 'nogo' else 0
 
         resp_time = self.trial_info['response_ts']-self.trial_info['target_start']
         react_time = self.trial_info['np_end']-self.trial_info['np_start']
@@ -252,11 +283,11 @@ class AppetitivePlugin(BaseController):
             # clock, the timestamp won't be super-accurate. However, it's not
             # super-important since these events are not reference points around
             # which we would do a perievent analysis. Important reference points
-            # would include nose-poke initiation and withdraw, spout contact,
-            # sound onset, lights on, lights off. These reference points will be
-            # tracked via NI-DAQmx or can be calculated (i.e., we know exactly
-            # when the target onset occurs because we precisely specify the
-            # location of the target in the analog output buffer).
+            # would include nose-poke initiation and withdraw, reward contact,
+            # sound onset, lights on, lights off. These reference points will
+            # be tracked via NI-DAQmx or can be calculated (i.e., we know
+            # exactly when the target onset occurs because we precisely specify
+            # the location of the target in the analog output buffer).
             try:
                 if timestamp is None:
                     timestamp = self.get_ts()
@@ -274,6 +305,11 @@ class AppetitivePlugin(BaseController):
         the event that occured. Depending on the experiment state, a particular
         event may not be processed.
         '''
+        # HOWTO: If training, then set np duration and hold duration to 0. This
+        # means that the trial will start immediately after the intertrial
+        # interval is over. We then go into the response period.
+        self.invoke_actions(event.name)
+
         if self.experiment_state == 'paused':
             # If the experiment is paused, don't do anything.
             return
@@ -302,7 +338,7 @@ class AppetitivePlugin(BaseController):
                 self.start_trial()
 
         elif self.trial_state == TrialState.waiting_for_hold_period:
-            # All animal-initiated events (poke/spout) are ignored during this
+            # All animal-initiated events (poke/reward) are ignored during this
             # period but we may choose to record the time of nose-poke withdraw
             # if it occurs.
             if event == Event.np_end:
@@ -333,10 +369,10 @@ class AppetitivePlugin(BaseController):
                 log.debug('Animal repoked')
                 self.trial_info['response_ts'] = timestamp
                 self.end_trial(response='poke')
-            elif event == Event.spout_start:
-                log.debug('Animal went to spout')
+            elif event == Event.reward_start:
+                log.debug('Animal went to reward')
                 self.trial_info['response_ts'] = timestamp
-                self.end_trial(response='spout')
+                self.end_trial(response='reward')
             elif event == Event.response_duration_elapsed:
                 log.debug('Animal provided no response')
                 self.trial_info['response_ts'] = np.nan
@@ -349,7 +385,7 @@ class AppetitivePlugin(BaseController):
                 self.trial_state = TrialState.waiting_for_iti
                 self.start_timer('iti_duration',
                                  Event.iti_duration_elapsed)
-            elif event in (Event.spout_start, Event.np_start):
+            elif event in (Event.reward_start, Event.np_start):
                 log.debug('Resetting timeout duration')
                 self.stop_timer()
                 self.start_timer('to_duration', Event.to_duration_elapsed)
@@ -379,7 +415,7 @@ class AppetitivePlugin(BaseController):
     def start_timer(self, variable, event):
         # Even if the duration is 0, we should still create a timer because this
         # allows the `_handle_event` code to finish processing the event. The
-        # timer will execute as soon as `_handle_event` finishes processing.
+        # timer should execute as soon as `_handle_event` finishes processing.
         # Since the Enaml application is Qt-based, we need to use the QTimer to
         # avoid issues with a Qt-based multithreading application.
         log.debug('timer for {} set to {}'.format(event, variable))

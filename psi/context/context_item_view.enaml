@@ -1,10 +1,11 @@
 from enaml.core.api import DynamicTemplate
-from enaml.layout.api import hbox
-from enaml.widgets.api import Container, Field, CheckBox, Label, HGroup
+from enaml.layout.api import hbox, spacer
+from enaml.widgets.api import (Container, Field, CheckBox, Label, HGroup,
+                               PushButton, FileDialogEx)
 
-from psi.context.context_item import Result, Parameter
+from .context_item import Result, Parameter, EnumParameter, FileParameter
 
-from enaml.widgets.api import ComboBox
+from enaml.widgets.api import ObjectCombo
 
 
 template ContextItemTemplate(context_item, MemberType: Result):
@@ -24,6 +25,43 @@ template ContextItemTemplate(context_item, MemberType: Parameter):
     DynamicTemplate:
         base = ParameterTemplate
         args = (context_item, context_item.scope)
+
+
+template ContextItemTemplate(context_item, MemberType: EnumParameter):
+    # Generic template for Parameters that splits based on the scope (e.g.
+    # experiment vs trial)'
+    HGroup:
+        spacing = 0
+        padding = 0
+        Label: label:
+            text = context_item.label
+        ObjectCombo:
+            items << sorted(context_item.choices.keys())
+            selected := context_item.selected
+
+
+template ContextItemTemplate(context_item, MemberType: FileParameter):
+    HGroup:
+        spacing = 0
+        padding = 0
+        Label: label:
+            text = context_item.label
+        HGroup:
+            spacing = 0
+            padding = 0
+            align_widths = False
+            Field: field:
+                text << context_item.path
+            PushButton: pb:
+                text = u'\u2315 Browse'
+                clicked ::
+                    path = FileDialogEx \
+                        .get_open_file_name(workspace,
+                                            file_mode=context_item.file_mode,
+                                            current_path=context_item.current_path,
+                                            name_filters=context_item.name_filters)
+                    if path:
+                        context_item.path = path
 
 
 template ParameterTemplate(context_item, scope: 'experiment'):

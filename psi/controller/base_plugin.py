@@ -5,7 +5,7 @@ from functools import partial
 
 import numpy as np
 
-from atom.api import Enum, Bool, Typed, Property
+from atom.api import Enum, Bool, Typed
 from enaml.workbench.plugin import Plugin
 
 from .channel import Channel
@@ -23,7 +23,6 @@ class BaseController(Plugin):
 
     # Tracks the state of the controller.
     experiment_state = Enum('initialized', 'running', 'paused', 'stopped')
-    running = Property()
 
     # Provides direct access to plugins rather than going through the core
     # command system. Right now the context plugin is so fundamentally important
@@ -143,7 +142,7 @@ class BaseController(Plugin):
 
     def invoke_actions(self, event):
         log.debug('Invoking actions for {}'.format(event))
-        for action in self._actions[event]:
+        for action in self._actions.get(event, []):
             log.debug('Invoking command {}'.format(action.command))
             self.core.invoke_command(action.command)
 

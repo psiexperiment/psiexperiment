@@ -8,7 +8,7 @@ from enaml.workbench.api import Extension, PluginManifest, ExtensionPoint
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem, Autostart
 
-from ..context.api import ContextGroup, Parameter, Result
+from ..context.api import ContextGroup, Parameter, Result, FileParameter
 from ..context.selector import SequenceSelector, SingleSetting
 
 from .base_manifest import ControllerManifest
@@ -78,26 +78,29 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
         rank = 1000
         point = 'psi.experiment.toolbar'
         Action:
-            text = 'Spout'
-            checkable = True
-            toggled ::
+            text = 'Target + reward'
+            triggered ::
                 plugin = workbench.get_plugin(PLUGIN_ID)
-                if checked:
-                    plugin.handle_event(Event.spout_start)
-                else:
-                    plugin.handle_event(Event.spout_end)
-            enabled << workbench.get_plugin(PLUGIN_ID).experiment_state \
-                not in ('initialized', 'stopped')
+                plugin.start_trial()
+                plugin.end_trial()
         Action:
             text = 'Poke'
             checkable = True
-            triggered ::
+            toggled ::
                 plugin = workbench.get_plugin(PLUGIN_ID)
                 if checked:
                     plugin.handle_event(Event.np_start)
                 else:
                     plugin.handle_event(Event.np_end)
             enabled <<  workbench.get_plugin(PLUGIN_ID).experiment_state \
+                not in ('initialized', 'stopped')
+        Action:
+            text = 'Spout'
+            triggered ::
+                plugin = workbench.get_plugin(PLUGIN_ID)
+                plugin.handle_event(Event.reward_start)
+                plugin.handle_event(Event.reward_end)
+            enabled << workbench.get_plugin(PLUGIN_ID).experiment_state \
                 not in ('initialized', 'stopped')
 
     # Parameters used by the appetitive Go-Nogo controller.
@@ -181,6 +184,13 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
             compact_label = 'RFA'
             dtype = np.dtype('bool')
             expression = 'True'
+            group = 'selector'
+            scope = 'arbitrary'
+        FileParameter:
+            name = 'example_file'
+            label = 'Example File'
+            compact_label = 'file'
+            dtype = np.dtype('S256')
             group = 'selector'
             scope = 'arbitrary'
 

@@ -13,7 +13,8 @@
 import numpy as np
 
 from enaml.core.declarative import Declarative, d_
-from atom.api import Unicode, Typed, Bool, Value, Enum
+from atom.api import (Unicode, Typed, Value, Enum, List, Event, Property,
+                      observe)
 
 from .. import SimpleState
 
@@ -21,9 +22,8 @@ from .. import SimpleState
 class ContextItem(SimpleState, Declarative):
     '''
     Defines the core elements of a context item. These items are made available
-    to the namespace for evaluation.
+    to the context namespace.
     '''
-
     # Must be a valid Python identifier. Used by eval() in expressions.
     name = d_(Unicode())
 
@@ -43,6 +43,8 @@ class ContextItem(SimpleState, Declarative):
 
     # Attributes to compare to determine equality of two items.
     _cmp_attrs = ['name']
+
+    updated = Event()
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
@@ -84,6 +86,38 @@ class Parameter(ContextItem):
     #   sense for it to be a roving item.
     scope = d_(Enum('experiment', 'trial', 'arbitrary'))
 
-    template_type = d_(Unicode('default'))
-
     _cmp_attrs = ContextItem._cmp_attrs + ['expression']
+
+    @observe('expression')
+    def _notify_update(self, event):
+        self.updated = event
+
+
+class EnumParameter(Parameter):
+
+    expression = Property().tag(transient=True)
+    choices = d_(Typed(dict))
+    selected = d_(Unicode())
+
+    def _get_expression(self):
+        return self.choices[self.selected]
+
+    @observe('selected')
+    def _notify_update(self, event):
+        self.updated = event
+
+
+class FileParameter(Parameter):
+
+    expression = Property().tag(transient=True)
+    path = d_(Unicode())
+    file_mode = d_(Enum('any_file', 'existing_file', 'directory'))
+    current_path = d_(Unicode())
+    name_filters = d_(List(Unicode()))
+
+    def _get_expression(self):
+        return '"{}"'.format(self.path)
+
+    @observe('path')
+    def _notify_update(self, event):
+        self.updated = event

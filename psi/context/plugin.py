@@ -118,13 +118,11 @@ class ContextPlugin(Plugin):
     @observe('context_items')
     def _bind_context_items(self, change):
         for i in change.get('oldvalue', {}).values():
-            if hasattr(i, 'expression'):
-                i.unobserve('expression', self._observe_item_expression)
+            i.unobserve('updated', self._observe_item_updated)
         for i in change.get('value', {}).values():
-            if hasattr(i, 'expression'):
-                i.observe('expression', self._observe_item_expression)
+            i.observe('updated', self._observe_item_updated)
 
-    def _observe_item_expression(self, event):
+    def _observe_item_updated(self, event):
         self._check_for_changes()
 
     @observe('selectors')
