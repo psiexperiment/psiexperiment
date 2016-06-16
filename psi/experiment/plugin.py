@@ -37,6 +37,7 @@ class ExperimentPlugin(Plugin):
         for extension in point.extensions:
             for item in extension.get_children(Action):
                 workspace.toolbar.children.append(item)
+            workspace.toolbar.children.append(Action(separator=True))
 
     def get_layout(self):
         ui = self.workbench.get_plugin('enaml.workbench.ui')
