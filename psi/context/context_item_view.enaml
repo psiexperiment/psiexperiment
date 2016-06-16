@@ -8,78 +8,66 @@ from .context_item import Result, Parameter, EnumParameter, FileParameter
 from enaml.widgets.api import ObjectCombo
 
 
-template ContextItemTemplate(context_item, MemberType: Result):
-    # Template for Result context items
-    HGroup:
+enamldef WidgetDynamicTemplate(DynamicTemplate):
+    base = WidgetTemplate
+    args = (context_item, type(context_item))
+
+
+template WidgetTemplate(context_item, MemberType):
+    Field: widget:
+        text := context_item.expression
+
+
+template WidgetTemplate(context_item, MemberType: EnumParameter):
+    ObjectCombo: widget:
+        items << sorted(context_item.choices.keys())
+        selected := context_item.selected
+
+
+template WidgetTemplate(context_item, MemberType: FileParameter):
+    HGroup: widget:
+        spacing = 0
+        padding = 0
+        align_widths = False
+        Field: field:
+            text << context_item.path
+        PushButton: pb:
+            text = u'\u2315 Browse'
+            clicked ::
+                path = FileDialogEx \
+                    .get_open_file_name(workspace,
+                                        file_mode=context_item.file_mode,
+                                        current_path=context_item.current_path,
+                                        name_filters=context_item.name_filters)
+                if path:
+                    context_item.path = '{}'.format(path)
+
+
+template ContextItemTemplate(context_item, MemberType, scope):
+    HGroup: group:
         spacing = 0
         padding = 0
         Label: label:
             text = context_item.label
-        Label: field:
+        WidgetDynamicTemplate:
             pass
 
 
-template ContextItemTemplate(context_item, MemberType: Parameter):
-    # Generic template for Parameters that splits based on the scope (e.g.
-    # experiment vs trial)'
-    DynamicTemplate:
-        base = ParameterTemplate
-        args = (context_item, context_item.scope)
-
-
-template ContextItemTemplate(context_item, MemberType: EnumParameter):
-    # Generic template for Parameters that splits based on the scope (e.g.
-    # experiment vs trial)'
-    HGroup:
+template ContextItemTemplate(context_item, MemberType, scope: 'experiment'):
+    HGroup: group:
         spacing = 0
         padding = 0
+        enabled << workbench.get_plugin('psi.controller') \
+            .experiment_state not in ('running', 'paused')
+
         Label: label:
             text = context_item.label
-        ObjectCombo:
-            items << sorted(context_item.choices.keys())
-            selected := context_item.selected
+        WidgetDynamicTemplate:
+            pass
 
 
-template ContextItemTemplate(context_item, MemberType: FileParameter):
-    HGroup:
-        spacing = 0
-        padding = 0
-        Label: label:
-            text = context_item.label
-        HGroup:
-            spacing = 0
-            padding = 0
-            align_widths = False
-            Field: field:
-                text << context_item.path
-            PushButton: pb:
-                text = u'\u2315 Browse'
-                clicked ::
-                    path = FileDialogEx \
-                        .get_open_file_name(workspace,
-                                            file_mode=context_item.file_mode,
-                                            current_path=context_item.current_path,
-                                            name_filters=context_item.name_filters)
-                    if path:
-                        context_item.path = path
-
-
-template ParameterTemplate(context_item, scope: 'experiment'):
-
-    HGroup:
-        spacing = 0
-        padding = 0
-        Label: label:
-            text = context_item.label
-        Field: field:
-            text := context_item.expression
-            enabled << workbench.get_plugin('psi.controller') \
-                .experiment_state not in ('running', 'paused')
-
-
-template ParameterTemplate(context_item, scope: 'trial'):
-
-    HGroup:
+template ContextItemTemplate(context_item, MemberType, scope: 'trial'):
+    HGroup: group:
         spacing = 0
         padding = 0
         CheckBox: label:
@@ -91,28 +79,15 @@ template ParameterTemplate(context_item, scope: 'trial'):
                     context.rove_item(context_item.name)
                 else:
                     context.unrove_item(context_item.name)
-            text = context_item.label
-        Field: field:
-            text := context_item.expression
-            style_class << 'disabled' if context_item.name in \
-                workbench.get_plugin('psi.context').roving_items else 'enabled'
+            text << context_item.label
+        WidgetDynamicTemplate:
+            pass
 
 
-template ParameterTemplate(context_item, scope: 'arbitrary'):
-
-    HGroup:
-        spacing = 0
-        padding = 0
-        Label: label:
-            text = context_item.label
-        Field: field:
-            text := context_item.expression
-
- 
 enamldef ContextItem(Container):
     attr context_item
     padding = 0
 
     DynamicTemplate:
         base = ContextItemTemplate
-        args = (context_item, type(context_item))
+        args = (context_item, type(context_item), context_item.scope)
