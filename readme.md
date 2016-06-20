@@ -53,9 +53,16 @@ values that should be presented on successive trials.
 ### Controller
 
 The controller is the central plugin of the experiment system. It's responsible
-for managing a series of *engines*, which communicate with connected hardware
-devices (e.g., NI-DAQmx cards, speakers, serial devices such as the NE1000
-pump, etc.)
+for managing a series of *engines* and *actions*. 
+
+An *engine* communicates with a data acquisition device (e.g., a NI-DAQmx
+card). Each engine manages a set of analog and digital *channels*. The channel
+declaration contains sufficient information (e.g., expected range of values,
+sampling frequency, start trigger for acquisition, etc.) for the engine to
+configure the channel. Each channel has a set of *inputs* or *outputs*
+associated with it (depending on whether it's an input or output channel). The
+inputs and outputs act as the primary interface to the hardware for various
+psiexpermient plugins. 
 
 
 Plugins
@@ -63,15 +70,15 @@ Plugins
 
 ### Context plugin
 
-Manages the context items and selectors (see terminology).  Every experiment
-has a set of values, or parameters, that define the course of the experiment.
-This plugin provides a central registry of all context items, manages their
-current values (i.e., when notified, the current values will be cleared and
-re-computed for the next trial).  A subset of these context items can be
-specified as roving parameters (i.e., their value varies from trial to trial in
-a predefined way). Values for roving parameters are managed by one or more
-selectors.  Selectors are objects that provide a mechanism for specifying the
-sequence of values that the context plugin draws from on each trial. 
+Manages the context items and selectors (see terminology above).  Every
+experiment has a set of values, or parameters, that define the course of the
+experiment.  This plugin provides a central registry of all context items,
+manages their current values (i.e., when notified, the current values will be
+cleared and re-computed for the next trial).  A subset of these context items
+can be specified as roving parameters (i.e., their value varies from trial to
+trial in a predefined way). Values for roving parameters are managed by one or
+more selectors.  Selectors are objects that provide a mechanism for specifying
+the sequence of values that the context plugin draws from on each trial. 
 
 ### Experiment plugin
 
