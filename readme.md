@@ -64,6 +64,37 @@ associated with it (depending on whether it's an input or output channel). The
 inputs and outputs act as the primary interface to the hardware for various
 psiexpermient plugins. 
 
+To illustrate how an engine might be configured in an Enaml manifest::
+
+    NIDAQEngine:
+        AOChannel:
+            channel = 'Dev1/ao0'
+            fs = 200e3
+            ContinuousOutput:
+                name = 'speaker'
+        AIChannel:
+            channel = 'Dev1/ai0'
+            fs = 200e3
+            start_trigger = 'ao/StartTrigger'
+            ContinuousInput:
+                name = 'microphone'
+        AIChannel:
+            channel = 'Dev1/ai1'
+            fs = 5e3
+            start_trigger = 'ao/StartTrigger'
+            ContinuousInput:
+                name = 'nose_poke_analog'
+            AnalogThreshold:
+                name = 'nose_poke'
+                threshold = 2.5
+                debounce = 100
+        DOChannel:
+            channel = 'Dev1/port0/line0'
+            fs = 0
+            Trigger:
+                name = 'food_dispense'
+                duration = 0.1    
+
 
 Plugins
 -------
