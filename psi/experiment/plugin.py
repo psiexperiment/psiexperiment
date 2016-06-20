@@ -3,7 +3,8 @@ from enaml.application import deferred_call
 from enaml.layout.api import FloatItem, InsertItem
 from enaml.layout.dock_layout import DockLayoutValidator
 from enaml.workbench.plugin import Plugin
-from enaml.widgets.api import Action
+from enaml.widgets.api import Action, ToolBar
+from enaml.widgets.toolkit_object import ToolkitObject
 
 from .preferences import Preferences
 
@@ -33,11 +34,14 @@ class ExperimentPlugin(Plugin):
             extension.factory(self.workbench, workspace)
 
     def setup_toolbar(self, workspace):
+        toolbars = []
         point = self.workbench.get_extension_point(TOOLBAR_POINT)
         for extension in point.extensions:
-            for item in extension.get_children(Action):
-                workspace.toolbar.children.append(item)
-            workspace.toolbar.children.append(Action(separator=True))
+            children = extension.get_children(ToolkitObject)
+            tb = ToolBar()
+            tb.children.extend(children)
+            toolbars.append(tb)
+        workspace.toolbars = toolbars
 
     def get_layout(self):
         ui = self.workbench.get_plugin('enaml.workbench.ui')

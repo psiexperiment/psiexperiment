@@ -1,0 +1,53 @@
+import numpy as np
+
+from atom.api import Typed, Int, Bool, Unicode, Float
+from enaml.application import deferred_call
+from enaml.layout.api import InsertItem
+from enaml.widgets.api import Action, DockItem, Container, Label
+from enaml.workbench.api import Plugin, PluginManifest, Extension
+from enaml.workbench.core.api import Command
+from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
+
+from psi import get_config
+from psi.core.utils import find_extension
+from psi.context.api import ContextGroup, Parameter, EnumParameter
+from ...experiment_action import ExperimentAction
+
+PLUGIN_ID = 'psi.controller.action.pellet_dispenser' 
+
+
+def dispense_pellet(event):
+    controller = event.workbench.get_plugin('psi.controller')
+    output = controller.get_output('food_dispense_trigger')
+    output.fire()
+
+
+enamldef PelletDispenserManifest(PluginManifest): manifest:
+
+    id = PLUGIN_ID
+
+    Extension:
+        id = 'commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = PLUGIN_ID + '.dispense_pellet'
+            handler = dispense_pellet
+
+    Extension:
+        id = 'pellet_toolbar'
+        point = 'psi.experiment.toolbar'
+        rank = 2000
+        Action:
+            text = 'Dispense pellet'
+            triggered ::
+                core = workbench.get_plugin('enaml.workbench.core')
+                core.invoke_command(PLUGIN_ID + '.dispense_pellet')
+            enabled <<  workbench.get_plugin('psi.controller').experiment_state \
+                not in ('initialized', 'stopped')
+
+    Extension:
+        id = 'action'
+        point = 'psi.controller.actions'
+        ExperimentAction:
+            event = 'deliver_reward'
+            command = PLUGIN_ID + '.dispense_pellet'

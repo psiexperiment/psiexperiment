@@ -19,14 +19,15 @@ def configure_logging(filename=None):
             'console': {
                 'class': 'logging.StreamHandler',
                 'formatter': 'simple',
-                'level': 'DEBUG',
+                'level': 'TRACE',
                 },
             },
         'loggers': {
             '__main__': {'level': 'DEBUG'},
             'neurogen': {'level': 'ERROR'},
-            'psi': {'level': 'TRACE'},
-            'experiments': {'level': 'DEBUG'},
+            'psi': {'level': 'DEBUG'},
+            'psi.controller.appetitive_plugin.output': {'level': 'TRACE'},
+            'experiments': {'level': 'TRACE'},
             'daqengine': {'level': 'TRACE'},
             },
         'root': {

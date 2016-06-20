@@ -12,7 +12,7 @@ def _dict_to_expr(d):
     e = {}
     for k, v in d.items():
         if not isinstance(v, Expr):
-            log.debug('Processing {}: converting {} to expression'.format(k, v))
+            log.trace('Processing {}: converting {} to expression'.format(k, v))
             e[k] = Expr(unicode(v))
         else:
             e[k] = v

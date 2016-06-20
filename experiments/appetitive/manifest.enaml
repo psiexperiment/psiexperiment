@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 import numpy as np
 
 from enaml.workbench.api import Extension
@@ -10,7 +13,8 @@ from psi.controller.engines.nidaq import NIDAQEngine
 from psi.context.api import ContextGroup, Parameter
 from psi.controller.api import (ContinuousAnalogInput, AnalogThreshold,
                                 ContinuousOutput, EpochOutput, AIChannel,
-                                AOChannel, ExperimentAction)
+                                AOChannel, ExperimentAction, Trigger,
+                                DOChannel)
 
 
 def insert_target(event):
@@ -20,6 +24,8 @@ def insert_target(event):
     target = controller._outputs['target']
     waveform = target.get_waveform()
     offset = int(target.channel.fs*(0.25+ts))
+    log.debug('Target with {} samples starting at {}' \
+              .format(waveform.shape[-1], offset))
     target.engine.modify_hw_ao(waveform, offset=offset)
 
     controller.trial_info['target_start'] = ts
@@ -72,9 +78,21 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                     name = 'target'
                     label = 'Target'
 
+            DOChannel:
+                name = 'food_dispense'
+                channel = 'Dev1/port0/line0'
+                fs = 0
+
+                Trigger:
+                    # This is a required output for the food dispenser. The
+                    # plugin will look for this output by name. If not present,
+                    # the food dispenser plugin will not work!
+                    name = 'food_dispense_trigger'
+                    duration = 0.1
+
             AIChannel:
                 name = 'microphone'
-                channel = 'Dev1/ai0'
+                channel = 'Dev1/ai2'
                 start_trigger = 'ao/StartTrigger'
                 fs = 25e3
                 expected_range = (-10, 10)
@@ -84,7 +102,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
 
             AIChannel:
                 name = 'nose_poke'
-                channel = 'Dev1/ai1'
+                channel = 'Dev1/ai0'
                 start_trigger = 'ao/StartTrigger'
                 fs = 25e3
                 expected_range = (-10, 10)
@@ -99,7 +117,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
 
             AIChannel:
                 name = 'reward_contact'
-                channel = 'Dev1/ai2'
+                channel = 'Dev1/ai1'
                 start_trigger = 'ao/StartTrigger'
                 fs = 25e3
                 expected_range = (-10, 10)
@@ -124,5 +142,3 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
         ContextGroup:
             name = 'target'
             label = 'Target'
-
-

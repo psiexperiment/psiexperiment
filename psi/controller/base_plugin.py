@@ -140,6 +140,9 @@ class BaseController(Plugin):
         output._plugin = self.workbench.get_plugin(manifest.id)
         output._token_name = token_name
 
+    def get_output(self, output_name):
+        return self._outputs[output_name]
+
     def invoke_actions(self, event):
         log.debug('Invoking actions for {}'.format(event))
         for action in self._actions.get(event, []):

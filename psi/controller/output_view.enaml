@@ -16,6 +16,7 @@ enamldef OutputDockItem(DockItem):
             Looper:
                 iterable << controller._outputs.values()
                 HGroup:
+                    enabled << controller.experiment_state == 'initialized'
                     padding = 0
                     Label:
                         text = loop_item.label

@@ -13,6 +13,7 @@ from enaml.workbench.ui.api import Workspace
 
 from .. import get_config
 from .workspace import ExperimentWorkspace
+from .workbench_window import ExperimentWorkbenchWindow
 from .plugin import ExperimentPlugin
 
 PLUGIN_ID = 'psi.experiment'
@@ -127,6 +128,10 @@ def get_default_preferences(event):
         pass
 
 
+def window_factory(workbench):
+    return ExperimentWorkbenchWindow()
+
+
 enamldef ExperimentManifest(PluginManifest):
     '''
     This plugin acts as the entry point for all other plugins in this example.
@@ -140,6 +145,11 @@ enamldef ExperimentManifest(PluginManifest):
         id = 'workspace'
         point = 'enaml.workbench.ui.workspaces'
         factory = experiment_view_factory
+
+    Extension:
+        id = 'window'
+        point = 'enaml.workbench.ui.window_factory'
+        factory = window_factory
 
     Extension:
         id = 'commands'

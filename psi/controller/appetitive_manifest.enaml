@@ -81,8 +81,9 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
             text = 'Target + reward'
             triggered ::
                 plugin = workbench.get_plugin(PLUGIN_ID)
-                plugin.start_trial()
-                plugin.end_trial('reward')
+                with plugin.lock:
+                    plugin.start_trial()
+                    plugin.end_trial('reward')
         Action:
             text = 'Poke'
             checkable = True

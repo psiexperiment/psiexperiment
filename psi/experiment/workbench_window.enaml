@@ -1,0 +1,9 @@
+from enaml.core.api import Include
+from enaml.widgets.api import ToolBar
+from enaml.workbench.ui.workbench_window import WorkbenchWindow
+
+
+enamldef ExperimentWorkbenchWindow(WorkbenchWindow):
+
+    Include:
+        objects << window_model.workspace.toolbars

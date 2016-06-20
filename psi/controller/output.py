@@ -1,6 +1,6 @@
 from functools import partial
 
-from atom.api import Unicode, Enum, Typed, Property
+from atom.api import Unicode, Enum, Typed, Property, Float
 from enaml.core.api import Declarative, d_
 from enaml.workbench.api import Plugin
 
@@ -42,3 +42,17 @@ class ContinuousOutput(Output):
         cb = partial(plugin.ao_callback, self.name)
         self.engine.register_ao_callback(cb, self.channel.name)
         self._plugin.initialize(self.channel.fs)
+
+
+class DigitalOutput(Output):
+
+    def configure(self, plugin):
+        pass
+
+
+class Trigger(DigitalOutput):
+
+    duration = d_(Float(0.1))
+
+    def fire(self):
+        self.engine.fire_sw_do(self.channel.name, duration=self.duration)

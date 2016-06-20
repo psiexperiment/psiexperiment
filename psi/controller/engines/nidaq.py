@@ -74,6 +74,7 @@ class NIDAQEngine(ni.Engine, Engine):
         # property on the channel configuration to decide the order in which the
         # tasks are started.
         if self.sw_do_channels:
+            print 'configuring sw do channels'
             channels = self.sw_do_channels
             lines = ','.join(get_channel_property(channels, 'channel', True))
             names = get_channel_property(channels, 'name', True)

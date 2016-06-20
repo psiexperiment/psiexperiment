@@ -9,6 +9,8 @@ if __name__ == '__main__':
             import ControllerManifest
         from psi.controller.actions.NE1000.manifest \
             import NE1000Manifest
+        from psi.controller.actions.pellet_dispenser.manifest \
+            import PelletDispenserManifest
         from psi.controller.actions.room_light.manifest \
             import RoomLightManifest
         from psi.data.trial_log.manifest import TrialLogManifest
@@ -19,6 +21,7 @@ if __name__ == '__main__':
         extra_manifests = [
             ControllerManifest,
             NE1000Manifest,
+            PelletDispenserManifest,
             RoomLightManifest,
             TrialLogManifest,
             SDTAnalysisManifest,
