@@ -53,7 +53,9 @@ values that should be presented on successive trials.
 ### Controller
 
 The controller is the central plugin of the experiment system. It's responsible
-for managing a series of *engines* and *actions*. 
+for managing a series of *engines* and *experiment actions*. 
+
+#### Engine
 
 An *engine* communicates with a data acquisition device (e.g., a NI-DAQmx
 card). Each engine manages a set of analog and digital *channels*. The channel
@@ -71,7 +73,9 @@ To illustrate how an engine might be configured in an Enaml manifest::
             channel = 'Dev1/ao0'
             fs = 200e3
             ContinuousOutput:
-                name = 'speaker'
+                name = 'background'
+            EpochOutput:
+                name = 'target'
         AIChannel:
             channel = 'Dev1/ai0'
             fs = 200e3
@@ -92,8 +96,61 @@ To illustrate how an engine might be configured in an Enaml manifest::
             channel = 'Dev1/port0/line0'
             fs = 0
             Trigger:
-                name = 'food_dispense'
+                name = 'food_dispense_trigger'
                 duration = 0.1    
+
+
+Note that an input channel can have multiple inputs defined. For example, the
+AIChannel (`Dev1/ai1`) has two inputs. The ContinuousInput streams samples to
+the controller (via the `ai_callback` method). The AnalogThreshold will
+generate an event (via the `et_callback` method) whenever the input crosses the
+specified threshold. This allows for great versality (e.g., we can record the
+raw analog signal for post-processing as well as respond to events based on the
+analog threshold).
+
+Currently, an output channel may have multiple outputs defined (right now we
+only support one ContinuousOutput and one EpochOutput per channel, but this may
+be expanded in the future). This is not as well fleshed-out but is meant to
+allow for the blending of multiple tokens into a single waveform that is sent
+to the channel.
+
+#### ExperimentAction
+
+An *experiment action* is a command (configured in an Enaml plugin manifest)
+that is invoked when a particular event occurs. The controller defines the
+available events (e.g., `experiment_start`, `trial_start`, `reward`). As each
+event occurs, all actions associated with that event will be triggered.
+
+To illustrate how an action might be configured in an Enaml manifest::
+
+    def dispense_pellet(event):
+        controller = event.workbench.get_plugin('psi.controller')
+        output = controller.get_output('food_dispense_trigger')
+        output.fire()
+
+
+    enamldef PelletDispenserManifest(PluginManifest):
+
+        id = 'pellet_dispenser'
+
+        Extension:
+            id = 'commands'
+            point = 'enaml.workbench.core.commands'
+            Command:
+                id = 'dispense_pellet'
+                handler = dispense_pellet
+
+        Extension:
+            id = 'action'
+            point = 'psi.controller.actions'
+            ExperimentAction:
+                event = 'deliver_reward'
+                command = 'dispense_pellet'
+
+
+Note how the `dispense_pellet` function will obtain the `food_dispense_trigger`
+output from the controller. This is an example of how the plugin can remain
+"agnostic" with respect to the actual hardware configuration.
 
 
 Plugins
