@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+from scipy.stats import norm
 
 from atom.api import ContainerList, Typed, Str, Int, observe, Bool
 from enaml.application import deferred_call
@@ -10,32 +11,35 @@ from enaml.workbench.api import Extension, PluginManifest
 from psi.core.utils import find_extension
 from psi.core.enaml.dataframe_table_widget \
     import DataframeTable
-from ..plugin import TrialData
+from ..plugin import Sink
 
 PLUGIN_ID = 'psi.data.sdt_analysis'
 
 EXTRA_COLS = {
-    'mean': {'compact_label': 'Average'}, 'size': {'compact_label': 'Trials'},
-    'sum': {'compact_label': 'Correct'},
+    'mean': {'compact_label': 'Fraction'}, 
+    'size': {'compact_label': '# trials'},
+    'sum': {'compact_label': '# Correct'},
+    'z_score': {'compact_label': 'd\''},
 }
 
 
-class SDTAnalysis(TrialData):
+class SDTAnalysis(Sink):
 
     trial_log = Typed(pd.DataFrame)
     results = Typed(pd.DataFrame)
     grouping = Typed(list, [])
     visible_columns = Typed(list, [])
-    column_info = Typed(dict, {})
+    context_info = Typed(dict, {})
 
     limit = Int()
     include_repeat_nogo = Bool()
 
-    def prepare(self):
+    def prepare(self, plugin):
         if not self.grouping:
             self.grouping = ['trial_type']
 
     def context_info_updated(self, context_info):
+        context_info = context_info.copy()
         context_info.update(EXTRA_COLS)
         self.context_info = context_info
 
@@ -53,7 +57,7 @@ class SDTAnalysis(TrialData):
 
     @observe('grouping')
     def grouping_changed(self, event):
-        self.visible_columns = self.grouping + ['mean', 'size', 'sum']
+        self.visible_columns = self.grouping + ['mean', 'size', 'sum', 'z_score']
 
     def update_results(self):
         if self.trial_log is None:
@@ -62,14 +66,20 @@ class SDTAnalysis(TrialData):
             return
         trial_log = self.trial_log.iloc[-self.limit:].copy()
         if self.include_repeat_nogo:
-            m = trial_log.trial_type == 'nogo_repeat'
+            m = trial_log.trial_type == 'ogo_repeat'
             trial_log.loc[m, 'trial_type'] = 'nogo'
 
         m = trial_log.trial_type.apply(lambda x: x in ('nogo', 'go'))
         if not np.any(m):
             return
-        self.results = trial_log[m].groupby(self.grouping)['correct'] \
-            .agg({'sum', 'size', 'mean'}).astype(np.float32).reset_index()
+
+        results = trial_log[m].groupby(self.grouping)['correct'] \
+            .agg(['sum', 'size', 'mean'])
+        results['z_score'] = results['mean'] \
+            .clip(lower=0.05, upper=0.95) \
+            .apply(norm.ppf)
+        results['z_score'] += results.loc['nogo', 'z_score']
+        self.results = results.astype(np.float32).reset_index()
 
 
 enamldef SDTAnalysisDockItem(DockItem):
@@ -102,12 +112,12 @@ enamldef SDTAnalysisDockItem(DockItem):
 
         DataframeTable: table:
             dataframe << analysis.results
-            columns << analysis.visible_columns[:]
+            columns << analysis.visible_columns
             column_info << analysis.context_info
 
 
 def contribute_to_workspace(workbench, workspace):
-    extension = find_extension(workbench, PLUGIN_ID, 'data', SDTAnalysis)
+    extension = find_extension(workbench, PLUGIN_ID, 'sink', SDTAnalysis)
     item = SDTAnalysisDockItem(workspace.dock_area, analysis=extension,
                                name='sdt_analysis', title='SDT Analysis')
     op = InsertItem(item=item.name, position='right')
@@ -119,8 +129,8 @@ enamldef SDTAnalysisManifest(PluginManifest): manifest:
     id = PLUGIN_ID
 
     Extension:
-        id = 'data'
-        point = 'psi.data.trial'
+        id = 'sink'
+        point = 'psi.data.sink'
         SDTAnalysis:
             pass
 

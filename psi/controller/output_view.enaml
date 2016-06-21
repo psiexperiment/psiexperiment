@@ -2,7 +2,7 @@ from enaml.core.api import Looper
 from enaml.widgets.api import (DockItem, Container, VGroup, HGroup, Label,
                                Field, ObjectCombo)
 
-from .output import ContinuousOutput
+from .output import ContinuousOutput, AnalogOutput
 from ..token import continuous_tokens, discrete_tokens
 
 enamldef OutputDockItem(DockItem):
@@ -14,7 +14,8 @@ enamldef OutputDockItem(DockItem):
             padding = 0
             spacing = 0
             Looper:
-                iterable << controller._outputs.values()
+                iterable << [o for o in controller._outputs.values() \
+                             if isinstance(o, AnalogOutput)]
                 HGroup:
                     enabled << controller.experiment_state == 'initialized'
                     padding = 0

@@ -8,31 +8,17 @@ from enaml.workbench.api import Extension, PluginManifest
 
 import pandas as pd
 
-from psi.core.utils import find_extension
 from psi.core.enaml.api import DataframeTable
-from psi.experiment.api import Preferences
-
-from ..trial_data import TrialData
+from psi.experiment.api import UIPreferences
 
 PLUGIN_ID = 'psi.data.trial_log'
 
 
-class TrialLog(TrialData):
+enamldef TableConfig(PopupView): popup:
 
-    trial_log = Typed(pd.DataFrame)
-    context_info = Typed(dict, {})
-    visible_columns = ContainerList()
+    attr column_info
+    attr widget
 
-    def context_info_updated(self, context_info):
-        self.context_info = context_info
-
-    def trial_log_updated(self, trial_log):
-        self.trial_log = trial_log
-
-
-enamldef ColumnsPopup(PopupView):
-
-    attr data
     parent_anchor = (0.0, 0.0)
     arrow_size = 20
     arrow_edge = 'right'
@@ -40,14 +26,14 @@ enamldef ColumnsPopup(PopupView):
 
     Form:
         Looper:
-            iterable << sorted(data.context_info.items())
+            iterable << sorted(column_info.items())
             CheckBox:
-                checked << loop_item[0] in data.visible_columns
+                checked << loop_item[0] in widget.columns
                 toggled ::
                     if checked:
-                        data.visible_columns.append(loop_item[0])
+                        widget.columns.append(loop_item[0])
                     else:
-                        data.visible_columns.remove(loop_item[0])
+                        widget.columns.remove(loop_item[0])
             Label:
                 text = '{} | {}'.format(loop_item[1]['label'],
                                         loop_item[1]['compact_label'])
@@ -55,19 +41,20 @@ enamldef ColumnsPopup(PopupView):
 
 enamldef TrialLogDockItem(DockItem):
 
-    attr data
+    attr data_plugin
     closable = False
 
     title_bar_right_clicked ::
-        ColumnsPopup(self, data=data).show()
+        TableConfig(self, 
+                    column_info=data_plugin.context_info,
+                    widget=self.find('trial_log_table')).show()
 
-    Container: foo:
-        DataframeTable:
-            name = 'trial-log-dataframe-table'
+    Container: main_container:
+        DataframeTable: trial_log_table:
+            name = 'trial_log_table'
             hug_width = 'weak'
-            dataframe << data.trial_log
-            columns << data.visible_columns[:]
-            column_info << data.context_info
+            dataframe << data_plugin.trial_log
+            column_info << data_plugin.context_info
 
             cell_color => (row, column):
                 tt = dataframe.at[row, 'trial_type']
@@ -86,9 +73,11 @@ enamldef TrialLogDockItem(DockItem):
 
 
 def contribute_to_workspace(workbench, workspace):
-    extension = find_extension(workbench, PLUGIN_ID, 'data', TrialLog)
-    item = TrialLogDockItem(workspace.dock_area, data=extension,
-                            name='trial_log', title='Trial Log')
+    plugin = workbench.get_plugin('psi.data')
+    item = TrialLogDockItem(workspace.dock_area, 
+                            data_plugin=plugin,
+                            name='trial_log', 
+                            title='Trial Log')
     op = InsertItem(item=item.name, position='right')
     deferred_call(workspace.dock_area.update_layout, op)
 
@@ -98,12 +87,6 @@ enamldef TrialLogManifest(PluginManifest): manifest:
     id = PLUGIN_ID
 
     Extension:
-        id = 'data'
-        point = 'psi.data.trial'
-        TrialLog:
-            pass
-
-    Extension:
         id = 'workspace'
         point = 'psi.experiment.workspace'
         factory = contribute_to_workspace
@@ -111,18 +94,7 @@ enamldef TrialLogManifest(PluginManifest): manifest:
     Extension:
         id = 'preferences'
         point = 'psi.experiment.preferences'
-        Preferences:
-            get_preferences => (plugin):
-                ext = find_extension(workbench, PLUGIN_ID, 'data', TrialLog) 
-                ui = workbench.get_plugin('enaml.workbench.ui')
-                widget = ui.workspace.content.find('trial-log-dataframe-table')
-                return {
-                    'visible_columns': ext.visible_columns,
-                    'widget': widget.save_state(),
-                }
-            set_preferences => (plugin, preferences):
-                ext = find_extension(workbench, PLUGIN_ID, 'data', TrialLog) 
-                ui = workbench.get_plugin('enaml.workbench.ui')
-                widget = ui.workspace.content.find('trial-log-dataframe-table')
-                ext.visible_columns = preferences['visible_columns']
-                widget.set_state(preferences['widget'])
+        UIPreferences:
+            name = 'trial_log_table_columns'
+            item_name = 'trial_log_table'
+            auto_save = ['columns', 'column_state']

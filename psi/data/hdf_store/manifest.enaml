@@ -5,57 +5,114 @@ import tables as tb
 import pandas as pd
 import numpy as np
 
-from ..plugin import TrialData
+from ..plugin import Sink
+from psi.controller.api import ContinuousAnalogInput, AnalogThreshold
 
 PLUGIN_ID = 'psi.data.hdf_store'
 
 
-class HDFStore(TrialData):
+class HDFStore(Sink):
     '''
     Simple class for storing acquired trial data in a HDF5 file. No analysis or
     further processing is done.
     '''
-    file_name = Unicode('c:/users/bburan/desktop/temp.hdf5')
-    node_name = Unicode('/')
+    file_handle = Typed(tb.File)
+    node = Typed(tb.Group)
 
     trial_log = Typed(tb.Table)
     trial_log_dtype = Typed(np.dtype)
     event_log = Typed(tb.Table)
     event_log_dtype = Typed(np.dtype)
 
-    context_info = Typed(dict)
+    _arrays = Typed(dict)
 
-    def prepare(self):
-        # Open the file
-        fh = tb.open_file(self.file_name, 'w')
+    def _default_file_handle(self):
+        return tb.open_file('c:/users/bburan/desktop/temp.h5', 'w')
 
-        # Create a table to hold the trial log
+    def _default_node(self):
+        return self.file_handle.root
+
+    def _prepare_trial_log(self, context_info):
+        '''
+        Create a table to hold the event log.
+        '''
         dtype = [(str(name), item['dtype']) for name, item \
-                 in self.context_info.items()]
+                 in context_info.items()]
         self.trial_log_dtype = np.dtype(dtype)
-        self.trial_log = fh.create_table(self.node_name, 'trial_log',
-                                         self.trial_log_dtype)
+        self.trial_log = self.file_handle.create_table(self.node,
+                                                       'trial_log',
+                                                       self.trial_log_dtype)
 
-        # Create a table to hold the event log
+    def _prepare_event_log(self):
+        '''
+        Create a table to hold the event log.
+        '''
         dtype = [('timestamp', np.dtype('float32')), 
                  ('event', np.dtype('S512'))]
         self.event_log_dtype = np.dtype(dtype)
-        self.event_log = fh.create_table(self.node_name, 'event_log',
-                                         self.event_log_dtype)
+        self.event_log = self.file_handle.create_table(self.node,
+                                                       'event_log',
+                                                       self.event_log_dtype)
 
-    def context_info_updated(self, context_info):
-        self.context_info = context_info
+    def _prepare_continuous_input(self, input):
+        atom = tb.Atom.from_dtype(input.channel.dtype)
+        expected_rows = int(input.channel.fs * 60 * 60)
+        filters = tb.Filters(complevel=9, complib='zlib', shuffle=False,
+                                fletcher32=True)
+        node = self.file_handle.create_earray(self.node, input.name, atom,
+                                              (0,), filters=filters,
+                                              expectedrows=expected_rows)
+        for name, value in input.__getstate__().items():
+            node._v_attrs[name] = value
+        for name, value in input.channel.__getstate__().items():
+            node._v_attrs['channel_' + name] = value
+        for name, value in input.engine.__getstate__().items():
+            node._v_attrs['engine_' + name] = value
+        return node
 
-    def process_trial(self, trial):
+    def _prepare_epoch_input(self, input):
+        return None
+        atom = tb.Float64Atom()
+        filters = tb.Filters(complevel=9, complib='zlib', shuffle=True,
+                             fletcher32=True)
+        return self.file_handle.create_earray(self.node, output.name, atom,
+                                              (0,), filters=filters,
+                                              expectedrows=1000)
+
+    _input_map = {
+        ContinuousAnalogInput: _prepare_continuous_input,
+        AnalogThreshold: _prepare_epoch_input,
+    }
+
+    def _prepare_inputs(self, inputs):
+        arrays = {}
+        for input in inputs:
+            prepare_function = self._input_map[type(input)]
+            arrays[input.name] = prepare_function(self, input)
+        self._arrays = arrays
+
+    def prepare(self, plugin):
+        self._prepare_event_log()
+        self._prepare_trial_log(plugin.context_info)
+        self._prepare_inputs(plugin.inputs.values())
+
+    def finalize(self):
+        self.file_handle.close()
+
+    def process_trial(self, results):
         # This is the simplest one-liner to convert the dictionary to the
         # format required for appending.
-        row = pd.DataFrame([trial]).to_records().astype(self.trial_log_dtype)
+        row = pd.DataFrame([results]).to_records().astype(self.trial_log_dtype)
         self.trial_log.append(row)
 
     def process_event(self, event, timestamp):
         data = {'event': event, 'timestamp': timestamp}
         row = pd.DataFrame([data]).to_records().astype(self.event_log_dtype)
         self.event_log.append(row)
+
+    def process_ai(self, name, data):
+        if self._arrays[name] is not None:
+            self._arrays[name].append(data)
 
 
 enamldef HDFStoreManifest(PluginManifest): manifest:
@@ -64,6 +121,6 @@ enamldef HDFStoreManifest(PluginManifest): manifest:
 
     Extension:
         id = 'data'
-        point = 'psi.data.trial'
+        point = 'psi.data.sink'
         HDFStore:
             pass

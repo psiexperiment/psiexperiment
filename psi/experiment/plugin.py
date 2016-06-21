@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 from atom.api import Typed
 from enaml.application import deferred_call
 from enaml.layout.api import FloatItem, InsertItem
@@ -82,8 +85,10 @@ class ExperimentPlugin(Plugin):
         preferences = {}
         point = self.workbench.get_extension_point(PREFERENCES_POINT)
         for extension in point.extensions:
-            pref = extension.get_children(Preferences)[0]
-            preferences[extension.plugin_id] = pref
+            preference = extension.get_children(Preferences)[0]
+            if preference.name in preferences:
+                raise ValueError('Cannot reuse preference name')
+            preferences[preference.name] = preference
         self._preferences = preferences
 
     def _bind_observers(self):
@@ -92,13 +97,13 @@ class ExperimentPlugin(Plugin):
 
     def get_preferences(self):
         state = {}
-        for plugin_id, preference in self._preferences.items():
-            plugin = self.workbench.get_plugin(plugin_id)
-            state[plugin_id] = preference.get_preferences(plugin)
+        for name, preference in self._preferences.items():
+            log.debug('Getting preferences for {}'.format(name))
+            state[name] = preference.get_preferences(self.workbench)
         return state
 
     def set_preferences(self, state):
-        for plugin_id, s in state.items():
-            plugin = self.workbench.get_plugin(plugin_id)
-            preference = self._preferences[plugin_id]
-            preference.set_preferences(plugin, s)
+        for name, s in state.items():
+            log.debug('Setting preferences for {}'.format(name))
+            preference = self._preferences[name]
+            preference.set_preferences(self.workbench, s)

@@ -3,11 +3,13 @@ from functools import partial
 from atom.api import Unicode, Float, Typed, Int, Property
 from enaml.core.api import Declarative, d_
 
+from psi import SimpleState
 
-class Input(Declarative):
 
-    channel = Property()
-    engine = Property()
+class Input(SimpleState, Declarative):
+
+    channel = Property().tag(transient=True)
+    engine = Property().tag(transient=True)
 
     def _get_channel(self):
         return self.parent

@@ -9,21 +9,27 @@ PLUGIN_ID = 'psi.data'
 
 def process_trial(event):
     plugin = event.workbench.get_plugin(PLUGIN_ID)
-    context = event.workbench.get_plugin('psi.context')
-    values = context.get_values()
-    return plugin.process_trial(values)
+    return plugin.process_trial(**event.parameters)
 
 
 def process_event(event):
     plugin = event.workbench.get_plugin(PLUGIN_ID)
-    context = event.workbench.get_plugin('psi.context')
-    values = context.get_values()
     return plugin.process_event(**event.parameters)
+
+
+def process_ai(event):
+    plugin = event.workbench.get_plugin(PLUGIN_ID)
+    return plugin.process_ai(**event.parameters)
 
 
 def prepare(event):
     data = event.workbench.get_plugin('psi.data')
-    data.prepare_trial_data()
+    data.prepare()
+
+
+def finalize(event):
+    data = event.workbench.get_plugin('psi.data')
+    data.finalize()
 
 
 enamldef DataManifest(PluginManifest): manifest:
@@ -31,10 +37,7 @@ enamldef DataManifest(PluginManifest): manifest:
     factory = DataPlugin
 
     ExtensionPoint:
-        id = 'trial'
-
-    ExtensionPoint:
-        id = 'physiology'
+        id = 'sink'
 
     Extension:
         id = 'commands'
@@ -46,5 +49,11 @@ enamldef DataManifest(PluginManifest): manifest:
             id = PLUGIN_ID + '.process_event'
             handler = process_event
         Command:
+            id = PLUGIN_ID + '.process_ai'
+            handler = process_ai
+        Command:
             id = PLUGIN_ID + '.prepare'
             handler = prepare
+        Command:
+            id = PLUGIN_ID + '.finalize'
+            handler = finalize

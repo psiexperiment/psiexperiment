@@ -4,23 +4,24 @@ from atom.api import Unicode, Float, Bool, observe, Property, Int, Typed, Long
 from enaml.core.api import Declarative, d_
 
 from .channel import Channel, AIChannel, AOChannel, DIChannel, DOChannel
+from psi import SimpleState
 
 
-class Engine(Declarative):
+class Engine(SimpleState, Declarative):
 
     name = d_(Unicode())
     master_clock = d_(Bool(False))
 
-    hw_ao_buffer_samples = Long()
-    hw_ao_buffer_offset = Long()
-    hw_ao_buffer = Typed(np.ndarray)
+    hw_ao_buffer_samples = Long().tag(transient=True)
+    hw_ao_buffer_offset = Long().tag(transient=True)
+    hw_ao_buffer = Typed(np.ndarray).tag(transient=True)
 
-    channels = Property()
-    hw_ao_channels = Property()
-    hw_ai_channels = Property()
-    hw_do_channels = Property()
-    hw_di_channels = Property()
-    sw_do_channels = Property()
+    channels = Property().tag(transient=True)
+    hw_ao_channels = Property().tag(transient=True)
+    hw_ai_channels = Property().tag(transient=True)
+    hw_do_channels = Property().tag(transient=True)
+    hw_di_channels = Property().tag(transient=True)
+    sw_do_channels = Property().tag(transient=True)
 
     def _get_channels(self):
         return [c for c in self.children if isinstance(c, Channel)]

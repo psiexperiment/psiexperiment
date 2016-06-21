@@ -1,18 +1,29 @@
 # TODO: Implement channel calibration. This is inherently tied to the engine
 # though.
+import numpy as np
+
 from atom.api import Unicode, Enum, Typed, Tuple, Property
 from enaml.core.api import Declarative, d_
 
+from psi import SimpleState
 
-class Channel(Declarative):
 
+class Channel(SimpleState, Declarative):
+
+    # Device-specific channel identifier.
     channel = d_(Unicode())
 
     # For software-timed channels, set sampling frequency to 0.
     fs = d_(Typed(object))
+
+    # Can be blank for no start trigger (i.e., acquisition begins as soon as
+    # task begins)
     start_trigger = d_(Unicode())
 
-    engine = Property()
+    # Used to properly configure data storage.
+    dtype = d_(Typed(np.dtype))
+
+    engine = Property().tag(transient=True)
 
     def _get_engine(self):
         return self.parent
@@ -23,7 +34,7 @@ class Channel(Declarative):
 
 class AIChannel(Channel):
 
-    inputs = Property()
+    inputs = Property().tag(transient=True)
     expected_range = d_(Tuple())
 
     def _get_inputs(self):
@@ -36,7 +47,7 @@ class AIChannel(Channel):
 
 class AOChannel(Channel):
 
-    outputs = Property()
+    outputs = Property().tag(transient=True)
     expected_range = d_(Tuple())
 
     def _get_outputs(self):
@@ -49,7 +60,7 @@ class AOChannel(Channel):
 
 class DIChannel(Channel):
 
-    inputs = Property()
+    inputs = Property().tag(transient=True)
 
     def _get_inputs(self):
         return self.children
@@ -61,7 +72,7 @@ class DIChannel(Channel):
 
 class DOChannel(Channel):
 
-    outputs = Property()
+    outputs = Property().tag(transient=True)
 
     def _get_outputs(self):
         return self.children

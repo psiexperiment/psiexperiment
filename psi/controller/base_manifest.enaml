@@ -60,6 +60,7 @@ enamldef ControllerManifest(PluginManifest): manifest:
             id = 'psi.controller.request_resume'
             handler = rpc('psi.controller', 'request_resume')
 
+
     # Uses unicode symbols as icons for sake of simplicity.
     Extension:
         id = 'toolbar'
@@ -135,11 +136,14 @@ enamldef ControllerManifest(PluginManifest): manifest:
         id = 'preferences'
         point = 'psi.experiment.preferences'
         Preferences:
-            get_preferences => (plugin):
+            name = 'controller_outputs'
+            get_preferences => (workbench):
+                plugin = workbench.get_plugin(manifest.id)
                 return dict((n, o._token_name) \
                             for n, o in plugin._outputs.items())
 
-            set_preferences => (plugin, preferences):
+            set_preferences => (workbench, preferences):
+                plugin = workbench.get_plugin(manifest.id)
                 if preferences is None:
                     return
                 for output_name, token_name in preferences.items():

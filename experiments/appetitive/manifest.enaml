@@ -62,6 +62,10 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
         NIDAQEngine:
             name = 'NI'
             master_clock = True
+            
+            # Since we're using an AnalogThreshold input to detect nose pokes
+            # and reward contact, we want a fairly short AI monitor period to
+            # ensure that we detect these events quickly.
             hw_ai_monitor_period = 0.01
 
             AOChannel:
@@ -69,6 +73,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                 channel = 'Dev1/ao0'
                 fs = 100e3
                 expected_range = (-10, 10)
+                dtype = np.dtype('float64')
 
                 ContinuousOutput:
                     name = 'background'
@@ -82,6 +87,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                 name = 'food_dispense'
                 channel = 'Dev1/port0/line0'
                 fs = 0
+                dtype = np.dtype('bool')
 
                 Trigger:
                     # This is a required output for the food dispenser. The
@@ -94,6 +100,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                 name = 'room_light'
                 channel = 'Dev1/port0/line1'
                 fs = 0
+                dtype = np.dtype('bool')
 
                 Toggle:
                     # This is a required output for the room light. The plugin
@@ -107,6 +114,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                 start_trigger = 'ao/StartTrigger'
                 fs = 25e3
                 expected_range = (-10, 10)
+                dtype = np.dtype('float64')
 
                 ContinuousAnalogInput:
                     name = 'microphone'
@@ -117,6 +125,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                 start_trigger = 'ao/StartTrigger'
                 fs = 25e3
                 expected_range = (-10, 10)
+                dtype = np.dtype('float64')
 
                 ContinuousAnalogInput:
                     name = 'nose_poke_analog'
@@ -132,6 +141,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                 start_trigger = 'ao/StartTrigger'
                 fs = 25e3
                 expected_range = (-10, 10)
+                dtype = np.dtype('float64')
 
                 ContinuousAnalogInput:
                     name = 'reward_contact_analog'

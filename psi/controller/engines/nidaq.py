@@ -38,7 +38,6 @@ class NIDAQEngine(ni.Engine, Engine):
 
     # TODO: this is not configurable on some systems. How do we figure out if
     # it's configurable?
-    #hw_ao_onboard_buffer = d_(Float(8191))
     hw_ao_onboard_buffer = d_(Float(4095))
 
     # Since any function call takes a small fraction of time (e.g., nanoseconds
@@ -52,12 +51,12 @@ class NIDAQEngine(ni.Engine, Engine):
 
     hw_ai_monitor_period = d_(Float(0.1))
 
-    _tasks = Typed(dict, {})
-    _callbacks = Typed(dict, {})
-    _timers = Typed(dict, {})
-    _uint32 = Typed(ctypes.c_uint32)
-    _uint64 = Typed(ctypes.c_uint64)
-    _int32 = Typed(ctypes.c_int32)
+    _tasks = Typed(dict, {}).tag(transient=True)
+    _callbacks = Typed(dict, {}).tag(transient=True)
+    _timers = Typed(dict, {}).tag(transient=True)
+    _uint32 = Typed(ctypes.c_uint32).tag(transient=True)
+    _uint64 = Typed(ctypes.c_uint64).tag(transient=True)
+    _int32 = Typed(ctypes.c_int32).tag(transient=True)
 
     ao_fs = Typed(float)
 

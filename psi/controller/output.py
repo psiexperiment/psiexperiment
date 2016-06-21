@@ -27,7 +27,11 @@ class Output(Declarative):
         return self.parent.parent
 
 
-class EpochOutput(Output):
+class AnalogOutput(Output):
+    pass
+
+
+class EpochOutput(AnalogOutput):
 
     def get_waveform(self, offset=0, samples=None):
         return self._plugin.get_waveform(offset, samples)
@@ -36,7 +40,7 @@ class EpochOutput(Output):
         self._plugin.initialize(self.channel.fs)
 
 
-class ContinuousOutput(Output):
+class ContinuousOutput(AnalogOutput):
 
     def get_waveform(self, offset, samples):
         return self._plugin.get_waveform(offset, samples)
