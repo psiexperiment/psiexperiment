@@ -9,13 +9,22 @@ from psi.experiment.api import Preferences
 from ..util import rpc
 
 
-def contribute_to_workspace(workbench, workspace):
+def _contribute_outputs(workbench, workspace):
     from .output_view import OutputDockItem
     plugin = workbench.get_plugin('psi.controller')
     item = OutputDockItem(workspace.dock_area, controller=plugin,
                           name='controller_outputs', title='Outputs')
     op = InsertItem(item=item.name, position='top')
     deferred_call(workspace.dock_area.update_layout, op)
+
+
+def _contribute_plots(workbench, workspace):
+    plugin = workbench.get_plugin('psi.controller')
+    pass
+
+def contribute_to_workspace(workbench, workspace):
+    _contribute_outputs(workbench, workspace)
+    _contribute_plots(workbench, workspace)
 
 
 enamldef ControllerManifest(PluginManifest): manifest:

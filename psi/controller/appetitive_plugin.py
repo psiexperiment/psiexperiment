@@ -219,14 +219,7 @@ class AppetitivePlugin(BaseController):
 
     def ao_callback(self, name, offset, samples):
         with self.lock:
-            # TODO: This assumes there is only one output. Need to figure out
-            # how to handle multiple outputs.
-            output_log.trace('Generating {} samples at {} for {}' \
-                            .format(samples, offset, name))
-            waveforms = []
-            output = self._outputs[name]
-            waveform = output.get_waveform(offset, samples)
-            output.engine.append_hw_ao(waveform)
+            self._outputs[name].update()
 
     def ai_callback(self, name, data):
         with self.lock:

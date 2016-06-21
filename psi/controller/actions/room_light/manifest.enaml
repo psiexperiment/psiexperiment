@@ -13,10 +13,15 @@ PLUGIN_ID = 'psi.controller.action.room_light'
 
 
 def light_off(event):
-    print 'turning light off'
+    controller = event.workbench.get_plugin('psi.controller')
+    output = controller.get_output('room_light_toggle')
+    output.set_low()
     
+
 def light_on(event):
-    print 'turning light on'
+    controller = event.workbench.get_plugin('psi.controller')
+    output = controller.get_output('room_light_toggle')
+    output.set_high()
 
 
 enamldef RoomLightManifest(PluginManifest): manifest:

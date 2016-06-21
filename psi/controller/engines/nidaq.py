@@ -118,3 +118,13 @@ class NIDAQEngine(ni.Engine, Engine):
 
     def get_ts(self):
         return self.ao_sample_clock()/self.ao_fs
+
+    def get_offset(self, channel_name=None):
+        # It doesn't matter what the output channel is. Offset will be the same
+        # for all.
+        return self.ao_write_position()
+
+    def get_space_available(self, channel_name=None, offset=None):
+        # It doesn't matter what the output channel is. Write space will be the
+        # same for all.
+        return self.ao_write_space_available(offset)

@@ -84,6 +84,8 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
                 with plugin.lock:
                     plugin.start_trial()
                     plugin.end_trial('reward')
+            enabled <<  workbench.get_plugin(PLUGIN_ID).experiment_state \
+                not in ('initialized', 'stopped')
         Action:
             text = 'Poke'
             checkable = True

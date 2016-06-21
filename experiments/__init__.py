@@ -26,9 +26,10 @@ def configure_logging(filename=None):
             '__main__': {'level': 'DEBUG'},
             'neurogen': {'level': 'ERROR'},
             'psi': {'level': 'DEBUG'},
-            'psi.controller.appetitive_plugin.output': {'level': 'TRACE'},
+            'psi.controller.appetitive_plugin.output': {'level': 'DEBUG'},
+            'psi.controller.output': {'level': 'DEBUG'},
             'experiments': {'level': 'TRACE'},
-            'daqengine': {'level': 'TRACE'},
+            'daqengine': {'level': 'DEBUG'},
             },
         'root': {
             'handlers': ['console'],

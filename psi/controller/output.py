@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 from functools import partial
 
 from atom.api import Unicode, Enum, Typed, Property, Float
@@ -43,6 +46,14 @@ class ContinuousOutput(Output):
         self.engine.register_ao_callback(cb, self.channel.name)
         self._plugin.initialize(self.channel.fs)
 
+    def update(self):
+        offset = self.engine.get_offset(self.channel.name)
+        samples = self.engine.get_space_available(self.channel.name, offset)
+        log.trace('Generating {} samples at {} for {}' \
+                  .format(samples, offset, self.name))
+        waveform = self.get_waveform(offset, samples)
+        self.engine.append_hw_ao(waveform)
+
 
 class DigitalOutput(Output):
 
@@ -56,3 +67,15 @@ class Trigger(DigitalOutput):
 
     def fire(self):
         self.engine.fire_sw_do(self.channel.name, duration=self.duration)
+
+
+class Toggle(DigitalOutput):
+
+    def _set_state(self, state):
+        self.engine.set_sw_do(self.channel.name, state)
+
+    def set_high(self):
+        self._set_state(1)
+
+    def set_low(self):
+        self._set_state(0)

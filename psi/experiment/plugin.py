@@ -38,19 +38,39 @@ class ExperimentPlugin(Plugin):
         point = self.workbench.get_extension_point(TOOLBAR_POINT)
         for extension in point.extensions:
             children = extension.get_children(ToolkitObject)
-            tb = ToolBar()
+            tb = ToolBar(name=extension.id)
             tb.children.extend(children)
             toolbars.append(tb)
         workspace.toolbars = toolbars
 
+    def _get_toolbar_layout(self, toolbars):
+        # TODO: This needs some work. It's not *quite* working 100%, especially
+        # when docked.
+        layout = {}
+        for toolbar in toolbars:
+            x = toolbar.proxy.widget.x()
+            y = toolbar.proxy.widget.y()
+            floating = toolbar.proxy.widget.isFloating()
+            layout[toolbar.name] = x, y, floating
+        return layout
+
+    def _set_toolbar_layout(self, toolbars, layout):
+        for toolbar in toolbars:
+            if toolbar.name in layout:
+                x, y, floating = layout[toolbar.name]
+                toolbar.proxy.widget.setFloating(floating)
+                toolbar.proxy.widget.move(x, y)
+
     def get_layout(self):
         ui = self.workbench.get_plugin('enaml.workbench.ui')
         return {'geometry': ui._window.geometry(),
+                'toolbars': self._get_toolbar_layout(ui.workspace.toolbars),
                 'dock_layout': ui.workspace.dock_area.save_layout()}
 
     def set_layout(self, layout):
         ui = self.workbench.get_plugin('enaml.workbench.ui')
         ui._window.set_geometry(layout['geometry'])
+        self._set_toolbar_layout(ui.workspace.toolbars, layout['toolbars'])
         ui.workspace.dock_area.layout = layout['dock_layout']
         available = [i.name for i in ui.workspace.dock_area.dock_items()]
         missing = MissingDockLayoutValidator(available)(layout['dock_layout'])
