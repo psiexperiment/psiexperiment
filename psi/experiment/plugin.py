@@ -78,6 +78,7 @@ class ExperimentPlugin(Plugin):
         available = [i.name for i in ui.workspace.dock_area.dock_items()]
         missing = MissingDockLayoutValidator(available)(layout['dock_layout'])
         for item in missing:
+            log.debug('{} missing from saved dock layout'.format(item))
             op = FloatItem(item=item)
             deferred_call(ui.workspace.dock_area.update_layout, op)
 
