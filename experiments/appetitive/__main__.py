@@ -1,3 +1,5 @@
+import tables as tb
+
 import enaml
 
 from experiments import initialize_default, configure_logging
@@ -34,8 +36,11 @@ if __name__ == '__main__':
         core.invoke_command('enaml.workbench.ui.select_workspace',
                             {'workspace': 'psi.experiment.workspace'})
 
-    ui = workbench.get_plugin('enaml.workbench.ui')
-    ui.show_window()
+    with tb.open_file('c:/users/bburan/desktop/test.h5', 'w') as fh:
+        core.invoke_command('psi.data.hdf_store.set_node', {'node': fh.root})
 
-    configure_logging()
-    ui.start_application()
+        ui = workbench.get_plugin('enaml.workbench.ui')
+        ui.show_window()
+
+        configure_logging()
+        ui.start_application()

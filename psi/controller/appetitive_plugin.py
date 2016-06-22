@@ -165,18 +165,15 @@ class AppetitivePlugin(BaseController):
         self.lock = threading.Lock()
 
         try:
-            print threading.activeCount()
             self.trial += 1
             self.context.apply_changes()
             self.core.invoke_command('psi.data.prepare')
             self.start_engines()
             self.rng = np.random.RandomState()
             self.context.next_setting(self.next_selector(), save_prior=False)
-            print threading.activeCount()
             self.experiment_state = 'running'
             self.trial_state = TrialState.waiting_for_np_start
             self.invoke_actions('experiment_start')
-            print threading.activeCount()
         except Exception as e:
             # TODO - provide user interface to notify of errors. How to
             # recover?

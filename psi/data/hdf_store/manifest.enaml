@@ -1,5 +1,6 @@
-from atom.api import Unicode, Typed
+from atom.api import Unicode, Typed, Property, Bool
 from enaml.workbench.api import Extension, PluginManifest
+from enaml.workbench.core.api import Command
 
 import tables as tb
 import pandas as pd
@@ -7,6 +8,7 @@ import numpy as np
 
 from ..plugin import Sink
 from psi.controller.api import ContinuousAnalogInput, AnalogThreshold
+from psi.core.utils import find_extension
 
 PLUGIN_ID = 'psi.data.hdf_store'
 
@@ -16,8 +18,9 @@ class HDFStore(Sink):
     Simple class for storing acquired trial data in a HDF5 file. No analysis or
     further processing is done.
     '''
-    file_handle = Typed(tb.File)
+    file_handle = Property()
     node = Typed(tb.Group)
+    initialized = Bool(False)
 
     trial_log = Typed(tb.Table)
     trial_log_dtype = Typed(np.dtype)
@@ -26,11 +29,8 @@ class HDFStore(Sink):
 
     _arrays = Typed(dict)
 
-    def _default_file_handle(self):
-        return tb.open_file('c:/users/bburan/desktop/temp.h5', 'w')
-
-    def _default_node(self):
-        return self.file_handle.root
+    def _get_file_handle(self):
+        return self.node._v_file
 
     def _prepare_trial_log(self, context_info):
         '''
@@ -95,6 +95,7 @@ class HDFStore(Sink):
         self._prepare_event_log()
         self._prepare_trial_log(plugin.context_info)
         self._prepare_inputs(plugin.inputs.values())
+        self.initialized = True
 
     def finalize(self):
         self.file_handle.close()
@@ -115,12 +116,25 @@ class HDFStore(Sink):
             self._arrays[name].append(data)
 
 
+def set_node(event):
+    extension = find_extension(event.workbench, PLUGIN_ID, 'sink', HDFStore)
+    if extension.initialized:
+        raise ValueError('Cannot change node once data has initialized')
+    extension.node = event.parameters['node']
+
 enamldef HDFStoreManifest(PluginManifest): manifest:
 
     id = PLUGIN_ID
 
     Extension:
-        id = 'data'
+        id = 'sink'
         point = 'psi.data.sink'
         HDFStore:
             pass
+
+    Extension:
+        id = 'commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = PLUGIN_ID + '.set_node'
+            handler = set_node
