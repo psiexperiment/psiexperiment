@@ -1,16 +1,25 @@
 from atom.api import Unicode, Typed, Property, Bool
+from enaml.application import deferred_call
+from enaml.layout.api import InsertItem
+from enaml.widgets.api import DockItem
 from enaml.workbench.api import Extension, PluginManifest
 from enaml.workbench.core.api import Command
+
+from traits_enaml.widgets.enable_canvas import EnableCanvas
 
 import tables as tb
 import pandas as pd
 import numpy as np
 
 from ..plugin import Sink
+from psi import get_config
 from psi.controller.api import ContinuousAnalogInput, AnalogThreshold
 from psi.core.utils import find_extension
 
 PLUGIN_ID = 'psi.data.hdf_store'
+
+
+class Channel(object):
 
 
 class HDFStore(Sink):
@@ -28,6 +37,7 @@ class HDFStore(Sink):
     event_log_dtype = Typed(np.dtype)
 
     _arrays = Typed(dict)
+    _channels = Typed(dict)
 
     def _get_file_handle(self):
         return self.node._v_file
@@ -57,8 +67,7 @@ class HDFStore(Sink):
     def _prepare_continuous_input(self, input):
         atom = tb.Atom.from_dtype(input.channel.dtype)
         expected_rows = int(input.channel.fs * 60 * 60)
-        filters = tb.Filters(complevel=9, complib='zlib', shuffle=False,
-                                fletcher32=True)
+        filters = tb.Filters(**get_config('H5_COMPRESSION'))
         node = self.file_handle.create_earray(self.node, input.name, atom,
                                               (0,), filters=filters,
                                               expectedrows=expected_rows)
@@ -73,8 +82,7 @@ class HDFStore(Sink):
     def _prepare_epoch_input(self, input):
         return None
         atom = tb.Float64Atom()
-        filters = tb.Filters(complevel=9, complib='zlib', shuffle=True,
-                             fletcher32=True)
+        filters = tb.Filters(**get_config('H5_COMPRESSION'))
         return self.file_handle.create_earray(self.node, output.name, atom,
                                               (0,), filters=filters,
                                               expectedrows=1000)
@@ -122,6 +130,36 @@ def set_node(event):
         raise ValueError('Cannot change node once data has initialized')
     extension.node = event.parameters['node']
 
+
+from enaml.widgets.api import Container, Label
+
+enamldef ChacoDockItem(DockItem):
+
+    name = 'chaco_dock_item'
+    closable = False
+
+    attr plot
+
+    Container:
+        EnableCanvas:
+            component << plot
+
+
+def contribute_to_workspace(workbench, workspace):
+    from psi.core.chaco.api import ChannelDataRange
+    from chaco.api import LinearMapper, OverlayPlotContainer
+
+    extension = find_extension(event.workbench, PLUGIN_ID, 'sink', HDFStore)
+    index_range = ChannelDataRange(trig_delay=0)
+    index_mapper = LinearMapper(range=index_range)
+
+    container = OverlayPlotContainer(padding=[20, 20, 50, 5])
+
+    item = ChacoDockItem(workspace.dock_area, plot=container)
+    op = InsertItem(item=item.name, position='right')
+    deferred_call(workspace.dock_area.update_layout, op)
+
+
 enamldef HDFStoreManifest(PluginManifest): manifest:
 
     id = PLUGIN_ID
@@ -138,3 +176,8 @@ enamldef HDFStoreManifest(PluginManifest): manifest:
         Command:
             id = PLUGIN_ID + '.set_node'
             handler = set_node
+
+    Extension:
+        id = 'workspace'
+        point = 'psi.experiment.workspace'
+        factory = contribute_to_workspace
