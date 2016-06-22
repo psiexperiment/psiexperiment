@@ -1,3 +1,4 @@
+import warnings
 import tables as tb
 
 import enaml
@@ -31,7 +32,6 @@ if __name__ == '__main__':
             EventLogManifest,
         ]
         workbench = initialize_default(extra_manifests)
-
         core = workbench.get_plugin('enaml.workbench.core')
         core.invoke_command('enaml.workbench.ui.select_workspace',
                             {'workspace': 'psi.experiment.workspace'})
@@ -40,7 +40,10 @@ if __name__ == '__main__':
         core.invoke_command('psi.data.hdf_store.set_node', {'node': fh.root})
 
         ui = workbench.get_plugin('enaml.workbench.ui')
-        ui.show_window()
+
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            ui.show_window()
 
         configure_logging()
         ui.start_application()
