@@ -68,6 +68,7 @@ class NE1000Plugin(Plugin):
 
     timer = Typed(object)
     lock = Typed(object)
+    uninitialize_requested = Bool(False)
 
     def initialize(self, url, syringe_diameter):
         self.iface = PumpInterface(url=url)
@@ -75,9 +76,16 @@ class NE1000Plugin(Plugin):
         self.lock = threading.Lock()
         self.update_total_infused()
 
+    def uninitialize(self):
+        with self.lock:
+            self.uninitialize_requested = True
+
     def update_total_infused(self):
         with self.lock:
             self.total_infused = self.iface.get_infused(unit='ml')
+            if self.uninitialize_requested:
+                self.uninitialize_requested = False
+                return
             self.timer = threading.Timer(self.poll_interval,
                                          self.update_total_infused)
             self.timer.start()
@@ -97,6 +105,9 @@ class NE1000Plugin(Plugin):
             self.iface.set_rate(rate, unit='ml/min')
             self.iface.set_volume(volume, unit='ul')
             self.iface.run()
+
+    def stop(self):
+        print 'stopping'
 
 
 def deliver_reward(event):
@@ -133,6 +144,12 @@ def initialize_pump(event):
     syringe_diameter = core.invoke_command('psi.context.get_value', params)
     plugin.initialize(url=url, syringe_diameter=syringe_diameter)
     
+
+def uninitialize_pump(event):
+    plugin = event.workbench.get_plugin(PLUGIN_ID)
+    core = event.workbench.get_plugin('enaml.workbench.core')
+    plugin.uninitialize()
+
 
 def contribute_to_workspace(workbench, workspace):
     plugin = workbench.get_plugin(PLUGIN_ID)
@@ -207,6 +224,9 @@ enamldef NE1000Manifest(PluginManifest): manifest:
         Command:
             id = PLUGIN_ID + '.initialize_pump'
             handler = initialize_pump
+        Command:
+            id = PLUGIN_ID + '.uninitialize_pump'
+            handler = uninitialize_pump
 
     Extension:
         id = 'pump_toolbar'
@@ -239,6 +259,9 @@ enamldef NE1000Manifest(PluginManifest): manifest:
         ExperimentAction:
             event = 'experiment_start'
             command = PLUGIN_ID + '.initialize_pump'
+        ExperimentAction:
+            event = 'experiment_end'
+            command = PLUGIN_ID + '.uninitialize_pump'
         ExperimentAction:
             event = 'deliver_reward'
             command = PLUGIN_ID + '.deliver_reward'

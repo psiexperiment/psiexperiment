@@ -102,7 +102,7 @@ class BaseController(Plugin):
         self._outputs = outputs
         self._inputs = inputs
 
-    def _refresh_actions(self):
+    def _refresh_actions(self, event=None):
         actions = {}
         point = self.workbench.get_extension_point(ACTION_POINT)
         for extension in point.extensions:
