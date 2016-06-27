@@ -36,6 +36,7 @@ class AIChannel(Channel):
 
     inputs = Property().tag(transient=True)
     expected_range = d_(Tuple())
+    mode = d_(Enum('RSE', 'differential'))
 
     def _get_inputs(self):
         return self.children

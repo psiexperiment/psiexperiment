@@ -1,3 +1,11 @@
+import logging
+log = logging.getLogger(__name__)
+
+import threading
+
+from atom.api import Atom, Float, Property, Event, Typed
+
+
 class DataChannel(Atom):
     '''
     Base class for dealing with a continuous stream of data sampled at a fixed
@@ -51,6 +59,7 @@ class DataChannel(Atom):
         Subclasses can add additional data preprocessing by overriding this
         method.  See `ProcessedFileMultiChannel` for an example.
         '''
+        log.trace('Reading slice {}'.format(slice))
         return self.data[slice]
 
     def to_index(self, time):
@@ -131,7 +140,6 @@ class DataChannel(Atom):
             Set to -1 to get the most recent range
         '''
         lb, ub = self._to_bounds(start, end, reference)
-        log.debug('%s: %d:%d requested', self, lb, ub)
         return self[..., lb:ub]
 
     def get_size(self):
@@ -152,3 +160,10 @@ class DataChannel(Atom):
     @property
     def n_samples(self):
         return self.data.shape[-1]
+
+    def append(self, data):
+        lb = self.get_size()
+        log.trace('Reading data {}'.format(data.shape))
+        self.data.append(data)
+        ub = self.get_size()
+        self.added = lb/self.fs, ub/self.fs

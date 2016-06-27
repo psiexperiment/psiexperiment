@@ -18,6 +18,14 @@ from ..token import get_token_manifest
 IO_POINT = 'psi.controller.io'
 ACTION_POINT = 'psi.controller.actions'
 
+def get_named_inputs(input):
+    named_inputs = []
+    for child in input.children:
+        named_inputs.extend(get_named_inputs(child))
+    if input.name:
+        named_inputs.append(input)
+    return named_inputs
+
 
 class BaseController(Plugin):
 
@@ -94,13 +102,15 @@ class BaseController(Plugin):
                 for channel in engine.channels:
                     for output in getattr(channel, 'outputs', []):
                         outputs[output.name] = output
-                    for input in getattr(channel, 'inputs', []):
-                        inputs[input.name] = input
+                    for all_inputs in getattr(channel, 'inputs', []):
+                        for input in get_named_inputs(all_inputs):
+                            inputs[input.name] = input
 
         self._master_engine = master_engine
         self._engines = engines
         self._outputs = outputs
         self._inputs = inputs
+        print inputs
 
     def _refresh_actions(self, event=None):
         actions = {}

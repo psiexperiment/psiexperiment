@@ -1,4 +1,6 @@
 import logging.config
+import threading
+import tables as tb
 
 import enaml
 from enaml.workbench.api import Workbench
@@ -26,9 +28,10 @@ def configure_logging(filename=None):
             '__main__': {'level': 'DEBUG'},
             'neurogen': {'level': 'ERROR'},
             'psi': {'level': 'DEBUG'},
-            'psi.controller.appetitive_plugin.output': {'level': 'DEBUG'},
-            'psi.controller.output': {'level': 'DEBUG'},
-            'experiments': {'level': 'TRACE'},
+            #'psi.data.hdf_store': {'level': 'TRACE'},
+            #'psi.controller.appetitive_plugin.output': {'level': 'DEBUG'},
+            #'psi.controller.output': {'level': 'DEBUG'},
+            'experiments': {'level': 'DEBUG'},
             'daqengine': {'level': 'DEBUG'},
             },
         'root': {
@@ -46,8 +49,32 @@ def configure_logging(filename=None):
     logging.config.dictConfig(logging_config)
 
 
+def monkeypatch_pytables():
+    monkeypatch = [
+        tb.Table.append,
+        tb.Table.read,
+        tb.EArray.append,
+        tb.Array.__getitem__,
+    ]
+
+    def secure_lock(f, lock):
+        def wrapper(*args, **kwargs):
+            with lock:
+                return f(*args, **kwargs)
+        return wrapper
+
+    lock = threading.Lock()
+    for im in monkeypatch:
+        wrapped_im = secure_lock(im, lock)
+        setattr(im.im_class, im.im_func.func_name, wrapped_im)
+
+
 def initialize_default(extra_manifests,
                        workspace='psi.experiment.workspace'):
+
+    # Important! Needed to fix some read/write concurrency issues with the
+    # PyTables library.
+    monkeypatch_pytables()
 
     with enaml.imports():
         from enaml.workbench.core.core_manifest import CoreManifest

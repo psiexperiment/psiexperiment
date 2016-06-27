@@ -11,10 +11,12 @@ from psi.controller.appetitive_manifest import AppetitiveManifest
 from psi.controller.engines.nidaq import NIDAQEngine
 
 from psi.context.api import ContextGroup, Parameter
-from psi.controller.api import (ContinuousAnalogInput, AnalogThreshold,
-                                ContinuousOutput, EpochOutput, AIChannel,
+from psi.controller.api import (ContinuousOutput, EpochOutput, AIChannel,
                                 AOChannel, ExperimentAction, Trigger, Toggle,
-                                DOChannel)
+                                DOChannel, Input)
+
+
+from psi.controller.input import Downsample, IIRFilter, Threshold, Edges
 
 
 def insert_target(event):
@@ -108,48 +110,67 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                     # room light plugin will not work!
                     name = 'room_light_toggle'
 
+            #AIChannel:
+            #    name = 'microphone'
+            #    channel = 'Dev1/ai2'
+            #    start_trigger = 'ao/StartTrigger'
+            #    fs = 25e3
+            #    expected_range = (-10, 10)
+            #    dtype = np.dtype('float64')
+
+            #    Input:
+            #        name = 'microphone'
+
             AIChannel:
-                name = 'microphone'
+                name = 'nose_poke'
                 channel = 'Dev1/ai2'
                 start_trigger = 'ao/StartTrigger'
                 fs = 25e3
                 expected_range = (-10, 10)
                 dtype = np.dtype('float64')
+                mode = 'differential'
 
-                ContinuousAnalogInput:
-                    name = 'microphone'
+                IIRFilter:
+                    f_lowpass = 200
+                    btype = 'lowpass'
+                    ftype = 'butter'
+                    N = 4
+                    Downsample:
+                        # effective Fs is 500
+                        name = 'nose_poke_analog'
+                        q = 50
+                        Threshold:
+                            threshold = 4
+                            Edges:
+                                # Debounce value is 5/250 or 20 msec.
+                                debounce = 5
+                                name = 'nose_poke'
 
-            AIChannel:
-                name = 'nose_poke'
-                channel = 'Dev1/ai0'
-                start_trigger = 'ao/StartTrigger'
-                fs = 25e3
-                expected_range = (-10, 10)
-                dtype = np.dtype('float64')
-
-                ContinuousAnalogInput:
-                    name = 'nose_poke_analog'
-
-                AnalogThreshold:
-                    name = 'nose_poke'
-                    threshold = 2.5
-                    debounce = 100
 
             AIChannel:
                 name = 'reward_contact'
-                channel = 'Dev1/ai1'
+                channel = 'Dev1/ai3'
                 start_trigger = 'ao/StartTrigger'
                 fs = 25e3
                 expected_range = (-10, 10)
                 dtype = np.dtype('float64')
+                mode = 'differential'
 
-                ContinuousAnalogInput:
-                    name = 'reward_contact_analog'
-
-                AnalogThreshold:
-                    name = 'reward_contact'
-                    threshold = 2.5
-                    debounce = 100
+                IIRFilter:
+                    f_lowpass = 1e3
+                    btype = 'lowpass'
+                    ftype = 'butter'
+                    N = 1
+                    Downsample:
+                        # effective Fs is 250
+                        name = 'reward_contact_analog'
+                        q = 10
+                        Threshold:
+                            threshold = 4
+                            Edges:
+                                # Debounce value is 5/250 or 20 msec.
+                                debounce = 5
+                                name = 'reward_contact'
 
 
     # TODO: Should these automatically be contributed by the controller when it

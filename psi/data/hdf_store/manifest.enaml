@@ -13,13 +13,12 @@ import numpy as np
 
 from ..plugin import Sink
 from psi import get_config
-from psi.controller.api import ContinuousAnalogInput, AnalogThreshold
 from psi.core.utils import find_extension
+from psi.core.chaco.api import ChannelPlot, add_time_axis
+
+from .data_channel import DataChannel
 
 PLUGIN_ID = 'psi.data.hdf_store'
-
-
-class Channel(object):
 
 
 class HDFStore(Sink):
@@ -36,7 +35,6 @@ class HDFStore(Sink):
     event_log = Typed(tb.Table)
     event_log_dtype = Typed(np.dtype)
 
-    _arrays = Typed(dict)
     _channels = Typed(dict)
 
     def _get_file_handle(self):
@@ -77,9 +75,10 @@ class HDFStore(Sink):
             node._v_attrs['channel_' + name] = value
         for name, value in input.engine.__getstate__().items():
             node._v_attrs['engine_' + name] = value
-        return node
+        return DataChannel(data=node, fs=input.fs) 
 
-    def _prepare_epoch_input(self, input):
+    def _prepare_event_input(self, input):
+        # TODO!
         return None
         atom = tb.Float64Atom()
         filters = tb.Filters(**get_config('H5_COMPRESSION'))
@@ -87,22 +86,19 @@ class HDFStore(Sink):
                                               (0,), filters=filters,
                                               expectedrows=1000)
 
-    _input_map = {
-        ContinuousAnalogInput: _prepare_continuous_input,
-        AnalogThreshold: _prepare_epoch_input,
-    }
-
     def _prepare_inputs(self, inputs):
-        arrays = {}
+        channels = {}
         for input in inputs:
-            prepare_function = self._input_map[type(input)]
-            arrays[input.name] = prepare_function(self, input)
-        self._arrays = arrays
+            prep_function_name = '_prepare_{}_input'.format(input.mode)
+            prep_function = getattr(self, prep_function_name)
+            channels[input.name] = prep_function(input)
+        self._channels = channels
 
     def prepare(self, plugin):
         self._prepare_event_log()
         self._prepare_trial_log(plugin.context_info)
         self._prepare_inputs(plugin.inputs.values())
+        self._prepare_plots()
         self.initialized = True
 
     def finalize(self):
@@ -120,8 +116,29 @@ class HDFStore(Sink):
         self.event_log.append(row)
 
     def process_ai(self, name, data):
-        if self._arrays[name] is not None:
-            self._arrays[name].append(data)
+        if self._channels[name] is not None:
+            self._channels[name].append(data)
+
+    container = Typed(object)
+
+    def _default_container(self):
+        return OverlayPlotContainer(padding=[20, 20, 50, 5])
+
+    def _prepare_plots(self):
+        index_range = ChannelDataRange(trig_delay=0)
+        index_mapper = LinearMapper(range=index_range)
+
+        container = OverlayPlotContainer(padding=[20, 20, 50, 50])
+
+        value_range = DataRange1D(low_setting=0, high_setting=5)
+        value_mapper = LinearMapper(range=value_range)
+
+        plot = ChannelPlot(source=self._channels['nose_poke_analog'],
+                           index_mapper=index_mapper,
+                           value_mapper=value_mapper, line_color='red')
+        add_time_axis(plot)
+        container.add(plot)
+        self.container = container
 
 
 def set_node(event):
@@ -131,6 +148,9 @@ def set_node(event):
     extension.node = event.parameters['node']
 
 
+from psi.core.chaco.api import ChannelDataRange
+from chaco.api import LinearMapper, OverlayPlotContainer, DataRange1D
+
 from enaml.widgets.api import Container, Label
 
 enamldef ChacoDockItem(DockItem):
@@ -138,24 +158,16 @@ enamldef ChacoDockItem(DockItem):
     name = 'chaco_dock_item'
     closable = False
 
-    attr plot
+    attr extension
 
     Container:
         EnableCanvas:
-            component << plot
+            component << extension.container
 
 
 def contribute_to_workspace(workbench, workspace):
-    from psi.core.chaco.api import ChannelDataRange
-    from chaco.api import LinearMapper, OverlayPlotContainer
-
-    extension = find_extension(event.workbench, PLUGIN_ID, 'sink', HDFStore)
-    index_range = ChannelDataRange(trig_delay=0)
-    index_mapper = LinearMapper(range=index_range)
-
-    container = OverlayPlotContainer(padding=[20, 20, 50, 5])
-
-    item = ChacoDockItem(workspace.dock_area, plot=container)
+    extension = find_extension(workbench, PLUGIN_ID, 'sink', HDFStore)
+    item = ChacoDockItem(workspace.dock_area, extension=extension)
     op = InsertItem(item=item.name, position='right')
     deferred_call(workspace.dock_area.update_layout, op)
 

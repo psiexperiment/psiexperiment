@@ -86,8 +86,9 @@ class NIDAQEngine(ni.Engine, Engine):
             fs = get_channel_property(channels, 'fs')
             start_trigger = get_channel_property(channels, 'start_trigger')
             expected_range = get_channel_property(channels, 'expected_range')
+            mode = get_channel_property(channels, 'mode')
             self.configure_hw_ai(fs, lines, expected_range, names,
-                                 start_trigger)
+                                 start_trigger, mode)
 
         if self.hw_di_channels:
             channels = self.hw_di_channels

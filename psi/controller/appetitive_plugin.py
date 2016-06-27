@@ -162,7 +162,7 @@ class AppetitivePlugin(BaseController):
         self.signals.stop_timer.connect(self._stop_timer)
         self.signals.pause_experiment.connect(self._pause_experiment)
         self.signals.apply_changes.connect(self._apply_changes)
-        self.lock = threading.Lock()
+        self.lock = threading.RLock()
 
         try:
             self.trial += 1

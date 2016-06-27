@@ -116,12 +116,12 @@ class ChannelPlot(BaseChannelPlot):
             gc.stroke_path()
             self._draw_default_axes(gc)
 
-    def _data_added(self, bounds):
+    def _data_added(self, event):
         # We need to be smart about the data added event.  If we're not tracking
         # the index range, then the data that has changed *may* be off-screen.
         # In which case, we're doing a *lot* of work to redraw the exact same
         # picture.
-        data_lb, data_ub = bounds
+        data_lb, data_ub = event['value']
         s_lb, s_ub = self.index_range.low, self.index_range.high
         if (s_lb <= data_lb < s_ub) or (s_lb <= data_ub < s_ub):
             self._invalidate_data()
