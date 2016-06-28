@@ -235,6 +235,8 @@ class AppetitivePlugin(BaseController):
         input_log.trace('Acquired {} samples from {}'.format(data.shape, name))
         parameters = {'name': name, 'data': data}
         self.core.invoke_command('psi.data.process_ai', parameters)
+        parameters = {'timestamp': self.get_ts()}
+        self.core.invoke_command('psi.data.set_current_time', parameters)
 
     @acquire_lock
     def di_callback(self, name, data):

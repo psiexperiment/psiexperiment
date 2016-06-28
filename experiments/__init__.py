@@ -53,6 +53,7 @@ def monkeypatch_pytables():
     monkeypatch = [
         tb.Table.append,
         tb.Table.read,
+        tb.Table.read_where,
         tb.EArray.append,
         tb.Array.__getitem__,
     ]

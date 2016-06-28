@@ -4,36 +4,58 @@ from traits.api import Float
 
 class TTLPlot(ChannelPlot):
 
+    source = Instance('psi.data.hdf_store.data_channel.DataTable')
+
     rect_height = Float(0.5)
     rect_center = Float(0.5)
+
+    rising_event = Str()
+    falling_event = Str()
+
+    @on_trait_change('index_mapper.range.max_time')
+    def _update_plot(self, new):
+        print 'max time changed', new
+
+    def _source_changed(self, old, new):
+        if old is not None:
+            old.unobserve('added', self.data_changed)
+        if new is not None:
+            new.observe('added', self.data_changed)
+
+    def _data_changed(self, result):
+        ts, event = result
+        if event in (self.rising_event, self.falling_event):
+            s_lb, s_ub = self.index_range.low, self.index_range.high
+            if (s_lb <= ts) and (ts < s_ub):
+                self._invalidate_data()
+                self.request_redraw()
+
+    def _gather_points(self):
+        if not self._data_cache_valid:
+            range = self.index_mapper.range
+            query = '(event == name) & (ts >= lb) & (ts < ub)'
+            condvars = dict(name=self.rising_event, lb=range.low, ub=range.high)
+            starts = self.source.query(query, condvars, field='ts')
+            condvars['name'] = self.falling_event
+            ends = self.source.query(query, condvars, field='ts')
+            self._cached_data = [starts, ends]
+            self._data_cache_valid = True
+            self._screen_cache_valid = False
+        return self._cached_data
 
     def _get_screen_points(self):
         if not self._screen_cache_valid:
             # Obtain cached data and map to screen
-            val_pts = self._cached_data
-            idx_pts = self.index_values[:len(val_pts)]
+            starts, ends = self._cached_data
 
-            # Add a 0 to beginning of val_pts so we always ensure that a start
-            # comes before an end.  Starts are where the TTL goes high, ends are
-            # where the TTL goes low.
-            val_pts = np.r_[0, val_pts]
-            dv = np.diff(val_pts)
-            starts = dv == 1
-            ends = dv == -1
+            s_starts = self.index_mapper.map_screen(starts)
+            s_ends = self.index_mapper.map_screen(ends)
 
-            # Ensure that we have an end for plotting purposes (if the TTL ends
-            # in a high, then we just "stick" an end on and it will appear as
-            # the leading edge of the TTL).
-            if val_pts[-1] == 1:
-                ends[-1] = True
+            # TODO
+            #if len(s_starts) != len(s_ends):
+            #    s_ends.append(self.index_mapper.map_screen(
 
-            # Obtain cached data bounds and create index points
-            t_starts = idx_pts[starts]
-            t_ends = idx_pts[ends]
-            s_t_starts = self.index_mapper.map_screen(t_starts)
-            s_t_ends = self.index_mapper.map_screen(t_ends)
-            self._cached_screen_index = s_t_starts, s_t_ends
-            
+            self._cached_screen_index = s_starts, s_ends
             self._screen_cache_valid = True
             
         return self._cached_screen_index
@@ -55,6 +77,8 @@ class TTLPlot(ChannelPlot):
         n = len(starts)
         if n == 0:
             return
+        if len(starts) > len(ends):
+            starts = starts[:len(ends)]
 
         ttl_low = self.rect_center-self.rect_height*0.5
         ttl_high = self.rect_center+self.rect_height*0.5

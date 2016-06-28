@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 from atom.api import Unicode, Typed, Property, Bool
 from enaml.application import deferred_call
 from enaml.layout.api import InsertItem
@@ -5,7 +8,6 @@ from enaml.widgets.api import DockItem
 from enaml.workbench.api import Extension, PluginManifest
 from enaml.workbench.core.api import Command
 
-from traits_enaml.widgets.enable_canvas import EnableCanvas
 
 import tables as tb
 import pandas as pd
@@ -14,9 +16,8 @@ import numpy as np
 from ..plugin import Sink
 from psi import get_config
 from psi.core.utils import find_extension
-from psi.core.chaco.api import ChannelPlot, add_time_axis
 
-from .data_channel import DataChannel
+from .data_source import DataChannel, DataTable
 
 PLUGIN_ID = 'psi.data.hdf_store'
 
@@ -30,9 +31,9 @@ class HDFStore(Sink):
     node = Typed(tb.Group)
     initialized = Bool(False)
 
-    trial_log = Typed(tb.Table)
+    trial_log = Typed(object)
     trial_log_dtype = Typed(np.dtype)
-    event_log = Typed(tb.Table)
+    event_log = Typed(object)
     event_log_dtype = Typed(np.dtype)
 
     _channels = Typed(dict)
@@ -47,9 +48,9 @@ class HDFStore(Sink):
         dtype = [(str(name), item['dtype']) for name, item \
                  in context_info.items()]
         self.trial_log_dtype = np.dtype(dtype)
-        self.trial_log = self.file_handle.create_table(self.node,
-                                                       'trial_log',
-                                                       self.trial_log_dtype)
+        node = self.file_handle.create_table(self.node, 'trial_log',
+                                             self.trial_log_dtype)
+        self.trial_log = DataTable(data=node)
 
     def _prepare_event_log(self):
         '''
@@ -58,9 +59,9 @@ class HDFStore(Sink):
         dtype = [('timestamp', np.dtype('float32')), 
                  ('event', np.dtype('S512'))]
         self.event_log_dtype = np.dtype(dtype)
-        self.event_log = self.file_handle.create_table(self.node,
-                                                       'event_log',
-                                                       self.event_log_dtype)
+        node = self.file_handle.create_table(self.node, 'event_log',
+                                             self.event_log_dtype)
+        self.event_log = DataTable(data=node)
 
     def _prepare_continuous_input(self, input):
         atom = tb.Atom.from_dtype(input.channel.dtype)
@@ -77,28 +78,24 @@ class HDFStore(Sink):
             node._v_attrs['engine_' + name] = value
         return DataChannel(data=node, fs=input.fs) 
 
-    def _prepare_event_input(self, input):
-        # TODO!
-        return None
-        atom = tb.Float64Atom()
-        filters = tb.Filters(**get_config('H5_COMPRESSION'))
-        return self.file_handle.create_earray(self.node, output.name, atom,
-                                              (0,), filters=filters,
-                                              expectedrows=1000)
-
     def _prepare_inputs(self, inputs):
         channels = {}
         for input in inputs:
-            prep_function_name = '_prepare_{}_input'.format(input.mode)
-            prep_function = getattr(self, prep_function_name)
-            channels[input.name] = prep_function(input)
+            try:
+                prep_function_name = '_prepare_{}_input'.format(input.mode)
+                prep_function = getattr(self, prep_function_name)
+                channels[input.name] = prep_function(input)
+            except AttributeError:
+                m = 'No method for preparing datasource for {}'
+                log.debug(m.format(input.mode))
         self._channels = channels
 
     def prepare(self, plugin):
         self._prepare_event_log()
         self._prepare_trial_log(plugin.context_info)
         self._prepare_inputs(plugin.inputs.values())
-        self._prepare_plots()
+        self._channels['trial_log'] = self.trial_log
+        self._channels['event_log'] = self.event_log
         self.initialized = True
 
     def finalize(self):
@@ -119,26 +116,16 @@ class HDFStore(Sink):
         if self._channels[name] is not None:
             self._channels[name].append(data)
 
-    container = Typed(object)
+    def get_source(self, source_name):
+        try:
+            return self._channels[source_name]
+        except KeyError:
+            # TODO: Once we port to Python 3, add exception chaining.
+            raise AttributeError
 
-    def _default_container(self):
-        return OverlayPlotContainer(padding=[20, 20, 50, 5])
-
-    def _prepare_plots(self):
-        index_range = ChannelDataRange(trig_delay=0)
-        index_mapper = LinearMapper(range=index_range)
-
-        container = OverlayPlotContainer(padding=[20, 20, 50, 50])
-
-        value_range = DataRange1D(low_setting=0, high_setting=5)
-        value_mapper = LinearMapper(range=value_range)
-
-        plot = ChannelPlot(source=self._channels['nose_poke_analog'],
-                           index_mapper=index_mapper,
-                           value_mapper=value_mapper, line_color='red')
-        add_time_axis(plot)
-        container.add(plot)
-        self.container = container
+    def set_current_time(self, timestamp):
+        for channel in self._channels.values():
+            channel.set_current_time(timestamp)
 
 
 def set_node(event):
@@ -146,30 +133,6 @@ def set_node(event):
     if extension.initialized:
         raise ValueError('Cannot change node once data has initialized')
     extension.node = event.parameters['node']
-
-
-from psi.core.chaco.api import ChannelDataRange
-from chaco.api import LinearMapper, OverlayPlotContainer, DataRange1D
-
-from enaml.widgets.api import Container, Label
-
-enamldef ChacoDockItem(DockItem):
-
-    name = 'chaco_dock_item'
-    closable = False
-
-    attr extension
-
-    Container:
-        EnableCanvas:
-            component << extension.container
-
-
-def contribute_to_workspace(workbench, workspace):
-    extension = find_extension(workbench, PLUGIN_ID, 'sink', HDFStore)
-    item = ChacoDockItem(workspace.dock_area, extension=extension)
-    op = InsertItem(item=item.name, position='right')
-    deferred_call(workspace.dock_area.update_layout, op)
 
 
 enamldef HDFStoreManifest(PluginManifest): manifest:
@@ -188,8 +151,3 @@ enamldef HDFStoreManifest(PluginManifest): manifest:
         Command:
             id = PLUGIN_ID + '.set_node'
             handler = set_node
-
-    Extension:
-        id = 'workspace'
-        point = 'psi.experiment.workspace'
-        factory = contribute_to_workspace

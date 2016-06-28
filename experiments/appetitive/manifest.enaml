@@ -14,6 +14,7 @@ from psi.context.api import ContextGroup, Parameter
 from psi.controller.api import (ContinuousOutput, EpochOutput, AIChannel,
                                 AOChannel, ExperimentAction, Trigger, Toggle,
                                 DOChannel, Input)
+from psi.data.plots import TimeContainer, ChannelPlot, TimeseriesPlot
 
 
 from psi.controller.input import Downsample, IIRFilter, Threshold, Edges
@@ -171,6 +172,49 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                                 # Debounce value is 5/250 or 20 msec.
                                 debounce = 5
                                 name = 'reward_contact'
+
+
+    Extension:
+        id = 'plots'
+        point = 'psi.data.plots'
+
+        TimeContainer:
+            name = 'ir_plot_container' 
+            title = 'IR sensors'
+            trig_delay = 0
+            span = 20
+            ChannelPlot:
+                source = 'reward_contact_analog'
+                line_color = (1, 0, 1)
+                value_range = (0, 5)
+            ChannelPlot:
+                source = 'nose_poke_analog'
+                line_color = (0, 0, 1)
+                value_range = (0, 5)
+
+        TimeContainer:
+            name = 'trial_plot_container' 
+            title = 'Trial timing'
+            trig_delay = 0
+            span = 20
+
+            TimeseriesPlot:
+                source = 'event_log'
+                rising_event = 'reward contact'
+                falling_event = 'withdrew from reward'
+                fill_color = (0.25, 0.41, 0.88, 0.25)
+                line_color = (0.25, 0.41, 0.88, 0.5)
+                rect_center = 0.25
+                rect_height = 0.2
+
+            TimeseriesPlot:
+                source = 'event_log'
+                rising_event = 'initiated nose poke'
+                falling_event = 'withdrew from nose poke'
+                fill_color = (.17, .54, .34, 0.25)
+                line_color = (.17, .54, .34, 0.5)
+                rect_center = 0.5
+                rect_height = 0.2
 
 
     # TODO: Should these automatically be contributed by the controller when it

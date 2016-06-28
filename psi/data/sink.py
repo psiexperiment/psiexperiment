@@ -27,3 +27,9 @@ class Sink(Declarative):
 
     def finalize(self):
         pass
+
+    def set_current_time(self, timestamp):
+        pass
+
+    def get_source(self, source_name):
+        raise AttributeError

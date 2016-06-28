@@ -110,7 +110,6 @@ class BaseController(Plugin):
         self._engines = engines
         self._outputs = outputs
         self._inputs = inputs
-        print inputs
 
     def _refresh_actions(self, event=None):
         actions = {}

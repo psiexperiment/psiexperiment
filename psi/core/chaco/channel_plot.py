@@ -38,7 +38,6 @@ class ChannelPlot(BaseChannelPlot):
         be displayed in the visible range)
         '''
         if self.source is not None:
-            log.debug('index mapper was updated')
             fs = self.source.fs
             # Channels contain continuous data starting at t0.  We do not want
             # to compute time values less than t0.

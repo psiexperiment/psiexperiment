@@ -8,12 +8,13 @@ log = logging.getLogger(__name__)
 
 class ChannelDataRange(DataRange1D):
 
-    sources         = List(Instance('cns.channel.Channel'))
-    span            = Float(20)
-    trig_delay      = Float(5)
-    trigger         = Float(0)
-    update_mode     = Enum('auto', 'auto full', 'triggered')
-    scroll_period   = Float(20)
+    sources = List(Instance('psi.data.hdf_store.data_source.DataSource'))
+    span = Float(20)
+    trig_delay = Float(5)
+    trigger = Float(0)
+    update_mode = Enum('auto', 'auto full', 'triggered')
+    scroll_period = Float(20)
+    current_time = Float()
 
     def _trigger_changed(self):
         self.refresh()
@@ -27,28 +28,30 @@ class ChannelDataRange(DataRange1D):
     def _update_mode_changed(self):
         self.refresh()
 
-    def get_max_time(self):
-        bounds = [s.get_bounds()[1] for s in self.sources if s.get_size()>0]
-        return 0 if len(bounds) == 0 else max(bounds)
+    def _update_current_time(self, event):
+        if self.current_time != event['value']:
+            self.current_time = event['value']
+            self.refresh()
 
-    @on_trait_change('sources.added')
-    def refresh(self):
+    def _data_added(self, event):
+        self.refresh()
+
+    def refresh(self, event=None):
         '''
         Keep this very simple.  The user cannot change low/high settings.  If
         they use this data range, the assumption is that they've decided they
         want tracking.
         '''
-        log.debug('refreshing channel data range')
         span = self.span
         if self.update_mode == 'auto':
             # Update the bounds as soon as the data scrolls into the next span
-            spans = self.get_max_time()//span
+            spans = self.current_time//span
             high_value = (spans+1)*span-self.trig_delay
             low_value = high_value-span
         elif self.update_mode == 'auto full':
             # Don't update the bounds until we have a full span of data to
             # display
-            spans = self.get_max_time()//span
+            spans = self.current_time//span
             high_value = spans*span-self.trig_delay
             low_value = high_value-span
         elif self.update_mode == 'triggered':
@@ -66,16 +69,20 @@ class ChannelDataRange(DataRange1D):
             self._high_value = high_value
             self.updated = (low_value, high_value)
 
-    #def _sources_changed(self, old, new):
-    #    for source in old:
-    #        source.on_trait_change(self.refresh, 'added', remove=True)
-    #    for source in new:
-    #        source.on_trait_change(self.refresh, 'added')
-    #    self.refresh()
+    def _sources_changed(self, old, new):
+        for source in old:
+            source.unobserve('added', self._data_added)
+            source.unobserve('current_time', self._update_current_time)
+        for source in new:
+            source.observe('added', self._data_added)
+            source.observe('current_time', self._update_current_time)
+        self.refresh()
 
-    #def _sources_items_changed(self, event):
-    #    for source in event.removed:
-    #        source.on_trait_change(self.refresh, 'added', remove=True)
-    #    for source in event.added:
-    #        source.on_trait_change(self.refresh, 'added')
-    #    self.refresh()
+    def _sources_items_changed(self, event):
+        for source in event.removed:
+            source.unobserve('added', self._data_added)
+            source.unobserve('current_time', self._update_current_time)
+        for source in event.added:
+            source.observe('added', self._data_added)
+            source.observe('current_time', self._update_current_time)
+        self.refresh()

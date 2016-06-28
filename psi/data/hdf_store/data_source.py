@@ -6,7 +6,28 @@ import threading
 from atom.api import Atom, Float, Property, Event, Typed
 
 
-class DataChannel(Atom):
+class DataSource(Atom):
+
+    data = Typed(object)
+    current_time = Float(0)
+    added = Event()
+    changed = Event()
+
+    def set_current_time(self, current_time):
+        self.current_time = current_time
+
+
+class DataTable(DataSource):
+
+    def append(self, row):
+        self.data.append(row)
+        self.added = row
+
+    def query(self, string, condvars, field):
+        return self.data.read_where(string, condvars, field)
+
+
+class DataChannel(DataSource):
     '''
     Base class for dealing with a continuous stream of data sampled at a fixed
     rate, fs (cycles per time unit), starting at time t0 (time unit).  This
@@ -45,6 +66,7 @@ class DataChannel(Atom):
     # update t0.
     t0 = Float(0)
     shape = Property()
+    current_time = Float(0)
 
     added = Event()
     changed = Event()
@@ -166,4 +188,9 @@ class DataChannel(Atom):
         log.trace('Reading data {}'.format(data.shape))
         self.data.append(data)
         ub = self.get_size()
-        self.added = lb/self.fs, ub/self.fs
+        try:
+            # TODO: FIXME. For some reason the chaco plots are raising an
+            # error when being invalidated.
+            self.added = lb/self.fs, ub/self.fs
+        except:
+            pass

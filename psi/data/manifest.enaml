@@ -1,3 +1,6 @@
+import enaml
+from enaml.application import deferred_call
+from enaml.layout.api import InsertItem
 from enaml.workbench.api import Extension, PluginManifest, ExtensionPoint
 from enaml.workbench.core.api import Command
 
@@ -32,12 +35,34 @@ def finalize(event):
     data.finalize()
 
 
+def set_current_time(event):
+    data = event.workbench.get_plugin('psi.data')
+    data.set_current_time(**event.parameters)
+
+
+def contribute_to_workspace(workbench, workspace):
+    with enaml.imports():
+        from .plot_view import ChacoDockItem
+    plugin = workbench.get_plugin(PLUGIN_ID)
+    for plot in plugin._plots:
+        item = ChacoDockItem(workspace.dock_area, 
+                             plugin=plugin,
+                             container_name=plot.name, 
+                             name=plot.name,
+                             title=plot.title)
+        op = InsertItem(item=item.name, position='right')
+        deferred_call(workspace.dock_area.update_layout, op)
+
+
 enamldef DataManifest(PluginManifest): manifest:
     id = PLUGIN_ID
     factory = DataPlugin
 
     ExtensionPoint:
         id = 'sink'
+
+    ExtensionPoint:
+        id = 'plots'
 
     Extension:
         id = 'commands'
@@ -57,3 +82,11 @@ enamldef DataManifest(PluginManifest): manifest:
         Command:
             id = PLUGIN_ID + '.finalize'
             handler = finalize
+        Command:
+            id = PLUGIN_ID + '.set_current_time'
+            handler = set_current_time
+
+    Extension:
+        id = 'workspace'
+        point = 'psi.experiment.workspace'
+        factory = contribute_to_workspace
