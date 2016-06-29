@@ -28,6 +28,7 @@ def configure_logging(filename=None):
             '__main__': {'level': 'DEBUG'},
             'neurogen': {'level': 'ERROR'},
             'psi': {'level': 'DEBUG'},
+            'psi.core': {'level': 'TRACE'},
             #'psi.data.hdf_store': {'level': 'TRACE'},
             #'psi.controller.appetitive_plugin.output': {'level': 'DEBUG'},
             #'psi.controller.output': {'level': 'DEBUG'},

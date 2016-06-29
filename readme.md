@@ -86,9 +86,12 @@ To illustrate how an engine might be configured in an Enaml manifest::
             channel = 'Dev1/ai1'
             fs = 5e3
             start_trigger = 'ao/StartTrigger'
+
+			IIRFilter:
+				f_lowpass = 1e3
             ContinuousInput:
                 name = 'nose_poke_analog'
-            AnalogThreshold:
+            Threshold:
                 name = 'nose_poke'
                 threshold = 2.5
                 debounce = 100

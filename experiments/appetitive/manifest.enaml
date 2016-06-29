@@ -14,7 +14,8 @@ from psi.context.api import ContextGroup, Parameter
 from psi.controller.api import (ContinuousOutput, EpochOutput, AIChannel,
                                 AOChannel, ExperimentAction, Trigger, Toggle,
                                 DOChannel, Input)
-from psi.data.plots import TimeContainer, ChannelPlot, TimeseriesPlot
+from psi.data.plots import (TimeContainer, ChannelPlot, TimeseriesPlot,
+                            ExtremesChannelPlot)
 
 
 from psi.controller.input import Downsample, IIRFilter, Threshold, Edges
@@ -111,16 +112,17 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                     # room light plugin will not work!
                     name = 'room_light_toggle'
 
-            #AIChannel:
-            #    name = 'microphone'
-            #    channel = 'Dev1/ai2'
-            #    start_trigger = 'ao/StartTrigger'
-            #    fs = 25e3
-            #    expected_range = (-10, 10)
-            #    dtype = np.dtype('float64')
+            AIChannel:
+                name = 'microphone'
+                channel = 'Dev1/ai0'
+                start_trigger = 'ao/StartTrigger'
+                fs = 25e3
+                expected_range = (-10, 10)
+                dtype = np.dtype('float64')
+                mode = 'differential'
 
-            #    Input:
-            #        name = 'microphone'
+                Input:
+                    name = 'microphone'
 
             AIChannel:
                 name = 'nose_poke'
@@ -191,6 +193,11 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                 source = 'nose_poke_analog'
                 line_color = (0, 0, 1)
                 value_range = (0, 5)
+            ExtremesChannelPlot:
+                decimation_threshold = 5
+                source = 'microphone'
+                line_color = (0, 0, 0)
+                value_range = (-1, 1)
 
         TimeContainer:
             name = 'trial_plot_container' 
@@ -200,8 +207,8 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
 
             TimeseriesPlot:
                 source = 'event_log'
-                rising_event = 'reward contact'
-                falling_event = 'withdrew from reward'
+                rising_event = 'reward_start'
+                falling_event = 'reward_end'
                 fill_color = (0.25, 0.41, 0.88, 0.25)
                 line_color = (0.25, 0.41, 0.88, 0.5)
                 rect_center = 0.25
@@ -209,8 +216,17 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
 
             TimeseriesPlot:
                 source = 'event_log'
-                rising_event = 'initiated nose poke'
-                falling_event = 'withdrew from nose poke'
+                rising_event = 'np_start'
+                falling_event = 'np_end'
+                fill_color = (.17, .54, .34, 0.25)
+                line_color = (.17, .54, .34, 0.5)
+                rect_center = 0.5
+                rect_height = 0.2
+
+            TimeseriesPlot:
+                source = 'event_log'
+                rising_event = 'np_start'
+                falling_event = 'np_end'
                 fill_color = (.17, .54, .34, 0.25)
                 line_color = (.17, .54, .34, 0.5)
                 rect_center = 0.5

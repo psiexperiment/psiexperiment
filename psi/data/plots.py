@@ -1,4 +1,4 @@
-from atom.api import Unicode, Float, Tuple
+from atom.api import Unicode, Float, Tuple, Int
 from enaml.core.api import Declarative, d_
 
 from psi.core.chaco.api import ChannelDataRange, add_time_axis, add_default_grids
@@ -48,10 +48,25 @@ class ChannelPlot(Plot):
         value_range = DataRange1D(low_setting=self.value_range[0],
                                   high_setting=self.value_range[1])
         value_mapper = LinearMapper(range=value_range)
-        return ChannelPlot(source=source, 
-                           index_mapper=index_mapper,
+        return ChannelPlot(source=source, index_mapper=index_mapper,
                            value_mapper=value_mapper,
                            line_color=self.line_color)
+
+
+class ExtremesChannelPlot(ChannelPlot):
+
+    decimation_threshold = d_(Int(5))
+
+    def create_plot(self, plugin, index_mapper):
+        from psi.core.chaco.api import ExtremesChannelPlot
+        source = plugin.find_source(self.source)
+        index_mapper.range.sources.append(source)
+        value_range = DataRange1D(low_setting=self.value_range[0],
+                                  high_setting=self.value_range[1])
+        value_mapper = LinearMapper(range=value_range)
+        return ExtremesChannelPlot(source=source, index_mapper=index_mapper,
+                                   value_mapper=value_mapper,
+                                   line_color=self.line_color)
 
 
 class TimeseriesPlot(Plot):

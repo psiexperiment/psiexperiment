@@ -72,7 +72,10 @@ class ChannelPlot(BaseChannelPlot):
     def _gather_points(self):
         if not self._data_cache_valid:
             range = self.index_mapper.range
-            self._cached_data = self.source.get_range(range.low, range.high)
+            try:
+                self._cached_data = self.source.get_range(range.low, range.high)
+            except:
+                self._cached_data = []
             self._data_cache_valid = True
             self._screen_cache_valid = False
 

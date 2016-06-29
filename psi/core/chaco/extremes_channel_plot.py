@@ -22,15 +22,13 @@ def decimate_rms(data, downsample):
     last_dim = data.ndim
     offset = data.shape[-1] % downsample
 
-    # Force a copy to be made, which speeds up min()/max().  Apparently min/max
-    # make a copy of a reshaped array before performing the operation, so we
-    # force it now so the copy only occurs once.
     if data.ndim == 2:
         shape = (len(data), -1, downsample)
     else:
         shape = (-1, downsample)
-    data = data[..., :-offset].reshape(shape).copy()
+    data = data[..., :-offset].reshape(shape)
     return np.abs(data).max(last_dim)
+
 
 def decimate_simple(data, downsample):
     if data.shape[-1] == 0:
@@ -41,10 +39,9 @@ def decimate_simple(data, downsample):
     # the last 3 samples and will simply discard them. 
     return data[..., ::downsample]
 
+
 def decimate_extremes(data, downsample):
     # If data is empty, return imediately
-    #if data.shape[-1] == 0:
-    #    return [], []
     if data.size == 0:
         return np.array([]), np.array([])
 
@@ -55,15 +52,13 @@ def decimate_extremes(data, downsample):
     last_dim = data.ndim
     offset = data.shape[-1] % downsample
 
-    # Force a copy to be made, which speeds up min()/max().  Apparently min/max
-    # make a copy of a reshaped array before performing the operation, so we
-    # force it now so the copy only occurs once.
     if data.ndim == 2:
         shape = (len(data), -1, downsample)
     else:
         shape = (-1, downsample)
-    data = data[..., :-offset].reshape(shape).copy()
+    data = data[..., :-offset].reshape(shape)
     return data.min(last_dim), data.max(last_dim)
+
 
 class ExtremesChannelPlot(ChannelPlot):
     
@@ -75,12 +70,9 @@ class ExtremesChannelPlot(ChannelPlot):
     dec_threshold = Int(6)
     draw_mode = Property(depends_on='dec_threshold, dec_factor')
 
-    def _invalidate_data(self):
+    def _data_changed(self):
         self._cached_min = None
         self._cached_max = None
-        super(ExtremesChannelPlot, self)._invalidate_data()
-
-    def _data_changed(self):
         self._invalidate_data()
 
     def _dec_points_changed(self):
@@ -129,9 +121,9 @@ class ExtremesChannelPlot(ChannelPlot):
             self._cached_min = np.hstack((self._cached_min, mins))
             self._cached_max = np.hstack((self._cached_max, maxes))
         else:
-            ptp = decimate_extremes(self._cached_data, self.dec_factor)
-            self._cached_min = ptp[0]
-            self._cached_max = ptp[1]
+            mins, maxes = decimate_extremes(self._cached_data, self.dec_factor)
+            self._cached_min = mins
+            self._cached_max = maxes
 
         # Now, map them to the screen
         samples = self._cached_min.shape[-1]
@@ -166,11 +158,3 @@ class ExtremesChannelPlot(ChannelPlot):
 
             gc.stroke_path()
             self._draw_default_axes(gc)
-
-    traits_view = View(
-            Item('dec_points', label='Samples per pixel'),
-            Item('dec_threshold', label='Decimation threshold'),
-            Item('draw_mode', style='readonly'),
-            Item('line_color'),
-            Item('line_width'),
-            )

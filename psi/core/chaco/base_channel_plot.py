@@ -29,3 +29,9 @@ class BaseChannelPlot(BaseXYPlot):
             new.observe('changed', self._data_changed)
             new.observe('added', self._data_added)
             new.observe('fs', self._index_mapper_updated)
+
+    def invalidate_draw(self):
+        try:
+            super(BaseChannelPlot, self).invalidate_draw()
+        except TypeError:
+            pass

@@ -45,11 +45,6 @@ class TimeseriesPlot(ChannelPlot):
             self._screen_cache_valid = False
         return self._cached_data
 
-    # edge cases
-    [], []
-    [], [1]
-    [1], []
-
     def _get_screen_points(self):
         if not self._screen_cache_valid:
             # Obtain cached data and map to screen

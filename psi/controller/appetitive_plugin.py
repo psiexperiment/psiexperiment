@@ -317,9 +317,6 @@ class AppetitivePlugin(BaseController):
         '''
         log.debug('Recieved handle_event signal')
         self._log_thread()
-
-        params = {'event': event.value, 'timestamp': timestamp}
-        self.core.invoke_command('psi.data.process_event', params)
         self.invoke_actions(event.name)
 
         if self.experiment_state == 'paused':
@@ -363,6 +360,7 @@ class AppetitivePlugin(BaseController):
             elif event == Event.hold_duration_elapsed:
                 log.debug('Animal maintained poke through hold period')
                 self.trial_state = TrialState.waiting_for_response
+                self.invoke_actions('response_start')
                 self.start_timer('response_duration',
                                  Event.response_duration_elapsed)
 
@@ -395,8 +393,8 @@ class AppetitivePlugin(BaseController):
                 # Turn the light back on
                 self.invoke_actions('timeout_end')
                 self.trial_state = TrialState.waiting_for_iti
-                self.start_timer('iti_duration',
-                                 Event.iti_duration_elapsed)
+                self.invoke_actions('iti_start')
+                self.start_timer('iti_duration', Event.iti_duration_elapsed)
             elif event in (Event.reward_start, Event.np_start):
                 log.debug('Resetting timeout duration')
                 self.stop_timer()

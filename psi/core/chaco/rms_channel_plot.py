@@ -8,6 +8,7 @@ from traitsui.api import View, Item
 import logging
 log = logging.getLogger(__name__)
 
+
 def decimate_rms(data, downsample):
     # If data is empty, return imediately
     if data.shape[-1] == 0:
@@ -30,6 +31,7 @@ def decimate_rms(data, downsample):
     data = data[..., :-offset].reshape(shape).copy()
     return np.mean((data**2), axis=last_dim)**0.5
 
+
 class RMSChannelPlot(ChannelPlot):
     
     _cached_dec     = Any
@@ -40,7 +42,6 @@ class RMSChannelPlot(ChannelPlot):
     draw_mode = Property(depends_on='dec_threshold, dec_factor')
 
     dec_points = 1
-
     sensitivity = Float(5e-5)   # Volts/Pa
     input_gain = Float(57.0)    # In dB
 
