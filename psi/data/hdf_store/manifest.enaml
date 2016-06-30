@@ -99,6 +99,11 @@ class HDFStore(Sink):
         self.initialized = True
 
     def finalize(self):
+        log.debug('Flushing all data to disk')
+        self.file_handle.flush()
+
+    def stop(self):
+        log.debug('Closing HDF5 file')
         self.file_handle.close()
 
     def process_trial(self, results):

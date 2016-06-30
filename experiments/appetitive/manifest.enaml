@@ -143,7 +143,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                         name = 'nose_poke_analog'
                         q = 50
                         Threshold:
-                            threshold = 4
+                            threshold = 2.5
                             Edges:
                                 # Debounce value is 5/250 or 20 msec.
                                 debounce = 5
@@ -169,7 +169,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                         name = 'reward_contact_analog'
                         q = 10
                         Threshold:
-                            threshold = 4
+                            threshold = 2.5
                             Edges:
                                 # Debounce value is 5/250 or 20 msec.
                                 debounce = 5
@@ -181,29 +181,20 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
         point = 'psi.data.plots'
 
         TimeContainer:
-            name = 'ir_plot_container' 
-            title = 'IR sensors'
-            trig_delay = 0
-            span = 20
-            ChannelPlot:
-                source = 'reward_contact_analog'
-                line_color = (1, 0, 1)
-                value_range = (0, 5)
-            ChannelPlot:
-                source = 'nose_poke_analog'
-                line_color = (0, 0, 1)
-                value_range = (0, 5)
-            ExtremesChannelPlot:
-                decimation_threshold = 5
-                source = 'microphone'
-                line_color = (0, 0, 0)
-                value_range = (-1, 1)
-
-        TimeContainer:
             name = 'trial_plot_container' 
             title = 'Trial timing'
             trig_delay = 0
             span = 20
+
+            ChannelPlot:
+                source = 'reward_contact_analog'
+                line_color = (1, 0, 1)
+                value_range = (-20, 6)
+
+            ChannelPlot:
+                source = 'nose_poke_analog'
+                line_color = (0, 0, 1)
+                value_range = (-20, 6)
 
             TimeseriesPlot:
                 source = 'event_log'
@@ -231,6 +222,12 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                 line_color = (.17, .54, .34, 0.5)
                 rect_center = 0.5
                 rect_height = 0.2
+
+            ExtremesChannelPlot:
+                decimation_threshold = 5
+                source = 'microphone'
+                line_color = (0, 0, 0)
+                value_range = (-1, 1)
 
 
     # TODO: Should these automatically be contributed by the controller when it
