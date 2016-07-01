@@ -173,14 +173,14 @@ class AppetitivePlugin(BaseController):
             self.context.next_setting(self.next_selector(), save_prior=False)
             self.experiment_state = 'running'
             self.trial_state = TrialState.waiting_for_np_start
-            self.invoke_actions('experiment_start')
+            self.invoke_actions('experiment_start', self.get_ts())
         except Exception as e:
             # TODO - provide user interface to notify of errors. How to
             # recover?
             raise
 
     def start_trial(self):
-        self.invoke_actions('trial_start')
+        self.invoke_actions('trial_start', self.get_ts())
         # TODO - the hold duration will include the update delay. Do we need
         # super-precise tracking of hold period or can it vary by a couple 10s
         # to 100s of msec?
@@ -209,12 +209,12 @@ class AppetitivePlugin(BaseController):
             'reaction_time': np_end-np_start,
         })
         if score == TrialScore.false_alarm:
-            self.invoke_actions('timeout_start')
+            self.invoke_actions('timeout_start', self.get_ts())
             self.trial_state = TrialState.waiting_for_to
             self.start_timer('to_duration', Event.to_duration_elapsed)
         else:
             if score == TrialScore.hit:
-                self.invoke_actions('deliver_reward')
+                self.invoke_actions('deliver_reward', self.get_ts())
             self.trial_state = TrialState.waiting_for_iti
             self.start_timer('iti_duration', Event.iti_duration_elapsed)
 
@@ -251,7 +251,7 @@ class AppetitivePlugin(BaseController):
     def stop_experiment(self):
         self.stop_engines()
         self.experiment_state = 'stopped'
-        self.invoke_actions('experiment_end')
+        self.invoke_actions('experiment_end', self.get_ts())
         self.core.invoke_command('psi.data.finalize')
 
     def pause_experiment(self):
@@ -317,7 +317,7 @@ class AppetitivePlugin(BaseController):
         '''
         log.debug('Recieved handle_event signal')
         self._log_thread()
-        self.invoke_actions(event.name)
+        self.invoke_actions(event.name, timestamp)
 
         if self.experiment_state == 'paused':
             # If the experiment is paused, don't do anything.
@@ -360,7 +360,7 @@ class AppetitivePlugin(BaseController):
             elif event == Event.hold_duration_elapsed:
                 log.debug('Animal maintained poke through hold period')
                 self.trial_state = TrialState.waiting_for_response
-                self.invoke_actions('response_start')
+                self.invoke_actions('response_start', self.get_ts())
                 self.start_timer('response_duration',
                                  Event.response_duration_elapsed)
 
@@ -391,7 +391,7 @@ class AppetitivePlugin(BaseController):
         elif self.trial_state == TrialState.waiting_for_to:
             if event == Event.to_duration_elapsed:
                 # Turn the light back on
-                self.invoke_actions('timeout_end')
+                self.invoke_actions('timeout_end', self.get_ts())
                 self.trial_state = TrialState.waiting_for_iti
                 self.invoke_actions('iti_start')
                 self.start_timer('iti_duration', Event.iti_duration_elapsed)

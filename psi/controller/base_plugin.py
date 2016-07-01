@@ -152,10 +152,7 @@ class BaseController(Plugin):
     def get_output(self, output_name):
         return self._outputs[output_name]
 
-    def invoke_actions(self, event, timestamp=None):
-        # Save the event
-        if timestamp is None:
-            timestamp = self.get_ts()
+    def invoke_actions(self, event, timestamp):
         params = {'event': event, 'timestamp': timestamp}
         self.core.invoke_command('psi.data.process_event', params)
 
