@@ -85,8 +85,6 @@ class TimeseriesPlot(ChannelPlot):
         n = len(starts)
         if n == 0:
             return
-        if len(starts) > len(ends):
-            starts = starts[:len(ends)]
 
         ttl_low = self.rect_center-self.rect_height*0.5
         ttl_high = self.rect_center+self.rect_height*0.5
