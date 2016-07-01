@@ -84,17 +84,24 @@ To illustrate how an engine might be configured in an Enaml manifest::
                 name = 'microphone'
         AIChannel:
             channel = 'Dev1/ai1'
-            fs = 5e3
+            fs = 200e3
             start_trigger = 'ao/StartTrigger'
 
-			IIRFilter:
-				f_lowpass = 1e3
-            ContinuousInput:
-                name = 'nose_poke_analog'
-            Threshold:
-                name = 'nose_poke'
-                threshold = 2.5
-                debounce = 100
+            IIRFilter:
+                f_lowpass = 200
+                btype = 'lowpass'
+                ftype = 'butter'
+                N = 4
+                Downsample:
+                    # effective Fs is 500
+                    name = 'nose_poke_analog'
+                    q = 400
+                    Threshold:
+                        threshold = 2.5
+                        Edges:
+                            debounce = 5
+                            name = 'nose_poke'
+
         DOChannel:
             channel = 'Dev1/port0/line0'
             fs = 0
@@ -103,19 +110,51 @@ To illustrate how an engine might be configured in an Enaml manifest::
                 duration = 0.1    
 
 
-Note that an input channel can have multiple inputs defined. For example, the
-AIChannel (`Dev1/ai1`) has two inputs. The ContinuousInput streams samples to
-the controller (via the `ai_callback` method). The AnalogThreshold will
-generate an event (via the `et_callback` method) whenever the input crosses the
-specified threshold. This allows for great versality (e.g., we can record the
-raw analog signal for post-processing as well as respond to events based on the
-analog threshold).
+An input channel can have a signal processing chain associated with
+it that generates multiple inputs. For example, 'Dev/ai1' passes the input
+through a low-pass filter, downsamples it from 200 kHz to 0.5 kHz, then
+thresholds the filtered, downsampled signal to detect rising and falling edges
+in the analog signal. If the input has a name, then it will automatically be
+saved in the HDF5 file. So, the low-pass filtered signal at 200 kHz is *not*
+saved because no name is associated with that stage in the processing chain.
+However, the downsampled signal is saved as an array, `nose_poke_analog`.
+Likewise, the edge detection stage generates nose-poke events that are
+timestamped and stored in the event log.
+
+To illustrate the flexibility of this signal chain, one could consider the
+following input (presumably recording from a 16-channel electrode array). This
+results in three signals (raw signal, low-pass filtered LFP and high-pass
+filtered spike train)::
+
+        AIChannel:
+            channel = 'Dev2/ai0:16'
+            fs = 25e3
+            start_trigger = 'Dev2/PFI0'
+
+            IIRFilter:
+                f_lowpass = 200
+                btype = 'lowpass'
+                ftype = 'butter'
+                N = 4
+                name = 'lfp'
+
+            IIRFilter:
+                f_highpass = 300
+                f_lowpass = 3000
+                btype = 'bandpass'
+                ftype = 'butter'
+                N = 4
+                name = 'spikes'
+
+            Input:
+                name = 'raw_signal'
 
 Currently, an output channel may have multiple outputs defined (right now we
 only support one ContinuousOutput and one EpochOutput per channel, but this may
 be expanded in the future). This is not as well fleshed-out but is meant to
 allow for the blending of multiple tokens into a single waveform that is sent
 to the channel.
+
 
 #### ExperimentAction
 
