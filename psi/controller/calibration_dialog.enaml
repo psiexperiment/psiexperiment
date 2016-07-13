@@ -1,0 +1,58 @@
+from enaml.core.api import Looper, DynamicTemplate
+from enaml.widgets.api import (PopupView, MainWindow, Label, GroupBox,
+                               VGroup, Form, Container, ObjectCombo,
+                               PushButton, Field, HGroup, Notebook, Page)
+
+
+from neurogen.calibration import Calibration
+
+
+
+enamldef ChannelCalibration(Container):
+
+    attr channel
+
+
+enamldef ChannelGroupContainer(Container):
+
+    attr channel_type
+    attr engine
+
+    VGroup:
+        spacing = 0
+        padding = 0
+        Looper:
+            iterable << getattr(engine, channel_type)
+            HGroup:
+                spacing = 0
+                padding = 0
+                Label:
+                    text << '{} ({})'.format(loop_item.label, \
+                                             loop_item.channel)
+                Field:
+                    pass
+                PushButton:
+                    text << 'Select file'
+
+
+enamldef CalibrationDialog(PopupView):
+
+    attr controller
+
+    Container:
+        Looper:
+            iterable << controller._engines.values()
+            GroupBox:
+                title << loop_item.name + ' engine'
+
+                Label:
+                    text = 'Analog inputs'
+                ChannelGroupContainer:
+                    channel_type << 'hw_ai_channels'
+                    engine << loop_item
+
+                Label:
+                    text = 'Analog outputs'
+                ChannelGroupContainer:
+                    channel_type << 'hw_ao_channels'
+                    engine << loop_item

@@ -1,14 +1,16 @@
-# TODO: Implement channel calibration. This is inherently tied to the engine
-# though.
 import numpy as np
 
 from atom.api import Unicode, Enum, Typed, Tuple, Property
 from enaml.core.api import Declarative, d_
 
+from neurogen.calibration import Calibration
+
 from psi import SimpleState
 
 
 class Channel(SimpleState, Declarative):
+
+    label = d_(Unicode())
 
     # Device-specific channel identifier.
     channel = d_(Unicode())
@@ -37,6 +39,7 @@ class AIChannel(Channel):
     inputs = Property().tag(transient=True)
     expected_range = d_(Tuple())
     mode = d_(Enum('RSE', 'differential'))
+    calibration = Typed(Calibration)
 
     def _get_inputs(self):
         return self.children
@@ -50,6 +53,7 @@ class AOChannel(Channel):
 
     outputs = Property().tag(transient=True)
     expected_range = d_(Tuple())
+    calibration = Typed(Calibration)
 
     def _get_outputs(self):
         return self.children

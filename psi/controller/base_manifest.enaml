@@ -1,3 +1,4 @@
+import enaml
 from enaml.application import deferred_call
 from enaml.layout.api import InsertItem
 from enaml.widgets.api import Action
@@ -22,9 +23,17 @@ def _contribute_plots(workbench, workspace):
     plugin = workbench.get_plugin('psi.controller')
     pass
 
+
 def contribute_to_workspace(workbench, workspace):
     _contribute_outputs(workbench, workspace)
     _contribute_plots(workbench, workspace)
+
+
+def load_calibration(event):
+    with enaml.imports():
+        from .calibration_dialog import CalibrationDialog
+    controller = event.workbench.get_plugin('psi.controller')
+    CalibrationDialog(controller=controller).show()
 
 
 enamldef ControllerManifest(PluginManifest): manifest:
@@ -59,6 +68,9 @@ enamldef ControllerManifest(PluginManifest): manifest:
         Command:
             id = 'psi.controller.request_resume'
             handler = rpc('psi.controller', 'request_resume')
+        Command:
+            id = 'psi.controller.load_calibration'
+            handler = load_calibration
 
 
     # Uses unicode symbols as icons for sake of simplicity.
@@ -126,6 +138,15 @@ enamldef ControllerManifest(PluginManifest): manifest:
         MenuItem:
             path = '/equipment'
             label = 'Equipment'
+
+        MenuItem:
+            path = '/configuration/calibration'
+            label = 'Calibration'
+
+        ActionItem:
+            path = '/configuration/calibration/load_calibration'
+            label = 'Load calibration files'
+            command = 'psi.controller.load_calibration'
 
     Extension:
         id = 'base_workspace'

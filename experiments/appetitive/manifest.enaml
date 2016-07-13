@@ -73,6 +73,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             hw_ai_monitor_period = 0.01
 
             AOChannel:
+                label = 'Speaker'
                 name = 'speaker'
                 channel = 'Dev1/ao0'
                 fs = 100e3
@@ -113,6 +114,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                     name = 'room_light_toggle'
 
             AIChannel:
+                label = 'Microphone'
                 name = 'microphone'
                 channel = 'Dev1/ai0'
                 start_trigger = 'ao/StartTrigger'
@@ -125,6 +127,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                     name = 'microphone'
 
             AIChannel:
+                label = 'Nose poke IR'
                 name = 'nose_poke'
                 channel = 'Dev1/ai2'
                 start_trigger = 'ao/StartTrigger'
@@ -151,6 +154,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
 
 
             AIChannel:
+                label = 'Reward contact IR'
                 name = 'reward_contact'
                 channel = 'Dev1/ai3'
                 start_trigger = 'ao/StartTrigger'
