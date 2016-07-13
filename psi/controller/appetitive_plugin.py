@@ -393,7 +393,7 @@ class AppetitivePlugin(BaseController):
                 # Turn the light back on
                 self.invoke_actions('timeout_end', self.get_ts())
                 self.trial_state = TrialState.waiting_for_iti
-                self.invoke_actions('iti_start')
+                self.invoke_actions('iti_start', self.get_ts())
                 self.start_timer('iti_duration', Event.iti_duration_elapsed)
             elif event in (Event.reward_start, Event.np_start):
                 log.debug('Resetting timeout duration')
