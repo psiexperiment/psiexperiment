@@ -83,6 +83,7 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
                 plugin = workbench.get_plugin(PLUGIN_ID)
                 with plugin.lock:
                     plugin.start_trial()
+                    plugin.invoke_actions('deliver_reward', plugin.get_ts())
                     plugin.end_trial('reward')
             enabled <<  workbench.get_plugin(PLUGIN_ID).experiment_state \
                 not in ('initialized', 'stopped')

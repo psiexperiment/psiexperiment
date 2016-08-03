@@ -1,3 +1,6 @@
+import os
+os.environ['ETS_TOOLKIT'] = 'qt4'
+
 import logging.config
 import threading
 import tables as tb
@@ -7,7 +10,7 @@ from enaml.workbench.api import Workbench
 
 
 def configure_logging(filename=None):
-    time_format = '[%(asctime)s] :: %(name)s - %(levelname)s - %(message)s'
+    time_format = '[%(relativeCreated)d %(thread)d %(name)s - %(levelname)s] %(message)s'
     simple_format = '%(name)s - %(message)s'
 
     logging_config = {
@@ -25,15 +28,11 @@ def configure_logging(filename=None):
                 },
             },
         'loggers': {
-            '__main__': {'level': 'DEBUG'},
-            'neurogen': {'level': 'ERROR'},
-            'psi': {'level': 'DEBUG'},
-            'psi.core': {'level': 'TRACE'},
-            #'psi.data.hdf_store': {'level': 'TRACE'},
-            #'psi.controller.appetitive_plugin.output': {'level': 'DEBUG'},
-            #'psi.controller.output': {'level': 'DEBUG'},
-            'experiments': {'level': 'DEBUG'},
-            'daqengine': {'level': 'DEBUG'},
+            '__main__': {'level': 'TRACE'},
+            'neurogen': {'level': 'TRACE'},
+            'psi': {'level': 'TRACE'},
+            'experiments': {'level': 'TRACE'},
+            'daqengine': {'level': 'TRACE'},
             },
         'root': {
             'handlers': ['console'],
@@ -44,6 +43,8 @@ def configure_logging(filename=None):
             'class': 'logging.FileHandler',
             'formatter': 'time',
             'filename': filename,
+            'mode': 'w',
+            'encoding': 'UTF-8',
             'level': 'TRACE',
         }
         logging_config['root']['handlers'].append('file')

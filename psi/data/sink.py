@@ -28,7 +28,7 @@ class Sink(Declarative):
     def finalize(self):
         pass
 
-    def set_current_time(self, timestamp):
+    def set_current_time(self, name, timestamp):
         pass
 
     def get_source(self, source_name):

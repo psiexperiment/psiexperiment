@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 from atom.api import ContainerList, Typed
 from enaml.workbench.api import Plugin
 
@@ -117,11 +120,14 @@ class DataPlugin(Plugin):
 
     def process_ai(self, name, data):
         for sink in self._sinks:
+            #if __debug__:
+            #    log.trace('Sending {} samples from {} to {}' \
+            #              .format(data.shape, name, sink))
             sink.process_ai(name, data)
 
-    def set_current_time(self, timestamp):
+    def set_current_time(self, name, timestamp):
         for sink in self._sinks:
-            sink.set_current_time(timestamp)
+            sink.set_current_time(name, timestamp)
 
     def find_source(self, source_name):
         '''

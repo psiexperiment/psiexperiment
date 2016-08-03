@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 from chaco.api import BaseXYPlot
 from enable.api import black_color_trait, LineStyle
 from traits.api import Event, Float, Instance
@@ -32,6 +35,8 @@ class BaseChannelPlot(BaseXYPlot):
 
     def invalidate_draw(self):
         try:
+            if __debug__:
+                log.trace('Invalidating draw for {}'.format(self))
             super(BaseChannelPlot, self).invalidate_draw()
         except TypeError:
             pass

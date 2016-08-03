@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 import numpy as np
 
 from atom.api import Unicode, Float, Bool, observe, Property, Int, Typed, Long
@@ -48,7 +51,9 @@ class Engine(SimpleState, Declarative):
 
     def configure(self, plugin):
         if self.hw_ao_channels:
-            # Setup the ring buffer (so we can meld in existing data)
+            # Setup the ring buffer (so we can meld in existing data without
+            # having to regenerate samples for the other outputs in the
+            # channel)
             buffer_shape = len(self.hw_ao_channels), self.hw_ao_buffer_samples
             self.hw_ao_buffer = np.empty(buffer_shape, dtype=np.double)
             self.hw_ao_buffer_offset = -self.hw_ao_buffer_samples
@@ -63,6 +68,8 @@ class Engine(SimpleState, Declarative):
         # greater than our buffer, just overwrite the entire buffer. If less,
         # shift all the samples back and write the new data to the end of the
         # buffer.
+        log.trace('Appending {} samples to end of hw ao buffer' \
+                  .format(data.shape))
         data_samples = data.shape[-1]
         if data_samples >= self.hw_ao_buffer_samples:
             self.hw_ao_buffer[:] = data[..., -self.hw_ao_buffer_samples:]
@@ -73,6 +80,8 @@ class Engine(SimpleState, Declarative):
         # Track the trailing edge of the buffer (i.e., what is the sample number
         # of the first sample in the buffer).
         self.hw_ao_buffer_offset += data_samples
+        log.trace('Current hw ao buffer offset {}' \
+                  .format(self.hw_ao_buffer_offset))
 
         # Now, we actually write it.
         self.write_hw_ao(data)
@@ -96,6 +105,8 @@ class Engine(SimpleState, Declarative):
             raise ValueError('Unsupported method')
 
         # Now, write the modified buffer to the hardware.
+        #if __debug__:
+        #    self.get_space_available(offset=offset)
         self.write_hw_ao(self.hw_ao_buffer[..., lb:], offset)
 
     def register_ao_callback(self, callback):

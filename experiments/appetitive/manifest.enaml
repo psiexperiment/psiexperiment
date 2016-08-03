@@ -71,6 +71,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             # and reward contact, we want a fairly short AI monitor period to
             # ensure that we detect these events quickly.
             hw_ai_monitor_period = 0.01
+            hw_ao_monitor_period = 1
 
             AOChannel:
                 label = 'Speaker'
@@ -113,43 +114,42 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                     # room light plugin will not work!
                     name = 'room_light_toggle'
 
-            AIChannel:
-                label = 'Microphone'
-                name = 'microphone'
-                channel = 'Dev1/ai0'
-                start_trigger = 'ao/StartTrigger'
-                fs = 25e3
-                expected_range = (-10, 10)
-                dtype = np.dtype('float64')
-                mode = 'differential'
+            #AIChannel:
+            #    label = 'Microphone'
+            #    name = 'microphone'
+            #    channel = 'Dev1/ai0'
+            #    start_trigger = 'ao/StartTrigger'
+            #    fs = 100e3
+            #    expected_range = (-10, 10)
+            #    dtype = np.dtype('float64')
+            #    mode = 'differential'
 
-                Input:
-                    name = 'microphone'
+            #    Input:
+            #        name = 'microphone'
 
             AIChannel:
                 label = 'Nose poke IR'
                 name = 'nose_poke'
                 channel = 'Dev1/ai2'
                 start_trigger = 'ao/StartTrigger'
-                fs = 25e3
+                fs = 100e3
                 expected_range = (-10, 10)
                 dtype = np.dtype('float64')
                 mode = 'differential'
 
                 IIRFilter:
-                    f_lowpass = 200
+                    f_lowpass = 25
                     btype = 'lowpass'
                     ftype = 'butter'
                     N = 4
                     Downsample:
-                        # effective Fs is 500
+                        # effective Fs is 100
                         name = 'nose_poke_analog'
-                        q = 50
+                        q = 1000
                         Threshold:
                             threshold = 2.5
                             Edges:
-                                # Debounce value is 5/250 or 20 msec.
-                                debounce = 5
+                                debounce = 2
                                 name = 'nose_poke'
 
 
@@ -158,25 +158,23 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                 name = 'reward_contact'
                 channel = 'Dev1/ai3'
                 start_trigger = 'ao/StartTrigger'
-                fs = 25e3
+                fs = 100e3
                 expected_range = (-10, 10)
                 dtype = np.dtype('float64')
                 mode = 'differential'
 
                 IIRFilter:
-                    f_lowpass = 1e3
+                    f_lowpass = 25
                     btype = 'lowpass'
                     ftype = 'butter'
                     N = 1
                     Downsample:
-                        # effective Fs is 250
                         name = 'reward_contact_analog'
-                        q = 10
+                        q = 1000
                         Threshold:
                             threshold = 2.5
                             Edges:
-                                # Debounce value is 5/250 or 20 msec.
-                                debounce = 5
+                                debounce = 2
                                 name = 'reward_contact'
 
 
@@ -188,7 +186,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             name = 'trial_plot_container' 
             title = 'Trial timing'
             trig_delay = 0
-            span = 20
+            span = 10
 
             ChannelPlot:
                 source = 'reward_contact_analog'
@@ -218,20 +216,11 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                 rect_center = 0.5
                 rect_height = 0.2
 
-            TimeseriesPlot:
-                source = 'event_log'
-                rising_event = 'np_start'
-                falling_event = 'np_end'
-                fill_color = (.17, .54, .34, 0.25)
-                line_color = (.17, .54, .34, 0.5)
-                rect_center = 0.5
-                rect_height = 0.2
-
-            ExtremesChannelPlot:
-                decimation_threshold = 5
-                source = 'microphone'
-                line_color = (0, 0, 0)
-                value_range = (-1, 1)
+            #ExtremesChannelPlot:
+            #    decimation_threshold = 5
+            #    source = 'microphone'
+            #    line_color = (0, 0, 0)
+            #    value_range = (-1, 1)
 
 
     # TODO: Should these automatically be contributed by the controller when it

@@ -24,6 +24,9 @@ class DataTable(DataSource):
         self.added = row
 
     def query(self, string, condvars, field):
+        #if __debug__:
+        #    log.trace('Querying {} with {} using {} for {}' \
+        #              .format(self.data, string, condvars, field))
         return self.data.read_where(string, condvars, field)
 
 
@@ -81,7 +84,8 @@ class DataChannel(DataSource):
         Subclasses can add additional data preprocessing by overriding this
         method.  See `ProcessedFileMultiChannel` for an example.
         '''
-        log.trace('Reading slice {}'.format(slice))
+        #if __debug__:
+        #    log.trace('Accessing slice {} from {}'.format(slice, self.data))
         return self.data[slice]
 
     def to_index(self, time):
@@ -185,7 +189,6 @@ class DataChannel(DataSource):
 
     def append(self, data):
         lb = self.get_size()
-        log.trace('Reading data {}'.format(data.shape))
         self.data.append(data)
         ub = self.get_size()
         try:

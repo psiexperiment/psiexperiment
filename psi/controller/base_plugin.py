@@ -40,9 +40,9 @@ class BaseController(Plugin):
     context = Typed(Plugin)
     data = Typed(Plugin)
 
-    # We should not respond to changes during the course of a trial. These flags
-    # indicate changes or requests from the user are pending and should be
-    # processed when the opportunity arises (e.g., at the end of the trial).
+    # We should not respond to changes during the course of a trial. These
+    # flags indicate changes or requests from the user are pending and should
+    # be processed when the opportunity arises (e.g., at the end of the trial).
     _apply_requested = Bool(False)
     _remind_requested = Bool(False)
     _pause_requested = Bool(False)

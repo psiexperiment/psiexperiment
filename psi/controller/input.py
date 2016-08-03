@@ -100,8 +100,8 @@ def edges(initial_state, min_samples, target):
                 edge = 'rising' if samples[tlb] == 1 else 'falling'
                 initial_state = samples[tlb]
                 target((edge, t_prior + tlb))
-
         t_prior += new_samples.shape[-1]
+        target(('processed', t_prior))
         prior_samples = samples[..., -min_samples:]
 
 
@@ -131,6 +131,9 @@ class Input(SimpleState, Declarative):
         self.engine.register_ai_callback(cb, self.channel.name)
 
     def configure_callback(self, plugin):
+        '''
+        Configure callbacks only for named inputs.
+        '''
         log.debug('Configuring callback for {}'.format(self.name))
         targets = [c.configure_callback(plugin) for c in self.children]
         if self.name:
@@ -144,8 +147,6 @@ class Input(SimpleState, Declarative):
 class IIRFilter(Input):
 
     N = d_(Int())
-    #rp = d_(Float())
-    #rs = d_(Float())
     btype = d_(Enum('bandpass', 'lowpass', 'highpass', 'bandstop'))
     ftype = d_(Enum('butter', 'cheby1', 'cheby2', 'ellip', 'bessel'))
     f_highpass = d_(Float())

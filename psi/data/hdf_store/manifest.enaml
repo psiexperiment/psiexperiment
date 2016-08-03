@@ -128,9 +128,8 @@ class HDFStore(Sink):
             # TODO: Once we port to Python 3, add exception chaining.
             raise AttributeError
 
-    def set_current_time(self, timestamp):
-        for channel in self._channels.values():
-            channel.set_current_time(timestamp)
+    def set_current_time(self, name, timestamp):
+        self._channels[name].set_current_time(timestamp)
 
 
 def set_node(event):

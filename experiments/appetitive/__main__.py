@@ -42,5 +42,6 @@ if __name__ == '__main__':
             warnings.simplefilter('ignore')
             ui.show_window()
 
-        configure_logging()
+        filename = 'c:/users/bburan/desktop/appetitive_log.txt' 
+        configure_logging(filename)
         ui.start_application()

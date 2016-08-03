@@ -64,7 +64,8 @@ class ExtremesChannelPlot(ChannelPlot):
         value_range = DataRange1D(low_setting=self.value_range[0],
                                   high_setting=self.value_range[1])
         value_mapper = LinearMapper(range=value_range)
-        return ExtremesChannelPlot(source=source, index_mapper=index_mapper,
+        return ExtremesChannelPlot(source=source, 
+                                   index_mapper=index_mapper,
                                    value_mapper=value_mapper,
                                    line_color=self.line_color)
 
