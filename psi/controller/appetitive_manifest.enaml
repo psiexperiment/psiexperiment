@@ -161,6 +161,15 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
             expression = '0.2'
             group = 'trial'
             scope = 'trial'
+        Parameter:
+            name = 'training_mode'
+            label = 'Training mode'
+            compact_label = 'train'
+            dtype = np.dtype('bool')
+            default = False
+            expression = 'False'
+            group = 'trial'
+            scope = 'experiment'
                 
         ContextGroup:
             name = 'selector'

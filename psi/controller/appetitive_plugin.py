@@ -181,7 +181,8 @@ class AppetitivePlugin(BaseController):
             self.start_timer('to_duration', Event.to_duration_elapsed)
         else:
             if score == TrialScore.hit:
-                self.invoke_actions('deliver_reward', self.get_ts())
+                if not self.context.get_value('training_mode'):
+                    self.invoke_actions('deliver_reward', self.get_ts())
             self.trial_state = TrialState.waiting_for_iti
             self.start_timer('iti_duration', Event.iti_duration_elapsed)
 
@@ -305,7 +306,9 @@ class AppetitivePlugin(BaseController):
             elif event == Event.np_duration_elapsed:
                 log.debug('Animal initiated trial')
                 self.start_trial()
-                #self.invoke_actions('deliver_reward', self.get_ts())
+                if self.context.get_value('training_mode'):
+                    if self.trial_type.startswith('go'):
+                        self.invoke_actions('deliver_reward', self.get_ts())
 
         elif self.trial_state == TrialState.waiting_for_hold_period:
             # All animal-initiated events (poke/reward) are ignored during this
