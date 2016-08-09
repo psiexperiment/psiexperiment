@@ -167,6 +167,7 @@ class AppetitivePlugin(BaseController):
         target_start = self.trial_info.setdefault('target_start', np.nan)
         np_end = self.trial_info.setdefault('np_end', np.nan)
         np_start = self.trial_info.setdefault('np_start', np.nan)
+
         self.trial_info.update({
             'response': response,
             'trial_type': self.trial_type,
@@ -190,6 +191,16 @@ class AppetitivePlugin(BaseController):
         parameters ={'results': self.context.get_values()}
         self.core.invoke_command('psi.data.process_trial', parameters)
 
+        log.debug('Setting up for next trial')
+        # Apply pending changes that way any parameters (such as repeat_FA or
+        # go_probability) are reflected in determining the next trial type.
+        if self._apply_requested:
+            self._apply_changes()
+        selector = self.next_selector()
+        self.context.next_setting(selector, save_prior=True)
+        self.trial += 1
+        self.trial_info = {}
+
     def request_resume(self):
         super(AppetitivePlugin, self).request_resume()
         self.trial_state = TrialState.waiting_for_np_start
@@ -198,15 +209,10 @@ class AppetitivePlugin(BaseController):
         self._outputs[name].update()
 
     def ai_callback(self, name, data):
-        #if __debug__:
-        #    m = 'Acquired {} samples from {}'.format(data.shape, name)
-        #    log.trace(m)
         parameters = {'name': name, 'data': data}
         self.core.invoke_command('psi.data.process_ai', parameters)
 
     def di_callback(self, name, data):
-        #if __debug__:
-        #    log.trace('Acquired {} samples from {}'.format(data.shape, name))
         pass
 
     def et_callback(self, name, edge, event_time):
@@ -290,11 +296,8 @@ class AppetitivePlugin(BaseController):
                 self.trial_state = TrialState.waiting_for_np_duration
                 self.start_timer('np_duration', Event.np_duration_elapsed)
                 # If the animal does not maintain the nose-poke long enough,
-                # this value will get overwritten with the next nose-poke. In
-                # general, set np_end to NaN (sometimes the animal never
-                # withdraws).
+                # this value will be deleted.
                 self.trial_info['np_start'] = timestamp
-                self.trial_info['np_end'] = np.nan
 
         elif self.trial_state == TrialState.waiting_for_np_duration:
             if event == Event.np_end:
@@ -303,9 +306,14 @@ class AppetitivePlugin(BaseController):
                 log.debug('Animal withdrew too early')
                 self.stop_timer()
                 self.trial_state = TrialState.waiting_for_np_start
+                del self.trial_info['np_start']
             elif event == Event.np_duration_elapsed:
                 log.debug('Animal initiated trial')
                 self.start_trial()
+
+                # We want to deliver the reward immediately when in training
+                # mode so the food is already in the hopper. Not sure how
+                # *critical* this is?
                 if self.context.get_value('training_mode'):
                     if self.trial_type.startswith('go'):
                         self.invoke_actions('deliver_reward', self.get_ts())
@@ -318,7 +326,7 @@ class AppetitivePlugin(BaseController):
                 # Record the time of nose-poke withdrawal if it is the first
                 # time since initiating a trial.
                 log.debug('Animal withdrew during hold period')
-                if np.isnan(self.trial_info['np_end']):
+                if 'np_end' not in self.trial_info:
                     log.debug('Recording np_end')
                     self.trial_info['np_end'] = timestamp
             elif event == Event.hold_duration_elapsed:
@@ -336,13 +344,17 @@ class AppetitivePlugin(BaseController):
                 # Record the time of nose-poke withdrawal if it is the first
                 # time since initiating a trial.
                 log.debug('Animal withdrew during response period')
-                if np.isnan(self.trial_info['np_end']):
+                if 'np_end' not in self.trial_info:
                     log.debug('Recording np_end')
                     self.trial_info['np_end'] = timestamp
             elif event == Event.np_start:
                 log.debug('Animal repoked')
                 self.trial_info['response_ts'] = timestamp
                 self.end_trial(response='poke')
+                # At this point, trial_info should have been cleared by the
+                # `end_trial` function so that we can prepare for the next
+                # trial. Save the start of the nose-poke.
+                self.trial_info['np_start'] = timestamp
             elif event == Event.reward_start:
                 log.debug('Animal went to reward')
                 self.trial_info['response_ts'] = timestamp
@@ -366,54 +378,48 @@ class AppetitivePlugin(BaseController):
 
         elif self.trial_state == TrialState.waiting_for_iti:
             if event == Event.iti_duration_elapsed:
-                log.debug('Setting up for next trial')
-                # Apply pending changes that way any parameters (such as
-                # repeat_FA or go_probability) are reflected in determining the
-                # next trial type.
-                if self._apply_requested:
-                    self._apply_changes()
-                selector = self.next_selector()
-                self.context.next_setting(selector, save_prior=True)
-                self.trial += 1
-
                 if self._pause_requested:
                     self.pause_experiment()
                     self.trial_state = TrialState.waiting_for_resume
+                elif 'np_start' in self.trial_info:
+                    # The animal had initiated a nose-poke during the ITI.
+                    # Allow this to contribute towards the start of the next
+                    # trial by calculating how much is pending in the nose-poke
+                    # duration.
+                    self.trial_state = TrialState.waiting_for_np_duration
+                    current_poke_duration = self.get_ts()-self.trial_info['np_start']
+                    poke_duration = self.context.get_value('np_duration') 
+                    remaining_poke_duration = poke_duration-current_poke_duration
+                    delta = max(0, remaining_poke_duration)
+                    self.start_timer(delta, Event.np_duration_elapsed)
                 else:
                     self.trial_state = TrialState.waiting_for_np_start
+            elif event == Event.np_end and 'np_start' in self.trial_info:
+                del self.trial_info['np_start']
 
-    def start_timer(self, variable, event):
-        #if __debug__:
-        #    log.trace('Emitting start_timer signal')
-        deferred_call(self._start_timer, variable, event)
+    def start_timer(self, duration, event):
+        deferred_call(self._start_timer, duration, event)
 
     def stop_timer(self):
-        #if __debug__:
-        #    log.trace('Emitting stop_timer signal')
         deferred_call(self._stop_timer)
 
     def _stop_timer(self):
-        #if __debug__:
-        #    log.trace('Received stop_timer signal')
-        self.timer.timeout.disconnect()
-        self.timer.stop()
+        if self.timer is not None:
+            self.timer.timeout.disconnect()
+            self.timer.stop()
 
-    def _start_timer(self, variable, event):
-        # Even if the duration is 0, we should still create a timer because this
-        # allows the `_handle_event` code to finish processing the event. The
-        # timer should execute as soon as `_handle_event` finishes processing.
-        # Since the Enaml application is Qt-based, we need to use the QTimer to
-        # avoid issues with a Qt-based multithreading application.
-        #if __debug__:
-        #    log.trace('Received start_timer signal')
-        #    log.trace('timer for {} set to {}'.format(event, variable))
-        duration = self.context.get_value(variable)
+    def _start_timer(self, duration, event):
+        # The duration can be specified as a string naming the context variable
+        # to extract.
+        if isinstance(duration, basestring):
+            duration = self.context.get_value(duration)
+        log.debug('Timer for {} with duration {}'.format(event, duration))
         receiver = partial(self.handle_event, event)
 
-        if self.timer is not None:
-            self.timer.deleteLater()
-
-        self.timer = QTimer()
-        self.timer.timeout.connect(receiver)    # set up new callback
-        self.timer.setSingleShot(True)          # call only once
-        self.timer.start(duration*1e3)
+        if duration == 0:
+            deferred_call(receiver)
+        else:
+            self.timer = QTimer()
+            self.timer.timeout.connect(receiver)    # set up new callback
+            self.timer.setSingleShot(True)          # call only once
+            self.timer.start(duration*1e3)
