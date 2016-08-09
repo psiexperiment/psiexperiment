@@ -66,7 +66,7 @@ class SDTAnalysis(Sink):
             return
         trial_log = self.trial_log.iloc[-self.limit:].copy()
         if self.include_repeat_nogo:
-            m = trial_log.trial_type == 'ogo_repeat'
+            m = trial_log.trial_type == 'nogo_repeat'
             trial_log.loc[m, 'trial_type'] = 'nogo'
 
         m = trial_log.trial_type.apply(lambda x: x in ('nogo', 'go'))
@@ -78,7 +78,13 @@ class SDTAnalysis(Sink):
         results['z_score'] = results['mean'] \
             .clip(lower=0.05, upper=0.95) \
             .apply(norm.ppf)
-        results['z_score'] += results.loc['nogo', 'z_score']
+
+        # Attempt to correct for the FA rate. If there is no NOGO, then assume
+        # the FA rate is 0.05.
+        try:
+            results['z_score'] += results.loc['nogo', 'z_score']
+        except:
+            results['z_score'] += norm.ppf(0.05)
         self.results = results.astype(np.float32).reset_index()
 
 
