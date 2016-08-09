@@ -14,7 +14,8 @@ from enaml.application import deferred_call
 
 from .plugin import ContextPlugin
 
-from .context_view import ContextDockItem, CurrentValuesDockItem
+from .context_view import (ContextDockItem, CurrentValuesDockItem,
+                           PriorValuesDockItem)
 from .selector_view import SequenceDockItem
 
 from ..util import rpc
@@ -120,6 +121,15 @@ def contribute_to_workspace(workbench, workspace):
                                  closable=False)
     op = InsertItem(item=item.name, position='left')
     deferred_call(workspace.dock_area.update_layout, op)
+
+    item = PriorValuesDockItem(workspace.dock_area, 
+                               context=plugin,
+                               name='pv', 
+                               title='Prior values',
+                               closable=False)
+    op = InsertItem(item=item.name, position='left')
+    deferred_call(workspace.dock_area.update_layout, op)
+
 
 
 def apply_changes(event):

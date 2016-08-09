@@ -213,7 +213,9 @@ class ContextPlugin(Plugin):
         Load next set of expressions from the specified sequence
         '''
         if save_prior:
-            self._prior_values.append(self.get_values())
+            prior_values = self._prior_values[:]
+            prior_values.append(self.get_values())
+            self._prior_values = prior_values
         self._namespace.reset()
         expressions = self._iterators[selector].next()
         self._namespace.update_expressions(expressions)
