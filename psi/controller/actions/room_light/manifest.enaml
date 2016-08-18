@@ -66,3 +66,9 @@ enamldef RoomLightManifest(PluginManifest): manifest:
         ExperimentAction:
             event = 'timeout_end'
             command = PLUGIN_ID + '.light_on'
+        ExperimentAction:
+            event = 'experiment_start'
+            command = PLUGIN_ID + '.light_on'
+        ExperimentAction:
+            event = 'experiment_end'
+            command = PLUGIN_ID + '.light_off'
