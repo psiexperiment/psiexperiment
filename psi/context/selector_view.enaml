@@ -43,18 +43,18 @@ class UpdateSelectorWidgets(object):
         self.widgets = None
         self.old_widgets = None
 
-    def __call__(self, selector, parameters, settings):
-        if len(parameters) == 0:
+    def __call__(self, selector, context_items, settings):
+        if len(context_items) == 0:
             return []
         lw = []
-        sw = [SettingRemoveButton(setting=s, selector=selector) \
-              for s in settings]
-        for i, p in enumerate(parameters):
-            lw.append(Label(text=p.label))
+        sw = [SettingRemoveButton(setting=s, selector=selector) for s in settings]
+        for item_name in context_items:
+            label = Label(text=selector.get_item_info(item_name, 'label'))
+            lw.append(label)
             for j, s in enumerate(settings):
                 field = SequenceSettingField(selector=selector,
                                              setting_index=j,
-                                             parameter_name=p.name)
+                                             parameter_name=item_name)
                 sw.append(field)
         lw.extend(sw)
         self.old_widgets = self.widgets
@@ -115,12 +115,12 @@ template SelectorContainerTemplate(selector, MemberType: SequenceSelector):
             share_layout = True
             padding = 0
             layout_constraints => ():
-                n_parameters = len(selector.parameters)
+                n_context_items = len(selector.context_items)
                 n_settings = len(selector.settings)
 
                 # There's a drop area on either side of the label widgets to
                 # facilitate reordering.
-                n_label_widgets = n_parameters
+                n_label_widgets = n_context_items
 
                 widgets = self.visible_widgets()
                 label_widgets = widgets[:n_label_widgets]
@@ -166,7 +166,7 @@ template SelectorContainerTemplate(selector, MemberType: SequenceSelector):
             Include: inc:
                 destroy_old = False
                 objects << update_selector_widgets(selector,
-                                                   selector.parameters,
+                                                   selector.context_items,
                                                    selector.settings)
 
 
@@ -174,11 +174,13 @@ template SelectorContainerTemplate(selector, MemberType: SequenceSelector):
 ################################################################################
 # SingleSetting
 ################################################################################
-def update_single_setting_widgets(selector, parameters, setting):
+def update_single_setting_widgets(selector, context_items, setting):
     widgets = []
-    for p in parameters:
-        widgets.append(Label(text=p.label))
-        field = SingleSettingField(selector=selector, setting=setting, parameter_name=p.name)
+    for item_name in context_items:
+        label = Label(text=selector.get_item_info(item_name, 'label'))
+        widgets.append(label)
+        field = SingleSettingField(selector=selector, setting=setting,
+                                   parameter_name=item_name)
         widgets.append(field)
     return widgets
 
@@ -200,7 +202,7 @@ template SelectorContainerTemplate(selector, MemberType: SingleSetting):
 
         Include: inc:
             objects << update_single_setting_widgets(selector,
-                                                     selector.parameters,
+                                                     selector.context_items,
                                                      selector.setting)
 
 

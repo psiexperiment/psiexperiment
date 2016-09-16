@@ -1,43 +1,87 @@
 from enaml.core.api import DynamicTemplate
-from enaml.layout.api import hbox
-from enaml.widgets.api import Container, Field, CheckBox, Label, HGroup
+from enaml.layout.api import hbox, spacer
+from enaml.widgets.api import (Container, Field, CheckBox, Label, HGroup,
+                               PushButton, FileDialogEx)
 
-from .context_item import Result, Parameter, RovingParameter
+from .context_item import Result, Parameter, EnumParameter, FileParameter
+
+from enaml.widgets.api import ObjectCombo
 
 
-template ContextItemTemplate(context_item, MemberType: Result):
+enamldef WidgetDynamicTemplate(DynamicTemplate):
+    base = WidgetTemplate
+    args = (context_item, type(context_item))
 
-    HGroup:
+
+template WidgetTemplate(context_item, MemberType):
+    Field: widget:
+        text := context_item.expression
+
+
+template WidgetTemplate(context_item, MemberType: EnumParameter):
+    ObjectCombo: widget:
+        items << sorted(context_item.choices.keys())
+        selected := context_item.selected
+
+
+template WidgetTemplate(context_item, MemberType: FileParameter):
+    HGroup: widget:
+        spacing = 0
+        padding = 0
+        align_widths = False
+        Field: field:
+            text << context_item.path
+        PushButton: pb:
+            text = u'\u2315 Browse'
+            clicked ::
+                path = FileDialogEx \
+                    .get_open_file_name(workspace,
+                                        file_mode=context_item.file_mode,
+                                        current_path=context_item.current_path,
+                                        name_filters=context_item.name_filters)
+                if path:
+                    context_item.path = '{}'.format(path)
+
+
+template ContextItemTemplate(context_item, MemberType, scope):
+    HGroup: group:
         spacing = 0
         padding = 0
         Label: label:
             text = context_item.label
-        Label: field:
+        WidgetDynamicTemplate:
             pass
 
 
-template ContextItemTemplate(context_item, MemberType: Parameter):
-
-    HGroup:
+template ContextItemTemplate(context_item, MemberType, scope: 'experiment'):
+    HGroup: group:
         spacing = 0
         padding = 0
+        enabled << workbench.get_plugin('psi.controller') \
+            .experiment_state not in ('running', 'paused')
+
         Label: label:
             text = context_item.label
-        Field: field:
-            text := context_item.expression
+        WidgetDynamicTemplate:
+            pass
 
 
-template ContextItemTemplate(context_item, MemberType: RovingParameter):
-
-    HGroup:
+template ContextItemTemplate(context_item, MemberType, scope: 'trial'):
+    HGroup: group:
         spacing = 0
         padding = 0
         CheckBox: label:
-            checked := context_item.rove
-            text = context_item.label
-        Field: field:
-            text := context_item.expression
-            style_class << 'disabled' if context_item.rove else 'enabled'
+            checked << context_item.name in \
+                workbench.get_plugin('psi.context').roving_items
+            toggled ::
+                context = workbench.get_plugin('psi.context')
+                if checked:
+                    context.rove_item(context_item.name)
+                else:
+                    context.unrove_item(context_item.name)
+            text << context_item.label
+        WidgetDynamicTemplate:
+            pass
 
 
 enamldef ContextItem(Container):
@@ -46,4 +90,4 @@ enamldef ContextItem(Container):
 
     DynamicTemplate:
         base = ContextItemTemplate
-        args = (context_item, type(context_item))
+        args = (context_item, type(context_item), context_item.scope)

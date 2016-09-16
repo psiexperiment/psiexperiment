@@ -1,0 +1,236 @@
+import logging
+log = logging.getLogger(__name__)
+
+import numpy as np
+
+from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
+from enaml.workbench.ui.api import Branding
+
+from psi.controller.appetitive_manifest import AppetitiveManifest
+from psi.controller.engines.nidaq import NIDAQEngine
+
+from psi.context.api import ContextGroup, Parameter
+from psi.controller.api import (ContinuousOutput, EpochOutput, AIChannel,
+                                AOChannel, ExperimentAction, Trigger, Toggle,
+                                DOChannel, Input)
+from psi.data.plots import (TimeContainer, ChannelPlot, TimeseriesPlot,
+                            ExtremesChannelPlot)
+
+
+from psi.controller.input import Downsample, IIRFilter, Threshold, Edges
+
+
+def insert_target(event):
+    controller = event.workbench.get_plugin('psi.controller')
+    ts = controller.get_ts()
+
+    target = controller._outputs['target']
+    waveform = target.get_waveform()
+    offset = int(target.channel.fs*(0.25+ts))
+    log.debug('Target with {} samples starting at {}' \
+              .format(waveform.shape[-1], offset))
+    target.engine.modify_hw_ao(waveform, offset=offset)
+
+    controller.trial_info['target_start'] = ts
+    controller.trial_info['target_end'] = \
+        ts+(waveform.shape[-1]/target.channel.fs)
+
+
+enamldef ControllerManifest(AppetitiveManifest): manifest:
+
+    Extension:
+        id = 'branding'
+        point = 'enaml.workbench.ui.branding'
+        Branding:
+            title = 'Go-Nogo'
+
+    Extension:
+        id = 'appetitive_commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = 'psi.controller.insert_target'
+            handler = insert_target
+
+    Extension:
+        id = 'actions'
+        point = 'psi.controller.actions'
+        ExperimentAction:
+            event = 'trial_start'
+            command = 'psi.controller.insert_target'
+
+    Extension:
+        id = 'backend'
+        point = 'psi.controller.io'
+
+        NIDAQEngine:
+            name = 'NI'
+            master_clock = True
+            
+            # Since we're using an AnalogThreshold input to detect nose pokes
+            # and reward contact, we want a fairly short AI monitor period to
+            # ensure that we detect these events quickly.
+            hw_ai_monitor_period = 0.01
+            hw_ao_monitor_period = 1
+
+            AOChannel:
+                label = 'Speaker'
+                name = 'speaker'
+                channel = 'Dev1/ao0'
+                fs = 100e3
+                expected_range = (-10, 10)
+                dtype = np.dtype('float64')
+
+                ContinuousOutput:
+                    name = 'background'
+                    label = 'Background'
+
+                EpochOutput:
+                    name = 'target'
+                    label = 'Target'
+
+            DOChannel:
+                name = 'food_dispense'
+                channel = 'Dev1/port0/line0'
+                fs = 0
+                dtype = np.dtype('bool')
+
+                Trigger:
+                    # This is a required output for the food dispenser. The
+                    # plugin will look for this output by name. If not present,
+                    # the food dispenser plugin will not work!
+                    name = 'food_dispense_trigger'
+                    duration = 0.1
+
+            DOChannel:
+                name = 'room_light'
+                channel = 'Dev1/port0/line1'
+                fs = 0
+                dtype = np.dtype('bool')
+
+                Toggle:
+                    # This is a required output for the room light. The plugin
+                    # will look for this output by name. If not present, the
+                    # room light plugin will not work!
+                    name = 'room_light_toggle'
+
+            #AIChannel:
+            #    label = 'Microphone'
+            #    name = 'microphone'
+            #    channel = 'Dev1/ai0'
+            #    start_trigger = 'ao/StartTrigger'
+            #    fs = 100e3
+            #    expected_range = (-10, 10)
+            #    dtype = np.dtype('float64')
+            #    mode = 'differential'
+
+            #    Input:
+            #        name = 'microphone'
+
+            AIChannel:
+                label = 'Nose poke IR'
+                name = 'nose_poke'
+                channel = 'Dev1/ai2'
+                start_trigger = 'ao/StartTrigger'
+                fs = 100e3
+                expected_range = (-10, 10)
+                dtype = np.dtype('float64')
+                mode = 'differential'
+
+                IIRFilter:
+                    f_lowpass = 25
+                    btype = 'lowpass'
+                    ftype = 'butter'
+                    N = 4
+                    Downsample:
+                        # effective Fs is 100
+                        name = 'nose_poke_analog'
+                        q = 1000
+                        Threshold:
+                            threshold = 2.5
+                            Edges:
+                                debounce = 2
+                                name = 'nose_poke'
+
+
+            AIChannel:
+                label = 'Reward contact IR'
+                name = 'reward_contact'
+                channel = 'Dev1/ai3'
+                start_trigger = 'ao/StartTrigger'
+                fs = 100e3
+                expected_range = (-10, 10)
+                dtype = np.dtype('float64')
+                mode = 'differential'
+
+                IIRFilter:
+                    f_lowpass = 25
+                    btype = 'lowpass'
+                    ftype = 'butter'
+                    N = 1
+                    Downsample:
+                        name = 'reward_contact_analog'
+                        q = 1000
+                        Threshold:
+                            threshold = 2.5
+                            Edges:
+                                debounce = 2
+                                name = 'reward_contact'
+
+
+    Extension:
+        id = 'plots'
+        point = 'psi.data.plots'
+
+        TimeContainer:
+            name = 'trial_plot_container' 
+            title = 'Trial timing'
+            trig_delay = 0
+            span = 10
+
+            ChannelPlot:
+                source = 'reward_contact_analog'
+                line_color = (1, 0, 1)
+                value_range = (-20, 6)
+
+            ChannelPlot:
+                source = 'nose_poke_analog'
+                line_color = (0, 0, 1)
+                value_range = (-20, 6)
+
+            TimeseriesPlot:
+                source = 'event_log'
+                rising_event = 'reward_start'
+                falling_event = 'reward_end'
+                fill_color = (0.25, 0.41, 0.88, 0.25)
+                line_color = (0.25, 0.41, 0.88, 0.5)
+                rect_center = 0.25
+                rect_height = 0.2
+
+            TimeseriesPlot:
+                source = 'event_log'
+                rising_event = 'np_start'
+                falling_event = 'np_end'
+                fill_color = (.17, .54, .34, 0.25)
+                line_color = (.17, .54, .34, 0.5)
+                rect_center = 0.5
+                rect_height = 0.2
+
+            #ExtremesChannelPlot:
+            #    decimation_threshold = 5
+            #    source = 'microphone'
+            #    line_color = (0, 0, 0)
+            #    value_range = (-1, 1)
+
+
+    # TODO: Should these automatically be contributed by the controller when it
+    # loads the list of outputs? I think so.
+    Extension:
+        id = 'groups'
+        point = 'psi.context.items'
+        ContextGroup:
+            name = 'background'
+            label = 'Background'
+        ContextGroup:
+            name = 'target'
+            label = 'Target'

@@ -2,7 +2,7 @@ import numpy as np
 
 from enaml.workbench.api import Extension, Plugin
 from psi.context.api import (ContextGroup, Parameter, Result,
-                                       RovingParameter, SequenceSelector)
+                                       Parameter, SequenceSelector)
 from psi.controller.base_manifest import ControllerManifest
 
 
@@ -19,22 +19,25 @@ enamldef TestManifest(ControllerManifest): manifest:
         ContextGroup:
             name = 'default'
 
-        RovingParameter:
+        Parameter:
             name = 'repetitions'
             expression = '80'
             dtype = np.int32
             group = 'default'
             rove = True
-        RovingParameter:
+            scope = 'trial'
+        Parameter:
             name = 'level'
             expression = '60'
             dtype = np.float64
             group = 'default'
-        RovingParameter:
+            scope = 'trial'
+        Parameter:
             name = 'fc'
             expression = '32e3/repetitions'
             dtype = np.float64
             group = 'default'
+            scope = 'trial'
 
     Extension:
         id = 'selectors'

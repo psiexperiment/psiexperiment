@@ -1,37 +1,47 @@
 import numpy as np
 import pandas as pd
+from scipy.stats import norm
 
-from atom.api import ContainerList, Typed, Str, Int, observe
+from atom.api import ContainerList, Typed, Str, Int, observe, Bool
 from enaml.application import deferred_call
-from enaml.layout.api import InsertItem
-from enaml.widgets.api import (Container, DockItem, Label, Field)
+from enaml.layout.api import InsertItem, hbox, vbox, spacer
+from enaml.widgets.api import (Container, DockItem, CheckBox, Label, Field, HGroup)
 from enaml.workbench.api import Extension, PluginManifest
 
 from psi.core.utils import find_extension
 from psi.core.enaml.dataframe_table_widget \
     import DataframeTable
-from ..plugin import TrialData
+from ..plugin import Sink
 
 PLUGIN_ID = 'psi.data.sdt_analysis'
 
+EXTRA_COLS = {
+    'mean': {'compact_label': 'Fraction'}, 
+    'size': {'compact_label': '# trials'},
+    'sum': {'compact_label': '# Correct'},
+    'z_score': {'compact_label': 'd\''},
+}
 
-class SDTAnalysis(TrialData):
+
+class SDTAnalysis(Sink):
 
     trial_log = Typed(pd.DataFrame)
     results = Typed(pd.DataFrame)
-    grouping = ContainerList()
-    visible_columns = ContainerList()
-    column_info = Typed(dict, {})
-    limit = Int()
+    grouping = Typed(list, [])
+    visible_columns = Typed(list, [])
+    context_info = Typed(dict, {})
 
-    def prepare(self, context_info):
-        self.grouping = ['trial_type'] + [k for k, v in context_info.items() if v['rove']]
-        self.column_info = dict((k, v['compact_label']) \
-                                for k, v in context_info.items())
-        self.column_info.update({'mean': 'Average', 
-                                 'size': 'Trials', 
-                                 'sum': 'Correct'})
-        self.visible_columns = self.grouping[:] + ['mean', 'sum', 'size']
+    limit = Int()
+    include_repeat_nogo = Bool()
+
+    def prepare(self, plugin):
+        if not self.grouping:
+            self.grouping = ['trial_type']
+
+    def context_info_updated(self, context_info):
+        context_info = context_info.copy()
+        context_info.update(EXTRA_COLS)
+        self.context_info = context_info
 
     def trial_log_updated(self, trial_log):
         self.trial_log = trial_log
@@ -41,12 +51,41 @@ class SDTAnalysis(TrialData):
     def limit_changed(self, event):
         self.update_results()
 
+    @observe('include_repeat_nogo')
+    def include_repeat_nogo_changed(self, event):
+        self.update_results()
+
+    @observe('grouping')
+    def grouping_changed(self, event):
+        self.visible_columns = self.grouping + ['mean', 'size', 'sum', 'z_score']
+
     def update_results(self):
         if self.trial_log is None:
             return
-        trial_log = self.trial_log.iloc[-self.limit:]
-        self.results = trial_log.groupby(self.grouping)['correct'] \
-            .agg({'sum', 'size', 'mean'}).astype(np.float32).reset_index()
+        if not self.grouping:
+            return
+        trial_log = self.trial_log.iloc[-self.limit:].copy()
+        if self.include_repeat_nogo:
+            m = trial_log.trial_type == 'nogo_repeat'
+            trial_log.loc[m, 'trial_type'] = 'nogo'
+
+        m = trial_log.trial_type.apply(lambda x: x in ('nogo', 'go'))
+        if not np.any(m):
+            return
+
+        results = trial_log[m].groupby(self.grouping)['correct'] \
+            .agg(['sum', 'size', 'mean'])
+        results['z_score'] = results['mean'] \
+            .clip(lower=0.05, upper=0.95) \
+            .apply(norm.ppf)
+
+        # Attempt to correct for the FA rate. If there is no NOGO, then assume
+        # the FA rate is 0.05.
+        try:
+            results['z_score'] += results.loc['nogo', 'z_score']
+        except:
+            results['z_score'] += norm.ppf(0.05)
+        self.results = results.astype(np.float32).reset_index()
 
 
 enamldef SDTAnalysisDockItem(DockItem):
@@ -54,24 +93,40 @@ enamldef SDTAnalysisDockItem(DockItem):
     attr analysis
 
     Container:
-        Label:
-            text = 'Limit'
-        Field:
+        constraints = [
+            vbox(
+                hbox(
+                    limit_label,
+                    limit_field,
+                    spacer,
+                    repeat_nogo_field
+                ),
+                table,
+            )
+        ]
+
+        Label: limit_label:
+            text = 'Trial limit'
+            hug_width = 'strong'
+        Field: limit_field:
             text << str(analysis.limit)
             text ::
                 analysis.limit = int(text)
+        CheckBox: repeat_nogo_field:
+            checked := analysis.include_repeat_nogo
+            text = 'Include repeat NOGO?'
 
-        DataframeTable:
+        DataframeTable: table:
             dataframe << analysis.results
-            columns << analysis.visible_columns[:]
-            column_info << analysis.column_info
+            columns << analysis.visible_columns
+            column_info << analysis.context_info
 
 
 def contribute_to_workspace(workbench, workspace):
-    extension = find_extension(workbench, PLUGIN_ID, 'data', SDTAnalysis)
+    extension = find_extension(workbench, PLUGIN_ID, 'sink', SDTAnalysis)
     item = SDTAnalysisDockItem(workspace.dock_area, analysis=extension,
                                name='sdt_analysis', title='SDT Analysis')
-    op = InsertItem(item=item.name, position='bottom')
+    op = InsertItem(item=item.name, position='right')
     deferred_call(workspace.dock_area.update_layout, op)
 
 
@@ -80,8 +135,8 @@ enamldef SDTAnalysisManifest(PluginManifest): manifest:
     id = PLUGIN_ID
 
     Extension:
-        id = 'data'
-        point = 'psi.data.trial'
+        id = 'sink'
+        point = 'psi.data.sink'
         SDTAnalysis:
             pass
 

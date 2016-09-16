@@ -1,36 +1,142 @@
-from atom.api import Unicode, Typed
+import logging
+log = logging.getLogger(__name__)
+
+from atom.api import Unicode, Typed, Property, Bool
+from enaml.application import deferred_call
+from enaml.layout.api import InsertItem
+from enaml.widgets.api import DockItem
 from enaml.workbench.api import Extension, PluginManifest
+from enaml.workbench.core.api import Command
+
 
 import tables as tb
 import pandas as pd
 import numpy as np
 
-from ..plugin import TrialData
+from ..plugin import Sink
+from psi import get_config
+from psi.core.utils import find_extension
+
+from .data_source import DataChannel, DataTable
 
 PLUGIN_ID = 'psi.data.hdf_store'
 
 
-class HDFStore(TrialData):
+class HDFStore(Sink):
     '''
     Simple class for storing acquired trial data in a HDF5 file. No analysis or
     further processing is done.
     '''
-    file_name = Unicode()
-    table = Typed(tb.Table)
-    description = Typed(np.dtype)
+    file_handle = Property()
+    node = Typed(tb.Group)
+    initialized = Bool(False)
 
-    def prepare(self, parameters):
-        fh = tb.open_file(self.file_name, 'w')
-        description = [(str(p.name), p.dtype) for p in parameters]
-        self.description = np.dtype(description)
-        self.table = fh.create_table('/', 'trial_log', self.description)
+    trial_log = Typed(object)
+    trial_log_dtype = Typed(np.dtype)
+    event_log = Typed(object)
+    event_log_dtype = Typed(np.dtype)
 
-    def process_trial(self, trial):
+    _channels = Typed(dict)
+
+    def _get_file_handle(self):
+        return self.node._v_file
+
+    def _prepare_trial_log(self, context_info):
+        '''
+        Create a table to hold the event log.
+        '''
+        dtype = [(str(name), item['dtype']) for name, item \
+                 in context_info.items()]
+        self.trial_log_dtype = np.dtype(dtype)
+        node = self.file_handle.create_table(self.node, 'trial_log',
+                                             self.trial_log_dtype)
+        self.trial_log = DataTable(data=node)
+
+    def _prepare_event_log(self):
+        '''
+        Create a table to hold the event log.
+        '''
+        dtype = [('timestamp', np.dtype('float32')), 
+                 ('event', np.dtype('S512'))]
+        self.event_log_dtype = np.dtype(dtype)
+        node = self.file_handle.create_table(self.node, 'event_log',
+                                             self.event_log_dtype)
+        self.event_log = DataTable(data=node)
+
+    def _prepare_continuous_input(self, input):
+        atom = tb.Atom.from_dtype(input.channel.dtype)
+        expected_rows = int(input.channel.fs * 60 * 60)
+        filters = tb.Filters(**get_config('H5_COMPRESSION'))
+        node = self.file_handle.create_earray(self.node, input.name, atom,
+                                              (0,), filters=filters,
+                                              expectedrows=expected_rows)
+        for name, value in input.__getstate__().items():
+            node._v_attrs[name] = value
+        for name, value in input.channel.__getstate__().items():
+            node._v_attrs['channel_' + name] = value
+        for name, value in input.engine.__getstate__().items():
+            node._v_attrs['engine_' + name] = value
+        return DataChannel(data=node, fs=input.fs) 
+
+    def _prepare_inputs(self, inputs):
+        channels = {}
+        for input in inputs:
+            try:
+                prep_function_name = '_prepare_{}_input'.format(input.mode)
+                prep_function = getattr(self, prep_function_name)
+                channels[input.name] = prep_function(input)
+            except AttributeError:
+                m = 'No method for preparing datasource for {}'
+                log.debug(m.format(input.mode))
+        self._channels = channels
+
+    def prepare(self, plugin):
+        self._prepare_event_log()
+        self._prepare_trial_log(plugin.context_info)
+        self._prepare_inputs(plugin.inputs.values())
+        self._channels['trial_log'] = self.trial_log
+        self._channels['event_log'] = self.event_log
+        self.initialized = True
+
+    def finalize(self):
+        log.debug('Flushing all data to disk')
+        self.file_handle.flush()
+
+    def stop(self):
+        log.debug('Closing HDF5 file')
+        self.file_handle.close()
+
+    def process_trial(self, results):
         # This is the simplest one-liner to convert the dictionary to the
         # format required for appending.
-        row = pd.DataFrame([trial]).to_records().astype(self.description)
-        self.table.append(row)
-        self.table.flush()
+        row = pd.DataFrame([results]).to_records().astype(self.trial_log_dtype)
+        self.trial_log.append(row)
+
+    def process_event(self, event, timestamp):
+        data = {'event': event, 'timestamp': timestamp}
+        row = pd.DataFrame([data]).to_records().astype(self.event_log_dtype)
+        self.event_log.append(row)
+
+    def process_ai(self, name, data):
+        if self._channels[name] is not None:
+            self._channels[name].append(data)
+
+    def get_source(self, source_name):
+        try:
+            return self._channels[source_name]
+        except KeyError:
+            # TODO: Once we port to Python 3, add exception chaining.
+            raise AttributeError
+
+    def set_current_time(self, name, timestamp):
+        self._channels[name].set_current_time(timestamp)
+
+
+def set_node(event):
+    extension = find_extension(event.workbench, PLUGIN_ID, 'sink', HDFStore)
+    if extension.initialized:
+        raise ValueError('Cannot change node once data has initialized')
+    extension.node = event.parameters['node']
 
 
 enamldef HDFStoreManifest(PluginManifest): manifest:
@@ -38,7 +144,14 @@ enamldef HDFStoreManifest(PluginManifest): manifest:
     id = PLUGIN_ID
 
     Extension:
-        id = 'data'
-        point = 'psi.data.trial'
+        id = 'sink'
+        point = 'psi.data.sink'
         HDFStore:
             pass
+
+    Extension:
+        id = 'commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = PLUGIN_ID + '.set_node'
+            handler = set_node

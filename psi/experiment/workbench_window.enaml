@@ -1,0 +1,19 @@
+from enaml.core.api import Include
+from enaml.stdlib.message_box import warning
+from enaml.widgets.api import ToolBar
+from enaml.workbench.ui.workbench_window import WorkbenchWindow
+
+
+enamldef ExperimentWorkbenchWindow(WorkbenchWindow):
+
+    closing ::
+        # Make sure the experiment isn't running when the close button is
+        # pressed.
+        plugin = workbench.get_plugin('psi.controller')
+        if plugin.experiment_state in ('running', 'paused'):
+            change['value'].ignore()
+            warning(self, 'Experiment running', 
+                    'Please stop the experiment before exiting.')
+
+    Include:
+        objects << window_model.workspace.toolbars

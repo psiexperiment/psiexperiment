@@ -2,65 +2,59 @@ from atom.api import ContainerList, Typed, Dict
 from enaml.application import deferred_call
 from enaml.core.api import Looper
 from enaml.layout.api import InsertItem
-from enaml.widgets.api import (Container, Menu, Action, DockItem)
+from enaml.widgets.api import (Container, Menu, Action, DockItem, PopupView,
+                               Form, CheckBox, Label, HGroup)
 from enaml.workbench.api import Extension, PluginManifest
 
 import pandas as pd
 
-from psi.core.utils import find_extension
 from psi.core.enaml.api import DataframeTable
-from psi.experiment.api import Preferences
-
-from ..trial_data import TrialData
+from psi.experiment.api import UIPreferences
 
 PLUGIN_ID = 'psi.data.trial_log'
 
 
-class TrialLog(TrialData):
+enamldef TableConfig(PopupView): popup:
 
-    trial_log = Typed(pd.DataFrame)
-    context_info = Dict()
-    column_info = Typed(dict, {})
-    visible_columns = ContainerList()
+    attr column_info
+    attr widget
 
-    def prepare(self, context_info):
-        self.context_info = context_info.copy()
-        self.column_info = dict((k, v['compact_label']) \
-                                for k, v in context_info.items())
-        self.visible_columns = [k for k, v in context_info.items() if
-                                v['rove']]
+    parent_anchor = (0.0, 0.0)
+    arrow_size = 20
+    arrow_edge = 'right'
+    offset = (0, 0)
 
-    def trial_log_updated(self, trial_log):
-        self.trial_log = trial_log
-
-
-enamldef PopupMenu(Menu):
-
-    Looper:
-        iterable << sorted(data.context_info.items())
-        Action:
-            text = '{} | {}'.format(loop_item[1]['compact_label'],
-                                    loop_item[1]['label'])
-            checkable = True
-            checked << loop_item[0] in data.visible_columns
-            toggled ::
-                if checked:
-                    data.visible_columns.append(loop_item[0])
-                else:
-                    data.visible_columns.remove(loop_item[0])
+    Form:
+        Looper:
+            iterable << sorted(column_info.items())
+            CheckBox:
+                checked << loop_item[0] in widget.columns
+                toggled ::
+                    if checked:
+                        widget.columns.append(loop_item[0])
+                    else:
+                        widget.columns.remove(loop_item[0])
+            Label:
+                text = '{} | {}'.format(loop_item[1]['label'],
+                                        loop_item[1]['compact_label'])
 
 
 enamldef TrialLogDockItem(DockItem):
 
-    attr data
+    attr data_plugin
+    closable = False
 
-    Container:
-        DataframeTable:
-            dataframe << data.trial_log
-            columns << data.visible_columns[:]
-            column_info << data.column_info
-            PopupMenu:
-                context_menu = True
+    title_bar_right_clicked ::
+        TableConfig(self, 
+                    column_info=data_plugin.context_info,
+                    widget=self.find('trial_log_table')).show()
+
+    Container: main_container:
+        DataframeTable: trial_log_table:
+            name = 'trial_log_table'
+            hug_width = 'weak'
+            dataframe << data_plugin.trial_log
+            column_info << data_plugin.context_info
 
             cell_color => (row, column):
                 tt = dataframe.at[row, 'trial_type']
@@ -79,9 +73,11 @@ enamldef TrialLogDockItem(DockItem):
 
 
 def contribute_to_workspace(workbench, workspace):
-    extension = find_extension(workbench, PLUGIN_ID, 'data', TrialLog)
-    item = TrialLogDockItem(workspace.dock_area, data=extension,
-                            name='trial_log', title='Trial Log')
+    plugin = workbench.get_plugin('psi.data')
+    item = TrialLogDockItem(workspace.dock_area, 
+                            data_plugin=plugin,
+                            name='trial_log', 
+                            title='Trial Log')
     op = InsertItem(item=item.name, position='right')
     deferred_call(workspace.dock_area.update_layout, op)
 
@@ -91,12 +87,6 @@ enamldef TrialLogManifest(PluginManifest): manifest:
     id = PLUGIN_ID
 
     Extension:
-        id = 'data'
-        point = 'psi.data.trial'
-        TrialLog:
-            pass
-
-    Extension:
         id = 'workspace'
         point = 'psi.experiment.workspace'
         factory = contribute_to_workspace
@@ -104,7 +94,7 @@ enamldef TrialLogManifest(PluginManifest): manifest:
     Extension:
         id = 'preferences'
         point = 'psi.experiment.preferences'
-        Preferences:
-            auto_save = ['visible_columns']
-            get_object => (plugin):
-                return find_extension(workbench, PLUGIN_ID, 'data', TrialLog)
+        UIPreferences:
+            name = 'trial_log_table_columns'
+            item_name = 'trial_log_table'
+            auto_save = ['columns', 'column_state']

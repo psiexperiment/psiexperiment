@@ -7,71 +7,56 @@ from atom.api import ContainerList, Typed, Enum, Event
 from enaml.core.declarative import Declarative
 
 from . import choice
+from .plugin import ContextPlugin
 from .. import SimpleState
 
 
 class BaseSelector(SimpleState, Declarative):
 
-    context_info = Typed(dict, {})
-    parameters = ContainerList()
+    context_plugin = Typed(ContextPlugin).tag(transient=True)
+    context_items = Typed(list, [])
     updated = Event()
 
-    def append_parameter(self, parameter):
-        self.insert_parameter(len(self.parameters), parameter)
+    def append_item(self, item_name):
+        context_items = self.context_items[:]
+        context_items.append(item_name)
+        self.context_items = context_items
         self.updated = True
 
-    def remove_parameter(self, parameter):
-        self.parameters.remove(parameter)
+    def remove_item(self, item_name):
+        context_items = self.context_items[:]
+        context_items.remove(item_name)
+        self.context_items = context_items
         self.updated = True
 
-    def insert_parameter(self, index, parameter):
-        self.parameters.insert(index, parameter)
-        self.updated = True
-
-    def find_parameter(self, name):
-        for p in self.parameters:
-            if p.name == name:
-                return p
-
-    def move_parameter(self, parameter, after=None):
-        if parameter == after:
-            return
-        self.parameters.remove(parameter)
-        if after is None:
-            index = 0
-        else:
-            index = self.parameters.index(after)+1
-        self.parameters.insert(index, parameter)
-        self.updated = True
+    def get_item_info(self, item_name, attribute):
+        return self.context_plugin.get_item_info(item_name)[attribute]
 
 
 class SingleSetting(BaseSelector):
 
     setting = Typed(dict, ())
 
-    def insert_parameter(self, index, parameter):
-        if parameter.name not in self.setting:
-            self.setting[parameter.name] = parameter.default
-        super(SingleSetting, self).insert_parameter(index, parameter)
+    def append_item(self, item_name):
+        if item_name not in self.setting:
+            self.setting[item_name] = self.get_item_info(item_name, 'default')
+        super(SingleSetting, self).append_item(item_name)
 
     def get_iterator(self):
         return itertools.cycle([self.setting.copy()])
 
-    def get_value(self, parameter_name):
-        return self.setting[parameter_name]
+    def get_value(self, item_name):
+        return self.setting[item_name]
 
-    def set_value(self, parameter_name, value):
-        for p in self.parameters:
-            if p.name == parameter_name:
-                value = p.dtype(value)
-                break
-        self.setting[parameter_name] = value
+    def set_value(self, item_name, value):
+        dtype = self.get_item_info(item_name, 'dtype')
+        self.setting[item_name] = dtype.type(value)
         self.updated = True
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
-        attrs = ['parameters', 'setting']
+        attrs = ['context_items', 'setting']
         for attr in attrs:
             if getattr(self, attr) != getattr(other, attr):
                 return False
@@ -80,18 +65,16 @@ class SingleSetting(BaseSelector):
 
 class SequenceSelector(BaseSelector):
 
-    settings = ContainerList()
+    settings = ContainerList(default=[])
     order = Enum(*choice.options.values())
-
-    def _default_settings(self):
-        return []
 
     def add_setting(self, values=None):
         if values is None:
             values = {}
-        for p in self.parameters:
-            if p.name not in values:
-                values[p.name] = p.default
+        for item_name in self.context_items:
+            if item_name not in values:
+                default = self.get_item_info(item_name, 'default')
+                values[item_name] = default
         self.settings.append(values)
         self.updated = True
 
@@ -99,45 +82,41 @@ class SequenceSelector(BaseSelector):
         self.settings.remove(setting)
         self.updated = True
 
-    def insert_parameter(self, index, parameter):
+    def append_item(self, item_name):
         for setting in self.settings:
-            if parameter.name not in setting:
-                setting[parameter.name] = parameter.default
-        super(SequenceSelector, self).insert_parameter(index, parameter)
+            if item_name not in setting:
+                default = self.get_item_info(item_name, 'default')
+                setting[item_name] = default
+        super(SequenceSelector, self).append_item(item_name)
 
     def sort_settings(self):
-        names = [p.name for p in self.parameters]
-        self.settings.sort(key=operator.itemgetter(*names))
+        self.settings.sort()
         self.updated = True
 
     def get_iterator(self):
         # Some selectors need to sort the settings. To make sure that the
         # selector sorts the parameters in the order the columns are specified,
         # we need to use an OrderedDict.
-        names = [p.name for p in self.parameters]
         ordered_settings = []
         for setting in self.settings:
             ordered_setting = collections.OrderedDict()
-            for n in names:
-                ordered_setting[n] = setting[n]
+            for item_name in self.context_items:
+                ordered_setting[item_name] = setting[item_name]
             ordered_settings.append(ordered_setting)
         return self.order(ordered_settings)
 
-    def set_value(self, setting_index, parameter_name, value):
-        for p in self.parameters:
-            if p.name == parameter_name:
-                value = p.dtype(value)
-                break
-        self.settings[setting_index][parameter_name] = value
+    def set_value(self, setting_index, item_name, value):
+        dtype = self.get_item_info(item_name, 'dtype')
+        self.settings[setting_index][item_name] = dtype.type(value)
         self.updated = True
 
-    def get_value(self, setting_index, parameter_name):
-        return self.settings[setting_index][parameter_name]
+    def get_value(self, setting_index, item_name):
+        return self.settings[setting_index][item_name]
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return False
-        attrs = ['parameters', 'settings', 'order']
+        attrs = ['context_items', 'settings', 'order']
         for attr in attrs:
             if getattr(self, attr) != getattr(other, attr):
                 return False

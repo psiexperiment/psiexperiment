@@ -8,20 +8,27 @@ from enaml.workbench.api import Extension, PluginManifest, ExtensionPoint
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem, Autostart
 
-from ..context.api import ContextGroup, Parameter, Result, RovingParameter
+from ..context.api import ContextGroup, Parameter, Result
 from ..context.selector import SequenceSelector, SingleSetting
 
 from .base_manifest import ControllerManifest
-from .appetitive_plugin import AppetitivePlugin
+from .appetitive_plugin import AppetitivePlugin, Event
 from ..util import rpc
 
 
 PLUGIN_ID = 'psi.controller'
 
 
-def get_status(trial, trial_type):
-    if trial == 0:
-        return 'Waiting for start'
+def get_status(trial, trial_type, experiment_state):
+    # Experiment not running
+    if experiment_state == 'paused':
+        return 'Experiment paused'
+    elif experiment_state == 'initialized':
+        return 'Waiting to start'
+    elif experiment_state == 'stopped':
+        return 'Experiment complete'
+
+    # Experiment running
     if '_' in trial_type:
         general, specific = trial_type.split('_') 
         label = '{} ({})'.format(general, specific)
@@ -30,13 +37,23 @@ def get_status(trial, trial_type):
     return 'Trial {}: {}'.format(trial, label)
 
 
+def get_state(trial_state):
+    if trial_state is None:
+        return ''
+    else:
+        return trial_state.value.capitalize()
+
+
 enamldef ControllerStateDockItem(DockItem):
 
     attr controller
 
     Container:
         Label:
-            text << get_status(controller.trial, controller.trial_type)
+            text << get_status(controller.trial, controller.trial_type,
+                               controller.experiment_state)
+        Label:
+            text << get_state(controller.trial_state)
 
 
 def contribute_to_workspace(workbench, workspace):
@@ -61,22 +78,34 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
         rank = 1000
         point = 'psi.experiment.toolbar'
         Action:
-            text = 'Spout'
-            tool_tip = 'Mark spout response'
+            text = 'Target + reward'
             triggered ::
                 plugin = workbench.get_plugin(PLUGIN_ID)
-                plugin.end_trial(response='spout')
-            enabled << workbench.get_plugin(PLUGIN_ID).state \
+                with plugin.lock:
+                    plugin.start_trial()
+                    plugin.invoke_actions('deliver_reward', plugin.get_ts())
+                    plugin.end_trial('reward')
+            enabled <<  workbench.get_plugin(PLUGIN_ID).experiment_state \
                 not in ('initialized', 'stopped')
         Action:
             text = 'Poke'
-            tool_tip = 'Mark nose poke'
+            checkable = True
+            toggled ::
+                plugin = workbench.get_plugin(PLUGIN_ID)
+                if checked:
+                    plugin.handle_event(Event.np_start)
+                else:
+                    plugin.handle_event(Event.np_end)
+            enabled <<  workbench.get_plugin(PLUGIN_ID).experiment_state \
+                not in ('initialized', 'stopped')
+        Action:
+            text = 'Spout'
             triggered ::
                 plugin = workbench.get_plugin(PLUGIN_ID)
-                plugin.end_trial(response='poke')
-            enabled <<  workbench.get_plugin(PLUGIN_ID).state \
+                plugin.handle_event(Event.reward_start)
+                plugin.handle_event(Event.reward_end)
+            enabled << workbench.get_plugin(PLUGIN_ID).experiment_state \
                 not in ('initialized', 'stopped')
-
 
     # Parameters used by the appetitive Go-Nogo controller.
     Extension:
@@ -87,46 +116,60 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
             name = 'trial'
             label = 'Trial Settings'
 
-        RovingParameter:
+        Parameter:
             name = 'iti_duration'
             label = 'Intertrial interval (s)'
             compact_label = 'ITI'
-            dtype = np.float32
+            dtype = np.dtype('float32')
             default = 0.1
             expression = '0.1'
             group = 'trial'
-        RovingParameter:
+            scope = 'trial'
+        Parameter:
             name = 'to_duration'
             label = 'Timeout duration (s)'
             compact_label = 'TO'
-            dtype = np.float32
+            dtype = np.dtype('float32')
             default = 1.0
             expression = '1'
             group = 'trial'
-        RovingParameter:
+            scope = 'trial'
+        Parameter:
             name = 'hold_duration'
             label = 'Hold duration (s)'
             compact_label = 'Hold'
-            dtype = np.float32
+            dtype = np.dtype('float32')
             default = 0.0
             expression = '0'
             group = 'trial'
-        RovingParameter:
+            scope = 'trial'
+        Parameter:
             name = 'response_duration'
             label = 'Response duration (s)'
             compact_label = 'Resp'
-            dtype = np.float32
+            dtype = np.dtype('float32')
             default = 3.0
             expression = '3'
             group = 'trial'
-        RovingParameter:
+            scope = 'trial'
+        Parameter:
             name = 'np_duration'
             label = 'Poke duration (s)'
             compact_label = 'Poke'
-            dtype = np.float32
+            dtype = np.dtype('float32')
             default = 0.2
             expression = '0.2'
             group = 'trial'
+            scope = 'trial'
+        Parameter:
+            name = 'training_mode'
+            label = 'Training mode'
+            compact_label = 'train'
+            dtype = np.dtype('bool')
+            default = False
+            expression = 'False'
+            group = 'trial'
+            scope = 'experiment'
                 
         ContextGroup:
             name = 'selector'
@@ -136,23 +179,26 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
             name = 'go_probability'
             label = 'Go probability'
             compact_label = 'Pr'
-            dtype = np.float32
+            dtype = np.dtype('float32')
             expression = '0.5'
             group = 'selector'
+            scope = 'arbitrary'
         Parameter:
             name = 'max_nogo'
             label = 'Max. consecutive nogo trials'
             compact_label = 'MG'
-            dtype = np.float32
+            dtype = np.dtype('float32')
             expression = '5'
             group = 'selector'
+            scope = 'arbitrary'
         Parameter:
             name = 'repeat_fa'
             label = 'Repeat FA?'
             compact_label = 'RFA'
-            dtype = np.bool
+            dtype = np.dtype('bool')
             expression = 'True'
             group = 'selector'
+            scope = 'arbitrary'
 
         ContextGroup:
             name = 'results'
@@ -162,29 +208,70 @@ enamldef AppetitiveManifest(ControllerManifest): manifest:
         Result:
             name = 'response'
             label = 'Response'
-            compact_label = 'R'
-            dtype = np.str
+            compact_label = 'Resp.'
+            dtype = np.dtype('S32')
             group = 'results'
         Result:
             name = 'trial_type'
             label = 'Trial type'
-            compact_label = 'T'
+            compact_label = 'Trial type'
             group = 'results'
-            dtype = np.str
+            dtype = np.dtype('S32')
         Result:
             name = 'score'
             label = 'Score'
-            compact_label = 'S'
+            compact_label = 'Score'
             group = 'results'
-            dtype = np.str
+            dtype = np.dtype('S32')
         Result:
             name = 'correct'
             label = 'Correct'
             compact_label = 'C'
             group = 'results'
-            dtype = np.bool
-        
-
+            dtype = np.dtype('bool')
+        Result:
+            name = 'np_start'
+            label = 'Nose-poke start'
+            compact_label = 'NP/'
+            group = 'results'
+            dtype = np.dtype('float32')
+        Result:
+            name = 'np_end'
+            label = 'Nose-poke end'
+            compact_label = 'NP\\'
+            group = 'results'
+            dtype = np.dtype('float32')
+        Result:
+            name = 'response_ts'
+            label = 'Response timestamp'
+            compact_label = 'R|'
+            group = 'results'
+            dtype = np.dtype('float32')
+        Result:
+            name = 'target_start'
+            label = 'Target start'
+            compact_label = 'T/'
+            group = 'results'
+            dtype = np.dtype('float32')
+        Result:
+            name = 'target_end'
+            label = 'Target end'
+            compact_label = 'T\\'
+            group = 'results'
+            dtype = np.dtype('float32')
+        Result:
+            name = 'reaction_time'
+            label = 'Reaction time'
+            compact_label = 'React. time'
+            group = 'results'
+            dtype = np.dtype('float32')
+        Result:
+            name = 'response_time'
+            label = 'Response time'
+            compact_label = 'Resp. time'
+            group = 'results'
+            dtype = np.dtype('float32')
+            
     # Sequences used by the appetitive Go-Nogo controller.
     Extension:
         id = 'selectors'

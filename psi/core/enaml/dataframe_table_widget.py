@@ -8,7 +8,8 @@
 import numpy as np
 import pandas as pd
 
-from atom.api import Typed, set_default, observe, Value, Event
+from atom.api import (Typed, set_default, observe, Value, Event, Property,
+                      ContainerList)
 from enaml.core.declarative import d_, d_func
 from enaml.widgets.api import RawWidget
 from enaml.qt.QtCore import QAbstractTableModel, QModelIndex, Qt
@@ -33,13 +34,9 @@ class QDataFrameTableModel(QAbstractTableModel):
         elif role == Qt.DisplayRole:
             if orientation == Qt.Horizontal:
                 c = self._columns[section]
-                return self._column_info[c]
+                return self._column_info[c]['compact_label']
             else:
                 return str(section+1)
-        elif role == Qt.FontRole:
-            font = QFont()
-            font.setPointSize(font.pointSize()-2)
-            return font
 
     def data(self, index, role=Qt.DisplayRole):
         # Do nothing if the dataframe is empty
@@ -53,10 +50,6 @@ class QDataFrameTableModel(QAbstractTableModel):
             return str(v)
         elif role == Qt.TextAlignmentRole:
             return int(Qt.AlignRight | Qt.AlignVCenter)
-        elif role == Qt.FontRole:
-            font = QFont()
-            font.setPointSize(font.pointSize()-2)
-            return font
         elif role == Qt.BackgroundRole:
             if self._cell_color is not None:
                 r = index.row()
@@ -96,14 +89,23 @@ class QDataFrameTableView(QTableView):
         self.vheader = QHeaderView(Qt.Vertical)
         self.setVerticalHeader(self.vheader)
         self.vheader.setResizeMode(QHeaderView.Fixed)
+        self.vheader.setDefaultSectionSize(20)
         self.hheader = self.horizontalHeader()
+        self.hheader.setMovable(True)
+
+    def save_state(self):
+        return self.hheader.saveState()
+
+    def set_state(self, state):
+        self.hheader.restoreState(state)
 
 
 class DataframeTable(RawWidget):
 
     dataframe = d_(Typed(pd.DataFrame))
-    columns = d_(Typed(list))
+    columns = d_(ContainerList())
     column_info = d_(Typed(dict))
+    column_state = Property()
 
     @d_func
     def cell_color(self, row, column):
@@ -125,8 +127,20 @@ class DataframeTable(RawWidget):
     def _dataframe_changed(self, change):
         self._update_table()
 
+    def add_column(self, column_name):
+        self.columns.append(column_name)
+        self._update_table()
+
+    def remove_column(self, column_name):
+        self.columns.remove(column_name)
+        self._update_table()
+
     @observe('columns')
     def _columns_changed(self, change):
+        self._update_table()
+
+    @observe('column_info')
+    def _column_info_changed(self, change):
         self._update_table()
 
     def _update_table(self):
@@ -140,8 +154,10 @@ class DataframeTable(RawWidget):
             table.model = new_model
             table.setModel(new_model)
             table.scrollToBottom()
-            # This is a pretty slow operation, so only call this when the
-            # columns actually change.
-            if len(old_model._columns) != len(new_model._columns):
-                table.resizeColumnsToContents()
-            #table.resizeRowsToContents()
+            table.update()
+
+    def _get_column_state(self):
+        return self.get_widget().save_state()
+
+    def _set_column_state(self, state):
+        self.get_widget().set_state(state)

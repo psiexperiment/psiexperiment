@@ -3,7 +3,7 @@ from copy import deepcopy
 
 import numpy as np
 
-from psi.context.api import RovingParameter
+from psi.context.api import Parameter
 from psi.context.selector import SequenceSelector
 
 
@@ -11,11 +11,16 @@ class TestSettingSequence(unittest.TestCase):
 
     def setUp(self):
         self.parameters = [
-            RovingParameter(name='a', dtype=np.float32, expression='1'),
-            RovingParameter(name='b', dtype=np.float32, expression='1'),
-            RovingParameter(name='c', dtype=np.float32, expression='1'),
-            RovingParameter(name='d', dtype=np.float32, expression='1'),
-            RovingParameter(name='e', dtype=np.float32, expression='1'),
+            Parameter(name='a', dtype=np.float32, expression='1',
+                      scope='trial'),
+            Parameter(name='b', dtype=np.float32, expression='1',
+                      scope='trial'),
+            Parameter(name='c', dtype=np.float32, expression='1',
+                      scope='trial'),
+            Parameter(name='d', dtype=np.float32, expression='1',
+                      scope='trial'),
+            Parameter(name='e', dtype=np.float32, expression='1',
+                      scope='trial'),
         ]
         self.selector = SequenceSelector()
         for parameter in self.parameters:

@@ -14,7 +14,8 @@ from enaml.application import deferred_call
 
 from .plugin import ContextPlugin
 
-from .context_view import ContextDockItem, CurrentValuesDockItem
+from .context_view import (ContextDockItem, CurrentValuesDockItem,
+                           PriorValuesDockItem)
 from .selector_view import SequenceDockItem
 
 from ..util import rpc
@@ -40,8 +41,9 @@ def _save_context(event, file_name):
         file_name += '.context'
     plugin = event.workbench.get_plugin(PLUGIN_ID)
     with open(file_name, 'wb') as fh:
-        pickle.dump(plugin.context_items, fh)
+        pickle.dump(plugin._get_all_expressions(), fh)
         pickle.dump(plugin.selectors, fh)
+        pickle.dump(plugin.roving_items, fh)
 
 
 def load_context(event):
@@ -55,7 +57,8 @@ def _load_context(event, file_name):
     with open(file_name, 'rb') as fh:
         context_items = pickle.load(fh)
         selectors = pickle.load(fh)
-        plugin._update_attrs(context_items, selectors)
+        roving_items = pickle.load(fh)
+        plugin._update_attrs(context_items, selectors, roving_items)
 
 
 def set_default_context(event):
@@ -116,8 +119,17 @@ def contribute_to_workspace(workbench, workspace):
                                  name='cv', 
                                  title='Current values',
                                  closable=False)
-    op = InsertItem(item=item.name, position='bottom')
+    op = InsertItem(item=item.name, position='left')
     deferred_call(workspace.dock_area.update_layout, op)
+
+    item = PriorValuesDockItem(workspace.dock_area, 
+                               context=plugin,
+                               name='pv', 
+                               title='Prior values',
+                               closable=False)
+    op = InsertItem(item=item.name, position='left')
+    deferred_call(workspace.dock_area.update_layout, op)
+
 
 
 def apply_changes(event):

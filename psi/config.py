@@ -60,6 +60,15 @@ SYRINGE_DATA = {
         'B-D 10cc (glass)'      : 14.20,
         }
 
+
+# Default compression settings for HDF5 arrays
+H5_COMPRESSION = {
+    'complevel': 1,
+    'complib': 'blosc',
+    'shuffle': True,
+    'fletcher32': True,
+}
+
 # By convention, settings are in all caps.  Print these to the log file to
 # facilitate debugging other users' programs.
 log = logging.getLogger()

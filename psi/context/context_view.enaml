@@ -114,3 +114,43 @@ enamldef CurrentValuesDockItem(DockItem):
                     Label:
                         style_class << get_style_classes(context, loop_item[0])
                         text << str(loop_item[1])
+
+
+def get_prior_values(prior_values):
+    if len(prior_values) == 0:
+        return []
+    else:
+        return sorted(prior_values[-1].items())
+
+
+enamldef PriorValuesDockItem(DockItem):
+    attr context
+
+    StyleSheet:
+        Style:
+            style_class = 'changed'
+            Setter:
+                field = 'font-weight'
+                value = 'bold'
+        Style:
+            style_class = 'roving'
+            Setter:
+                field = 'background-color'
+                value = 'white'
+
+    Container:
+        VGroup:
+            padding = 0
+            spacing = 0
+
+            Looper:
+                iterable << get_prior_values(context._prior_values)
+                HGroup:
+                    padding = 0
+                    spacing = 0
+                    Label:
+                        style_class << get_style_classes(context, loop_item[0])
+                        text << context.context_items[loop_item[0]].label
+                    Label:
+                        style_class << get_style_classes(context, loop_item[0])
+                        text << str(loop_item[1])

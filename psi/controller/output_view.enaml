@@ -1,0 +1,31 @@
+from enaml.core.api import Looper
+from enaml.widgets.api import (DockItem, Container, VGroup, HGroup, Label,
+                               Field, ObjectCombo)
+
+from .output import ContinuousOutput, AnalogOutput
+from ..token import continuous_tokens, discrete_tokens
+
+enamldef OutputDockItem(DockItem):
+
+    attr controller
+
+    Container:
+        VGroup:
+            padding = 0
+            spacing = 0
+            Looper:
+                iterable << [o for o in controller._outputs.values() \
+                             if isinstance(o, AnalogOutput)]
+                HGroup:
+                    enabled << controller.experiment_state == 'initialized'
+                    padding = 0
+                    Label:
+                        text = loop_item.label
+                    ObjectCombo:
+                        items << continuous_tokens.keys() \
+                            if isinstance(loop_item, ContinuousOutput) \
+                            else discrete_tokens.keys()
+                        selected << loop_item._token_name
+                        selected ::
+                            controller \
+                                .configure_output(loop_item.name, selected)

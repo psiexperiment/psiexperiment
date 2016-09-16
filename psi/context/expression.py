@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 import ast
 
 from atom.api import Atom, Typed
@@ -9,6 +12,7 @@ def _dict_to_expr(d):
     e = {}
     for k, v in d.items():
         if not isinstance(v, Expr):
+            log.trace('Processing {}: converting {} to expression'.format(k, v))
             e[k] = Expr(unicode(v))
         else:
             e[k] = v
@@ -101,6 +105,8 @@ class Expr(object):
     def __init__(self, expression):
         if not isinstance(expression, basestring):
             raise ValueError('Expression must be a string')
+        if not expression:
+            raise ValueError('No value provided for expression')
         self._expression = expression
         self._code = compile(expression, 'dynamic', 'eval')
         self._dependencies = Expr.get_dependencies(expression)
@@ -153,7 +159,7 @@ class ExpressionNamespace(Atom):
         for name in self._expressions.keys():
             if name not in self._locals:
                 self._evaluate_value(name, context)
-        return self._locals.copy()
+        return dict(self._locals.copy())
 
     def set_value(self, name, value):
         _locals = self._locals.copy()
