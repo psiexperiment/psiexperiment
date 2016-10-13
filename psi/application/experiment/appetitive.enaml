@@ -1,0 +1,113 @@
+import logging
+log = logging.getLogger(__name__)
+
+import numpy as np
+
+from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
+from enaml.workbench.ui.api import Branding
+
+from psi.controller.appetitive_manifest import AppetitiveManifest
+from psi.controller.api import ExperimentAction
+
+from psi.context.api import ContextGroup, Parameter
+from psi.data.plots import (TimeContainer, ChannelPlot, TimeseriesPlot,
+                            ExtremesChannelPlot)
+
+
+def insert_target(event):
+    controller = event.workbench.get_plugin('psi.controller')
+    ts = controller.get_ts()
+
+    target = controller._outputs['target']
+    waveform = target.get_waveform()
+    offset = int(target.channel.fs*(0.25+ts))
+    log.debug('Target with {} samples starting at {}' \
+              .format(waveform.shape[-1], offset))
+    target.engine.modify_hw_ao(waveform, offset=offset)
+
+    controller.trial_info['target_start'] = ts
+    controller.trial_info['target_end'] = \
+        ts+(waveform.shape[-1]/target.channel.fs)
+
+
+enamldef ControllerManifest(AppetitiveManifest): manifest:
+
+    id = 'psi.controller'
+
+    Extension:
+        id = 'branding'
+        point = 'enaml.workbench.ui.branding'
+        Branding:
+            title = 'Appetitive Go-Nogo'
+
+    Extension:
+        id = 'appetitive_commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = 'psi.controller.insert_target'
+            handler = insert_target
+
+    Extension:
+        id = 'actions'
+        point = 'psi.controller.actions'
+        ExperimentAction:
+            event = 'trial_start'
+            command = 'psi.controller.insert_target'
+
+    Extension:
+        id = 'plots'
+        point = 'psi.data.plots'
+
+        TimeContainer:
+            name = 'trial_plot_container' 
+            title = 'Trial timing'
+            trig_delay = 0
+            span = 10
+
+            ChannelPlot:
+                source = 'reward_contact_analog'
+                line_color = (1, 0, 1)
+                value_range = (-20, 6)
+
+            ChannelPlot:
+                source = 'nose_poke_analog'
+                line_color = (0, 0, 1)
+                value_range = (-20, 6)
+
+            TimeseriesPlot:
+                source = 'event_log'
+                rising_event = 'reward_start'
+                falling_event = 'reward_end'
+                fill_color = (0.25, 0.41, 0.88, 0.25)
+                line_color = (0.25, 0.41, 0.88, 0.5)
+                rect_center = 0.25
+                rect_height = 0.2
+
+            TimeseriesPlot:
+                source = 'event_log'
+                rising_event = 'np_start'
+                falling_event = 'np_end'
+                fill_color = (.17, .54, .34, 0.25)
+                line_color = (.17, .54, .34, 0.5)
+                rect_center = 0.5
+                rect_height = 0.2
+
+            #ExtremesChannelPlot:
+            #    decimation_threshold = 5
+            #    source = 'microphone'
+            #    line_color = (0, 0, 0)
+            #    value_range = (-1, 1)
+
+
+    # TODO: Should these automatically be contributed by the controller when it
+    # loads the list of outputs? I think so.
+    Extension:
+        id = 'groups'
+        point = 'psi.context.items'
+        ContextGroup:
+            name = 'background'
+            label = 'Background'
+        ContextGroup:
+            name = 'target'
+            label = 'Target'

@@ -10,11 +10,13 @@ from enaml.widgets.api import Action, ToolBar
 from enaml.widgets.toolkit_object import ToolkitObject
 
 from .preferences import Preferences
+from .manifests import CompatibleManifest, RequiredManifest
 
 
 TOOLBAR_POINT = 'psi.experiment.toolbar'
 WORKSPACE_POINT = 'psi.experiment.workspace'
 PREFERENCES_POINT = 'psi.experiment.preferences'
+MANIFEST_POINT = 'psi.experiment.manifest'
 
 
 class MissingDockLayoutValidator(DockLayoutValidator):

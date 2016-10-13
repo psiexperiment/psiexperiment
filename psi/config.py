@@ -32,6 +32,7 @@ CAL_ROOT = os.path.join(BASE_DIRECTORY, 'calibration')
 CONTEXT_ROOT = os.path.join(BASE_DIRECTORY, 'context')
 LAYOUT_ROOT = os.path.join(BASE_DIRECTORY, 'layout')
 PREFERENCES_ROOT = os.path.join(BASE_DIRECTORY, 'preferences')
+CACHE_ROOT = os.path.join(BASE_DIRECTORY, '.cache')
 
 TEMP_ROOT = tempfile.mkdtemp()
 
@@ -84,3 +85,6 @@ TIME_FORMAT = '%Y_%m_%d_%H_%M_%S'
 DATE_FMT = '%Y-%m-%d'
 TIME_FMT = '%H:%M:%S'
 DATETIME_FMT = DATE_FMT + ' ' + TIME_FMT
+
+import socket
+SYSTEM = socket.gethostname()

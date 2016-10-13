@@ -1,0 +1,36 @@
+from .base_manifest import ControllerManifest
+
+
+#enamldef PassiveManifest(ControllerManifest): manifest:
+#
+#    id = PLUGIN_ID
+#    factory = AppetitivePlugin
+#
+#    Extension:
+#        id = 'items'
+#        point = 'psi.context.items'
+#
+#        Parameter:
+#            name = 'iti_duration'
+#            label = 'Intertrial interval (s)'
+#            compact_label = 'ITI'
+#            dtype = np.dtype('float32')
+#            default = 0.1
+#            expression = '0.1'
+#            group = 'trial'
+#            scope = 'trial'
+#
+#        Parameter:
+#            name = 'iti_duration'
+#            label = 'Intertrial interval (s)'
+#            compact_label = 'ITI'
+#            dtype = np.dtype('float32')
+#            default = 0.1
+#            expression = '0.1'
+#            group = 'trial'
+#            scope = 'trial'
+#
+#        Parameter:
+#            name = 'averages'
+#            label = 'Averages'
+#            compact_label = 'N'

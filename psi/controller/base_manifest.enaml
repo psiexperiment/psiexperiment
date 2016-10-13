@@ -2,16 +2,18 @@ import enaml
 from enaml.application import deferred_call
 from enaml.layout.api import InsertItem
 from enaml.widgets.api import Action
-from enaml.workbench.api import Extension, ExtensionPoint, PluginManifest
+from enaml.workbench.api import Extension, ExtensionPoint
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem
 
+from psi.core.enaml.api import PSIManifest
 from psi.experiment.api import Preferences
 from ..util import rpc
 
+from .output_view import OutputDockItem
+
 
 def _contribute_outputs(workbench, workspace):
-    from .output_view import OutputDockItem
     plugin = workbench.get_plugin('psi.controller')
     item = OutputDockItem(workspace.dock_area, controller=plugin,
                           name='controller_outputs', title='Outputs')
@@ -36,7 +38,7 @@ def load_calibration(event):
     CalibrationDialog(controller=controller).show()
 
 
-enamldef ControllerManifest(PluginManifest): manifest:
+enamldef ControllerManifest(PSIManifest): manifest:
     '''
     Defines the core functionality that most controller plugins will share
     (start, stop, pause, apply/revert settings).

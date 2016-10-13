@@ -1,13 +1,14 @@
 import logging
 log = logging.getLogger(__name__)
 
+import threading
+
 from atom.api import Unicode, Typed, Property, Bool
 from enaml.application import deferred_call
 from enaml.layout.api import InsertItem
 from enaml.widgets.api import DockItem
 from enaml.workbench.api import Extension, PluginManifest
 from enaml.workbench.core.api import Command
-
 
 import tables as tb
 import pandas as pd
@@ -20,6 +21,36 @@ from psi.core.utils import find_extension
 from .data_source import DataChannel, DataTable
 
 PLUGIN_ID = 'psi.data.hdf_store'
+
+MONKEYPATCH_COMPLETE = False
+
+
+def monkeypatch_pytables():
+    log.debug('Monkeypatching pytables')
+    global MONKEYPATCH_COMPLETE
+    if MONKEYPATCH_COMPLETE:
+        return
+
+    monkeypatch = [
+        tb.Table.append,
+        tb.Table.read,
+        tb.Table.read_where,
+        tb.EArray.append,
+        tb.Array.__getitem__,
+    ]
+
+    def secure_lock(f, lock):
+        def wrapper(*args, **kwargs):
+            with lock:
+                return f(*args, **kwargs)
+        return wrapper
+
+    lock = threading.Lock()
+    for im in monkeypatch:
+        wrapped_im = secure_lock(im, lock)
+        setattr(im.im_class, im.im_func.func_name, wrapped_im)
+
+    MONKEYPATCH_COMPLETE = True
 
 
 class HDFStore(Sink):
@@ -155,3 +186,8 @@ enamldef HDFStoreManifest(PluginManifest): manifest:
         Command:
             id = PLUGIN_ID + '.set_node'
             handler = set_node
+
+
+# Important! Needed to fix some read/write concurrency issues with the
+# PyTables library.
+monkeypatch_pytables()

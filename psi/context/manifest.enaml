@@ -6,11 +6,13 @@ from enaml.layout.api import VSplitLayout, TabLayout
 from enaml.styling import StyleSheet, Style, Setter
 from enaml.widgets.api import (Container, DockArea, DockItem, VGroup, HGroup,
                                Label, FileDialogEx, Action)
-from enaml.workbench.api import Extension, ExtensionPoint, PluginManifest
+from enaml.workbench.api import Extension, ExtensionPoint
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
 from enaml.layout.api import InsertItem, InsertTab
 from enaml.application import deferred_call
+
+from psi.core.enaml.api import PSIManifest
 
 from .plugin import ContextPlugin
 
@@ -143,7 +145,7 @@ def revert_changes(event):
     context.revert_changes()
 
 
-enamldef ContextManifest(PluginManifest): manifest:
+enamldef ContextManifest(PSIManifest): manifest:
     '''Manifest for the plugin handling the sequence selector
     '''
     id = PLUGIN_ID

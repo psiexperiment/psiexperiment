@@ -12,6 +12,7 @@ from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
 
 from psi import get_config
+from psi.core.enaml.api import PSIManifest
 from psi.core.utils import find_extension
 from psi.context.api import ContextGroup, Parameter, EnumParameter
 from ...experiment_action import ExperimentAction
@@ -159,7 +160,7 @@ def contribute_to_workspace(workbench, workspace):
     deferred_call(workspace.dock_area.update_layout, op)
 
 
-enamldef NE1000Manifest(PluginManifest): manifest:
+enamldef NE1000Manifest(PSIManifest): manifest:
 
     id = PLUGIN_ID
     factory = NE1000Plugin
@@ -208,7 +209,6 @@ enamldef NE1000Manifest(PluginManifest): manifest:
             choices = get_comports()
             default = get_comports().keys()[0]
 
-
     Extension:
         id = 'commands'
         point = 'enaml.workbench.core.commands'
@@ -254,6 +254,22 @@ enamldef NE1000Manifest(PluginManifest): manifest:
                 not in ('initialized', 'stopped')
 
     Extension:
+        id = 'pump_workspace'
+        point = 'psi.experiment.workspace'
+        factory = contribute_to_workspace
+
+
+enamldef AppetitiveNE1000Actions(PSIManifest):
+
+    supplements = [
+        'psi.controller.appetitive_manifest.AppetitiveManifest'
+    ]
+
+    requires = [
+        'psi.controller.actions.NE1000.NE1000Manifest'
+    ]
+
+    Extension:
         id = 'action'
         point = 'psi.controller.actions'
         ExperimentAction:
@@ -265,8 +281,3 @@ enamldef NE1000Manifest(PluginManifest): manifest:
         ExperimentAction:
             event = 'deliver_reward'
             command = PLUGIN_ID + '.deliver_reward'
-
-    Extension:
-        id = 'pump_workspace'
-        point = 'psi.experiment.workspace'
-        factory = contribute_to_workspace

@@ -255,3 +255,6 @@ enamldef ExperimentManifest(PluginManifest):
 
     ExtensionPoint:
         id = 'preferences'
+
+    ExtensionPoint:
+        id = 'manifests'

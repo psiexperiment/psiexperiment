@@ -9,8 +9,10 @@ from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
 
 from psi import get_config
+from psi.core.enaml.api import PSIManifest
 from psi.core.utils import find_extension
 from psi.context.api import ContextGroup, Parameter, EnumParameter
+from psi.experiment.api import CompatibleManifest, RequiredManifest
 from ...experiment_action import ExperimentAction
 
 PLUGIN_ID = 'psi.controller.action.pellet_dispenser' 
@@ -44,6 +46,19 @@ enamldef PelletDispenserManifest(PluginManifest): manifest:
                 core.invoke_command(PLUGIN_ID + '.dispense_pellet')
             enabled <<  workbench.get_plugin('psi.controller').experiment_state \
                 not in ('initialized', 'stopped')
+
+
+enamldef AppetitivePelletDispenserActions(PSIManifest):
+
+    id = PLUGIN_ID + '.appetitive'
+
+    supplements = [
+        'psi.controller.appetitive_manifest.AppetitiveManifest'
+    ]
+
+    requires = [
+        'psi.controller.actions.pellet_dispenser.PelletDispenserManifest'
+    ]
 
     Extension:
         id = 'action'
