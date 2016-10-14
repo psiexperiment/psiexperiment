@@ -44,9 +44,9 @@ def save_layout(event):
 
 
 def _save_layout(event, file_name):
-    plugin = event.workbench.get_plugin('psi.experiment')
     if not file_name.endswith('.layout'):
         file_name += '.layout'
+    plugin = event.workbench.get_plugin('psi.experiment')
     layout = plugin.get_layout()
     with open(file_name, 'wb') as fh:
         pickle.dump(layout, fh)
@@ -67,14 +67,14 @@ def _load_layout(event, file_name):
 
 def set_default_layout(event):
     layout_root = get_config('LAYOUT_ROOT')
-    file_name = os.path.join(layout_root, '.default.layout')
+    file_name = os.path.join(layout_root, 'default.layout')
     _save_layout(event, file_name)
     
 
 def get_default_layout(event):
     try:
         layout_root = get_config('LAYOUT_ROOT')
-        file_name = os.path.join(layout_root, '.default.layout')
+        file_name = os.path.join(layout_root, 'default.layout')
         _load_layout(event, file_name)
     except IOError:
         pass
@@ -115,14 +115,14 @@ def _load_preferences(event, file_name):
 
 def set_default_preferences(event):
     preferences_root = get_config('PREFERENCES_ROOT')
-    file_name = os.path.join(preferences_root, '.default.preferences')
+    file_name = os.path.join(preferences_root, 'default.preferences')
     _save_preferences(event, file_name)
     
 
 def get_default_preferences(event):
     try:
         preferences_root = get_config('PREFERENCES_ROOT')
-        file_name = os.path.join(preferences_root, '.default.preferences')
+        file_name = os.path.join(preferences_root, 'default.preferences')
         _load_preferences(event, file_name)
     except IOError:
         pass

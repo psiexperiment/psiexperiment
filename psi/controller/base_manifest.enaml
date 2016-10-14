@@ -8,8 +8,12 @@ from enaml.workbench.ui.api import ActionItem, MenuItem
 
 from psi.core.enaml.api import PSIManifest
 from psi.experiment.api import Preferences
+from psi.context.api import ContextGroup
+
 from ..util import rpc
 
+from .base_plugin import BasePlugin
+from .output import Output
 from .output_view import OutputDockItem
 
 
@@ -38,11 +42,36 @@ def load_calibration(event):
     CalibrationDialog(controller=controller).show()
 
 
-enamldef ControllerManifest(PSIManifest): manifest:
+def find_outputs(obj):
+    result = []
+    if isinstance(obj, Output):
+        result.append(obj)
+    if hasattr(obj, 'children'):
+        for child in obj.children:
+            result.extend(find_outputs(child))
+    return result
+
+
+def find_items(which, workbench):
+    if which != 'groups':
+        return []
+    plugin = workbench.get_plugin('psi.controller')
+    return [ContextGroup(name=o.name, label=o.label) \
+            for o in plugin._outputs.values()]
+
+
+enamldef BaseManifest(PSIManifest): manifest:
     '''
     Defines the core functionality that most controller plugins will share
     (start, stop, pause, apply/revert settings).
     '''
+    factory = BasePlugin
+
+    Extension:
+        id = 'foo'
+        point = 'psi.context.items'
+        factory = lambda which, w=workbench: find_items(which, w)
+
     ExtensionPoint:
         id = 'psi.controller.io'
 

@@ -3,7 +3,7 @@ log = logging.getLogger(__name__)
 
 from functools import partial
 
-from atom.api import Unicode, Enum, Typed, Property, Float
+from atom.api import Unicode, Enum, Typed, Property, Float, observe
 from enaml.core.api import Declarative, d_
 from enaml.workbench.api import Plugin
 
@@ -12,7 +12,12 @@ class Output(Declarative):
     label = d_(Unicode())
     name = d_(Unicode())
 
+    # TODO: Allow the user to select which channel the output goes through from
+    # the GUI?
+    target_name = d_(Unicode())
+
     channel = Property()
+    target = Property()
     engine = Property()
 
     # TODO: clean this up. it's sort of hackish.
@@ -20,12 +25,25 @@ class Output(Declarative):
     _plugin_id = Unicode()
     _plugin = Typed(Plugin)
 
-    def _get_channel(self):
+    def _observe_parent(self, event):
+        self.target_name = event['value'].name
+
+    def _get_target(self):
         return self.parent
 
-    def _get_engine(self):
-        return self.parent.parent
+    def _set_target(self, target):
+        self.set_parent(target)
 
+    def _get_engine(self):
+        return self.channel.parent
+
+    def _get_channel(self):
+        parent = self.parent
+        while True:
+            if isinstance(parent, Channel):
+                return parent
+            else:
+                parent = parent.parent
 
 class AnalogOutput(Output):
     pass

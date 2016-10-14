@@ -2,6 +2,8 @@ from atom.api import Unicode, Typed
 from enaml.core.api import d_
 from enaml.workbench.api import PluginManifest, Extension, Plugin
 
+from psi.context.api import ContextGroup
+
 
 class TokenManifest(PluginManifest):
     '''

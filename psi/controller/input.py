@@ -31,6 +31,18 @@ def broadcast(targets):
 
 
 @coroutine
+def accumulate(n, target):
+    data = []
+    while true:
+        d = (yield)[np.newaxis]
+        data.append(d)
+        if len(data) == n:
+            data = np.concatenate(data)
+            target.send(data)
+            data = []
+
+
+@coroutine
 def iirfilter(N, Wn, rp, rs, btype, ftype, target):
     b, a = signal.iirfilter(N, Wn, rp, rs, btype, ftype=ftype)
     if np.any(np.abs(np.roots(a)) > 1):
@@ -105,12 +117,84 @@ def edges(initial_state, min_samples, target):
         prior_samples = samples[..., -min_samples:]
 
 
+@coroutine
+def reject(threshold, target):
+    while True:
+        data = (yield)
+        if np.all(np.max(np.abs(d), axis=-1) < reject_threshold):
+            # TODO: what about fails?
+            target.send(data)
+
+
+@coroutine
+def average(n, target):
+    data = (yield)
+    axis = 0
+    while True:
+        while data.shape[axis] >= n:
+            s = [Ellipsis]*data.ndim
+            s[axis] = np.s_[:block_size]
+            target.send(data[s].mean(axis=axis))
+            s[axis] = np.s_[block_size:]
+            data = data[s]
+        new_data = (yield)
+        data = np.concatenate((data, new_data), axis=axis)
+
+
+@coroutine
+def extract_epochs(epoch_size, queue, buffer_size, target):
+    buffer_size = int(buffer_size)
+    data = (yield)
+    buffer_shape = list(data.shape)
+    buffer_shape[-1] = buffer_size
+    ring_buffer = np.empty(buffer_shape, dtype=data.dtype)
+    next_offset = None
+    t0 = -buffer_size
+
+    while True:
+        # Newest data is always stored at the end of the ring buffer. To make
+        # room, we discard samples from the beginning of the buffer.
+        samples = data.shape[-1]
+        ring_buffer[..., :-samples] = ring_buffer[..., samples:]
+        ring_buffer[..., -samples:] = data
+        t0 += samples
+
+        while True:
+            if (next_offset is None) and len(queue) > 0:
+                next_offset = queue.popleft()
+            elif next_offset is None:
+                break
+            elif next_offset < t0:
+                raise SystemError('Epoch lost')
+            elif (next_offset+epoch_size) > (t0+buffer_size):
+                break
+            else:
+                i = next_offset-t0
+                epoch = ring_buffer[..., i:i+epoch_size].copy()
+                target.send(epoch)
+                next_offset = None
+
+        data = (yield)
+
+
 class Input(SimpleState, Declarative):
 
+    source_name = d_(Unicode())
+
+    source = Property()
     channel = Property().tag(transient=True)
     engine = Property().tag(transient=True)
     fs = Property()
     mode = Enum('continuous', 'event')
+
+    def _get_source(self):
+        return self.parent
+
+    def _set_source(self, source):
+        self.set_parent(source)
+
+    def _observe_parent(self, event):
+        self.source_name = event['value'].name
 
     def _get_fs(self):
         return self.parent.fs
@@ -122,6 +206,9 @@ class Input(SimpleState, Declarative):
                 return parent
             else:
                 parent = parent.parent
+
+    def _set_source(self, source):
+        self.set_parent(source)
 
     def _get_engine(self):
         return self.channel.engine
@@ -166,6 +253,15 @@ class IIRFilter(Input):
         cb = super(IIRFilter, self).configure_callback(plugin)
         return iirfilter(self.N, self.wn, None, None, self.btype,
                          self.ftype, cb).send
+
+
+class Accumulate(Input):
+
+    n = d_(Int())
+
+    def configure_callback(self, plugin):
+        cb = super(Accumulate, self).configure_callback(plugin)
+        return accumulate(self.n, cb).send
 
 
 class Downsample(Input):
@@ -214,3 +310,28 @@ class Edges(Input):
     def configure_callback(self, plugin):
         cb = super(Edges, self).configure_callback(plugin)
         return edges(self.initial_state, self.debounce, cb).send
+
+
+class Reject(Input):
+
+    threshold = d_(Float())
+
+    def configure_callback(self, plugin):
+        cb = super(Reject, self).configure_callback(plugin)
+        return reject(self.threshold, cb).send
+
+
+class Average(Input):
+
+    n = d_(Float())
+
+    def configure_callback(self, plugin):
+        print 'configuring callback'
+        cb = super(Average, self).configure_callback(plugin)
+        return average(self.n, cb).send
+
+
+class Epoch(Input):
+
+    reference = d_(Unicode())
+    duration = d_(Float())

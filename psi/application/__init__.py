@@ -36,6 +36,7 @@ def get_manifests(manifest_names):
 
 def initialize_workbench(extra_manifests,
                          workspace='psi.experiment.workspace'):
+
     with enaml.imports():
         from enaml.workbench.core.core_manifest import CoreManifest
         from enaml.workbench.ui.ui_manifest import UIManifest
@@ -52,8 +53,6 @@ def initialize_workbench(extra_manifests,
     workbench.register(ExperimentManifest())
 
     for manifest in extra_manifests:
-        m = manifest()
-        print m.id
-        workbench.register(m)
+        workbench.register(manifest())
 
     return workbench

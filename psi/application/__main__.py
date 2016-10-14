@@ -1,10 +1,13 @@
 import argparse
 import logging.config
+import os.path
 import warnings
 
 import tables as tb
 
 from psi import application
+from psi import get_config, set_config
+
 
 experiment_descriptions = {
     'appetitive_gonogo_food': {
@@ -18,6 +21,14 @@ experiment_descriptions = {
             'psi.data.hdf_store.manifest.HDFStoreManifest',
         ],
     },
+    'abr': {
+        'manifests': [
+            'psi.application.experiment.abr.ControllerManifest',
+            'psi.data.trial_log.manifest.TrialLogManifest',
+            'psi.data.event_log.manifest.EventLogManifest',
+            'psi.data.hdf_store.manifest.HDFStoreManifest',
+        ],
+    }
 }
 
 
@@ -66,11 +77,20 @@ def configure_logging(filename=None):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Run experiment')
     parser.add_argument('experiment', type=str, help='Experiment to run')
+    parser.add_argument('--io', type=str, default=None,
+                        help='Hardware configuration')
     args = parser.parse_args()
+
+    for config in ['LAYOUT_ROOT', 'PREFERENCES_ROOT', 'CONTEXT_ROOT']:
+        path = get_config(config)
+        new_path = os.path.join(path, args.experiment)
+        set_config(config, new_path)
+        if not os.path.exists(new_path):
+            os.makedirs(new_path)
 
     experiment_description = experiment_descriptions[args.experiment]
     manifests = application.get_manifests(experiment_description['manifests'])
-    manifests += [application.get_io_manifest()]
+    manifests += [application.get_io_manifest(args.io)]
     workbench = application.initialize_workbench(manifests)
 
     core = workbench.get_plugin('enaml.workbench.core')
@@ -87,6 +107,6 @@ if __name__ == '__main__':
             warnings.simplefilter('ignore')
             ui.show_window()
 
-        filename = 'c:/users/bburan/desktop/appetitive_log.txt' 
+        filename = 'c:/users/bburan/desktop/appetitive_log.txt'
         configure_logging(filename)
         ui.start_application()

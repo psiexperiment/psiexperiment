@@ -10,6 +10,8 @@ from enaml.workbench.plugin import Plugin
 
 from .channel import Channel
 from .engine import Engine
+from .output import Output
+from .input import Input
 from .experiment_action import ExperimentAction
 from .output import ContinuousOutput
 from ..token import get_token_manifest
@@ -27,7 +29,7 @@ def get_named_inputs(input):
     return named_inputs
 
 
-class BaseController(Plugin):
+class BasePlugin(Plugin):
 
     # Tracks the state of the controller.
     experiment_state = Enum('initialized', 'running', 'paused', 'stopped')
@@ -49,6 +51,9 @@ class BaseController(Plugin):
 
     # Available engines
     _engines = Typed(dict, {})
+
+    # Available channels
+    _channels = Typed(dict, {})
 
     # Available outputs
     _outputs = Typed(dict, {})
@@ -86,6 +91,7 @@ class BaseController(Plugin):
             .unobserve('extensions', self._refresh_actions)
 
     def _refresh_io(self):
+        channels = {}
         engines = {}
         outputs = {}
         inputs = {}
@@ -100,13 +106,49 @@ class BaseController(Plugin):
                         raise ValueError(m)
                     master_engine = engine
                 for channel in engine.channels:
+                    channels[channel.name] = channel
+
                     for output in getattr(channel, 'outputs', []):
                         outputs[output.name] = output
+
                     for all_inputs in getattr(channel, 'inputs', []):
                         for input in get_named_inputs(all_inputs):
                             inputs[input.name] = input
 
+        for extension in point.extensions:
+            for output in extension.get_children(Output):
+                outputs[output.name] = output
+
+        for output in outputs.values():
+            if output.target is None:
+                if output.target_name in channels:
+                    target = channels[output.channel_name]
+                else:
+                    m = "Unknown target {}".format(output.target_name)
+                    raise ValueError(m)
+                target.children.append(output)
+                output.target = target
+                # TODO: Can another output be the target (e.g., if one wanted
+                # to combine multiple tokens into a single stream)?
+
+        for extension in point.extensions:
+            for input in extension.get_children(Input):
+                inputs[input.name] = input
+
+        for input in inputs.values():
+            if input.source is None: 
+                if input.source_name in inputs:
+                    source = inputs[input.source_name]
+                elif input.source_name in channels:
+                    source = channel[input.source_name]
+                else:
+                    m = "Unknown source {}".format(input.source_name)
+                    raise ValueError(m)
+                source.children.append(input)
+                input.source = source
+
         self._master_engine = master_engine
+        self._channels = channels
         self._engines = engines
         self._outputs = outputs
         self._inputs = inputs

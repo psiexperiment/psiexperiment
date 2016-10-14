@@ -1,0 +1,74 @@
+from enaml.workbench.api import PluginManifest, Extension
+
+from psi.controller.engines.nidaq import NIDAQEngine
+from psi.controller.api import (ContinuousOutput, EpochOutput, AIChannel,
+                                AOChannel, ExperimentAction, Trigger, Toggle,
+                                DOChannel, Input)
+
+
+enamldef IOManifest(PluginManifest): manifest:
+
+    Extension:
+        id = 'backend'
+        point = 'psi.controller.io'
+
+        NIDAQEngine:
+            name = 'NI'
+            master_clock = True
+            
+            hw_ai_monitor_period = 0.01
+            hw_ao_monitor_period = 1
+
+            AOChannel:
+                label = 'primary'
+                name = 'primary'
+                channel = 'PXI1Slot8/ao0'
+                fs = 200e3
+                expected_range = (-10, 10)
+                dtype = np.dtype('float64')
+                terminal = 'pseudodifferential'
+
+            AOChannel:
+                label = 'secondary'
+                name = 'secondary'
+                channel = 'PXI1Slot8/ao1'
+                fs = 200e3
+                expected_range = (-10, 10)
+                dtype = np.dtype('float64')
+                terminal = 'pseudodifferential'
+
+            AIChannel:
+                label = 'Reference microphone'
+                name = 'reference_microphone'
+                channel = 'PXI1Slot8/ai1'
+                start_trigger = 'PXISlot8/ao/StartTrigger'
+                fs = 200e3
+                expected_range = (-10, 10)
+                dtype = np.dtype('float64')
+                mode = 'pseudodifferential'
+
+                Input:
+                    name = 'reference_microphone'
+
+            AIChannel:
+                label = 'Probe tube microphone'
+                name = 'probe_tube_microphone'
+                channel = 'PXI1Slot8/ai0'
+                start_trigger = 'PXISlot8/ao/StartTrigger'
+                fs = 200e3
+                expected_range = (-10, 10)
+                dtype = np.dtype('float64')
+                terminal = 'pseudodifferential'
+
+                Input:
+                    name = 'probe_tube_microphone'
+
+            AIChannel:
+                label = 'Continuous EEG'
+                name = 'eeg'
+                channel = 'PXI1Slot7/ai0'
+                start_trigger = 'PXI1Slot8/ao/StartTrigger'
+                fs = 25e3
+                expected_range = (-10, 10)
+                dtype = np.dtype('float64')
+                terminal = 'pseudodifferential'

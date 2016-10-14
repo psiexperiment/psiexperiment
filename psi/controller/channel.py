@@ -40,6 +40,7 @@ class AIChannel(Channel):
     expected_range = d_(Tuple())
     mode = d_(Enum('RSE', 'differential'))
     calibration = Typed(Calibration)
+    terminal = d_(Enum('pseudodifferential', 'differential'))
 
     def _get_inputs(self):
         return self.children
@@ -54,6 +55,7 @@ class AOChannel(Channel):
     outputs = Property().tag(transient=True)
     expected_range = d_(Tuple())
     calibration = Typed(Calibration)
+    terminal = d_(Enum('pseudodifferential', 'differential'))
 
     def _get_outputs(self):
         return self.children

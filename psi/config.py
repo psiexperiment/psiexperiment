@@ -36,6 +36,8 @@ CACHE_ROOT = os.path.join(BASE_DIRECTORY, '.cache')
 
 TEMP_ROOT = tempfile.mkdtemp()
 
+EXPERIMENT_FOLDER = None
+
 # Ensure the folders exist
 for setting_name, setting_value in globals().items():
     if setting_name.endswith('_ROOT') and not os.path.exists(setting_value):

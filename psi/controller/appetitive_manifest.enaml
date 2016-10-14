@@ -11,7 +11,7 @@ from enaml.workbench.ui.api import ActionItem, MenuItem, Autostart
 from ..context.api import ContextGroup, Parameter, Result
 from ..context.selector import SequenceSelector, SingleSetting
 
-from .base_manifest import ControllerManifest
+from .base_manifest import BaseManifest
 from .appetitive_plugin import AppetitivePlugin, Event
 from ..util import rpc
 
@@ -64,7 +64,7 @@ def contribute_to_workspace(workbench, workspace):
     deferred_call(workspace.dock_area.update_layout, op)
 
 
-enamldef AppetitiveManifest(ControllerManifest): manifest:
+enamldef AppetitiveManifest(BaseManifest): manifest:
     '''
     Defines the core settings that any appetitive experiment may require. Does
     not include timeout/reward settings as those are provided by plugins.

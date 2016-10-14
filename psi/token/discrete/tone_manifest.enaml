@@ -87,3 +87,13 @@ enamldef ToneManifest(TokenManifest): m:
             expression = '1'
             group = m.base
             scope = m.scope
+
+        Parameter:
+            name = '{}_ramp_duration'.format(m.base)
+            label = '{} ramp duration (s)'.format(m.label_base)
+            compact_label = '{} ramp'.format(m.compact_base)
+            dtype = np.dtype('float32')
+            default = 0.5e-3
+            expression = '0.5e-3'
+            group = m.base
+            scope = m.scope

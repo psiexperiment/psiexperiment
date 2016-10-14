@@ -11,7 +11,7 @@ from enaml.core.api import d_func
 from enaml.qt.QtCore import QTimer
 import numpy as np
 
-from .base_plugin import BaseController
+from .base_plugin import BasePlugin
 
 
 class TrialScore(enum.Enum):
@@ -60,7 +60,7 @@ class Event(enum.Enum):
     trial_start = 'trial start'
 
 
-class AppetitivePlugin(BaseController):
+class AppetitivePlugin(BasePlugin):
     '''
     Plugin for controlling appetitive experiments that are based on a reward.
     Eventually this may become generic enough that it can be used with aversive

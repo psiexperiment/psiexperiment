@@ -3,11 +3,11 @@ import numpy as np
 from enaml.workbench.api import PluginManifest, Extension
 
 from psi.controller.engines.nidaq import NIDAQEngine
-from psi.controller.api import (ContinuousOutput, EpochOutput, AIChannel,
-                                AOChannel, ExperimentAction, Trigger, Toggle,
-                                DOChannel, Input)
+from psi.controller.api import (AIChannel, AOChannel, ExperimentAction,
+                                Trigger, Toggle, DOChannel, Input)
 
 from psi.controller.input import Downsample, IIRFilter, Threshold, Edges
+
 
 enamldef IOManifest(PluginManifest): manifest:
     '''
@@ -35,14 +35,6 @@ enamldef IOManifest(PluginManifest): manifest:
                 fs = 100e3
                 expected_range = (-10, 10)
                 dtype = np.dtype('float64')
-
-                ContinuousOutput:
-                    name = 'background'
-                    label = 'Background'
-
-                EpochOutput:
-                    name = 'target'
-                    label = 'Target'
 
             DOChannel:
                 name = 'food_dispense'
@@ -93,7 +85,6 @@ enamldef IOManifest(PluginManifest): manifest:
                             Edges:
                                 debounce = 2
                                 name = 'nose_poke'
-
 
             AIChannel:
                 label = 'Reward contact IR'

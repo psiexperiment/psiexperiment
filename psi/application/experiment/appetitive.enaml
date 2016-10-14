@@ -8,7 +8,7 @@ from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import Branding
 
 from psi.controller.appetitive_manifest import AppetitiveManifest
-from psi.controller.api import ExperimentAction
+from psi.controller.api import ExperimentAction, ContinuousOutput, EpochOutput
 
 from psi.context.api import ContextGroup, Parameter
 from psi.data.plots import (TimeContainer, ChannelPlot, TimeseriesPlot,
@@ -56,6 +56,20 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             command = 'psi.controller.insert_target'
 
     Extension:
+        id = 'io'
+        point = 'psi.controller.io'
+
+        ContinuousOutput:
+            name = 'background'
+            label = 'Background'
+            target_name = 'speaker'
+
+        EpochOutput:
+            name = 'target'
+            label = 'Target'
+            target_name = 'speaker'
+
+    Extension:
         id = 'plots'
         point = 'psi.data.plots'
 
@@ -93,21 +107,8 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                 rect_center = 0.5
                 rect_height = 0.2
 
-            #ExtremesChannelPlot:
-            #    decimation_threshold = 5
-            #    source = 'microphone'
-            #    line_color = (0, 0, 0)
-            #    value_range = (-1, 1)
-
-
-    # TODO: Should these automatically be contributed by the controller when it
-    # loads the list of outputs? I think so.
-    Extension:
-        id = 'groups'
-        point = 'psi.context.items'
-        ContextGroup:
-            name = 'background'
-            label = 'Background'
-        ContextGroup:
-            name = 'target'
-            label = 'Target'
+            ExtremesChannelPlot:
+                decimation_threshold = 5
+                source = 'microphone'
+                line_color = (0, 0, 0)
+                value_range = (-1, 1)
