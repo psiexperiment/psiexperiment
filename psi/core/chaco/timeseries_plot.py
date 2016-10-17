@@ -113,3 +113,9 @@ class TimeseriesPlot(ChannelPlot):
             gc.draw_path()
 
             self._draw_default_axes(gc)
+
+    def _index_mapper_updated(self):
+        if self.source is not None:
+            self._data_cache_valid = False
+            self._invalidate_screen()
+

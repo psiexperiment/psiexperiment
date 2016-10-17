@@ -107,8 +107,8 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                 rect_center = 0.5
                 rect_height = 0.2
 
-            ExtremesChannelPlot:
-                decimation_threshold = 5
-                source = 'microphone'
-                line_color = (0, 0, 0)
-                value_range = (-1, 1)
+            #ExtremesChannelPlot:
+            #    decimation_threshold = 5
+            #    source = 'microphone'
+            #    line_color = (0, 0, 0)
+            #    value_range = (-1, 1)

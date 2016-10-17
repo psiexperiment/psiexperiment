@@ -90,11 +90,11 @@ def contribute_to_workspace(workbench, workspace):
     for group_name, group in plugin.context_groups.items():
         if group.visible:
             item = ContextDockItem(workspace.dock_area, 
-                                plugin=plugin,
-                                group_name=group_name, 
-                                name=group_name,
-                                title=group.label, 
-                                closable=False)
+                                   plugin=plugin,
+                                   group_name=group_name, 
+                                   name=group_name,
+                                   title=group.label, 
+                                   closable=False)
             if target is None:
                 op = InsertItem(item=item.name, position='left')
             else:

@@ -16,6 +16,9 @@ class DataSource(Atom):
     def set_current_time(self, current_time):
         self.current_time = current_time
 
+    def base_trait(self, name):
+        log.debug('Base trait requested for {}'.format(name))
+
 
 class DataTable(DataSource):
 

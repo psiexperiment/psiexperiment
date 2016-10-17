@@ -8,6 +8,7 @@ from enaml.workbench.ui.api import Branding
 
 from psi.context.selector import SequenceSelector
 from psi.controller.api import EpochOutput
+from psi.controller.base_plugin import BasePlugin
 from psi.controller.input import IIRFilter, Average, Accumulate, Epoch, Reject
 from psi.controller.base_manifest import BaseManifest
 from psi.controller.engines.nidaq import NIDAQEngine
@@ -17,9 +18,23 @@ from psi.context.api import ContextGroup, Parameter
 from psi.data.plots import (TimeContainer, ChannelPlot, TimeseriesPlot,
                             ExtremesChannelPlot)
 
+
+class ABRController(BasePlugin):
+
+    def start_experiment(self):
+        self.context.apply_changes()
+        self.core.invoke_command('psi.data.prepare')
+        self.start_engines()
+        self.context.next_setting(save_prior=False)
+        self.experiment_state = 'running'
+        print self.context.get_values()
+        self.invoke_actions('experiment_start', self.get_ts())
+
+
 enamldef ControllerManifest(BaseManifest): manifest:
 
     id = 'psi.controller'
+    factory = ABRController
 
     Extension:
         id = 'branding'

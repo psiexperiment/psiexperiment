@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 import numpy as np
 
 from atom.api import Unicode, Enum, Typed, Tuple, Property
@@ -62,6 +65,7 @@ class AOChannel(Channel):
 
     def configure(self, plugin):
         for output in self.outputs:
+            log.debug('Configuring output {}'.format(output.name))
             output.configure(plugin)
 
 

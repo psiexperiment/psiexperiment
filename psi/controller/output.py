@@ -5,7 +5,10 @@ from functools import partial
 
 from atom.api import Unicode, Enum, Typed, Property, Float, observe
 from enaml.core.api import Declarative, d_
-from enaml.workbench.api import Plugin
+from enaml.workbench.api import Plugin, Extension
+
+from .channel import Channel
+
 
 class Output(Declarative):
 
@@ -29,6 +32,8 @@ class Output(Declarative):
         self.target_name = event['value'].name
 
     def _get_target(self):
+        if isinstance(self.parent, Extension):
+            return None
         return self.parent
 
     def _set_target(self, target):
@@ -45,6 +50,7 @@ class Output(Declarative):
             else:
                 parent = parent.parent
 
+
 class AnalogOutput(Output):
     pass
 
@@ -55,6 +61,7 @@ class EpochOutput(AnalogOutput):
         return self._plugin.get_waveform(offset, samples)
 
     def configure(self, plugin):
+        log.debug('Configuring epoch output {}'.format(self.name))
         self._plugin.initialize(self.channel.fs)
 
 
@@ -64,6 +71,7 @@ class ContinuousOutput(AnalogOutput):
         return self._plugin.get_waveform(offset, samples)
 
     def configure(self, plugin):
+        log.debug('Configuring continuous output {}'.format(self.name))
         cb = partial(plugin.ao_callback, self.name)
         self.engine.register_ao_callback(cb, self.channel.name)
         self._plugin.initialize(self.channel.fs)

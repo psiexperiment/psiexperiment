@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 import cPickle as pickle
 from copy import deepcopy
 
@@ -70,11 +73,16 @@ class ContextPlugin(Plugin):
         self.selectors = selectors
 
     def _refresh_items(self, event=None):
+        log.debug('Refreshing context items')
         context_groups = {}
         context_items = {}
 
         point = self.workbench.get_extension_point(ITEMS_POINT)
         for extension in point.extensions:
+            m = 'Found extension {} from {} for point {}'
+            m = m.format(extension.id, extension.parent.id, ITEMS_POINT)
+            log.debug(m)
+
             items = extension.get_children(ContextItem)
             groups = extension.get_children(ContextGroup)
             factory = getattr(extension, 'factory')
@@ -83,12 +91,14 @@ class ContextPlugin(Plugin):
                 groups.extend(factory('groups'))
 
             for group in groups:
+                log.debug('Adding context group {}'.format(group.name))
                 if group.name in context_groups:
                     m = 'Context group {} already defined'.format(group.name)
                     raise ValueError(m)
                 context_groups[group.name] = group
 
             for item in items:
+                log.debug('Adding context item {}'.format(item.name))
                 if item.name in context_items:
                     m = 'Context item {} already defined'.format(item.name)
                     raise ValueError(m)

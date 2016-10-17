@@ -1,13 +1,11 @@
-import argparse
 import logging.config
+log = logging.getLogger(__name__)
+
+import argparse
 import os.path
 import warnings
 
 import tables as tb
-
-from psi import application
-from psi import get_config, set_config
-
 
 experiment_descriptions = {
     'appetitive_gonogo_food': {
@@ -47,7 +45,7 @@ def configure_logging(filename=None):
             'console': {
                 'class': 'logging.StreamHandler',
                 'formatter': 'simple',
-                'level': 'DEBUG',
+                'level': 'TRACE',
                 },
             },
         'loggers': {
@@ -55,12 +53,13 @@ def configure_logging(filename=None):
             'neurogen': {'level': 'ERROR'},
             'psi': {'level': 'TRACE'},
             'experiments': {'level': 'TRACE'},
-            'daqengine': {'level': 'ERROR'},
+            'daqengine': {'level': 'TRACE'},
             },
         'root': {
             'handlers': ['console'],
             },
         }
+
     if filename is not None:
         logging_config['handlers']['file'] = {
             'class': 'logging.FileHandler',
@@ -79,7 +78,16 @@ if __name__ == '__main__':
     parser.add_argument('experiment', type=str, help='Experiment to run')
     parser.add_argument('--io', type=str, default=None,
                         help='Hardware configuration')
+    parser.add_argument('--debug', default=False, action='store_true',
+                        help='Debug mode?')
     args = parser.parse_args()
+
+    if args.debug:
+        configure_logging()
+        log.debug('Logging configured')
+
+    from psi import application
+    from psi import get_config, set_config
 
     for config in ['LAYOUT_ROOT', 'PREFERENCES_ROOT', 'CONTEXT_ROOT']:
         path = get_config(config)
@@ -107,6 +115,4 @@ if __name__ == '__main__':
             warnings.simplefilter('ignore')
             ui.show_window()
 
-        filename = 'c:/users/bburan/desktop/appetitive_log.txt'
-        configure_logging(filename)
         ui.start_application()

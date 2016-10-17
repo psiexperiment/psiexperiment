@@ -124,6 +124,7 @@ class NIDAQEngine(ni.Engine, Engine):
             self.ao_fs = fs
 
         super(NIDAQEngine, self).configure(plugin)
+        log.debug('Completed engine configuration')
 
     def get_ts(self):
         return self.ao_sample_clock()/self.ao_fs

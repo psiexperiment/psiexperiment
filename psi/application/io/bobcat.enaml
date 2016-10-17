@@ -62,6 +62,19 @@ enamldef IOManifest(PluginManifest): manifest:
                     name = 'room_light_toggle'
 
             AIChannel:
+                label = 'Microphone'
+                name = 'microphone'
+                channel = 'Dev1/ai0'
+                start_trigger = 'ao/StartTrigger'
+                fs = 100e3
+                expected_range = (-10, 10)
+                dtype = np.dtype('float64')
+                mode = 'differential'
+
+                Input:
+                    name = 'microphone'
+
+            AIChannel:
                 label = 'Nose poke IR'
                 name = 'nose_poke'
                 channel = 'Dev1/ai2'

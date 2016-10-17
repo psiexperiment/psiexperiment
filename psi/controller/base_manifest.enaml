@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 import enaml
 from enaml.application import deferred_call
 from enaml.layout.api import InsertItem
@@ -13,7 +16,7 @@ from psi.context.api import ContextGroup
 from ..util import rpc
 
 from .base_plugin import BasePlugin
-from .output import Output
+from .output import AnalogOutput
 from .output_view import OutputDockItem
 
 
@@ -25,14 +28,8 @@ def _contribute_outputs(workbench, workspace):
     deferred_call(workspace.dock_area.update_layout, op)
 
 
-def _contribute_plots(workbench, workspace):
-    plugin = workbench.get_plugin('psi.controller')
-    pass
-
-
 def contribute_to_workspace(workbench, workspace):
     _contribute_outputs(workbench, workspace)
-    _contribute_plots(workbench, workspace)
 
 
 def load_calibration(event):
@@ -42,22 +39,15 @@ def load_calibration(event):
     CalibrationDialog(controller=controller).show()
 
 
-def find_outputs(obj):
-    result = []
-    if isinstance(obj, Output):
-        result.append(obj)
-    if hasattr(obj, 'children'):
-        for child in obj.children:
-            result.extend(find_outputs(child))
-    return result
-
-
 def find_items(which, workbench):
+    plugin = workbench.get_plugin('psi.controller')
     if which != 'groups':
         return []
-    plugin = workbench.get_plugin('psi.controller')
-    return [ContextGroup(name=o.name, label=o.label) \
-            for o in plugin._outputs.values()]
+    groups = [ContextGroup(name=o.name, label=o.label) \
+            for o in plugin._outputs.values() \
+            if isinstance(o, AnalogOutput)]
+    log.debug('Found {} outputs'.format(len(groups)))
+    return groups
 
 
 enamldef BaseManifest(PSIManifest): manifest:
@@ -68,7 +58,7 @@ enamldef BaseManifest(PSIManifest): manifest:
     factory = BasePlugin
 
     Extension:
-        id = 'foo'
+        id = 'automatic_outputs'
         point = 'psi.context.items'
         factory = lambda which, w=workbench: find_items(which, w)
 

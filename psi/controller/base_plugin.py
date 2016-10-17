@@ -96,6 +96,7 @@ class BasePlugin(Plugin):
         outputs = {}
         inputs = {}
         master_engine = None
+
         point = self.workbench.get_extension_point(IO_POINT)
         for extension in point.extensions:
             for engine in extension.get_children(Engine):
@@ -105,46 +106,50 @@ class BasePlugin(Plugin):
                         m = 'Only one engine can be defined as the master'
                         raise ValueError(m)
                     master_engine = engine
+
                 for channel in engine.channels:
                     channels[channel.name] = channel
-
                     for output in getattr(channel, 'outputs', []):
                         outputs[output.name] = output
-
                     for all_inputs in getattr(channel, 'inputs', []):
                         for input in get_named_inputs(all_inputs):
                             inputs[input.name] = input
 
+        # Find unconnected outputs and inputs (these are allowed so that we can
+        # split processing hierarchies across multiple manifests).
         for extension in point.extensions:
             for output in extension.get_children(Output):
                 outputs[output.name] = output
 
-        for output in outputs.values():
-            if output.target is None:
-                if output.target_name in channels:
-                    target = channels[output.channel_name]
-                else:
-                    m = "Unknown target {}".format(output.target_name)
-                    raise ValueError(m)
-                target.children.append(output)
-                output.target = target
-                # TODO: Can another output be the target (e.g., if one wanted
-                # to combine multiple tokens into a single stream)?
-
         for extension in point.extensions:
             for input in extension.get_children(Input):
                 inputs[input.name] = input
+
+        # Link up outputs with channels if needed.  TODO: Can another output be
+        # the target (e.g., if one wanted to combine multiple tokens into a
+        # single stream)?
+        for output in outputs.values():
+            if output.target is None:
+                if output.target_name in channels:
+                    target = channels[output.target_name]
+                else:
+                    m = "Unknown target {}".format(output.target_name)
+                    raise ValueError(m)
+                log.debug('Connecting output {} to target {}' \
+                            .format(output.name, output.target_name))
+                output.target = target
 
         for input in inputs.values():
             if input.source is None: 
                 if input.source_name in inputs:
                     source = inputs[input.source_name]
                 elif input.source_name in channels:
-                    source = channel[input.source_name]
+                    source = channels[input.source_name]
                 else:
                     m = "Unknown source {}".format(input.source_name)
                     raise ValueError(m)
-                source.children.append(input)
+                log.debug('Connecting input {} to source {}' \
+                            .format(output.name, output.target_name))
                 input.source = source
 
         self._master_engine = master_engine
@@ -152,6 +157,9 @@ class BasePlugin(Plugin):
         self._engines = engines
         self._outputs = outputs
         self._inputs = inputs
+        
+        log.debug('Available inputs: {}'.format(inputs.keys()))
+        log.debug('Available outputs: {}'.format(outputs.keys()))
 
     def _refresh_actions(self, event=None):
         actions = {}
@@ -163,8 +171,10 @@ class BasePlugin(Plugin):
         self._actions = actions
 
     def start_engines(self):
+        log.debug('Configuring engines')
         for engine in self._engines.values():
             engine.configure(self)
+        log.debug('Starting engines')
         for engine in self._engines.values():
             engine.start()
 

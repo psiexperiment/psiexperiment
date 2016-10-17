@@ -139,4 +139,4 @@ class DataPlugin(Plugin):
                 return sink.get_source(source_name)
             except AttributeError:
                 pass
-        raise AttributeError('Source not available')
+        raise AttributeError('Source {} not available'.format(source_name))

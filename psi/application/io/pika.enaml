@@ -1,3 +1,5 @@
+import numpy as np
+
 from enaml.workbench.api import PluginManifest, Extension
 
 from psi.controller.engines.nidaq import NIDAQEngine
@@ -13,7 +15,7 @@ enamldef IOManifest(PluginManifest): manifest:
         point = 'psi.controller.io'
 
         NIDAQEngine:
-            name = 'NI'
+            name = 'NI_audio'
             master_clock = True
             
             hw_ai_monitor_period = 0.01
@@ -26,7 +28,7 @@ enamldef IOManifest(PluginManifest): manifest:
                 fs = 200e3
                 expected_range = (-10, 10)
                 dtype = np.dtype('float64')
-                terminal = 'pseudodifferential'
+                #terminal = 'pseudodifferential'
 
             AOChannel:
                 label = 'secondary'
@@ -35,7 +37,7 @@ enamldef IOManifest(PluginManifest): manifest:
                 fs = 200e3
                 expected_range = (-10, 10)
                 dtype = np.dtype('float64')
-                terminal = 'pseudodifferential'
+                #terminal = 'pseudodifferential'
 
             AIChannel:
                 label = 'Reference microphone'
@@ -45,7 +47,7 @@ enamldef IOManifest(PluginManifest): manifest:
                 fs = 200e3
                 expected_range = (-10, 10)
                 dtype = np.dtype('float64')
-                mode = 'pseudodifferential'
+                #mode = 'pseudodifferential'
 
                 Input:
                     name = 'reference_microphone'
@@ -58,10 +60,14 @@ enamldef IOManifest(PluginManifest): manifest:
                 fs = 200e3
                 expected_range = (-10, 10)
                 dtype = np.dtype('float64')
-                terminal = 'pseudodifferential'
+                #terminal = 'pseudodifferential'
 
                 Input:
                     name = 'probe_tube_microphone'
+
+        NIDAQEngine:
+            # TODO: We should be able to configure both under a single engine?
+            name = 'NI_EEG'
 
             AIChannel:
                 label = 'Continuous EEG'

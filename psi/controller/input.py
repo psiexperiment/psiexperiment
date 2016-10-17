@@ -8,6 +8,7 @@ from scipy import signal
 
 from atom.api import Unicode, Float, Typed, Int, Property, Enum
 from enaml.core.api import Declarative, d_
+from enaml.workbench.api import Extension
 
 from psi import SimpleState
 from .channel import Channel
@@ -188,6 +189,8 @@ class Input(SimpleState, Declarative):
     mode = Enum('continuous', 'event')
 
     def _get_source(self):
+        if isinstance(self.parent, Extension):
+            return None
         return self.parent
 
     def _set_source(self, source):

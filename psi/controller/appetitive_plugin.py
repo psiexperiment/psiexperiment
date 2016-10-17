@@ -134,6 +134,7 @@ class AppetitivePlugin(BasePlugin):
             self.context.apply_changes()
             self.core.invoke_command('psi.data.prepare')
             self.start_engines()
+            log.debug('Done starting engines')
             self.rng = np.random.RandomState()
             self.context.next_setting(self.next_selector(), save_prior=False)
             self.experiment_state = 'running'
@@ -206,6 +207,7 @@ class AppetitivePlugin(BasePlugin):
         self.trial_state = TrialState.waiting_for_np_start
 
     def ao_callback(self, name):
+        log.debug('Updating output {}'.format(name))
         self._outputs[name].update()
 
     def ai_callback(self, name, data):

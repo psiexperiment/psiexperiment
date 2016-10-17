@@ -112,13 +112,14 @@ class HDFStore(Sink):
     def _prepare_inputs(self, inputs):
         channels = {}
         for input in inputs:
-            try:
-                prep_function_name = '_prepare_{}_input'.format(input.mode)
-                prep_function = getattr(self, prep_function_name)
-                channels[input.name] = prep_function(input)
-            except AttributeError:
-                m = 'No method for preparing datasource for {}'
-                log.debug(m.format(input.mode))
+            log.debug('Preparing file for input {}'.format(input.name))
+            prep_function_name = '_prepare_{}_input'.format(input.mode)
+            if not hasattr(self, prep_function_name):
+                m = 'No method for preparing datasource {} of type {}'
+                log.debug(m.format(input.name, input.mode))
+            prep_function = getattr(self, prep_function_name)
+            channels[input.name] = prep_function(input)
+
         self._channels = channels
 
     def prepare(self, plugin):

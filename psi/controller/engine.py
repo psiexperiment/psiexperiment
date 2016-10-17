@@ -59,6 +59,7 @@ class Engine(SimpleState, Declarative):
             self.hw_ao_buffer_offset = -self.hw_ao_buffer_samples
 
         for channel in self.channels:
+            log.debug('Configuring channel {}'.format(channel.name))
             channel.configure(plugin)
 
     def append_hw_ao(self, data, offset=None):
@@ -104,9 +105,6 @@ class Engine(SimpleState, Declarative):
         else:
             raise ValueError('Unsupported method')
 
-        # Now, write the modified buffer to the hardware.
-        #if __debug__:
-        #    self.get_space_available(offset=offset)
         self.write_hw_ao(self.hw_ao_buffer[..., lb:], offset)
 
     def register_ao_callback(self, callback):
