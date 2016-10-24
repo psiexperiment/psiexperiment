@@ -9,9 +9,9 @@ if __name__ == '__main__':
         from enaml.workbench.core.core_manifest import CoreManifest
         from enaml.workbench.ui.ui_manifest import UIManifest
 
-        from psi.setting.manifest import SettingManifest
+        from psi.context.manifest import ContextManifest
         from psi.data.manifest import DataManifest
-        from psi.controller.manifest import ControllerManifest
+        from psi.controller.base_manifest import ControllerManifest
         from psi.experiment.manifest import ExperimentManifest
 
     with warnings.catch_warnings():
@@ -21,7 +21,7 @@ if __name__ == '__main__':
         workbench.register(CoreManifest())
         workbench.register(UIManifest())
 
-        workbench.register(SettingManifest())
+        workbench.register(ContextManifest())
         workbench.register(DataManifest())
         workbench.register(ControllerManifest())
         workbench.register(ExperimentManifest())
@@ -29,7 +29,7 @@ if __name__ == '__main__':
         core = workbench.get_plugin('enaml.workbench.core')
         ui = workbench.get_plugin('enaml.workbench.ui')
 
-        parameters = core.invoke_command('psi.setting.get_parameters')
+        parameters = core.invoke_command('psi.context.get_parameters')
         parameters[0].rove = True
         name = parameters[0].name
 

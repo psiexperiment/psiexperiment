@@ -28,7 +28,7 @@ enamldef IOManifest(PluginManifest): manifest:
                 fs = 200e3
                 expected_range = (-10, 10)
                 dtype = np.dtype('float64')
-                #terminal = 'pseudodifferential'
+                terminal_mode = 'pseudodifferential'
 
             AOChannel:
                 label = 'secondary'
@@ -37,33 +37,36 @@ enamldef IOManifest(PluginManifest): manifest:
                 fs = 200e3
                 expected_range = (-10, 10)
                 dtype = np.dtype('float64')
-                #terminal = 'pseudodifferential'
-
-            AIChannel:
-                label = 'Reference microphone'
-                name = 'reference_microphone'
-                channel = 'PXI1Slot8/ai1'
-                start_trigger = 'PXISlot8/ao/StartTrigger'
-                fs = 200e3
-                expected_range = (-10, 10)
-                dtype = np.dtype('float64')
-                #mode = 'pseudodifferential'
-
-                Input:
-                    name = 'reference_microphone'
+                terminal_mode = 'pseudodifferential'
 
             AIChannel:
                 label = 'Probe tube microphone'
                 name = 'probe_tube_microphone'
                 channel = 'PXI1Slot8/ai0'
-                start_trigger = 'PXISlot8/ao/StartTrigger'
+                start_trigger = '/PXI1Slot8/ao/StartTrigger'
                 fs = 200e3
                 expected_range = (-10, 10)
                 dtype = np.dtype('float64')
-                #terminal = 'pseudodifferential'
+                terminal_mode = 'pseudodifferential'
+                terminal_coupling = 'AC'
 
                 Input:
                     name = 'probe_tube_microphone'
+
+            AIChannel:
+                label = 'Reference microphone'
+                name = 'reference_microphone'
+                channel = 'PXI1Slot8/ai1'
+                start_trigger = '/PXI1Slot8/ao/StartTrigger'
+                fs = 200e3
+                expected_range = (-10, 10)
+                dtype = np.dtype('float64')
+                terminal_mode = 'pseudodifferential'
+                terminal_coupling = 'AC'
+
+                Input:
+                    name = 'reference_microphone'
+
 
         NIDAQEngine:
             # TODO: We should be able to configure both under a single engine?
@@ -73,8 +76,9 @@ enamldef IOManifest(PluginManifest): manifest:
                 label = 'Continuous EEG'
                 name = 'eeg'
                 channel = 'PXI1Slot7/ai0'
-                start_trigger = 'PXI1Slot8/ao/StartTrigger'
+                start_trigger = '/PXI1Slot8/ao/StartTrigger'
                 fs = 25e3
                 expected_range = (-10, 10)
                 dtype = np.dtype('float64')
-                terminal = 'pseudodifferential'
+                terminal_mode = 'pseudodifferential'
+                terminal_coupling = 'AC'

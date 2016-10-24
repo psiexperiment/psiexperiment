@@ -18,6 +18,7 @@ from ..util import rpc
 from .base_plugin import BasePlugin
 from .output import AnalogOutput
 from .output_view import OutputDockItem
+from .experiment_action import ExperimentAction
 
 
 def _contribute_outputs(workbench, workspace):
@@ -92,7 +93,12 @@ enamldef BaseManifest(PSIManifest): manifest:
         Command:
             id = 'psi.controller.load_calibration'
             handler = load_calibration
-
+        Command:
+            id = 'psi.controller.initialize_engines'
+            handler = rpc('psi.controller', 'initialize_engines')
+        Command:
+            id = 'psi.controller.start_engines'
+            handler = rpc('psi.controller', 'start_engines')
 
     # Uses unicode symbols as icons for sake of simplicity.
     Extension:
@@ -154,7 +160,7 @@ enamldef BaseManifest(PSIManifest): manifest:
                 plugin.invoke_command('psi.context.revert_changes')
 
     Extension:
-        id = 'base_actions'
+        id = 'base_menu'
         point = 'enaml.workbench.ui.actions'
         MenuItem:
             path = '/equipment'
@@ -168,6 +174,16 @@ enamldef BaseManifest(PSIManifest): manifest:
             path = '/configuration/calibration/load_calibration'
             label = 'Load calibration files'
             command = 'psi.controller.load_calibration'
+
+    Extension:
+        id = 'base_actions'
+        point = 'psi.controller.actions'
+        ExperimentAction:
+            event = 'experiment_initialize'
+            command = 'psi.controller.initialize_engines'
+        ExperimentAction:
+            event = 'experiment_start'
+            command = 'psi.controller.start_engines'
 
     Extension:
         id = 'base_workspace'

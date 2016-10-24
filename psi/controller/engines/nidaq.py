@@ -10,6 +10,7 @@ from enaml.core.api import Declarative, d_
 
 from ..engine import Engine
 from daqengine import ni
+import PyDAQmx as mx
 
 
 def get_channel_property(channels, property, allow_unique=False):
@@ -65,6 +66,21 @@ class NIDAQEngine(ni.Engine, Engine):
 
     ao_fs = Typed(float)
 
+    terminal_mode_map = {
+        'differential': mx.DAQmx_Val_Diff,
+        'pseudodifferential': mx.DAQmx_Val_PseudoDiff,
+        'RSE': mx.DAQmx_Val_RSE,
+        'NRSE': mx.DAQmx_Val_NRSE,
+        'default': mx.DAQmx_Val_Cfg_Default,
+    }
+
+    terminal_coupling_map = {
+        None: None,
+        'AC': mx.DAQmx_Val_AC,
+        'DC': mx.DAQmx_Val_DC,
+        'ground': mx.DAQmx_Val_GND,
+    }
+
     def __init__(self, *args, **kwargs):
         ni.Engine.__init__(self)
         Engine.__init__(self, *args, **kwargs)
@@ -78,6 +94,20 @@ class NIDAQEngine(ni.Engine, Engine):
         # TODO: eventually we should be able to inspect the  'start_trigger'
         # property on the channel configuration to decide the order in which the
         # tasks are started.
+
+        if self.hw_ao_channels:
+            log.debug('Configuring HW AO channels')
+            channels = self.hw_ao_channels
+            lines = ','.join(get_channel_property(channels, 'channel', True))
+            names = get_channel_property(channels, 'name', True)
+            fs = get_channel_property(channels, 'fs')
+            start_trigger = get_channel_property(channels, 'start_trigger')
+            expected_range = get_channel_property(channels, 'expected_range')
+            tmode = get_channel_property(channels, 'terminal_mode')
+            terminal_mode = self.terminal_mode_map[tmode]
+            self.configure_hw_ao(fs, lines, expected_range, names,
+                                 start_trigger, terminal_mode)
+            self.ao_fs = fs
         if self.sw_do_channels:
             log.debug('Configuring SW DO channels')
             channels = self.sw_do_channels
@@ -93,9 +123,15 @@ class NIDAQEngine(ni.Engine, Engine):
             fs = get_channel_property(channels, 'fs')
             start_trigger = get_channel_property(channels, 'start_trigger')
             expected_range = get_channel_property(channels, 'expected_range')
-            mode = get_channel_property(channels, 'mode')
+
+            tmode = get_channel_property(channels, 'terminal_mode')
+            tcoupling = get_channel_property(channels, 'terminal_coupling')
+            terminal_mode = self.terminal_mode_map[tmode]
+            terminal_coupling = self.terminal_coupling_map[tcoupling]
+
             self.configure_hw_ai(fs, lines, expected_range, names,
-                                 start_trigger, mode)
+                                 start_trigger, terminal_mode,
+                                 terminal_coupling)
 
         if self.hw_di_channels:
             log.debug('Configuring HW DI channels')
@@ -110,18 +146,6 @@ class NIDAQEngine(ni.Engine, Engine):
             device = channels[0].channel.strip('/').split('/')[0]
             clock = '/{}/Ctr0'.format(device)
             self.configure_hw_di(fs, lines, names, start_trigger, clock)
-
-        if self.hw_ao_channels:
-            log.debug('Configuring HW AO channels')
-            channels = self.hw_ao_channels
-            lines = ','.join(get_channel_property(channels, 'channel', True))
-            names = get_channel_property(channels, 'name', True)
-            fs = get_channel_property(channels, 'fs')
-            start_trigger = get_channel_property(channels, 'start_trigger')
-            expected_range = get_channel_property(channels, 'expected_range')
-            self.configure_hw_ao(fs, lines, expected_range, names,
-                                 start_trigger)
-            self.ao_fs = fs
 
         super(NIDAQEngine, self).configure(plugin)
         log.debug('Completed engine configuration')

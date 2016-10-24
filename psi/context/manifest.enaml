@@ -13,6 +13,7 @@ from enaml.layout.api import InsertItem, InsertTab
 from enaml.application import deferred_call
 
 from psi.core.enaml.api import PSIManifest
+from psi.controller.api import ExperimentAction
 
 from .plugin import ContextPlugin
 
@@ -207,7 +208,14 @@ enamldef ContextManifest(PSIManifest): manifest:
             handler = get_default_context
 
     Extension:
-        id = 'actions'
+        id = 'context_actions'
+        point = 'psi.controller.actions'
+        ExperimentAction:
+            event = 'experiment_initialize'
+            command = 'psi.context.apply_changes'
+
+    Extension:
+        id = 'context_menu'
         point = 'enaml.workbench.ui.actions'
         MenuItem:
             path = '/configuration/settings'

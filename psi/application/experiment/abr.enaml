@@ -7,7 +7,7 @@ from enaml.workbench.api import Extension
 from enaml.workbench.ui.api import Branding
 
 from psi.context.selector import SequenceSelector
-from psi.controller.api import EpochOutput
+from psi.controller.api import EpochOutput, ContinuousOutput
 from psi.controller.base_plugin import BasePlugin
 from psi.controller.input import IIRFilter, Average, Accumulate, Epoch, Reject
 from psi.controller.base_manifest import BaseManifest
@@ -22,13 +22,9 @@ from psi.data.plots import (TimeContainer, ChannelPlot, TimeseriesPlot,
 class ABRController(BasePlugin):
 
     def start_experiment(self):
-        self.context.apply_changes()
-        self.core.invoke_command('psi.data.prepare')
-        self.start_engines()
-        self.context.next_setting(save_prior=False)
+        self.context.next_setting('Stimulus', save_prior=False)
         self.experiment_state = 'running'
-        print self.context.get_values()
-        self.invoke_actions('experiment_start', self.get_ts())
+        super(ABRController, self).start_experiment()
 
 
 enamldef ControllerManifest(BaseManifest): manifest:
@@ -46,6 +42,11 @@ enamldef ControllerManifest(BaseManifest): manifest:
         id = 'io'
         point = 'psi.controller.io'
 
+        ContinuousOutput:
+            label = 'Background'
+            name = 'background'
+            target_name = 'primary'
+
         EpochOutput:
             label = 'Stimulus'
             name = 'stimulus'
@@ -53,24 +54,24 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
         IIRFilter:
             source_name = 'eeg'
-            f_lowpass = 300
-            f_highpass = 3000
+            f_lowpass = 3000
+            f_highpass = 300
             btype = 'bandpass'
             ftype = 'butter'
-            N = 4
+            N = 1
             name = 'filtered_eeg'
 
             Epoch:
                 name = 'filtered_erp'
                 reference = 'stimulus'
-                duration = 'window'
+                duration = 8.5e-3
 
                 Accumulate:
                     n = 2
                     Reject:
-                        threshold = 'threshold'
+                        threshold << 5
                         Average:
-                            n = 'averages'
+                            n << workbench.get_plugin('psi.context').get_value('averages')
                             name = 'mean_erp'
 
     Extension:
@@ -137,27 +138,27 @@ enamldef ControllerManifest(BaseManifest): manifest:
         SequenceSelector:
             name = 'Sequence'
 
-    Extension:
-        id = 'plots'
-        point = 'psi.data.plots'
+    #Extension:
+    #    id = 'plots'
+    #    point = 'psi.data.plots'
 
-        TimeContainer:
-            name = 'trial_plot_container' 
-            title = 'Trial timing'
-            trig_delay = 0
-            span = 10
+    #    TimeContainer:
+    #        name = 'trial_plot_container' 
+    #        title = 'Trial timing'
+    #        trig_delay = 0
+    #        span = 10
 
-            #TimeseriesPlot:
-            #    source = 'event_log'
-            #    rising_event = 'reward_start'
-            #    falling_event = 'reward_end'
-            #    fill_color = (0.25, 0.41, 0.88, 0.25)
-            #    line_color = (0.25, 0.41, 0.88, 0.5)
-            #    rect_center = 0.25
-            #    rect_height = 0.2
+    #        #TimeseriesPlot:
+    #        #    source = 'event_log'
+    #        #    rising_event = 'reward_start'
+    #        #    falling_event = 'reward_end'
+    #        #    fill_color = (0.25, 0.41, 0.88, 0.25)
+    #        #    line_color = (0.25, 0.41, 0.88, 0.5)
+    #        #    rect_center = 0.25
+    #        #    rect_height = 0.2
 
-            ExtremesChannelPlot:
-                decimation_threshold = 5
-                source = 'filtered_eeg'
-                line_color = (0, 0, 0)
-                value_range = (-1, 1)
+    #        ExtremesChannelPlot:
+    #            decimation_threshold = 5
+    #            source = 'filtered_eeg'
+    #            line_color = (0, 0, 0)
+    #            value_range = (-1, 1)

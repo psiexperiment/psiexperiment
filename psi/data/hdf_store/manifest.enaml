@@ -17,6 +17,7 @@ import numpy as np
 from ..plugin import Sink
 from psi import get_config
 from psi.core.utils import find_extension
+from psi.controller.api import ExperimentAction
 
 from .data_source import DataChannel, DataTable
 
@@ -188,7 +189,12 @@ enamldef HDFStoreManifest(PluginManifest): manifest:
             id = PLUGIN_ID + '.set_node'
             handler = set_node
 
+    Extension:
+        id = 'actions'
+        point = 'psi.controller.actions'
+        ExperimentAction:
+            event = 'experiment_initialize'
+            command = 'psi.data.prepare'
 
-# Important! Needed to fix some read/write concurrency issues with the
-# PyTables library.
+
 monkeypatch_pytables()

@@ -34,7 +34,7 @@ def broadcast(targets):
 @coroutine
 def accumulate(n, target):
     data = []
-    while true:
+    while True:
         d = (yield)[np.newaxis]
         data.append(d)
         if len(data) == n:
@@ -309,7 +309,7 @@ class Edges(Input):
     def get_plugin_callback(self, plugin):
         p = partial(plugin.et_callback, self.name)
         return lambda data: p(data[0], data[1]/self.fs)
-    
+
     def configure_callback(self, plugin):
         cb = super(Edges, self).configure_callback(plugin)
         return edges(self.initial_state, self.debounce, cb).send

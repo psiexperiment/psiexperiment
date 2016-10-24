@@ -33,6 +33,9 @@ class Channel(SimpleState, Declarative):
     def _get_engine(self):
         return self.parent
 
+    def _set_engine(self, engine):
+        self.set_parent(engine)
+
     def configure(self, plugin):
         pass
 
@@ -41,9 +44,10 @@ class AIChannel(Channel):
 
     inputs = Property().tag(transient=True)
     expected_range = d_(Tuple())
-    mode = d_(Enum('RSE', 'differential'))
     calibration = Typed(Calibration)
-    terminal = d_(Enum('pseudodifferential', 'differential'))
+    terminal_mode = d_(Enum('pseudodifferential', 'differential', 'RSE',
+                            'NRSE'))
+    terminal_coupling = d_(Enum(None, 'AC', 'DC', 'ground'))
 
     def _get_inputs(self):
         return self.children
@@ -58,7 +62,7 @@ class AOChannel(Channel):
     outputs = Property().tag(transient=True)
     expected_range = d_(Tuple())
     calibration = Typed(Calibration)
-    terminal = d_(Enum('pseudodifferential', 'differential'))
+    terminal_mode = d_(Enum('pseudodifferential', 'differential', 'RSE'))
 
     def _get_outputs(self):
         return self.children

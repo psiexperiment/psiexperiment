@@ -19,6 +19,7 @@ experiment_descriptions = {
             'psi.data.hdf_store.manifest.HDFStoreManifest',
         ],
     },
+
     'abr': {
         'manifests': [
             'psi.application.experiment.abr.ControllerManifest',

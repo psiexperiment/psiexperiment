@@ -61,7 +61,7 @@ class ContextPlugin(Plugin):
     def stop(self):
         self._unbind_observers()
 
-    def _refresh_selectors(self):
+    def _refresh_selectors(self, event=None):
         # Hidden here to avoid circular import since selectors define a
         # reference to the context plugin.
         from .selector import BaseSelector
@@ -218,7 +218,7 @@ class ContextPlugin(Plugin):
         self.next_selector_setting(selector)
         self.set_values(results)
 
-    def next_setting(self, selector, save_prior):
+    def next_setting(self, selector='default', save_prior=True):
         '''
         Load next set of expressions from the specified sequence
         '''
@@ -227,8 +227,13 @@ class ContextPlugin(Plugin):
             prior_values.append(self.get_values())
             self._prior_values = prior_values
         self._namespace.reset()
-        expressions = self._iterators[selector].next()
-        self._namespace.update_expressions(expressions)
+        try:
+            expressions = self._iterators[selector].next()
+            self._namespace.update_expressions(expressions)
+        except KeyError:
+            m = 'Avaliable iterators include {}'.format(self._iterators.keys())
+            log.debug(m)
+            raise
 
     def get_value(self, context_name, trial=None, fail_mode='error'):
         if trial is not None:

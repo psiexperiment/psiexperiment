@@ -90,7 +90,7 @@ class BasePlugin(Plugin):
         self.workbench.get_extension_point(ACTION_POINT) \
             .unobserve('extensions', self._refresh_actions)
 
-    def _refresh_io(self):
+    def _refresh_io(self, event=None):
         channels = {}
         engines = {}
         outputs = {}
@@ -140,7 +140,7 @@ class BasePlugin(Plugin):
                 output.target = target
 
         for input in inputs.values():
-            if input.source is None: 
+            if input.source is None:
                 if input.source_name in inputs:
                     source = inputs[input.source_name]
                 elif input.source_name in channels:
@@ -152,12 +152,18 @@ class BasePlugin(Plugin):
                             .format(output.name, output.target_name))
                 input.source = source
 
+        # Remove channels that do not have an input or output defined.
+        for channel in channels.values():
+            if not channel.children:
+                channel.engine = None
+                del channels[channel.name]
+
         self._master_engine = master_engine
         self._channels = channels
         self._engines = engines
         self._outputs = outputs
         self._inputs = inputs
-        
+
         log.debug('Available inputs: {}'.format(inputs.keys()))
         log.debug('Available outputs: {}'.format(outputs.keys()))
 
@@ -170,10 +176,12 @@ class BasePlugin(Plugin):
                 subgroup.append(action)
         self._actions = actions
 
-    def start_engines(self):
+    def configure_engines(self):
         log.debug('Configuring engines')
         for engine in self._engines.values():
             engine.configure(self)
+
+    def start_engines(self):
         log.debug('Starting engines')
         for engine in self._engines.values():
             engine.start()
@@ -204,9 +212,10 @@ class BasePlugin(Plugin):
     def get_output(self, output_name):
         return self._outputs[output_name]
 
-    def invoke_actions(self, event, timestamp):
-        params = {'event': event, 'timestamp': timestamp}
-        self.core.invoke_command('psi.data.process_event', params)
+    def invoke_actions(self, event, timestamp=None):
+        if timestamp is not None:
+            params = {'event': event, 'timestamp': timestamp}
+            self.core.invoke_command('psi.data.process_event', params)
 
         log.debug('Invoking actions for {}'.format(event))
         for action in self._actions.get(event, []):
@@ -233,8 +242,11 @@ class BasePlugin(Plugin):
     def apply_changes(self):
         raise NotImplementedError
 
+    def initialize_experiment(self):
+        self.invoke_actions('experiment_intialize')
+
     def start_experiment(self):
-        raise NotImplementedError
+        self.invoke_actions('experiment_start')
 
     def stop_experiment(self):
         raise NotImplementedError
@@ -248,11 +260,14 @@ class BasePlugin(Plugin):
     def end_trial(self):
         raise NotImplementedError
 
-    def ao_callback(self, name, data):
-        raise NotImplementedError
+    def ao_callback(self, name):
+        log.debug('Updating output {}'.format(name))
+        self._outputs[name].update()
 
     def ai_callback(self, name, data):
-        raise NotImplementedError
+        log.debug('Acquired {} samples from {}'.format(data.shape, name))
+        parameters = {'name': name, 'data': data}
+        self.core.invoke_command('psi.data.process_ai', parameters)
 
     def et_callback(self, name, edge, timestamp):
         raise NotImplementedError

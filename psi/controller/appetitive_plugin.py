@@ -71,7 +71,7 @@ class AppetitivePlugin(BasePlugin):
     # Current trial
     trial = Int(0)
 
-    # Current number of consecutive nogos 
+    # Current number of consecutive nogos
     consecutive_nogo = Int(0)
 
     # Used by the trial sequence selector to randomly select between go/nogo.
@@ -131,10 +131,10 @@ class AppetitivePlugin(BasePlugin):
         self.lock = threading.RLock()
         try:
             self.trial += 1
-            self.context.apply_changes()
-            self.core.invoke_command('psi.data.prepare')
-            self.start_engines()
-            log.debug('Done starting engines')
+            #self.context.apply_changes()
+            #self.core.invoke_command('psi.data.prepare')
+            #self.start_engines()
+            #log.debug('Done starting engines')
             self.rng = np.random.RandomState()
             self.context.next_setting(self.next_selector(), save_prior=False)
             self.experiment_state = 'running'
@@ -390,7 +390,7 @@ class AppetitivePlugin(BasePlugin):
                     # duration.
                     self.trial_state = TrialState.waiting_for_np_duration
                     current_poke_duration = self.get_ts()-self.trial_info['np_start']
-                    poke_duration = self.context.get_value('np_duration') 
+                    poke_duration = self.context.get_value('np_duration')
                     remaining_poke_duration = poke_duration-current_poke_duration
                     delta = max(0, remaining_poke_duration)
                     self.start_timer(delta, Event.np_duration_elapsed)
