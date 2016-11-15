@@ -1,4 +1,4 @@
-from distutils.core import setup
+from setuptools import setup
 
 setup(
     name='PsiExperiment',
@@ -8,4 +8,9 @@ setup(
     packages=['psi',],
     license='LICENSE.txt',
     description='Module for running trial-based experiments.',
+	entry_points={
+		'console_scripts': [
+			'psi = psi.application.__main__:main'
+		]
+	},
 )

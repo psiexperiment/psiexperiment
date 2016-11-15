@@ -57,9 +57,11 @@ class NIDAQEngine(ni.Engine, Engine):
 
     hw_ao_monitor_period = d_(Float(1))
 
-    _tasks = Typed(dict, {}).tag(transient=True)
-    _callbacks = Typed(dict, {}).tag(transient=True)
-    _timers = Typed(dict, {}).tag(transient=True)
+    # These need to be redefined here even though we define them in the parent
+    # class.
+    _tasks = Typed(dict).tag(transient=True)
+    _callbacks = Typed(dict).tag(transient=True)
+    _timers = Typed(dict).tag(transient=True)
     _uint32 = Typed(ctypes.c_uint32).tag(transient=True)
     _uint64 = Typed(ctypes.c_uint64).tag(transient=True)
     _int32 = Typed(ctypes.c_int32).tag(transient=True)
@@ -87,27 +89,6 @@ class NIDAQEngine(ni.Engine, Engine):
 
     def configure(self, plugin):
         log.debug('Configuring {} engine'.format(self.name))
-        # Configure the analog output last because acquisition is synced with
-        # the analog output signal (i.e., when the analog output starts, the
-        # analog input begins acquiring such that sample 0 of the input
-        # corresponds with sample 0 of the output).
-        # TODO: eventually we should be able to inspect the  'start_trigger'
-        # property on the channel configuration to decide the order in which the
-        # tasks are started.
-
-        if self.hw_ao_channels:
-            log.debug('Configuring HW AO channels')
-            channels = self.hw_ao_channels
-            lines = ','.join(get_channel_property(channels, 'channel', True))
-            names = get_channel_property(channels, 'name', True)
-            fs = get_channel_property(channels, 'fs')
-            start_trigger = get_channel_property(channels, 'start_trigger')
-            expected_range = get_channel_property(channels, 'expected_range')
-            tmode = get_channel_property(channels, 'terminal_mode')
-            terminal_mode = self.terminal_mode_map[tmode]
-            self.configure_hw_ao(fs, lines, expected_range, names,
-                                 start_trigger, terminal_mode)
-            self.ao_fs = fs
         if self.sw_do_channels:
             log.debug('Configuring SW DO channels')
             channels = self.sw_do_channels
@@ -146,6 +127,27 @@ class NIDAQEngine(ni.Engine, Engine):
             device = channels[0].channel.strip('/').split('/')[0]
             clock = '/{}/Ctr0'.format(device)
             self.configure_hw_di(fs, lines, names, start_trigger, clock)
+
+        # Configure the analog output last because acquisition is synced with
+        # the analog output signal (i.e., when the analog output starts, the
+        # analog input begins acquiring such that sample 0 of the input
+        # corresponds with sample 0 of the output).
+        # TODO: eventually we should be able to inspect the  'start_trigger'
+        # property on the channel configuration to decide the order in which the
+        # tasks are started.
+        if self.hw_ao_channels:
+            log.debug('Configuring HW AO channels')
+            channels = self.hw_ao_channels
+            lines = ','.join(get_channel_property(channels, 'channel', True))
+            names = get_channel_property(channels, 'name', True)
+            fs = get_channel_property(channels, 'fs')
+            start_trigger = get_channel_property(channels, 'start_trigger')
+            expected_range = get_channel_property(channels, 'expected_range')
+            tmode = get_channel_property(channels, 'terminal_mode')
+            terminal_mode = self.terminal_mode_map[tmode]
+            self.configure_hw_ao(fs, lines, expected_range, names,
+                                 start_trigger, terminal_mode)
+            self.ao_fs = fs
 
         super(NIDAQEngine, self).configure(plugin)
         log.debug('Completed engine configuration')

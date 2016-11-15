@@ -16,9 +16,6 @@ class DataSource(Atom):
     def set_current_time(self, current_time):
         self.current_time = current_time
 
-    def base_trait(self, name):
-        log.debug('Base trait requested for {}'.format(name))
-
 
 class DataTable(DataSource):
 
@@ -27,9 +24,6 @@ class DataTable(DataSource):
         self.added = row
 
     def query(self, string, condvars, field):
-        #if __debug__:
-        #    log.trace('Querying {} with {} using {} for {}' \
-        #              .format(self.data, string, condvars, field))
         return self.data.read_where(string, condvars, field)
 
 
@@ -195,8 +189,8 @@ class DataChannel(DataSource):
         self.data.append(data)
         ub = self.get_size()
         try:
-            # TODO: FIXME. For some reason the chaco plots are raising an
-            # error when being invalidated.
+            # TODO: FIXME. For some reason the chaco plots are raising an error
+            # when being invalidated.
             self.added = lb/self.fs, ub/self.fs
         except:
             pass

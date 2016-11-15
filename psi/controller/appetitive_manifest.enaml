@@ -13,6 +13,7 @@ from ..context.selector import SequenceSelector, SingleSetting
 
 from .base_manifest import BaseManifest
 from .appetitive_plugin import AppetitivePlugin, Event
+from .experiment_action import ExperimentEvent
 from ..util import rpc
 
 
@@ -287,3 +288,17 @@ enamldef AppetitiveManifest(BaseManifest): manifest:
         id = 'workspace'
         point = 'psi.experiment.workspace'
         factory = contribute_to_workspace
+
+    Extension:
+        id = 'appetitive_events'
+        point = 'psi.controller.actions'
+        ExperimentEvent:
+            name = 'trial_start'
+        ExperimentAction:
+            event = 'experiment_start'
+            command = 'psi.controller.set_pause_ok'
+            kwargs = {'value': True}
+        ExperimentAction:
+            event = 'experiment_stop'
+            command = 'psi.controller.set_pause_ok'
+            kwargs = {'value': False}

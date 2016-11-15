@@ -21,9 +21,13 @@ class BandlimitedNoisePlugin(TokenPlugin):
         bandwidth = self.get_context_item('bandwidth')
         fc = self.get_context_item('center_frequency')
         seed = self.get_context_item('seed')
+        order = self.get_context_item('order')
+        rs = self.get_context_item('rs')
+        rp = self.get_context_item('rp')
 
         carrier = BandlimitedNoise(name='noise', bandwidth=bandwidth, fc=fc,
-                                   level=level, seed=seed) 
+                                   level=level, seed=seed, order=order, rs=rs,
+                                   rp=rp) 
         c = InterpCalibration.from_spl([0, 100e3], [100, 100])
         channel = Channel(calibration=c,
                           token=carrier, voltage_min=-10, voltage_max=10)
@@ -61,8 +65,8 @@ enamldef BandlimitedNoiseManifest(TokenManifest): m:
             label = '{} center frequency (Hz)'.format(m.label_base)
             compact_label = '{} fc'.format(m.compact_base)
             dtype = np.dtype('float32')
-            default = 1000
-            expression = '1000'
+            default = 6000
+            expression = '6000'
             group = m.base
             scope = m.scope
 
@@ -71,8 +75,8 @@ enamldef BandlimitedNoiseManifest(TokenManifest): m:
             label = '{} bandwidth (Hz)'.format(m.label_base)
             compact_label = '{} bw'.format(m.compact_base)
             dtype = np.dtype('float32')
-            default = 1000
-            expression = '1000'
+            default = 4000
+            expression = '4000'
             group = m.base
 
         Parameter:
@@ -82,4 +86,31 @@ enamldef BandlimitedNoiseManifest(TokenManifest): m:
             dtype = np.dtype('float32')
             default = 1
             expression = '1'
+            group = m.base
+
+        Parameter:
+            name = '{}_rs'.format(m.base)
+            label = '{} min. atten in stop band'.format(m.label_base)
+            compact_label = '{} rs'.format(m.compact_base)
+            dtype = np.dtype('float32')
+            default = 85
+            expression = '85'
+            group = m.base
+
+        Parameter:
+            name = '{}_rp'.format(m.base)
+            label = '{} max. ripple in pass band'.format(m.label_base)
+            compact_label = '{} rp'.format(m.compact_base)
+            dtype = np.dtype('float32')
+            default = 0.3
+            expression = '0.3'
+            group = m.base
+
+        Parameter:
+            name = '{}_order'.format(m.base)
+            label = '{} order'.format(m.label_base)
+            compact_label = '{} order'.format(m.compact_base)
+            dtype = np.dtype('float32')
+            default = 7
+            expression = '7'
             group = m.base

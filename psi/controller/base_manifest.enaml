@@ -18,7 +18,7 @@ from ..util import rpc
 from .base_plugin import BasePlugin
 from .output import AnalogOutput
 from .output_view import OutputDockItem
-from .experiment_action import ExperimentAction
+from .experiment_action import ExperimentAction, ExperimentEvent
 
 
 def _contribute_outputs(workbench, workspace):
@@ -51,6 +51,12 @@ def find_items(which, workbench):
     return groups
 
 
+def start_experiment(event):
+    controller = event.workbench.get_plugin('psi.controller')
+    controller.initialize_experiment()
+    controller.start_experiment()
+
+
 enamldef BaseManifest(PSIManifest): manifest:
     '''
     Defines the core functionality that most controller plugins will share
@@ -59,6 +65,8 @@ enamldef BaseManifest(PSIManifest): manifest:
     factory = BasePlugin
 
     Extension:
+        # Ensures that context group items are automatically created for the
+        # outputs.
         id = 'automatic_outputs'
         point = 'psi.context.items'
         factory = lambda which, w=workbench: find_items(which, w)
@@ -74,7 +82,7 @@ enamldef BaseManifest(PSIManifest): manifest:
         point = 'enaml.workbench.core.commands'
         Command:
             id = 'psi.controller.start'
-            handler = rpc('psi.controller', 'start_experiment')
+            handler = start_experiment
         Command:
             id = 'psi.controller.stop'
             handler = rpc('psi.controller', 'stop_experiment')
@@ -94,11 +102,17 @@ enamldef BaseManifest(PSIManifest): manifest:
             id = 'psi.controller.load_calibration'
             handler = load_calibration
         Command:
-            id = 'psi.controller.initialize_engines'
-            handler = rpc('psi.controller', 'initialize_engines')
+            id = 'psi.controller.configure_engines'
+            handler = rpc('psi.controller', 'configure_engines')
         Command:
             id = 'psi.controller.start_engines'
             handler = rpc('psi.controller', 'start_engines')
+        Command:
+            id = 'psi.controller.stop_engines'
+            handler = rpc('psi.controller', 'stop_engines')
+        Command:
+            id = 'psi.controller.set_pause_ok'
+            handler = rpc('psi.controller', 'set_pause_ok')
 
     # Uses unicode symbols as icons for sake of simplicity.
     Extension:
@@ -126,8 +140,7 @@ enamldef BaseManifest(PSIManifest): manifest:
         Action:
             text << u'\u23E9 Resume' if checked else u'\u23F8 Pause'
             checkable = True
-            enabled <<  workbench.get_plugin('psi.controller').experiment_state \
-                not in ('initialized', 'stopped')
+            enabled << workbench.get_plugin('psi.controller')._pause_ok
             tool_tip << 'Resume' if checked else 'Pause'
             toggled ::
                 plugin = workbench.get_plugin('enaml.workbench.core')
@@ -178,12 +191,25 @@ enamldef BaseManifest(PSIManifest): manifest:
     Extension:
         id = 'base_actions'
         point = 'psi.controller.actions'
+        ExperimentEvent:
+            name = 'experiment_initialize'
+            label = 'Initialize experiment'
+        ExperimentEvent:
+            name = 'experiment_start'
+            label = 'Start experiment'
+        ExperimentEvent:
+            name = 'experiment_stop'
+            label = 'Stop experiment'
+
         ExperimentAction:
             event = 'experiment_initialize'
-            command = 'psi.controller.initialize_engines'
+            command = 'psi.controller.configure_engines'
         ExperimentAction:
             event = 'experiment_start'
             command = 'psi.controller.start_engines'
+        ExperimentAction:
+            event = 'experiment_stop'
+            command = 'psi.controller.stop_engines'
 
     Extension:
         id = 'base_workspace'

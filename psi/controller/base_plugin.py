@@ -2,6 +2,7 @@ import logging
 log = logging.getLogger(__name__)
 
 from functools import partial
+import operator as op
 
 import numpy as np
 
@@ -12,13 +13,14 @@ from .channel import Channel
 from .engine import Engine
 from .output import Output
 from .input import Input
-from .experiment_action import ExperimentAction
+from .experiment_action import ExperimentAction, ExperimentEvent
 from .output import ContinuousOutput
 from ..token import get_token_manifest
 
 
 IO_POINT = 'psi.controller.io'
 ACTION_POINT = 'psi.controller.actions'
+
 
 def get_named_inputs(input):
     named_inputs = []
@@ -49,6 +51,9 @@ class BasePlugin(Plugin):
     _remind_requested = Bool(False)
     _pause_requested = Bool(False)
 
+    # Can the experiment be paused?
+    _pause_ok = Bool(False)
+
     # Available engines
     _engines = Typed(dict, {})
 
@@ -64,16 +69,18 @@ class BasePlugin(Plugin):
     # This determines which engine is responsible for the clock
     _master_engine = Typed(Engine)
 
-    # TODO: Define action groups to minimize errors.
+    # List of events and actions that can be associated with the event
+    _events = Typed(dict, {})
     _actions = Typed(dict, {})
 
     def start(self):
-        self.core = self.workbench.get_plugin('enaml.workbench.core')
-        self.context = self.workbench.get_plugin('psi.context')
-        self.data = self.workbench.get_plugin('psi.data')
+        log.debug('Starting controller plugin')
         self._refresh_io()
         self._refresh_actions()
         self._bind_observers()
+        self.core = self.workbench.get_plugin('enaml.workbench.core')
+        self.context = self.workbench.get_plugin('psi.context')
+        self.data = self.workbench.get_plugin('psi.data')
 
     def stop(self):
         self._unbind_observers()
@@ -91,6 +98,7 @@ class BasePlugin(Plugin):
             .unobserve('extensions', self._refresh_actions)
 
     def _refresh_io(self, event=None):
+        log.debug('Loading IO')
         channels = {}
         engines = {}
         outputs = {}
@@ -169,11 +177,28 @@ class BasePlugin(Plugin):
 
     def _refresh_actions(self, event=None):
         actions = {}
+        events = {}
         point = self.workbench.get_extension_point(ACTION_POINT)
         for extension in point.extensions:
+            for event in extension.get_children(ExperimentEvent):
+                if event in actions:
+                    raise ValueError('{} already exists'.format(event.name))
+                events[event.name] = event
+                actions[event.name] = []
+
+        for extension in point.extensions:
             for action in extension.get_children(ExperimentAction):
-                subgroup = actions.setdefault(action.event, [])
-                subgroup.append(action)
+                try:
+                    actions[action.event].append(action)
+                except KeyError:
+                    m = 'Unknown event {} for {}'
+                    raise ValueError(m.format(action.event, action.command))
+
+        # Sort based on weight
+        for action_set in actions.values():
+            action_set.sort(key=lambda a: a.weight)
+
+        self._events = events
         self._actions = actions
 
     def configure_engines(self):
@@ -219,8 +244,9 @@ class BasePlugin(Plugin):
 
         log.debug('Invoking actions for {}'.format(event))
         for action in self._actions.get(event, []):
-            log.debug('Invoking command {}'.format(action.command))
-            self.core.invoke_command(action.command)
+            m = 'Invoking command {} with parameters {}'
+            log.debug(m.format(action.command, action.kwargs))
+            self.core.invoke_command(action.command, parameters=action.kwargs)
 
     def request_apply(self):
         if not self.apply_changes():
@@ -243,13 +269,15 @@ class BasePlugin(Plugin):
         raise NotImplementedError
 
     def initialize_experiment(self):
-        self.invoke_actions('experiment_intialize')
+        self.invoke_actions('experiment_initialize')
 
     def start_experiment(self):
         self.invoke_actions('experiment_start')
+        self.experiment_state = 'running'
 
     def stop_experiment(self):
-        raise NotImplementedError
+        self.invoke_actions('experiment_stop', self.get_ts())
+        self.experiment_state = 'stopped'
 
     def pause_experiment(self):
         raise NotImplementedError
@@ -265,12 +293,18 @@ class BasePlugin(Plugin):
         self._outputs[name].update()
 
     def ai_callback(self, name, data):
-        log.debug('Acquired {} samples from {}'.format(data.shape, name))
+        log.trace('Acquired {} samples from {}'.format(data.shape, name))
         parameters = {'name': name, 'data': data}
         self.core.invoke_command('psi.data.process_ai', parameters)
 
     def et_callback(self, name, edge, timestamp):
-        raise NotImplementedError
+        log.debug('Detected {} on {} at {}'.format(edge, name, timestamp))
+        parameters = {'name': name, 'edge': edge, 'timestamp': timestamp}
+        # TODO: add callback to save et
+        #self.core.invoke_command('psi.data.process_et', parameters)
 
     def get_ts(self):
         return self._master_engine.get_ts()
+
+    def set_pause_ok(self, value):
+        self._pause_ok = value

@@ -35,6 +35,7 @@ enamldef IOManifest(PluginManifest): manifest:
                 fs = 100e3
                 expected_range = (-10, 10)
                 dtype = np.dtype('float64')
+                terminal_mode = 'RSE'
 
             DOChannel:
                 name = 'food_dispense'
@@ -69,56 +70,69 @@ enamldef IOManifest(PluginManifest): manifest:
                 fs = 100e3
                 expected_range = (-10, 10)
                 dtype = np.dtype('float64')
-                mode = 'differential'
+                terminal_mode = 'differential'
 
                 Input:
                     name = 'microphone'
 
             AIChannel:
-                label = 'Nose poke IR'
-                name = 'nose_poke'
-                channel = 'Dev1/ai2'
+                label = 'Speaker Monitor'
+                name = 'speaker_monitor'
+                channel = 'Dev1/ai1'
                 start_trigger = 'ao/StartTrigger'
                 fs = 100e3
                 expected_range = (-10, 10)
                 dtype = np.dtype('float64')
-                mode = 'differential'
+                terminal_mode = 'differential'
 
-                IIRFilter:
-                    f_lowpass = 25
-                    btype = 'lowpass'
-                    ftype = 'butter'
-                    N = 4
-                    Downsample:
-                        # effective Fs is 100
-                        name = 'nose_poke_analog'
-                        q = 1000
-                        Threshold:
-                            threshold = 2.5
-                            Edges:
-                                debounce = 2
-                                name = 'nose_poke'
+                Input:
+                    name = 'speaker_monitor'
 
-            AIChannel:
-                label = 'Reward contact IR'
-                name = 'reward_contact'
-                channel = 'Dev1/ai3'
-                start_trigger = 'ao/StartTrigger'
-                fs = 100e3
-                expected_range = (-10, 10)
-                dtype = np.dtype('float64')
-                mode = 'differential'
+            #AIChannel:
+            #    label = 'Nose poke IR'
+            #    name = 'nose_poke'
+            #    channel = 'Dev1/ai2'
+            #    start_trigger = 'ao/StartTrigger'
+            #    fs = 100e3
+            #    expected_range = (-10, 10)
+            #    dtype = np.dtype('float64')
+            #    terminal_mode = 'differential'
 
-                IIRFilter:
-                    f_lowpass = 25
-                    btype = 'lowpass'
-                    ftype = 'butter'
-                    N = 1
-                    Downsample:
-                        name = 'reward_contact_analog'
-                        q = 1000
-                        Threshold:
-                            threshold = 2.5
-                            Edges:
-                                debounce = 2
-                                name = 'reward_contact'
+            #    IIRFilter:
+            #        f_lowpass = 25
+            #        btype = 'lowpass'
+            #        ftype = 'butter'
+            #        N = 4
+            #        Downsample:
+            #            # effective Fs is 100
+            #            name = 'nose_poke_analog'
+            #            q = 1000
+            #            Threshold:
+            #                threshold = 2.5
+            #                Edges:
+            #                    debounce = 2
+            #                    name = 'nose_poke'
+
+            #AIChannel:
+            #    label = 'Reward contact IR'
+            #    name = 'reward_contact'
+            #    channel = 'Dev1/ai3'
+            #    start_trigger = 'ao/StartTrigger'
+            #    fs = 100e3
+            #    expected_range = (-10, 10)
+            #    dtype = np.dtype('float64')
+            #    terminal_mode = 'differential'
+
+            #    IIRFilter:
+            #        f_lowpass = 25
+            #        btype = 'lowpass'
+            #        ftype = 'butter'
+            #        N = 1
+            #        Downsample:
+            #            name = 'reward_contact_analog'
+            #            q = 1000
+            #            Threshold:
+            #                threshold = 2.5
+            #                Edges:
+            #                    debounce = 2
+            #                    name = 'reward_contact'

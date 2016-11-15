@@ -1,20 +1,20 @@
 from __future__ import division
 
-from chaco.api import DataRange1D
-from traits.api import Float, List, Instance, Enum, on_trait_change
-
 import logging
 log = logging.getLogger(__name__)
 
-class ChannelDataRange(DataRange1D):
+from traits.api import Float, List, Instance, Enum, on_trait_change
 
-    sources = List(Instance('psi.data.hdf_store.data_source.DataSource'))
+from .base_channel_data_range import BaseChannelDataRange
+
+
+class ChannelDataRange(BaseChannelDataRange):
+
     span = Float(20)
     trig_delay = Float(5)
     trigger = Float(0)
     update_mode = Enum('auto', 'auto full', 'triggered')
     scroll_period = Float(20)
-    current_time = Float()
 
     def _trigger_changed(self):
         self.refresh()
@@ -29,12 +29,7 @@ class ChannelDataRange(DataRange1D):
         self.refresh()
 
     def _update_current_time(self, event):
-        if self.current_time != event['value']:
-            self.current_time = event['value']
-            self.refresh()
-
-    def _data_added(self, event):
-        self.refresh()
+        self._set_current_time(event['value'])
 
     def refresh(self, event=None):
         '''
@@ -68,21 +63,3 @@ class ChannelDataRange(DataRange1D):
             self._low_value = low_value
             self._high_value = high_value
             self.updated = (low_value, high_value)
-
-    def _sources_changed(self, old, new):
-        for source in old:
-            source.unobserve('added', self._data_added)
-            source.unobserve('current_time', self._update_current_time)
-        for source in new:
-            source.observe('added', self._data_added)
-            source.observe('current_time', self._update_current_time)
-        self.refresh()
-
-    def _sources_items_changed(self, event):
-        for source in event.removed:
-            source.unobserve('added', self._data_added)
-            source.unobserve('current_time', self._update_current_time)
-        for source in event.added:
-            source.observe('added', self._data_added)
-            source.observe('current_time', self._update_current_time)
-        self.refresh()

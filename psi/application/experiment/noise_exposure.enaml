@@ -1,0 +1,58 @@
+import numpy as np
+
+from enaml.workbench.api import Extension
+from enaml.workbench.ui.api import Branding
+
+from psi.context.api import Parameter
+from psi.controller.base_manifest import BaseManifest
+from psi.controller.api import EpochOutput, ExperimentAction
+
+from psi.data.plots import (TimeContainer, ExtremesChannelPlot, FFTContainer,
+                            FFTChannelPlot)
+
+
+enamldef ControllerManifest(BaseManifest): manifest:
+
+    id = 'psi.controller'
+
+    Extension:
+        id = 'branding'
+        point = 'enaml.workbench.ui.branding'
+        Branding:
+            title = 'Noise exposure'
+
+    Extension:
+        id = 'io'
+        point = 'psi.controller.io'
+
+        EpochOutput:
+            name = 'signal'
+            label = 'Signal'
+            target_name = 'speaker'
+
+    Extension:
+        id = 'plots'
+        point = 'psi.data.plots'
+
+        TimeContainer:
+            name = 'trial_plot_container' 
+            title = 'Trial timing'
+            trig_delay = 0
+            span = 10
+
+            ExtremesChannelPlot:
+                source = 'speaker_monitor'
+                line_color = (0, 0, 0)
+                value_range = (-2, 2)
+
+        FFTContainer:
+            name = 'fft_plot_container'
+            title = 'FFT'
+            freq_lb = 0.1e3 
+            freq_ub = 40e3
+
+            FFTChannelPlot:
+                source = 'speaker_monitor'
+                line_color = (0, 0, 0)
+                value_range = (0, 100)
+                time_span = 2

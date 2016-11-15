@@ -112,3 +112,14 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             #    source = 'microphone'
             #    line_color = (0, 0, 0)
             #    value_range = (-1, 1)
+
+    #Extension:
+    #    id = 'outputs'
+    #    point = 'psi.context.items'
+    #    ContextGroup:
+    #        name = 'background'
+    #        label = 'Background'
+    #    ContextGroup:
+    #        name = 'target'
+    #        label = 'Target'
+

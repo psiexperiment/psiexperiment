@@ -24,6 +24,3 @@ class ExperimentWorkspace(Workspace):
         core = self.workbench.get_plugin('enaml.workbench.core')
         plugin.setup_toolbar(self)
         plugin.setup_workspace(self)
-        deferred_call(core.invoke_command, 'psi.get_default_layout')
-        deferred_call(core.invoke_command, 'psi.get_default_preferences')
-        deferred_call(core.invoke_command, 'psi.get_default_context')

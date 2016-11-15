@@ -2,7 +2,8 @@ from atom.api import Unicode, Float, Tuple, Int
 from enaml.core.api import Declarative, d_
 
 from psi.core.chaco.api import ChannelDataRange, add_time_axis, add_default_grids
-from chaco.api import LinearMapper, OverlayPlotContainer, DataRange1D
+from chaco.api import LinearMapper, LogMapper, OverlayPlotContainer, DataRange1D, PlotAxis
+from psi.core.chaco.base_channel_data_range import BaseChannelDataRange
 
 
 class PlotContainer(Declarative):
@@ -27,6 +28,25 @@ class TimeContainer(PlotContainer):
         # Add the time axis to the final plot
         add_time_axis(plot)
         add_default_grids(plot, major_index=5, minor_index=1)
+        return container
+
+
+class FFTContainer(PlotContainer):
+
+    freq_lb = d_(Float(0.1e3))
+    freq_ub = d_(Float(100e3))
+
+    def create_container(self, plugin):
+        container = OverlayPlotContainer(padding=[20, 20, 50, 50])
+        index_range = BaseChannelDataRange(low_setting=self.freq_lb, high_setting=self.freq_ub)
+        index_mapper = LogMapper(range=index_range)
+        for child in self.children:
+            plot = child.create_plot(plugin, index_mapper)
+            container.add(plot)
+
+        add_default_grids(plot, major_index=5, minor_index=1)
+        axis = PlotAxis(component=plot, orientation='bottom', title='Frequency (Hz)')
+        plot.underlays.append(axis)
         return container
 
 
@@ -92,4 +112,23 @@ class TimeseriesPlot(Plot):
                               rising_event=self.rising_event,
                               falling_event=self.falling_event,
                               fill_color=self.fill_color,
+                              line_color=self.line_color)
+
+
+class FFTChannelPlot(Plot):
+
+    source = d_(Unicode())
+    value_range = d_(Tuple(Float(), Float()))
+    time_span = d_(Float(1))
+
+    def create_plot(self, plugin, index_mapper):
+        from psi.core.chaco.api import FFTChannelPlot
+        source = plugin.find_source(self.source)
+        index_mapper.range.sources.append(source)
+        value_range = DataRange1D(low_setting=-200, high_setting=200)
+        value_mapper = LinearMapper(range=value_range)
+        return FFTChannelPlot(source=source, 
+                              time_span=self.time_span,
+                              index_mapper=index_mapper,
+                              value_mapper=value_mapper,
                               line_color=self.line_color)

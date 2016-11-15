@@ -19,14 +19,6 @@ from psi.data.plots import (TimeContainer, ChannelPlot, TimeseriesPlot,
                             ExtremesChannelPlot)
 
 
-class ABRController(BasePlugin):
-
-    def start_experiment(self):
-        self.context.next_setting('Stimulus', save_prior=False)
-        self.experiment_state = 'running'
-        super(ABRController, self).start_experiment()
-
-
 enamldef ControllerManifest(BaseManifest): manifest:
 
     id = 'psi.controller'
@@ -136,29 +128,12 @@ enamldef ControllerManifest(BaseManifest): manifest:
         id = 'selectors'
         point = 'psi.context.selectors'
         SequenceSelector:
-            name = 'Sequence'
+            name = 'sequence'
 
-    #Extension:
-    #    id = 'plots'
-    #    point = 'psi.data.plots'
-
-    #    TimeContainer:
-    #        name = 'trial_plot_container' 
-    #        title = 'Trial timing'
-    #        trig_delay = 0
-    #        span = 10
-
-    #        #TimeseriesPlot:
-    #        #    source = 'event_log'
-    #        #    rising_event = 'reward_start'
-    #        #    falling_event = 'reward_end'
-    #        #    fill_color = (0.25, 0.41, 0.88, 0.25)
-    #        #    line_color = (0.25, 0.41, 0.88, 0.5)
-    #        #    rect_center = 0.25
-    #        #    rect_height = 0.2
-
-    #        ExtremesChannelPlot:
-    #            decimation_threshold = 5
-    #            source = 'filtered_eeg'
-    #            line_color = (0, 0, 0)
-    #            value_range = (-1, 1)
+    Extension:
+        id = 'actions'
+        point = 'psi.controller.actions'
+        ExperimentAction:
+            event = 'experiment_start'
+            command = 'psi.context.next_setting'
+            kwargs = {'selector': 'sequence', 'save_prior': False}

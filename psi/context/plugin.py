@@ -98,7 +98,7 @@ class ContextPlugin(Plugin):
                 context_groups[group.name] = group
 
             for item in items:
-                log.debug('Adding context item {}'.format(item.name))
+                log.trace('Adding context item {}'.format(item.name))
                 if item.name in context_items:
                     m = 'Context item {} already defined'.format(item.name)
                     raise ValueError(m)
@@ -169,7 +169,7 @@ class ContextPlugin(Plugin):
                 if e not in self._roving_items}
 
     def _get_all_expressions(self):
-        # Return a dictionary of expressions for all context_items that are not # managed by the selectors.
+        # Return a dictionary of expressions for all context_items 
         return {k: c.expression for k, c in self.context_items.items() \
                 if isinstance(c, Parameter)}
 

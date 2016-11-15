@@ -1,0 +1,44 @@
+from neurogen import block_definitions as blocks
+from neurogen.channel import Channel
+from neurogen.player import Player
+
+
+class BandlimitedNoise(TokenPlugin):
+
+    player = Typed(Player)
+
+    def initialize(self, fs):
+        channel = BandlimitedNoise(name='noise') >> \
+            Cos2Envelope(name='envelope') >> \
+            Channel()
+        self.player = Player(fs=fs)
+        self.player.add_channel(channel)
+
+    def get_waveform(self, offset, samples):
+        context = self.workbench.get_plugin('psi.context')
+
+
+class Cos2Envelope(Declarative):
+
+    base = blocks.Cos2Envelope
+
+
+class BandlimitedNoise(Declarative):
+
+    base = blocks.BandlimitedNoise
+
+
+class Channel(Declarative):
+
+    def get_context_items(self):
+        print 'getting context items'
+
+
+class BandlimitedNoiseManifest(TokenManifest): m:
+
+    Extension:
+        point = 'psi.token.channel'
+        Cos2Envelope:
+            name = 'envelope'
+            BandlimitedNoise:
+                name = 'noise'

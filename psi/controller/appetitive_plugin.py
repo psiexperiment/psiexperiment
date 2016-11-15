@@ -131,10 +131,6 @@ class AppetitivePlugin(BasePlugin):
         self.lock = threading.RLock()
         try:
             self.trial += 1
-            #self.context.apply_changes()
-            #self.core.invoke_command('psi.data.prepare')
-            #self.start_engines()
-            #log.debug('Done starting engines')
             self.rng = np.random.RandomState()
             self.context.next_setting(self.next_selector(), save_prior=False)
             self.experiment_state = 'running'
@@ -226,12 +222,6 @@ class AppetitivePlugin(BasePlugin):
             log.debug('Detected {} on {} at {}'.format(edge, name, event_time))
             event = self.event_map[edge, name]
             self.handle_event(event, event_time)
-
-    def stop_experiment(self):
-        self.stop_engines()
-        self.experiment_state = 'stopped'
-        self.invoke_actions('experiment_end', self.get_ts())
-        self.core.invoke_command('psi.data.finalize')
 
     def pause_experiment(self):
         if self.trial_state == TrialState.waiting_for_np_start:

@@ -211,8 +211,12 @@ enamldef ContextManifest(PSIManifest): manifest:
         id = 'context_actions'
         point = 'psi.controller.actions'
         ExperimentAction:
+            # Set this to a relatively low weight (default=100) so that we can
+            # ensure this is called before most initialization actions since
+            # many plugins will likely depend on this.
             event = 'experiment_initialize'
             command = 'psi.context.apply_changes'
+            weight = 10
 
     Extension:
         id = 'context_menu'

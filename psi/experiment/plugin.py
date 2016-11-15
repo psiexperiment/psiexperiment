@@ -34,9 +34,11 @@ class ExperimentPlugin(Plugin):
         self._bind_observers()
 
     def setup_workspace(self, workspace):
+        log.debug('Setting up workspace')
         point = self.workbench.get_extension_point(WORKSPACE_POINT)
         for extension in point.extensions:
             extension.factory(self.workbench, workspace)
+        log.debug('Done setting up workspace')
 
     def setup_toolbar(self, workspace):
         toolbars = []
@@ -68,12 +70,15 @@ class ExperimentPlugin(Plugin):
 
     def get_layout(self):
         ui = self.workbench.get_plugin('enaml.workbench.ui')
+        print ui._window.geometry()
         return {'geometry': ui._window.geometry(),
                 'toolbars': self._get_toolbar_layout(ui.workspace.toolbars),
                 'dock_layout': ui.workspace.dock_area.save_layout()}
 
     def set_layout(self, layout):
         ui = self.workbench.get_plugin('enaml.workbench.ui')
+        #print layout['geometry']
+        ui._window.set_geometry(layout['geometry'])
         ui._window.set_geometry(layout['geometry'])
         self._set_toolbar_layout(ui.workspace.toolbars, layout['toolbars'])
         ui.workspace.dock_area.layout = layout['dock_layout']

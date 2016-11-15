@@ -1,11 +1,15 @@
 import logging.config
 log = logging.getLogger(__name__)
 
+import re
 import argparse
 import os.path
 import warnings
 
 import tables as tb
+
+from enaml.application import deferred_call
+
 
 experiment_descriptions = {
     'appetitive_gonogo_food': {
@@ -24,6 +28,14 @@ experiment_descriptions = {
         'manifests': [
             'psi.application.experiment.abr.ControllerManifest',
             'psi.data.trial_log.manifest.TrialLogManifest',
+            'psi.data.event_log.manifest.EventLogManifest',
+            'psi.data.hdf_store.manifest.HDFStoreManifest',
+        ],
+    },
+
+    'noise_exposure': {
+        'manifests': [
+            'psi.application.experiment.noise_exposure.ControllerManifest',
             'psi.data.event_log.manifest.EventLogManifest',
             'psi.data.hdf_store.manifest.HDFStoreManifest',
         ],
@@ -46,13 +58,14 @@ def configure_logging(filename=None):
             'console': {
                 'class': 'logging.StreamHandler',
                 'formatter': 'simple',
-                'level': 'TRACE',
+                'level': 'DEBUG',
                 },
             },
         'loggers': {
             '__main__': {'level': 'TRACE'},
             'neurogen': {'level': 'ERROR'},
             'psi': {'level': 'TRACE'},
+            'psi.core.chaco': {'level': 'ERROR'},
             'experiments': {'level': 'TRACE'},
             'daqengine': {'level': 'TRACE'},
             },
@@ -74,9 +87,11 @@ def configure_logging(filename=None):
     logging.config.dictConfig(logging_config)
 
 
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser(description='Run experiment')
-    parser.add_argument('experiment', type=str, help='Experiment to run')
+    parser.add_argument('filename', type=str, help='Filename')
+    parser.add_argument('experiment', type=str, help='Experiment to run',
+                        choices=experiment_descriptions.keys())
     parser.add_argument('--io', type=str, default=None,
                         help='Hardware configuration')
     parser.add_argument('--debug', default=False, action='store_true',
@@ -103,17 +118,25 @@ if __name__ == '__main__':
     workbench = application.initialize_workbench(manifests)
 
     core = workbench.get_plugin('enaml.workbench.core')
-
     core.invoke_command('enaml.workbench.ui.select_workspace',
                         {'workspace': 'psi.experiment.workspace'})
 
-    with tb.open_file('c:/users/bburan/desktop/test.h5', 'w') as fh:
-        core.invoke_command('psi.data.hdf_store.set_node', {'node': fh.root})
-
+    cmd = 'psi.data.hdf_store.prepare_file'
+    parameters = {'filename': args.filename, 'experiment': args.experiment}
+    with core.invoke_command(cmd, parameters) as fh:
         ui = workbench.get_plugin('enaml.workbench.ui')
-
         with warnings.catch_warnings():
             warnings.simplefilter('ignore')
             ui.show_window()
 
+        # We need to use deferred call to ensure these commands are invoked
+        # *after* the application is started (the application needs to load the
+        # plugins first).
+        deferred_call(core.invoke_command, 'psi.get_default_preferences')
+        deferred_call(core.invoke_command, 'psi.get_default_context')
+        deferred_call(core.invoke_command, 'psi.get_default_layout')
         ui.start_application()
+
+
+if __name__ == '__main__':
+    main()
