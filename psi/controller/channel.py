@@ -54,6 +54,7 @@ class AIChannel(Channel):
 
     def configure(self, plugin):
         for input in self.inputs:
+            log.debug('Configuring input {}'.format(input.name))
             input.configure(plugin)
 
 

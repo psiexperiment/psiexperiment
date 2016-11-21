@@ -25,13 +25,13 @@ def get_controller_manifest(experiment):
 
 
 def get_manifests(manifest_names):
-    manfiests = []
+    manifests = []
     with enaml.imports():
         for manifest_name in manifest_names:
             module_name, class_name = manifest_name.rsplit('.', 1)
             module = import_manifest(module_name)
-            manfiests.append(getattr(module, class_name))
-    return manfiests
+            manifests.append(getattr(module, class_name))
+    return manifests
 
 
 def initialize_workbench(extra_manifests,
@@ -44,6 +44,7 @@ def initialize_workbench(extra_manifests,
         from psi.context.manifest import ContextManifest
         from psi.data.manifest import DataManifest
         from psi.experiment.manifest import ExperimentManifest
+        from psi.token.manifest import TokenManifest
 
     workbench = Workbench()
     workbench.register(CoreManifest())
@@ -51,6 +52,7 @@ def initialize_workbench(extra_manifests,
     workbench.register(ContextManifest())
     workbench.register(DataManifest())
     workbench.register(ExperimentManifest())
+    workbench.register(TokenManifest())
 
     for manifest in extra_manifests:
         workbench.register(manifest())

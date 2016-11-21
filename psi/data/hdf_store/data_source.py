@@ -21,7 +21,8 @@ class DataTable(DataSource):
 
     def append(self, row):
         self.data.append(row)
-        self.added = row
+        # TODO: FIx probelm with plottign
+        #self.added = row
 
     def query(self, string, condvars, field):
         return self.data.read_where(string, condvars, field)

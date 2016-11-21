@@ -1,6 +1,5 @@
 import enaml
 
-from .token_plugin import TokenPlugin
-
-with enaml.imports():
-    from .token_manifest import TokenManifest
+from .util import autoload_tokens
+from .block import Block
+from .token import ContinuousToken, DiscreteToken

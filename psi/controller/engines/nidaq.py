@@ -5,7 +5,7 @@ import ctypes
 
 import numpy as np
 
-from atom.api import Float, Typed, Unicode
+from atom.api import Float, Typed, Unicode, Int
 from enaml.core.api import Declarative, d_
 
 from ..engine import Engine
@@ -42,7 +42,7 @@ class NIDAQEngine(ni.Engine, Engine):
 
     # TODO: this is not configurable on some systems. How do we figure out if
     # it's configurable?
-    hw_ao_onboard_buffer = d_(Float(4095))
+    hw_ao_onboard_buffer = d_(Int(4095))
 
     # Since any function call takes a small fraction of time (e.g., nanoseconds
     # to milliseconds), we can't simply overwrite data starting at
@@ -51,7 +51,7 @@ class NIDAQEngine(ni.Engine, Engine):
     # buffer. This parameter will likely need some tweaking (i.e., only you can
     # determine an appropriate value for this based on the needs of your
     # program).
-    hw_ao_min_writeahead = d_(Float(8191 + 1000))
+    hw_ao_min_writeahead = d_(Int(8191 + 1000))
 
     hw_ai_monitor_period = d_(Float(0.1))
 
@@ -163,4 +163,5 @@ class NIDAQEngine(ni.Engine, Engine):
     def get_space_available(self, channel_name=None, offset=None):
         # It doesn't matter what the output channel is. Write space will be the
         # same for all.
-        return self.ao_write_space_available(offset)
+        return np.clip(self.ao_write_space_available(offset),
+                       0, self.hw_ao_buffer_samples)

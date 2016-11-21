@@ -14,6 +14,7 @@ class BaseChannelDataRange(DataRange1D):
             self.refresh()
 
     def _data_added(self, event):
+        # TODO: how to handle DataTable?
         lb, ub = event['value']
         self._set_current_time(ub)
 

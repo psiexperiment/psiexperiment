@@ -94,6 +94,8 @@ class Engine(SimpleState, Declarative):
         buffer_lb = self.hw_ao_buffer_offset
         buffer_ub = self.hw_ao_buffer_offset + self.hw_ao_buffer_samples
         if not(buffer_lb <= offset < buffer_ub):
+            m = 'Buffer from {} to {}, requested offset is {}'
+            log.debug(m.format(buffer_lb, buffer_ub, offset))
             raise IndexError('Segment falls outside of buffered stream')
 
         lb = offset - self.hw_ao_buffer_offset
@@ -102,10 +104,15 @@ class Engine(SimpleState, Declarative):
             self.hw_ao_buffer[..., lb:ub] += data
         elif method == 'replace':
             self.hw_ao_buffer[..., lb:ub] = data
+        elif method == 'multiply':
+            self.hw_ao_buffer[..., lb:ub] *= data
         else:
             raise ValueError('Unsupported method')
 
         self.write_hw_ao(self.hw_ao_buffer[..., lb:], offset)
+
+    def get_epoch_offset(self):
+        pass
 
     def register_ao_callback(self, callback):
         raise NotImplementedError

@@ -9,13 +9,12 @@ import numpy as np
 from atom.api import Enum, Bool, Typed
 from enaml.workbench.plugin import Plugin
 
-from .channel import Channel
+from .channel import Channel, AOChannel
 from .engine import Engine
 from .output import Output
 from .input import Input
 from .experiment_action import ExperimentAction, ExperimentEvent
-from .output import ContinuousOutput
-from ..token import get_token_manifest
+from .output import ContinuousOutput, EpochOutput
 
 
 IO_POINT = 'psi.controller.io'
@@ -166,6 +165,22 @@ class BasePlugin(Plugin):
                 channel.engine = None
                 del channels[channel.name]
 
+        # Hack for channels that don't define a continuous output
+        for channel in channels.values():
+            if isinstance(channel, AOChannel):
+                for o in channel.outputs:
+                    if isinstance(o, ContinuousOutput):
+                        break
+                else:
+                    plugin = self.workbench.get_plugin('psi.token')
+                    output = ContinuousOutput(name=channel.name + '_default_')
+                    t = plugin.generate_continuous_token('Silence',
+                                                         output.name,
+                                                         output.label)
+                    output._token = t
+                    output.target = channel
+                    outputs[output.name] = output
+
         self._master_engine = master_engine
         self._channels = channels
         self._engines = engines
@@ -216,26 +231,48 @@ class BasePlugin(Plugin):
             engine.stop()
 
     def configure_output(self, output_name, token_name):
+        # Link the specified token to the output
         log.debug('Setting {} to {}'.format(output_name, token_name))
         output = self._outputs[output_name]
         if output._token_name == token_name:
             return
-        if output._plugin:
-            self.workbench.unregister(output._plugin_id)
-        manifest_description = get_token_manifest(token_name)
+
+        plugin = self.workbench.get_plugin('psi.token')
         if isinstance(output, ContinuousOutput):
-            scope = 'experiment'
+            t = plugin.generate_continuous_token(token_name, output.name,
+                                                 output.label)
         else:
-            scope = 'trial'
-        manifest = manifest_description(output.name, scope=scope,
-                                        label_base=output.label)
-        self.workbench.register(manifest)
-        output._plugin_id = manifest.id
-        output._plugin = self.workbench.get_plugin(manifest.id)
-        output._token_name = token_name
+            t = plugin.generate_epoch_token(token_name, output.name,
+                                            output.label)
+        output._token = t
+        self.context._refresh_items()
 
     def get_output(self, output_name):
         return self._outputs[output_name]
+
+    def start_epoch_output(self, output_name, start_ts=None):
+        output = self.get_output(output_name)
+        if not isinstance(output, EpochOutput):
+            raise ValueError('This only works for epoch outputs')
+        if start_ts is None:
+            start_ts = self.get_ts()
+        output.start(self, start_ts)
+
+#def insert_target(event):
+#    controller = event.workbench.get_plugin('psi.controller')
+#    ts = controller.get_ts()
+#
+#    target = controller._outputs['target']
+#    waveform = target.get_waveform()
+#    offset = int(target.channel.fs*(0.25+ts))
+#    log.debug('Target with {} samples starting at {}' \
+#              .format(waveform.shape[-1], offset))
+#    target.engine.modify_hw_ao(waveform, offset=offset)
+#
+#    controller.trial_info['target_start'] = ts
+#    controller.trial_info['target_end'] = \
+#        ts+(waveform.shape[-1]/target.channel.fs)
+
 
     def invoke_actions(self, event, timestamp=None):
         if timestamp is not None:

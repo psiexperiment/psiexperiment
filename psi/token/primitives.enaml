@@ -1,0 +1,289 @@
+import numpy as np
+from scipy import signal
+
+from psi.context.api import Parameter
+
+from .block import Block
+
+################################################################################
+# Utility
+################################################################################
+def single_input(function):
+    def wrapper(*args, **kwargs):
+        inputs = kwargs.pop('inputs')
+        if len(inputs) == 0:
+            raise ValueError('Cannot deal with 0 inputs')
+        elif len(inputs) > 1:
+            raise ValueError('Cannot deal with more than one input')
+        kwargs['input'] = inputs[0] 
+        return function(*args, **kwargs)
+    return wrapper
+
+
+def no_inputs(function):
+    def wrapper(*args, **kwargs):
+        inputs = kwargs.pop('inputs')
+        if len(inputs) != 0:
+            raise ValueError('Cannot accept inputs')
+        return function(*args, **kwargs)
+    return wrapper
+
+
+################################################################################
+# Cos2Envelope
+################################################################################
+def cos2envelope(t, start_time, rise_time, duration):
+    '''
+    Generates cosine-squared envelope. Can handle generating fragments.
+    '''
+    def env_func(t, phi=0):
+        return np.sin(2*np.pi*t*1.0/rise_time*0.25+phi)**2
+
+    m_null_pre = (t < start_time)
+    m_onset = (t >= start_time) & (t < rise_time)
+
+    # If duration is set to infinite, than we only apply an *onset* ramp.
+    # This is used, in particular, for the DPOAE stimulus in which we want
+    # to ramp on a continuous tone and then play it continuously until we
+    # acquire a sufficient number of epochs.
+    if duration != np.inf:
+        m_offset = (t >= (start_time+duration-rise_time)) & \
+            (t < (start_time+duration))
+        m_null_post = t >= (duration+start_time)
+    else:
+        m_offset = np.zeros_like(t, dtype=np.bool)
+        m_null_post = np.zeros_like(t, dtype=np.bool)
+
+    t_null_pre = t[m_null_pre]
+    t_onset = t[m_onset]
+    t_offset = t[m_offset]
+    t_ss = t[~(m_null_pre | m_onset | m_offset | m_null_post)]
+    t_null_post = t[m_null_post]
+
+    f_null_pre = np.zeros(len(t_null_pre))
+    f_lower = env_func(t_onset, 0)
+    f_upper = env_func(t_offset-(duration-rise_time), np.pi/2)
+    f_middle = np.ones(len(t_ss))
+    f_null_post = np.zeros(len(t_null_post))
+    envelope = np.r_[f_null_pre, f_lower, f_middle, f_upper, f_null_post]
+    return envelope
+
+
+@single_input
+def cos2envelope_factory(fs, start_time, rise_time, duration, input):
+    waveform = None
+    while True:
+        kwargs = (yield waveform)
+        samples = kwargs['samples']
+        offset = kwargs['offset']
+        t = np.arange(samples, dtype=np.float32)/fs + offset
+        envelope = cos2envelope(t, start_time, rise_time, duration)
+        token = input.send(kwargs)
+        waveform = envelope*token
+
+
+enamldef Cos2Envelope(Block): block:
+
+    factory = cos2envelope_factory
+    name = 'envelope'
+    label = 'envelope'
+
+    Parameter:
+        name = 'duration'
+        label = 'duration (s)'
+        compact_label = 'dur'
+        dtype = np.dtype('float32')
+        default = 4
+        expression = '4'
+
+    Parameter:
+        name = 'rise_time'
+        label = 'rise time (s)'
+        compact_label = 'env rise'
+        dtype = np.dtype('float32')
+        default = 1
+        expression = '1'
+
+    Parameter:
+        name = 'start_time'
+        label = 'start time (s)'
+        compact_label = 'start'
+        dtype = np.dtype('float32')
+        default = 0
+        expression = '0'
+
+
+################################################################################
+# Broadband noise
+################################################################################
+@no_inputs
+def noise_factory(fs, seed, level):
+    waveform = None
+    state = np.random.RandomState(seed)
+    while True:
+        kwargs = (yield waveform)
+        samples = kwargs['samples']
+        waveform = state.uniform(low=-1, high=1, size=samples)
+        # TODO: figure out how to scale waveform to target level
+
+enamldef Noise(Block):
+    
+    factory = noise_factory
+    name = 'noise'
+    label = 'noise'
+
+    Parameter:
+        name = 'level'
+        label = 'level (dB SPL)'
+        compact_label = 'level'
+        dtype = np.dtype('float32')
+        default = 60
+        expression = '60'
+
+    Parameter:
+        name = 'seed'
+        label = 'random seed'
+        compact_label = 'seed'
+        dtype = np.dtype('float32')
+        default = 1
+        expression = '1'
+
+
+################################################################################
+# Bandpass filter
+################################################################################
+@single_input
+def bandpass_filter_factory(fs, center_frequency, pass_bandwidth,
+                            stop_bandwidth, passband_attenuation,
+                            stopband_attenuation, input):
+    waveform = None
+
+    fl = np.clip(center_frequency-0.5*pass_bandwidth, 0, 0.5*fs)
+    fh = np.clip(center_frequency+0.5*pass_bandwidth, 0, 0.5*fs)
+    Wp = np.array([fl, fh])/(0.5*fs)
+
+    fl = np.clip(center_frequency-0.5*stop_bandwidth, 0, 0.5*fs)
+    fh = np.clip(center_frequency+0.5*stop_bandwidth, 0, 0.5*fs)
+    Ws = np.array([fl, fh])/(0.5*fs)
+
+    b, a = signal.iirdesign(Wp, Ws, passband_attenuation, stopband_attenuation) 
+
+    if not np.all(np.abs(np.roots(a)) < 1):
+        raise ValueError, 'Instable coefficients for filter'
+
+    zf = signal.lfilter_zi(b, a)
+
+    # I haven't taken the time to understand this equation, but it seems to
+    # work.  This was copied from the EPL cochlear function test suite code
+    # (LabVIEW) and should renormalize the amplitude of the filtered token so
+    # it has a RMS of 1.0.
+    filter_sf = 1.0/np.sqrt(pass_bandwidth*2/fs/3.0)
+
+    while True:
+        kwargs = (yield waveform)
+        noise_token = input.send(kwargs)
+        filtered_token, zf = signal.lfilter(b, a, noise_token, zi=zf)
+        waveform = filter_sf*filtered_token
+
+
+enamldef BandpassFilter(Block):
+
+    factory = bandpass_filter_factory
+    name = 'filter'
+    label = 'filter'
+
+    Parameter:
+        name = 'center_frequency'
+        label = 'center frequency (Hz)'
+        compact_label = 'fc'
+        dtype = np.dtype('float32')
+        default = 8000
+        expression = '8000'
+
+    Parameter:
+        name = 'pass_bandwidth'
+        label = 'pass bandwidth (Hz)'
+        compact_label = 'pass bw'
+        dtype = np.dtype('float32')
+        default = 6000
+        expression = '6000'
+
+    Parameter:
+        name = 'stop_bandwidth'
+        label = 'stop bandwidth (Hz)'
+        compact_label = 'stop bw'
+        dtype = np.dtype('float32')
+        default = 4000
+        expression = '4000'
+
+    Parameter:
+        name = 'passband_attenuation'
+        label = 'passband attenuation (dB)'
+        compact_label = 'pass. atten.'
+        dtype = np.dtype('float32')
+        default = 10
+        expression = '10'
+
+    Parameter:
+        name = 'stopband_attenuation'
+        label = 'stopband attenuation (dB)'
+        compact_label = 'stop. atten.'
+        dtype = np.dtype('float32')
+        default = 60
+        expression = '60'
+
+
+################################################################################
+# Tone
+################################################################################
+@no_inputs
+def tone_factory(fs, level, frequency):
+    waveform = None
+    while True:
+        kwargs = (yield waveform)
+        samples = kwargs['samples']
+        offset = kwargs['offset']
+        t = np.arange(samples, dtype=np.float32)/fs + offset
+        waveform = np.cos(2*np.pi*t*frequency)
+
+
+enamldef Tone(Block):
+
+    factory = tone_factory
+    name = 'tone'
+    label = 'tone'
+
+    Parameter:
+        name = 'level'
+        label = 'level (dB SPL)'
+        compact_label = 'level'
+        dtype = np.dtype('float32')
+        default = 60
+        expression = '60'
+
+    Parameter:
+        name = 'frequency'
+        label = 'frequency (Hz)'
+        compact_label = 'fc'
+        dtype = np.dtype('float32')
+        default = 1000
+        expression = '1000'
+
+
+@no_inputs
+def silence_factory(fs):
+    waveform = None
+    while True:
+        kwargs = (yield waveform)
+        samples = kwargs['samples']
+        waveform = np.zeros(samples)
+
+
+################################################################################
+# Silence
+################################################################################
+enamldef Silence(Block):
+
+    factory = silence_factory
+    name = 'silence'
+    label = 'silence'

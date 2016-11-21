@@ -1,9 +1,24 @@
-from enaml.core.api import Looper
+from enaml.core.api import Looper, DynamicTemplate
 from enaml.widgets.api import (DockItem, Container, VGroup, HGroup, Label,
                                Field, ObjectCombo)
 
-from .output import ContinuousOutput, AnalogOutput
-from ..token import continuous_tokens, discrete_tokens
+from .output import EpochOutput, ContinuousOutput, AnalogOutput
+
+
+template OutputTemplate(output, MemberType: ContinuousOutput):
+    ObjectCombo:
+        items << workbench.get_plugin('psi.token')._continuous_tokens.keys()
+        selected << output._token_name
+        selected ::
+            controller.configure_output(output.name, selected)
+
+
+template OutputTemplate(output, MemberType: EpochOutput):
+    ObjectCombo:
+        items << workbench.get_plugin('psi.token')._epoch_tokens.keys()
+        selected << output._token_name
+        selected ::
+            controller.configure_output(output.name, selected)
 
 
 enamldef OutputDockItem(DockItem):
@@ -16,18 +31,12 @@ enamldef OutputDockItem(DockItem):
             spacing = 0
             Looper:
                 iterable << [o for o in controller._outputs.values() \
-                             if isinstance(o, AnalogOutput)]
+                             if isinstance(o, AnalogOutput) and o.label]
                 HGroup:
                     enabled << controller.experiment_state == 'initialized'
                     padding = 0
                     Label:
                         text = loop_item.label
-
-                    ObjectCombo:
-                        items << continuous_tokens.keys() \
-                            if isinstance(loop_item, ContinuousOutput) \
-                            else discrete_tokens.keys()
-                        selected << loop_item._token_name
-                        selected ::
-                            controller \
-                                .configure_output(loop_item.name, selected)
+                    DynamicTemplate:
+                        base = OutputTemplate
+                        args = (loop_item, type(loop_item))

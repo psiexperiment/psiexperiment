@@ -40,10 +40,19 @@ def load_calibration(event):
     CalibrationDialog(controller=controller).show()
 
 
-def find_items(which, workbench):
+def find_context_items(workbench, which):
+    controller = workbench.get_plugin('psi.controller')
+    items = []
+    for output in controller._outputs.values():
+        if output._token is not None:
+            items.extend(output._token.get_context_items())
+    return items
+
+
+def find_items(workbench, which):
     plugin = workbench.get_plugin('psi.controller')
-    if which != 'groups':
-        return []
+    if which == 'items':
+        return find_context_items(workbench, which)
     groups = [ContextGroup(name=o.name, label=o.label) \
             for o in plugin._outputs.values() \
             if isinstance(o, AnalogOutput)]
@@ -62,6 +71,7 @@ enamldef BaseManifest(PSIManifest): manifest:
     Defines the core functionality that most controller plugins will share
     (start, stop, pause, apply/revert settings).
     '''
+    id = 'psi.controller'
     factory = BasePlugin
 
     Extension:
@@ -69,7 +79,7 @@ enamldef BaseManifest(PSIManifest): manifest:
         # outputs.
         id = 'automatic_outputs'
         point = 'psi.context.items'
-        factory = lambda which, w=workbench: find_items(which, w)
+        factory = find_items
 
     ExtensionPoint:
         id = 'psi.controller.io'
@@ -113,6 +123,9 @@ enamldef BaseManifest(PSIManifest): manifest:
         Command:
             id = 'psi.controller.set_pause_ok'
             handler = rpc('psi.controller', 'set_pause_ok')
+        Command:
+            id = 'psi.controller.start_epoch_output'
+            handler = rpc('psi.controller', 'start_epoch_output')
 
     # Uses unicode symbols as icons for sake of simplicity.
     Extension:
@@ -191,6 +204,7 @@ enamldef BaseManifest(PSIManifest): manifest:
     Extension:
         id = 'base_actions'
         point = 'psi.controller.actions'
+        rank = 10
         ExperimentEvent:
             name = 'experiment_initialize'
             label = 'Initialize experiment'

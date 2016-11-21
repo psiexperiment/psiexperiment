@@ -13,7 +13,7 @@ from ..context.selector import SequenceSelector, SingleSetting
 
 from .base_manifest import BaseManifest
 from .appetitive_plugin import AppetitivePlugin, Event
-from .experiment_action import ExperimentEvent
+from .experiment_action import ExperimentEvent, ExperimentAction
 from ..util import rpc
 
 

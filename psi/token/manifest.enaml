@@ -1,0 +1,55 @@
+import numpy as np
+
+from atom.api import Unicode, Callable
+
+from enaml.core.api import d_, Declarative
+from enaml.workbench.api import PluginManifest, Extension, ExtensionPoint
+
+from psi.context.api import Parameter
+
+from .plugin import TokenPlugin
+from .token import ContinuousToken, EpochToken
+from .primitives import Cos2Envelope, Noise, Tone, Silence, BandpassFilter
+
+
+enamldef TokenManifest(PluginManifest):
+
+    id = 'psi.token'
+    factory = TokenPlugin
+
+    ExtensionPoint:
+        id = 'psi.token.tokens'
+
+    Extension:
+        id = 'default_tokens'
+        point = 'psi.token.tokens'
+
+        ContinuousToken:
+            name = 'Bandlimited noise'
+            BandpassFilter:
+                Noise:
+                    pass
+
+        EpochToken:
+            name = 'Bandlimited noise'
+            Cos2Envelope:
+                BandpassFilter:
+                    Noise:
+                        pass
+
+        ContinuousToken:
+            name = 'Ramped continuous tone'
+            Cos2Envelope:
+                Tone:
+                    pass
+
+        EpochToken:
+            name = 'Ramped tone burst'
+            Cos2Envelope:
+                Tone:
+                    pass
+
+        ContinuousToken:
+            name = 'Silence'
+            Silence:
+                pass

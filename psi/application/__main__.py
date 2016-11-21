@@ -12,6 +12,12 @@ from enaml.application import deferred_call
 
 
 experiment_descriptions = {
+    'test': {
+        'manifests': [
+            'psi.application.experiment.test.ControllerManifest',
+            'psi.data.hdf_store.manifest.HDFStoreManifest',
+        ]
+    },
     'appetitive_gonogo_food': {
         'manifests': [
             'psi.application.experiment.appetitive.ControllerManifest',
@@ -45,7 +51,7 @@ experiment_descriptions = {
 
 def configure_logging(filename=None):
     time_format = '[%(relativeCreated)d %(thread)d %(name)s - %(levelname)s] %(message)s'
-    simple_format = '%(name)s - %(message)s'
+    simple_format = '%(thread)d %(name)s - %(message)s'
 
     logging_config = {
         'version': 1,
@@ -58,16 +64,17 @@ def configure_logging(filename=None):
             'console': {
                 'class': 'logging.StreamHandler',
                 'formatter': 'simple',
-                'level': 'DEBUG',
+                'level': 'TRACE',
                 },
             },
         'loggers': {
-            '__main__': {'level': 'TRACE'},
+            '__main__': {'level': 'DEBUG'},
             'neurogen': {'level': 'ERROR'},
-            'psi': {'level': 'TRACE'},
+            'psi': {'level': 'DEBUG'},
             'psi.core.chaco': {'level': 'ERROR'},
-            'experiments': {'level': 'TRACE'},
-            'daqengine': {'level': 'TRACE'},
+            'experiments': {'level': 'DEBUG'},
+            'psi.controller.engine': {'level': 'TRACE'},
+            'daqengine': {'level': 'DEBUG'},
             },
         'root': {
             'handlers': ['console'],
@@ -120,6 +127,7 @@ def main():
     core = workbench.get_plugin('enaml.workbench.core')
     core.invoke_command('enaml.workbench.ui.select_workspace',
                         {'workspace': 'psi.experiment.workspace'})
+
 
     cmd = 'psi.data.hdf_store.prepare_file'
     parameters = {'filename': args.filename, 'experiment': args.experiment}

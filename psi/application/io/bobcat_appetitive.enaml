@@ -1,0 +1,138 @@
+import numpy as np
+
+from enaml.workbench.api import PluginManifest, Extension
+
+from psi.controller.engines.nidaq import NIDAQEngine
+from psi.controller.api import (AIChannel, AOChannel, ExperimentAction,
+                                Trigger, Toggle, DOChannel, Input)
+
+from psi.controller.input import Downsample, IIRFilter, Threshold, Edges
+
+
+enamldef IOManifest(PluginManifest): manifest:
+    '''
+    This defines the hardware connections that are specific to the LBHB Bobcat
+    computer for the appetitive experiment.
+    '''
+    Extension:
+        id = 'backend'
+        point = 'psi.controller.io'
+
+        NIDAQEngine:
+            name = 'NI'
+            master_clock = True
+            
+            # Since we're using an AnalogThreshold input to detect nose pokes
+            # and reward contact, we want a fairly short AI monitor period to
+            # ensure that we detect these events quickly.
+            hw_ai_monitor_period = 0.01
+            hw_ao_monitor_period = 1
+
+            AOChannel:
+                label = 'Speaker'
+                name = 'speaker'
+                channel = 'Dev1/ao0'
+                fs = 100e3
+                expected_range = (-10, 10)
+                dtype = np.dtype('float64')
+                terminal_mode = 'RSE'
+
+            DOChannel:
+                name = 'food_dispense'
+                channel = 'Dev1/port0/line0'
+                fs = 0
+                dtype = np.dtype('bool')
+
+                Trigger:
+                    # This is a required output for the food dispenser. The
+                    # plugin will look for this output by name. If not present,
+                    # the food dispenser plugin will not work!
+                    name = 'food_dispense_trigger'
+                    duration = 0.1
+
+            DOChannel:
+                name = 'room_light'
+                channel = 'Dev1/port0/line1'
+                fs = 0
+                dtype = np.dtype('bool')
+
+                Toggle:
+                    # This is a required output for the room light. The plugin
+                    # will look for this output by name. If not present, the
+                    # room light plugin will not work!
+                    name = 'room_light_toggle'
+
+            AIChannel:
+                label = 'Microphone'
+                name = 'microphone'
+                channel = 'Dev1/ai0'
+                start_trigger = 'ao/StartTrigger'
+                fs = 100e3
+                expected_range = (-10, 10)
+                dtype = np.dtype('float64')
+                terminal_mode = 'differential'
+
+                Input:
+                    name = 'microphone'
+
+            AIChannel:
+                label = 'Speaker Monitor'
+                name = 'speaker_monitor'
+                channel = 'Dev1/ai1'
+                start_trigger = 'ao/StartTrigger'
+                fs = 100e3
+                expected_range = (-10, 10)
+                dtype = np.dtype('float64')
+                terminal_mode = 'differential'
+
+                Input:
+                    name = 'speaker_monitor'
+
+            AIChannel:
+                label = 'Nose poke IR'
+                name = 'nose_poke'
+                channel = 'Dev1/ai2'
+                start_trigger = 'ao/StartTrigger'
+                fs = 100e3
+                expected_range = (-10, 10)
+                dtype = np.dtype('float64')
+                terminal_mode = 'differential'
+
+                IIRFilter:
+                    f_lowpass = 25
+                    btype = 'lowpass'
+                    ftype = 'butter'
+                    N = 4
+                    Downsample:
+                        # effective Fs is 100
+                        name = 'nose_poke_analog'
+                        q = 1000
+                        Threshold:
+                            threshold = 2.5
+                            Edges:
+                                debounce = 2
+                                name = 'nose_poke'
+
+            AIChannel:
+                label = 'Reward contact IR'
+                name = 'reward_contact'
+                channel = 'Dev1/ai3'
+                start_trigger = 'ao/StartTrigger'
+                fs = 100e3
+                expected_range = (-10, 10)
+                dtype = np.dtype('float64')
+                terminal_mode = 'differential'
+
+                IIRFilter:
+                    f_lowpass = 25
+                    btype = 'lowpass'
+                    ftype = 'butter'
+                    N = 1
+                    Downsample:
+                        name = 'reward_contact_analog'
+                        q = 1000
+                        Threshold:
+                            threshold = 2.5
+                            Edges:
+                                debounce = 2
+                                name = 'reward_contact'
