@@ -50,12 +50,13 @@ def find_context_items(workbench, which):
 
 
 def find_items(workbench, which):
+    # TODO: I'm not a fan of this. It seems a bit hackish. For example, we
+    # should at least be able to add a "configurable" method to the group.
     plugin = workbench.get_plugin('psi.controller')
     if which == 'items':
         return find_context_items(workbench, which)
     groups = [ContextGroup(name=o.name, label=o.label) \
-            for o in plugin._outputs.values() \
-            if isinstance(o, AnalogOutput)]
+              for o in plugin._outputs.values() if o.visible]
     log.debug('Found {} outputs'.format(len(groups)))
     return groups
 

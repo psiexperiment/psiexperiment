@@ -31,7 +31,7 @@ enamldef OutputDockItem(DockItem):
             spacing = 0
             Looper:
                 iterable << [o for o in controller._outputs.values() \
-                             if isinstance(o, AnalogOutput) and o.label]
+                             if isinstance(o, AnalogOutput) and o.visible]
                 HGroup:
                     enabled << controller.experiment_state == 'initialized'
                     padding = 0

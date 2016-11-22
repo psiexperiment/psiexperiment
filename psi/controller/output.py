@@ -4,7 +4,8 @@ log = logging.getLogger(__name__)
 from types import GeneratorType
 from functools import partial
 
-from atom.api import Unicode, Enum, Typed, Property, Float, observe, Callable
+from atom.api import (Unicode, Enum, Typed, Property, Float, observe, Callable,
+                      Int, Bool)
 from enaml.core.api import Declarative, d_
 from enaml.workbench.api import Plugin, Extension
 
@@ -15,6 +16,7 @@ class Output(Declarative):
 
     label = d_(Unicode())
     name = d_(Unicode())
+    visible = d_(Bool(False))
 
     # TODO: Allow the user to select which channel the output goes through from
     # the GUI?
@@ -53,59 +55,68 @@ class Output(Declarative):
 
 class AnalogOutput(Output):
 
+    visible = d_(Bool(True))
     _generator = Typed(GeneratorType)
+    _offset = Int()
+
+    def configure(self, plugin):
+        pass
+
 
 
 class EpochOutput(AnalogOutput):
 
     method = Enum('merge', 'replace', 'multiply')
-
-    def configure(self, plugin):
-        # Nothing to do here ...
-        pass
+    _waveform_offset = Int()
 
     def start(self, plugin, start_ts):
-        start_sample = int(start_ts + 0.25 * self.channel.fs)
-        kwargs = {'workbench': plugin.workbench, 
-                  'fs': self.channel.fs,
-                  'start_offset': start_sample}
+        kwargs = {'workbench': plugin.workbench, 'fs': self.channel.fs}
         self._generator = self._token.initialize_generator(**kwargs)
-        buffer_offset = start_sample - self.engine.hw_ao_buffer_offset
-        samples = self.engine.hw_ao_buffer_samples-buffer_offset
-        self.update(start_sample, samples)
+        self._offset = int(start_ts + 0.25 * self.channel.fs)
+        self._waveform_offset = 0
+        self.update()
 
-        # May not be necessary?
         cb = partial(plugin.ao_callback, self.name)
         self.engine.register_ao_callback(cb, self.channel.name)
 
-    def update(self, offset=None, samples=None):
-        if offset is None:
-            offset = self.engine.get_offset(self.channel.name)
-        if samples is None:
-            samples = self.engine.get_space_available(self.channel.name,
-                                                      offset)
-        log.debug('Generating {} samples at {} for {}' \
-                  .format(samples, offset, self.name))
-        waveform = self._generator.send({'offset': offset, 'samples': samples})
-        self.engine.modify_hw_ao(waveform, offset, method=self.method)
+    def _get_samples(self):
+        buffer_offset = self._offset - self.engine.hw_ao_buffer_offset
+        return self.engine.hw_ao_buffer_samples-buffer_offset
+
+    def update(self):
+        log.debug('Updating epoch output {}'.format(self.name))
+        kwargs = {
+            'offset': self._waveform_offset, 
+            'samples': self._get_samples()
+        }
+        waveform = self._generator.send(kwargs)
+        log.debug('Modifying HW waveform at {}'.format(self._offset))
+        self.engine.modify_hw_ao(waveform, self._offset, method=self.method)
+        self._waveform_offset += len(waveform)
+        self._offset += len(waveform)
 
 
 class ContinuousOutput(AnalogOutput):
 
-    def configure(self, plugin):
+    def start(self, plugin):
         log.debug('Configuring continuous output {}'.format(self.name))
         cb = partial(plugin.ao_callback, self.name)
         self.engine.register_ao_callback(cb, self.channel.name)
         kwargs = {'workbench': plugin.workbench, 'fs': self.channel.fs}
         self._generator = self._token.initialize_generator(**kwargs)
+        self._offset = 0
+
+    def _get_samples(self):
+        return self.engine.get_space_available(self.channel.name, self._offset)
+
+    def configure(self, plugin):
+        self.start(plugin)
 
     def update(self):
-        offset = self.engine.get_offset(self.channel.name)
-        samples = self.engine.get_space_available(self.channel.name, offset)
-        log.debug('Generating {} samples at {} for {}' \
-                  .format(samples, offset, self.name))
-        waveform = self._generator.send({'offset': offset, 'samples': samples})
+        kwargs = {'offset': self._offset, 'samples': self._get_samples()}
+        waveform = self._generator.send(kwargs)
         self.engine.append_hw_ao(waveform)
+        self._offset += len(waveform)
 
 
 class DigitalOutput(Output):

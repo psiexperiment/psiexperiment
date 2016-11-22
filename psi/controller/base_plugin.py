@@ -173,7 +173,8 @@ class BasePlugin(Plugin):
                         break
                 else:
                     plugin = self.workbench.get_plugin('psi.token')
-                    output = ContinuousOutput(name=channel.name + '_default_')
+                    output = ContinuousOutput(name=channel.name + '_default_',
+                                              visible=False)
                     t = plugin.generate_continuous_token('Silence',
                                                          output.name,
                                                          output.label)

@@ -14,6 +14,7 @@ from enaml.application import deferred_call
 
 from psi.core.enaml.api import PSIManifest
 from psi.controller.api import ExperimentAction
+from psi.experiment.api import Preferences
 
 from .plugin import ContextPlugin
 
@@ -218,42 +219,58 @@ enamldef ContextManifest(PSIManifest): manifest:
             command = 'psi.context.apply_changes'
             weight = 10
 
-    Extension:
-        id = 'context_menu'
-        point = 'enaml.workbench.ui.actions'
-        MenuItem:
-            path = '/configuration/settings'
-            label = 'Settings'
-            ItemGroup:
-                id = 'runtime'
-            ItemGroup:
-                id = 'context_io'
-            ItemGroup:
-                id = 'context_default'
+    #Extension:
+    #    id = 'context_menu'
+    #    point = 'enaml.workbench.ui.actions'
+    #    MenuItem:
+    #        path = '/configuration/settings'
+    #        label = 'Settings'
+    #        ItemGroup:
+    #            id = 'runtime'
+    #        ItemGroup:
+    #            id = 'context_io'
+    #        ItemGroup:
+    #            id = 'context_default'
 
-        ActionItem:
-            path = '/configuration/settings/save'
-            label = 'Save'
-            group = 'context_io'
-            command = 'psi.save_context'
-        ActionItem:
-            path = '/configuration/settings/load'
-            label = 'Load'
-            group = 'context_io'
-            command = 'psi.load_context'
-        ActionItem:
-            path = '/configuration/settings/set_default_context'
-            label = 'Set default'
-            group = 'context_default'
-            command = 'psi.set_default_context'
-        ActionItem:
-            path = '/configuration/settings/get_default_context'
-            label = 'Revert to default'
-            group = 'context_default'
-            command = 'psi.get_default_context'
-
+    #    ActionItem:
+    #        path = '/configuration/settings/save'
+    #        label = 'Save'
+    #        group = 'context_io'
+    #        command = 'psi.save_context'
+    #    ActionItem:
+    #        path = '/configuration/settings/load'
+    #        label = 'Load'
+    #        group = 'context_io'
+    #        command = 'psi.load_context'
+    #    ActionItem:
+    #        path = '/configuration/settings/set_default_context'
+    #        label = 'Set default'
+    #        group = 'context_default'
+    #        command = 'psi.set_default_context'
+    #    ActionItem:
+    #        path = '/configuration/settings/get_default_context'
+    #        label = 'Revert to default'
+    #        group = 'context_default'
+    #        command = 'psi.get_default_context'
 
     Extension:
         id = 'workspace'
         point = 'psi.experiment.workspace'
         factory = contribute_to_workspace
+
+    Extension:
+        id = 'preferences'
+        point = 'psi.experiment.preferences'
+        rank = 100
+        Preferences:
+            name = 'context'
+            get_preferences => (workbench):
+                plugin = workbench.get_plugin(manifest.id)
+                return {
+                    'context_items': plugin._get_all_expressions(),
+                    'selectors': plugin.selectors,
+                    'roving_items': plugin.roving_items
+                }
+
+            set_preferences => (workbench, preferences):
+                plugin._update_attrs(**preferences)

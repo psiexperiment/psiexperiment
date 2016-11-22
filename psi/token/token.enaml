@@ -25,7 +25,7 @@ enamldef Token(Block):
 
 
 @single_input
-def default_epoch_factory(fs, start_offset, duration, input):
+def default_epoch_factory(fs, duration, input):
     # This is responsible for generating the waveform when the appropriate
     # offset is reached. Here, start_ts and offset are specified re the master
     # clock. The master clock is referenced to the *start* of the experiment.
@@ -34,57 +34,29 @@ def default_epoch_factory(fs, start_offset, duration, input):
     waveform = None
     epoch_samples = int(duration*fs)
 
-    m = 'Initializing epoch factory starting at {} with duration {}'
-    log.debug(m.format(start_offset, epoch_samples))
+    m = 'Initializing epoch factory with duration {}'
+    log.debug(m.format(epoch_samples))
 
     while True:
         kwargs = (yield waveform)
         offset = kwargs['offset']
         samples = kwargs['samples']
         log.debug('Generating {} samples at {}'.format(samples, offset))
+        n_remaining = np.clip(samples, 0, epoch_samples)
 
-        # If the offset is less than the starting timestamp, we need to pad the
-        # waveform by the specified number of samples. If offset is > start_ts,
-        # the padding will be truncated to 0. The padding can never be more
-        # than the number of requested samples.
-        n_padding = np.clip(start_offset-offset, 0, samples)
-        n_remaining = np.clip(samples-n_padding, 0, epoch_samples)
-        padded_waveform = np.zeros(n_padding)
-
-        log.debug('Padding waveform with {} samples'.format(n_padding))
-
-        # No more samples to be generated. Stop now.
-        if n_remaining == 0:
+        if offset >= epoch_samples:
             break
 
         # If we still have samples we need to generate, pull them from the
         # actual token generator (adjust offset and samles accordingly).
-        if n_remaining:
-            kwargs['offset'] = offset-start_offset
-            kwargs['samples'] = n_remaining
-            m = 'Generating {} token samples at {}'
-            log.debug(m.format(kwargs['samples'], kwargs['offset']))
-            token_waveform = input.send(kwargs)
-            waveform = np.r_[padded_waveform, token_waveform]
-        else:
-            waveform = padded_waveform
+        kwargs['offset'] = offset
+        kwargs['samples'] = n_remaining
+        m = 'Generating {} token samples at {}'
+        log.debug(m.format(kwargs['samples'], kwargs['offset']))
+        waveform = input.send(kwargs)
 
 
-class _EpochToken(Token):
-
-    def initialize_generator(self, workbench, start_offset, **context):
-        inputs = [b.initialize_generator(workbench, **context) \
-                  for b in self.blocks]
-        context_plugin = workbench.get_plugin('psi.context')
-        for generator_name, context_name in self.context_name_map.items():
-            context[generator_name] = context_plugin.get_value(context_name)
-        generator = self.factory(start_offset=start_offset, inputs=inputs,
-                                 **context)
-        generator.next()
-        return generator
-        
-
-enamldef EpochToken(_EpochToken):
+enamldef EpochToken(Token):
 
     name = 'epoch'
     label = 'epoch'

@@ -123,6 +123,15 @@ class Engine(SimpleState, Declarative):
     def register_et_callback(self, callback):
         raise NotImplementedError
 
+    def unregister_ao_callback(self, callback):
+        raise NotImplementedError
+
+    def unregister_ai_callback(self, callback):
+        raise NotImplementedError
+
+    def unregister_et_callback(self, callback):
+        raise NotImplementedError
+
     def start(self):
         raise NotImplementedError
 
