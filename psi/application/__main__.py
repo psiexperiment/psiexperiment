@@ -141,7 +141,6 @@ def main():
         # *after* the application is started (the application needs to load the
         # plugins first).
         deferred_call(core.invoke_command, 'psi.get_default_preferences')
-        deferred_call(core.invoke_command, 'psi.get_default_context')
         deferred_call(core.invoke_command, 'psi.get_default_layout')
         ui.start_application()
 

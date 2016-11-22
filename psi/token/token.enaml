@@ -47,8 +47,6 @@ def default_epoch_factory(fs, duration, input):
         if offset >= epoch_samples:
             break
 
-        # If we still have samples we need to generate, pull them from the
-        # actual token generator (adjust offset and samles accordingly).
         kwargs['offset'] = offset
         kwargs['samples'] = n_remaining
         m = 'Generating {} token samples at {}'
@@ -56,7 +54,15 @@ def default_epoch_factory(fs, duration, input):
         waveform = input.send(kwargs)
 
 
-enamldef EpochToken(Token):
+class _EpochToken(Token):
+
+    def get_duration(self, workbench):
+        duration = self.parameters[0]
+        context = workbench.get_plugin('psi.context')
+        return context.get_value(duration.name)
+
+
+enamldef EpochToken(_EpochToken):
 
     name = 'epoch'
     label = 'epoch'

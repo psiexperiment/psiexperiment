@@ -5,20 +5,32 @@ from enaml.widgets.api import (DockItem, Container, VGroup, HGroup, Label,
 from .output import EpochOutput, ContinuousOutput, AnalogOutput
 
 
+def get_labels(tokens):
+    return [t.label for t in tokens.values()]
+
+
+def get_name(tokens, label):
+    for t in tokens.values():
+        if t.label == label:
+            return t.name
+
+
 template OutputTemplate(output, MemberType: ContinuousOutput):
     ObjectCombo:
-        items << workbench.get_plugin('psi.token')._continuous_tokens.keys()
-        selected << output._token_name
+        items << get_labels(workbench.get_plugin('psi.token')._continuous_tokens)
+        selected << output._token.label if output._token is not None else ''
         selected ::
-            controller.configure_output(output.name, selected)
+            name = get_name(workbench.get_plugin('psi.token')._continuous_tokens, selected)
+            controller.configure_output(output.name, name)
 
 
 template OutputTemplate(output, MemberType: EpochOutput):
     ObjectCombo:
-        items << workbench.get_plugin('psi.token')._epoch_tokens.keys()
-        selected << output._token_name
+        items << get_labels(workbench.get_plugin('psi.token')._epoch_tokens)
+        selected << output._token.label if output._token is not None else ''
         selected ::
-            controller.configure_output(output.name, selected)
+            name = get_name(workbench.get_plugin('psi.token')._epoch_tokens, selected)
+            controller.configure_output(output.name, name)
 
 
 enamldef OutputDockItem(DockItem):

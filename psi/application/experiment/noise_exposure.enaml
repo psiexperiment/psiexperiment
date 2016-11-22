@@ -37,7 +37,10 @@ enamldef ControllerManifest(BaseManifest): manifest:
         ExperimentAction:
             event = 'experiment_start'
             command = 'psi.controller.start_epoch_output'
-            kwargs = {'output_name': 'exposure'}
+            kwargs = {'output_name': 'exposure', 'start': 1}
+        ExperimentAction:
+            event = 'token_stop'
+            command = 'psi.controller.stop'
 
     Extension:
         id = 'plots'
@@ -47,7 +50,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
             name = 'trial_plot_container' 
             title = 'Trial timing'
             trig_delay = 0
-            span = 10
+            span = 20
 
             ExtremesChannelPlot:
                 source = 'speaker_monitor'

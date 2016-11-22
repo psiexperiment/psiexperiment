@@ -146,8 +146,8 @@ class ContextPlugin(Plugin):
     def _observe_selector_updated(self, event):
         self._check_for_changes()
 
-    def _update_attrs(self, context_expressions, selectors, roving_items):
-        for name, expression in context_expressions.items():
+    def _update_attrs(self, context_items, selectors, roving_items):
+        for name, expression in context_items.items():
             self.context_items[name].expression = expression
         for s in self.selectors:
             from_selector = selectors[s]

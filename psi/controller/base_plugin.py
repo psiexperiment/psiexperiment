@@ -7,6 +7,7 @@ import operator as op
 import numpy as np
 
 from atom.api import Enum, Bool, Typed
+from enaml.application import timed_call
 from enaml.workbench.plugin import Plugin
 
 from .channel import Channel, AOChannel
@@ -246,36 +247,29 @@ class BasePlugin(Plugin):
             t = plugin.generate_epoch_token(token_name, output.name,
                                             output.label)
         output._token = t
+        output._token_name = token_name
         self.context._refresh_items()
 
     def get_output(self, output_name):
         return self._outputs[output_name]
 
-    def start_epoch_output(self, output_name, start_ts=None):
+    def start_epoch_output(self, output_name, start=None, delay=0):
         output = self.get_output(output_name)
         if not isinstance(output, EpochOutput):
             raise ValueError('This only works for epoch outputs')
-        if start_ts is None:
-            start_ts = self.get_ts()
-        output.start(self, start_ts)
+        if start is None:
+            start = self.get_ts()
+        output.start(self, start, delay)
 
-#def insert_target(event):
-#    controller = event.workbench.get_plugin('psi.controller')
-#    ts = controller.get_ts()
-#
-#    target = controller._outputs['target']
-#    waveform = target.get_waveform()
-#    offset = int(target.channel.fs*(0.25+ts))
-#    log.debug('Target with {} samples starting at {}' \
-#              .format(waveform.shape[-1], offset))
-#    target.engine.modify_hw_ao(waveform, offset=offset)
-#
-#    controller.trial_info['target_start'] = ts
-#    controller.trial_info['target_end'] = \
-#        ts+(waveform.shape[-1]/target.channel.fs)
+    def invoke_actions(self, event, timestamp=None, delay=False):
+        if delay:
+            delay_ms = (timestamp-self.get_ts())*1e3
+            if delay_ms > 0:
+                timed_call(delay_ms, self.invoke_actions, event, timestamp)
+                return
+            else:
+                log.warning('Not delaying {} at {}'.format(event, timestamp))
 
-
-    def invoke_actions(self, event, timestamp=None):
         if timestamp is not None:
             params = {'event': event, 'timestamp': timestamp}
             self.core.invoke_command('psi.data.process_event', params)
@@ -328,18 +322,18 @@ class BasePlugin(Plugin):
 
     def ao_callback(self, name):
         log.debug('Updating output {}'.format(name))
-        self._outputs[name].update()
+        self._outputs[name].update(self)
 
     def ai_callback(self, name, data):
         log.trace('Acquired {} samples from {}'.format(data.shape, name))
         parameters = {'name': name, 'data': data}
         self.core.invoke_command('psi.data.process_ai', parameters)
 
-    def et_callback(self, name, edge, timestamp):
-        log.debug('Detected {} on {} at {}'.format(edge, name, timestamp))
-        parameters = {'name': name, 'edge': edge, 'timestamp': timestamp}
-        # TODO: add callback to save et
-        #self.core.invoke_command('psi.data.process_et', parameters)
+    #def et_callback(self, name, edge, timestamp):
+    #    log.debug('Detected {} on {} at {}'.format(edge, name, timestamp))
+    #    parameters = {'name': name, 'edge': edge, 'timestamp': timestamp}
+    #    # TODO: add callback to save et
+    #    #self.core.invoke_command('psi.data.process_et', parameters)
 
     def get_ts(self):
         return self._master_engine.get_ts()

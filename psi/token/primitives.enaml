@@ -76,7 +76,7 @@ def cos2envelope_factory(fs, start_time, rise_time, duration, input):
         kwargs = (yield waveform)
         samples = kwargs['samples']
         offset = kwargs['offset']
-        t = np.arange(samples, dtype=np.float32)/fs + offset
+        t = (np.arange(samples, dtype=np.float32) + offset)/fs
         envelope = cos2envelope(t, start_time, rise_time, duration)
         token = input.send(kwargs)
         waveform = envelope*token

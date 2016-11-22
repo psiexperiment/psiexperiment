@@ -63,33 +63,40 @@ class AnalogOutput(Output):
         pass
 
 
-
 class EpochOutput(AnalogOutput):
 
     method = Enum('merge', 'replace', 'multiply')
     _waveform_offset = Int()
+    _epoch_start = Float()
+    _epoch_stop = Float()
 
-    def start(self, plugin, start_ts):
+    def start(self, plugin, start, delay):
         kwargs = {'workbench': plugin.workbench, 'fs': self.channel.fs}
         self._generator = self._token.initialize_generator(**kwargs)
-        self._offset = int(start_ts + 0.25 * self.channel.fs)
+        self._epoch_start = start+delay
+        self._epoch_stop = self._epoch_start + \
+            self._token.get_duration(plugin.workbench)
+        self._offset = int(self._epoch_start*self.channel.fs)
         self._waveform_offset = 0
         self.update()
 
         cb = partial(plugin.ao_callback, self.name)
         self.engine.register_ao_callback(cb, self.channel.name)
+        plugin.invoke_actions('token_start', self._epoch_start)
+        plugin.invoke_actions('token_stop', self._epoch_stop, delay=True)
 
     def _get_samples(self):
         buffer_offset = self._offset - self.engine.hw_ao_buffer_offset
         return self.engine.hw_ao_buffer_samples-buffer_offset
 
-    def update(self):
+    def update(self, plugin=None):
         log.debug('Updating epoch output {}'.format(self.name))
         kwargs = {
             'offset': self._waveform_offset, 
             'samples': self._get_samples()
         }
         waveform = self._generator.send(kwargs)
+
         log.debug('Modifying HW waveform at {}'.format(self._offset))
         self.engine.modify_hw_ao(waveform, self._offset, method=self.method)
         self._waveform_offset += len(waveform)
@@ -112,7 +119,7 @@ class ContinuousOutput(AnalogOutput):
     def configure(self, plugin):
         self.start(plugin)
 
-    def update(self):
+    def update(self, plugin=None):
         kwargs = {'offset': self._offset, 'samples': self._get_samples()}
         waveform = self._generator.send(kwargs)
         self.engine.append_hw_ao(waveform)

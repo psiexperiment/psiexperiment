@@ -16,6 +16,7 @@ enamldef WidgetDynamicTemplate(DynamicTemplate):
 template WidgetTemplate(context_item, MemberType):
     Field: widget:
         text := context_item.expression
+        tool_tip << context_item.name
 
 
 template WidgetTemplate(context_item, MemberType: EnumParameter):
@@ -31,6 +32,7 @@ template WidgetTemplate(context_item, MemberType: FileParameter):
         align_widths = False
         Field: field:
             text << context_item.path
+            tool_tip << context_item.name
         PushButton: pb:
             text = u'\u2315 Browse'
             clicked ::
@@ -71,6 +73,7 @@ template ContextItemTemplate(context_item, MemberType, scope: 'trial'):
         spacing = 0
         padding = 0
         CheckBox: label:
+            tool_tip << context_item.name
             checked << context_item.name in \
                 workbench.get_plugin('psi.context').roving_items
             toggled ::

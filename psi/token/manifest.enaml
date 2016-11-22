@@ -25,26 +25,30 @@ enamldef TokenManifest(PluginManifest):
         point = 'psi.token.tokens'
 
         ContinuousToken:
-            name = 'Bandlimited noise'
+            name = 'continuous_bandlimited_noise'
+            label = 'continuous bandlimited noise'
             BandpassFilter:
                 Noise:
                     pass
 
         EpochToken:
-            name = 'Bandlimited noise'
+            name = 'bandlimited_noise_burst'
+            label = 'bandlimited noise burst'
             Cos2Envelope:
                 BandpassFilter:
                     Noise:
                         pass
 
         ContinuousToken:
-            name = 'Ramped continuous tone'
+            name = 'continuous_tone'
+            label = 'continuous tone'
             Cos2Envelope:
                 Tone:
                     pass
 
         EpochToken:
-            name = 'Ramped tone burst'
+            name = 'tone_burst'
+            label = 'tone'
             Cos2Envelope:
                 Tone:
                     pass

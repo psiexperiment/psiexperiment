@@ -28,57 +28,6 @@ from .. import get_config
 
 PLUGIN_ID = 'psi.context'
 
-fd_kwargs = {
-    'name_filters': [get_config('CONTEXT_WILDCARD')],
-    'current_path': get_config('CONTEXT_ROOT'),
-}
-
-
-def save_context(event):
-    file_name = FileDialogEx.get_save_file_name(**fd_kwargs)
-    if file_name:
-        _save_context(event, file_name)
-
-
-def _save_context(event, file_name):
-    if not file_name.endswith('.context'):
-        file_name += '.context'
-    plugin = event.workbench.get_plugin(PLUGIN_ID)
-    with open(file_name, 'wb') as fh:
-        pickle.dump(plugin._get_all_expressions(), fh)
-        pickle.dump(plugin.selectors, fh)
-        pickle.dump(plugin.roving_items, fh)
-
-
-def load_context(event):
-    file_name = FileDialogEx.get_open_file_name(**fd_kwargs)
-    if file_name:
-        _load_context(event, file_name)
-
-
-def _load_context(event, file_name):
-    plugin = event.workbench.get_plugin(PLUGIN_ID)
-    with open(file_name, 'rb') as fh:
-        context_items = pickle.load(fh)
-        selectors = pickle.load(fh)
-        roving_items = pickle.load(fh)
-        plugin._update_attrs(context_items, selectors, roving_items)
-
-
-def set_default_context(event):
-    context_root = get_config('CONTEXT_ROOT')
-    file_name = os.path.join(context_root, '.default.context')
-    _save_context(event, file_name)
-
-
-def get_default_context(event):
-    try:
-        context_root = get_config('CONTEXT_ROOT')
-        file_name = os.path.join(context_root, '.default.context')
-        _load_context(event, file_name)
-    except IOError:
-        pass
-
 
 def changes_pending(event):
     plugin = event.workbench.get_plugin(PLUGIN_ID)
@@ -195,18 +144,6 @@ enamldef ContextManifest(PSIManifest): manifest:
         Command:
             id = PLUGIN_ID + '.changes_pending'
             handler = changes_pending
-        Command:
-            id = 'psi.save_context'
-            handler = save_context
-        Command:
-            id = 'psi.load_context'
-            handler = load_context
-        Command:
-            id = 'psi.set_default_context'
-            handler = set_default_context
-        Command:
-            id = 'psi.get_default_context'
-            handler = get_default_context
 
     Extension:
         id = 'context_actions'
@@ -218,40 +155,6 @@ enamldef ContextManifest(PSIManifest): manifest:
             event = 'experiment_initialize'
             command = 'psi.context.apply_changes'
             weight = 10
-
-    #Extension:
-    #    id = 'context_menu'
-    #    point = 'enaml.workbench.ui.actions'
-    #    MenuItem:
-    #        path = '/configuration/settings'
-    #        label = 'Settings'
-    #        ItemGroup:
-    #            id = 'runtime'
-    #        ItemGroup:
-    #            id = 'context_io'
-    #        ItemGroup:
-    #            id = 'context_default'
-
-    #    ActionItem:
-    #        path = '/configuration/settings/save'
-    #        label = 'Save'
-    #        group = 'context_io'
-    #        command = 'psi.save_context'
-    #    ActionItem:
-    #        path = '/configuration/settings/load'
-    #        label = 'Load'
-    #        group = 'context_io'
-    #        command = 'psi.load_context'
-    #    ActionItem:
-    #        path = '/configuration/settings/set_default_context'
-    #        label = 'Set default'
-    #        group = 'context_default'
-    #        command = 'psi.set_default_context'
-    #    ActionItem:
-    #        path = '/configuration/settings/get_default_context'
-    #        label = 'Revert to default'
-    #        group = 'context_default'
-    #        command = 'psi.get_default_context'
 
     Extension:
         id = 'workspace'
@@ -273,4 +176,5 @@ enamldef ContextManifest(PSIManifest): manifest:
                 }
 
             set_preferences => (workbench, preferences):
+                plugin = workbench.get_plugin(manifest.id)
                 plugin._update_attrs(**preferences)

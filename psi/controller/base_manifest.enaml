@@ -215,6 +215,12 @@ enamldef BaseManifest(PSIManifest): manifest:
         ExperimentEvent:
             name = 'experiment_stop'
             label = 'Stop experiment'
+        ExperimentEvent:
+            name = 'token_start'
+            label = 'Token start'
+        ExperimentEvent:
+            name = 'token_stop'
+            label = 'Token stop'
 
         ExperimentAction:
             event = 'experiment_initialize'
@@ -246,4 +252,8 @@ enamldef BaseManifest(PSIManifest): manifest:
                 if preferences is None:
                     return
                 for output_name, token_name in preferences.items():
-                    plugin.configure_output(output_name, token_name)
+                    try:
+                        plugin.configure_output(output_name, token_name)
+                    except KeyError:
+                        m = 'Preference file contains {}, but not found'
+                        log.info(m.format(output_name))
