@@ -184,6 +184,9 @@ def prepare_file(event):
     node_path += '/' + event.parameters['experiment']
 
     if filename == '<memory>':
+        m = 'Using an in-memory file. All data will be destroyed at end ' \
+            'of experiment.'
+        log.warn(m)
         fh = tb.open_file(filename, 'a', driver='H5FD_CORE',
                           driver_core_backing_store=0)
     else:

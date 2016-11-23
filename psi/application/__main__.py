@@ -71,7 +71,7 @@ def configure_logging(filename=None):
             '__main__': {'level': 'DEBUG'},
             'neurogen': {'level': 'ERROR'},
             'psi': {'level': 'DEBUG'},
-            'psi.core.chaco': {'level': 'ERROR'},
+            'psi.core.chaco': {'level': 'DEBUG'},
             'experiments': {'level': 'DEBUG'},
             'psi.controller.engine': {'level': 'TRACE'},
             'daqengine': {'level': 'DEBUG'},
@@ -96,9 +96,10 @@ def configure_logging(filename=None):
 
 def main():
     parser = argparse.ArgumentParser(description='Run experiment')
-    parser.add_argument('filename', type=str, help='Filename')
     parser.add_argument('experiment', type=str, help='Experiment to run',
                         choices=experiment_descriptions.keys())
+    parser.add_argument('filename', type=str, help='Filename', nargs='?',
+                        default='<memory>')
     parser.add_argument('--io', type=str, default=None,
                         help='Hardware configuration')
     parser.add_argument('--debug', default=False, action='store_true',
