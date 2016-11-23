@@ -9,7 +9,8 @@ from psi.context.api import Parameter
 
 from .plugin import TokenPlugin
 from .token import ContinuousToken, EpochToken
-from .primitives import Cos2Envelope, Noise, Tone, Silence, BandpassFilter
+from .primitives import (Cos2Envelope, Noise, Tone, Silence, BandpassFilter,
+                         SAMEnvelope)
 
 
 enamldef TokenManifest(PluginManifest):
@@ -38,6 +39,15 @@ enamldef TokenManifest(PluginManifest):
                 BandpassFilter:
                     Noise:
                         pass
+
+        EpochToken:
+            name = 'bandlimited_sam_noise'
+            label = 'bandlimited SAM noise'
+            Cos2Envelope:
+                SAMEnvelope:
+                    BandpassFilter:
+                        Noise:
+                            pass
 
         ContinuousToken:
             name = 'continuous_tone'

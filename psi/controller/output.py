@@ -71,7 +71,11 @@ class EpochOutput(AnalogOutput):
     _epoch_stop = Float()
 
     def start(self, plugin, start, delay):
-        kwargs = {'workbench': plugin.workbench, 'fs': self.channel.fs}
+        kwargs = {
+            'workbench': plugin.workbench, 
+            'fs': self.channel.fs,
+            'calibration': self.channel.calibration
+        }
         self._generator = self._token.initialize_generator(**kwargs)
         self._epoch_start = start+delay
         self._epoch_stop = self._epoch_start + \
@@ -96,7 +100,6 @@ class EpochOutput(AnalogOutput):
             'samples': self._get_samples()
         }
         waveform = self._generator.send(kwargs)
-
         log.debug('Modifying HW waveform at {}'.format(self._offset))
         self.engine.modify_hw_ao(waveform, self._offset, method=self.method)
         self._waveform_offset += len(waveform)
@@ -109,7 +112,11 @@ class ContinuousOutput(AnalogOutput):
         log.debug('Configuring continuous output {}'.format(self.name))
         cb = partial(plugin.ao_callback, self.name)
         self.engine.register_ao_callback(cb, self.channel.name)
-        kwargs = {'workbench': plugin.workbench, 'fs': self.channel.fs}
+        kwargs = {
+            'workbench': plugin.workbench, 
+            'fs': self.channel.fs,
+            'calibration': self.channel.calibration
+        }
         self._generator = self._token.initialize_generator(**kwargs)
         self._offset = 0
 

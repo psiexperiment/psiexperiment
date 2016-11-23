@@ -51,6 +51,7 @@ PHYSIOLOGY_WILDCARD = 'Physiology settings (*.phy)'
 PHYSIOLOGY_RAW_WILDCARD = 'Raw (*_raw.hd5)'
 PHYSIOLOGY_EXTRACTED_WILDCARD = 'Extracted (*_extracted*.hd5)'
 PHYSIOLOGY_SORTED_WILDCARD = 'Sorted (*_sorted*.hd5)'
+CAL_WILDCARD = 'Cal (*.cal)'
 
 # Options for pump syringe
 SYRINGE_DEFAULT = 'Popper 20cc (glass)'

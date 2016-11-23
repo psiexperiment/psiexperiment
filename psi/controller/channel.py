@@ -40,13 +40,15 @@ class Channel(SimpleState, Declarative):
         pass
 
 
+
 class AIChannel(Channel):
+
+    TERMINAL_MODES = 'pseudodifferential', 'differential', 'RSE', 'NRSE'
 
     inputs = Property().tag(transient=True)
     expected_range = d_(Tuple())
     calibration = Typed(Calibration)
-    terminal_mode = d_(Enum('pseudodifferential', 'differential', 'RSE',
-                            'NRSE'))
+    terminal_mode = d_(Enum(*TERMINAL_MODES))
     terminal_coupling = d_(Enum(None, 'AC', 'DC', 'ground'))
 
     def _get_inputs(self):
@@ -60,10 +62,12 @@ class AIChannel(Channel):
 
 class AOChannel(Channel):
 
+    TERMINAL_MODES = 'pseudodifferential', 'differential', 'RSE'
+
     outputs = Property().tag(transient=True)
     expected_range = d_(Tuple())
     calibration = Typed(Calibration)
-    terminal_mode = d_(Enum('pseudodifferential', 'differential', 'RSE'))
+    terminal_mode = d_(Enum(*TERMINAL_MODES))
 
     def _get_outputs(self):
         return self.children

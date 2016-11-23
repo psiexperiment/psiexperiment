@@ -1,7 +1,7 @@
 import numpy as np
 from scipy import signal
 
-from psi.context.api import Parameter
+from psi.context.api import Parameter, EnumParameter
 
 from .block import Block
 
@@ -70,7 +70,8 @@ def cos2envelope(t, start_time, rise_time, duration):
 
 
 @single_input
-def cos2envelope_factory(fs, start_time, rise_time, duration, input):
+def cos2envelope_factory(fs, start_time, rise_time, duration, calibration,
+                         input):
     waveform = None
     while True:
         kwargs = (yield waveform)
@@ -114,10 +115,94 @@ enamldef Cos2Envelope(Block): block:
 
 
 ################################################################################
+# SAM envelope
+################################################################################
+def sam_eq_power(depth):
+    return (3.0/8.0*depth**2-depth+1)**0.5
+
+
+def sam_eq_phase(delay, depth, direction):
+    if depth == 0:
+        return 0
+    z = 2.0/depth*sam_eq_power(depth)-2.0/depth+1
+    phi = np.arccos(z)
+    return 2*np.pi-phi if direction == 1 else phi
+
+
+def sam_envelope(t, fs, depth, fm, delay, direction):
+    eq_phase = sam_eq_phase(delay, depth, direction)
+    eq_power = sam_eq_power(depth)
+
+    envelope = depth/2*np.cos(2*np.pi*fm*t+eq_phase)+1-depth/2
+
+    # Ensure that we scale the waveform so that the total power remains equal
+    # to that of an unmodulated token.
+    envelope *= 1.0/eq_power
+
+    delay_n = int(delay*fs)
+    if delay_n > 0:
+        delay_envelope = np.ones(delay_n)
+        envelope = np.concatenate((delay_envelope, envelope[:-delay_n]))
+    return envelope
+
+
+@single_input
+def samenvelope_factory(fs, depth, fm, delay, direction, calibration, input):
+    waveform = None
+    while True:
+        kwargs = (yield waveform)
+        samples = kwargs['samples']
+        offset = kwargs['offset']
+        t = (np.arange(samples, dtype=np.float32) + offset)/fs
+        envelope = sam_envelope(t, fs, depth, fm, delay, direction)
+        token = input.send(kwargs)
+        waveform = envelope*token
+
+
+enamldef SAMEnvelope(Block): block:
+
+    factory = samenvelope_factory
+    name = 'SAM'
+    label = 'SAM'
+
+    Parameter:
+        name = 'depth'
+        label = 'depth (frac.)'
+        compact_label = 'depth'
+        dtype = np.dtype('float32')
+        default = 1
+        expression = '1'
+
+    Parameter:
+        name = 'fm'
+        label = 'Modulation frequency (Hz)'
+        compact_label = 'fm'
+        dtype = np.dtype('float32')
+        default = 5
+        expression = '5'
+
+    Parameter:
+        name = 'delay'
+        label = 'AM delay (s)'
+        compact_label = 'delay'
+        dtype = np.dtype('float32')
+        default = 0
+        expression = '0'
+
+    EnumParameter:
+        name = 'direction'
+        label = 'Initial AM direction'
+        compact_label = 'dir'
+        dtype = np.dtype('int8')
+        default = 'positive'
+        choices = {'positive': 1, 'negative': -1}
+
+
+################################################################################
 # Broadband noise
 ################################################################################
 @no_inputs
-def noise_factory(fs, seed, level):
+def noise_factory(fs, seed, level, calibration):
     waveform = None
     state = np.random.RandomState(seed)
     while True:
@@ -155,7 +240,7 @@ enamldef Noise(Block):
 @single_input
 def bandpass_filter_factory(fs, center_frequency, pass_bandwidth,
                             stop_bandwidth, passband_attenuation,
-                            stopband_attenuation, input):
+                            stopband_attenuation, calibration, input):
     waveform = None
 
     fl = np.clip(center_frequency-0.5*pass_bandwidth, 0, 0.5*fs)
@@ -183,6 +268,7 @@ def bandpass_filter_factory(fs, center_frequency, pass_bandwidth,
         kwargs = (yield waveform)
         noise_token = input.send(kwargs)
         filtered_token, zf = signal.lfilter(b, a, noise_token, zi=zf)
+        # TODO HACK ALERT!!! SF fix needed.
         waveform = filter_sf*filtered_token
 
 
@@ -237,7 +323,7 @@ enamldef BandpassFilter(Block):
 # Tone
 ################################################################################
 @no_inputs
-def tone_factory(fs, level, frequency):
+def tone_factory(fs, level, frequency, calibration):
     waveform = None
     while True:
         kwargs = (yield waveform)
@@ -271,7 +357,7 @@ enamldef Tone(Block):
 
 
 @no_inputs
-def silence_factory(fs):
+def silence_factory(fs, calibration):
     waveform = None
     while True:
         kwargs = (yield waveform)

@@ -10,7 +10,7 @@ from .primitives import single_input
 
 
 @single_input
-def default_continuous_factory(fs, input):
+def default_continuous_factory(fs, calibration, input):
     waveform = None
     offset = 0
     while True:
@@ -25,7 +25,7 @@ enamldef Token(Block):
 
 
 @single_input
-def default_epoch_factory(fs, duration, input):
+def default_epoch_factory(fs, duration, calibration, input):
     # This is responsible for generating the waveform when the appropriate
     # offset is reached. Here, start_ts and offset are specified re the master
     # clock. The master clock is referenced to the *start* of the experiment.
