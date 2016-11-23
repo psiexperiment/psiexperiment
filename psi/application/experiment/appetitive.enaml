@@ -16,16 +16,6 @@ from psi.data.plots import (TimeContainer, ChannelPlot, TimeseriesPlot,
 
 
 def insert_target(event):
-    controller = event.workbench.get_plugin('psi.controller')
-    ts = controller.get_ts()
-
-    target = controller._outputs['target']
-    waveform = target.get_waveform()
-    offset = int(target.channel.fs*(0.25+ts))
-    log.debug('Target with {} samples starting at {}' \
-              .format(waveform.shape[-1], offset))
-    target.engine.modify_hw_ao(waveform, offset=offset)
-
     controller.trial_info['target_start'] = ts
     controller.trial_info['target_end'] = \
         ts+(waveform.shape[-1]/target.channel.fs)
@@ -53,7 +43,8 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
         point = 'psi.controller.actions'
         ExperimentAction:
             event = 'trial_start'
-            command = 'psi.controller.insert_target'
+            command = 'psi.controller.start_epoch_output'
+            kwargs = {'output_name': 'target', 'delay': 0.25}
 
     Extension:
         id = 'io'
@@ -107,19 +98,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                 rect_center = 0.5
                 rect_height = 0.2
 
-            #ExtremesChannelPlot:
-            #    decimation_threshold = 5
-            #    source = 'microphone'
-            #    line_color = (0, 0, 0)
-            #    value_range = (-1, 1)
-
-    #Extension:
-    #    id = 'outputs'
-    #    point = 'psi.context.items'
-    #    ContextGroup:
-    #        name = 'background'
-    #        label = 'Background'
-    #    ContextGroup:
-    #        name = 'target'
-    #        label = 'Target'
-
+            ExtremesChannelPlot:
+                source = 'speaker_monitor'
+                line_color = (0, 0, 0)
+                value_range = (-1, 1)
