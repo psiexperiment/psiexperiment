@@ -12,8 +12,10 @@ from enaml.workbench.plugin import Plugin
 from .context_item import ContextItem, Parameter
 from .context_group import ContextGroup
 from .expression import ExpressionNamespace
+from .symbol import Symbol
 
 SELECTORS_POINT = 'psi.context.selectors'
+SYMBOLS_POINT = 'psi.context.symbols'
 ITEMS_POINT = 'psi.context.items'
 
 
@@ -56,6 +58,7 @@ class ContextPlugin(Plugin):
     def start(self):
         self._refresh_selectors()
         self._refresh_items()
+        self._refresh_symbols()
         self._bind_observers()
 
     def stop(self):
@@ -71,6 +74,14 @@ class ContextPlugin(Plugin):
             for selector in extension.get_children(BaseSelector):
                 selectors[selector.name] = selector
         self.selectors = selectors
+
+    def _refresh_symbols(self, event=None):
+        symbols = {}
+        point = self.workbench.get_extension_point(SYMBOLS_POINT)
+        for extension in point.extensions:
+            for symbol in extension.get_children(Symbol):
+                symbols[symbol.name] = symbol.get_object()
+        self.symbols = symbols
 
     def _refresh_items(self, event=None):
         log.debug('Refreshing context items')

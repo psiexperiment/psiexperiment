@@ -1,7 +1,7 @@
 import logging
 log = logging.getLogger(__name__)
 
-import threading
+import numpy as np
 
 from atom.api import Atom, Float, Property, Event, Typed
 
@@ -21,11 +21,40 @@ class DataTable(DataSource):
 
     def append(self, row):
         self.data.append(row)
-        # TODO: FIx probelm with plottign
-        #self.added = row
 
     def query(self, string, condvars, field):
         return self.data.read_where(string, condvars, field)
+
+
+class EventDataTable(DataTable):
+
+    def append(self, row):
+        super(EventDataTable, self).append(row)
+        self.added = {
+            'lb': row['timestamp'][0],
+            'ub': row['timestamp'][0],
+            'event': row['event'][0],
+        }
+
+    def get_epochs(self, start_event, end_event, lb, ub):
+        query = 'event == e' 
+        column = 'timestamp'
+        starts = self.data.read_where(query, {'e': start_event}, column)
+        ends = self.data.read_where(query, {'e': end_event}, column)
+
+        if len(starts) == 0 and len(ends) == 1:
+            starts = [0]
+        elif len(starts) == 1 and len(ends) == 0:
+            ends = [np.nan]
+        elif len(starts) > 0 and len(ends) > 0:
+            if starts[0] > ends[0]:
+                starts = np.r_[0, starts]
+            if starts[-1] > ends[-1]:
+                ends = np.r_[ends, np.nan]
+
+        epochs = np.c_[starts, ends]
+        m = ((epochs >= lb) & (epochs < ub)) | np.isnan(epochs)
+        return epochs[m.any(axis=-1)]
 
 
 class DataChannel(DataSource):
@@ -189,9 +218,4 @@ class DataChannel(DataSource):
         lb = self.get_size()
         self.data.append(data)
         ub = self.get_size()
-        try:
-            # TODO: FIXME. For some reason the chaco plots are raising an error
-            # when being invalidated.
-            self.added = lb/self.fs, ub/self.fs
-        except:
-            pass
+        self.added = {'ub': ub/self.fs}

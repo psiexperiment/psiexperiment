@@ -55,9 +55,15 @@ class Output(Declarative):
 
 class AnalogOutput(Output):
 
+    # This determines how many samples will be requested from the generator on
+    # each iteration. While we can request an arbitrary number of samples, this
+    # helps some caching mechanisms better cache the results for future calls.
+    block_size = d_(Float(5))
     visible = d_(Bool(True))
+
     _generator = Typed(GeneratorType)
     _offset = Int()
+    _block_samples = Int()
 
     def configure(self, plugin):
         pass
@@ -66,44 +72,77 @@ class AnalogOutput(Output):
 class EpochOutput(AnalogOutput):
 
     method = Enum('merge', 'replace', 'multiply')
-    _waveform_offset = Int()
-    _epoch_start = Float()
-    _epoch_stop = Float()
 
-    def start(self, plugin, start, delay):
+    # Track the total number of samples that have been generated. 
+    _generated_samples = Int()
+
+    # Total number of samples that need to be generated for the epoch.
+    _epoch_samples = Int()
+
+    def initialize(self, plugin):
+        '''
+        Set up the generator in preparation for producing the signal. This
+        allows the generator to cache some potentially expensive computations
+        in advance rather than in the 100 msec before we actually want the
+        signal played.
+        '''
         kwargs = {
             'workbench': plugin.workbench, 
             'fs': self.channel.fs,
             'calibration': self.channel.calibration
         }
         self._generator = self._token.initialize_generator(**kwargs)
-        self._epoch_start = start+delay
-        self._epoch_stop = self._epoch_start + \
-            self._token.get_duration(plugin.workbench)
-        self._offset = int(self._epoch_start*self.channel.fs)
-        self._waveform_offset = 0
-        self.update()
 
-        cb = partial(plugin.ao_callback, self.name)
-        self.engine.register_ao_callback(cb, self.channel.name)
-        plugin.invoke_actions('token_start', self._epoch_start)
-        plugin.invoke_actions('token_stop', self._epoch_stop, delay=True)
+    def start(self, plugin, start, delay):
+        '''
+        Actually start the generator. It must have been initialized first.
+        '''
+        token_duration = self._token.get_duration(plugin.workbench)
+        self._epoch_samples = int(token_duration*self.channel.fs)
+        self._offset = int((start+delay)*self.channel.fs)
+        self._generated_samples = 0
+        try:
+            self.update()
+            cb = partial(plugin.ao_callback, self.name)
+            self.engine.register_ao_callback(cb, self.channel.name)
+            log.debug('More samples needed. Registered callback to retrieve these later.')
+        except GeneratorExit:
+            log.debug('All samples successfully generated')
+        finally:
+            plugin.invoke_actions('{}_start'.format(self.name), start+delay)
+            plugin.invoke_actions('{}_stop'.format(self.name),
+                                  start+delay+token_duration,
+                                  delay=True)
 
     def _get_samples(self):
-        buffer_offset = self._offset - self.engine.hw_ao_buffer_offset
-        return self.engine.hw_ao_buffer_samples-buffer_offset
+        return self._block_samples
 
     def update(self, plugin=None):
         log.debug('Updating epoch output {}'.format(self.name))
         kwargs = {
-            'offset': self._waveform_offset, 
-            'samples': self._get_samples()
+            'samples': self._get_samples(),
+            'offset': self._generated_samples,
         }
-        waveform = self._generator.send(kwargs)
-        log.debug('Modifying HW waveform at {}'.format(self._offset))
-        self.engine.modify_hw_ao(waveform, self._offset, method=self.method)
-        self._waveform_offset += len(waveform)
-        self._offset += len(waveform)
+        try:
+            waveform = self._generator.send(kwargs)
+            log.debug('Modifying HW waveform at {}'.format(self._offset))
+            self.engine.modify_hw_ao(waveform, self._offset, method=self.method)
+            self._generated_samples += len(waveform)
+            self._offset += len(waveform)
+            if self._generated_samples >= self._epoch_samples:
+                raise GeneratorExit
+        except GeneratorExit:
+            self._generator = None
+            raise
+
+    def configure(self, plugin):
+        self._block_samples = int(self.channel.fs*self.block_size)
+        kwargs = {
+            'workbench': plugin.workbench, 
+            'fs': self.channel.fs,
+            'calibration': self.channel.calibration
+        }
+        self._token.initialize_generator(**kwargs)
 
 
 class ContinuousOutput(AnalogOutput):
@@ -121,9 +160,13 @@ class ContinuousOutput(AnalogOutput):
         self._offset = 0
 
     def _get_samples(self):
-        return self.engine.get_space_available(self.channel.name, self._offset)
+        # probably should have a more sophisticated algorithm?
+        samples = self.engine.get_space_available(self.channel.name,
+                                                  self._offset)
+        return min(samples, self._block_samples)
 
     def configure(self, plugin):
+        self._block_samples = int(self.channel.fs*self.block_size)
         self.start(plugin)
 
     def update(self, plugin=None):

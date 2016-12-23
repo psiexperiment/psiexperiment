@@ -18,6 +18,7 @@ class Engine(SimpleState, Declarative):
     hw_ao_buffer_samples = Long().tag(transient=True)
     hw_ao_buffer_offset = Long().tag(transient=True)
     hw_ao_buffer = Typed(np.ndarray).tag(transient=True)
+    hw_ao_buffer_map = Typed(dict).tag(transient=True)
 
     channels = Property().tag(transient=True)
     hw_ao_channels = Property().tag(transient=True)
@@ -51,11 +52,20 @@ class Engine(SimpleState, Declarative):
 
     def configure(self, plugin):
         if self.hw_ao_channels:
+            output_map = {}
+            max_outputs = 0
+            for c in self.hw_ao_channels:
+                output_map[c.name] = dict((o.name, i) for i, o in \
+                                          enumerate(c.outputs))
+                max_outputs = max(max_outputs, len(c.outputs))
+            self.hw_ao_buffer_map = output_map
+
             # Setup the ring buffer (so we can meld in existing data without
             # having to regenerate samples for the other outputs in the
             # channel)
-            buffer_shape = len(self.hw_ao_channels), self.hw_ao_buffer_samples
-            self.hw_ao_buffer = np.empty(buffer_shape, dtype=np.double)
+            n_channels = len(self.hw_ao_channels)
+            buffer_shape = (n_channels, max_outputs, self.hw_ao_buffer_samples)
+            self.hw_ao_buffer = np.zeros(buffer_shape, dtype=np.double)
             self.hw_ao_buffer_offset = -self.hw_ao_buffer_samples
 
         for channel in self.channels:
@@ -63,14 +73,17 @@ class Engine(SimpleState, Declarative):
             channel.configure(plugin)
 
     def append_hw_ao(self, data, offset=None):
+        '''
+        This can only be used for the continuous output
+        '''
         # Store information regarding the data we have written to the output
         # buffer. This allows us to insert new signals into the ongoing stream
         # without having to recompute the data.  If the length of the data is
         # greater than our buffer, just overwrite the entire buffer. If less,
         # shift all the samples back and write the new data to the end of the
         # buffer.
-        log.trace('Appending {} samples to end of hw ao buffer' \
-                  .format(data.shape))
+        log.trace('Appending {} samples from {} to end of hw ao buffer' \
+                  .format(data.shape, output_name))
         data_samples = data.shape[-1]
         if data_samples >= self.hw_ao_buffer_samples:
             self.hw_ao_buffer[:] = data[..., -self.hw_ao_buffer_samples:]

@@ -293,7 +293,13 @@ enamldef AppetitiveManifest(BaseManifest): manifest:
         id = 'appetitive_events'
         point = 'psi.controller.actions'
         ExperimentEvent:
+            # Indicates it's time for a trial to start
             name = 'trial_start'
+        ExperimentEvent:
+            # Gives the opportunity for preparation actions (e.g., generation
+            # of signals) to occur before it's actually time to start.
+            name = 'trial_prepare'
+
         ExperimentAction:
             event = 'experiment_start'
             command = 'psi.controller.set_pause_ok'

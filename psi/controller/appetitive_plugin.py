@@ -51,13 +51,24 @@ class Event(enum.Enum):
     np_start = 'initiated nose poke'
     np_end = 'withdrew from nose poke'
     np_duration_elapsed = 'nose poke duration met'
-    hold_duration_elapsed = 'hold period over'
-    response_duration_elapsed = 'response timed out'
+
+    hold_start = 'hold period started'
+    hold_end = 'hold period over'
+
+    response_start = 'response period started'
+    response_end = 'response timed out'
+
     reward_start = 'reward contact'
     reward_end = 'withdrew from reward'
-    to_duration_elapsed = 'timeout over'
-    iti_duration_elapsed = 'ITI over'
+
+    to_start = 'timeout started'
+    to_end = 'timeout over'
+
+    iti_start = 'ITI started'
+    iti_end = 'ITI over'
+
     trial_start = 'trial start'
+    trial_end = 'trial nend'
 
 
 class AppetitivePlugin(BasePlugin):
@@ -135,25 +146,27 @@ class AppetitivePlugin(BasePlugin):
             self.context.next_setting(self.next_selector(), save_prior=False)
             self.experiment_state = 'running'
             self.trial_state = TrialState.waiting_for_np_start
-            # Evaluates remaining values in context
             self.context.get_values()
             self.invoke_actions('experiment_start', self.get_ts())
+            self.invoke_actions('trial_prepare', self.get_ts())
         except Exception as e:
             # TODO - provide user interface to notify of errors. How to
             # recover?
             raise
 
     def start_trial(self):
-        self.invoke_actions('trial_start', self.get_ts())
-        # TODO - the hold duration will include the update delay. Do we need
-        # super-precise tracking of hold period or can it vary by a couple 10s
-        # to 100s of msec?
+        ts = self.get_ts()
+        self.invoke_actions(Event.trial_start.name, ts)
+        self.invoke_actions(Event.hold_start.name, ts)
         self.trial_state = TrialState.waiting_for_hold_period
-        self.start_timer('hold_duration', Event.hold_duration_elapsed)
+        self.start_timer('hold_duration', Event.hold_end)
 
     def end_trial(self, response):
         log.debug('Animal responded by {}, ending trial'.format(response))
         self.stop_timer()
+
+        ts = self.get_ts()
+        #self.invoke_actions(Event.response_end.name, ts)
 
         trial_type = self.trial_type.split('_', 1)[0]
         score = self.score_map[trial_type, response]
@@ -174,15 +187,16 @@ class AppetitivePlugin(BasePlugin):
             'reaction_time': np_end-np_start,
         })
         if score == TrialScore.false_alarm:
-            self.invoke_actions('timeout_start', self.get_ts())
             self.trial_state = TrialState.waiting_for_to
-            self.start_timer('to_duration', Event.to_duration_elapsed)
+            self.invoke_actions(Event.to_start.name, ts)
+            self.start_timer('to_duration', Event.to_end)
         else:
             if score == TrialScore.hit:
                 if not self.context.get_value('training_mode'):
-                    self.invoke_actions('deliver_reward', self.get_ts())
+                    self.invoke_actions('deliver_reward', ts)
             self.trial_state = TrialState.waiting_for_iti
-            self.start_timer('iti_duration', Event.iti_duration_elapsed)
+            self.invoke_actions(Event.iti_start.name, ts)
+            self.start_timer('iti_duration', Event.iti_end)
 
         self.context.set_values(self.trial_info)
         parameters ={'results': self.context.get_values()}
@@ -215,7 +229,6 @@ class AppetitivePlugin(BasePlugin):
 
     def et_callback(self, name, edge, event_time):
         if edge == 'processed':
-            # sort of a hack ...
             parameters = {'name': 'event_log', 'timestamp': event_time}
             self.core.invoke_command('psi.data.set_current_time', parameters)
         else:
@@ -321,12 +334,11 @@ class AppetitivePlugin(BasePlugin):
                 if 'np_end' not in self.trial_info:
                     log.debug('Recording np_end')
                     self.trial_info['np_end'] = timestamp
-            elif event == Event.hold_duration_elapsed:
+            elif event == Event.hold_end:
                 log.debug('Animal maintained poke through hold period')
                 self.trial_state = TrialState.waiting_for_response
-                self.invoke_actions('response_start', self.get_ts())
-                self.start_timer('response_duration',
-                                 Event.response_duration_elapsed)
+                self.invoke_actions(Event.response_start.name, self.get_ts())
+                self.start_timer('response_duration', Event.response_end)
 
         elif self.trial_state == TrialState.waiting_for_response:
             # If the animal happened to initiate a nose-poke during the hold
@@ -342,6 +354,7 @@ class AppetitivePlugin(BasePlugin):
             elif event == Event.np_start:
                 log.debug('Animal repoked')
                 self.trial_info['response_ts'] = timestamp
+                self.invoke_actions(Event.response_end.name, timestamp)
                 self.end_trial(response='poke')
                 # At this point, trial_info should have been cleared by the
                 # `end_trial` function so that we can prepare for the next
@@ -349,27 +362,29 @@ class AppetitivePlugin(BasePlugin):
                 self.trial_info['np_start'] = timestamp
             elif event == Event.reward_start:
                 log.debug('Animal went to reward')
+                self.invoke_actions(Event.response_end.name, timestamp)
                 self.trial_info['response_ts'] = timestamp
                 self.end_trial(response='reward')
-            elif event == Event.response_duration_elapsed:
+            elif event == Event.response_end:
                 log.debug('Animal provided no response')
                 self.trial_info['response_ts'] = np.nan
                 self.end_trial(response='no response')
 
         elif self.trial_state == TrialState.waiting_for_to:
-            if event == Event.to_duration_elapsed:
+            if event == Event.to_end:
                 # Turn the light back on
                 self.invoke_actions('timeout_end', self.get_ts())
                 self.trial_state = TrialState.waiting_for_iti
-                self.invoke_actions('iti_start', self.get_ts())
-                self.start_timer('iti_duration', Event.iti_duration_elapsed)
+                self.invoke_actions(Event.iti_start.name, self.get_ts())
+                self.start_timer('iti_duration', Event.iti_end)
             elif event in (Event.reward_start, Event.np_start):
+                # Animal repoked. Reset timeout duration.
                 log.debug('Resetting timeout duration')
                 self.stop_timer()
-                self.start_timer('to_duration', Event.to_duration_elapsed)
+                self.start_timer('to_duration', Event.to_end)
 
         elif self.trial_state == TrialState.waiting_for_iti:
-            if event == Event.iti_duration_elapsed:
+            if event == Event.iti_end:
                 if self._pause_requested:
                     self.pause_experiment()
                     self.trial_state = TrialState.waiting_for_resume
@@ -385,7 +400,11 @@ class AppetitivePlugin(BasePlugin):
                     delta = max(0, remaining_poke_duration)
                     self.start_timer(delta, Event.np_duration_elapsed)
                 else:
+                    # Call get_values to seed the context before it's actually
+                    # needed. Should we also prepare the token?
                     self.trial_state = TrialState.waiting_for_np_start
+                    self.context.get_values()
+                    self.invoke_actions('trial_prepare', self.get_ts())
             elif event == Event.np_end and 'np_start' in self.trial_info:
                 del self.trial_info['np_start']
 

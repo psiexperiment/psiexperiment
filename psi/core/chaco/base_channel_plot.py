@@ -1,9 +1,13 @@
 import logging
 log = logging.getLogger(__name__)
 
+import threading
+
 from chaco.api import BaseXYPlot
 from enable.api import black_color_trait, LineStyle
 from traits.api import Event, Float, Instance
+from enaml.application import deferred_call
+
 
 class BaseChannelPlot(BaseXYPlot):
     '''
@@ -11,6 +15,7 @@ class BaseChannelPlot(BaseXYPlot):
     methods shared by all subclasses.
     '''
     source = Instance('psi.data.hdf_store.data_source.DataChannel')
+    lock = Instance(object)
 
     fill_color = black_color_trait
     line_color = black_color_trait
@@ -18,6 +23,10 @@ class BaseChannelPlot(BaseXYPlot):
     line_style = LineStyle
 
     data_changed = Event
+
+    def __init__(self, *args, **kwargs):
+        super(BaseChannelPlot, self).__init__(*args, **kwargs)
+        self.lock = threading.Lock()
 
     def _source_changed(self, old, new):
         # We need to call _update_index_mapper when fs changes since this
@@ -32,10 +41,5 @@ class BaseChannelPlot(BaseXYPlot):
             new.observe('added', self._data_added)
             new.observe('fs', self._index_mapper_updated)
 
-    def invalidate_draw(self):
-        try:
-            if __debug__:
-                log.trace('Invalidating draw for {}'.format(self))
-            super(BaseChannelPlot, self).invalidate_draw()
-        except TypeError:
-            pass
+    def deferred_redraw(self):
+        deferred_call(self.invalidate_and_redraw)

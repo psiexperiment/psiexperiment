@@ -20,7 +20,7 @@ from psi import get_config
 from psi.core.utils import find_extension
 from psi.controller.api import ExperimentAction
 
-from .data_source import DataChannel, DataTable
+from .data_source import DataChannel, DataTable, EventDataTable
 
 PLUGIN_ID = 'psi.data.hdf_store'
 
@@ -94,7 +94,7 @@ class HDFStore(Sink):
         self.event_log_dtype = np.dtype(dtype)
         node = self.file_handle.create_table(self.node, 'event_log',
                                              self.event_log_dtype)
-        self.event_log = DataTable(data=node)
+        self.event_log = EventDataTable(data=node)
 
     def _prepare_continuous_input(self, input):
         atom = tb.Atom.from_dtype(input.channel.dtype)

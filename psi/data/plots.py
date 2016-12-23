@@ -5,6 +5,7 @@ from psi.core.chaco.api import ChannelDataRange, add_time_axis, add_default_grid
 from chaco.api import LinearMapper, LogMapper, OverlayPlotContainer, DataRange1D, PlotAxis
 from psi.core.chaco.base_channel_data_range import BaseChannelDataRange
 
+# TODO: refactor so overlays and underlays are also declarative
 
 class PlotContainer(Declarative):
 
@@ -16,18 +17,21 @@ class TimeContainer(PlotContainer):
 
     trig_delay = d_(Float())
     span = d_(Float())
+    major_grid_index = d_(Float(5))
+    minor_grid_index = d_(Float(1))
 
     def create_container(self, plugin):
         index_range = ChannelDataRange(trig_delay=self.trig_delay, span=self.span)
         index_mapper = LinearMapper(range=index_range)
-        container = OverlayPlotContainer(padding=[20, 20, 50, 50])
+        container = OverlayPlotContainer(padding=[50, 50, 50, 50])
         for child in self.children:
             plot = child.create_plot(plugin, index_mapper)
             container.add(plot)
 
         # Add the time axis to the final plot
         add_time_axis(plot)
-        add_default_grids(plot, major_index=5, minor_index=1)
+        add_default_grids(plot, major_index=self.major_grid_index,
+                          minor_index=self.minor_grid_index)
         return container
 
 
@@ -37,8 +41,9 @@ class FFTContainer(PlotContainer):
     freq_ub = d_(Float(100e3))
 
     def create_container(self, plugin):
-        container = OverlayPlotContainer(padding=[20, 20, 50, 50])
-        index_range = BaseChannelDataRange(low_setting=self.freq_lb, high_setting=self.freq_ub)
+        container = OverlayPlotContainer(padding=[50, 50, 50, 50])
+        index_range = BaseChannelDataRange(low_setting=self.freq_lb,
+                                           high_setting=self.freq_ub)
         index_mapper = LogMapper(range=index_range)
         for child in self.children:
             plot = child.create_plot(plugin, index_mapper)
@@ -60,6 +65,7 @@ class ChannelPlot(Plot):
 
     source = d_(Unicode())
     value_range = d_(Tuple(Float(), Float()))
+    axis_label = d_(Unicode())
 
     def create_plot(self, plugin, index_mapper):
         from psi.core.chaco.api import ChannelPlot
@@ -68,9 +74,14 @@ class ChannelPlot(Plot):
         value_range = DataRange1D(low_setting=self.value_range[0],
                                   high_setting=self.value_range[1])
         value_mapper = LinearMapper(range=value_range)
-        return ChannelPlot(source=source, index_mapper=index_mapper,
+        plot = ChannelPlot(source=source, index_mapper=index_mapper,
                            value_mapper=value_mapper,
                            line_color=self.line_color)
+        if self.axis_label:
+            axis = PlotAxis(component=plot, orientation='left',
+                            title=self.axis_label)
+            plot.underlays.append(axis)
+        return plot
 
 
 class ExtremesChannelPlot(ChannelPlot):
@@ -120,15 +131,24 @@ class FFTChannelPlot(Plot):
     source = d_(Unicode())
     value_range = d_(Tuple(Float(), Float()))
     time_span = d_(Float(1))
+    axis_label = d_(Unicode())
+    reference = d_(Float(1))
 
     def create_plot(self, plugin, index_mapper):
         from psi.core.chaco.api import FFTChannelPlot
         source = plugin.find_source(self.source)
         index_mapper.range.sources.append(source)
-        value_range = DataRange1D(low_setting=-200, high_setting=200)
+        value_range = DataRange1D(low_setting=self.value_range[0],
+                                  high_setting=self.value_range[1])
         value_mapper = LinearMapper(range=value_range)
-        return FFTChannelPlot(source=source, 
+        plot = FFTChannelPlot(source=source, 
+                              reference=self.reference,
                               time_span=self.time_span,
                               index_mapper=index_mapper,
                               value_mapper=value_mapper,
                               line_color=self.line_color)
+        if self.axis_label:
+            axis = PlotAxis(component=plot, orientation='left',
+                            title=self.axis_label)
+            plot.underlays.append(axis)
+        return plot

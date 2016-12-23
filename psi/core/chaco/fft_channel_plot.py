@@ -9,6 +9,7 @@ from .base_channel_plot import BaseChannelPlot
 class FFTChannelPlot(BaseChannelPlot):
 
     time_span = Float(0.5)
+    reference = Float(1)
     _current_slice = Int(-1)
     _data_cache_valid = Bool(False)
     _screen_cache_valid = Bool(False)
@@ -38,7 +39,7 @@ class FFTChannelPlot(BaseChannelPlot):
             else:
                 fs = self.source.fs
                 freq = psd_freq(data, fs)
-                power = 20*np.log10(psd(data, fs))
+                power = 20*np.log10(psd(data, fs)/self.reference)
                 self._cached_data = freq, power
                 self._data_cache_valid = True
                 self._screen_cache_valid = False

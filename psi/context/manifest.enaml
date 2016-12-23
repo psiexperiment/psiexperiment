@@ -17,6 +17,7 @@ from psi.controller.api import ExperimentAction
 from psi.experiment.api import Preferences
 
 from .plugin import ContextPlugin
+from .symbol import ImportedSymbol
 
 from .context_view import (ContextDockItem, CurrentValuesDockItem,
                            PriorValuesDockItem)
@@ -67,21 +68,22 @@ def contribute_to_workspace(workbench, workspace):
         deferred_call(workspace.dock_area.update_layout, op)
         target = name
 
-    item = CurrentValuesDockItem(workspace.dock_area, 
-                                 context=plugin,
-                                 name='cv', 
-                                 title='Current values',
-                                 closable=False)
-    op = InsertItem(item=item.name, position='left')
-    deferred_call(workspace.dock_area.update_layout, op)
+    # TODO: this is currently broken
+    #item = CurrentValuesDockItem(workspace.dock_area, 
+    #                             context=plugin,
+    #                             name='cv', 
+    #                             title='Current values',
+    #                             closable=False)
+    #op = InsertItem(item=item.name, position='left')
+    #deferred_call(workspace.dock_area.update_layout, op)
 
-    item = PriorValuesDockItem(workspace.dock_area, 
-                               context=plugin,
-                               name='pv', 
-                               title='Prior values',
-                               closable=False)
-    op = InsertItem(item=item.name, position='left')
-    deferred_call(workspace.dock_area.update_layout, op)
+    #item = PriorValuesDockItem(workspace.dock_area, 
+    #                           context=plugin,
+    #                           name='pv', 
+    #                           title='Prior values',
+    #                           closable=False)
+    #op = InsertItem(item=item.name, position='left')
+    #deferred_call(workspace.dock_area.update_layout, op)
 
 
 
@@ -113,6 +115,16 @@ enamldef ContextManifest(PSIManifest): manifest:
 
     ExtensionPoint:
         id = 'symbols'
+
+    Extension:
+        id = 'default_symbols'
+        point = 'psi.context.symbols'
+        ImportedSymbol:
+            name = 'np'
+            module = 'numpy'
+        ImportedSymbol:
+            name = 'sp'
+            module = 'scipy'
 
     Extension:
         id = 'commands'

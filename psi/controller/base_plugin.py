@@ -130,8 +130,9 @@ class BasePlugin(Plugin):
                 outputs[output.name] = output
 
         for extension in point.extensions:
-            for input in extension.get_children(Input):
-                inputs[input.name] = input
+            for all_inputs in extension.get_children(Input):
+                for input in get_named_inputs(all_inputs):
+                    inputs[input.name] = input
 
         # Link up outputs with channels if needed.  TODO: Can another output be
         # the target (e.g., if one wanted to combine multiple tokens into a
@@ -157,16 +158,20 @@ class BasePlugin(Plugin):
                     m = "Unknown source {}".format(input.source_name)
                     raise ValueError(m)
                 log.debug('Connecting input {} to source {}' \
-                            .format(output.name, output.target_name))
+                          .format(input.name, input.source_name))
                 input.source = source
 
-        # Remove channels that do not have an input or output defined.
+        # Remove channels that do not have an input or output defined. TODO: We
+        # need to figure out how to configure which inputs/outputs are active
+        # (via GUI or config file) since some IO manifests may define
+        # additional (unneeded) inputs and outputs.
         for channel in channels.values():
             if not channel.children:
                 channel.engine = None
                 del channels[channel.name]
 
-        # Hack for channels that don't define a continuous output
+        # Hack for channels that don't define a continuous output. TODO?
+        # Somehow find a better way to do this?
         for channel in channels.values():
             if isinstance(channel, AOChannel):
                 for o in channel.outputs:
@@ -252,6 +257,12 @@ class BasePlugin(Plugin):
 
     def get_output(self, output_name):
         return self._outputs[output_name]
+
+    def prepare_epoch_output(self, output_name):
+        output = self.get_output(output_name)
+        if not isinstance(output, EpochOutput):
+            raise ValueError('This only works for epoch outputs')
+        output.initialize(self)
 
     def start_epoch_output(self, output_name, start=None, delay=0):
         output = self.get_output(output_name)

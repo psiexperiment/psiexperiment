@@ -1,10 +1,17 @@
 from enaml.core.api import Include
 from enaml.stdlib.message_box import warning
+from enaml.styling import StyleSheet, Style, Setter
 from enaml.widgets.api import ToolBar
 from enaml.workbench.ui.workbench_window import WorkbenchWindow
 
 
 enamldef ExperimentWorkbenchWindow(WorkbenchWindow):
+
+    StyleSheet:
+        Style:
+            Setter:
+                field = 'font-family'
+                value = "Segoe UI Symbol"
 
     closing ::
         # Make sure the experiment isn't running when the close button is

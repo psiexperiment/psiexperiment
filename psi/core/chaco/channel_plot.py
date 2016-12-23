@@ -22,11 +22,11 @@ class ChannelPlot(BaseChannelPlot):
 
     def _invalidate_data(self):
         self._data_cache_valid = False
-        self.invalidate_and_redraw()
+        self.deferred_redraw()
 
     def _invalidate_screen(self):
         self._screen_cache_valid = False
-        self.invalidate_and_redraw()
+        self.deferred_redraw()
 
     def __init__(self, **kwargs):
         super(ChannelPlot, self).__init__(**kwargs)
@@ -67,7 +67,7 @@ class ChannelPlot(BaseChannelPlot):
         screen_width = screen_max-screen_min # in pixels
         range = self.index_range
         data_width = (range.high-range.low)*self.source.fs
-        return np.floor((data_width/screen_width)/self.dec_points)
+        return int(np.floor((data_width/screen_width)/self.dec_points))
 
     def _gather_points(self):
         if not self._data_cache_valid:
@@ -123,9 +123,9 @@ class ChannelPlot(BaseChannelPlot):
         # the index range, then the data that has changed *may* be off-screen.
         # In which case, we're doing a *lot* of work to redraw the exact same
         # picture.
-        data_lb, data_ub = event['value']
+        data_ub = event['value']['ub']
         s_lb, s_ub = self.index_range.low, self.index_range.high
-        if (s_lb <= data_lb < s_ub) or (s_lb <= data_ub < s_ub):
+        if s_lb <= data_ub < s_ub:
             self._invalidate_data()
 
     def _data_changed(self):

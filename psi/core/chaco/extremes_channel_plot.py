@@ -20,7 +20,7 @@ def decimate_rms(data, downsample):
     # 5 samples.  If we have only 13 samples of data, then we cannot decimate
     # the last 3 samples and will simply discard them. 
     last_dim = data.ndim
-    offset = data.shape[-1] % downsample
+    offset = int(data.shape[-1] % downsample)
 
     if data.ndim == 2:
         shape = (len(data), -1, downsample)
@@ -50,7 +50,7 @@ def decimate_extremes(data, downsample):
     # 5 samples.  If we have only 13 samples of data, then we cannot decimate
     # the last 3 samples and will simply discard them. 
     last_dim = data.ndim
-    offset = data.shape[-1] % downsample
+    offset = int(data.shape[-1] % downsample)
 
     if data.ndim == 2:
         shape = (len(data), -1, downsample)
@@ -115,7 +115,7 @@ class ExtremesChannelPlot(ChannelPlot):
     def _compute_screen_points_decimated(self):
         # We cache our prior decimations 
         if self._cached_min is not None:
-            n_cached = self._cached_min.shape[-1]*self.dec_factor
+            n_cached = int(self._cached_min.shape[-1]*self.dec_factor)
             to_decimate = self._cached_data[..., n_cached:]
             mins, maxes = decimate_extremes(to_decimate, self.dec_factor)
             self._cached_min = np.hstack((self._cached_min, mins))
@@ -151,10 +151,15 @@ class ExtremesChannelPlot(ChannelPlot):
                 idx, val = points
                 gc.lines(np.c_[idx, val])
             else:
-                idx, (mins, maxes) = points
-                starts = np.column_stack((idx, mins))
-                ends = np.column_stack((idx, maxes))
-                gc.line_set(starts, ends)
+                try:
+                    idx, (mins, maxes) = points
+                    starts = np.column_stack((idx, mins))
+                    ends = np.column_stack((idx, maxes))
+                    gc.line_set(starts, ends)
+                except:
+                    log.info('{} idx, {} mins, {} maxes' \
+                             .format(idx.shape, mins.shape, maxes.shape))
+                    raise
 
             gc.stroke_path()
             self._draw_default_axes(gc)

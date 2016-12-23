@@ -9,8 +9,8 @@ from psi.context.api import Parameter
 
 from .plugin import TokenPlugin
 from .token import ContinuousToken, EpochToken
-from .primitives import (Cos2Envelope, Noise, Tone, Silence, BandpassFilter,
-                         SAMEnvelope)
+from .primitives import (Cos2Envelope, Noise, BandlimitedNoise, Tone, Silence,
+                         BandpassFilter, SAMEnvelope)
 
 
 enamldef TokenManifest(PluginManifest):
@@ -28,42 +28,35 @@ enamldef TokenManifest(PluginManifest):
         ContinuousToken:
             name = 'continuous_bandlimited_noise'
             label = 'continuous bandlimited noise'
-            BandpassFilter:
-                Noise:
-                    pass
-
-        EpochToken:
-            name = 'bandlimited_noise_burst'
-            label = 'bandlimited noise burst'
-            Cos2Envelope:
-                BandpassFilter:
-                    Noise:
-                        pass
-
-        EpochToken:
-            name = 'bandlimited_sam_noise'
-            label = 'bandlimited SAM noise'
-            Cos2Envelope:
-                SAMEnvelope:
-                    BandpassFilter:
-                        Noise:
-                            pass
+            BandlimitedNoise:
+                pass
 
         ContinuousToken:
             name = 'continuous_tone'
             label = 'continuous tone'
-            Cos2Envelope:
-                Tone:
+            Tone:
+                pass
+
+        ContinuousToken:
+            name = 'Silence'
+            Silence:
+                pass
+
+        EpochToken:
+            name = 'bandlimited_noise_burst'
+            label = 'bandlimited noise burst'
+            BandlimitedNoise:
+                pass
+
+        EpochToken:
+            name = 'bandlimited_sam_noise'
+            label = 'bandlimited SAM noise'
+            SAMEnvelope:
+                BandlimitedNoise:
                     pass
 
         EpochToken:
             name = 'tone_burst'
             label = 'tone'
-            Cos2Envelope:
-                Tone:
-                    pass
-
-        ContinuousToken:
-            name = 'Silence'
-            Silence:
+            Tone:
                 pass

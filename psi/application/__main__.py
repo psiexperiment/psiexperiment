@@ -5,10 +5,14 @@ import re
 import argparse
 import os.path
 import warnings
+import datetime as dt
 
 import tables as tb
 
 from enaml.application import deferred_call
+
+from psi import application
+from psi import get_config, set_config
 
 
 experiment_descriptions = {
@@ -71,7 +75,7 @@ def configure_logging(filename=None):
             '__main__': {'level': 'DEBUG'},
             'neurogen': {'level': 'ERROR'},
             'psi': {'level': 'DEBUG'},
-            'psi.core.chaco': {'level': 'DEBUG'},
+            'psi.core.chaco': {'level': 'INFO'},
             'experiments': {'level': 'DEBUG'},
             'psi.controller.engine': {'level': 'TRACE'},
             'daqengine': {'level': 'DEBUG'},
@@ -106,19 +110,19 @@ def main():
                         help='Debug mode?')
     args = parser.parse_args()
 
-    if args.debug:
-        configure_logging()
-        log.debug('Logging configured')
-
-    from psi import application
-    from psi import get_config, set_config
-
-    for config in ['LAYOUT_ROOT', 'PREFERENCES_ROOT', 'CONTEXT_ROOT']:
+    for config in ['LAYOUT_ROOT', 'PREFERENCES_ROOT']:
         path = get_config(config)
         new_path = os.path.join(path, args.experiment)
         set_config(config, new_path)
         if not os.path.exists(new_path):
             os.makedirs(new_path)
+
+    if args.debug:
+        dt_string = dt.datetime.now().strftime('%Y-%m-%d %H%M') 
+        filename = '{} {}'.format(dt_string, args.experiment)
+        log_root = get_config('LOG_ROOT')
+        configure_logging(os.path.join(log_root, filename))
+        log.debug('Logging configured')
 
     experiment_description = experiment_descriptions[args.experiment]
     manifests = application.get_manifests(experiment_description['manifests'])

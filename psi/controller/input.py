@@ -12,6 +12,7 @@ from enaml.workbench.api import Extension
 
 from psi import SimpleState
 from .channel import Channel
+from .calibration.util import db, dbi, patodb
 
 
 def coroutine(func):
@@ -39,7 +40,7 @@ def accumulate(n, target):
         data.append(d)
         if len(data) == n:
             data = np.concatenate(data)
-            target.send(data)
+            target(data)
             data = []
 
 
@@ -124,7 +125,7 @@ def reject(threshold, target):
         data = (yield)
         if np.all(np.max(np.abs(d), axis=-1) < reject_threshold):
             # TODO: what about fails?
-            target.send(data)
+            target(data)
 
 
 @coroutine
@@ -135,7 +136,7 @@ def average(n, target):
         while data.shape[axis] >= n:
             s = [Ellipsis]*data.ndim
             s[axis] = np.s_[:block_size]
-            target.send(data[s].mean(axis=axis))
+            target(data[s].mean(axis=axis))
             s[axis] = np.s_[block_size:]
             data = data[s]
         new_data = (yield)
@@ -172,10 +173,40 @@ def extract_epochs(epoch_size, queue, buffer_size, target):
             else:
                 i = next_offset-t0
                 epoch = ring_buffer[..., i:i+epoch_size].copy()
-                target.send(epoch)
+                target(epoch)
                 next_offset = None
 
         data = (yield)
+
+
+@coroutine
+def calibrate(calibration, target):
+    # TODO: hack alert here
+    sens = dbi(calibration.get_sens(1000))
+    while True:
+        data = (yield)
+        target(data/sens)
+
+
+@coroutine
+def rms(n, target):
+    data = None
+    while True:
+        if data is None:
+            data = (yield)
+        else:
+            data = np.concatenate((data, (yield)), axis=-1)
+        while data.shape[-1] >= n:
+            result = np.mean(data[..., :n]**2, axis=0)**0.5
+            target(result[np.newaxis])
+            data = data[..., n:]
+
+
+@coroutine
+def spl(target):
+    while True:
+        data = (yield)
+        target(patodb(data))
 
 
 class Input(SimpleState, Declarative):
@@ -232,6 +263,34 @@ class Input(SimpleState, Declarative):
 
     def get_plugin_callback(self, plugin):
         return partial(plugin.ai_callback, self.name)
+
+
+class CalibratedInput(Input):
+
+    def configure_callback(self, plugin):
+        cb = super(CalibratedInput, self).configure_callback(plugin)
+        return calibrate(self.channel.calibration, cb).send
+
+
+class RMS(Input):
+
+    duration = d_(Float())
+
+    def _get_fs(self):
+        n = int(self.duration*self.parent.fs)
+        return self.parent.fs/n
+
+    def configure_callback(self, plugin):
+        n = int(self.duration*self.parent.fs)
+        cb = super(RMS, self).configure_callback(plugin)
+        return rms(n, cb).send
+
+
+class SPL(Input):
+
+    def configure_callback(self, plugin):
+        cb = super(SPL, self).configure_callback(plugin)
+        return spl(cb).send
 
 
 class IIRFilter(Input):
@@ -329,7 +388,6 @@ class Average(Input):
     n = d_(Float())
 
     def configure_callback(self, plugin):
-        print 'configuring callback'
         cb = super(Average, self).configure_callback(plugin)
         return average(self.n, cb).send
 

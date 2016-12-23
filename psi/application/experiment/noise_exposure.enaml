@@ -6,8 +6,10 @@ from enaml.workbench.ui.api import Branding
 from psi.context.api import Parameter
 from psi.controller.base_manifest import BaseManifest
 from psi.controller.api import EpochOutput, ExperimentAction
+from psi.controller.input import (Downsample, IIRFilter, Threshold, Edges,
+                                  CalibratedInput, RMS, SPL)
 
-from psi.data.plots import (TimeContainer, ExtremesChannelPlot, FFTContainer,
+from psi.data.plots import (TimeContainer, ChannelPlot, FFTContainer,
                             FFTChannelPlot)
 
 
@@ -30,6 +32,18 @@ enamldef ControllerManifest(BaseManifest): manifest:
             label = 'Exposure'
             target_name = 'speaker'
 
+        IIRFilter:
+            source_name = 'microphone'
+            btype = 'highpass'
+            ftype = 'butter'
+            N = 2
+            f_highpass = 100
+            name = 'filtered_microphone'
+            RMS:
+                duration = 1
+                SPL:
+                    name = 'noise_level'
+
     Extension:
         id = 'actions'
         point = 'psi.controller.actions'
@@ -37,7 +51,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
         ExperimentAction:
             event = 'experiment_start'
             command = 'psi.controller.start_epoch_output'
-            kwargs = {'output_name': 'exposure', 'start': 1}
+            kwargs = {'output_name': 'exposure', 'start': 2}
         ExperimentAction:
             event = 'token_stop'
             command = 'psi.controller.stop'
@@ -50,21 +64,26 @@ enamldef ControllerManifest(BaseManifest): manifest:
             name = 'trial_plot_container' 
             title = 'Trial timing'
             trig_delay = 0
-            span = 20
+            span = 600
+            major_grid_index = 60
+            minor_grid_index = 10
 
-            ExtremesChannelPlot:
-                source = 'speaker_monitor'
+            ChannelPlot:
+                source = 'noise_level'
                 line_color = (0, 0, 0)
-                value_range = (-2, 2)
+                value_range = (90, 120)
+                axis_label = 'Noise level (dB SPL)' 
 
         FFTContainer:
             name = 'fft_plot_container'
             title = 'FFT'
             freq_lb = 0.1e3 
-            freq_ub = 40e3
+            freq_ub = 10e3
 
             FFTChannelPlot:
-                source = 'speaker_monitor'
+                source = 'filtered_microphone'
                 line_color = (0, 0, 0)
                 value_range = (0, 100)
-                time_span = 2
+                time_span = 1
+                axis_label = 'Level (dB SPL)'
+                reference = 20e-6

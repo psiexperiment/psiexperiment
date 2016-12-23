@@ -189,9 +189,8 @@ class ExpressionNamespace(Atom):
         for d in expr._dependencies:
             if d not in c and d in self._expressions:
                 c[d] = self.get_value(d, c)
-
-        # Force a copy of the `_locals` dictionary to ensure that the GUI
-        # updates as needed.
-        _locals = self._locals.copy()
-        _locals[name] = expr.evaluate(c)
-        self._locals = _locals
+        
+        # Note that in the past I was forcing a copy of self._locals to ensure
+        # that the GUI was updated as needed; however, this proved to be a very
+        # slow process since it triggered a cascade of GUI updates. 
+        self._locals[name] = expr.evaluate(c)

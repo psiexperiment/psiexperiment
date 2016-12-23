@@ -1,12 +1,23 @@
+import os.path
+
 import numpy as np
 
 from enaml.workbench.api import PluginManifest, Extension
 
+from psi import get_config
 from psi.controller.engines.nidaq import NIDAQEngine
 from psi.controller.api import (AIChannel, AOChannel, ExperimentAction,
                                 Trigger, Toggle, DOChannel, Input)
 
-from psi.controller.input import Downsample, IIRFilter, Threshold, Edges
+from psi.controller.input import (Downsample, IIRFilter, Threshold, Edges,
+                                  CalibratedInput, RMS, SPL)
+
+from psi.controller.calibration import GolayCalibration, FlatCalibration
+from psi.controller.calibration.util import db
+
+
+cal_root = get_config('CAL_ROOT')
+filename = os.path.join(cal_root, '161128 - Golay for training booth.cal')
 
 
 enamldef IOManifest(PluginManifest): manifest:
@@ -36,6 +47,8 @@ enamldef IOManifest(PluginManifest): manifest:
                 expected_range = (-10, 10)
                 dtype = np.dtype('float64')
                 terminal_mode = 'RSE'
+                calibration = \
+                    GolayCalibration.from_file(filename, fixed_gain=-21.5)
 
             DOChannel:
                 name = 'food_dispense'
@@ -65,33 +78,32 @@ enamldef IOManifest(PluginManifest): manifest:
             AIChannel:
                 label = 'Microphone'
                 name = 'microphone'
-                channel = 'Dev1/ai0'
+                channel = 'Dev1/ai5'
                 start_trigger = 'ao/StartTrigger'
                 fs = 100e3
                 expected_range = (-10, 10)
                 dtype = np.dtype('float64')
                 terminal_mode = 'differential'
+                calibration = FlatCalibration(db(28.92e-3))
+                #calibration = FlatCalibration(db(1))
 
-                Input:
-                    name = 'microphone'
-
-            AIChannel:
-                label = 'Speaker Monitor'
-                name = 'speaker_monitor'
-                channel = 'Dev1/ai1'
-                start_trigger = 'ao/StartTrigger'
-                fs = 100e3
-                expected_range = (-10, 10)
-                dtype = np.dtype('float64')
-                terminal_mode = 'differential'
-
-                Input:
-                    name = 'speaker_monitor'
+                CalibratedInput:
+                    IIRFilter:
+                        f_highpass = 100
+                        f_lowpass = 10000
+                        ftype = 'butter'
+                        N = 2
+                        btype = 'bandpass'
+                        name = 'microphone'
+                        RMS:
+                            duration = 1
+                            SPL:
+                                name = 'noise_level'
 
             AIChannel:
                 label = 'Nose poke IR'
                 name = 'nose_poke'
-                channel = 'Dev1/ai2'
+                channel = 'Dev1/ai3'
                 start_trigger = 'ao/StartTrigger'
                 fs = 100e3
                 expected_range = (-10, 10)
@@ -116,7 +128,7 @@ enamldef IOManifest(PluginManifest): manifest:
             AIChannel:
                 label = 'Reward contact IR'
                 name = 'reward_contact'
-                channel = 'Dev1/ai3'
+                channel = 'Dev1/ai4'
                 start_trigger = 'ao/StartTrigger'
                 fs = 100e3
                 expected_range = (-10, 10)

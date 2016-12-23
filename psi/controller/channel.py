@@ -6,7 +6,7 @@ import numpy as np
 from atom.api import Unicode, Enum, Typed, Tuple, Property
 from enaml.core.api import Declarative, d_
 
-from neurogen.calibration import Calibration
+from .calibration import Calibration
 
 from psi import SimpleState
 
@@ -30,6 +30,9 @@ class Channel(SimpleState, Declarative):
 
     engine = Property().tag(transient=True)
 
+    calibration = d_(Typed(Calibration))
+
+
     def _get_engine(self):
         return self.parent
 
@@ -40,14 +43,12 @@ class Channel(SimpleState, Declarative):
         pass
 
 
-
 class AIChannel(Channel):
 
     TERMINAL_MODES = 'pseudodifferential', 'differential', 'RSE', 'NRSE'
 
     inputs = Property().tag(transient=True)
     expected_range = d_(Tuple())
-    calibration = Typed(Calibration)
     terminal_mode = d_(Enum(*TERMINAL_MODES))
     terminal_coupling = d_(Enum(None, 'AC', 'DC', 'ground'))
 
@@ -61,13 +62,19 @@ class AIChannel(Channel):
 
 
 class AOChannel(Channel):
-
+    '''
+    An analog output channel supports one continuous and multiple epoch
+    outputs.
+    '''
     TERMINAL_MODES = 'pseudodifferential', 'differential', 'RSE'
 
     outputs = Property().tag(transient=True)
     expected_range = d_(Tuple())
-    calibration = Typed(Calibration)
     terminal_mode = d_(Enum(*TERMINAL_MODES))
+
+    def _get_output_map(self):
+        mapping = {
+        for output in self.outputs:
 
     def _get_outputs(self):
         return self.children

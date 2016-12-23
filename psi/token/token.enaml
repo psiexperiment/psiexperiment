@@ -6,7 +6,26 @@ import numpy as np
 from psi.context.api import Parameter
 
 from .block import Block
-from .primitives import single_input
+from .primitives import single_input, Cos2Envelope, cos2envelope_factory
+
+
+enamldef Token(Block):
+    pass
+
+
+class _EpochToken(Cos2Envelope):
+
+    def get_duration(self, workbench):
+        duration = self.parameters[0]
+        context = workbench.get_plugin('psi.context')
+        return context.get_value(duration.name)
+
+
+enamldef EpochToken(_EpochToken):
+
+    name = 'epoch'
+    label = 'epoch'
+    factory = lambda *a, **kw: cos2envelope_factory(*a, infinite=False, **kw)
 
 
 @single_input
@@ -20,63 +39,39 @@ def default_continuous_factory(fs, calibration, input):
         offset += len(waveform)
 
 
-enamldef Token(Block):
-    pass
-
-
-@single_input
-def default_epoch_factory(fs, duration, calibration, input):
-    # This is responsible for generating the waveform when the appropriate
-    # offset is reached. Here, start_ts and offset are specified re the master
-    # clock. The master clock is referenced to the *start* of the experiment.
-    # Once the token is complete (e.g.e, epoch duration is met), the generator
-    # terminates.
-    waveform = None
-    epoch_samples = int(duration*fs)
-
-    m = 'Initializing epoch factory with duration {}'
-    log.debug(m.format(epoch_samples))
-
-    while True:
-        kwargs = (yield waveform)
-        offset = kwargs['offset']
-        samples = kwargs['samples']
-        log.debug('Generating {} samples at {}'.format(samples, offset))
-        n_remaining = np.clip(samples, 0, epoch_samples)
-
-        if offset >= epoch_samples:
-            break
-
-        kwargs['offset'] = offset
-        kwargs['samples'] = n_remaining
-        m = 'Generating {} token samples at {}'
-        log.debug(m.format(kwargs['samples'], kwargs['offset']))
-        waveform = input.send(kwargs)
-
-
-class _EpochToken(Token):
-
-    def get_duration(self, workbench):
-        duration = self.parameters[0]
-        context = workbench.get_plugin('psi.context')
-        return context.get_value(duration.name)
-
-
-enamldef EpochToken(_EpochToken):
-
-    name = 'epoch'
-    label = 'epoch'
-    factory = default_epoch_factory
-
-    Parameter:
-        name = 'duration'
-        label = 'duration (s)'
-        compact_label = 'dur'
-        dtype = np.dtype('float32')
-        default = 4
-        expression = '4'
-
-
 enamldef ContinuousToken(Token):
 
     factory = default_continuous_factory
+
+
+
+#@single_input
+#def epoch_sequence_factory(fs, epoch_duration, iti, trials, calibration,
+#                           inputs):
+#    waveform = None
+#    while True:
+#        kwargs = (yield waveform)
+#        offset = kwargs['offset']
+#        samples = kwargs['samples']
+#        log.debug('Generating {} samples at {}'.format(samples, offset))
+#        waveform = input.send(kwargs)
+#
+#enamldef EpochSequenceToken(Token):
+#
+#    factory = epoch_sequence_factory
+#
+#    Parameter:
+#        name = 'trials'
+#        label = 'trials'
+#        compact_label = 'N'
+#        dtype = np.dtype('int32')
+#        default = 100
+#        expression = '100'
+#
+#    Parameter:
+#        name = 'iti'
+#        label = 'intertrial interval (s)'
+#        compact_label = 'iti'
+#        dtype = np.dtype('float32')
+#        default = 0.1
+#        expression = '0.1'

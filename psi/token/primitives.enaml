@@ -1,9 +1,19 @@
+from __future__ import division
+
+import logging
+log = logging.getLogger(__name__)
+
 import numpy as np
 from scipy import signal
+from joblib import Memory
 
+from psi import get_config
 from psi.context.api import Parameter, EnumParameter
 
 from .block import Block
+
+memory = Memory(cachedir=get_config('TEMP_ROOT'))
+
 
 ################################################################################
 # Utility
@@ -32,6 +42,7 @@ def no_inputs(function):
 ################################################################################
 # Cos2Envelope
 ################################################################################
+@memory.cache
 def cos2envelope(t, start_time, rise_time, duration):
     '''
     Generates cosine-squared envelope. Can handle generating fragments.
@@ -71,12 +82,17 @@ def cos2envelope(t, start_time, rise_time, duration):
 
 @single_input
 def cos2envelope_factory(fs, start_time, rise_time, duration, calibration,
-                         input):
+                         input, infinite=True):
+    # We provide the infinite argument so that the behavior of this can be
+    # modified slightly to work with an EpochOutput.
     waveform = None
+    epoch_samples = np.inf if infinite else int(duration*fs)
     while True:
         kwargs = (yield waveform)
         samples = kwargs['samples']
         offset = kwargs['offset']
+        if offset >= epoch_samples:
+            break
         t = (np.arange(samples, dtype=np.float32) + offset)/fs
         envelope = cos2envelope(t, start_time, rise_time, duration)
         token = input.send(kwargs)
@@ -117,23 +133,26 @@ enamldef Cos2Envelope(Block): block:
 ################################################################################
 # SAM envelope
 ################################################################################
+@memory.cache
 def sam_eq_power(depth):
-    return (3.0/8.0*depth**2-depth+1)**0.5
+    return (3.0/8.0*depth**2.0-depth+1.0)**0.5
 
 
+@memory.cache
 def sam_eq_phase(delay, depth, direction):
     if depth == 0:
         return 0
     z = 2.0/depth*sam_eq_power(depth)-2.0/depth+1
     phi = np.arccos(z)
-    return 2*np.pi-phi if direction == 1 else phi
+    return 2.0*np.pi-phi if direction == 1 else phi
 
 
+@memory.cache
 def sam_envelope(t, fs, depth, fm, delay, direction):
     eq_phase = sam_eq_phase(delay, depth, direction)
     eq_power = sam_eq_power(depth)
 
-    envelope = depth/2*np.cos(2*np.pi*fm*t+eq_phase)+1-depth/2
+    envelope = depth/2.0*np.cos(2.0*np.pi*fm*t+eq_phase)+1.0-depth/2.0
 
     # Ensure that we scale the waveform so that the total power remains equal
     # to that of an unmodulated token.
@@ -211,6 +230,7 @@ def noise_factory(fs, seed, level, calibration):
         waveform = state.uniform(low=-1, high=1, size=samples)
         # TODO: figure out how to scale waveform to target level
 
+
 enamldef Noise(Block):
     
     factory = noise_factory
@@ -232,6 +252,134 @@ enamldef Noise(Block):
         dtype = np.dtype('float32')
         default = 1
         expression = '1'
+
+
+################################################################################
+# Bandlimited noise
+################################################################################
+@memory.cache
+def _calculate_bandlimited_noise_filter(fs, center_frequency, pass_bandwidth,
+                                        stop_bandwidth, passband_attenuation,
+                                        stopband_attenuation):
+    fl = center_frequency-0.5*pass_bandwidth
+    fh = center_frequency+0.5*pass_bandwidth
+    Wp = np.array([fl, fh])/(0.5*fs)
+    fl = center_frequency-0.5*stop_bandwidth
+    fh = center_frequency+0.5*stop_bandwidth
+    Ws = np.array([fl, fh])/(0.5*fs)
+    b, a = signal.iirdesign(Wp, Ws, passband_attenuation, stopband_attenuation) 
+    zi = signal.lfilter_zi(b, a)
+    return b, a, zi
+
+
+@memory.cache
+def _calculate_bandlimited_noise_iir(fs, calibration, center_frequency,
+                                     pass_bandwidth):
+    fl = center_frequency-0.5*pass_bandwidth
+    fh = center_frequency+0.5*pass_bandwidth
+    duration = 2.0/fl
+    iir = calibration.get_iir(fs, fl, fh, duration)
+    zi = signal.lfilter_zi(iir, [1])
+    return iir, zi
+
+
+@no_inputs
+def bandlimited_noise_factory(fs, seed, level, center_frequency,
+                              pass_bandwidth, stop_bandwidth,
+                              passband_attenuation, stopband_attenuation,
+                              calibration):
+    waveform = None
+    state = np.random.RandomState(seed)
+
+    sf = calibration.get_sf(center_frequency, level)
+    
+    b, a, bp_zi = _calculate_bandlimited_noise_filter(
+        fs, center_frequency, pass_bandwidth, stop_bandwidth,
+        passband_attenuation, stopband_attenuation)
+
+    iir, iir_zi = _calculate_bandlimited_noise_iir(
+        fs, calibration, center_frequency, pass_bandwidth)
+
+    # This was copied from the EPL CFT. Need to figure out how this equation
+    # works so we can document this better. But it works as intended to scale
+    # the noise back to RMS=1.
+    filter_sf = 1.0/np.sqrt(pass_bandwidth*2/fs/3.0)
+
+    # The RMS value of noise drawn from a uniform distribution is
+    # amplitude/sqrt(3). By setting the low and high to sqrt(3) and multiplying
+    # by the scaling factors, we can ensure that the noise is initially
+    # generated with the desired RMS.
+    low, high = -np.sqrt(3)*filter_sf*sf, np.sqrt(3)*filter_sf*sf
+
+    while True:
+        kwargs = (yield waveform)
+        samples = kwargs['samples']
+        waveform = state.uniform(low=low, high=high, size=samples)
+        waveform, iir_zi = signal.lfilter(iir, [1], waveform, zi=iir_zi)
+        waveform, bp_zi = signal.lfilter(b, a, waveform, zi=bp_zi)
+
+
+enamldef BandlimitedNoise(Block):
+    
+    factory = bandlimited_noise_factory
+    name = 'bandlimited_noise'
+    label = 'bandlimited noise'
+
+    Parameter:
+        name = 'level'
+        label = 'level (dB SPL)'
+        compact_label = 'level'
+        dtype = np.dtype('float32')
+        default = 60
+        expression = '60'
+
+    Parameter:
+        name = 'seed'
+        label = 'random seed'
+        compact_label = 'seed'
+        dtype = np.dtype('float32')
+        default = 1
+        expression = '1'
+
+    Parameter:
+        name = 'center_frequency'
+        label = 'center frequency (Hz)'
+        compact_label = 'fc'
+        dtype = np.dtype('float32')
+        default = 8000
+        expression = '8000'
+
+    Parameter:
+        name = 'pass_bandwidth'
+        label = 'pass bandwidth (Hz)'
+        compact_label = 'pass bw'
+        dtype = np.dtype('float32')
+        default = 6000
+        expression = '6000'
+
+    Parameter:
+        name = 'stop_bandwidth'
+        label = 'stop bandwidth (Hz)'
+        compact_label = 'stop bw'
+        dtype = np.dtype('float32')
+        default = 4000
+        expression = '4000'
+
+    Parameter:
+        name = 'passband_attenuation'
+        label = 'passband attenuation (dB)'
+        compact_label = 'pass. atten.'
+        dtype = np.dtype('float32')
+        default = 10
+        expression = '10'
+
+    Parameter:
+        name = 'stopband_attenuation'
+        label = 'stopband attenuation (dB)'
+        compact_label = 'stop. atten.'
+        dtype = np.dtype('float32')
+        default = 60
+        expression = '60'
 
 
 ################################################################################
@@ -325,12 +473,13 @@ enamldef BandpassFilter(Block):
 @no_inputs
 def tone_factory(fs, level, frequency, calibration):
     waveform = None
+    sf = calibration.get_sf(frequency, level)
     while True:
         kwargs = (yield waveform)
         samples = kwargs['samples']
         offset = kwargs['offset']
         t = np.arange(samples, dtype=np.float32)/fs + offset
-        waveform = np.cos(2*np.pi*t*frequency)
+        waveform = sf*np.cos(2*np.pi*t*frequency)
 
 
 enamldef Tone(Block):

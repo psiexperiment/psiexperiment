@@ -15,12 +15,6 @@ from psi.data.plots import (TimeContainer, ChannelPlot, TimeseriesPlot,
                             ExtremesChannelPlot)
 
 
-def insert_target(event):
-    controller.trial_info['target_start'] = ts
-    controller.trial_info['target_end'] = \
-        ts+(waveform.shape[-1]/target.channel.fs)
-
-
 enamldef ControllerManifest(AppetitiveManifest): manifest:
 
     id = 'psi.controller'
@@ -32,19 +26,16 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             title = 'Appetitive Go-Nogo'
 
     Extension:
-        id = 'appetitive_commands'
-        point = 'enaml.workbench.core.commands'
-        Command:
-            id = 'psi.controller.insert_target'
-            handler = insert_target
-
-    Extension:
         id = 'actions'
         point = 'psi.controller.actions'
         ExperimentAction:
             event = 'trial_start'
             command = 'psi.controller.start_epoch_output'
-            kwargs = {'output_name': 'target', 'delay': 0.25}
+            kwargs = {'output_name': 'target', 'delay': 0.2}
+        ExperimentAction:
+            event = 'trial_prepare'
+            command = 'psi.controller.prepare_epoch_output'
+            kwargs = {'output_name': 'target'}
 
     Extension:
         id = 'io'
@@ -98,7 +89,52 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                 rect_center = 0.5
                 rect_height = 0.2
 
+            TimeseriesPlot:
+                source = 'event_log'
+                rising_event = 'token_start'
+                falling_event = 'token_stop'
+                fill_color = (.5, .5, .5, 0.25)
+                line_color = (.5, .5, .5, 0.5)
+                rect_center = 0.7
+                rect_height = 0.1
+
+            TimeseriesPlot:
+                source = 'event_log'
+                rising_event = 'hold_start'
+                falling_event = 'hold_end'
+                fill_color = (.75, .75, .75, 0.25)
+                line_color = (.75, .75, .75, 0.5)
+                rect_center = 0.8
+                rect_height = 0.1
+
+            TimeseriesPlot:
+                source = 'event_log'
+                rising_event = 'response_start'
+                falling_event = 'response_end'
+                fill_color = (.5, .5, .5, 0.25)
+                line_color = (.5, .5, .5, 0.5)
+                rect_center = 0.8
+                rect_height = 0.1
+
+            TimeseriesPlot:
+                source = 'event_log'
+                rising_event = 'to_start'
+                falling_event = 'to_end'
+                fill_color = (.25, .25, .25, 0.25)
+                line_color = (.25, .25, .25, 0.5)
+                rect_center = 0.8
+                rect_height = 0.1
+
+            TimeseriesPlot:
+                source = 'event_log'
+                rising_event = 'iti_start'
+                falling_event = 'iti_end'
+                fill_color = (0, 0, 0, 0.25)
+                line_color = (0, 0, 0, 0.5)
+                rect_center = 0.8
+                rect_height = 0.1
+
             ExtremesChannelPlot:
-                source = 'speaker_monitor'
+                source = 'microphone'
                 line_color = (0, 0, 0)
                 value_range = (-1, 1)

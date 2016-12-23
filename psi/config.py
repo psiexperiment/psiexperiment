@@ -5,7 +5,10 @@ Variable names in capital letters indicate that this is a setting that can be
 overridden in a custom settings.py file that PSIEXPERIMENT_CONFIG environment
 variable points to.
 '''
-import os, re, logging, tempfile
+import os, re, logging, tempfile, socket
+log = logging.getLogger(__name__)
+
+SYSTEM = socket.gethostname()
 
 try:
     BASE_DIRECTORY  = os.environ['PSIEXPERIMENT_BASE']
@@ -23,20 +26,17 @@ except KeyError:
     environment variable, PSIEXPERIMENT_BASE, with the path to the directory as
     the value.'''
     mesg = textwrap.dedent(mesg.format(BASE_DIRECTORY))
-    mesg = mesg.replace('\n', ' ')
+    mesg = mesg.replace('\n', ' ').strip()
+    log.warn(mesg)
+    print(mesg)
 
 
 LOG_ROOT = os.path.join(BASE_DIRECTORY, 'logs')
 DATA_ROOT = os.path.join(BASE_DIRECTORY, 'data')
 CAL_ROOT = os.path.join(BASE_DIRECTORY, 'calibration')
-CONTEXT_ROOT = os.path.join(BASE_DIRECTORY, 'context')
 LAYOUT_ROOT = os.path.join(BASE_DIRECTORY, 'layout')
 PREFERENCES_ROOT = os.path.join(BASE_DIRECTORY, 'preferences')
-CACHE_ROOT = os.path.join(BASE_DIRECTORY, '.cache')
-
-TEMP_ROOT = tempfile.mkdtemp()
-
-EXPERIMENT_FOLDER = None
+TEMP_ROOT = os.path.join(BASE_DIRECTORY, 'temp')
 
 # Ensure the folders exist
 for setting_name, setting_value in globals().items():
@@ -46,11 +46,6 @@ for setting_name, setting_value in globals().items():
 # Default filename extensions used by the FileBrowser dialog to open/save files.
 PREFERENCES_WILDCARD = 'Preferences (*.preferences)'
 LAYOUT_WILDCARD = 'Workspace layout (*.layout)'
-CONTEXT_WILDCARD = 'Paradigm settings (*.settings)'
-PHYSIOLOGY_WILDCARD = 'Physiology settings (*.phy)'
-PHYSIOLOGY_RAW_WILDCARD = 'Raw (*_raw.hd5)'
-PHYSIOLOGY_EXTRACTED_WILDCARD = 'Extracted (*_extracted*.hd5)'
-PHYSIOLOGY_SORTED_WILDCARD = 'Sorted (*_sorted*.hd5)'
 CAL_WILDCARD = 'Cal (*.cal)'
 
 # Options for pump syringe
@@ -64,8 +59,6 @@ SYRINGE_DATA = {
         'B-D 10cc (glass)'      : 14.20,
         }
 
-
-# Default compression settings for HDF5 arrays
 H5_COMPRESSION = {
     'complevel': 1,
     'complib': 'blosc',
@@ -73,21 +66,10 @@ H5_COMPRESSION = {
     'fletcher32': True,
 }
 
-# By convention, settings are in all caps.  Print these to the log file to
-# facilitate debugging other users' programs.
+# Log the settings to facilitate debugging. By convention, settings are in all
+# caps, so only log those variables.
 log = logging.getLogger()
 for k, v in sorted(globals().items()):
     if k == k.upper():
         log.debug("CONFIG %s : %r", k, v)
 
-# Format to use when generating time strings for use in a HDF5 node pathname
-# (see time.strptime for documentation re the format specifiers to use below)
-TIME_FORMAT = '%Y_%m_%d_%H_%M_%S'
-
-# Format to use when storing datetime strings as attributes in the HDF5 file
-DATE_FMT = '%Y-%m-%d'
-TIME_FMT = '%H:%M:%S'
-DATETIME_FMT = DATE_FMT + ' ' + TIME_FMT
-
-import socket
-SYSTEM = socket.gethostname()
