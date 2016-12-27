@@ -7,6 +7,7 @@ from atom.api import Unicode, Enum, Typed, Tuple, Property
 from enaml.core.api import Declarative, d_
 
 from .calibration import Calibration
+from .output import ContinuousOutput, EpochOutput
 
 from psi import SimpleState
 
@@ -31,7 +32,6 @@ class Channel(SimpleState, Declarative):
     engine = Property().tag(transient=True)
 
     calibration = d_(Typed(Calibration))
-
 
     def _get_engine(self):
         return self.parent
@@ -69,15 +69,23 @@ class AOChannel(Channel):
     TERMINAL_MODES = 'pseudodifferential', 'differential', 'RSE'
 
     outputs = Property().tag(transient=True)
+    epoch_outputs = Property().tag(transient=True)
+    continuous_output = Property().tag(transient=True)
+
     expected_range = d_(Tuple())
     terminal_mode = d_(Enum(*TERMINAL_MODES))
 
-    def _get_output_map(self):
-        mapping = {
-        for output in self.outputs:
-
     def _get_outputs(self):
         return self.children
+
+    def _get_continuous_output(self):
+        for o in self.outputs:
+            if isinstance(o, ContinuousOutput):
+                return o
+        return None
+
+    def _get_epoch_outputs(self):
+        return [o for o in self.outputs if isinstance(o, EpochOutput)]
 
     def configure(self, plugin):
         for output in self.outputs:

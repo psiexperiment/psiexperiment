@@ -115,11 +115,14 @@ enamldef BaseManifest(PSIManifest): manifest:
             id = 'psi.controller.set_pause_ok'
             handler = rpc('psi.controller', 'set_pause_ok')
         Command:
+            id = 'psi.controller.prepare_epoch_output'
+            handler = rpc('psi.controller', 'prepare_epoch_output')
+        Command:
             id = 'psi.controller.start_epoch_output'
             handler = rpc('psi.controller', 'start_epoch_output')
         Command:
-            id = 'psi.controller.prepare_epoch_output'
-            handler = rpc('psi.controller', 'prepare_epoch_output')
+            id = 'psi.controller.clear_epoch_output'
+            handler = rpc('psi.controller', 'clear_epoch_output')
 
     # Uses unicode symbols as icons for sake of simplicity.
     Extension:

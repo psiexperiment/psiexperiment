@@ -29,13 +29,17 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
         id = 'actions'
         point = 'psi.controller.actions'
         ExperimentAction:
+            event = 'trial_prepare'
+            command = 'psi.controller.prepare_epoch_output'
+            kwargs = {'output_name': 'target'}
+        ExperimentAction:
             event = 'trial_start'
             command = 'psi.controller.start_epoch_output'
             kwargs = {'output_name': 'target', 'delay': 0.2}
         ExperimentAction:
-            event = 'trial_prepare'
-            command = 'psi.controller.prepare_epoch_output'
-            kwargs = {'output_name': 'target'}
+            event = 'response_end'
+            command = 'psi.controller.clear_epoch_output'
+            kwargs = {'output_name': 'target', 'delay': 0.2}
 
     Extension:
         id = 'io'

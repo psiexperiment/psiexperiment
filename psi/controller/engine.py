@@ -52,12 +52,15 @@ class Engine(SimpleState, Declarative):
 
     def configure(self, plugin):
         if self.hw_ao_channels:
+            # Generate a 1-based output map (0 is always reserved for the
+            # continuous output). Max outputs is number of epoch outputs plus
+            # the continuous output.
             output_map = {}
             max_outputs = 0
-            for c in self.hw_ao_channels:
-                output_map[c.name] = dict((o.name, i) for i, o in \
-                                          enumerate(c.outputs))
-                max_outputs = max(max_outputs, len(c.outputs))
+            for channel in self.hw_ao_channels:
+                for i, output in enumerate(channel.epoch_outputs):
+                    output_map[output.name] = i+1
+                max_outputs = max(max_outputs, len(channel.epoch_outputs)+1)
             self.hw_ao_buffer_map = output_map
 
             # Setup the ring buffer (so we can meld in existing data without
@@ -74,16 +77,26 @@ class Engine(SimpleState, Declarative):
 
     def append_hw_ao(self, data, offset=None):
         '''
-        This can only be used for the continuous output
+        This can only be used for the continuous output.
         '''
+        # TODO: need to build-in support for multiple output channels. This
+        # needs to be linked to the callback somehow.
+
         # Store information regarding the data we have written to the output
-        # buffer. This allows us to insert new signals into the ongoing stream
-        # without having to recompute the data.  If the length of the data is
-        # greater than our buffer, just overwrite the entire buffer. If less,
-        # shift all the samples back and write the new data to the end of the
-        # buffer.
-        log.trace('Appending {} samples from {} to end of hw ao buffer' \
-                  .format(data.shape, output_name))
+        # buffer. This allows us to insert new signals from the epoch output
+        # into the ongoing stream without having to recompute the data.  If the
+        # length of the data is greater than our buffer, just overwrite the
+        # entire buffer. If less, shift all the samples back and write the new
+        # data to the end of the buffer.
+        m = 'Appending {} samples to end of hw ao buffer'
+        log.trace(m.format(data.shape))
+
+        # The data will be provided in 2D form (channel, sample), but we need
+        # to expand this to the 3D form of (channel, output, sample) where the
+        # data is the first output (the continuous output)
+        padding = (0, 0), (0, self.hw_ao_buffer.shape[1]-1), (0, 0)
+        data = np.pad(data[np.newaxis, np.newaxis, :], padding, 'constant')
+
         data_samples = data.shape[-1]
         if data_samples >= self.hw_ao_buffer_samples:
             self.hw_ao_buffer[:] = data[..., -self.hw_ao_buffer_samples:]
@@ -94,13 +107,16 @@ class Engine(SimpleState, Declarative):
         # Track the trailing edge of the buffer (i.e., what is the sample number
         # of the first sample in the buffer).
         self.hw_ao_buffer_offset += data_samples
-        log.trace('Current hw ao buffer offset {}' \
-                  .format(self.hw_ao_buffer_offset))
 
-        # Now, we actually write it.
-        self.write_hw_ao(data)
+        m = 'Current hw ao buffer offset {}'
+        log.trace(m.format(self.hw_ao_buffer_offset))
 
-    def modify_hw_ao(self, data, offset, method='merge', reference='start'):
+        # Now, we actually write it. TODO: At some point add a delay so we can
+        # modify the buffer with ongoing epoch outputs as well (i.e., this
+        # should minimze function overhead)?
+        self.write_hw_ao(data[:, 0, :])
+
+    def modify_hw_ao(self, data, offset, output_name, reference='start'):
         if reference == 'current':
             offset += self.ao_sample_clock()
 
@@ -111,18 +127,12 @@ class Engine(SimpleState, Declarative):
             log.debug(m.format(buffer_lb, buffer_ub, offset))
             raise IndexError('Segment falls outside of buffered stream')
 
+        # TODO: Support other types of operations (e.g., multiply, replace)
         lb = offset - self.hw_ao_buffer_offset
         ub = lb + data.shape[-1]
-        if method == 'merge':
-            self.hw_ao_buffer[..., lb:ub] += data
-        elif method == 'replace':
-            self.hw_ao_buffer[..., lb:ub] = data
-        elif method == 'multiply':
-            self.hw_ao_buffer[..., lb:ub] *= data
-        else:
-            raise ValueError('Unsupported method')
-
-        self.write_hw_ao(self.hw_ao_buffer[..., lb:], offset)
+        oi = self.hw_ao_buffer_map[output_name]
+        self.hw_ao_buffer[:, oi, lb:ub] = data
+        self.write_hw_ao(self.hw_ao_buffer[..., lb:].sum(axis=1), offset)
 
     def get_epoch_offset(self):
         pass

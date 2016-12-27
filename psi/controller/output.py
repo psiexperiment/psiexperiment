@@ -4,12 +4,13 @@ log = logging.getLogger(__name__)
 from types import GeneratorType
 from functools import partial
 
+import numpy as np
+
 from atom.api import (Unicode, Enum, Typed, Property, Float, observe, Callable,
                       Int, Bool)
+from enaml.application import timed_call
 from enaml.core.api import Declarative, d_
 from enaml.workbench.api import Plugin, Extension
-
-from .channel import Channel
 
 
 class Output(Declarative):
@@ -45,6 +46,7 @@ class Output(Declarative):
         return self.channel.parent
 
     def _get_channel(self):
+        from .channel import Channel
         parent = self.parent
         while True:
             if isinstance(parent, Channel):
@@ -109,24 +111,40 @@ class EpochOutput(AnalogOutput):
         except GeneratorExit:
             log.debug('All samples successfully generated')
         finally:
-            plugin.invoke_actions('{}_start'.format(self.name), start+delay)
-            plugin.invoke_actions('{}_stop'.format(self.name),
-                                  start+delay+token_duration,
-                                  delay=True)
+            plugin.invoke_actions('{}_start'.format(self.name), start+delay, delay=True)
+            end = start+delay+token_duration
+            timed_call((end-plugin.get_ts())*1e3, self.clear, plugin, end, 0.2)
+            #plugin.invoke_actions('{}_stop'.format(self.name),
+            #                      start+delay+token_duration, delay=True)
 
-    def _get_samples(self):
-        return self._block_samples
+    def clear(self, plugin, end, delay):
+        if self._generated_samples != 0:
+            log.debug('Clearing {} epoch'.format(self.name))
+            self._generated_samples = 0
+            offset = int((end+delay)*self.channel.fs)
+            samples = self._get_samples(offset)
+            waveform = np.zeros(samples)
+            self.engine.modify_hw_ao(waveform, offset, self.name)
+            plugin.invoke_actions('{}_stop'.format(self.name), end+delay, delay=True)
+            self._generator = None
+
+    def _get_samples(self, offset):
+        # TODO; what about block samples?
+        buffer_offset = offset - self.engine.hw_ao_buffer_offset
+        return self.engine.hw_ao_buffer_samples-buffer_offset
 
     def update(self, plugin=None):
         log.debug('Updating epoch output {}'.format(self.name))
         kwargs = {
-            'samples': self._get_samples(),
+            # TODO: better approach?
+            'samples': self._get_samples(self._offset),
+            #'samples': self._block_samples,
             'offset': self._generated_samples,
         }
         try:
             waveform = self._generator.send(kwargs)
             log.debug('Modifying HW waveform at {}'.format(self._offset))
-            self.engine.modify_hw_ao(waveform, self._offset, method=self.method)
+            self.engine.modify_hw_ao(waveform, self._offset, self.name)
             self._generated_samples += len(waveform)
             self._offset += len(waveform)
             if self._generated_samples >= self._epoch_samples:
@@ -160,9 +178,8 @@ class ContinuousOutput(AnalogOutput):
         self._offset = 0
 
     def _get_samples(self):
-        # probably should have a more sophisticated algorithm?
-        samples = self.engine.get_space_available(self.channel.name,
-                                                  self._offset)
+        # TODO: probably should have a more sophisticated algorithm?
+        samples = self.engine.get_space_available(self.channel.name, self._offset)
         return min(samples, self._block_samples)
 
     def configure(self, plugin):

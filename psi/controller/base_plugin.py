@@ -174,9 +174,8 @@ class BasePlugin(Plugin):
         # Somehow find a better way to do this?
         for channel in channels.values():
             if isinstance(channel, AOChannel):
-                for o in channel.outputs:
-                    if isinstance(o, ContinuousOutput):
-                        break
+                if channel.continuous_output is not None:
+                    break
                 else:
                     plugin = self.workbench.get_plugin('psi.token')
                     output = ContinuousOutput(name=channel.name + '_default_',
@@ -271,6 +270,14 @@ class BasePlugin(Plugin):
         if start is None:
             start = self.get_ts()
         output.start(self, start, delay)
+
+    def clear_epoch_output(self, output_name, end=None, delay=0):
+        output = self.get_output(output_name)
+        if not isinstance(output, EpochOutput):
+            raise ValueError('This only works for epoch outputs')
+        if end is None:
+            end = self.get_ts()
+        output.clear(self, end, delay)
 
     def invoke_actions(self, event, timestamp=None, delay=False):
         if delay:

@@ -22,7 +22,7 @@ class FFTChannelPlot(BaseChannelPlot):
         self._invalidate_data()
 
     def _data_added(self, event):
-        lb, ub = event['value']
+        ub = event['value']['ub']
         s = int(np.floor(ub/self.time_span)-1 )
         if  s > self._current_slice:
             self._current_slice = s

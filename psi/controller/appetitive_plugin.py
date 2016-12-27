@@ -68,7 +68,10 @@ class Event(enum.Enum):
     iti_end = 'ITI over'
 
     trial_start = 'trial start'
-    trial_end = 'trial nend'
+    trial_end = 'trial end'
+
+    target_start = 'target start'
+    target_end = 'target end'
 
 
 class AppetitivePlugin(BasePlugin):
@@ -90,6 +93,7 @@ class AppetitivePlugin(BasePlugin):
     trial_type = Unicode()
     trial_info = Typed(dict, ())
     trial_state = Typed(TrialState)
+    #trial_epoch_running = Bool(False)
 
     timer = Typed(QTimer)
 

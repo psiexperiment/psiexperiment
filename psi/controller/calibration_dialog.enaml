@@ -1,58 +1,180 @@
+from atom.api import Atom, Float, Unicode
+
 from enaml.core.api import Looper, DynamicTemplate
-from enaml.widgets.api import (PopupView, MainWindow, Label, GroupBox,
+from enaml.layout.api import grid
+from enaml.styling import StyleSheet, Style, Setter
+from enaml.widgets.api import (Window, Label, GroupBox,
                                VGroup, Form, Container, ObjectCombo,
-                               PushButton, Field, HGroup, Notebook, Page)
+                               PushButton, Field, HGroup, Notebook, Page,
+                               FileDialogEx)
+
+#from .calibration import calibration_types, FlatCalibration, FileCalibration
+#from .calibration import util
+from psi import get_config, SimpleState
 
 
-from neurogen.calibration import Calibration
+class Calibration(Atom):
+
+    gain = Float()
+
+    def create_calibration(self):
+        raise NotImplementedError 
 
 
+class NullCalibration(Calibration):
 
-enamldef ChannelCalibration(Container):
+    pass
 
-    attr channel
+
+class SensCalibration(Calibration):
+
+    sensitivity = Float()
+
+    def create_calibration(self):
+        # TODO:
+        pass
+
+
+class FileCalibration(Calibration):
+
+    filename = Unicode()
+
+    def create_calibration(self):
+        return GolayCalibration.from_file(self.filename,
+                                          fixed_gain=self.fixed_gain)
+
+
+calibration_types = {
+    'uncalibrated': NullCalibration,
+    'fixed sensitivity': SensCalibration,
+    'from file': FileCalibration,
+}
+
+
+enamldef CalibrationDynamicTemplate(DynamicTemplate):
+    base = CalibrationTemplate
+    args = (calibration, type(calibration))
+
+
+template CalibrationTemplate(calibration, MemberType):
+    pass
+
+
+template CalibrationTemplate(calibration, MemberType: SensCalibration):
+    VGroup:
+        spacing = 0
+        HGroup:
+            padding = 0
+            spacing = 5
+            Label:
+                text = 'Sensitivity (mV/Pa)'
+            Field:
+                text << str(util.dbi(calibration.sensitivity)*1e3)
+                text::
+                    calibration.sensitivity = util.db(float(text)*1e-3)
+        HGroup:
+            padding = 0
+            spacing = 5
+            Label:
+                text = 'Gain (dB)'
+            Field:
+                text << str(calibration.fixed_gain)
+                text::
+                    calibration.fixed_gain = float(text)
+
+
+template CalibrationTemplate(calibration, MemberType: FileCalibration):
+    VGroup:
+        HGroup:
+            Label:
+                text = 'File'
+            Field: selected_file:
+                text << calibration.filename
+            PushButton: select:
+                text << 'Select file'
+                clicked :: 
+                    kwargs = {
+                        'name_filters': [get_config('CAL_WILDCARD')],
+                        'current_path': get_config('CAL_ROOT'),
+                    }
+                    calibration.filename = \
+                        FileDialogEx.get_open_file_name(**kwargs)
+        HGroup:
+            Label: gain_label:
+                text = 'Gain'
+            Field: gain:
+                text << str(calibration.fixed_gain)
+                text::
+                    calibration.fixed_gain = float(text)
 
 
 enamldef ChannelGroupContainer(Container):
 
     attr channel_type
     attr engine
+    attr configuration
 
     VGroup:
         spacing = 0
         padding = 0
         Looper:
             iterable << getattr(engine, channel_type)
-            HGroup:
+            VGroup:
                 spacing = 0
-                padding = 0
-                Label:
-                    text << '{} ({})'.format(loop_item.label, \
-                                             loop_item.channel)
-                Field:
-                    pass
-                PushButton:
-                    text << 'Select file'
+                padding = 10
+                HGroup:
+                    spacing = 5
+                    padding = 0
+                    Label:
+                        text << '{} ({})'.format(loop_item.label, loop_item.channel)
+                    ObjectCombo:
+                        items << calibration_types.keys()
+                        selected = None
+                        selected ::
+                            configuration[loop_item] = calibration_types[selected]()
+
+                DynamicTemplate:
+                    StyleSheet:
+                        Style:
+                            element = 'VGroup'
+                            Setter:
+                                field = 'padding-left'
+                                value = '10'
+                                
+                    base = CalibrationTemplate
+                    args << (loop_item.calibration, type(loop_item.calibration))
 
 
-enamldef CalibrationDialog(PopupView):
+enamldef CalibrationDialog(Window): window:
 
     attr controller
 
-    Container:
+    modality = 'application_modal'
+
+    Container: container:
         Looper:
             iterable << controller._engines.values()
-            GroupBox:
-                title << loop_item.name + ' engine'
 
-                Label:
-                    text = 'Analog inputs'
+            GroupBox:
+                title << loop_item.name + ' engine (analog inputs)'
                 ChannelGroupContainer:
                     channel_type << 'hw_ai_channels'
                     engine << loop_item
 
-                Label:
-                    text = 'Analog outputs'
+            GroupBox:
+                title << loop_item.name + ' engine (analog outputs)'
                 ChannelGroupContainer:
                     channel_type << 'hw_ao_channels'
                     engine << loop_item
+
+        PushButton:
+            text << 'OK'
+            clicked ::
+                # TODO: setup calibrations!
+                print(container.children)
+                window.close()
+
+        PushButton:
+            text << 'Cancel'
+            clicked ::
+                window.close()

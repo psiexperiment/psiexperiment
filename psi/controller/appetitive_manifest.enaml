@@ -8,7 +8,7 @@ from enaml.workbench.api import Extension, ExtensionPoint
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem, Autostart
 
-from ..context.api import ContextGroup, Parameter, Result
+from ..context.api import ContextGroup, Parameter, EnumParameter, Result
 from ..context.selector import SequenceSelector, SingleSetting
 
 from .base_manifest import BaseManifest
@@ -162,15 +162,15 @@ enamldef AppetitiveManifest(BaseManifest): manifest:
             expression = '0.2'
             group = 'trial'
             scope = 'trial'
-        Parameter:
+        EnumParameter:
             name = 'training_mode'
-            label = 'Training mode'
+            label = 'Mode'
             compact_label = 'train'
             dtype = np.dtype('bool')
-            default = False
-            expression = 'False'
             group = 'trial'
             scope = 'experiment'
+            default = 'testing'
+            choices = {'training': True, 'testing': False}
                 
         ContextGroup:
             name = 'selector'
@@ -299,6 +299,8 @@ enamldef AppetitiveManifest(BaseManifest): manifest:
             # Gives the opportunity for preparation actions (e.g., generation
             # of signals) to occur before it's actually time to start.
             name = 'trial_prepare'
+        ExperimentEvent:
+            name = 'response_end'
 
         ExperimentAction:
             event = 'experiment_start'
