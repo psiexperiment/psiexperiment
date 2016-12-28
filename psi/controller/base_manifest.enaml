@@ -18,7 +18,7 @@ from ..util import rpc
 from .base_plugin import BasePlugin
 from .output import AnalogOutput
 from .output_view import OutputDockItem
-from .experiment_action import ExperimentAction, ExperimentEvent
+from .experiment_action import ExperimentState, ExperimentEvent
 
 
 def _contribute_outputs(workbench, workspace):
@@ -193,24 +193,18 @@ enamldef BaseManifest(PSIManifest): manifest:
         id = 'base_actions'
         point = 'psi.controller.actions'
         rank = 10
-        ExperimentEvent:
-            name = 'experiment_initialize'
-            label = 'Initialize experiment'
-        ExperimentEvent:
-            name = 'experiment_start'
-            label = 'Start experiment'
-        ExperimentEvent:
-            name = 'experiment_stop'
-            label = 'Stop experiment'
+
+        ExperimentState:
+            name = 'experiment'
 
         ExperimentAction:
-            event = 'experiment_initialize'
+            event = 'experiment_prepare'
             command = 'psi.controller.configure_engines'
         ExperimentAction:
             event = 'experiment_start'
             command = 'psi.controller.start_engines'
         ExperimentAction:
-            event = 'experiment_stop'
+            event = 'experiment_end'
             command = 'psi.controller.stop_engines'
 
     Extension:

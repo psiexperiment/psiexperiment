@@ -93,7 +93,6 @@ class AppetitivePlugin(BasePlugin):
     trial_type = Unicode()
     trial_info = Typed(dict, ())
     trial_state = Typed(TrialState)
-    #trial_epoch_running = Bool(False)
 
     timer = Typed(QTimer)
 

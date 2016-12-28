@@ -71,7 +71,8 @@ class BasePlugin(Plugin):
 
     # List of events and actions that can be associated with the event
     _events = Typed(dict, {})
-    _actions = Typed(dict, {})
+    _states = Typed(dict, {})
+    _actions = Typed(list, {})
 
     def start(self):
         log.debug('Starting controller plugin')
@@ -199,26 +200,34 @@ class BasePlugin(Plugin):
     def _refresh_actions(self, event=None):
         actions = {}
         events = {}
+        states = {}
+
         point = self.workbench.get_extension_point(ACTION_POINT)
         for extension in point.extensions:
+            for state in extension.get_children(ExperimentState):
+                if state.name in states:
+                    m = '{} state already exists'.format(state.name)
+                    raise ValueError(m)
+                states[state.name] = state
+
+                for event.name in state._generate_events():
+                    if event.name in events:
+                        m = '{} event already exists'.format(event.name)
+                        raise ValueError(m)
+                    events[event.name] = event
+
             for event in extension.get_children(ExperimentEvent):
-                if event in actions:
-                    raise ValueError('{} already exists'.format(event.name))
+                if event.name in events:
+                    m = '{} event already exists'.format(event.name)
+                    raise ValueError(m)
                 events[event.name] = event
-                actions[event.name] = []
 
         for extension in point.extensions:
             for action in extension.get_children(ExperimentAction):
-                try:
-                    actions[action.event].append(action)
-                except KeyError:
-                    m = 'Unknown event {} for {}'
-                    raise ValueError(m.format(action.event, action.command))
+                actions.append(action)
 
-        # Sort based on weight
-        for action_set in actions.values():
-            action_set.sort(key=lambda a: a.weight)
-
+        actions.sort(key=lambda a: a.weight)
+        self._states = states
         self._events = events
         self._actions = actions
 
@@ -279,16 +288,30 @@ class BasePlugin(Plugin):
             end = self.get_ts()
         output.clear(self, end, delay)
 
-    def invoke_actions(self, event, timestamp=None):
+    def _get_action_context(self):
+        context = {}
+        for state in self._states.values():
+            context[state.name] = state.active
+        for event in self._events.values():
+            context[event.name] = event.active
+        return context
+
+    def invoke_actions(self, event_name, timestamp=None):
         if timestamp is not None:
-            params = {'event': event, 'timestamp': timestamp}
+            # The event is logged only if the timestamp is provided
+            params = {'event': event_name, 'timestamp': timestamp}
             self.core.invoke_command('psi.data.process_event', params)
 
-        log.debug('Invoking actions for {}'.format(event))
-        for action in self._actions.get(event, []):
-            m = 'Invoking command {} with parameters {}'
-            log.debug(m.format(action.command, action.kwargs))
-            self.core.invoke_command(action.command, parameters=action.kwargs)
+        log.debug('Triggering event {}'.format(event_name))
+        with self.events[event_name]:
+            context = self._get_action_context()
+            log.debug('Invoking actions given context {}'.format(context))
+            for action in self._actions:
+                if action.match(context):
+                    m = 'Invoking command {} with parameters {}'
+                    log.debug(m.format(action.command, action.kwargs))
+                    self.core.invoke_command(action.command,
+                                             parameters=action.kwargs)
 
     def request_apply(self):
         if not self.apply_changes():

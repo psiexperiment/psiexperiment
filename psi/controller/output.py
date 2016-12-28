@@ -76,7 +76,7 @@ class EpochOutput(AnalogOutput):
 
     method = Enum('merge', 'replace', 'multiply')
 
-    # Track the total number of samples that have been generated. 
+    # Track the total number of samples that have been generated.
     _generated_samples = Int()
 
     # Total number of samples that need to be generated for the epoch.
@@ -89,11 +89,10 @@ class EpochOutput(AnalogOutput):
         '''
         Set up the generator in preparation for producing the signal. This
         allows the generator to cache some potentially expensive computations
-        in advance rather than in the 100 msec before we actually want the
-        signal played.
+        in advance rather than just before we actually want the signal played.
         '''
         kwargs = {
-            'workbench': plugin.workbench, 
+            'workbench': plugin.workbench,
             'fs': self.channel.fs,
             'calibration': self.channel.calibration
         }
@@ -103,6 +102,10 @@ class EpochOutput(AnalogOutput):
         '''
         Actually start the generator. It must have been initialized first.
         '''
+        if self._generator not None:
+            log.warn('{} was not initialized'.format(self.name))
+            self.initialize(plugin)
+
         token_duration = self._token.get_duration(plugin.workbench)
         self._epoch_samples = int(token_duration*self.channel.fs)
         self._offset = int((start+delay)*self.channel.fs)
@@ -111,14 +114,14 @@ class EpochOutput(AnalogOutput):
             self.update()
             cb = partial(plugin.ao_callback, self.name)
             self.engine.register_ao_callback(cb, self.channel.name)
-            log.debug('More samples needed. Registered callback to retrieve these later.')
+            log.debug('More samples needed. Registered callback to ' \
+                      'retrieve these later.')
         except GeneratorExit:
             log.debug('All samples successfully generated')
         finally:
             plugin.invoke_actions('{}_start'.format(self.name), start+delay)
             end = start+delay+token_duration
             delay_ms = int((end-plugin.get_ts())*1e3)
-
             self._timer = QTimer()
             self._timer.setInterval(delay_ms)
             self._timer.timeout.connect(lambda: self.clear(plugin, end, 0.2))
@@ -172,7 +175,7 @@ class EpochOutput(AnalogOutput):
     def configure(self, plugin):
         self._block_samples = int(self.channel.fs*self.block_size)
         kwargs = {
-            'workbench': plugin.workbench, 
+            'workbench': plugin.workbench,
             'fs': self.channel.fs,
             'calibration': self.channel.calibration
         }
@@ -186,7 +189,7 @@ class ContinuousOutput(AnalogOutput):
         cb = partial(plugin.ao_callback, self.name)
         self.engine.register_ao_callback(cb, self.channel.name)
         kwargs = {
-            'workbench': plugin.workbench, 
+            'workbench': plugin.workbench,
             'fs': self.channel.fs,
             'calibration': self.channel.calibration
         }

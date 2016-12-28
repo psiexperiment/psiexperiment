@@ -28,18 +28,22 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
     Extension:
         id = 'actions'
         point = 'psi.controller.actions'
+
+        ExperimentState:
+            name = 'token'
+
         ExperimentAction:
-            event = 'iti_start'
+            # Since generating the token can be expensive in terms of
+            # computation, prepare this in advance as soon as possible. 
+            event = 'experiment_start | iti_start'
             command = 'psi.controller.prepare_epoch_output'
             kwargs = {'output_name': 'target'}
-        ExperimentAction:
-            event = 'experiment_start'
-            command = 'psi.controller.prepare_epoch_output'
-            kwargs = {'output_name': 'target'}
+
         ExperimentAction:
             event = 'trial_start'
             command = 'psi.controller.start_epoch_output'
             kwargs = {'output_name': 'target', 'delay': 0.2}
+
         ExperimentAction:
             event = 'response_end'
             command = 'psi.controller.clear_epoch_output'

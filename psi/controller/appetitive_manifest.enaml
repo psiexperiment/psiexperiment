@@ -13,7 +13,7 @@ from ..context.selector import SequenceSelector, SingleSetting
 
 from .base_manifest import BaseManifest
 from .appetitive_plugin import AppetitivePlugin, Event
-from .experiment_action import ExperimentEvent, ExperimentAction
+from .experiment_action import ExperimentState, ExperimentAction
 from ..util import rpc
 
 
@@ -292,22 +292,27 @@ enamldef AppetitiveManifest(BaseManifest): manifest:
     Extension:
         id = 'appetitive_events'
         point = 'psi.controller.actions'
-        ExperimentEvent:
-            # Indicates it's time for a trial to start
-            name = 'trial_start'
-        ExperimentEvent:
-            # Gives the opportunity for preparation actions (e.g., generation
-            # of signals) to occur before it's actually time to start a trial.
-            # The ITI is a very good place for this.
-            name = 'iti_start'
-        ExperimentEvent:
-            name = 'response_end'
+
+        ExperimentState:
+            name = 'np'
+        ExperimentState:
+            name = 'reward'
+        ExperimentState:
+            name = 'trial'
+        ExperimentState:
+            name = 'hold'
+        ExperimentState:
+            name = 'iti'
+        ExperimentState:
+            name = 'response'
+        ExperimentState:
+            name = 'to'
 
         ExperimentAction:
             event = 'experiment_start'
             command = 'psi.controller.set_pause_ok'
             kwargs = {'value': True}
         ExperimentAction:
-            event = 'experiment_stop'
+            event = 'experiment_end'
             command = 'psi.controller.set_pause_ok'
             kwargs = {'value': False}
