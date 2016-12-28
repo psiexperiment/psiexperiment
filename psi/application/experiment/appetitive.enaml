@@ -12,7 +12,7 @@ from psi.controller.api import ExperimentAction, ContinuousOutput, EpochOutput
 
 from psi.context.api import ContextGroup, Parameter
 from psi.data.plots import (TimeContainer, ChannelPlot, TimeseriesPlot,
-                            ExtremesChannelPlot)
+                            ExtremesChannelPlot, FFTContainer, FFTChannelPlot)
 
 
 enamldef ControllerManifest(AppetitiveManifest): manifest:
@@ -29,7 +29,11 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
         id = 'actions'
         point = 'psi.controller.actions'
         ExperimentAction:
-            event = 'trial_prepare'
+            event = 'iti_start'
+            command = 'psi.controller.prepare_epoch_output'
+            kwargs = {'output_name': 'target'}
+        ExperimentAction:
+            event = 'experiment_start'
             command = 'psi.controller.prepare_epoch_output'
             kwargs = {'output_name': 'target'}
         ExperimentAction:
@@ -59,11 +63,25 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
         id = 'plots'
         point = 'psi.data.plots'
 
+        FFTContainer:
+            name = 'fft_plot_container'
+            title = 'FFT'
+            freq_lb = 0.1e3 
+            freq_ub = 10e3
+
+            FFTChannelPlot:
+                source = 'microphone'
+                line_color = (0, 0, 0)
+                value_range = (0, 100)
+                time_span = 1
+                axis_label = 'Level (dB SPL)'
+                reference = 20e-6
+
         TimeContainer:
             name = 'trial_plot_container' 
             title = 'Trial timing'
             trig_delay = 0
-            span = 10
+            span = 20
 
             ChannelPlot:
                 source = 'reward_contact_analog'

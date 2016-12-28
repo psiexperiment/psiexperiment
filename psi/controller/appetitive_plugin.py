@@ -404,13 +404,12 @@ class AppetitivePlugin(BasePlugin):
                     delta = max(0, remaining_poke_duration)
                     self.start_timer(delta, Event.np_duration_elapsed)
                 else:
-                    # Call get_values to seed the context before it's actually
-                    # needed. Should we also prepare the token?
+                    #self.context.get_values()
+                    #self.invoke_actions('trial_prepare', self.get_ts())
                     self.trial_state = TrialState.waiting_for_np_start
-                    self.context.get_values()
-                    self.invoke_actions('trial_prepare', self.get_ts())
             elif event == Event.np_end and 'np_start' in self.trial_info:
                 del self.trial_info['np_start']
+
 
     def start_timer(self, duration, event):
         deferred_call(self._start_timer, duration, event)

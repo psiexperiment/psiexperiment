@@ -279,15 +279,7 @@ class BasePlugin(Plugin):
             end = self.get_ts()
         output.clear(self, end, delay)
 
-    def invoke_actions(self, event, timestamp=None, delay=False):
-        if delay:
-            delay_ms = (timestamp-self.get_ts())*1e3
-            if delay_ms > 0:
-                timed_call(delay_ms, self.invoke_actions, event, timestamp)
-                return
-            else:
-                log.warning('Not delaying {} at {}'.format(event, timestamp))
-
+    def invoke_actions(self, event, timestamp=None):
         if timestamp is not None:
             params = {'event': event, 'timestamp': timestamp}
             self.core.invoke_command('psi.data.process_event', params)

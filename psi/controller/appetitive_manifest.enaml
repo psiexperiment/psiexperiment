@@ -297,8 +297,9 @@ enamldef AppetitiveManifest(BaseManifest): manifest:
             name = 'trial_start'
         ExperimentEvent:
             # Gives the opportunity for preparation actions (e.g., generation
-            # of signals) to occur before it's actually time to start.
-            name = 'trial_prepare'
+            # of signals) to occur before it's actually time to start a trial.
+            # The ITI is a very good place for this.
+            name = 'iti_start'
         ExperimentEvent:
             name = 'response_end'
 

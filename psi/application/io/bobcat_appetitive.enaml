@@ -84,15 +84,15 @@ enamldef IOManifest(PluginManifest): manifest:
                 expected_range = (-10, 10)
                 dtype = np.dtype('float64')
                 terminal_mode = 'differential'
-                calibration = FlatCalibration(db(28.92e-3))
-                #calibration = FlatCalibration(db(1))
+                #calibration = FlatCalibration(db(28.92e-3))
+                calibration = FlatCalibration(db(10))
 
                 CalibratedInput:
                     IIRFilter:
-                        f_highpass = 100
-                        f_lowpass = 10000
+                        f_highpass = 1000
+                        f_lowpass = 40000
                         ftype = 'butter'
-                        N = 2
+                        N = 4
                         btype = 'bandpass'
                         name = 'microphone'
                         RMS:

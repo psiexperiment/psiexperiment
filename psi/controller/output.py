@@ -7,10 +7,11 @@ from functools import partial
 import numpy as np
 
 from atom.api import (Unicode, Enum, Typed, Property, Float, observe, Callable,
-                      Int, Bool)
+                      Int, Bool, Instance)
 from enaml.application import timed_call
 from enaml.core.api import Declarative, d_
 from enaml.workbench.api import Plugin, Extension
+from enaml.qt.QtCore import QTimer
 
 
 class Output(Declarative):
@@ -81,6 +82,9 @@ class EpochOutput(AnalogOutput):
     # Total number of samples that need to be generated for the epoch.
     _epoch_samples = Int()
 
+    _timer = Instance(QTimer)
+    _active = Bool(False)
+
     def initialize(self, plugin):
         '''
         Set up the generator in preparation for producing the signal. This
@@ -111,22 +115,34 @@ class EpochOutput(AnalogOutput):
         except GeneratorExit:
             log.debug('All samples successfully generated')
         finally:
-            plugin.invoke_actions('{}_start'.format(self.name), start+delay, delay=True)
+            plugin.invoke_actions('{}_start'.format(self.name), start+delay)
             end = start+delay+token_duration
-            timed_call((end-plugin.get_ts())*1e3, self.clear, plugin, end, 0.2)
-            #plugin.invoke_actions('{}_stop'.format(self.name),
-            #                      start+delay+token_duration, delay=True)
+            delay_ms = int((end-plugin.get_ts())*1e3)
+
+            self._timer = QTimer()
+            self._timer.setInterval(delay_ms)
+            self._timer.timeout.connect(lambda: self.clear(plugin, end, 0.2))
+            self._timer.setSingleShot(True)
+            self._timer.start()
+            self._active = True
 
     def clear(self, plugin, end, delay):
-        if self._generated_samples != 0:
-            log.debug('Clearing {} epoch'.format(self.name))
-            self._generated_samples = 0
-            offset = int((end+delay)*self.channel.fs)
-            samples = self._get_samples(offset)
-            waveform = np.zeros(samples)
-            self.engine.modify_hw_ao(waveform, offset, self.name)
-            plugin.invoke_actions('{}_stop'.format(self.name), end+delay, delay=True)
-            self._generator = None
+        if not self._active:
+            log.debug('Token is not active')
+            return
+
+        log.debug('Clearing {} epoch'.format(self.name))
+        if self._timer is not None and self._timer.isActive():
+            log.debug('Canceling timer')
+            self._timer.stop()
+
+        offset = int((end+delay)*self.channel.fs)
+        samples = self._get_samples(offset)
+        waveform = np.zeros(samples)
+        self.engine.modify_hw_ao(waveform, offset, self.name)
+        plugin.invoke_actions('{}_stop'.format(self.name), end+delay)
+        self._generator = None
+        self._active = False
 
     def _get_samples(self, offset):
         # TODO; what about block samples?
