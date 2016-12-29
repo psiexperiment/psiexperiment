@@ -238,6 +238,7 @@ class ContextPlugin(Plugin):
             prior_values.append(self.get_values())
             self._prior_values = prior_values
         self._namespace.reset()
+        log.debug('Configuring next setting from selector %s', selector)
         try:
             expressions = self._iterators[selector].next()
             self._namespace.update_expressions(expressions)

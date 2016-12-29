@@ -8,7 +8,8 @@ from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import Branding
 
 from psi.controller.appetitive_manifest import AppetitiveManifest
-from psi.controller.api import ExperimentAction, ContinuousOutput, EpochOutput
+from psi.controller.api import (ExperimentState, ExperimentAction,
+                                ContinuousOutput, EpochOutput)
 
 from psi.context.api import ContextGroup, Parameter
 from psi.data.plots import (TimeContainer, ChannelPlot, TimeseriesPlot,
@@ -30,24 +31,26 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
         point = 'psi.controller.actions'
 
         ExperimentState:
-            name = 'token'
+            name = 'target'
 
         ExperimentAction:
             # Since generating the token can be expensive in terms of
             # computation, prepare this in advance as soon as possible. 
-            event = 'experiment_start | iti_start'
+            event = 'trial_prepare'
             command = 'psi.controller.prepare_epoch_output'
             kwargs = {'output_name': 'target'}
 
         ExperimentAction:
+            # The operations required to actually generate and upload the token
+            # take some time, so we have to allow for a small delay.
             event = 'trial_start'
             command = 'psi.controller.start_epoch_output'
-            kwargs = {'output_name': 'target', 'delay': 0.2}
+            kwargs = {'output_name': 'target', 'delay': 0.15}
 
         ExperimentAction:
             event = 'response_end'
             command = 'psi.controller.clear_epoch_output'
-            kwargs = {'output_name': 'target', 'delay': 0.2}
+            kwargs = {'output_name': 'target', 'delay': 0.15}
 
     Extension:
         id = 'io'

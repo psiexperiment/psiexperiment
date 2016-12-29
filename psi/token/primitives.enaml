@@ -42,7 +42,7 @@ def no_inputs(function):
 ################################################################################
 # Cos2Envelope
 ################################################################################
-@memory.cache
+#@memory.cache
 def cos2envelope(t, start_time, rise_time, duration):
     '''
     Generates cosine-squared envelope. Can handle generating fragments.
@@ -148,21 +148,23 @@ def sam_eq_phase(delay, depth, direction):
 
 
 @memory.cache
-def sam_envelope(t, fs, depth, fm, delay, direction):
+def sam_envelope(offset, samples, fs, depth, fm, delay, direction):
     eq_phase = sam_eq_phase(delay, depth, direction)
     eq_power = sam_eq_power(depth)
 
-    envelope = depth/2.0*np.cos(2.0*np.pi*fm*t+eq_phase)+1.0-depth/2.0
+    delay_n = np.clip(int(delay*fs)-offset, 0, samples)
+    sam_n = samples-delay_n
+
+    sam_offset = offset-delay_n
+    t = (np.arange(sam_n, dtype=np.float32) + sam_offset)/fs
+    sam_envelope = depth/2.0*np.cos(2.0*np.pi*fm*t+eq_phase)+1.0-depth/2.0
 
     # Ensure that we scale the waveform so that the total power remains equal
     # to that of an unmodulated token.
-    envelope *= 1.0/eq_power
+    sam_envelope *= 1.0/eq_power
 
-    delay_n = int(delay*fs)
-    if delay_n > 0:
-        delay_envelope = np.ones(delay_n)
-        envelope = np.concatenate((delay_envelope, envelope[:-delay_n]))
-    return envelope
+    delay_envelope = np.ones(delay_n)
+    return np.concatenate((delay_envelope, sam_envelope))
 
 
 @single_input
@@ -172,10 +174,10 @@ def samenvelope_factory(fs, depth, fm, delay, direction, calibration, input):
         kwargs = (yield waveform)
         samples = kwargs['samples']
         offset = kwargs['offset']
-        t = (np.arange(samples, dtype=np.float32) + offset)/fs
-        envelope = sam_envelope(t, fs, depth, fm, delay, direction)
+        log.debug('generating SAM envelope with %d samples', samples) 
+        env = sam_envelope(offset, samples, fs, depth, fm, delay, direction)
         token = input.send(kwargs)
-        waveform = envelope*token
+        waveform = env*token
 
 
 enamldef SAMEnvelope(Block): block:
@@ -314,6 +316,7 @@ def bandlimited_noise_factory(fs, seed, level, center_frequency,
     while True:
         kwargs = (yield waveform)
         samples = kwargs['samples']
+        log.debug('generating bandlimited noise with %d samples', samples)
         waveform = state.uniform(low=low, high=high, size=samples)
         waveform, iir_zi = signal.lfilter(iir, [1], waveform, zi=iir_zi)
         waveform, bp_zi = signal.lfilter(b, a, waveform, zi=bp_zi)

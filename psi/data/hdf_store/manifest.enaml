@@ -226,10 +226,10 @@ enamldef HDFStoreManifest(PluginManifest): manifest:
         id = 'actions'
         point = 'psi.controller.actions'
         ExperimentAction:
-            event = 'experiment_initialize'
+            event = 'experiment_prepare'
             command = 'psi.data.prepare'
         ExperimentAction:
-            event = 'experiment_stop'
+            event = 'experiment_end'
             command = 'psi.data.finalize'
 
 

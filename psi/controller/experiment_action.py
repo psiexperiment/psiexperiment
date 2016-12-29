@@ -1,4 +1,4 @@
-from atom.api import Unicode, Int, Dict
+from atom.api import Unicode, Int, Dict, Bool, Typed
 from enaml.core.api import Declarative, d_
 import code
 
@@ -16,8 +16,8 @@ class ExperimentState(Declarative):
     def _generate_events(self):
         events = []
         for name in self.events:
-            name = '{}_{}'.format(self.name, e)
-            event = ExperimentEvent(name=name, associated_state=self)
+            event_name = '{}_{}'.format(self.name, name)
+            event = ExperimentEvent(name=event_name, associated_state=self)
             events.append(event)
         return events
 
@@ -32,11 +32,11 @@ class ExperimentEvent(Declarative):
         if self.associated_state is not None:
             if self.name.endswith('start'):
                 self.associated_state.active = True
-            elif self.name.endswith('end')
+            elif self.name.endswith('end'):
                 self.associated_state.active = False
         self.active = True
 
-    def __exit__(self):
+    def __exit__(self, exc_type, exc_val, exc_tb):
         self.active = False
 
 
@@ -56,4 +56,4 @@ class ExperimentAction(Declarative):
     weight = d_(Int(100))
 
     def match(self, context):
-        return eval(self.event, globals=None, locals=context)
+        return eval(self.event, context)

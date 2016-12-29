@@ -33,8 +33,11 @@ class DataPlugin(Plugin):
 
         # Listen to changes on the context items so that we can update the
         # trial log accordingly.
+        # TODO: Observing context_items seems a bit hackish since this is not
+        # the shadow copy but the live copy. What do we do?
         context = self.workbench.get_plugin('psi.context')
         context.observe('context_items', self._context_items_changed)
+        context.observe('_roving_items', self._context_items_changed)
 
     def stop(self):
         self._unbind_observers()

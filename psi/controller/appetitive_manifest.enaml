@@ -13,7 +13,8 @@ from ..context.selector import SequenceSelector, SingleSetting
 
 from .base_manifest import BaseManifest
 from .appetitive_plugin import AppetitivePlugin, Event
-from .experiment_action import ExperimentState, ExperimentAction
+from .experiment_action import (ExperimentState, ExperimentEvent,
+                                ExperimentAction)
 from ..util import rpc
 
 
@@ -78,14 +79,21 @@ enamldef AppetitiveManifest(BaseManifest): manifest:
         id = 'debug_toolbar'
         rank = 1000
         point = 'psi.experiment.toolbar'
+        # TODO: Improve the enabled feature
+        Action:
+            text = 'Remind'
+            triggered ::
+                plugin = workbench.get_plugin(PLUGIN_ID)
+                plugin.request_remind()
+            enabled <<  workbench.get_plugin(PLUGIN_ID).experiment_state \
+                not in ('initialized', 'stopped')
         Action:
             text = 'Target + reward'
             triggered ::
                 plugin = workbench.get_plugin(PLUGIN_ID)
-                with plugin.lock:
-                    plugin.start_trial()
-                    plugin.invoke_actions('deliver_reward', plugin.get_ts())
-                    plugin.end_trial('reward')
+                plugin.start_trial()
+                plugin.invoke_actions('deliver_reward', plugin.get_ts())
+                plugin.end_trial('reward')
             enabled <<  workbench.get_plugin(PLUGIN_ID).experiment_state \
                 not in ('initialized', 'stopped')
         Action:
@@ -307,6 +315,13 @@ enamldef AppetitiveManifest(BaseManifest): manifest:
             name = 'response'
         ExperimentState:
             name = 'to'
+        ExperimentEvent:
+            name = 'np_duration_elapsed'
+        ExperimentEvent:
+            name = 'deliver_reward'
+        ExperimentEvent:
+            # TODO: Move this to the base plugin?
+            name = 'context_changed'
 
         ExperimentAction:
             event = 'experiment_start'

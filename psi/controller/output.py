@@ -7,7 +7,7 @@ from functools import partial
 import numpy as np
 
 from atom.api import (Unicode, Enum, Typed, Property, Float, observe, Callable,
-                      Int, Bool, Instance)
+                      Int, Bool, Instance, Callable)
 from enaml.application import timed_call
 from enaml.core.api import Declarative, d_
 from enaml.workbench.api import Plugin, Extension
@@ -61,7 +61,7 @@ class AnalogOutput(Output):
     # This determines how many samples will be requested from the generator on
     # each iteration. While we can request an arbitrary number of samples, this
     # helps some caching mechanisms better cache the results for future calls.
-    block_size = d_(Float(5))
+    block_size = d_(Float(2))
     visible = d_(Bool(True))
 
     _generator = Typed(GeneratorType)
@@ -84,6 +84,7 @@ class EpochOutput(AnalogOutput):
 
     _timer = Instance(QTimer)
     _active = Bool(False)
+    _callback = Callable()
 
     def initialize(self, plugin):
         '''
@@ -97,12 +98,13 @@ class EpochOutput(AnalogOutput):
             'calibration': self.channel.calibration
         }
         self._generator = self._token.initialize_generator(**kwargs)
+        self._callback = partial(plugin.ao_callback, self.name)
 
     def start(self, plugin, start, delay):
         '''
         Actually start the generator. It must have been initialized first.
         '''
-        if self._generator not None:
+        if self._generator is None:
             log.warn('{} was not initialized'.format(self.name))
             self.initialize(plugin)
 
@@ -112,22 +114,20 @@ class EpochOutput(AnalogOutput):
         self._generated_samples = 0
         try:
             self.update()
-            cb = partial(plugin.ao_callback, self.name)
-            self.engine.register_ao_callback(cb, self.channel.name)
-            log.debug('More samples needed. Registered callback to ' \
-                      'retrieve these later.')
+            self.engine.register_ao_callback(self._callback, self.channel.name)
+            log.debug('Registered callback to retrieve remaining samples')
         except GeneratorExit:
             log.debug('All samples successfully generated')
-        finally:
-            plugin.invoke_actions('{}_start'.format(self.name), start+delay)
-            end = start+delay+token_duration
-            delay_ms = int((end-plugin.get_ts())*1e3)
-            self._timer = QTimer()
-            self._timer.setInterval(delay_ms)
-            self._timer.timeout.connect(lambda: self.clear(plugin, end, 0.2))
-            self._timer.setSingleShot(True)
-            self._timer.start()
-            self._active = True
+
+        plugin.invoke_actions('{}_start'.format(self.name), start+delay)
+        end = start+delay+token_duration
+        delay_ms = int((end-plugin.get_ts())*1e3)
+        self._timer = QTimer()
+        self._timer.setInterval(delay_ms)
+        self._timer.timeout.connect(lambda: self.clear(plugin, end, 0.2))
+        self._timer.setSingleShot(True)
+        self._timer.start()
+        self._active = True
 
     def clear(self, plugin, end, delay):
         if not self._active:
@@ -140,26 +140,30 @@ class EpochOutput(AnalogOutput):
             self._timer.stop()
 
         offset = int((end+delay)*self.channel.fs)
-        samples = self._get_samples(offset)
+        samples = self._get_samples(offset, blocked=False)
         waveform = np.zeros(samples)
         self.engine.modify_hw_ao(waveform, offset, self.name)
-        plugin.invoke_actions('{}_stop'.format(self.name), end+delay)
+        if self._generator is not None:
+            self.engine.unregister_ao_callback(self._callback,
+                                               self.channel.name)
+        plugin.invoke_actions('{}_end'.format(self.name), end+delay)
         self._generator = None
         self._active = False
 
-    def _get_samples(self, offset):
-        # TODO; what about block samples?
+    def _get_samples(self, offset, blocked=True):
         buffer_offset = offset - self.engine.hw_ao_buffer_offset
-        return self.engine.hw_ao_buffer_samples-buffer_offset
+        max_samples = self.engine.hw_ao_buffer_samples-buffer_offset
+        if blocked:
+            return min(self._block_samples, max_samples)
+        else:
+            return max_samples
 
     def update(self, plugin=None):
         log.debug('Updating epoch output {}'.format(self.name))
-        kwargs = {
-            # TODO: better approach?
-            'samples': self._get_samples(self._offset),
-            #'samples': self._block_samples,
-            'offset': self._generated_samples,
-        }
+        samples = self._get_samples(self._offset)
+        if samples == 0:
+            return
+        kwargs = {'samples': samples, 'offset': self._generated_samples}
         try:
             waveform = self._generator.send(kwargs)
             log.debug('Modifying HW waveform at {}'.format(self._offset))
@@ -167,10 +171,10 @@ class EpochOutput(AnalogOutput):
             self._generated_samples += len(waveform)
             self._offset += len(waveform)
             if self._generated_samples >= self._epoch_samples:
-                raise GeneratorExit
-        except GeneratorExit:
+                raise StopIteration
+        except StopIteration:
             self._generator = None
-            raise
+            raise StopIteration
 
     def configure(self, plugin):
         self._block_samples = int(self.channel.fs*self.block_size)

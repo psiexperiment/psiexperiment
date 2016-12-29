@@ -1,5 +1,4 @@
 import enum
-import threading
 from functools import partial
 
 import logging
@@ -80,8 +79,6 @@ class AppetitivePlugin(BasePlugin):
     Eventually this may become generic enough that it can be used with aversive
     experiments as well (it may already be sufficiently generic).
     '''
-    lock = Typed(object)
-
     # Current trial
     trial = Int(0)
 
@@ -126,6 +123,7 @@ class AppetitivePlugin(BasePlugin):
 
         if self._remind_requested:
             self.trial_type = 'go_remind'
+            self._remind_requested = False
             return 'remind'
         elif self.consecutive_nogo >= max_nogo:
             self.trial_type = 'go_forced'
@@ -142,14 +140,12 @@ class AppetitivePlugin(BasePlugin):
                 return 'nogo'
 
     def start_experiment(self):
-        self.lock = threading.RLock()
         try:
             self.trial += 1
             self.rng = np.random.RandomState()
             self.context.next_setting(self.next_selector(), save_prior=False)
             self.experiment_state = 'running'
             self.trial_state = TrialState.waiting_for_np_start
-            self.context.get_values()
             self.invoke_actions('experiment_start', self.get_ts())
             self.invoke_actions('trial_prepare', self.get_ts())
         except Exception as e:
@@ -158,6 +154,8 @@ class AppetitivePlugin(BasePlugin):
             raise
 
     def start_trial(self):
+        # This is broken into a separate method to allow the toolbar to call
+        # this method for training.
         ts = self.get_ts()
         self.invoke_actions(Event.trial_start.name, ts)
         self.invoke_actions(Event.hold_start.name, ts)
@@ -167,9 +165,7 @@ class AppetitivePlugin(BasePlugin):
     def end_trial(self, response):
         log.debug('Animal responded by {}, ending trial'.format(response))
         self.stop_timer()
-
         ts = self.get_ts()
-        #self.invoke_actions(Event.response_end.name, ts)
 
         trial_type = self.trial_type.split('_', 1)[0]
         score = self.score_map[trial_type, response]
@@ -189,6 +185,12 @@ class AppetitivePlugin(BasePlugin):
             'response_time': response_ts-target_start,
             'reaction_time': np_end-np_start,
         })
+        self.context.set_values(self.trial_info)
+        parameters ={'results': self.context.get_values()}
+        self.core.invoke_command('psi.data.process_trial', parameters)
+
+        self.invoke_actions('trial_end', ts)
+
         if score == TrialScore.false_alarm:
             self.trial_state = TrialState.waiting_for_to
             self.invoke_actions(Event.to_start.name, ts)
@@ -201,23 +203,29 @@ class AppetitivePlugin(BasePlugin):
             self.invoke_actions(Event.iti_start.name, ts)
             self.start_timer('iti_duration', Event.iti_end)
 
-        self.context.set_values(self.trial_info)
-        parameters ={'results': self.context.get_values()}
-        self.core.invoke_command('psi.data.process_trial', parameters)
+        self.trial_info = {}
+        self.trial += 1
 
-        log.debug('Setting up for next trial')
         # Apply pending changes that way any parameters (such as repeat_FA or
         # go_probability) are reflected in determining the next trial type.
         if self._apply_requested:
             self._apply_changes()
+
         selector = self.next_selector()
         self.context.next_setting(selector, save_prior=True)
-        self.trial += 1
-        self.trial_info = {}
+        self.invoke_actions('trial_prepare', self.get_ts())
 
     def request_resume(self):
         super(AppetitivePlugin, self).request_resume()
         self.trial_state = TrialState.waiting_for_np_start
+
+    def request_remind(self):
+        self._remind_requested = True
+        if self.trial_state == TrialState.waiting_for_np_start:
+            selector = self.next_selector()
+            self.context.next_setting(selector, save_prior=False)
+            self.invoke_actions('trial_prepare', self.get_ts())
+            log.debug('applied changes')
 
     def ao_callback(self, name):
         log.debug('Updating output {}'.format(name))
@@ -254,6 +262,9 @@ class AppetitivePlugin(BasePlugin):
     def _apply_changes(self):
         self.context.apply_changes()
         self._apply_requested = False
+        selector = self.next_selector()
+        self.context.next_setting(selector, save_prior=False)
+        self.invoke_actions('trial_prepare', self.get_ts())
         log.debug('applied changes')
 
     def handle_event(self, event, timestamp=None):
@@ -279,7 +290,7 @@ class AppetitivePlugin(BasePlugin):
             if timestamp is None:
                 timestamp = self.get_ts()
             log.debug('{} at {}'.format(event, timestamp))
-            log.trace('Emitting handle_event signal')
+            log.trace('Queuing handle_event')
             deferred_call(self._handle_event, event, timestamp)
         except Exception as e:
             log.exception(e)
@@ -376,7 +387,6 @@ class AppetitivePlugin(BasePlugin):
         elif self.trial_state == TrialState.waiting_for_to:
             if event == Event.to_end:
                 # Turn the light back on
-                self.invoke_actions('timeout_end', self.get_ts())
                 self.trial_state = TrialState.waiting_for_iti
                 self.invoke_actions(Event.iti_start.name, self.get_ts())
                 self.start_timer('iti_duration', Event.iti_end)
@@ -403,12 +413,11 @@ class AppetitivePlugin(BasePlugin):
                     delta = max(0, remaining_poke_duration)
                     self.start_timer(delta, Event.np_duration_elapsed)
                 else:
-                    #self.context.get_values()
-                    #self.invoke_actions('trial_prepare', self.get_ts())
                     self.trial_state = TrialState.waiting_for_np_start
             elif event == Event.np_end and 'np_start' in self.trial_info:
                 del self.trial_info['np_start']
-
+            elif event == Event.np_start:
+                self.trial_info['np_start'] = timestamp
 
     def start_timer(self, duration, event):
         deferred_call(self._start_timer, duration, event)

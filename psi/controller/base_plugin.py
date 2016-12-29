@@ -14,7 +14,8 @@ from .channel import Channel, AOChannel
 from .engine import Engine
 from .output import Output
 from .input import Input
-from .experiment_action import ExperimentAction, ExperimentEvent
+from .experiment_action import (ExperimentAction, ExperimentEvent,
+                                ExperimentState)
 from .output import ContinuousOutput, EpochOutput
 
 
@@ -198,7 +199,7 @@ class BasePlugin(Plugin):
         log.debug('Available outputs: {}'.format(outputs.keys()))
 
     def _refresh_actions(self, event=None):
-        actions = {}
+        actions = []
         events = {}
         states = {}
 
@@ -210,7 +211,7 @@ class BasePlugin(Plugin):
                     raise ValueError(m)
                 states[state.name] = state
 
-                for event.name in state._generate_events():
+                for event in state._generate_events():
                     if event.name in events:
                         m = '{} event already exists'.format(event.name)
                         raise ValueError(m)
@@ -230,6 +231,14 @@ class BasePlugin(Plugin):
         self._states = states
         self._events = events
         self._actions = actions
+
+        log.debug('Configured experiment actions')
+        log.debug(' * States: %r', self._states.keys())
+        log.debug(' * Events: %r', self._events.keys())
+        log.debug(' * Actions')
+        for action in self._actions:
+            log.info('    - {} linked to {}' \
+                     .format(action.event, action.command))
 
     def configure_engines(self):
         log.debug('Configuring engines')
@@ -303,15 +312,19 @@ class BasePlugin(Plugin):
             self.core.invoke_command('psi.data.process_event', params)
 
         log.debug('Triggering event {}'.format(event_name))
-        with self.events[event_name]:
+        with self._events[event_name]:
             context = self._get_action_context()
-            log.debug('Invoking actions given context {}'.format(context))
-            for action in self._actions:
-                if action.match(context):
-                    m = 'Invoking command {} with parameters {}'
-                    log.debug(m.format(action.command, action.kwargs))
-                    self.core.invoke_command(action.command,
-                                             parameters=action.kwargs)
+
+        # TODO: We cannot invoke this inside the with block because it may
+        # result in infinite loops if one of the commands calls invoke_actions
+        # again. Should we wrap it in a deferred call?
+        #log.debug('Invoking actions given context {}'.format(context))
+        for action in self._actions:
+            if action.match(context):
+                m = 'Invoking command {} with parameters {}'
+                log.debug(m.format(action.command, action.kwargs))
+                self.core.invoke_command(action.command,
+                                         parameters=action.kwargs)
 
     def request_apply(self):
         if not self.apply_changes():
@@ -333,15 +346,15 @@ class BasePlugin(Plugin):
     def apply_changes(self):
         raise NotImplementedError
 
-    def initialize_experiment(self):
-        self.invoke_actions('experiment_initialize')
+    def prepare_experiment(self):
+        self.invoke_actions('experiment_prepare')
 
     def start_experiment(self):
         self.invoke_actions('experiment_start')
         self.experiment_state = 'running'
 
     def stop_experiment(self):
-        self.invoke_actions('experiment_stop', self.get_ts())
+        self.invoke_actions('experiment_end', self.get_ts())
         self.experiment_state = 'stopped'
 
     def pause_experiment(self):

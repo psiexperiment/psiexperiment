@@ -75,7 +75,7 @@ class Engine(SimpleState, Declarative):
             log.debug('Configuring channel {}'.format(channel.name))
             channel.configure(plugin)
 
-    def append_hw_ao(self, data, offset=None):
+    def append_hw_ao(self, data):
         '''
         This can only be used for the continuous output.
         '''
@@ -91,6 +91,13 @@ class Engine(SimpleState, Declarative):
         m = 'Appending {} samples to end of hw ao buffer'
         log.trace(m.format(data.shape))
 
+        # Write this immediately to minimize delays. TODO: At some point add a
+        # delay so we can modify the buffer with ongoing epoch outputs as well
+        # (i.e., this should minimize function overhead)? NOTE: calling the
+        # function without offset argument means that it appends to the end of
+        # the existing buffer.
+        self.write_hw_ao(data)
+
         # The data will be provided in 2D form (channel, sample), but we need
         # to expand this to the 3D form of (channel, output, sample) where the
         # data is the first output (the continuous output)
@@ -99,10 +106,12 @@ class Engine(SimpleState, Declarative):
 
         data_samples = data.shape[-1]
         if data_samples >= self.hw_ao_buffer_samples:
+            log.debug('Overwriting entire buffer')
             self.hw_ao_buffer[:] = data[..., -self.hw_ao_buffer_samples:]
         else:
             self.hw_ao_buffer = np.roll(self.hw_ao_buffer, -data_samples, -1)
             self.hw_ao_buffer[..., -data_samples:] = data
+            log.debug('Partial overwrite of buffer')
 
         # Track the trailing edge of the buffer (i.e., what is the sample number
         # of the first sample in the buffer).
@@ -110,11 +119,6 @@ class Engine(SimpleState, Declarative):
 
         m = 'Current hw ao buffer offset {}'
         log.trace(m.format(self.hw_ao_buffer_offset))
-
-        # Now, we actually write it. TODO: At some point add a delay so we can
-        # modify the buffer with ongoing epoch outputs as well (i.e., this
-        # should minimze function overhead)?
-        self.write_hw_ao(data[:, 0, :])
 
     def modify_hw_ao(self, data, offset, output_name, reference='start'):
         if reference == 'current':
@@ -127,12 +131,13 @@ class Engine(SimpleState, Declarative):
             log.debug(m.format(buffer_lb, buffer_ub, offset))
             raise IndexError('Segment falls outside of buffered stream')
 
-        # TODO: Support other types of operations (e.g., multiply, replace)
+        # TODO: Support other types of operations? (e.g., multiply, replace)
         lb = offset - self.hw_ao_buffer_offset
         ub = lb + data.shape[-1]
         oi = self.hw_ao_buffer_map[output_name]
         self.hw_ao_buffer[:, oi, lb:ub] = data
-        self.write_hw_ao(self.hw_ao_buffer[..., lb:].sum(axis=1), offset)
+        combined_data = self.hw_ao_buffer[..., lb:].sum(axis=1)
+        self.write_hw_ao(combined_data, offset)
 
     def get_epoch_offset(self):
         pass
