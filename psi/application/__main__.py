@@ -14,6 +14,8 @@ from enaml.application import deferred_call
 from psi import application
 from psi import get_config, set_config
 
+#from psi.application.coloredstreamhandler import ColorStreamHandler
+
 
 experiment_descriptions = {
     'test': {
@@ -66,7 +68,7 @@ def configure_logging(filename=None):
         'handlers': {
             # This is what gets printed out to the console
             'console': {
-                'class': 'logging.StreamHandler',
+                'class': 'psi.core.logging.colorstreamhandler.ColorStreamHandler',
                 'formatter': 'simple',
                 'level': 'TRACE',
                 },
@@ -74,10 +76,10 @@ def configure_logging(filename=None):
         'loggers': {
             '__main__': {'level': 'DEBUG'},
             'neurogen': {'level': 'ERROR'},
-            'psi': {'level': 'DEBUG'},
             'psi.core.chaco': {'level': 'INFO'},
+            'psi.controller.engine': {'level': 'DEBUG'},
+            'psi': {'level': 'DEBUG'},
             'experiments': {'level': 'DEBUG'},
-            'psi.controller.engine': {'level': 'TRACE'},
             'daqengine': {'level': 'DEBUG'},
             },
         'root': {
@@ -132,7 +134,6 @@ def main():
     core = workbench.get_plugin('enaml.workbench.core')
     core.invoke_command('enaml.workbench.ui.select_workspace',
                         {'workspace': 'psi.experiment.workspace'})
-
 
     cmd = 'psi.data.hdf_store.prepare_file'
     parameters = {'filename': args.filename, 'experiment': args.experiment}
