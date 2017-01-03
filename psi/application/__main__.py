@@ -142,7 +142,7 @@ def main():
     core.invoke_command('enaml.workbench.ui.select_workspace',
                         {'workspace': 'psi.experiment.workspace'})
 
-    cmd = 'psi.data.bcolz_store.prepare_file'
+    cmd = 'psi.data.bcolz_store.prepare_filesystem'
     parameters = {'pathname': args.pathname, 'experiment': args.experiment}
     core.invoke_command(cmd, parameters)
     ui = workbench.get_plugin('enaml.workbench.ui')

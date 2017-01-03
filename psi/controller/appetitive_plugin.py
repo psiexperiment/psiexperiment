@@ -47,8 +47,8 @@ class Event(enum.Enum):
 
     This is specific to appetitive reinforcement paradigms.
     '''
-    digital_np_start = 'initiated nose poke'
-    digital_np_end = 'withdrew from nose poke'
+    digital_np_start = 'digital_np_start'
+    digital_np_end = 'digital_np_end'
 
     np_start = 'initiated nose poke'
     np_end = 'withdrew from nose poke'
@@ -59,6 +59,7 @@ class Event(enum.Enum):
 
     response_start = 'response period started'
     response_end = 'response timed out'
+    response_duration_elapsed = 'response duration elapsed'
 
     reward_start = 'reward contact'
     reward_end = 'withdrew from reward'
@@ -355,7 +356,8 @@ class AppetitivePlugin(BasePlugin):
                 log.debug('Animal maintained poke through hold period')
                 self.trial_state = TrialState.waiting_for_response
                 self.invoke_actions(Event.response_start.name, self.get_ts())
-                self.start_timer('response_duration', Event.response_end)
+                self.start_timer('response_duration',
+                                 Event.response_duration_elapsed)
 
         elif self.trial_state == TrialState.waiting_for_response:
             # If the animal happened to initiate a nose-poke during the hold
@@ -382,8 +384,9 @@ class AppetitivePlugin(BasePlugin):
                 self.invoke_actions(Event.response_end.name, timestamp)
                 self.trial_info['response_ts'] = timestamp
                 self.end_trial(response='reward')
-            elif event == Event.response_end:
+            elif event == Event.response_duration_elapsed:
                 log.debug('Animal provided no response')
+                self.invoke_actions(Event.response_end.name, timestamp)
                 self.trial_info['response_ts'] = np.nan
                 self.end_trial(response='no response')
 
@@ -440,7 +443,7 @@ class AppetitivePlugin(BasePlugin):
         # to extract.
         if isinstance(duration, basestring):
             duration = self.context.get_value(duration)
-        log.debug('Timer for {} with duration {}'.format(event, duration))
+        log.info('Timer for {} with duration {}'.format(event, duration))
         receiver = partial(self.handle_event, event)
 
         if duration == 0:

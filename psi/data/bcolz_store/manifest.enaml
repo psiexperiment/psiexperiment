@@ -88,7 +88,7 @@ class BColzStore(AbstractStore):
         pass
 
 
-def prepare_file(event):
+def prepare_filesystem(event):
     # TODO: Is this necessary?
     extension = find_extension(event.workbench, PLUGIN_ID, 'sink', BColzStore)
     if extension.initialized:
@@ -125,12 +125,15 @@ enamldef BColzStoreManifest(PluginManifest): manifest:
         id = 'commands'
         point = 'enaml.workbench.core.commands'
         Command:
-            id = PLUGIN_ID + '.prepare_file'
-            handler = prepare_file
+            id = PLUGIN_ID + '.prepare_filesystem'
+            handler = prepare_filesystem
 
     Extension:
         id = 'actions'
         point = 'psi.controller.actions'
+        #ExperimentAction:
+        #    event = 'application_prepare'
+        #    command = 'psi.data.bcolz.prepare_filesystem'
         ExperimentAction:
             event = 'experiment_prepare'
             command = 'psi.data.prepare'
