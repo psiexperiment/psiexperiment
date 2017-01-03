@@ -23,7 +23,8 @@ class DataTable(DataSource):
         self.data.append(row)
 
     def query(self, string, condvars, field):
-        return self.data.read_where(string, condvars, field)
+        query = string.format(**condvars)
+        return self.data[query][field]
 
 
 class EventDataTable(DataTable):
@@ -31,16 +32,16 @@ class EventDataTable(DataTable):
     def append(self, row):
         super(EventDataTable, self).append(row)
         self.added = {
-            'lb': row['timestamp'][0],
-            'ub': row['timestamp'][0],
-            'event': row['event'][0],
+            'lb': row[0],
+            'ub': row[0],
+            'event': row[1],
         }
 
     def get_epochs(self, start_event, end_event, lb, ub):
-        query = 'event == e' 
+        query = 'event == "{e}"' 
         column = 'timestamp'
-        starts = self.data.read_where(query, {'e': start_event}, column)
-        ends = self.data.read_where(query, {'e': end_event}, column)
+        starts = self.query(query, {'e': start_event}, column)
+        ends = self.query(query, {'e': end_event}, column)
 
         if len(starts) == 0 and len(ends) == 1:
             starts = [0]
@@ -52,7 +53,12 @@ class EventDataTable(DataTable):
             if starts[-1] > ends[-1]:
                 ends = np.r_[ends, np.nan]
 
-        epochs = np.c_[starts, ends]
+        try:
+            epochs = np.c_[starts, ends]
+        except:
+            print starts
+            print ends
+            raise
         m = ((epochs >= lb) & (epochs < ub)) | np.isnan(epochs)
         return epochs[m.any(axis=-1)]
 
@@ -111,8 +117,6 @@ class DataChannel(DataSource):
         Subclasses can add additional data preprocessing by overriding this
         method.  See `ProcessedFileMultiChannel` for an example.
         '''
-        #if __debug__:
-        #    log.trace('Accessing slice {} from {}'.format(slice, self.data))
         return self.data[slice]
 
     def to_index(self, time):
@@ -159,14 +163,14 @@ class DataChannel(DataSource):
                 raise ValueError, "end must be <= signal length"
 
         if np.iterable(lb):
-            return [self[..., lb:ub] for lb, ub in zip(lb, ub)]
+            return [self[lb:ub] for lb, ub in zip(lb, ub)]
         else:
-            return self[..., lb:ub]
+            return self[lb:ub]
 
     def get_index(self, index, reference=0):
         t0_index = int(self.t0*self.fs)
         index = max(0, index-t0_index+reference)
-        return self[..., index]
+        return self[:, index]
 
     def _to_bounds(self, start, end, reference=None):
         if start > end:
@@ -193,7 +197,7 @@ class DataChannel(DataSource):
             Set to -1 to get the most recent range
         '''
         lb, ub = self._to_bounds(start, end, reference)
-        return self[..., lb:ub]
+        return self[lb:ub]
 
     def get_size(self):
         return self.data.shape[-1]

@@ -1,0 +1,139 @@
+import logging
+log = logging.getLogger(__name__)
+
+import os.path
+from glob import glob
+
+from atom.api import Unicode, Typed, Property
+from enaml.workbench.api import Extension, PluginManifest
+from enaml.workbench.core.api import Command
+
+import pandas as pd
+import numpy as np
+import bcolz
+
+from psi.core.utils import find_extension
+from psi.controller.api import ExperimentAction
+
+from ..abstract_store.store import AbstractStore
+
+PLUGIN_ID = 'psi.data.bcolz_store'
+
+
+class BColzStore(AbstractStore):
+    '''
+    Simple class for storing acquired trial data in a HDF5 file. No analysis or
+    further processing is done.
+    '''
+    base_path = Unicode()
+
+    trial_log = Typed(object)
+    event_log = Typed(object)
+
+    def process_trial(self, results):
+        row = [results[n] for n in self.trial_log.data.dtype.names]
+        self.trial_log.append(row)
+
+    def process_event(self, event, timestamp):
+        self.event_log.append([timestamp, event])
+
+    def process_ai(self, name, data):
+        if self._channels[name] is not None:
+            self._channels[name].append(data)
+
+    def _get_filename(self, name):
+        if self.base_path is not None:
+            return os.path.join(self.base_path, name)
+        else:
+            return None
+
+    def _create_trial_log(self, context_info):
+        '''
+        Create a table to hold the event log.
+        '''
+        filename = self._get_filename('trial_log')
+        dtype = [(str(n), i['dtype']) for n, i in context_info.items()]
+        return bcolz.zeros(0, rootdir=filename, mode='w', dtype=dtype)
+
+    def _create_event_log(self):
+        '''
+        Create a table to hold the event log.
+        '''
+        filename = self._get_filename('event_log')
+        dtype = [('timestamp', 'float32'), ('event', 'S512')]
+        return bcolz.zeros(0, rootdir=filename, mode='w', dtype=dtype)
+
+    def _create_continuous_input(self, input):
+        n = int(input.fs*60*60)
+        filename = self._get_filename(input.name)
+        carray = bcolz.carray([], rootdir=filename, mode='w',
+                              dtype=input.channel.dtype, expectedlen=n)
+
+        # Copy some attribute metadata over
+        for name, value in input.__getstate__().items():
+            carray.attrs[name] = value
+        for name, value in input.channel.__getstate__().items():
+            carray.attrs['channel_' + name] = value
+        for name, value in input.engine.__getstate__().items():
+            carray.attrs['engine_' + name] = value
+        return carray
+
+    def finalize(self):
+        log.debug('Flushing all data to disk')
+        for channel in self._channels.values():
+            channel.data.flush()
+
+    def stop(self):
+        # TODO:
+        pass
+
+
+def prepare_file(event):
+    # TODO: Is this necessary?
+    extension = find_extension(event.workbench, PLUGIN_ID, 'sink', BColzStore)
+    if extension.initialized:
+        raise ValueError('Cannot change node once data has initialized')
+    
+    dirname = event.parameters['pathname']
+    experiment = event.parameters['experiment']
+
+    if dirname == '<memory>':
+        m = 'All data will be destroyed at end of experiment'
+        log.warn(m)
+    else:
+        base_path = os.path.join(dirname, experiment)
+        if not os.path.exists(base_path):
+            os.makedirs(base_path)
+        sessions = glob(os.path.join(base_path, 'session_*'))
+        next_session = len(sessions)
+        base_path = os.path.join(base_path, 'session_' + str(next_session))
+        os.makedirs(base_path)
+        extension.base_path = base_path
+
+
+enamldef BColzStoreManifest(PluginManifest): manifest:
+
+    id = PLUGIN_ID
+
+    Extension:
+        id = 'sink'
+        point = 'psi.data.sink'
+        BColzStore:
+            pass
+
+    Extension:
+        id = 'commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = PLUGIN_ID + '.prepare_file'
+            handler = prepare_file
+
+    Extension:
+        id = 'actions'
+        point = 'psi.controller.actions'
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'psi.data.prepare'
+        ExperimentAction:
+            event = 'experiment_end'
+            command = 'psi.data.finalize'

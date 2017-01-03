@@ -8,7 +8,7 @@ from traits.api import Float, Instance, Str, on_trait_change
 
 class TimeseriesPlot(ChannelPlot):
 
-    source = Instance('psi.data.hdf_store.data_source.DataTable')
+    source = Instance('psi.data.abstract_store.data_source.DataTable')
 
     rect_height = Float(0.5)
     rect_center = Float(0.5)
@@ -34,7 +34,7 @@ class TimeseriesPlot(ChannelPlot):
         if new is not None:
             new.observe('current_time', self._current_time_changed)
 
-    def _gather_points(self):
+    def _get_data_points(self):
         if not self._data_cache_valid:
             epochs = self.source.get_epochs(self.rising_event,
                                             self.falling_event,
@@ -43,8 +43,6 @@ class TimeseriesPlot(ChannelPlot):
             self._cached_data = epochs
             self._data_cache_valid = True
             self._screen_cache_valid = False
-
-        return self._cached_data
 
     def _get_screen_points(self):
         if not self._screen_cache_valid:
@@ -59,11 +57,9 @@ class TimeseriesPlot(ChannelPlot):
                 s_ends = self.index_mapper.map_screen(data[:, 1])
             self._cached_screen_index = s_starts, s_ends
             self._screen_cache_valid = True
-            
-        return self._cached_screen_index
 
-    def _render(self, gc, points):
-        starts, ends = points
+    def _render(self, gc):
+        starts, ends = self._cached_screen_index
         n = len(starts)
         if n == 0:
             return

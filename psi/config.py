@@ -59,13 +59,6 @@ SYRINGE_DATA = {
         'B-D 10cc (glass)'      : 14.20,
         }
 
-H5_COMPRESSION = {
-    'complevel': 1,
-    'complib': 'blosc',
-    'shuffle': True,
-    'fletcher32': True,
-}
-
 # Log the settings to facilitate debugging. By convention, settings are in all
 # caps, so only log those variables.
 log = logging.getLogger()

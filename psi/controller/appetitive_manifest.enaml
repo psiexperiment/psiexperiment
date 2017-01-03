@@ -253,12 +253,12 @@ enamldef AppetitiveManifest(BaseManifest): manifest:
             compact_label = 'T/'
             group = 'results'
             dtype = np.dtype('float32')
-        Result:
-            name = 'target_end'
-            label = 'Target end'
-            compact_label = 'T\\'
-            group = 'results'
-            dtype = np.dtype('float32')
+        #Result:
+        #    name = 'target_end'
+        #    label = 'Target end'
+        #    compact_label = 'T\\'
+        #    group = 'results'
+        #    dtype = np.dtype('float32')
         Result:
             name = 'reaction_time'
             label = 'Reaction time'

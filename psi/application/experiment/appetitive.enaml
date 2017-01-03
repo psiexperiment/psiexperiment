@@ -100,6 +100,11 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                 line_color = (0, 0, 1)
                 value_range = (-20, 6)
 
+            ExtremesChannelPlot:
+               source = 'microphone'
+               line_color = (0, 0, 0)
+               value_range = (-1, 1)
+
             TimeseriesPlot:
                 source = 'event_log'
                 rising_event = 'reward_start'
@@ -171,8 +176,3 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                 line_color = (0, 0, 0, 0.5)
                 rect_center = 0.8
                 rect_height = 0.1
-
-            ExtremesChannelPlot:
-                source = 'microphone'
-                line_color = (0, 0, 0)
-                value_range = (-1, 1)

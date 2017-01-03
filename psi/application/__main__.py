@@ -1,6 +1,9 @@
 import logging.config
 log = logging.getLogger(__name__)
 
+import faulthandler
+faulthandler.enable()
+
 import re
 import argparse
 import os.path
@@ -14,14 +17,18 @@ from enaml.application import deferred_call
 from psi import application
 from psi import get_config, set_config
 
-#from psi.application.coloredstreamhandler import ColorStreamHandler
+
+data_store_manifest = 'psi.data.bcolz_store.manifest.BColzStoreManifest'
 
 
 experiment_descriptions = {
     'test': {
         'manifests': [
-            'psi.application.experiment.test.ControllerManifest',
-            'psi.data.hdf_store.manifest.HDFStoreManifest',
+            #'psi.application.experiment.test.ControllerManifest',
+            'psi.controller.passive_manifest.PassiveManifest',
+            'psi.data.trial_log.manifest.TrialLogManifest',
+            'psi.data.event_log.manifest.EventLogManifest',
+            data_store_manifest,
         ]
     },
     'appetitive_gonogo_food': {
@@ -32,7 +39,7 @@ experiment_descriptions = {
             'psi.data.trial_log.manifest.TrialLogManifest',
             'psi.data.event_log.manifest.EventLogManifest',
             'psi.data.sdt_analysis.manifest.SDTAnalysisManifest',
-            'psi.data.hdf_store.manifest.HDFStoreManifest',
+            data_store_manifest,
         ],
     },
 
@@ -41,7 +48,7 @@ experiment_descriptions = {
             'psi.application.experiment.abr.ControllerManifest',
             'psi.data.trial_log.manifest.TrialLogManifest',
             'psi.data.event_log.manifest.EventLogManifest',
-            'psi.data.hdf_store.manifest.HDFStoreManifest',
+            data_store_manifest,
         ],
     },
 
@@ -49,7 +56,7 @@ experiment_descriptions = {
         'manifests': [
             'psi.application.experiment.noise_exposure.ControllerManifest',
             'psi.data.event_log.manifest.EventLogManifest',
-            'psi.data.hdf_store.manifest.HDFStoreManifest',
+            data_store_manifest,
         ],
     }
 }
@@ -104,7 +111,7 @@ def main():
     parser = argparse.ArgumentParser(description='Run experiment')
     parser.add_argument('experiment', type=str, help='Experiment to run',
                         choices=experiment_descriptions.keys())
-    parser.add_argument('filename', type=str, help='Filename', nargs='?',
+    parser.add_argument('pathname', type=str, help='Filename', nargs='?',
                         default='<memory>')
     parser.add_argument('--io', type=str, default=None,
                         help='Hardware configuration')
@@ -135,20 +142,20 @@ def main():
     core.invoke_command('enaml.workbench.ui.select_workspace',
                         {'workspace': 'psi.experiment.workspace'})
 
-    cmd = 'psi.data.hdf_store.prepare_file'
-    parameters = {'filename': args.filename, 'experiment': args.experiment}
-    with core.invoke_command(cmd, parameters) as fh:
-        ui = workbench.get_plugin('enaml.workbench.ui')
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore')
-            ui.show_window()
+    cmd = 'psi.data.bcolz_store.prepare_file'
+    parameters = {'pathname': args.pathname, 'experiment': args.experiment}
+    core.invoke_command(cmd, parameters)
+    ui = workbench.get_plugin('enaml.workbench.ui')
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        ui.show_window()
 
-        # We need to use deferred call to ensure these commands are invoked
-        # *after* the application is started (the application needs to load the
-        # plugins first).
-        deferred_call(core.invoke_command, 'psi.get_default_preferences')
-        deferred_call(core.invoke_command, 'psi.get_default_layout')
-        ui.start_application()
+    # We need to use deferred call to ensure these commands are invoked
+    # *after* the application is started (the application needs to load the
+    # plugins first).
+    deferred_call(core.invoke_command, 'psi.get_default_preferences')
+    deferred_call(core.invoke_command, 'psi.get_default_layout')
+    ui.start_application()
 
 
 if __name__ == '__main__':

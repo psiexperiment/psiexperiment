@@ -213,7 +213,7 @@ class Input(SimpleState, Declarative):
 
     source_name = d_(Unicode())
 
-    source = Property()
+    source = Property().tag(transient=True)
     channel = Property().tag(transient=True)
     engine = Property().tag(transient=True)
     fs = Property()

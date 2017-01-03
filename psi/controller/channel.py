@@ -27,11 +27,11 @@ class Channel(SimpleState, Declarative):
     start_trigger = d_(Unicode())
 
     # Used to properly configure data storage.
-    dtype = d_(Typed(np.dtype))
+    dtype = d_(Typed(np.dtype)).tag(transient=True)
 
     engine = Property().tag(transient=True)
 
-    calibration = d_(Typed(Calibration))
+    calibration = d_(Typed(Calibration)).tag(transient=True)
 
     def _get_engine(self):
         return self.parent

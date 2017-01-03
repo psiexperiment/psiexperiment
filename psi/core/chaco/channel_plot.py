@@ -16,9 +16,9 @@ class ChannelPlot(BaseChannelPlot):
     _data_cache_valid       = Bool(False)
     _screen_cache_valid     = Bool(False)
 
-    # When decimating, how many samples should be extracted per pixel?
-    dec_points = Int(2)
-    dec_factor = Property(depends_on='index_mapper.updated, dec_points')
+    def __init__(self, **kwargs):
+        super(ChannelPlot, self).__init__(**kwargs)
+        self._index_mapper_changed(None, self.index_mapper)
 
     def _invalidate_data(self):
         self._data_cache_valid = False
@@ -27,10 +27,6 @@ class ChannelPlot(BaseChannelPlot):
     def _invalidate_screen(self):
         self._screen_cache_valid = False
         self.deferred_redraw()
-
-    def __init__(self, **kwargs):
-        super(ChannelPlot, self).__init__(**kwargs)
-        self._index_mapper_changed(None, self.index_mapper)
 
     def _index_mapper_updated(self):
         '''
@@ -47,8 +43,7 @@ class ChannelPlot(BaseChannelPlot):
                 low = int(self.source.t0*fs)
             high = int(self.index_range.high*fs)
             self.index_values = np.arange(low, high)/fs
-            self._data_cache_valid = False
-            self._invalidate_screen()
+            self._invalidate_data()
 
     def _index_mapper_changed(self, old, new):
         if old is not None:
@@ -57,25 +52,15 @@ class ChannelPlot(BaseChannelPlot):
         if new is not None:
             new.on_trait_change(self._index_mapper_updated, "updated")
 
-    @cached_property
-    def _get_dec_factor(self):
-        '''
-        Compute decimation factor based on the sampling frequency of the channel
-        itself.
-        '''
-        screen_min, screen_max = self.index_mapper.screen_bounds
-        screen_width = screen_max-screen_min # in pixels
-        range = self.index_range
-        data_width = (range.high-range.low)*self.source.fs
-        return int(np.floor((data_width/screen_width)/self.dec_points))
+    def _draw_plot(self, gc, view_bounds=None, mode="normal"):
+        self._get_data_points()
+        self._get_screen_points()
+        self._render(gc)
 
-    def _gather_points(self):
+    def _get_data_points(self):
         if not self._data_cache_valid:
             range = self.index_mapper.range
-            try:
-                self._cached_data = self.source.get_range(range.low, range.high)
-            except:
-                self._cached_data = []
+            self._cached_data = self.source.get_range(range.low, range.high)
             self._data_cache_valid = True
             self._screen_cache_valid = False
 
@@ -83,11 +68,10 @@ class ChannelPlot(BaseChannelPlot):
         if not self._screen_cache_valid:
             # Obtain cached data and map to screen
             val_pts = self._cached_data
-            s_val_pts = self._map_screen(val_pts)
+            s_val_pts = self.value_mapper.map_screen(val_pts)
             self._cached_screen_data = s_val_pts
 
             # Obtain cached data bounds and create index points
-            #n = len(val_pts)
             n = val_pts.shape[-1]
             t_screen = self.index_mapper.map_screen(self.index_values[:n])
             self._cached_screen_index = t_screen
@@ -95,26 +79,18 @@ class ChannelPlot(BaseChannelPlot):
             # Screen cache is valid
             self._screen_cache_valid = True
 
-        return self._cached_screen_index, self._cached_screen_data
-
-    def _map_screen(self, data):
-        return self.value_mapper.map_screen(data)
-
-    def _draw_plot(self, gc, view_bounds=None, mode="normal"):
-        self._gather_points()
-        points = self._get_screen_points()
-        self._render(gc, points)
-
-    def _render(self, gc, points):
-        if len(points[0]) == 0:
+    def _render(self, gc):
+        if len(self._cached_screen_index) == 0:
             return
+
         with gc:
             gc.set_antialias(True)
             gc.clip_to_rect(self.x, self.y, self.width, self.height)
             gc.set_stroke_color(self.line_color_)
             gc.set_line_width(self.line_width)
             gc.begin_path()
-            gc.lines(np.c_[points])
+            gc.lines(np.c_[self._cached_screen_index,
+                           self._cached_screen_data])
             gc.stroke_path()
             self._draw_default_axes(gc)
 
