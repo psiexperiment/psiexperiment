@@ -120,6 +120,15 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
 
             TimeseriesPlot:
                 source = 'event_log'
+                rising_event = 'digital_np_start'
+                falling_event = 'digital_np_end'
+                fill_color = (.17, .54, .34, 0.25)
+                line_color = (.17, .54, .34, 0.5)
+                rect_center = 0.5
+                rect_height = 0.1
+
+            TimeseriesPlot:
+                source = 'event_log'
                 rising_event = 'token_start'
                 falling_event = 'token_stop'
                 fill_color = (.5, .5, .5, 0.25)

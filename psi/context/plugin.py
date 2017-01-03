@@ -74,7 +74,7 @@ class ContextPlugin(Plugin):
             for selector in extension.get_children(BaseSelector):
                 selectors[selector.name] = selector
         self.selectors = selectors
-
+        
     def _refresh_symbols(self, event=None):
         symbols = {}
         point = self.workbench.get_extension_point(SYMBOLS_POINT)
@@ -229,21 +229,26 @@ class ContextPlugin(Plugin):
         self.next_selector_setting(selector)
         self.set_values(results)
 
-    def next_setting(self, selector='default', save_prior=True):
+    def next_setting(self, selector=None, save_prior=True):
         '''
-        Load next set of expressions from the specified sequence
+        Load next set of expressions. If there are no selectors defined, then
+        this essentially clears the namespace and allows expresssions to be
+        recomputed.
         '''
         if save_prior:
             prior_values = self._prior_values[:]
             prior_values.append(self.get_values())
             self._prior_values = prior_values
         self._namespace.reset()
-        log.debug('Configuring next setting from selector %s', selector)
+
+        if selector is  None:
+            return
         try:
+            log.debug('Configuring next setting from selector %s', selector)
             expressions = self._iterators[selector].next()
             self._namespace.update_expressions(expressions)
         except KeyError:
-            m = 'Avaliable iterators include {}'.format(self._iterators.keys())
+            m = 'Avaliable selectors include {}'.format(self._iterators.keys())
             log.debug(m)
             raise
 

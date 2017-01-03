@@ -47,6 +47,9 @@ class Event(enum.Enum):
 
     This is specific to appetitive reinforcement paradigms.
     '''
+    digital_np_start = 'initiated nose poke'
+    digital_np_end = 'withdrew from nose poke'
+
     np_start = 'initiated nose poke'
     np_end = 'withdrew from nose poke'
     np_duration_elapsed = 'nose poke duration met'
@@ -310,7 +313,7 @@ class AppetitivePlugin(BasePlugin):
             return
 
         if self.trial_state == TrialState.waiting_for_np_start:
-            if event == Event.np_start:
+            if event in (Event.np_start, Event.digital_np_start):
                 # Animal has nose-poked in an attempt to initiate a trial.
                 self.trial_state = TrialState.waiting_for_np_duration
                 self.start_timer('np_duration', Event.np_duration_elapsed)
@@ -319,7 +322,7 @@ class AppetitivePlugin(BasePlugin):
                 self.trial_info['np_start'] = timestamp
 
         elif self.trial_state == TrialState.waiting_for_np_duration:
-            if event == Event.np_end:
+            if event in (Event.np_end, Event.digital_np_end):
                 # Animal has withdrawn from nose-poke too early. Cancel the
                 # timer so that it does not fire a 'event_np_duration_elapsed'.
                 log.debug('Animal withdrew too early')
@@ -341,7 +344,7 @@ class AppetitivePlugin(BasePlugin):
             # All animal-initiated events (poke/reward) are ignored during this
             # period but we may choose to record the time of nose-poke withdraw
             # if it occurs.
-            if event == Event.np_end:
+            if event in (Event.np_end, Event.digital_np_end):
                 # Record the time of nose-poke withdrawal if it is the first
                 # time since initiating a trial.
                 log.debug('Animal withdrew during hold period')
@@ -358,14 +361,14 @@ class AppetitivePlugin(BasePlugin):
             # If the animal happened to initiate a nose-poke during the hold
             # period above and is still maintaining the nose-poke, they have to
             # manually withdraw and re-poke for us to process the event.
-            if event == Event.np_end:
+            if event in (Event.np_end, Event.digital_np_end):
                 # Record the time of nose-poke withdrawal if it is the first
                 # time since initiating a trial.
                 log.debug('Animal withdrew during response period')
                 if 'np_end' not in self.trial_info:
                     log.debug('Recording np_end')
                     self.trial_info['np_end'] = timestamp
-            elif event == Event.np_start:
+            elif event in (Event.np_start, Event.digital_np_start):
                 log.debug('Animal repoked')
                 self.trial_info['response_ts'] = timestamp
                 self.invoke_actions(Event.response_end.name, timestamp)
@@ -390,7 +393,8 @@ class AppetitivePlugin(BasePlugin):
                 self.trial_state = TrialState.waiting_for_iti
                 self.invoke_actions(Event.iti_start.name, self.get_ts())
                 self.start_timer('iti_duration', Event.iti_end)
-            elif event in (Event.reward_start, Event.np_start):
+            elif event in (Event.reward_start, Event.np_start,
+                           Event.digital_np_start):
                 # Animal repoked. Reset timeout duration.
                 log.debug('Resetting timeout duration')
                 self.stop_timer()
@@ -414,9 +418,10 @@ class AppetitivePlugin(BasePlugin):
                     self.start_timer(delta, Event.np_duration_elapsed)
                 else:
                     self.trial_state = TrialState.waiting_for_np_start
-            elif event == Event.np_end and 'np_start' in self.trial_info:
+            elif event in (Event.np_end, Event.digital_np_end) \
+                and 'np_start' in self.trial_info:
                 del self.trial_info['np_start']
-            elif event == Event.np_start:
+            elif event in (Event.np_start, Event.digital_np_start):
                 self.trial_info['np_start'] = timestamp
 
     def start_timer(self, duration, event):
