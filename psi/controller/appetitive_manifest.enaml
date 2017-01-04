@@ -1,6 +1,3 @@
-import numpy as np
-
-
 from enaml.application import deferred_call
 from enaml.layout.api import InsertItem
 from enaml.widgets.api import Action, DockItem, Container, Label
@@ -117,162 +114,110 @@ enamldef AppetitiveManifest(BaseManifest): manifest:
             name = 'trial'
             label = 'Trial Settings'
 
-        Parameter:
-            name = 'iti_duration'
-            label = 'Intertrial interval (s)'
-            compact_label = 'ITI'
-            dtype = np.dtype('float32')
-            default = 0.1
-            expression = '0.1'
-            group = 'trial'
-            scope = 'trial'
-        Parameter:
-            name = 'to_duration'
-            label = 'Timeout duration (s)'
-            compact_label = 'TO'
-            dtype = np.dtype('float32')
-            default = 1.0
-            expression = '1'
-            group = 'trial'
-            scope = 'trial'
-        Parameter:
-            name = 'hold_duration'
-            label = 'Hold duration (s)'
-            compact_label = 'Hold'
-            dtype = np.dtype('float32')
-            default = 0.0
-            expression = '0'
-            group = 'trial'
-            scope = 'trial'
-        Parameter:
-            name = 'response_duration'
-            label = 'Response duration (s)'
-            compact_label = 'Resp'
-            dtype = np.dtype('float32')
-            default = 3.0
-            expression = '3'
-            group = 'trial'
-            scope = 'trial'
-        Parameter:
-            name = 'np_duration'
-            label = 'Poke duration (s)'
-            compact_label = 'Poke'
-            dtype = np.dtype('float32')
-            default = 0.2
-            expression = '0.2'
-            group = 'trial'
-            scope = 'trial'
-        EnumParameter:
-            name = 'training_mode'
-            label = 'Mode'
-            compact_label = 'train'
-            dtype = np.dtype('bool')
-            group = 'trial'
-            scope = 'arbitrary'
-            default = 'testing'
-            choices = {'training': True, 'testing': False}
+            Parameter:
+                name = 'iti_duration'
+                label = 'Intertrial interval (s)'
+                compact_label = 'ITI'
+                default = 0.1
+                expression = '0.1'
+            Parameter:
+                name = 'to_duration'
+                label = 'Timeout duration (s)'
+                compact_label = 'TO'
+                default = 1.0
+            Parameter:
+                name = 'hold_duration'
+                label = 'Hold duration (s)'
+                compact_label = 'Hold'
+                default = 0.0
+            Parameter:
+                name = 'response_duration'
+                label = 'Response duration (s)'
+                compact_label = 'Resp'
+                default = 3.0
+            Parameter:
+                name = 'np_duration'
+                label = 'Poke duration (s)'
+                compact_label = 'Poke'
+                default = 0.2
+            EnumParameter:
+                name = 'training_mode'
+                label = 'Mode'
+                compact_label = 'train'
+                scope = 'arbitrary'
+                default = 'testing'
+                choices = {'training': True, 'testing': False}
                 
         ContextGroup:
             name = 'selector'
             label = 'Next value'
 
-        Parameter:
-            name = 'go_probability'
-            label = 'Go probability'
-            compact_label = 'Pr'
-            dtype = np.dtype('float32')
-            expression = '0.5'
-            group = 'selector'
-            scope = 'arbitrary'
-        Parameter:
-            name = 'max_nogo'
-            label = 'Max. consecutive nogo trials'
-            compact_label = 'MG'
-            dtype = np.dtype('float32')
-            expression = '5'
-            group = 'selector'
-            scope = 'arbitrary'
-        EnumParameter:
-            name = 'repeat_fa'
-            label = 'Repeat FA?'
-            compact_label = 'RFA'
-            default = 'yes'
-            group = 'selector'
-            scope = 'arbitrary'
-            choices = {'yes': True, 'no': False}
-
+            Parameter:
+                name = 'go_probability'
+                compact_label = 'Pr'
+                default = 0.5
+                scope = 'arbitrary'
+            Parameter:
+                name = 'max_nogo'
+                label = 'Max. consecutive nogo trials'
+                compact_label = 'MG'
+                default = 5
+                scope = 'arbitrary'
+            EnumParameter:
+                name = 'repeat_fa'
+                label = 'Repeat FA?'
+                compact_label = 'RFA'
+                default = 'yes'
+                scope = 'arbitrary'
+                choices = {'yes': True, 'no': False}
 
         ContextGroup:
             name = 'results'
             label = 'Trial results'
             visible = False
 
-        Result:
-            name = 'response'
-            label = 'Response'
-            compact_label = 'Resp.'
-            dtype = np.dtype('S32')
-            group = 'results'
-        Result:
-            name = 'trial_type'
-            label = 'Trial type'
-            compact_label = 'Trial type'
-            group = 'results'
-            dtype = np.dtype('S32')
-        Result:
-            name = 'score'
-            label = 'Score'
-            compact_label = 'Score'
-            group = 'results'
-            dtype = np.dtype('S32')
-        Result:
-            name = 'correct'
-            label = 'Correct'
-            compact_label = 'C'
-            group = 'results'
-            dtype = np.dtype('bool')
-        Result:
-            name = 'np_start'
-            label = 'Nose-poke start'
-            compact_label = 'NP/'
-            group = 'results'
-            dtype = np.dtype('float32')
-        Result:
-            name = 'np_end'
-            label = 'Nose-poke end'
-            compact_label = 'NP\\'
-            group = 'results'
-            dtype = np.dtype('float32')
-        Result:
-            name = 'response_ts'
-            label = 'Response timestamp'
-            compact_label = 'R|'
-            group = 'results'
-            dtype = np.dtype('float32')
-        Result:
-            name = 'target_start'
-            label = 'Target start'
-            compact_label = 'T/'
-            group = 'results'
-            dtype = np.dtype('float32')
-        #Result:
-        #    name = 'target_end'
-        #    label = 'Target end'
-        #    compact_label = 'T\\'
-        #    group = 'results'
-        #    dtype = np.dtype('float32')
-        Result:
-            name = 'reaction_time'
-            label = 'Reaction time'
-            compact_label = 'React. time'
-            group = 'results'
-            dtype = np.dtype('float32')
-        Result:
-            name = 'response_time'
-            label = 'Response time'
-            compact_label = 'Resp. time'
-            group = 'results'
-            dtype = np.dtype('float32')
+            Result:
+                name = 'response'
+                compact_label = 'Resp.'
+                dtype = 'S32'
+            Result:
+                name = 'trial_type'
+                dtype = 'S32'
+            Result:
+                name = 'score'
+                dtype = 'S32'
+            Result:
+                name = 'correct'
+                compact_label = 'C'
+                dtype = 'bool'
+            Result:
+                name = 'np_start'
+                label = 'Nose-poke start'
+                compact_label = 'NP/'
+                dtype = 'float64'
+            Result:
+                name = 'np_end'
+                label = 'Nose-poke end'
+                compact_label = 'NP\\'
+                dtype = 'float64'
+            Result:
+                name = 'response_ts'
+                label = 'Response timestamp'
+                compact_label = 'R|'
+                dtype = 'float64'
+            Result:
+                name = 'target_start'
+                label = 'Target start'
+                compact_label = 'T/'
+                dtype = 'float64'
+            Result:
+                name = 'reaction_time'
+                compact_label = 'React. time'
+                dtype = 'float64'
+            Result:
+                name = 'response_time'
+                compact_label = 'Resp. time'
+                dtype = 'float64'
             
     # Sequences used by the appetitive Go-Nogo controller.
     Extension:

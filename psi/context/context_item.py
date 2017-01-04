@@ -32,7 +32,7 @@ class ContextItem(SimpleState, Declarative):
 
     # Datatype of the value. Required for properly initializing some data
     # plugins (e.g., those that save data to a HDF5 file).
-    dtype = d_(Typed(np.dtype))
+    dtype = d_(Unicode())
 
     # Name of the group to display the item under.
     group = d_(Unicode()).tag(transient=True)
@@ -45,6 +45,12 @@ class ContextItem(SimpleState, Declarative):
     _cmp_attrs = ['name']
 
     updated = Event()
+
+    def _default_label(self):
+        return self.name.capitalize()
+
+    def _default_compact_label(self):
+        return self.label
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
@@ -84,9 +90,15 @@ class Parameter(ContextItem):
     #   type of item that can be roved using a selector.
     # * arbitrary - The value can be changd at any time but it does not make
     #   sense for it to be a roving item.
-    scope = d_(Enum('experiment', 'trial', 'arbitrary'))
+    scope = d_(Enum('trial', 'experiment', 'arbitrary'))
 
     _cmp_attrs = ContextItem._cmp_attrs + ['expression']
+
+    def _default_expression(self):
+        return str(self.default)
+
+    def _default_dtype(self):
+        return np.array(self.default).dtype.str
 
     @observe('expression')
     def _notify_update(self, event):
@@ -98,6 +110,9 @@ class EnumParameter(Parameter):
     expression = Property().tag(transient=True)
     choices = d_(Typed(dict))
     selected = d_(Unicode())
+
+    def _default_dtype(self):
+        return np.array(self.choices.values()).dtype.str
 
     def _get_expression(self):
         try:

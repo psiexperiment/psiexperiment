@@ -107,6 +107,9 @@ class ContextPlugin(Plugin):
                     m = 'Context group {} already defined'.format(group.name)
                     raise ValueError(m)
                 context_groups[group.name] = group
+                for item in group.children:
+                    item.group = group.name
+                    items.append(item)
 
             for item in items:
                 log.trace('Adding context item {}'.format(item.name))

@@ -21,19 +21,13 @@ enamldef PassiveManifest(BaseManifest): manifest:
             name = 'iti_duration'
             label = 'Intertrial interval (s)'
             compact_label = 'ITI'
-            dtype = np.dtype('float32')
             default = 0.1
-            expression = '0.1'
             group = 'trial'
-            scope = 'trial'
 
         Parameter:
             name = 'averages'
-            label = 'Averages'
             compact_label = 'N'
-            dtype = np.dtype('int32')
             default = 1
-            expression = '1'
             group = 'trial'
             scope = 'experiment'
 

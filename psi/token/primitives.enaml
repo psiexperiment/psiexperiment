@@ -109,25 +109,19 @@ enamldef Cos2Envelope(Block): block:
         name = 'duration'
         label = 'duration (s)'
         compact_label = 'dur'
-        dtype = np.dtype('float32')
-        default = 4
-        expression = '4'
+        default = 4.0
 
     Parameter:
         name = 'rise_time'
         label = 'rise time (s)'
         compact_label = 'env rise'
-        dtype = np.dtype('float32')
-        default = 1
-        expression = '1'
+        default = 1.0
 
     Parameter:
         name = 'start_time'
         label = 'start time (s)'
         compact_label = 'start'
-        dtype = np.dtype('float32')
-        default = 0
-        expression = '0'
+        default = 0.0
 
 
 ################################################################################
@@ -190,31 +184,24 @@ enamldef SAMEnvelope(Block): block:
         name = 'depth'
         label = 'depth (frac.)'
         compact_label = 'depth'
-        dtype = np.dtype('float32')
-        default = 1
-        expression = '1'
+        default = 1.0
 
     Parameter:
         name = 'fm'
         label = 'Modulation frequency (Hz)'
         compact_label = 'fm'
-        dtype = np.dtype('float32')
-        default = 5
-        expression = '5'
+        default = 5.0
 
     Parameter:
         name = 'delay'
         label = 'AM delay (s)'
         compact_label = 'delay'
-        dtype = np.dtype('float32')
-        default = 0
-        expression = '0'
+        default = 0.0
 
     EnumParameter:
         name = 'direction'
         label = 'Initial AM direction'
         compact_label = 'dir'
-        dtype = np.dtype('int8')
         default = 'positive'
         choices = {'positive': 1, 'negative': -1}
 
@@ -243,17 +230,13 @@ enamldef Noise(Block):
         name = 'level'
         label = 'level (dB SPL)'
         compact_label = 'level'
-        dtype = np.dtype('float32')
-        default = 60
-        expression = '60'
+        default = 60.0
 
     Parameter:
         name = 'seed'
         label = 'random seed'
         compact_label = 'seed'
-        dtype = np.dtype('float32')
         default = 1
-        expression = '1'
 
 
 ################################################################################
@@ -332,57 +315,43 @@ enamldef BandlimitedNoise(Block):
         name = 'level'
         label = 'level (dB SPL)'
         compact_label = 'level'
-        dtype = np.dtype('float32')
-        default = 60
-        expression = '60'
+        default = 60.0
 
     Parameter:
         name = 'seed'
         label = 'random seed'
         compact_label = 'seed'
-        dtype = np.dtype('float32')
         default = 1
-        expression = '1'
 
     Parameter:
         name = 'center_frequency'
         label = 'center frequency (Hz)'
         compact_label = 'fc'
-        dtype = np.dtype('float32')
-        default = 8000
-        expression = '8000'
+        default = 8000.0
 
     Parameter:
         name = 'pass_bandwidth'
         label = 'pass bandwidth (Hz)'
         compact_label = 'pass bw'
-        dtype = np.dtype('float32')
-        default = 6000
-        expression = '6000'
+        default = 6000.0
 
     Parameter:
         name = 'stop_bandwidth'
         label = 'stop bandwidth (Hz)'
         compact_label = 'stop bw'
-        dtype = np.dtype('float32')
-        default = 4000
-        expression = '4000'
+        default = 4000.0
 
     Parameter:
         name = 'passband_attenuation'
         label = 'passband attenuation (dB)'
         compact_label = 'pass. atten.'
-        dtype = np.dtype('float32')
-        default = 10
-        expression = '10'
+        default = 10.0
 
     Parameter:
         name = 'stopband_attenuation'
         label = 'stopband attenuation (dB)'
         compact_label = 'stop. atten.'
-        dtype = np.dtype('float32')
-        default = 60
-        expression = '60'
+        default = 60.0
 
 
 ################################################################################
@@ -433,41 +402,31 @@ enamldef BandpassFilter(Block):
         name = 'center_frequency'
         label = 'center frequency (Hz)'
         compact_label = 'fc'
-        dtype = np.dtype('float32')
-        default = 8000
-        expression = '8000'
+        default = 8000.0
 
     Parameter:
         name = 'pass_bandwidth'
         label = 'pass bandwidth (Hz)'
         compact_label = 'pass bw'
-        dtype = np.dtype('float32')
-        default = 6000
-        expression = '6000'
+        default = 6000.0
 
     Parameter:
         name = 'stop_bandwidth'
         label = 'stop bandwidth (Hz)'
         compact_label = 'stop bw'
-        dtype = np.dtype('float32')
-        default = 4000
-        expression = '4000'
+        default = 4000.0
 
     Parameter:
         name = 'passband_attenuation'
         label = 'passband attenuation (dB)'
         compact_label = 'pass. atten.'
-        dtype = np.dtype('float32')
-        default = 10
-        expression = '10'
+        default = 10.0
 
     Parameter:
         name = 'stopband_attenuation'
         label = 'stopband attenuation (dB)'
         compact_label = 'stop. atten.'
-        dtype = np.dtype('float32')
-        default = 60
-        expression = '60'
+        default = 60.0
 
 
 ################################################################################
@@ -495,17 +454,13 @@ enamldef Tone(Block):
         name = 'level'
         label = 'level (dB SPL)'
         compact_label = 'level'
-        dtype = np.dtype('float32')
-        default = 60
-        expression = '60'
+        default = 60.0
 
     Parameter:
         name = 'frequency'
         label = 'frequency (Hz)'
         compact_label = 'fc'
-        dtype = np.dtype('float32')
-        default = 1000
-        expression = '1000'
+        default = 1000.0
 
 
 @no_inputs

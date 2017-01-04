@@ -62,14 +62,6 @@ enamldef AppetitiveRoomLightActions(PSIManifest):
 
     id = PLUGIN_ID + '.appetitive'
 
-    #requires  = [
-    #    'psi.controller.actions.room_light.RoomLightManifest',
-    #]
-
-    #supplements = [
-    #    'psi.controller.appetitive_manifest.AppetitiveManifest',
-    #]
-
     Extension:
         id = 'action'
         point = 'psi.controller.actions'
