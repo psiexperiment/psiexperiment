@@ -137,3 +137,8 @@ class FileParameter(Parameter):
     @observe('path')
     def _notify_update(self, event):
         self.updated = event
+
+
+class BoolParameter(Parameter):
+
+    dtype = np.bool

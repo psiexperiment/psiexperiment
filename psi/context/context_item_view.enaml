@@ -3,7 +3,8 @@ from enaml.layout.api import hbox, spacer
 from enaml.widgets.api import (Container, Field, CheckBox, Label, HGroup,
                                PushButton, FileDialogEx)
 
-from .context_item import Result, Parameter, EnumParameter, FileParameter
+from .context_item import (Result, Parameter, EnumParameter, FileParameter,
+                           BoolParameter)
 
 from enaml.widgets.api import ObjectCombo
 
@@ -25,24 +26,14 @@ template WidgetTemplate(context_item, MemberType: EnumParameter):
         selected := context_item.selected
 
 
-template WidgetTemplate(context_item, MemberType: FileParameter):
-    HGroup: widget:
-        spacing = 0
-        padding = 0
-        align_widths = False
-        Field: field:
-            text << context_item.path
-            tool_tip << context_item.name
-        PushButton: pb:
-            text = u'\u2315 Browse'
-            clicked ::
-                path = FileDialogEx \
-                    .get_open_file_name(workspace,
-                                        file_mode=context_item.file_mode,
-                                        current_path=context_item.current_path,
-                                        name_filters=context_item.name_filters)
-                if path:
-                    context_item.path = '{}'.format(path)
+template WidgetTemplate(context_item, MemberType: BoolParameter):
+    CheckBox: widget:
+        checked << eval(context_item.expression)
+        toggled ::
+            if checked:
+                context_item.expression = 'True'
+            else:
+                context_item.expression = 'False'
 
 
 template ContextItemTemplate(context_item, MemberType, scope):

@@ -8,7 +8,8 @@ from enaml.workbench.api import Extension, ExtensionPoint
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem, Autostart
 
-from ..context.api import ContextGroup, Parameter, EnumParameter, Result
+from ..context.api import (ContextGroup, Parameter, EnumParameter,
+                           BoolParameter, Result)
 from ..context.selector import SequenceSelector, SingleSetting
 
 from .base_manifest import BaseManifest
@@ -167,7 +168,7 @@ enamldef AppetitiveManifest(BaseManifest): manifest:
             compact_label = 'train'
             dtype = np.dtype('bool')
             group = 'trial'
-            scope = 'experiment'
+            scope = 'arbitrary'
             default = 'testing'
             choices = {'training': True, 'testing': False}
                 
@@ -191,14 +192,15 @@ enamldef AppetitiveManifest(BaseManifest): manifest:
             expression = '5'
             group = 'selector'
             scope = 'arbitrary'
-        Parameter:
+        EnumParameter:
             name = 'repeat_fa'
             label = 'Repeat FA?'
             compact_label = 'RFA'
-            dtype = np.dtype('bool')
-            expression = 'True'
+            default = 'yes'
             group = 'selector'
             scope = 'arbitrary'
+            choices = {'yes': True, 'no': False}
+
 
         ContextGroup:
             name = 'results'

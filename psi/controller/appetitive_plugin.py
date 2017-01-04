@@ -231,17 +231,6 @@ class AppetitivePlugin(BasePlugin):
             self.invoke_actions('trial_prepare', self.get_ts())
             log.debug('applied changes')
 
-    def ao_callback(self, name):
-        log.debug('Updating output {}'.format(name))
-        self._outputs[name].update()
-
-    def ai_callback(self, name, data):
-        parameters = {'name': name, 'data': data}
-        self.core.invoke_command('psi.data.process_ai', parameters)
-
-    def di_callback(self, name, data):
-        pass
-
     def et_callback(self, name, edge, event_time):
         if edge == 'processed':
             parameters = {'name': 'event_log', 'timestamp': event_time}
@@ -253,7 +242,8 @@ class AppetitivePlugin(BasePlugin):
 
     def pause_experiment(self):
         if self.trial_state == TrialState.waiting_for_np_start:
-            deferred_call(self._pause_experiment)
+            #deferred_call(self._pause_experiment)
+            self._pause_experiment()
 
     def _pause_experiment(self):
         self.experiment_state = 'paused'
@@ -261,7 +251,8 @@ class AppetitivePlugin(BasePlugin):
 
     def apply_changes(self):
         if self.trial_state == TrialState.waiting_for_np_start:
-            deferred_call(self._apply_changes)
+            #deferred_call(self._apply_changes)
+            self._apply_changes()
 
     def _apply_changes(self):
         self.context.apply_changes()
@@ -296,6 +287,7 @@ class AppetitivePlugin(BasePlugin):
             log.debug('{} at {}'.format(event, timestamp))
             log.trace('Queuing handle_event')
             deferred_call(self._handle_event, event, timestamp)
+            #self._handle_event(event, timestamp)
         except Exception as e:
             log.exception(e)
             raise

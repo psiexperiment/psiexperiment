@@ -52,14 +52,6 @@ enamldef AppetitivePelletDispenserActions(PSIManifest):
 
     id = PLUGIN_ID + '.appetitive'
 
-    supplements = [
-        'psi.controller.appetitive_manifest.AppetitiveManifest'
-    ]
-
-    requires = [
-        'psi.controller.actions.pellet_dispenser.PelletDispenserManifest'
-    ]
-
     Extension:
         id = 'action'
         point = 'psi.controller.actions'

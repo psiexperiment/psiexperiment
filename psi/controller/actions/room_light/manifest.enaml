@@ -60,22 +60,24 @@ enamldef RoomLightManifest(PSIManifest): manifest:
 
 enamldef AppetitiveRoomLightActions(PSIManifest):
 
-    requires  = [
-        'psi.controller.actions.room_light.RoomLightManifest',
-    ]
+    id = PLUGIN_ID + '.appetitive'
 
-    supplements = [
-        'psi.controller.appetitive_manifest.AppetitiveManifest',
-    ]
+    #requires  = [
+    #    'psi.controller.actions.room_light.RoomLightManifest',
+    #]
+
+    #supplements = [
+    #    'psi.controller.appetitive_manifest.AppetitiveManifest',
+    #]
 
     Extension:
         id = 'action'
         point = 'psi.controller.actions'
         ExperimentAction:
-            event = 'timeout_start'
+            event = 'to_start'
             command = PLUGIN_ID + '.light_off'
         ExperimentAction:
-            event = 'timeout_end'
+            event = 'to_end'
             command = PLUGIN_ID + '.light_on'
         ExperimentAction:
             event = 'experiment_start'

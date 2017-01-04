@@ -1,36 +1,44 @@
-from .base_manifest import ControllerManifest
+from enaml.workbench.api import Extension
+
+from psi.context.api import ContextGroup, Parameter, SequenceSelector
+
+from .base_manifest import BaseManifest
 
 
-#enamldef PassiveManifest(ControllerManifest): manifest:
-#
-#    id = PLUGIN_ID
-#    factory = AppetitivePlugin
-#
-#    Extension:
-#        id = 'items'
-#        point = 'psi.context.items'
-#
-#        Parameter:
-#            name = 'iti_duration'
-#            label = 'Intertrial interval (s)'
-#            compact_label = 'ITI'
-#            dtype = np.dtype('float32')
-#            default = 0.1
-#            expression = '0.1'
-#            group = 'trial'
-#            scope = 'trial'
-#
-#        Parameter:
-#            name = 'iti_duration'
-#            label = 'Intertrial interval (s)'
-#            compact_label = 'ITI'
-#            dtype = np.dtype('float32')
-#            default = 0.1
-#            expression = '0.1'
-#            group = 'trial'
-#            scope = 'trial'
-#
-#        Parameter:
-#            name = 'averages'
-#            label = 'Averages'
-#            compact_label = 'N'
+enamldef PassiveManifest(BaseManifest): manifest:
+
+    #factory = PassivePlugin
+
+    Extension:
+        id = 'items'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'trial'
+            label = 'Trial'
+
+        Parameter:
+            name = 'iti_duration'
+            label = 'Intertrial interval (s)'
+            compact_label = 'ITI'
+            dtype = np.dtype('float32')
+            default = 0.1
+            expression = '0.1'
+            group = 'trial'
+            scope = 'trial'
+
+        Parameter:
+            name = 'averages'
+            label = 'Averages'
+            compact_label = 'N'
+            dtype = np.dtype('int32')
+            default = 1
+            expression = '1'
+            group = 'trial'
+            scope = 'experiment'
+
+    Extension:
+        id = 'selectors'
+        point = 'psi.context.selectors'
+        SequenceSelector:
+            name = 'default'

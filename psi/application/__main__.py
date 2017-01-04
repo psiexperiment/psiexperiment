@@ -35,7 +35,22 @@ experiment_descriptions = {
         'manifests': [
             'psi.application.experiment.appetitive.ControllerManifest',
             'psi.controller.actions.pellet_dispenser.manifest.PelletDispenserManifest',
+            'psi.controller.actions.pellet_dispenser.manifest.AppetitivePelletDispenserActions',
             'psi.controller.actions.room_light.manifest.RoomLightManifest',
+            'psi.controller.actions.room_light.manifest.AppetitiveRoomLightActions',
+            'psi.data.trial_log.manifest.TrialLogManifest',
+            'psi.data.event_log.manifest.EventLogManifest',
+            'psi.data.sdt_analysis.manifest.SDTAnalysisManifest',
+            data_store_manifest,
+        ],
+    },
+    'appetitive_gonogo_water': {
+        'manifests': [
+            'psi.application.experiment.appetitive.ControllerManifest',
+            'psi.controller.actions.NE1000.manifest.NE1000Manifest',
+            'psi.controller.actions.NE1000.manifest.AppetitiveNE1000Actions',
+            'psi.controller.actions.room_light.manifest.RoomLightManifest',
+            'psi.controller.actions.room_light.manifest.AppetitiveRoomLightActions',
             'psi.data.trial_log.manifest.TrialLogManifest',
             'psi.data.event_log.manifest.EventLogManifest',
             'psi.data.sdt_analysis.manifest.SDTAnalysisManifest',
@@ -83,11 +98,11 @@ def configure_logging(filename=None):
         'loggers': {
             '__main__': {'level': 'DEBUG'},
             'neurogen': {'level': 'ERROR'},
-            'psi.core.chaco': {'level': 'INFO'},
-            'psi.controller.engine': {'level': 'DEBUG'},
             'psi': {'level': 'DEBUG'},
             'experiments': {'level': 'DEBUG'},
-            'daqengine': {'level': 'DEBUG'},
+            'daqengine': {'level': 'INFO'},
+            'psi.core.chaco': {'level': 'INFO'},
+            'psi.controller.engine': {'level': 'INFO'},
             },
         'root': {
             'handlers': ['console'],

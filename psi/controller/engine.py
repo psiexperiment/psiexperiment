@@ -106,12 +106,10 @@ class Engine(SimpleState, Declarative):
 
         data_samples = data.shape[-1]
         if data_samples >= self.hw_ao_buffer_samples:
-            log.debug('Overwriting entire buffer')
             self.hw_ao_buffer[:] = data[..., -self.hw_ao_buffer_samples:]
         else:
             self.hw_ao_buffer = np.roll(self.hw_ao_buffer, -data_samples, -1)
             self.hw_ao_buffer[..., -data_samples:] = data
-            log.debug('Partial overwrite of buffer')
 
         # Track the trailing edge of the buffer (i.e., what is the sample number
         # of the first sample in the buffer).

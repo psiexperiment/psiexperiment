@@ -367,7 +367,7 @@ class BasePlugin(Plugin):
         raise NotImplementedError
 
     def ao_callback(self, name):
-        log.debug('Updating output {}'.format(name))
+        log.trace('Updating output {}'.format(name))
         self._outputs[name].update(self)
 
     def ai_callback(self, name, data):
@@ -375,11 +375,8 @@ class BasePlugin(Plugin):
         parameters = {'name': name, 'data': data}
         self.core.invoke_command('psi.data.process_ai', parameters)
 
-    #def et_callback(self, name, edge, timestamp):
-    #    log.debug('Detected {} on {} at {}'.format(edge, name, timestamp))
-    #    parameters = {'name': name, 'edge': edge, 'timestamp': timestamp}
-    #    # TODO: add callback to save et
-    #    #self.core.invoke_command('psi.data.process_et', parameters)
+    def et_callback(self, name, edge, timestamp):
+        raise NotImplementedError
 
     def get_ts(self):
         return self._master_engine.get_ts()
