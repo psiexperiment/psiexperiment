@@ -1,11 +1,4 @@
-import numpy as np
-
-from atom.api import Unicode, Callable
-
-from enaml.core.api import d_, Declarative
 from enaml.workbench.api import PluginManifest, Extension, ExtensionPoint
-
-from psi.context.api import Parameter
 
 from .plugin import TokenPlugin
 from .token import ContinuousToken, EpochToken

@@ -7,7 +7,6 @@ log = logging.getLogger(__name__)
 from atom.api import Int, Typed, Unicode, observe
 from enaml.application import deferred_call
 from enaml.core.api import d_func
-from enaml.qt.QtCore import QTimer
 import numpy as np
 
 from .base_plugin import BasePlugin
@@ -95,8 +94,6 @@ class AppetitivePlugin(BasePlugin):
     trial_info = Typed(dict, ())
     trial_state = Typed(TrialState)
 
-    timer = Typed(QTimer)
-
     event_map = {
         ('rising', 'nose_poke'): Event.np_start,
         ('falling', 'nose_poke'): Event.np_end,
@@ -164,11 +161,11 @@ class AppetitivePlugin(BasePlugin):
         self.invoke_actions(Event.trial_start.name, ts)
         self.invoke_actions(Event.hold_start.name, ts)
         self.trial_state = TrialState.waiting_for_hold_period
-        self.start_timer('hold_duration', Event.hold_end)
+        self.start_event_timer('hold_duration', Event.hold_end)
 
     def end_trial(self, response):
         log.debug('Animal responded by {}, ending trial'.format(response))
-        self.stop_timer()
+        self.stop_event_timer()
         ts = self.get_ts()
 
         trial_type = self.trial_type.split('_', 1)[0]
@@ -198,14 +195,14 @@ class AppetitivePlugin(BasePlugin):
         if score == TrialScore.false_alarm:
             self.trial_state = TrialState.waiting_for_to
             self.invoke_actions(Event.to_start.name, ts)
-            self.start_timer('to_duration', Event.to_end)
+            self.start_event_timer('to_duration', Event.to_end)
         else:
             if score == TrialScore.hit:
                 if not self.context.get_value('training_mode'):
                     self.invoke_actions('deliver_reward', ts)
             self.trial_state = TrialState.waiting_for_iti
             self.invoke_actions(Event.iti_start.name, ts)
-            self.start_timer('iti_duration', Event.iti_end)
+            self.start_event_timer('iti_duration', Event.iti_end)
 
         self.trial_info = {}
         self.trial += 1
@@ -309,7 +306,7 @@ class AppetitivePlugin(BasePlugin):
             if event in (Event.np_start, Event.digital_np_start):
                 # Animal has nose-poked in an attempt to initiate a trial.
                 self.trial_state = TrialState.waiting_for_np_duration
-                self.start_timer('np_duration', Event.np_duration_elapsed)
+                self.start_event_timer('np_duration', Event.np_duration_elapsed)
                 # If the animal does not maintain the nose-poke long enough,
                 # this value will be deleted.
                 self.trial_info['np_start'] = timestamp
@@ -319,7 +316,7 @@ class AppetitivePlugin(BasePlugin):
                 # Animal has withdrawn from nose-poke too early. Cancel the
                 # timer so that it does not fire a 'event_np_duration_elapsed'.
                 log.debug('Animal withdrew too early')
-                self.stop_timer()
+                self.stop_event_timer()
                 self.trial_state = TrialState.waiting_for_np_start
                 del self.trial_info['np_start']
             elif event == Event.np_duration_elapsed:
@@ -348,7 +345,7 @@ class AppetitivePlugin(BasePlugin):
                 log.debug('Animal maintained poke through hold period')
                 self.trial_state = TrialState.waiting_for_response
                 self.invoke_actions(Event.response_start.name, self.get_ts())
-                self.start_timer('response_duration',
+                self.start_event_timer('response_duration',
                                  Event.response_duration_elapsed)
 
         elif self.trial_state == TrialState.waiting_for_response:
@@ -387,13 +384,13 @@ class AppetitivePlugin(BasePlugin):
                 # Turn the light back on
                 self.trial_state = TrialState.waiting_for_iti
                 self.invoke_actions(Event.iti_start.name, self.get_ts())
-                self.start_timer('iti_duration', Event.iti_end)
+                self.start_event_timer('iti_duration', Event.iti_end)
             elif event in (Event.reward_start, Event.np_start,
                            Event.digital_np_start):
                 # Animal repoked. Reset timeout duration.
                 log.debug('Resetting timeout duration')
-                self.stop_timer()
-                self.start_timer('to_duration', Event.to_end)
+                self.stop_event_timer()
+                self.start_event_timer('to_duration', Event.to_end)
 
         elif self.trial_state == TrialState.waiting_for_iti:
             if event == Event.iti_end:
@@ -410,7 +407,7 @@ class AppetitivePlugin(BasePlugin):
                     poke_duration = self.context.get_value('np_duration')
                     remaining_poke_duration = poke_duration-current_poke_duration
                     delta = max(0, remaining_poke_duration)
-                    self.start_timer(delta, Event.np_duration_elapsed)
+                    self.start_event_timer(delta, Event.np_duration_elapsed)
                 else:
                     self.trial_state = TrialState.waiting_for_np_start
             elif event in (Event.np_end, Event.digital_np_end) \
@@ -419,29 +416,12 @@ class AppetitivePlugin(BasePlugin):
             elif event in (Event.np_start, Event.digital_np_start):
                 self.trial_info['np_start'] = timestamp
 
-    def start_timer(self, duration, event):
-        deferred_call(self._start_timer, duration, event)
-
-    def stop_timer(self):
-        deferred_call(self._stop_timer)
-
-    def _stop_timer(self):
-        if self.timer is not None:
-            self.timer.timeout.disconnect()
-            self.timer.stop()
-
-    def _start_timer(self, duration, event):
-        # The duration can be specified as a string naming the context variable
-        # to extract.
+    def start_event_timer(self, duration, event):
         if isinstance(duration, basestring):
             duration = self.context.get_value(duration)
         log.info('Timer for {} with duration {}'.format(event, duration))
-        receiver = partial(self.handle_event, event)
+        callback = partial(self.handle_event, event)
+        deferred_call(self.start_timer, 'event', duration, callback)
 
-        if duration == 0:
-            deferred_call(receiver)
-        else:
-            self.timer = QTimer()
-            self.timer.timeout.connect(receiver)    # set up new callback
-            self.timer.setSingleShot(True)          # call only once
-            self.timer.start(duration*1e3)
+    def stop_event_timer(self):
+        deferred_call(self.stop_timer, 'event')

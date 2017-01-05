@@ -6,7 +6,8 @@ import numpy as np
 from psi.context.api import Parameter
 
 from .block import Block
-from .primitives import single_input, Cos2Envelope, cos2envelope_factory
+from .primitives import (single_input, Cos2Envelope, cos2envelope_factory,
+                         pregenerate_samples)
 
 
 enamldef Token(Block):
@@ -15,17 +16,17 @@ enamldef Token(Block):
 
 class _EpochToken(Cos2Envelope):
 
-    def get_duration(self, workbench):
-        duration = self.parameters[0]
-        context = workbench.get_plugin('psi.context')
-        return context.get_value(duration.name)
+    def get_duration(self, context):
+        global_name = self.parameters[0].name
+        return context[global_name]
 
-
+    
 enamldef EpochToken(_EpochToken):
 
     name = 'epoch'
     label = 'epoch'
-    factory = lambda *a, **kw: cos2envelope_factory(*a, infinite=False, **kw)
+    #factory = lambda **kwargs: pregenerate_samples(cos2envelope_factory, **kwargs)
+    factory = cos2envelope_factory
 
 
 @single_input
@@ -42,36 +43,3 @@ def default_continuous_factory(fs, calibration, input):
 enamldef ContinuousToken(Token):
 
     factory = default_continuous_factory
-
-
-
-#@single_input
-#def epoch_sequence_factory(fs, epoch_duration, iti, trials, calibration,
-#                           inputs):
-#    waveform = None
-#    while True:
-#        kwargs = (yield waveform)
-#        offset = kwargs['offset']
-#        samples = kwargs['samples']
-#        log.debug('Generating {} samples at {}'.format(samples, offset))
-#        waveform = input.send(kwargs)
-#
-#enamldef EpochSequenceToken(Token):
-#
-#    factory = epoch_sequence_factory
-#
-#    Parameter:
-#        name = 'trials'
-#        label = 'trials'
-#        compact_label = 'N'
-#        dtype = np.dtype('int32')
-#        default = 100
-#        expression = '100'
-#
-#    Parameter:
-#        name = 'iti'
-#        label = 'intertrial interval (s)'
-#        compact_label = 'iti'
-#        dtype = np.dtype('float32')
-#        default = 0.1
-#        expression = '0.1'

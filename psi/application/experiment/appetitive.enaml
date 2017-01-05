@@ -30,9 +30,6 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
         id = 'actions'
         point = 'psi.controller.actions'
 
-        ExperimentState:
-            name = 'target'
-
         ExperimentAction:
             # Since generating the token can be expensive in terms of
             # computation, prepare this in advance as soon as possible. 

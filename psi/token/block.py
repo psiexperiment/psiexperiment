@@ -17,14 +17,16 @@ class Block(Declarative):
     blocks = Property()
     parameters = Property()
 
+    _block_context = Typed(dict)
+
+    def get_children(self, child_type):
+        return [c for c in self.children if isinstance(c, child_type)]
+
     def _get_blocks(self):
         return self.get_children(Block)
 
     def _get_parameters(self):
         return self.get_children(Parameter)
-
-    def get_children(self, child_type):
-        return [c for c in self.children if isinstance(c, child_type)]
 
     def configure_context_items(self, output_name, output_label, scope):
         self.context_name_map = {}
@@ -36,7 +38,7 @@ class Block(Declarative):
                                                    item.compact_label)
             item.group = output_name
             item.scope = scope
-            self.context_name_map[old_name] = item.name
+            self.context_name_map[item.name] = old_name
 
         for block in self.blocks:
             block.configure_context_items(output_name, output_label, scope)
@@ -60,12 +62,14 @@ class Block(Declarative):
             result.children.append(copy.copy(c))
         return result
 
-    def initialize_generator(self, workbench, **context):
-        inputs = [b.initialize_generator(workbench, **context) \
-                  for b in self.blocks]
-        context_plugin = workbench.get_plugin('psi.context')
-        for generator_name, context_name in self.context_name_map.items():
-            context[generator_name] = context_plugin.get_value(context_name)
-        generator = self.factory(inputs=inputs, **context)
+    def initialize_generator(self, **context):
+        inputs = [b.initialize_generator(**context) for b in self.blocks]
+        # Map the global name (e.g., as shown in the context plugin) to the
+        # block name.
+        bc = {bn: context[gn] for gn, bn in self.context_name_map.items()}
+        bc['fs'] = context['fs']
+        bc['calibration'] = context['calibration']
+        self._block_context = bc
+        generator = self.factory(inputs=inputs, **bc)
         generator.next()
         return generator

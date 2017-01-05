@@ -137,6 +137,10 @@ class Engine(SimpleState, Declarative):
         combined_data = self.hw_ao_buffer[..., lb:].sum(axis=1)
         self.write_hw_ao(combined_data, offset)
 
+    def get_buffered_samples(self, channel_name, offset=0):
+        buffer_offset = offset-self.hw_ao_buffer_offset
+        return self.hw_ao_buffer_samples-buffer_offset
+
     def get_epoch_offset(self):
         pass
 

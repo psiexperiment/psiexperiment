@@ -2,7 +2,6 @@ from enaml.application import deferred_call
 from enaml.layout.api import InsertItem
 from enaml.widgets.api import Action, DockItem, Container, Label
 from enaml.workbench.api import Extension, ExtensionPoint
-from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem, Autostart
 
 from ..context.api import (ContextGroup, Parameter, EnumParameter,

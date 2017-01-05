@@ -43,7 +43,7 @@ def no_inputs(function):
 # Cos2Envelope
 ################################################################################
 #@memory.cache
-def cos2envelope(t, start_time, rise_time, duration):
+def cos2envelope(t, start_time, rise_time, duration, pad_end=True):
     '''
     Generates cosine-squared envelope. Can handle generating fragments.
     '''
@@ -76,27 +76,29 @@ def cos2envelope(t, start_time, rise_time, duration):
     f_upper = env_func(t_offset-(duration-rise_time), np.pi/2)
     f_middle = np.ones(len(t_ss))
     f_null_post = np.zeros(len(t_null_post))
-    envelope = np.r_[f_null_pre, f_lower, f_middle, f_upper, f_null_post]
-    return envelope
+
+    concat = [f_null_pre, f_lower, f_middle, f_upper]
+    if pad_end:
+        concat.append(f_null_post)
+    return np.concatenate(concat, axis=-1)
 
 
 @single_input
 def cos2envelope_factory(fs, start_time, rise_time, duration, calibration,
-                         input, infinite=True):
-    # We provide the infinite argument so that the behavior of this can be
-    # modified slightly to work with an EpochOutput.
+                         input):
     waveform = None
-    epoch_samples = np.inf if infinite else int(duration*fs)
+    epoch_samples = int(duration*fs)
+    offset = 0
+    complete = False
     while True:
-        kwargs = (yield waveform)
+        kwargs = (yield waveform, complete)
         samples = kwargs['samples']
-        offset = kwargs['offset']
-        if offset >= epoch_samples:
-            break
         t = (np.arange(samples, dtype=np.float32) + offset)/fs
         envelope = cos2envelope(t, start_time, rise_time, duration)
         token = input.send(kwargs)
         waveform = envelope*token
+        offset += len(waveform)
+        complete = offset >= epoch_samples
 
 
 enamldef Cos2Envelope(Block): block:
@@ -122,6 +124,27 @@ enamldef Cos2Envelope(Block): block:
         label = 'start time (s)'
         compact_label = 'start'
         default = 0.0
+
+
+################################################################################
+# Pregenerate samples
+################################################################################
+def pregenerate_samples(wrapped, fs, **kwargs):
+    block_size = int(10*fs)
+    input = wrapped(fs=fs, **kwargs)
+    input.next()
+    cached, complete = input.send({'samples': block_size})
+    waveform = None
+    complete = False
+
+    while True:
+        samples = kwargs['samples']
+        kwargs = (yield waveform, complete)
+        if len(cached) < samples:
+            c, complete = input.send({'samples': block_size})
+            cached = np.concatenate([cached, c])
+        waveform = cached[:samples]
+        cached = cached[samples:]
 
 
 ################################################################################
@@ -164,14 +187,15 @@ def sam_envelope(offset, samples, fs, depth, fm, delay, direction):
 @single_input
 def samenvelope_factory(fs, depth, fm, delay, direction, calibration, input):
     waveform = None
+    offset = 0
     while True:
         kwargs = (yield waveform)
         samples = kwargs['samples']
-        offset = kwargs['offset']
         log.debug('generating SAM envelope with %d samples', samples) 
         env = sam_envelope(offset, samples, fs, depth, fm, delay, direction)
         token = input.send(kwargs)
         waveform = env*token
+        offset += len(waveform)
 
 
 enamldef SAMEnvelope(Block): block:
@@ -436,12 +460,13 @@ enamldef BandpassFilter(Block):
 def tone_factory(fs, level, frequency, calibration):
     waveform = None
     sf = calibration.get_sf(frequency, level)
+    offset = 0
     while True:
         kwargs = (yield waveform)
         samples = kwargs['samples']
-        offset = kwargs['offset']
         t = np.arange(samples, dtype=np.float32)/fs + offset
         waveform = sf*np.cos(2*np.pi*t*frequency)
+        offset += len(waveform)
 
 
 enamldef Tone(Block):

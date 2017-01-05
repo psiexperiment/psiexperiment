@@ -8,6 +8,7 @@ import numpy as np
 
 from atom.api import Enum, Bool, Typed
 from enaml.application import timed_call
+from enaml.qt.QtCore import QTimer
 from enaml.workbench.plugin import Plugin
 
 from .channel import Channel, AOChannel
@@ -74,6 +75,7 @@ class BasePlugin(Plugin):
     _events = Typed(dict, {})
     _states = Typed(dict, {})
     _actions = Typed(list, {})
+    _timers = Typed(dict, {})
 
     def start(self):
         log.debug('Starting controller plugin')
@@ -205,27 +207,31 @@ class BasePlugin(Plugin):
 
         point = self.workbench.get_extension_point(ACTION_POINT)
         for extension in point.extensions:
-            for state in extension.get_children(ExperimentState):
+            found_states = extension.get_children(ExperimentState)
+            found_events = extension.get_children(ExperimentEvent)
+            found_actions = extension.get_children(ExperimentAction)
+            if extension.factory is not None:
+                objs = extension.factory(self.workbench, ExperimentState)
+                found_states.extend(objs)
+                objs = extension.factory(self.workbench, ExperimentEvent)
+                found_events.extend(objs)
+                objs = extension.factory(self.workbench, ExperimentAction)
+                found_actions.extend(objs)
+
+            for state in found_states:
                 if state.name in states:
                     m = '{} state already exists'.format(state.name)
                     raise ValueError(m)
                 states[state.name] = state
+                found_events.extend(state._generate_events())
 
-                for event in state._generate_events():
-                    if event.name in events:
-                        m = '{} event already exists'.format(event.name)
-                        raise ValueError(m)
-                    events[event.name] = event
-
-            for event in extension.get_children(ExperimentEvent):
+            for event in found_events:
                 if event.name in events:
                     m = '{} event already exists'.format(event.name)
                     raise ValueError(m)
                 events[event.name] = event
 
-        for extension in point.extensions:
-            for action in extension.get_children(ExperimentAction):
-                actions.append(action)
+            actions.extend(found_actions)
 
         actions.sort(key=lambda a: a.weight)
         self._states = states
@@ -275,27 +281,32 @@ class BasePlugin(Plugin):
     def get_output(self, output_name):
         return self._outputs[output_name]
 
-    def prepare_epoch_output(self, output_name):
+    def get_epoch_output(self, output_name):
         output = self.get_output(output_name)
         if not isinstance(output, EpochOutput):
-            raise ValueError('This only works for epoch outputs')
-        output.initialize(self)
+            m = 'Epoch output {} does not exist'
+            raise AttributeError(m.format(output_name))
+        return output
+
+    def prepare_epoch_output(self, output_name, context=None):
+        output = self.get_epoch_output(output_name)
+        if context is None:
+            context = self.context.get_values()
+        output.initialize(self, context)
 
     def start_epoch_output(self, output_name, start=None, delay=0):
-        output = self.get_output(output_name)
-        if not isinstance(output, EpochOutput):
-            raise ValueError('This only works for epoch outputs')
         if start is None:
             start = self.get_ts()
-        output.start(self, start, delay)
+        duration = self.get_epoch_output(output_name).start(self, start, delay)
+        self.invoke_actions('{}_start'.format(output_name), start+delay)
+        self.invoke_actions('{}_end'.format(output_name), start+delay+duration,
+                            delayed=True)
 
     def clear_epoch_output(self, output_name, end=None, delay=0):
-        output = self.get_output(output_name)
-        if not isinstance(output, EpochOutput):
-            raise ValueError('This only works for epoch outputs')
         if end is None:
             end = self.get_ts()
-        output.clear(self, end, delay)
+        self.get_epoch_output(output_name).clear(self, end, delay)
+        self.invoke_actions('{}_end'.format(output_name), end+delay)
 
     def _get_action_context(self):
         context = {}
@@ -305,7 +316,19 @@ class BasePlugin(Plugin):
             context[event.name] = event.active
         return context
 
-    def invoke_actions(self, event_name, timestamp=None):
+    def invoke_actions(self, event_name, timestamp=None, delayed=False,
+                       cancel_existing=True):
+        if cancel_existing:
+            self.stop_timer(event_name)
+        if delayed:
+            delay = timestamp-self.get_ts()
+            if delay > 0:
+                cb = lambda: self._invoke_actions(event_name, timestamp)
+                self.start_timer(event_name, delay, cb)
+                return  
+        self._invoke_actions(event_name, timestamp)
+
+    def _invoke_actions(self, event_name, timestamp=None):
         if timestamp is not None:
             # The event is logged only if the timestamp is provided
             params = {'event': event_name, 'timestamp': timestamp}
@@ -318,7 +341,6 @@ class BasePlugin(Plugin):
         # TODO: We cannot invoke this inside the with block because it may
         # result in infinite loops if one of the commands calls invoke_actions
         # again. Should we wrap it in a deferred call?
-        #log.debug('Invoking actions given context {}'.format(context))
         for action in self._actions:
             if action.match(context):
                 m = 'Invoking command {} with parameters {}'
@@ -366,10 +388,6 @@ class BasePlugin(Plugin):
     def end_trial(self):
         raise NotImplementedError
 
-    def ao_callback(self, name):
-        log.trace('Updating output {}'.format(name))
-        self._outputs[name].update(self)
-
     def ai_callback(self, name, data):
         log.trace('Acquired {} samples from {}'.format(data.shape, name))
         parameters = {'name': name, 'data': data}
@@ -383,3 +401,16 @@ class BasePlugin(Plugin):
 
     def set_pause_ok(self, value):
         self._pause_ok = value
+
+    def start_timer(self, name, duration, callback):
+        timer = QTimer()
+        timer.timeout.connect(callback)
+        timer.setSingleShot(True)
+        timer.start(duration*1e3)
+        self._timers[name] = timer
+
+    def stop_timer(self, name):
+        if self._timers.get(name) is not None:
+            self._timers[name].timeout.disconnect()
+            self._timers[name].stop()
+            del self._timers[name]

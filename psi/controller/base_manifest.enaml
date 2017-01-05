@@ -54,6 +54,13 @@ def find_items(workbench, which):
     return groups
 
 
+def find_actions(workbench, klass):
+    if klass is ExperimentState:
+        plugin = workbench.get_plugin('psi.controller')
+        return [ExperimentState(name=k) for k in plugin._outputs]
+    return []
+
+
 def start_experiment(event):
     controller = event.workbench.get_plugin('psi.controller')
     controller.prepare_experiment()
@@ -71,9 +78,14 @@ enamldef BaseManifest(PSIManifest): manifest:
     Extension:
         # Ensures that context group items are automatically created for the
         # outputs.
-        id = 'automatic_outputs'
+        id = 'automatic_context'
         point = 'psi.context.items'
         factory = find_items
+
+    Extension:
+        id = 'automatic_actions'
+        point = 'psi.controller.actions'
+        factory = find_actions
 
     ExtensionPoint:
         id = 'psi.controller.io'

@@ -48,9 +48,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
         id = 'actions'
         point = 'psi.controller.actions'
         rank = 100
-        ExperimentState:
-            # TODO: Automatically add states for epoch outputs?
-            name = 'exposure'
+
         ExperimentAction:
             event = 'experiment_prepare'
             command = 'psi.controller.prepare_epoch_output'
