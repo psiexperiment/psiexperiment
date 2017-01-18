@@ -18,15 +18,45 @@ from ...experiment_action import ExperimentAction
 PLUGIN_ID = 'psi.controller.action.pellet_dispenser' 
 
 
+def contribute_to_workspace(workbench, workspace):
+    plugin = workbench.get_plugin(PLUGIN_ID)
+    item = PelletDispenserDockItem(workspace.dock_area, 
+                                   plugin=plugin,
+                                   name='pellet_dispenser')
+    op = InsertItem(item=item.name, position='top')
+    deferred_call(workspace.dock_area.update_layout, op)
+
+
 def dispense_pellet(event):
-    controller = event.workbench.get_plugin('psi.controller')
-    output = controller.get_output('food_dispense_trigger')
-    output.fire()
+    plugin = event.workbench.get_plugin(PLUGIN_ID)
+    plugin.dispense_pellet()
+
+
+enamldef PelletDispenserDockItem(DockItem):
+
+    title = 'Pellet Dispenser' 
+    attr plugin
+
+    Container:
+        Label:
+            text << 'Pellets dispensed: {:d}'.format(plugin.pellets_dispensed)
+
+
+class PelletDispenserPlugin(Plugin):
+
+    pellets_dispensed = Int(0)
+
+    def dispense_pellet(self):
+        controller = self.workbench.get_plugin('psi.controller')
+        output = controller.get_output('food_dispense_trigger')
+        output.fire()
+        self.pellets_dispensed += 1
 
 
 enamldef PelletDispenserManifest(PluginManifest): manifest:
 
     id = PLUGIN_ID
+    factory = PelletDispenserPlugin
 
     Extension:
         id = 'commands'
@@ -46,6 +76,11 @@ enamldef PelletDispenserManifest(PluginManifest): manifest:
                 core.invoke_command(PLUGIN_ID + '.dispense_pellet')
             enabled <<  workbench.get_plugin('psi.controller').experiment_state \
                 not in ('initialized', 'stopped')
+
+    Extension:
+        id = 'pump_workspace'
+        point = 'psi.experiment.workspace'
+        factory = contribute_to_workspace
 
 
 enamldef AppetitivePelletDispenserActions(PSIManifest):
