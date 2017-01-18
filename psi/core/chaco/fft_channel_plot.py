@@ -16,7 +16,7 @@ class FFTChannelPlot(BaseChannelPlot):
 
     def _invalidate_data(self):
         self._data_cache_valid = False
-        self.invalidate_and_redraw()
+        self.deferred_redraw()
 
     def _data_changed(self, event):
         self._invalidate_data()

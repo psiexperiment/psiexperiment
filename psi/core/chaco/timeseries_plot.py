@@ -25,7 +25,7 @@ class TimeseriesPlot(ChannelPlot):
 
     def _current_time_changed(self, event):
         self._invalidate_screen()
-        self.request_redraw()
+        self.deferred_redraw()
 
     def _source_changed(self, old, new):
         super(TimeseriesPlot, self)._source_changed(old, new)
