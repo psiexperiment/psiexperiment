@@ -343,15 +343,28 @@ class AppetitivePlugin(BasePlugin):
             elif event == Event.hold_end:
                 log.debug('Animal maintained poke through hold period')
                 self.trial_state = TrialState.waiting_for_response
-                self.invoke_actions(Event.response_start.name, self.get_ts())
+                self.invoke_actions(Event.response_start.name, timestamp)
+                self.trial_info['response_start'] = timestamp
                 self.start_event_timer('response_duration',
-                                 Event.response_duration_elapsed)
+                                       Event.response_duration_elapsed)
 
         elif self.trial_state == TrialState.waiting_for_response:
             # If the animal happened to initiate a nose-poke during the hold
             # period above and is still maintaining the nose-poke, they have to
             # manually withdraw and re-poke for us to process the event.
-            if event in (Event.np_end, Event.digital_np_end):
+            if timestamp <= self.trial_info['response_start']:
+                # Since we monitor the nose-poke and reward in 100 msec chunks,
+                # it's theoretically possible for there to be an old nose-poke
+                # in the event queue with a timestamp earlier than the response
+                # window that hasn't been handled yet. See session 1 of G12.4
+                # at around 931 seconds.  We are processing the
+                # "response_start" event, but then we generate a "response_end"
+                # event because of a detected nose-poke that actually occurs
+                # *before* the response_start event. Thus, the response_end
+                # event is saved as occuring before the nose poke. This will be
+                # very rare but we need to catch this and discard.
+                pass
+            elif event in (Event.np_end, Event.digital_np_end):
                 # Record the time of nose-poke withdrawal if it is the first
                 # time since initiating a trial.
                 log.debug('Animal withdrew during response period')
