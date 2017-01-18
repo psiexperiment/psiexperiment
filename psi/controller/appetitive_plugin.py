@@ -114,13 +114,13 @@ class AppetitivePlugin(BasePlugin):
         '''
         Determine next trial type
         '''
-        try:
-            max_nogo = self.context.get_value('max_nogo')
-            go_probability = self.context.get_value('go_probability')
-            score = self.context.get_value('score')
-        except KeyError:
+        if self.trial == 1:
             self.trial_type = 'go_remind'
             return 'remind'
+
+        max_nogo = self.context.get_value('max_nogo')
+        go_probability = self.context.get_value('go_probability')
+        score = TrialScore(self.context.get_value('score'))
 
         if self._remind_requested:
             self.trial_type = 'go_remind'
@@ -284,7 +284,6 @@ class AppetitivePlugin(BasePlugin):
             log.debug('{} at {}'.format(event, timestamp))
             log.trace('Queuing handle_event')
             deferred_call(self._handle_event, event, timestamp)
-            #self._handle_event(event, timestamp)
         except Exception as e:
             log.exception(e)
             raise
