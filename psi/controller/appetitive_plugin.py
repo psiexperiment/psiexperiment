@@ -88,6 +88,9 @@ class AppetitivePlugin(BasePlugin):
     # Current number of consecutive nogos
     consecutive_nogo = Int(0)
 
+    # What was the result of the prior trial?
+    prior_score = Typed(TrialScore)
+
     # Used by the trial sequence selector to randomly select between go/nogo.
     rng = Typed(np.random.RandomState)
     trial_type = Unicode()
@@ -120,7 +123,6 @@ class AppetitivePlugin(BasePlugin):
 
         max_nogo = self.context.get_value('max_nogo')
         go_probability = self.context.get_value('go_probability')
-        score = TrialScore(self.context.get_value('score'))
 
         if self._remind_requested:
             self.trial_type = 'go_remind'
@@ -129,7 +131,7 @@ class AppetitivePlugin(BasePlugin):
         elif self.consecutive_nogo >= max_nogo:
             self.trial_type = 'go_forced'
             return 'go'
-        elif score == TrialScore.false_alarm:
+        elif self.prior_score == TrialScore.false_alarm:
             self.trial_type = 'nogo_repeat'
             return 'nogo'
         else:
@@ -189,6 +191,7 @@ class AppetitivePlugin(BasePlugin):
         self.context.set_values(self.trial_info)
         parameters ={'results': self.context.get_values()}
         self.core.invoke_command('psi.data.process_trial', parameters)
+        self.prior_score = score
 
         self.invoke_actions('trial_end', ts)
 
@@ -210,8 +213,7 @@ class AppetitivePlugin(BasePlugin):
         # Apply pending changes that way any parameters (such as repeat_FA or
         # go_probability) are reflected in determining the next trial type.
         if self._apply_requested:
-            self._apply_changes()
-
+            self._apply_changes(False)
         selector = self.next_selector()
         self.context.next_setting(selector, save_prior=True)
         self.invoke_actions('trial_prepare', self.get_ts())
@@ -239,8 +241,7 @@ class AppetitivePlugin(BasePlugin):
 
     def pause_experiment(self):
         if self.trial_state == TrialState.waiting_for_np_start:
-            #deferred_call(self._pause_experiment)
-            self._pause_experiment()
+            deferred_call(self._pause_experiment)
 
     def _pause_experiment(self):
         self.experiment_state = 'paused'
@@ -248,15 +249,15 @@ class AppetitivePlugin(BasePlugin):
 
     def apply_changes(self):
         if self.trial_state == TrialState.waiting_for_np_start:
-            #deferred_call(self._apply_changes)
-            self._apply_changes()
+            deferred_call(lambda: self._apply_changes(True))
 
-    def _apply_changes(self):
+    def _apply_changes(self, new_trial=False):
         self.context.apply_changes()
         self._apply_requested = False
-        selector = self.next_selector()
-        self.context.next_setting(selector, save_prior=False)
-        self.invoke_actions('trial_prepare', self.get_ts())
+        if new_trial:
+            selector = self.next_selector()
+            self.context.next_setting(selector, save_prior=False)
+            self.invoke_actions('trial_prepare', self.get_ts())
         log.debug('applied changes')
 
     def handle_event(self, event, timestamp=None):

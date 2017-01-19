@@ -28,9 +28,6 @@ class ChannelDataRange(BaseChannelDataRange):
     def _update_mode_changed(self):
         self.refresh()
 
-    def _update_current_time(self, event):
-        self._set_current_time(event['value'])
-
     def refresh(self, event=None):
         '''
         Keep this very simple.  The user cannot change low/high settings.  If

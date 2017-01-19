@@ -19,6 +19,12 @@ class BaseChannelPlot(BaseXYPlot):
     line_width = Float(1.0)
     line_style = LineStyle
 
+    def _data_changed(self):
+        self.deferred_redraw()
+
+    def _index_mapper_updated(self):
+        self.deferred_redraw()
+
     def _source_changed(self, old, new):
         # We need to call _update_index_mapper when fs changes since this
         # method precomputes the index value based on the sampling frequency of

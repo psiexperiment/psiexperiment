@@ -13,6 +13,9 @@ class BaseChannelDataRange(DataRange1D):
             self.current_time = time
             self.refresh()
 
+    def _update_current_time(self, event):
+        self._set_current_time(event['value'])
+
     def _data_added(self, event):
         self._set_current_time(event['value']['ub'])
 
