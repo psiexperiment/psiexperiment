@@ -1,0 +1,75 @@
+import os.path
+
+import numpy as np
+
+from enaml.workbench.api import PluginManifest, Extension
+
+from psi import get_config
+from psi.controller.engines.nidaq import NIDAQEngine
+from psi.controller.api import (AIChannel, AOChannel, ExperimentAction,
+                                Trigger, Toggle, DOChannel, Input)
+
+from psi.controller.input import (Downsample, IIRFilter, Threshold, Edges,
+                                  CalibratedInput, RMS, SPL)
+
+from psi.controller.calibration import GolayCalibration, FlatCalibration
+from psi.controller.calibration.util import db
+
+cal_root = get_config('CAL_ROOT')
+filename = os.path.join(cal_root, '161219 - Golay noise exposure D220TI speaker 1.cal')
+
+
+enamldef IOManifest(PluginManifest): manifest:
+    '''
+    This defines the hardware connections that are specific to the LBHB Bobcat
+    computer for the appetitive experiment.
+    '''
+    Extension:
+        id = 'backend'
+        point = 'psi.controller.io'
+
+        NIDAQEngine:
+            name = 'NI'
+            master_clock = True
+            
+            hw_ai_monitor_period = 0.1
+            hw_ao_monitor_period = 1
+
+            AOChannel:
+                label = 'Noise exposure speaker'
+                name = 'speaker'
+                channel = 'Dev1/ao1'
+                fs = 25e3
+                expected_range = (-10, 10)
+                dtype = np.dtype('float64')
+                terminal_mode = 'RSE'
+                # Note that this is a hand-correction added to fix the problem
+                # I'm having getting the output to match my desired SPL. We'll
+                # need to explore the fix eventually.
+                #calibration = \
+                #    GolayCalibration.from_file(filename, fixed_gain=-20+2.55)
+                calibration = \
+                    GolayCalibration.from_file(filename, fixed_gain=-56+2.55)
+
+            AIChannel:
+                label = 'Sparkfun Microphone'
+                name = 'microphone'
+                channel = 'Dev1/ai2'
+                #channel = 'Dev1/ai0'
+                start_trigger = 'ao/StartTrigger'
+                fs = 25e3
+                expected_range = (-10, 10)
+                dtype = np.dtype('float64')
+                terminal_mode = 'differential'
+
+                # When using the Sparkfun microphone. The fixed gain is a
+                # hand-correction to compensate for slight differences in this
+                # microphone calibration and ensure it matches the reference
+                # calibration.
+                calibration = FlatCalibration(db(0.5224), fixed_gain=5.4)
+
+                # When using the PCB microphone.
+                #calibration = FlatCalibration(db(28.92e-3))
+
+                CalibratedInput:
+                    name = 'microphone'
