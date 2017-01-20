@@ -193,6 +193,13 @@ class ContextPlugin(Plugin):
     def _get_iterators(self):
         return {k: v.get_iterator() for k, v in self.selectors.items()}
 
+    def iter_settings(self, iterator, cycles=None):
+        selector = self.selectors[iterator].get_iterator(cycles=cycles)
+        for expressions in selector:
+            self._namespace.reset()
+            self._namespace.update_expressions(expressions)
+            yield self.get_values()
+
     def get_item_info(self, item_name):
         item = self.context_items[item_name]
         return {
@@ -293,7 +300,6 @@ class ContextPlugin(Plugin):
         self._context_expressions = self._get_all_expressions()
         self._selectors = deepcopy(self.selectors)
         self._roving_items = deepcopy(self.roving_items)
-
         self._namespace.update_expressions(self._get_expressions())
         self._namespace.update_symbols(self.symbols)
         self._iterators = self._get_iterators()

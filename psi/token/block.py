@@ -62,14 +62,18 @@ class Block(Declarative):
             result.children.append(copy.copy(c))
         return result
 
-    def initialize_generator(self, **context):
-        inputs = [b.initialize_generator(**context) for b in self.blocks]
+    def initialize_factory(self, context):
+        inputs = [b.initialize_generator(context) for b in self.blocks]
         # Map the global name (e.g., as shown in the context plugin) to the
         # block name.
         bc = {bn: context[gn] for gn, bn in self.context_name_map.items()}
         bc['fs'] = context['fs']
         bc['calibration'] = context['calibration']
-        self._block_context = bc
-        generator = self.factory(inputs=inputs, **bc)
+        bc['inputs'] = inputs
+        return lambda: self.factory(**bc)
+
+    def initialize_generator(self, context):
+        factory = self.initialize_factory(context)
+        generator = factory()
         generator.next()
         return generator

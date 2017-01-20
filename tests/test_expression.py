@@ -1,3 +1,5 @@
+import pytest
+
 import unittest
 import numpy as np
 
@@ -114,10 +116,11 @@ class ANT(Atom):
         super(ANT, self).__init__(*args, **kwargs)
 
     def mark_observed(self, event):
-        print event
         self.observed = True
 
 
+@pytest.mark.skip(reason='disabled notification for value change ' \
+                  'since this produced high overhead')
 class TestAtomNotification(unittest.TestCase):
 
     def setUp(self):

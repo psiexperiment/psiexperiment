@@ -18,7 +18,8 @@ from ..util import rpc
 from .base_plugin import BasePlugin
 from .output import AnalogOutput
 from .output_view import OutputDockItem
-from .experiment_action import ExperimentState, ExperimentAction
+from .experiment_action import (ExperimentState, ExperimentEvent,
+                                ExperimentAction)
 
 
 def _contribute_outputs(workbench, workspace):

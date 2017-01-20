@@ -1,10 +1,12 @@
+import numpy as np
+
 import itertools
 import operator
 import collections
 from copy import deepcopy
 
-from atom.api import ContainerList, Typed, Enum, Event
-from enaml.core.declarative import Declarative
+from atom.api import ContainerList, Typed, Enum, Event, Bool
+from enaml.core.declarative import Declarative, d_
 
 from . import choice
 from .plugin import ContextPlugin
@@ -42,8 +44,11 @@ class SingleSetting(BaseSelector):
             self.setting[item_name] = self.get_item_info(item_name, 'default')
         super(SingleSetting, self).append_item(item_name)
 
-    def get_iterator(self):
-        return itertools.cycle([self.setting.copy()])
+    def get_iterator(self, cycles=None):
+        if cycles is None:
+            return itertools.cycle([self.setting.copy()])
+        else:
+            return [self.setting.copy()]*cycle
 
     def get_value(self, item_name):
         return self.setting[item_name]
@@ -93,7 +98,7 @@ class SequenceSelector(BaseSelector):
         self.settings.sort()
         self.updated = True
 
-    def get_iterator(self):
+    def get_iterator(self, cycles=None):
         # Some selectors need to sort the settings. To make sure that the
         # selector sorts the parameters in the order the columns are specified,
         # we need to use an OrderedDict.
@@ -103,10 +108,13 @@ class SequenceSelector(BaseSelector):
             for item_name in self.context_items:
                 ordered_setting[item_name] = setting[item_name]
             ordered_settings.append(ordered_setting)
-        return self.order(ordered_settings)
+        if cycles is None:
+            return self.order(ordered_settings)
+        else:
+            return self.order(ordered_settings, cycles)
 
     def set_value(self, setting_index, item_name, value):
-        dtype = self.get_item_info(item_name, 'dtype')
+        dtype = np.dtype(self.get_item_info(item_name, 'dtype'))
         self.settings[setting_index][item_name] = dtype.type(value)
         self.updated = True
 

@@ -1,13 +1,69 @@
+from atom.api import Typed
+
 from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
 
 from psi.context.api import ContextGroup, Parameter, SequenceSelector
+from psi.controller.api import EpochOutput, ExperimentAction
 
 from .base_manifest import BaseManifest
+from .base_plugin import BasePlugin
+from .queue import AbstractSignalQueue, FIFOSignalQueue
+
+from psi.data.plots import (TimeContainer, ChannelPlot, TimeseriesPlot,
+                            ExtremesChannelPlot, FFTContainer, FFTChannelPlot)
+
+import time
+
+
+def queue_trials(event):
+    plugin = event.workbench.get_plugin('psi.controller')
+    plugin.queue_trials()
+
+
+def queue_callback(output, queue):
+    offset = 0
+    engine = output.engine
+    channel = output.channel
+    while True:
+        yield
+        samples = engine.get_buffered_samples(channel.name, offset)
+        waveform, empty = queue.pop_buffer(samples)
+        engine.modify_hw_ao(waveform, offset, output.name)
+        offset += len(waveform)
+
+
+class PassivePlugin(BasePlugin):
+
+    queue = Typed(AbstractSignalQueue)
+
+    def queue_trials(self):
+        queues = {}
+        for output in self._outputs.values():
+            if isinstance(output, EpochOutput):
+                queue = FIFOSignalQueue()
+                queues[output] = queue
+                cb = queue_callback(output, queue)
+                cb.next()
+                output.engine.register_ao_callback(cb.next,
+                                                   output.channel.name)
+
+        for setting in self.context.iter_settings('default', 1):
+            for output, queue in queues.iteritems():
+                factory = output.initialize_factory(setting)
+                queue.append(factory, 10)
 
 
 enamldef PassiveManifest(BaseManifest): manifest:
 
-    #factory = PassivePlugin
+    factory = PassivePlugin
+
+    Extension:
+        id = 'new_commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = 'psi.controller.queue_trials'
+            handler = queue_trials
 
     Extension:
         id = 'items'
@@ -32,7 +88,53 @@ enamldef PassiveManifest(BaseManifest): manifest:
             scope = 'experiment'
 
     Extension:
+        id = 'io'
+        point = 'psi.controller.io'
+
+        EpochOutput:
+            name = 'target'
+            label = 'Target'
+            target_name = 'speaker'
+
+    Extension:
         id = 'selectors'
         point = 'psi.context.selectors'
         SequenceSelector:
             name = 'default'
+
+    Extension:
+        id = 'actions'
+        point = 'psi.controller.actions'
+        rank = 100
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'psi.controller.queue_trials'
+
+    Extension:
+        id = 'plots'
+        point = 'psi.data.plots'
+
+        FFTContainer:
+            name = 'fft_plot_container'
+            title = 'FFT'
+            freq_lb = 0.1e3 
+            freq_ub = 10e3
+
+            FFTChannelPlot:
+                source = 'microphone'
+                line_color = (0, 0, 0)
+                value_range = (0, 100)
+                time_span = 1
+                axis_label = 'Level (dB SPL)'
+                reference = 20e-6
+
+        TimeContainer:
+            name = 'trial_plot_container' 
+            title = 'Trial timing'
+            trig_delay = 0
+            span = 20
+
+            ExtremesChannelPlot:
+               source = 'microphone'
+               line_color = (0, 0, 0)
+               value_range = (-1, 1)

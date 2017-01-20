@@ -71,6 +71,18 @@ class AnalogOutput(Output):
     def configure(self, plugin):
         pass
 
+    def initialize_factory(self, context):
+        context = context.copy()
+        context['fs'] = self.channel.fs
+        context['calibration'] = self.channel.calibration
+        return self._token.initialize_factory(context)
+
+    def initialize_generator(self, context):
+        factory = self.initialize_factory(context)
+        generator = factory()
+        generator.next()
+        return generator
+
 
 class EpochCallback(object):
 
@@ -119,9 +131,7 @@ class EpochOutput(AnalogOutput):
         in advance rather than just before we actually want the signal played.
         '''
         # Load the context from the plugin if not provided already.
-        context['fs'] = self.channel.fs
-        context['calibration'] = self.channel.calibration
-        generator = self._token.initialize_generator(**context)
+        generator = self.initialize_generator(context)
         cb = EpochCallback(self, generator)
         self._cb = cb
         self._duration = self._token.get_duration(context)
@@ -161,9 +171,7 @@ class ContinuousOutput(AnalogOutput):
     def configure(self, plugin):
         log.debug('Configuring continuous output {}'.format(self.name))
         context = plugin.context.get_values()
-        context['fs'] = self.channel.fs
-        context['calibration'] = self.channel.calibration
-        generator = self._token.initialize_generator(**context)
+        generator = self.initialize_generator(context)
         cb = continuous_callback(self, generator)
         cb.next()
         self.engine.register_ao_callback(cb.next, self.channel.name)

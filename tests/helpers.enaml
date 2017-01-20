@@ -1,14 +1,14 @@
 import numpy as np
 
 from enaml.workbench.api import Extension, Plugin
-from psi.context.api import (ContextGroup, Parameter, Result,
-                                       Parameter, SequenceSelector)
-from psi.controller.base_manifest import ControllerManifest
+from psi.context.api import (ContextGroup, Parameter, Result, Parameter,
+                             SequenceSelector)
+from psi.controller.base_manifest import BaseManifest
 
 
 PLUGIN_ID = 'psi.controller'
 
-enamldef TestManifest(ControllerManifest): manifest:
+enamldef TestManifest(BaseManifest): manifest:
 
 
     id = PLUGIN_ID
@@ -21,23 +21,17 @@ enamldef TestManifest(ControllerManifest): manifest:
 
         Parameter:
             name = 'repetitions'
-            expression = '80'
-            dtype = np.int32
+            default = 80
             group = 'default'
-            rove = True
-            scope = 'trial'
         Parameter:
             name = 'level'
-            expression = '60'
-            dtype = np.float64
+            default = 60.0
             group = 'default'
-            scope = 'trial'
         Parameter:
             name = 'fc'
             expression = '32e3/repetitions'
-            dtype = np.float64
+            dtype = 'float64'
             group = 'default'
-            scope = 'trial'
 
     Extension:
         id = 'selectors'

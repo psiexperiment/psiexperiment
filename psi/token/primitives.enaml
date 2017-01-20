@@ -98,6 +98,13 @@ def cos2envelope_factory(fs, start_time, rise_time, duration, calibration,
         token = input.send(kwargs)
         waveform = envelope*token
         offset += len(waveform)
+        remaining = epoch_samples-offset
+        if remaining <= 0:
+            complete = True
+            if remaining < 0:
+                # Trim off the extra samples from waveform if we requested too
+                # many
+                waveform = waveform[:remaining]
         complete = offset >= epoch_samples
 
 

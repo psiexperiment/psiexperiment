@@ -1,3 +1,5 @@
+import pytest
+
 import unittest
 from copy import deepcopy
 
@@ -11,34 +13,29 @@ class TestSettingSequence(unittest.TestCase):
 
     def setUp(self):
         self.parameters = [
-            Parameter(name='a', dtype=np.float32, expression='1',
-                      scope='trial'),
-            Parameter(name='b', dtype=np.float32, expression='1',
-                      scope='trial'),
-            Parameter(name='c', dtype=np.float32, expression='1',
-                      scope='trial'),
-            Parameter(name='d', dtype=np.float32, expression='1',
-                      scope='trial'),
-            Parameter(name='e', dtype=np.float32, expression='1',
-                      scope='trial'),
+            Parameter(name='a', default=1.0),
+            Parameter(name='b', default=1.0),
+            Parameter(name='c', default=1.0),
+            Parameter(name='d', default=1.0),
+            Parameter(name='e', default=1.0),
         ]
         self.selector = SequenceSelector()
         for parameter in self.parameters:
-            self.selector.append_parameter(parameter)
+            self.selector.append_item(parameter.name)
         self.names = [p.name for p in self.parameters]
 
     def test_selector_append(self):
-        self.assertEqual(len(self.selector.parameters), len(self.parameters))
+        self.assertEqual(len(self.selector.context_items), len(self.parameters))
 
     def test_selector_remove(self):
         which = 1
-        self.selector.remove_parameter(self.parameters[which])
-        self.assertEqual(len(self.selector.parameters), len(self.parameters)-1)
+        self.selector.remove_item(self.parameters[which].name)
+        self.assertEqual(len(self.selector.context_items), len(self.parameters)-1)
         expected_names = self.names[:]
         expected_names.pop(which)
-        names = [p.name for p in self.selector.parameters]
-        self.assertEqual(expected_names, names)
+        self.assertEqual(expected_names, self.selector.context_items)
 
+    @pytest.mark.skip(reason='Implementation was removed')
     def test_selector_move(self):
         self.selector.move_parameter(self.parameters[1])
         names = [p.name for p in self.selector.parameters]
@@ -55,6 +52,7 @@ class TestSettingSequence(unittest.TestCase):
         expected_names = [u'b', u'a', u'c', u'd', u'e']
         self.assertEqual(expected_names, names)
 
+    @pytest.mark.skip(reason='requires context plugin to be present')
     def test_deepcopy_equality(self):
         c1 = deepcopy(self.selector.__getstate__())
         self.selector.add_setting({'a': 4, 'b': 5})
