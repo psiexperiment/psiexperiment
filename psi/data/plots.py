@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 from atom.api import Unicode, Float, Tuple, Int
 from enaml.core.api import Declarative, d_
 
@@ -68,6 +71,7 @@ class ChannelPlot(Plot):
     axis_label = d_(Unicode())
 
     def create_plot(self, plugin, index_mapper):
+        log.info('Creating channel plot for {}'.format(self.source))
         from psi.core.chaco.api import ChannelPlot
         source = plugin.find_source(self.source)
         index_mapper.range.sources.append(source)
@@ -89,6 +93,7 @@ class ExtremesChannelPlot(ChannelPlot):
     decimation_threshold = d_(Int(5))
 
     def create_plot(self, plugin, index_mapper):
+        log.info('Creating extremes channel plot for {}'.format(self.source))
         from psi.core.chaco.api import ExtremesChannelPlot
         source = plugin.find_source(self.source)
         index_mapper.range.sources.append(source)
@@ -110,6 +115,8 @@ class TimeseriesPlot(Plot):
     rect_height = d_(Float())
 
     def create_plot(self, plugin, index_mapper):
+        m = 'Creating timeseries plot for {} with events {} and {}'
+        log.info(m.format(self.source, self.rising_event, self.falling_event))
         from psi.core.chaco.api import TimeseriesPlot
         source = plugin.find_source(self.source)
         index_mapper.range.sources.append(source)

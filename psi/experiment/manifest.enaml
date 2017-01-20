@@ -86,9 +86,11 @@ def refresh_workspace(event, plugin_ids=None):
 
 
 def save_preferences(event):
-    file_name = FileDialogEx.get_save_file_name(**preferences_fd_kwargs)
-    if file_name:
-        _save_preferences(event, file_name)
+    filename = event.parameters.get('filename', None)
+    if filename is None:
+        filename = FileDialogEx.get_save_filename(**preferences_fd_kwargs)
+    if filename:
+        _save_preferences(event, filename)
 
 
 def _save_preferences(event, file_name):
@@ -101,9 +103,11 @@ def _save_preferences(event, file_name):
 
 
 def load_preferences(event):
-    file_name = FileDialogEx.get_open_file_name(**preferences_fd_kwargs)
-    if file_name:
-        _load_preferences(event, file_name)
+    filename = event.parameters.get('filename', None)
+    if filename is None:
+        filename = FileDialogEx.get_open_file_name(**preferences_fd_kwargs)
+    if filename:
+        _load_preferences(event, filename)
 
 
 def _load_preferences(event, file_name):
@@ -246,6 +250,7 @@ enamldef ExperimentManifest(PluginManifest):
             label = 'Revert to default'
             command = 'psi.get_default_preferences'
             group = 'preferences_default'
+
 
     ExtensionPoint:
         id = 'toolbar'

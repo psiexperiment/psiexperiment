@@ -4,6 +4,8 @@ from enaml.layout.api import InsertItem
 from enaml.workbench.api import Extension, PluginManifest, ExtensionPoint
 from enaml.workbench.core.api import Command
 
+from psi.controller.api import ExperimentAction
+
 from .plugin import DataPlugin
 
 
@@ -85,6 +87,16 @@ enamldef DataManifest(PluginManifest): manifest:
         Command:
             id = PLUGIN_ID + '.set_current_time'
             handler = set_current_time
+
+    Extension:
+        id = 'actions'
+        point = 'psi.controller.actions'
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'psi.data.prepare'
+        ExperimentAction:
+            event = 'experiment_end'
+            command = 'psi.data.finalize'
 
     Extension:
         id = 'workspace'

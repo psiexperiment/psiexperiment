@@ -13,7 +13,6 @@ import numpy as np
 import bcolz
 
 from psi.core.utils import find_extension
-from psi.controller.api import ExperimentAction
 
 from ..abstract_store.store import AbstractStore
 
@@ -42,7 +41,7 @@ class BColzStore(AbstractStore):
             self._channels[name].append(data)
 
     def _get_filename(self, name):
-        if self.base_path is not None:
+        if self.base_path != '<memory>':
             return os.path.join(self.base_path, name)
         else:
             return None
@@ -78,14 +77,16 @@ class BColzStore(AbstractStore):
             carray.attrs['engine_' + name] = value
         return carray
 
-    def finalize(self):
+    def finalize(self, workbench):
         log.debug('Flushing all data to disk')
         for channel in self._channels.values():
             channel.data.flush()
-
-    def stop(self):
-        # TODO:
-        pass
+        if self.base_path != '<memory>':
+            cmd = 'psi.save_preferences'
+            filename = os.path.join(self.base_path, 'final')
+            params = {'filename': filename}
+            core = workbench.get_plugin('enaml.workbench.core')
+            core.invoke_command(cmd, params)
 
 
 def prepare_filesystem(event):
@@ -100,6 +101,7 @@ def prepare_filesystem(event):
     if dirname == '<memory>':
         m = 'All data will be destroyed at end of experiment'
         log.warn(m)
+        extension.base_path = '<memory>'
     else:
         base_path = os.path.join(dirname, experiment)
         if not os.path.exists(base_path):
@@ -127,16 +129,3 @@ enamldef BColzStoreManifest(PluginManifest): manifest:
         Command:
             id = PLUGIN_ID + '.prepare_filesystem'
             handler = prepare_filesystem
-
-    Extension:
-        id = 'actions'
-        point = 'psi.controller.actions'
-        #ExperimentAction:
-        #    event = 'application_prepare'
-        #    command = 'psi.data.bcolz.prepare_filesystem'
-        ExperimentAction:
-            event = 'experiment_prepare'
-            command = 'psi.data.prepare'
-        ExperimentAction:
-            event = 'experiment_end'
-            command = 'psi.data.finalize'

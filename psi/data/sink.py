@@ -25,7 +25,7 @@ class Sink(Declarative):
     def prepare(self, plugin):
         pass
 
-    def finalize(self):
+    def finalize(self, workbench):
         pass
 
     def set_current_time(self, name, timestamp):

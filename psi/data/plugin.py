@@ -106,7 +106,7 @@ class DataPlugin(Plugin):
 
     def finalize(self):
         for sink in self._sinks:
-            sink.finalize()
+            sink.finalize(self.workbench)
 
     def process_trial(self, results):
         self.trial_log = self.trial_log.append(results, ignore_index=True)
@@ -123,9 +123,6 @@ class DataPlugin(Plugin):
 
     def process_ai(self, name, data):
         for sink in self._sinks:
-            #if __debug__:
-            #    log.trace('Sending {} samples from {} to {}' \
-            #              .format(data.shape, name, sink))
             sink.process_ai(name, data)
 
     def set_current_time(self, name, timestamp):
