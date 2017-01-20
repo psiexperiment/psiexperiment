@@ -4,6 +4,9 @@ log = logging.getLogger(__name__)
 import faulthandler
 faulthandler.enable()
 
+import traceback
+import warnings
+import sys
 import re
 import argparse
 import os.path
@@ -122,6 +125,14 @@ def configure_logging(filename=None):
     logging.config.dictConfig(logging_config)
 
 
+def warn_with_traceback(message, category, filename, lineno, file=None,
+                        line=None):
+    traceback.print_stack()
+    log = file if hasattr(file,'write') else sys.stderr
+    m = warnings.formatwarning(message, category, filename, lineno, line)
+    log.write(m)
+
+
 def main():
     parser = argparse.ArgumentParser(description='Run experiment')
     parser.add_argument('experiment', type=str, help='Experiment to run',
@@ -142,11 +153,18 @@ def main():
             os.makedirs(new_path)
 
     if args.debug:
+        # Show debugging information. This includes full tracebacks for
+        # warnings.
         dt_string = dt.datetime.now().strftime('%Y-%m-%d %H%M') 
         filename = '{} {}'.format(dt_string, args.experiment)
         log_root = get_config('LOG_ROOT')
         configure_logging(os.path.join(log_root, filename))
         log.debug('Logging configured')
+        warnings.showwarning = warn_with_traceback
+    else:
+        # This suppresses a FutureWarning in the Chaco library that we don't
+        # really need to deal with at the moment.
+        warnings.simplefilter(action="ignore", category=FutureWarning)
 
     experiment_description = experiment_descriptions[args.experiment]
     manifests = application.get_manifests(experiment_description['manifests'])
@@ -159,15 +177,16 @@ def main():
 
     cmd = 'psi.data.bcolz_store.prepare_filesystem'
     parameters = {'pathname': args.pathname, 'experiment': args.experiment}
+
     core.invoke_command(cmd, parameters)
     ui = workbench.get_plugin('enaml.workbench.ui')
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')
         ui.show_window()
 
-    # We need to use deferred call to ensure these commands are invoked
-    # *after* the application is started (the application needs to load the
-    # plugins first).
+    # We need to use deferred call to ensure these commands are invoked *after*
+    # the application is started (the application needs to load the plugins
+    # first).
     deferred_call(core.invoke_command, 'psi.get_default_preferences')
     deferred_call(core.invoke_command, 'psi.get_default_layout')
     ui.start_application()
