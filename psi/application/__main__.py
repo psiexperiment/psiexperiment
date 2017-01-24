@@ -160,6 +160,7 @@ def main():
         log_root = get_config('LOG_ROOT')
         configure_logging(os.path.join(log_root, filename))
         log.debug('Logging configured')
+        log.info('Logging information captured in {}'.format(filename))
         warnings.showwarning = warn_with_traceback
     else:
         # This suppresses a FutureWarning in the Chaco library that we don't
