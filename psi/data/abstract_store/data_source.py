@@ -38,6 +38,8 @@ class EventDataTable(DataTable):
         }
 
     def get_epochs(self, start_event, end_event, lb, ub):
+        m = 'Getting epochs for {} and {}'
+        log.debug(m.format(start_event, end_event))
         query = 'event == "{e}"' 
         column = 'timestamp'
         starts = self.query(query, {'e': start_event}, column)

@@ -65,9 +65,11 @@ class Event(enum.Enum):
 
     to_start = 'timeout started'
     to_end = 'timeout over'
+    to_duration_elapsed = 'timeout duration elapsed'
 
     iti_start = 'ITI started'
     iti_end = 'ITI over'
+    iti_duration_elapsed = 'ITI duration elapsed'
 
     trial_start = 'trial start'
     trial_end = 'trial end'
@@ -198,14 +200,14 @@ class AppetitivePlugin(BasePlugin):
         if score == TrialScore.false_alarm:
             self.trial_state = TrialState.waiting_for_to
             self.invoke_actions(Event.to_start.name, ts)
-            self.start_event_timer('to_duration', Event.to_end)
+            self.start_event_timer('to_duration', Event.to_duration_elapsed)
         else:
             if score == TrialScore.hit:
                 if not self.context.get_value('training_mode'):
                     self.invoke_actions('deliver_reward', ts)
             self.trial_state = TrialState.waiting_for_iti
             self.invoke_actions(Event.iti_start.name, ts)
-            self.start_event_timer('iti_duration', Event.iti_end)
+            self.start_event_timer('iti_duration', Event.iti_duration_elapsed)
 
         self.trial_info = {}
         self.trial += 1
@@ -393,20 +395,22 @@ class AppetitivePlugin(BasePlugin):
                 self.end_trial(response='no response')
 
         elif self.trial_state == TrialState.waiting_for_to:
-            if event == Event.to_end:
+            if event == Event.to_duration_elapsed:
                 # Turn the light back on
                 self.trial_state = TrialState.waiting_for_iti
+                self.invoke_actions(Event.to_end.name, timestamp)
                 self.invoke_actions(Event.iti_start.name, self.get_ts())
-                self.start_event_timer('iti_duration', Event.iti_end)
+                self.start_event_timer('iti_duration', Event.iti_duration_elapsed)
             elif event in (Event.reward_start, Event.np_start,
                            Event.digital_np_start):
                 # Animal repoked. Reset timeout duration.
                 log.debug('Resetting timeout duration')
                 self.stop_event_timer()
-                self.start_event_timer('to_duration', Event.to_end)
+                self.start_event_timer('to_duration', Event.to_duration_elapsed)
 
         elif self.trial_state == TrialState.waiting_for_iti:
-            if event == Event.iti_end:
+            if event == Event.iti_duration_elapsed:
+                self.invoke_actions(Event.iti_end.name, timestamp)
                 if self._pause_requested:
                     self.pause_experiment()
                     self.trial_state = TrialState.waiting_for_resume

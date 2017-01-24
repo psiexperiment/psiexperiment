@@ -259,6 +259,10 @@ enamldef AppetitiveManifest(BaseManifest): manifest:
         ExperimentEvent:
             name = 'response_duration_elapsed'
         ExperimentEvent:
+            name = 'iti_duration_elapsed'
+        ExperimentEvent:
+            name = 'to_duration_elapsed'
+        ExperimentEvent:
             name = 'deliver_reward'
         ExperimentEvent:
             # TODO: Move this to the base plugin?
