@@ -96,7 +96,7 @@ class Engine(SimpleState, Declarative):
         # (i.e., this should minimize function overhead)? NOTE: calling the
         # function without offset argument means that it appends to the end of
         # the existing buffer.
-        self.write_hw_ao(data)
+        self.write_hw_ao(data, timeout=1)
 
         # The data will be provided in 2D form (channel, sample), but we need
         # to expand this to the 3D form of (channel, output, sample) where the
@@ -135,7 +135,7 @@ class Engine(SimpleState, Declarative):
         oi = self.hw_ao_buffer_map[output_name]
         self.hw_ao_buffer[:, oi, lb:ub] = data
         combined_data = self.hw_ao_buffer[..., lb:].sum(axis=1)
-        self.write_hw_ao(combined_data, offset)
+        self.write_hw_ao(combined_data, offset, timeout=1)
 
     def get_buffered_samples(self, channel_name, offset=0):
         buffer_offset = offset-self.hw_ao_buffer_offset
