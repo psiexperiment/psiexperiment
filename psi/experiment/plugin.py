@@ -113,5 +113,8 @@ class ExperimentPlugin(Plugin):
     def set_preferences(self, state):
         for name, s in state.items():
             log.debug('Setting preferences for {}'.format(name))
-            preference = self._preferences[name]
-            preference.set_preferences(self.workbench, s)
+            try:
+                preference = self._preferences[name]
+                preference.set_preferences(self.workbench, s)
+            except KeyError as e:
+                log.warn(e)

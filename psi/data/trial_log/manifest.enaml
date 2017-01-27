@@ -57,19 +57,20 @@ enamldef TrialLogDockItem(DockItem):
             column_info << data_plugin.context_info
 
             cell_color => (row, column):
-                tt = dataframe.at[row, 'trial_type']
-                if tt == 'go_remind':
-                    return 'forestgreen'
-                elif tt == 'go':
-                    return 'lightgreen'
-                elif tt == 'go_forced':
-                    return 'green'
-                elif tt == 'nogo':
-                    return 'lightpink'
-                elif tt == 'nogo_repeat':
-                    return 'pink'
-                else:
-                    return 'white'
+                # TODO: A bit of a hack here ...
+                if 'trial_type' in dataframe:
+                    tt = dataframe.at[row, 'trial_type']
+                    if tt == 'go_remind':
+                        return 'forestgreen'
+                    elif tt == 'go':
+                        return 'lightgreen'
+                    elif tt == 'go_forced':
+                        return 'green'
+                    elif tt == 'nogo':
+                        return 'lightpink'
+                    elif tt == 'nogo_repeat':
+                        return 'pink'
+                return 'white'
 
 
 def contribute_to_workspace(workbench, workspace):

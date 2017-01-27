@@ -1,5 +1,9 @@
+import logging
+log = logging.getLogger(__name__)
+
 from atom.api import Typed
 
+from enaml.application import deferred_call
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 
@@ -28,6 +32,8 @@ def queue_callback(output, queue):
     while True:
         yield
         samples = engine.get_buffered_samples(channel.name, offset)
+        samples = min(samples, 100e3)
+        log.debug('Generating {} samples from queue'.format(samples))
         waveform, empty = queue.pop_buffer(samples)
         engine.modify_hw_ao(waveform, offset, output.name)
         offset += len(waveform)
@@ -35,13 +41,17 @@ def queue_callback(output, queue):
 
 class PassivePlugin(BasePlugin):
 
-    queue = Typed(AbstractSignalQueue)
+    queues = Typed(dict)
+    setting_map = Typed(dict)
 
     def queue_trials(self):
+        averages = self.context.get_value('averages')
+        iti_duration = self.context.get_value('iti_duration')
         queues = {}
+        setting_map = {}
         for output in self._outputs.values():
             if isinstance(output, EpochOutput):
-                queue = FIFOSignalQueue()
+                queue = FIFOSignalQueue(self.trial_uploaded)
                 queues[output] = queue
                 cb = queue_callback(output, queue)
                 cb.next()
@@ -49,9 +59,24 @@ class PassivePlugin(BasePlugin):
                                                    output.channel.name)
 
         for setting in self.context.iter_settings('default', 1):
+            #setting.pop('averages')
+            #setting.pop('iti_duration')
             for output, queue in queues.iteritems():
                 factory = output.initialize_factory(setting)
-                queue.append(factory, 10)
+                key = queue.append(factory, averages, iti_duration)
+                setting_map[key] = output, setting
+
+        self.queues = queues
+        self.setting_map = setting_map
+
+    def trial_uploaded(self, key, samples):
+        deferred_call(self._trial_uploaded, key, samples)
+
+    def _trial_uploaded(self, key, samples):
+        output, setting = self.setting_map[key]
+        setting['start_time'] = samples/output.fs
+        parameters = {'results': setting}
+        self.core.invoke_command('psi.data.process_trial', parameters)
 
 
 enamldef PassiveManifest(BaseManifest): manifest:

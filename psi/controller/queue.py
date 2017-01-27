@@ -129,7 +129,7 @@ class AbstractSignalQueue(object):
                 self._generator = data['factory']()
                 self._generator.next()
                 self._delay = data['delays'].next()
-                print key, self._samples
+                self._notifier(key, self._samples)
             except QueueEmptyError:
                 queue_empty = True
 
@@ -138,7 +138,9 @@ class AbstractSignalQueue(object):
                 self.pop_buffer(samples, padding_size, decrement)
             waveforms.append(waveform)
 
-        return np.concatenate(waveforms, axis=-1), queue_empty
+        waveform = np.concatenate(waveforms, axis=-1) 
+        log.trace('Generated {} samples'.format(waveform.shape))
+        return waveform, queue_empty
 
 
 class FIFOSignalQueue(AbstractSignalQueue):

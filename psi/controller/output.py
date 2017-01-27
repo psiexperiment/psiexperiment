@@ -27,6 +27,7 @@ class Output(Declarative):
     channel = Property()
     target = Property()
     engine = Property()
+    fs = Property()
 
     # TODO: clean this up. it's sort of hackish.
     _token_name = Unicode()
@@ -54,6 +55,9 @@ class Output(Declarative):
                 return parent
             else:
                 parent = parent.parent
+
+    def _get_fs(self):
+        return self.channel.fs
 
 
 class AnalogOutput(Output):
@@ -161,6 +165,7 @@ def continuous_callback(output, generator):
     while True:
         yield
         samples = engine.get_space_available(channel.name, offset)
+        log.debug('Generating {} samples for {}'.format(samples, channel.name))
         waveform = generator.send({'samples': samples})
         engine.append_hw_ao(waveform)
         offset += len(waveform)

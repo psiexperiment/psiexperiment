@@ -29,7 +29,7 @@ experiment_descriptions = {
         'manifests': [
             #'psi.application.experiment.test.ControllerManifest',
             'psi.controller.passive_manifest.PassiveManifest',
-            'psi.data.trial_log.manifest.TrialLogManifest',
+            'psi.data.passive_trial_log.manifest.PassiveTrialLogManifest',
             'psi.data.event_log.manifest.EventLogManifest',
             data_store_manifest,
         ]

@@ -382,12 +382,6 @@ class BasePlugin(Plugin):
     def pause_experiment(self):
         raise NotImplementedError
 
-    def start_trial(self):
-        raise NotImplementedError
-
-    def end_trial(self):
-        raise NotImplementedError
-
     def ai_callback(self, name, data):
         log.trace('Acquired {} samples from {}'.format(data.shape, name))
         parameters = {'name': name, 'data': data}
