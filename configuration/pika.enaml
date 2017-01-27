@@ -1,0 +1,84 @@
+import logging
+log = logging.getLogger(__name__)
+
+import numpy as np
+
+from enaml.workbench.api import Extension
+
+from psi.controller.engines.nidaq import NIDAQEngine
+
+from psi.controller.api import (ContinuousOutput, AIChannel, AOChannel, Input)
+
+
+enamldef PikaConfiguration(ConfigurationManifest):
+
+    Extension:
+        id = 'backend'
+        point = 'psi.controller.io'
+
+        NIDAQEngine:
+            name = 'NI'
+            master_clock = True
+            
+            hw_ai_monitor_period = 0.01
+            hw_ao_monitor_period = 1
+
+            AOChannel:
+                label = 'primary'
+                name = 'primary'
+                channel = 'PXI1Slot6/ao0'
+                fs = 200e3
+                expected_range = (-10, 10)
+                dtype = np.dtype('float64')
+
+                ContinuousOutput:
+                    name = 'primary'
+                    label = 'primary'
+
+            AOChannel:
+                label = 'secondary'
+                name = 'secondary'
+                channel = 'PXI1Slot6/ao1'
+                fs = 200e3
+                expected_range = (-10, 10)
+                dtype = np.dtype('float64')
+
+                ContinuousOutput:
+                    name = 'secondary'
+                    label = 'secondary'
+
+            AIChannel:
+                label = 'Reference microphone'
+                name = 'reference_microphone'
+                channel = 'PXI1Slot6/ai0'
+                start_trigger = 'ao/StartTrigger'
+                fs = 200e3
+                expected_range = (-10, 10)
+                dtype = np.dtype('float64')
+                mode = 'differential'
+
+                Input:
+                    name = 'reference_microphone'
+
+            AIChannel:
+                label = 'Probe tube microphone'
+                name = 'probe_tube_microphone'
+                channel = 'PXI1Slot6/ai1'
+                start_trigger = 'ao/StartTrigger'
+                fs = 200e3
+                expected_range = (-10, 10)
+                dtype = np.dtype('float64')
+                mode = 'pseudodifferential'
+
+                Input:
+                    name = 'probe_tube_microphone'
+
+            AIChannel:
+                label = 'Event related potential'
+                name = 'erp'
+                channel = 'PXI1Slot7/ai0'
+                start_trigger = 'ao/StartTrigger'
+                fs = 25e3
+                expected_range = (-10, 10)
+                dtype = np.dtype('float64')
+                mode = 'pseudodifferential'
