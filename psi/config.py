@@ -34,9 +34,11 @@ except KeyError:
 LOG_ROOT = os.path.join(BASE_DIRECTORY, 'logs')
 DATA_ROOT = os.path.join(BASE_DIRECTORY, 'data')
 CAL_ROOT = os.path.join(BASE_DIRECTORY, 'calibration')
-LAYOUT_ROOT = os.path.join(BASE_DIRECTORY, 'layout')
-PREFERENCES_ROOT = os.path.join(BASE_DIRECTORY, 'preferences')
+SETTINGS_ROOT = os.path.join(BASE_DIRECTORY, 'settings')
 TEMP_ROOT = os.path.join(BASE_DIRECTORY, 'temp')
+
+PREFERENCES_ROOT = os.path.join(SETTINGS_ROOT, 'preferences')
+LAYOUT_ROOT = os.path.join(SETTINGS_ROOT, 'layout')
 
 # Ensure the folders exist
 for setting_name, setting_value in globals().items():

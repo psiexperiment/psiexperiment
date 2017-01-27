@@ -1,7 +1,7 @@
 import numpy as np
 
 from atom.api import Typed, Int, Bool, Unicode, Float
-from enaml.application import deferred_call
+from enaml.application import deferred_call, timed_call
 from enaml.layout.api import InsertItem
 from enaml.widgets.api import Action, DockItem, Container, Label
 from enaml.workbench.api import Plugin, PluginManifest, Extension
@@ -48,15 +48,32 @@ class PelletDispenserPlugin(Plugin):
 
     def dispense_pellet(self):
         controller = self.workbench.get_plugin('psi.controller')
+        context = self.workbench.get_plugin('psi.context')
+        pellets = context.get_value('pellets')
         output = controller.get_output('food_dispense_trigger')
-        output.fire()
-        self.pellets_dispensed += 1
+        for pellet in range(pellets):
+            timed_call(pellet*1e3*0.5, output.fire)
+            self.pellets_dispensed += 1
 
 
 enamldef PelletDispenserManifest(PluginManifest): manifest:
 
     id = PLUGIN_ID
     factory = PelletDispenserPlugin
+
+    Extension:
+        id = 'parameters'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            name = PLUGIN_ID
+            label = 'Pellet dispenser'
+
+            Parameter:
+                name = 'pellets'
+                label = 'Pellets'
+                compact_label = 'P'
+                default = 1
 
     Extension:
         id = 'commands'

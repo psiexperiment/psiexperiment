@@ -8,11 +8,13 @@ from atom.api import Unicode, Typed, Property
 from enaml.workbench.api import Extension, PluginManifest
 from enaml.workbench.core.api import Command
 
+import yaml
 import pandas as pd
 import numpy as np
 import bcolz
 
 from psi.core.utils import find_extension
+from psi import get_config
 
 from ..abstract_store.store import AbstractStore
 
@@ -106,11 +108,24 @@ def prepare_filesystem(event):
         base_path = os.path.join(dirname, experiment)
         if not os.path.exists(base_path):
             os.makedirs(base_path)
-        sessions = glob(os.path.join(base_path, 'session_*'))
-        next_session = len(sessions)
+
+        # Find out the next session from the YAML file.
+        settings_root = get_config('SETTINGS_ROOT')
+        config_file = os.path.join(settings_root, '.bcolz_store')
+        if os.path.exists(config_file):
+            with open(config_file, 'r') as fh:
+                session_info = yaml.load(fh)
+        else:
+            session_info = {}
+        next_session = session_info.get(base_path, -1) + 1
+        session_info[base_path] = next_session
+        with open(config_file, 'w') as fh:
+            yaml.dump(session_info, fh)
+
         base_path = os.path.join(base_path, 'session_' + str(next_session))
         os.makedirs(base_path)
         extension.base_path = base_path
+
 
 
 enamldef BColzStoreManifest(PluginManifest): manifest:
