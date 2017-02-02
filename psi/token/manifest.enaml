@@ -2,8 +2,8 @@ from enaml.workbench.api import PluginManifest, Extension, ExtensionPoint
 
 from .plugin import TokenPlugin
 from .token import ContinuousToken, EpochToken
-from .primitives import (Cos2Envelope, Noise, BandlimitedNoise, Tone, Silence,
-                         BandpassFilter, SAMEnvelope)
+from .primitives import (Cos2Envelope, BandlimitedNoise, Tone, Silence,
+                         SAMEnvelope)
 
 
 enamldef TokenManifest(PluginManifest):

@@ -32,11 +32,12 @@ def queue_callback(output, queue):
     while True:
         yield
         samples = engine.get_buffered_samples(channel.name, offset)
-        samples = min(samples, 100e3)
         log.debug('Generating {} samples from queue'.format(samples))
         waveform, empty = queue.pop_buffer(samples)
         engine.modify_hw_ao(waveform, offset, output.name)
         offset += len(waveform)
+        if empty:
+            break
 
 
 class PassivePlugin(BasePlugin):

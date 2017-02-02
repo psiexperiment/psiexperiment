@@ -33,10 +33,7 @@ enamldef IOManifest(PluginManifest): manifest:
             name = 'NI'
             master_clock = True
             
-            # Since we're using an AnalogThreshold input to detect nose pokes
-            # and reward contact, we want a fairly short AI monitor period to
-            # ensure that we detect these events quickly.
-            hw_ai_monitor_period = 0.01
+            hw_ai_monitor_period = 1
             hw_ao_monitor_period = 0.25
 
             AOChannel:
@@ -70,7 +67,3 @@ enamldef IOManifest(PluginManifest): manifest:
                         N = 4
                         btype = 'bandpass'
                         name = 'microphone'
-                        RMS:
-                            duration = 1
-                            SPL:
-                                name = 'noise_level'

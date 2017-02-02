@@ -12,7 +12,10 @@ from psi.context.api import Parameter, EnumParameter
 
 from .block import Block
 
-memory = Memory(cachedir=get_config('TEMP_ROOT'))
+# NOTE: For some functions, it's better not to cache as there is a "hit" from
+# checking whether to load the results from disk or not.
+cachedir = get_config('TEMP_ROOT')
+memory = Memory(cachedir=cachedir, mmap_mode='r')
 
 
 ################################################################################
@@ -20,21 +23,20 @@ memory = Memory(cachedir=get_config('TEMP_ROOT'))
 ################################################################################
 def single_input(function):
     def wrapper(*args, **kwargs):
-        inputs = kwargs.pop('inputs')
-        if len(inputs) == 0:
-            raise ValueError('Cannot deal with 0 inputs')
-        elif len(inputs) > 1:
-            raise ValueError('Cannot deal with more than one input')
-        kwargs['input'] = inputs[0] 
-        return function(*args, **kwargs)
+        input_factories = kwargs.pop('input_factories')
+        if len(input_factories) == 0:
+            raise ValueError('Cannot deal with zero input factories')
+        elif len(input_factories) > 1:
+            raise ValueError('Cannot deal with more than one input factory')
+        return function(*args, input_factory=input_factories[0], **kwargs)
     return wrapper
 
 
 def no_inputs(function):
     def wrapper(*args, **kwargs):
-        inputs = kwargs.pop('inputs')
-        if len(inputs) != 0:
-            raise ValueError('Cannot accept inputs')
+        input_factories = kwargs.pop('input_factories')
+        if len(input_factories) != 0:
+            raise ValueError('Cannot accept any input factories')
         return function(*args, **kwargs)
     return wrapper
 
@@ -42,13 +44,14 @@ def no_inputs(function):
 ################################################################################
 # Cos2Envelope
 ################################################################################
-#@memory.cache
-def cos2envelope(t, start_time, rise_time, duration, pad_end=True):
+def cos2envelope(fs, offset, samples, start_time, rise_time, duration):
     '''
     Generates cosine-squared envelope. Can handle generating fragments.
     '''
     def env_func(t, phi=0):
         return np.sin(2*np.pi*t*1.0/rise_time*0.25+phi)**2
+
+    t = (np.arange(samples, dtype=np.float32) + offset)/fs
 
     m_null_pre = (t < start_time)
     m_onset = (t >= start_time) & (t < rise_time)
@@ -75,37 +78,47 @@ def cos2envelope(t, start_time, rise_time, duration, pad_end=True):
     f_lower = env_func(t_onset, 0)
     f_upper = env_func(t_offset-(duration-rise_time), np.pi/2)
     f_middle = np.ones(len(t_ss))
-    f_null_post = np.zeros(len(t_null_post))
 
     concat = [f_null_pre, f_lower, f_middle, f_upper]
-    if pad_end:
-        concat.append(f_null_post)
     return np.concatenate(concat, axis=-1)
 
 
 @single_input
 def cos2envelope_factory(fs, start_time, rise_time, duration, calibration,
-                         input):
+                         input_factory):
+    # Initialize some variables 
     waveform = None
     epoch_samples = int(duration*fs)
     offset = 0
     complete = False
+
+    # Initialize the inputs
+    input_generator = input_factory()
+    input_generator.next()
+
     while True:
+        # Provide waveform and wait on instructions for next waveform
         kwargs = (yield waveform, complete)
+
+        # Ensure we don't produce more samples than needed to complete waveform
         samples = kwargs['samples']
-        t = (np.arange(samples, dtype=np.float32) + offset)/fs
-        envelope = cos2envelope(t, start_time, rise_time, duration)
-        token = input.send(kwargs)
+        samples = min(epoch_samples-offset, samples)
+        kwargs['samples'] = samples
+
+        # Generate the waveform
+        envelope = cos2envelope(fs, offset, samples, start_time, rise_time,
+                                duration)
+        token = input_generator.send(kwargs)
         waveform = envelope*token
         offset += len(waveform)
-        remaining = epoch_samples-offset
-        if remaining <= 0:
+
+        # Check if we're done
+        if offset == epoch_samples:
             complete = True
-            if remaining < 0:
-                # Trim off the extra samples from waveform if we requested too
-                # many
-                waveform = waveform[:remaining]
-        complete = offset >= epoch_samples
+        elif offset > epoch_samples:
+            raise ValueError('Algorithm mistake!!')
+        else:
+            complete = False
 
 
 enamldef Cos2Envelope(Block): block:
@@ -192,15 +205,20 @@ def sam_envelope(offset, samples, fs, depth, fm, delay, direction):
 
 
 @single_input
-def samenvelope_factory(fs, depth, fm, delay, direction, calibration, input):
+def samenvelope_factory(fs, depth, fm, delay, direction, calibration,
+                        input_factory):
     waveform = None
     offset = 0
+
+    # Initialize the inputs
+    input_generator = input_factory()
+    input_generator.next()
+
     while True:
         kwargs = (yield waveform)
         samples = kwargs['samples']
-        log.debug('generating SAM envelope with %d samples', samples) 
         env = sam_envelope(offset, samples, fs, depth, fm, delay, direction)
-        token = input.send(kwargs)
+        token = input_generator.send(kwargs)
         waveform = env*token
         offset += len(waveform)
 
@@ -235,39 +253,6 @@ enamldef SAMEnvelope(Block): block:
         compact_label = 'dir'
         default = 'positive'
         choices = {'positive': 1, 'negative': -1}
-
-
-################################################################################
-# Broadband noise
-################################################################################
-@no_inputs
-def noise_factory(fs, seed, level, calibration):
-    waveform = None
-    state = np.random.RandomState(seed)
-    while True:
-        kwargs = (yield waveform)
-        samples = kwargs['samples']
-        waveform = state.uniform(low=-1, high=1, size=samples)
-        # TODO: figure out how to scale waveform to target level
-
-
-enamldef Noise(Block):
-    
-    factory = noise_factory
-    name = 'noise'
-    label = 'noise'
-
-    Parameter:
-        name = 'level'
-        label = 'level (dB SPL)'
-        compact_label = 'level'
-        default = 60.0
-
-    Parameter:
-        name = 'seed'
-        label = 'random seed'
-        compact_label = 'seed'
-        default = 1
 
 
 ################################################################################
@@ -330,7 +315,6 @@ def bandlimited_noise_factory(fs, seed, level, center_frequency,
     while True:
         kwargs = (yield waveform)
         samples = kwargs['samples']
-        log.debug('generating bandlimited noise with %d samples', samples)
         waveform = state.uniform(low=low, high=high, size=samples)
         waveform, iir_zi = signal.lfilter(iir, [1], waveform, zi=iir_zi)
         waveform, bp_zi = signal.lfilter(b, a, waveform, zi=bp_zi)
@@ -386,93 +370,20 @@ enamldef BandlimitedNoise(Block):
 
 
 ################################################################################
-# Bandpass filter
-################################################################################
-@single_input
-def bandpass_filter_factory(fs, center_frequency, pass_bandwidth,
-                            stop_bandwidth, passband_attenuation,
-                            stopband_attenuation, calibration, input):
-    waveform = None
-
-    fl = np.clip(center_frequency-0.5*pass_bandwidth, 0, 0.5*fs)
-    fh = np.clip(center_frequency+0.5*pass_bandwidth, 0, 0.5*fs)
-    Wp = np.array([fl, fh])/(0.5*fs)
-
-    fl = np.clip(center_frequency-0.5*stop_bandwidth, 0, 0.5*fs)
-    fh = np.clip(center_frequency+0.5*stop_bandwidth, 0, 0.5*fs)
-    Ws = np.array([fl, fh])/(0.5*fs)
-
-    b, a = signal.iirdesign(Wp, Ws, passband_attenuation, stopband_attenuation) 
-
-    if not np.all(np.abs(np.roots(a)) < 1):
-        raise ValueError, 'Instable coefficients for filter'
-
-    zf = signal.lfilter_zi(b, a)
-
-    # I haven't taken the time to understand this equation, but it seems to
-    # work.  This was copied from the EPL cochlear function test suite code
-    # (LabVIEW) and should renormalize the amplitude of the filtered token so
-    # it has a RMS of 1.0.
-    filter_sf = 1.0/np.sqrt(pass_bandwidth*2/fs/3.0)
-
-    while True:
-        kwargs = (yield waveform)
-        noise_token = input.send(kwargs)
-        filtered_token, zf = signal.lfilter(b, a, noise_token, zi=zf)
-        # TODO HACK ALERT!!! SF fix needed.
-        waveform = filter_sf*filtered_token
-
-
-enamldef BandpassFilter(Block):
-
-    factory = bandpass_filter_factory
-    name = 'filter'
-    label = 'filter'
-
-    Parameter:
-        name = 'center_frequency'
-        label = 'center frequency (Hz)'
-        compact_label = 'fc'
-        default = 8000.0
-
-    Parameter:
-        name = 'pass_bandwidth'
-        label = 'pass bandwidth (Hz)'
-        compact_label = 'pass bw'
-        default = 6000.0
-
-    Parameter:
-        name = 'stop_bandwidth'
-        label = 'stop bandwidth (Hz)'
-        compact_label = 'stop bw'
-        default = 4000.0
-
-    Parameter:
-        name = 'passband_attenuation'
-        label = 'passband attenuation (dB)'
-        compact_label = 'pass. atten.'
-        default = 10.0
-
-    Parameter:
-        name = 'stopband_attenuation'
-        label = 'stopband attenuation (dB)'
-        compact_label = 'stop. atten.'
-        default = 60.0
-
-
-################################################################################
 # Tone
 ################################################################################
 @no_inputs
 def tone_factory(fs, level, frequency, calibration):
-    waveform = None
     sf = calibration.get_sf(frequency, level)
+    waveform = None
     offset = 0
     while True:
+        # Note. At least for 5 msec tones it's faster to just compute the array
+        # rather than cache the result.
         kwargs = (yield waveform)
         samples = kwargs['samples']
         t = np.arange(samples, dtype=np.float32)/fs + offset
-        waveform = sf*np.cos(2*np.pi*t*frequency)
+        waveform = np.cos(2*np.pi*t*frequency)
         offset += len(waveform)
 
 
