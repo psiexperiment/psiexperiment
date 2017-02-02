@@ -99,8 +99,8 @@ enamldef AppetitiveManifest(BaseManifest): manifest:
             text = 'Reward'
             triggered ::
                 plugin = workbench.get_plugin(PLUGIN_ID)
-                plugin.handle_event(Event.reward_start)
-                plugin.handle_event(Event.reward_end)
+                plugin.handle_event(Event.digital_reward_start)
+                plugin.handle_event(Event.digital_reward_end)
             enabled << workbench.get_plugin(PLUGIN_ID).experiment_state \
                 not in ('initialized', 'stopped')
 
@@ -242,6 +242,8 @@ enamldef AppetitiveManifest(BaseManifest): manifest:
             name = 'np'
         ExperimentState:
             name = 'digital_np'
+        ExperimentState:
+            name = 'digital_reward'
         ExperimentState:
             name = 'reward'
         ExperimentState:

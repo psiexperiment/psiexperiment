@@ -63,6 +63,9 @@ class Event(enum.Enum):
     reward_start = 'reward contact'
     reward_end = 'withdrew from reward'
 
+    digital_reward_start = 'digital_reward_start'
+    digital_reward_end = 'digital_reward_end'
+
     to_start = 'timeout started'
     to_end = 'timeout over'
     to_duration_elapsed = 'timeout duration elapsed'

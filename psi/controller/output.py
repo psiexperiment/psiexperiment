@@ -105,21 +105,26 @@ class EpochCallback(object):
     def next(self):
         if not self.active:
             raise StopIteration
-        samples = \
-            self.engine.get_buffered_samples(self.channel.name, self.offset)
-        samples = min(self.output._block_samples, samples)
-        waveform, complete = self.generator.send({'samples': samples})
-        self.engine.modify_hw_ao(waveform, self.offset, self.output.name)
-        self.offset += len(waveform)
-        if complete:
-            raise StopIteration
+        with self.engine.lock:
+            samples = self.engine.get_buffered_samples(self.channel.name,
+                                                       self.offset)
+            samples = min(self.output._block_samples, samples)
+            if samples == 0:
+                return
+            waveform, complete = self.generator.send({'samples': samples})
+            self.engine.modify_hw_ao(waveform, self.offset, self.output.name)
+            self.offset += len(waveform)
+            if complete:
+                raise StopIteration
 
     def clear(self, end, delay):
-        offset = int((end+delay)*self.channel.fs)
-        samples = self.engine.get_buffered_samples(self.channel.name, offset)
-        waveform = np.zeros(samples)
-        self.engine.modify_hw_ao(waveform, offset, self.output.name)
-        self.active = False
+        with self.engine.lock:
+            offset = int((end+delay)*self.channel.fs)
+            samples = self.engine.get_buffered_samples(self.channel.name,
+                                                       offset)
+            waveform = np.zeros(samples)
+            self.engine.modify_hw_ao(waveform, offset, self.output.name)
+            self.active = False
 
 
 class EpochOutput(AnalogOutput):
@@ -164,11 +169,13 @@ def continuous_callback(output, generator):
     channel = output.channel
     while True:
         yield
-        samples = engine.get_space_available(channel.name, offset)
-        log.debug('Generating {} samples for {}'.format(samples, channel.name))
-        waveform = generator.send({'samples': samples})
-        engine.append_hw_ao(waveform)
-        offset += len(waveform)
+        with engine.lock:
+            samples = engine.get_space_available(channel.name, offset)
+            log.debug('Generating {} samples for {}'.format(samples,
+                                                            channel.name))
+            waveform = generator.send({'samples': samples})
+            engine.append_hw_ao(waveform)
+            offset += len(waveform)
 
 
 class ContinuousOutput(AnalogOutput):
