@@ -30,13 +30,17 @@ enamldef EpochToken(_EpochToken):
 
 
 @single_input
-def default_continuous_factory(fs, calibration, input):
+def default_continuous_factory(fs, calibration, input_factory):
     waveform = None
     offset = 0
+
+    input_generator = input_factory()
+    input_generator.next()
+
     while True:
         kwargs = (yield waveform)
         kwargs['offset'] = offset
-        waveform = input.send(kwargs)
+        waveform = input_generator.send(kwargs)
         offset += len(waveform)
 
 

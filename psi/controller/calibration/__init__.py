@@ -16,6 +16,11 @@ from psi import SimpleState
 
 from . import util
 
+from psi import get_config
+from joblib import Memory
+cachedir = get_config('TEMP_ROOT')
+memory = Memory(cachedir=cachedir, mmap_mode='r')
+
 ################################################################################
 # Exceptions
 ################################################################################
@@ -186,7 +191,6 @@ class InterpCalibration(Calibration):
     def get_sens(self, frequency):
         # Since sensitivity is in dB(V/Pa), subtracting fixed_gain from
         # sensitivity will *increase* the sensitivity of the system.
-        log.debug('Calculating sensitivity for %r Hz', frequency)
         return self._interp(frequency)-self._fixed_gain
 
 
@@ -202,7 +206,6 @@ class PointCalibration(Calibration):
         self._fixed_gain = fixed_gain
 
     def get_sens(self, frequency):
-        log.debug('Calculating sensitivity for %.2f Hz', frequency)
         try:
             i = np.flatnonzero(np.equal(self._frequency, frequency))[0]
         except IndexError:

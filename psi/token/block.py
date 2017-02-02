@@ -63,13 +63,13 @@ class Block(Declarative):
         return result
 
     def initialize_factory(self, context):
-        inputs = [b.initialize_generator(context) for b in self.blocks]
+        input_factories = [b.initialize_factory(context) for b in self.blocks]
         # Map the global name (e.g., as shown in the context plugin) to the
         # block name.
         bc = {bn: context[gn] for gn, bn in self.context_name_map.items()}
         bc['fs'] = context['fs']
         bc['calibration'] = context['calibration']
-        bc['inputs'] = inputs
+        bc['input_factories'] = input_factories
         return lambda: self.factory(**bc)
 
     def initialize_generator(self, context):

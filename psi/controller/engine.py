@@ -1,9 +1,12 @@
 import logging
 log = logging.getLogger(__name__)
 
+import threading
+
 import numpy as np
 
-from atom.api import Unicode, Float, Bool, observe, Property, Int, Typed, Long
+from atom.api import (Unicode, Float, Bool, observe, Property, Int, Typed,
+                      Long, Value)
 from enaml.core.api import Declarative, d_
 
 from .channel import Channel, AIChannel, AOChannel, DIChannel, DOChannel
@@ -14,6 +17,7 @@ class Engine(SimpleState, Declarative):
 
     name = d_(Unicode())
     master_clock = d_(Bool(False))
+    lock = Value()
 
     hw_ao_buffer_samples = Long().tag(transient=True)
     hw_ao_buffer_offset = Long().tag(transient=True)
@@ -51,6 +55,8 @@ class Engine(SimpleState, Declarative):
                 isinstance(c, DOChannel) and c.fs == 0]
 
     def configure(self, plugin):
+        self.lock = threading.Lock()
+
         if self.hw_ao_channels:
             # Generate a 1-based output map (0 is always reserved for the
             # continuous output). Max outputs is number of epoch outputs plus
