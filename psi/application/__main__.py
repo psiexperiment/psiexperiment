@@ -44,6 +44,7 @@ experiment_descriptions = {
             'psi.data.trial_log.manifest.TrialLogManifest',
             'psi.data.event_log.manifest.EventLogManifest',
             'psi.data.sdt_analysis.manifest.SDTAnalysisManifest',
+            'psi.controller.actions.opencv_camera.manifest.OpenCVCameraManifest',
             data_store_manifest,
         ],
     },

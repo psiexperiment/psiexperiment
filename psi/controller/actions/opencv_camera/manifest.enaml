@@ -1,0 +1,100 @@
+from __future__ import division
+
+from enaml.qt import QtGui, QtCore
+from enaml.widgets.api import RawWidget, DockItem, Container
+from enaml.workbench.api import PluginManifest, Extension
+from enaml.layout.api import InsertItem
+from enaml.application import deferred_call
+
+import cv2
+
+from qimage2ndarray import array2qimage
+
+
+PLUGIN_ID = 'psi.controller.action.opencv_camera' 
+
+
+class QCameraViewer(QtGui.QWidget):
+
+    videoSignal = QtCore.pyqtSignal(QtGui.QImage)
+
+    def __init__(self, parent = None):
+        super(QCameraViewer, self).__init__(parent)
+        self.camera = cv2.VideoCapture(0)
+        # Some crappy drivers return a bad first frame. Read & discard.
+        self.camera.read()
+        self.captureVideo()
+        self.timer = QtCore.QTimer()
+        self.timer.setInterval(25)
+        self.timer.timeout.connect(self.captureVideo)
+        self.timer.start()
+
+    def captureVideo(self):
+        result, image = self.camera.read()
+        image = image[50:400, 50:400, :]
+        self.setImage(image)
+
+    def paintEvent(self, event):
+        painter = QtGui.QPainter(self)
+        painter.drawImage(0, 0, self.image)
+        self.paintImage = QtGui.QImage()
+
+    def initUI(self):
+        #self.setGeometry(300, 300, 300, 220)
+        #self.setWindowTitle('Test')
+        self.show(image)
+
+    def setImage(self, image):
+        h, w = image.shape[:2]
+        width = self.parent().width()
+        height = self.parent().height()
+        max_dimension = min(width, height)
+        ar = w/h
+        if ar >= 1:
+            # cols, rows
+            new_size = max_dimension, int(max_dimension/ar)
+        else:
+            new_size = int(max_dimension*ar), max_dimension
+        resized = cv2.resize(image, new_size)
+        qimage = array2qimage(resized)
+        self.image = qimage
+        self.resize(width, height)
+        self.repaint()
+
+
+class CameraViewer(RawWidget):
+
+    def create_widget(self, parent):
+        return QCameraViewer(parent)
+
+
+enamldef CameraDockItem(DockItem):
+
+    title = 'Camera' 
+
+    Container:
+        constraints = [
+            cam.width == 300,
+            cam.height == 300,
+        ]
+
+        CameraViewer: cam:
+            pass
+
+
+
+def contribute_to_workspace(workbench, workspace):
+    plugin = workbench.get_plugin(PLUGIN_ID)
+    item = CameraDockItem(workspace.dock_area, name='camera')
+    op = InsertItem(item=item.name, position='top')
+    deferred_call(workspace.dock_area.update_layout, op)
+
+
+enamldef OpenCVCameraManifest(PluginManifest): manifest:
+
+    id = PLUGIN_ID
+
+    Extension:
+        id = 'opencv_workspace'
+        point = 'psi.experiment.workspace'
+        factory = contribute_to_workspace
