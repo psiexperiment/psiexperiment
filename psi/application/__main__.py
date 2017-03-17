@@ -24,6 +24,25 @@ from psi import get_config, set_config
 data_store_manifest = 'psi.data.bcolz_store.manifest.BColzStoreManifest'
 
 
+def configure_appetitive_gonogo_food():
+    import enaml
+    with enaml.imports():
+        from psi.application.experiment.appetitive import ControllerManifest
+        from psi.controller.actions.pellet_dispenser.manifest import PelletDispenserManifest
+        from psi.data.trial_log.manifest import TrialLogManifest
+        from psi.data.event_log.manifest import EventLogManifest
+        from psi.data.sdt_analysis.manifest import SDTAnalysisManifest
+        from psi.data.bcolz_store.manifest import BColzStoreManifest
+    return [
+        ControllerManifest(),
+        PelletDispenserManifest(),
+        TrialLogManifest(),
+        EventLogManifest(),
+        SDTAnalysisManifest(),
+        BColzStoreManifest(),
+    ]
+
+
 experiment_descriptions = {
     'test': {
         'manifests': [
@@ -35,18 +54,6 @@ experiment_descriptions = {
         ]
     },
     'appetitive_gonogo_food': {
-        'manifests': [
-            'psi.application.experiment.appetitive.ControllerManifest',
-            'psi.controller.actions.pellet_dispenser.manifest.PelletDispenserManifest',
-            'psi.controller.actions.pellet_dispenser.manifest.AppetitivePelletDispenserActions',
-            'psi.controller.actions.room_light.manifest.RoomLightManifest',
-            'psi.controller.actions.room_light.manifest.AppetitiveRoomLightActions',
-            'psi.data.trial_log.manifest.TrialLogManifest',
-            'psi.data.event_log.manifest.EventLogManifest',
-            'psi.data.sdt_analysis.manifest.SDTAnalysisManifest',
-            'psi.controller.actions.opencv_camera.manifest.OpenCVCameraManifest',
-            data_store_manifest,
-        ],
     },
     'appetitive_gonogo_water': {
         'manifests': [
@@ -96,17 +103,15 @@ def configure_logging(filename=None):
             'console': {
                 'class': 'psi.core.logging.colorstreamhandler.ColorStreamHandler',
                 'formatter': 'simple',
-                'level': 'TRACE',
+                'level': 'DEBUG',
                 },
             },
         'loggers': {
             '__main__': {'level': 'DEBUG'},
-            'neurogen': {'level': 'ERROR'},
-            'psi': {'level': 'DEBUG'},
-            'experiments': {'level': 'DEBUG'},
-            'daqengine': {'level': 'INFO'},
-            'psi.core.chaco': {'level': 'INFO'},
-            'psi.controller.engine': {'level': 'INFO'},
+            'psi': {'level': 'TRACE'},
+            'daqengine': {'level': 'TRACE'},
+            'psi.core.chaco': {'level': 'TRACE'},
+            'psi.controller.engine': {'level': 'TRACE'},
             },
         'root': {
             'handlers': ['console'],
@@ -142,7 +147,7 @@ def main():
                         default='<memory>')
     parser.add_argument('--io', type=str, default=None,
                         help='Hardware configuration')
-    parser.add_argument('--debug', default=False, action='store_true',
+    parser.add_argument('--debug', default=True, action='store_true',
                         help='Debug mode?')
     args = parser.parse_args()
 
@@ -169,8 +174,9 @@ def main():
         warnings.simplefilter(action="ignore", category=FutureWarning)
 
     experiment_description = experiment_descriptions[args.experiment]
-    manifests = application.get_manifests(experiment_description['manifests'])
-    manifests += [application.get_io_manifest(args.io)]
+    #manifests = application.get_manifests(experiment_description['manifests'])
+    manifests = configure_appetitive_gonogo_food()
+    manifests += [application.get_io_manifest(args.io)()]
     workbench = application.initialize_workbench(manifests)
 
     core = workbench.get_plugin('enaml.workbench.core')

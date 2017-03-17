@@ -205,11 +205,17 @@ class Trigger(DigitalOutput):
 
 class Toggle(DigitalOutput):
 
-    def _set_state(self, state):
-        self.engine.set_sw_do(self.channel.name, state)
+    state = Bool(False)
+
+    def _observe_state(self, event):
+        try:
+            # TODO: Fixme
+            self.engine.set_sw_do(self.channel.name, event['value'])
+        except:
+            pass
 
     def set_high(self):
-        self._set_state(1)
+        self.state = True
 
     def set_low(self):
-        self._set_state(0)
+        self.state = False

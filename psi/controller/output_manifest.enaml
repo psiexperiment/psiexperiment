@@ -1,0 +1,94 @@
+from functools import partial
+
+import numpy as np
+
+from atom.api import Typed
+
+from enaml.core.api import d_
+from enaml.widgets.api import Action
+from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
+from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
+
+from psi.core.enaml.api import PSIManifest
+from psi.context.api import ContextGroup, Parameter
+
+from .output import Output
+
+
+def toggle_off(event, output):
+    output.set_low()
+    
+
+def toggle_on(event, output):
+    output.set_high()
+
+
+def fire(event, output):
+    output.fire()
+
+
+def toggle(event, output):
+    if event.parameters['state']:
+        toggle_on(event, output)
+    else:
+        toggle_off(event, output)
+
+
+class _OutputManifest(PSIManifest):
+
+    output = Typed(Output)
+
+
+enamldef OutputManifest(_OutputManifest): manifest:
+
+    pass
+
+
+enamldef ToggleManifest(OutputManifest): manifest:
+
+    id = 'psi.controller.toggle_output:' + manifest.output.name
+
+    Extension:
+        id = 'toggle_commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = manifest.id + '.off'
+            handler = partial(toggle_off, output=manifest.output)
+        Command:
+            id = manifest.id + '.on'
+            handler = partial(toggle_on, output=manifest.output)
+        Command:
+            id = manifest.id + '.toggle'
+            handler = partial(toggle, output=manifest.output)
+            
+    Extension:
+        id = 'toggle_actions'
+        point = 'enaml.workbench.ui.actions'
+        ActionItem:
+            path = '/equipment/{}'.format(manifest.output.name)
+            label = '{}'.format(manifest.output.label)
+            command = manifest.id + '.toggle'
+            parameters << {'state': checked}
+            checked << manifest.output.state
+            checkable = True
+
+
+enamldef TriggerManifest(OutputManifest): manifest:
+
+    id = 'psi.controller.trigger_output:' + manifest.output.name
+
+    Extension:
+        id = 'trigger_commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = manifest.id + '.trigger'
+            handler = partial(fire, output=manifest.output)
+            
+    Extension:
+        id = 'trigger_actions'
+        point = 'enaml.workbench.ui.actions'
+        ActionItem:
+            path = '/equipment/{}'.format(manifest.output.name)
+            label = '{} trigger'.format(manifest.output.label)
+            command = manifest.id + '.trigger'

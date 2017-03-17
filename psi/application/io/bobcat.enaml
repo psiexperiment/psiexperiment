@@ -60,6 +60,7 @@ enamldef IOManifest(PluginManifest): manifest:
                     # This is a required output for the food dispenser. The
                     # plugin will look for this output by name. If not present,
                     # the food dispenser plugin will not work!
+                    label = 'Food dispense'
                     name = 'food_dispense_trigger'
                     duration = 0.1
 
@@ -74,6 +75,7 @@ enamldef IOManifest(PluginManifest): manifest:
                     # will look for this output by name. If not present, the
                     # room light plugin will not work!
                     name = 'room_light_toggle'
+                    label = 'Room light'
 
             AIChannel:
                 label = 'Microphone'

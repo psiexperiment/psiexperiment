@@ -55,6 +55,6 @@ def initialize_workbench(extra_manifests,
     workbench.register(TokenManifest())
 
     for manifest in extra_manifests:
-        workbench.register(manifest())
+        workbench.register(manifest)
 
     return workbench
