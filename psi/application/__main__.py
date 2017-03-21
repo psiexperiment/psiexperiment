@@ -14,6 +14,7 @@ import warnings
 import datetime as dt
 
 import tables as tb
+import yaml
 
 from enaml.application import deferred_call
 
@@ -29,6 +30,7 @@ def configure_appetitive_gonogo_food():
     with enaml.imports():
         from psi.application.experiment.appetitive import ControllerManifest
         from psi.controller.actions.pellet_dispenser.manifest import PelletDispenserManifest
+        from psi.controller.actions.opencv_camera.manifest import OpenCVCameraManifest
         from psi.data.trial_log.manifest import TrialLogManifest
         from psi.data.event_log.manifest import EventLogManifest
         from psi.data.sdt_analysis.manifest import SDTAnalysisManifest
@@ -40,6 +42,8 @@ def configure_appetitive_gonogo_food():
         EventLogManifest(),
         SDTAnalysisManifest(),
         BColzStoreManifest(),
+        OpenCVCameraManifest(device=0, resolution=(320, 180)),
+        OpenCVCameraManifest(device=1, resolution=(1920, 1080)),
     ]
 
 
@@ -139,6 +143,35 @@ def warn_with_traceback(message, category, filename, lineno, file=None,
     log.write(m)
 
 
+def get_base_path(dirname, experiment):
+    if dirname == '<memory>':
+        m = 'All data will be destroyed at end of experiment'
+        log.warn(m)
+        base_path = '<memory>'
+    else:
+        base_path = os.path.join(dirname, experiment)
+        if not os.path.exists(base_path):
+            os.makedirs(base_path)
+
+        # Find out the next session from the YAML file.
+        settings_root = get_config('SETTINGS_ROOT')
+        config_file = os.path.join(settings_root, '.bcolz_store')
+        if os.path.exists(config_file):
+            with open(config_file, 'r') as fh:
+                session_info = yaml.load(fh)
+        else:
+            session_info = {}
+        next_session = session_info.get(base_path, -1) + 1
+        session_info[base_path] = next_session
+        with open(config_file, 'w') as fh:
+            yaml.dump(session_info, fh)
+
+        base_path = os.path.join(base_path, 'session_' + str(next_session))
+        os.makedirs(base_path)
+
+    return base_path
+
+
 def main():
     parser = argparse.ArgumentParser(description='Run experiment')
     parser.add_argument('experiment', type=str, help='Experiment to run',
@@ -176,6 +209,7 @@ def main():
     experiment_description = experiment_descriptions[args.experiment]
     #manifests = application.get_manifests(experiment_description['manifests'])
     manifests = configure_appetitive_gonogo_food()
+    #manifests = configure_test()
     manifests += [application.get_io_manifest(args.io)()]
     workbench = application.initialize_workbench(manifests)
 
@@ -183,10 +217,9 @@ def main():
     core.invoke_command('enaml.workbench.ui.select_workspace',
                         {'workspace': 'psi.experiment.workspace'})
 
-    cmd = 'psi.data.bcolz_store.prepare_filesystem'
-    parameters = {'pathname': args.pathname, 'experiment': args.experiment}
+    base_path = get_base_path(args.pathname, args.experiment)
+    core.invoke_command('psi.data.set_base_path', {'base_path': base_path})
 
-    core.invoke_command(cmd, parameters)
     ui = workbench.get_plugin('enaml.workbench.ui')
     with warnings.catch_warnings():
         warnings.simplefilter('ignore')

@@ -89,7 +89,7 @@ class ExperimentPlugin(Plugin):
             op = FloatItem(item=item)
             deferred_call(ui.workspace.dock_area.update_layout, op)
 
-    def _refresh_preferences(self):
+    def _refresh_preferences(self, event=None):
         preferences = {}
         point = self.workbench.get_extension_point(PREFERENCES_POINT)
         for extension in point.extensions:

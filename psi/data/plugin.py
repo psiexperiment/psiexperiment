@@ -1,7 +1,7 @@
 import logging
 log = logging.getLogger(__name__)
 
-from atom.api import ContainerList, Typed
+from atom.api import ContainerList, Typed, Unicode
 from enaml.workbench.api import Plugin
 
 import numpy as np
@@ -25,6 +25,8 @@ class DataPlugin(Plugin):
     context_info = Typed(dict, {})
     trial_log = Typed(pd.DataFrame)
     event_log = Typed(pd.DataFrame)
+
+    base_path = Unicode()
 
     def start(self):
         self._refresh_sinks()
@@ -128,6 +130,11 @@ class DataPlugin(Plugin):
     def set_current_time(self, name, timestamp):
         for sink in self._sinks:
             sink.set_current_time(name, timestamp)
+
+    def set_base_path(self, base_path):
+        self.base_path = base_path
+        for sink in self._sinks:
+            sink.set_base_path(base_path)
 
     def find_source(self, source_name):
         '''

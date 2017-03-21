@@ -334,6 +334,8 @@ class BasePlugin(Plugin):
             params = {'event': event_name, 'timestamp': timestamp}
             self.core.invoke_command('psi.data.process_event', params)
 
+        # Load the state of all events so that we can determine which actions
+        # should be performed.
         log.debug('Triggering event {}'.format(event_name))
         with self._events[event_name]:
             context = self._get_action_context()
@@ -345,8 +347,13 @@ class BasePlugin(Plugin):
             if action.match(context):
                 m = 'Invoking command {} with parameters {}'
                 log.debug(m.format(action.command, action.kwargs))
-                self.core.invoke_command(action.command,
-                                         parameters=action.kwargs)
+                
+                # Add the event name and timestamp to the parameters passed to
+                # the command. 
+                kwargs = action.kwargs.copy()
+                kwargs['timestamp'] = timestamp
+                kwargs['event'] = event_name
+                self.core.invoke_command(action.command, parameters=kwargs)
 
     def request_apply(self):
         if not self.apply_changes():

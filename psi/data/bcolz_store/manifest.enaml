@@ -90,42 +90,10 @@ class BColzStore(AbstractStore):
             core = workbench.get_plugin('enaml.workbench.core')
             core.invoke_command(cmd, params)
 
-
-def prepare_filesystem(event):
-    # TODO: Is this necessary?
-    extension = find_extension(event.workbench, PLUGIN_ID, 'sink', BColzStore)
-    if extension.initialized:
-        raise ValueError('Cannot change node once data has initialized')
-    
-    dirname = event.parameters['pathname']
-    experiment = event.parameters['experiment']
-
-    if dirname == '<memory>':
-        m = 'All data will be destroyed at end of experiment'
-        log.warn(m)
-        extension.base_path = '<memory>'
-    else:
-        base_path = os.path.join(dirname, experiment)
-        if not os.path.exists(base_path):
-            os.makedirs(base_path)
-
-        # Find out the next session from the YAML file.
-        settings_root = get_config('SETTINGS_ROOT')
-        config_file = os.path.join(settings_root, '.bcolz_store')
-        if os.path.exists(config_file):
-            with open(config_file, 'r') as fh:
-                session_info = yaml.load(fh)
-        else:
-            session_info = {}
-        next_session = session_info.get(base_path, -1) + 1
-        session_info[base_path] = next_session
-        with open(config_file, 'w') as fh:
-            yaml.dump(session_info, fh)
-
-        base_path = os.path.join(base_path, 'session_' + str(next_session))
-        os.makedirs(base_path)
-        extension.base_path = base_path
-
+    def set_base_path(self, base_path):
+        if self.initialized:
+            raise ValueError('Cannot change node once data has initialized')
+        self.base_path = base_path
 
 
 enamldef BColzStoreManifest(PluginManifest): manifest:
@@ -137,10 +105,3 @@ enamldef BColzStoreManifest(PluginManifest): manifest:
         point = 'psi.data.sink'
         BColzStore:
             pass
-
-    Extension:
-        id = 'commands'
-        point = 'enaml.workbench.core.commands'
-        Command:
-            id = PLUGIN_ID + '.prepare_filesystem'
-            handler = prepare_filesystem

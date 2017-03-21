@@ -42,6 +42,11 @@ def set_current_time(event):
     data.set_current_time(**event.parameters)
 
 
+def set_base_path(event):
+    data = event.workbench.get_plugin('psi.data')
+    data.set_base_path(**event.parameters)
+
+
 def contribute_to_workspace(workbench, workspace):
     with enaml.imports():
         from .plot_view import ChacoDockItem
@@ -57,6 +62,7 @@ def contribute_to_workspace(workbench, workspace):
 
 
 enamldef DataManifest(PluginManifest): manifest:
+
     id = PLUGIN_ID
     factory = DataPlugin
 
@@ -87,6 +93,9 @@ enamldef DataManifest(PluginManifest): manifest:
         Command:
             id = PLUGIN_ID + '.set_current_time'
             handler = set_current_time
+        Command:
+            id = PLUGIN_ID + '.set_base_path'
+            handler = set_base_path
 
     Extension:
         id = 'actions'

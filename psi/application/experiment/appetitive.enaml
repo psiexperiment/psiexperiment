@@ -49,6 +49,27 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             command = 'psi.controller.clear_epoch_output'
             kwargs = {'output_name': 'target', 'delay': 0.15}
 
+        ExperimentAction:
+            event = 'trial_start'
+            command = 'psi.controller.actions.opencv_camera:1.capture_image'
+
+        ExperimentAction:
+            event = 'to_start'
+            command = 'psi.controller.toggle_output:room_light_toggle.off'
+
+        ExperimentAction:
+            event = 'to_end'
+            command = 'psi.controller.toggle_output:room_light_toggle.on'
+
+        ExperimentAction:
+            event = 'experiment_start'
+            command = 'psi.controller.toggle_output:room_light_toggle.on'
+
+        ExperimentAction:
+            event = 'experiment_end'
+            command = 'psi.controller.toggle_output:room_light_toggle.on'
+
+
     Extension:
         id = 'io'
         point = 'psi.controller.io'
