@@ -8,16 +8,18 @@ import numpy as np
 
 from atom.api import (Unicode, Enum, Typed, Property, Float, observe, Callable,
                       Int, Bool, Instance, Callable)
+
+import enaml
 from enaml.application import timed_call
 from enaml.core.api import Declarative, d_
 from enaml.workbench.api import Plugin, Extension
 from enaml.qt.QtCore import QTimer
 
+from .device import Device
 
-class Output(Declarative):
 
-    label = d_(Unicode())
-    name = d_(Unicode())
+class Output(Device):
+
     visible = d_(Bool(False))
 
     # TODO: Allow the user to select which channel the output goes through from
@@ -202,6 +204,11 @@ class Trigger(DigitalOutput):
     def fire(self):
         self.engine.fire_sw_do(self.channel.name, duration=self.duration)
 
+    def load_manifest(self):
+        with enaml.imports():
+            from .output_manifest import TriggerManifest
+            return TriggerManifest(device=self)
+
 
 class Toggle(DigitalOutput):
 
@@ -219,3 +226,8 @@ class Toggle(DigitalOutput):
 
     def set_low(self):
         self.state = False
+
+    def load_manifest(self):
+        with enaml.imports():
+            from .output_manifest import ToggleManifest
+            return ToggleManifest(device=self)

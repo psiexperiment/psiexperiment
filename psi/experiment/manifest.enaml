@@ -1,5 +1,6 @@
-# TODO: Find a smart way to set defaults on a per-paradigm basis (e.g., how do
-# we set the ID?)
+import logging
+log = logging.getLogger(__name__)
+
 import cPickle as pickle
 
 import os
@@ -80,11 +81,6 @@ def get_default_layout(event):
         pass
 
 
-def refresh_workspace(event, plugin_ids=None):
-    plugin = event.workbench.get_plugin(PLUGIN_ID)
-    plugin.refresh_workspace(plugin_ids)
-
-
 def save_preferences(event):
     filename = event.parameters.get('filename', None)
     if filename is None:
@@ -136,6 +132,14 @@ def window_factory(workbench):
     return ExperimentWorkbenchWindow()
 
 
+def setup_workspace(event):
+    log.debug('Setting up workspace')
+    plugin = event.workbench.get_plugin(PLUGIN_ID)
+    ui = event.workbench.get_plugin('enaml.workbench.ui')
+    plugin.setup_workspace(ui.workspace)
+    plugin.setup_toolbar(ui.workspace)
+
+
 enamldef ExperimentManifest(PluginManifest):
     '''
     This plugin acts as the entry point for all other plugins in this example.
@@ -171,9 +175,6 @@ enamldef ExperimentManifest(PluginManifest):
             id = 'psi.get_default_layout'
             handler = get_default_layout
         Command:
-            id = 'psi.refresh_workspace'
-            handler = refresh_workspace
-        Command:
             id = 'psi.save_preferences'
             handler = save_preferences
         Command:
@@ -185,6 +186,9 @@ enamldef ExperimentManifest(PluginManifest):
         Command:
             id = 'psi.get_default_preferences'
             handler = get_default_preferences
+        Command:
+            id = 'psi.setup_workspace'
+            handler = setup_workspace
 
     Extension:
         id = 'actions'

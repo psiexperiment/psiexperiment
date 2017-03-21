@@ -24,16 +24,6 @@ from .experiment_action import (ExperimentState, ExperimentEvent,
 from .output_manifest import ToggleManifest, TriggerManifest
 
 
-def _contribute_manifests(workbench):
-    plugin = workbench.get_plugin('psi.controller')
-    for output_name, output in plugin._outputs.items():
-        if isinstance(output, Toggle):
-            manifest = ToggleManifest(output=output)
-            workbench.register(manifest)
-        if isinstance(output, Trigger):
-            manifest = TriggerManifest(output=output)
-            workbench.register(manifest)
-
 def _contribute_outputs(workbench, workspace):
     plugin = workbench.get_plugin('psi.controller')
     item = OutputDockItem(workspace.dock_area, controller=plugin,
@@ -43,7 +33,6 @@ def _contribute_outputs(workbench, workspace):
 
 
 def contribute_to_workspace(workbench, workspace):
-    _contribute_manifests(workbench)
     _contribute_outputs(workbench, workspace)
 
 

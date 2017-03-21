@@ -70,14 +70,12 @@ class ExperimentPlugin(Plugin):
 
     def get_layout(self):
         ui = self.workbench.get_plugin('enaml.workbench.ui')
-        print ui._window.geometry()
         return {'geometry': ui._window.geometry(),
                 'toolbars': self._get_toolbar_layout(ui.workspace.toolbars),
                 'dock_layout': ui.workspace.dock_area.save_layout()}
 
     def set_layout(self, layout):
         ui = self.workbench.get_plugin('enaml.workbench.ui')
-        #print layout['geometry']
         ui._window.set_geometry(layout['geometry'])
         ui._window.set_geometry(layout['geometry'])
         self._set_toolbar_layout(ui.workspace.toolbars, layout['toolbars'])

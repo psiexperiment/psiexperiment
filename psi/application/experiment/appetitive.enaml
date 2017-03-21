@@ -51,23 +51,27 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
 
         ExperimentAction:
             event = 'trial_start'
-            command = 'psi.controller.actions.opencv_camera:1.capture_image'
+            command = 'psi.controller.pupil_camera.capture_image'
 
         ExperimentAction:
             event = 'to_start'
-            command = 'psi.controller.toggle_output:room_light_toggle.off'
+            command = 'psi.controller.room_light_toggle.off'
 
         ExperimentAction:
             event = 'to_end'
-            command = 'psi.controller.toggle_output:room_light_toggle.on'
+            command = 'psi.controller.room_light_toggle.on'
 
         ExperimentAction:
             event = 'experiment_start'
-            command = 'psi.controller.toggle_output:room_light_toggle.on'
+            command = 'psi.controller.room_light_toggle.on'
 
         ExperimentAction:
             event = 'experiment_end'
-            command = 'psi.controller.toggle_output:room_light_toggle.on'
+            command = 'psi.controller.room_light_toggle.on'
+
+        ExperimentAction:
+            event = 'deliver_reward'
+            command = 'psi.controller.food_dispenser.dispense_pellet'
 
 
     Extension:

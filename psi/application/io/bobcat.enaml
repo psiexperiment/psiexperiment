@@ -15,6 +15,9 @@ from psi.controller.input import (Downsample, IIRFilter, Threshold, Edges,
 from psi.controller.calibration import GolayCalibration, FlatCalibration
 from psi.controller.calibration.util import db
 
+from psi.controller.devices.opencv_camera import OpenCVCamera
+from psi.controller.devices.pellet_dispenser import PelletDispenser
+
 
 cal_root = get_config('CAL_ROOT')
 filename = os.path.join(cal_root, '161128 - Golay for training booth.cal')
@@ -28,6 +31,40 @@ enamldef IOManifest(PluginManifest): manifest:
     Extension:
         id = 'backend'
         point = 'psi.controller.io'
+
+        PelletDispenser:
+            output_name = 'food_dispense_trigger'
+            name = 'food_dispenser'
+            label = 'Food dispenser'
+
+        OpenCVCamera:
+            device = 0
+            resolution = (320, 240)
+            name = 'behavior_camera'
+            label = 'Behavior camera'
+
+        OpenCVCamera:
+            device = 1
+            resolution = (640, 480)
+            name = 'pupil_camera'
+            label = 'Pupil camera'
+
+        Trigger:
+            # This is a required output for the food dispenser. The
+            # plugin will look for this output by name. If not present,
+            # the food dispenser plugin will not work!
+            label = 'Food dispense'
+            name = 'food_dispense_trigger'
+            duration = 0.1
+            target_name = 'food_dispense'
+
+        Toggle:
+            # This is a required output for the room light. The plugin
+            # will look for this output by name. If not present, the
+            # room light plugin will not work!
+            name = 'room_light_toggle'
+            label = 'Room light'
+            target_name = 'room_light'
 
         NIDAQEngine:
             name = 'NI'
@@ -56,26 +93,11 @@ enamldef IOManifest(PluginManifest): manifest:
                 fs = 0
                 dtype = np.dtype('bool')
 
-                Trigger:
-                    # This is a required output for the food dispenser. The
-                    # plugin will look for this output by name. If not present,
-                    # the food dispenser plugin will not work!
-                    label = 'Food dispense'
-                    name = 'food_dispense_trigger'
-                    duration = 0.1
-
             DOChannel:
                 name = 'room_light'
                 channel = 'Dev1/port0/line1'
                 fs = 0
                 dtype = np.dtype('bool')
-
-                Toggle:
-                    # This is a required output for the room light. The plugin
-                    # will look for this output by name. If not present, the
-                    # room light plugin will not work!
-                    name = 'room_light_toggle'
-                    label = 'Room light'
 
             AIChannel:
                 label = 'Microphone'

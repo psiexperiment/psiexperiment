@@ -25,54 +25,18 @@ from psi import get_config, set_config
 data_store_manifest = 'psi.data.bcolz_store.manifest.BColzStoreManifest'
 
 
-def configure_appetitive_gonogo_food():
-    import enaml
-    with enaml.imports():
-        from psi.application.experiment.appetitive import ControllerManifest
-        from psi.controller.actions.pellet_dispenser.manifest import PelletDispenserManifest
-        from psi.controller.actions.opencv_camera.manifest import OpenCVCameraManifest
-        from psi.data.trial_log.manifest import TrialLogManifest
-        from psi.data.event_log.manifest import EventLogManifest
-        from psi.data.sdt_analysis.manifest import SDTAnalysisManifest
-        from psi.data.bcolz_store.manifest import BColzStoreManifest
-    return [
-        ControllerManifest(),
-        PelletDispenserManifest(),
-        TrialLogManifest(),
-        EventLogManifest(),
-        SDTAnalysisManifest(),
-        BColzStoreManifest(),
-        OpenCVCameraManifest(device=0, resolution=(320, 180)),
-        OpenCVCameraManifest(device=1, resolution=(1920, 1080)),
-    ]
-
-
 experiment_descriptions = {
-    'test': {
-        'manifests': [
-            #'psi.application.experiment.test.ControllerManifest',
-            'psi.controller.passive_manifest.PassiveManifest',
-            'psi.data.passive_trial_log.manifest.PassiveTrialLogManifest',
-            'psi.data.event_log.manifest.EventLogManifest',
-            data_store_manifest,
-        ]
-    },
     'appetitive_gonogo_food': {
     },
-    'appetitive_gonogo_water': {
+    'appetitive_gonogo_food': {
         'manifests': [
             'psi.application.experiment.appetitive.ControllerManifest',
-            'psi.controller.actions.NE1000.manifest.NE1000Manifest',
-            'psi.controller.actions.NE1000.manifest.AppetitiveNE1000Actions',
-            'psi.controller.actions.room_light.manifest.RoomLightManifest',
-            'psi.controller.actions.room_light.manifest.AppetitiveRoomLightActions',
             'psi.data.trial_log.manifest.TrialLogManifest',
             'psi.data.event_log.manifest.EventLogManifest',
             'psi.data.sdt_analysis.manifest.SDTAnalysisManifest',
             data_store_manifest,
         ],
     },
-
     'abr': {
         'manifests': [
             'psi.application.experiment.abr.ControllerManifest',
@@ -81,7 +45,6 @@ experiment_descriptions = {
             data_store_manifest,
         ],
     },
-
     'noise_exposure': {
         'manifests': [
             'psi.application.experiment.noise_exposure.ControllerManifest',
@@ -182,6 +145,8 @@ def main():
                         help='Hardware configuration')
     parser.add_argument('--debug', default=True, action='store_true',
                         help='Debug mode?')
+    parser.add_argument('--debug_warning', default=False, action='store_true',
+                        help='Debug mode?')
     args = parser.parse_args()
 
     for config in ['LAYOUT_ROOT', 'PREFERENCES_ROOT']:
@@ -200,16 +165,15 @@ def main():
         configure_logging(os.path.join(log_root, filename))
         log.debug('Logging configured')
         log.info('Logging information captured in {}'.format(filename))
-        warnings.showwarning = warn_with_traceback
+        if args.debug_warning:
+            warnings.showwarning = warn_with_traceback
     else:
         # This suppresses a FutureWarning in the Chaco library that we don't
         # really need to deal with at the moment.
         warnings.simplefilter(action="ignore", category=FutureWarning)
 
     experiment_description = experiment_descriptions[args.experiment]
-    #manifests = application.get_manifests(experiment_description['manifests'])
-    manifests = configure_appetitive_gonogo_food()
-    #manifests = configure_test()
+    manifests = [m() for m in application.get_manifests(experiment_description['manifests'])]
     manifests += [application.get_io_manifest(args.io)()]
     workbench = application.initialize_workbench(manifests)
 
@@ -227,7 +191,10 @@ def main():
 
     # We need to use deferred call to ensure these commands are invoked *after*
     # the application is started (the application needs to load the plugins
-    # first).
+    # first). For example, the controller IO extension point will automatically
+    # load a series of manifests based on the equipment described in the IO
+    # manifest.
+    deferred_call(core.invoke_command, 'psi.setup_workspace')
     deferred_call(core.invoke_command, 'psi.get_default_preferences')
     deferred_call(core.invoke_command, 'psi.get_default_layout')
     ui.start_application()

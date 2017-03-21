@@ -15,6 +15,8 @@ from .channel import Channel, AOChannel
 from .engine import Engine
 from .output import Output
 from .input import Input
+from .device import Device
+
 from .experiment_action import (ExperimentAction, ExperimentEvent,
                                 ExperimentState)
 from .output import ContinuousOutput, EpochOutput
@@ -68,6 +70,9 @@ class BasePlugin(Plugin):
     # Available inputs
     _inputs = Typed(dict, {})
 
+    # Available devices
+    _devices = Typed(dict, {})
+
     # This determines which engine is responsible for the clock
     _master_engine = Typed(Engine)
 
@@ -107,10 +112,21 @@ class BasePlugin(Plugin):
         engines = {}
         outputs = {}
         inputs = {}
+        devices = {}
         master_engine = None
 
         point = self.workbench.get_extension_point(IO_POINT)
         for extension in point.extensions:
+            for device in extension.get_children(Device):
+                log.debug('Found device {}'.format(device.name))
+                devices[device.name] = device
+                try:
+                    manifest = device.load_manifest()
+                    self.workbench.register(manifest)
+                except NotImplementedError:
+                    m = 'No manifest defind for device {}'.format(device.name)
+                    log.warn(m)
+
             for engine in extension.get_children(Engine):
                 engines[engine.name] = engine
                 if engine.master_clock:
@@ -196,6 +212,7 @@ class BasePlugin(Plugin):
         self._engines = engines
         self._outputs = outputs
         self._inputs = inputs
+        self._devices = devices
 
         log.debug('Available inputs: {}'.format(inputs.keys()))
         log.debug('Available outputs: {}'.format(outputs.keys()))

@@ -19,16 +19,15 @@ import cv2
 
 from qimage2ndarray import array2qimage
 
+from ..device import Device
+from ..device_manifest import DeviceManifest
 
-PLUGIN_ID = 'psi.controller.actions.opencv_camera' 
 
-
-def capture_image(event, plugin_id):
-    stream = event.workbench.get_plugin(plugin_id)
-    result, image = stream.capture()
+def capture_image(event, device):
+    result, image = device.capture()
     data = event.workbench.get_plugin('psi.data')
     if data.base_path != '<memory>':
-        image_base = os.path.join(data.base_path, 'camera', str(stream.device))
+        image_base = os.path.join(data.base_path, 'camera', str(device.device))
         if not os.path.exists(image_base):
             os.makedirs(image_base)
 
@@ -46,9 +45,9 @@ def capture_image(event, plugin_id):
 
 class QCameraViewer(QtGui.QWidget):
 
-    def __init__(self, parent, stream):
+    def __init__(self, parent, device):
         super(QCameraViewer, self).__init__(parent)
-        self.stream = stream
+        self.device = device
 
         self.captureVideo()
         self.timer = QtCore.QTimer()
@@ -57,7 +56,7 @@ class QCameraViewer(QtGui.QWidget):
         self.timer.start()
 
     def captureVideo(self):
-        result, image = self.stream.capture()
+        result, image = self.device.capture()
         if image is not None:
             self.setImage(image)
 
@@ -73,13 +72,10 @@ class QCameraViewer(QtGui.QWidget):
         h, w = image.shape[:2]
         width = self.parent().width()
         height = self.parent().height()
-        max_dimension = min(width, height)
-        ar = w/h
-        if ar >= 1:
-            # cols, rows
-            new_size = max_dimension, int(max_dimension/ar)
-        else:
-            new_size = int(max_dimension*ar), max_dimension
+        if min(width, height) == 0:
+            return
+        sf = min(height/h, width/w)
+        new_size = int(sf*w), int(sf*h)
         resized = cv2.resize(image, new_size)
         qimage = array2qimage(resized)
         self.image = qimage
@@ -88,21 +84,21 @@ class QCameraViewer(QtGui.QWidget):
 
     def __del__(self):
         # TODO Hack, not a good place for it.
-        self.stream.camera.release()
+        self.device.camera.release()
 
 
 class CameraViewer(RawWidget):
 
-    stream = d_(Value())
+    device = d_(Value())
 
     def create_widget(self, parent):
-        return QCameraViewer(parent, stream=self.stream)
+        return QCameraViewer(parent, device=self.device)
 
 
 enamldef CameraDockItem(DockItem):
 
-    title = 'Camera {}'.format(stream.device)
-    alias stream: viewer.stream
+    title = device.label
+    alias device: viewer.device
 
     Container:
         constraints = [
@@ -114,19 +110,18 @@ enamldef CameraDockItem(DockItem):
             pass
 
 
-def contribute_to_workspace(workbench, workspace, device, plugin_id):
-    plugin = workbench.get_plugin(plugin_id)
-    item = CameraDockItem(workspace.dock_area, 
-                          name='Camera {}'.format(device),
-                          stream=plugin)
+def contribute_to_workspace(workbench, workspace, device):
+    device.start()
+    name = 'Camera {}'.format(device.label)
+    item = CameraDockItem(workspace.dock_area, name=name, device=device)
     op = InsertItem(item=item.name, position='top')
     deferred_call(workspace.dock_area.update_layout, op)
 
 
-class OpenCVCameraPlugin(Plugin):
+class OpenCVCamera(Device):
 
-    device = Int()
-    resolution = Tuple(Int(), Int())
+    device = d_(Int())
+    resolution = d_(Tuple(Int(), Int()))
     camera = Value()
 
     def start(self):
@@ -139,40 +134,34 @@ class OpenCVCameraPlugin(Plugin):
         return self.camera.read()
 
     def __del__(self):
+        print 'deleted'
+        print 'deleted'
+        print 'deleted'
+        print 'deleted'
         self.camera.release()
         
-
-class _OpenCVCameraManifest(PluginManifest):
-
-    device = d_(Int())
-    resolution = Tuple(Int(), Int())
+    def load_manifest(self):
+        return OpenCVCameraManifest(device=self)
 
 
-enamldef OpenCVCameraManifest(_OpenCVCameraManifest): manifest:
+enamldef OpenCVCameraManifest(DeviceManifest): manifest:
 
-    id = PLUGIN_ID + ':' + str(manifest.device)
-    factory = partial(OpenCVCameraPlugin, device=manifest.device,
-                      resolution=manifest.resolution)
-
-    # TODO ADD capture commands
     Extension:
         id = 'commands'
         point = 'enaml.workbench.core.commands'
         Command:
             id = manifest.id + '.capture_image'
-            handler = partial(capture_image, plugin_id=manifest.id)
+            handler = partial(capture_image, device=manifest.device)
 
     Extension:
         id = 'opencv_workspace'
         point = 'psi.experiment.workspace'
-        factory = partial(contribute_to_workspace, 
-                          device=manifest.device,
-                          plugin_id=manifest.id)
+        factory = partial(contribute_to_workspace, device=manifest.device)
 
     Extension:
         id = 'toggle_actions'
         point = 'enaml.workbench.ui.actions'
         ActionItem:
-            path = '/equipment/camera_{}'.format(manifest.device)
-            label = 'Camera {}'.format(manifest.device)
+            path = '/equipment/camera_' + manifest.device.name
+            label = '{} snapshot'.format(manifest.device.label)
             command = manifest.id + '.capture_image'

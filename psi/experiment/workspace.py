@@ -12,7 +12,7 @@ with enaml.imports():
 
 class ExperimentWorkspace(Workspace):
 
-    toolbars = Typed(list)
+    toolbars = Typed(list, {})
 
     @property
     def dock_area(self):
@@ -22,5 +22,3 @@ class ExperimentWorkspace(Workspace):
         self.content = ExperimentView()
         plugin = self.workbench.get_plugin('psi.experiment')
         core = self.workbench.get_plugin('enaml.workbench.core')
-        plugin.setup_toolbar(self)
-        plugin.setup_workspace(self)
