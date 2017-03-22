@@ -7,4 +7,4 @@ class Device(Declarative):
     label = d_(Unicode())
 
     def load_manifest(self):
-        raise NotImplementedError
+        return None

@@ -25,15 +25,15 @@ class MissingDockLayoutValidator(DockLayoutValidator):
 
 class ExperimentPlugin(Plugin):
 
-    _preferences = Typed(dict, {})
+    _preferences = Typed(list)
     _workspace_contributions = Typed(list)
     _toolbar_contributions = Typed(list)
 
     def start(self):
         log.debug('Starting experiment plugin')
-        self._refresh_preferences()
         self._refresh_workspace()
         self._refresh_toolbars()
+        self._refresh_preferences()
         self._bind_observers()
 
     def stop(self):
@@ -59,13 +59,16 @@ class ExperimentPlugin(Plugin):
         ui.workspace.toolbars = toolbars
 
     def _refresh_preferences(self, event=None):
-        preferences = {}
+        log.debug('Refreshing preferences')
+        preferences = []
+        names = []
         point = self.workbench.get_extension_point(PREFERENCES_POINT)
         for extension in point.extensions:
-            preference = extension.get_children(Preferences)[0]
-            if preference.name in preferences:
-                raise ValueError('Cannot reuse preference name')
-            preferences[preference.name] = preference
+            for preference in extension.get_children(Preferences):
+                if preference.name in names:
+                    raise ValueError('Cannot reuse preference name')
+                preferences.append(preference)
+                log.debug('Registering preference {}'.format(preference.name))
         self._preferences = preferences
 
     def _bind_observers(self):
@@ -127,16 +130,16 @@ class ExperimentPlugin(Plugin):
 
     def get_preferences(self):
         state = {}
-        for name, preference in self._preferences.items():
-            log.debug('Getting preferences for {}'.format(name))
-            state[name] = preference.get_preferences(self.workbench)
+        for preference in self._preferences:
+            log.debug('Getting preferences for {}'.format(preference.name))
+            state[preference.name] = preference.get_preferences(self.workbench)
         return state
 
     def set_preferences(self, state):
-        for name, s in state.items():
-            log.debug('Setting preferences for {}'.format(name))
-            try:
-                preference = self._preferences[name]
+        for preference in self._preferences:
+            log.debug('Setting preferences for {}'.format(preference.name))
+            if preference.name not in state:
+                log.warn('Preference {} missing'.format(preference.name))
+            else:
+                s = state[preference.name]
                 preference.set_preferences(self.workbench, s)
-            except KeyError as e:
-                log.warn(e)

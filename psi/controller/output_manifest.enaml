@@ -10,6 +10,7 @@ from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
 
 from psi.context.api import ContextGroup
+from psi.experiment.api import ItemPreferences
 
 from .device_manifest import DeviceManifest
 from .experiment_action import ExperimentState
@@ -17,7 +18,7 @@ from .experiment_action import ExperimentState
 
 def toggle_off(event, output):
     output.set_low()
-    
+
 
 def toggle_on(event, output):
     output.set_high()
@@ -34,10 +35,30 @@ def toggle(event, output):
         toggle_off(event, output)
 
 
+def set_token(event, device, output_type):
+    token_plugin = event.workbench.get_plugin('psi.token')
+    factory = getattr(token_plugin, 'generate_{}_token'.format(output_type))
+    token = factory(event.parameters['token_name'], device.name, device.label)
+    device.token = token
+    device.token_name = event.parameters['token_name']
+
+    # TODO: This is a hack. Maybe?
+    context_plugin = event.workbench.get_plugin('psi.context')
+    context_plugin._refresh_items()
+
+
 enamldef AnalogOutputManifest(DeviceManifest): manifest:
 
     Extension:
-        id = 'epoch_menu.' + manifest.device.name
+        id = 'output_commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = 'psi.controller.{}.set_token'.format(manifest.device.name)
+            handler = partial(set_token, device=manifest.device,
+                              output_type=output_type)
+
+    Extension:
+        id = 'output_menu.' + manifest.device.name
         point = 'enaml.workbench.ui.actions'
         MenuItem:
             path = '/equipment/output/{}'.format(manifest.device.name)
@@ -52,27 +73,52 @@ enamldef AnalogOutputManifest(DeviceManifest): manifest:
                 path = '/equipment/output/{}/{}'.format(manifest.device.name, loop_item.name)
                 label << loop_item.label
                 group = manifest.device.name
-                command = 'psi.controller.configure_output'
-                parameters = {'output_name': manifest.device.name, 'token_name': loop_item.name}
-                checked << manifest.device._token_name == loop_item.name
+                command = 'psi.controller.{}.set_token'.format(manifest.device.name)
+                parameters = {'token_name': loop_item.name}
+                checked << manifest.device.token_name == loop_item.name
                 checkable = True
 
     Extension:
-        id = 'items.' + manifest.device.name
+        # For some reason this doesn't get loaded if it's lumped together with
+        # the following extension, so I've split them out. Not sure why. Some
+        # exception is getting swallowed silently.
+        id = 'groups.' + manifest.device.name
         point = 'psi.context.items'
         ContextGroup:
             name = manifest.device.name
             label = manifest.device.label
-            visible = manifest.device.visible
 
+    Extension:
+        id = 'items.' + manifest.device.name
+        point = 'psi.context.items'
         Include:
-            objects << getattr(manifest.device._token, 'get_context_items', list)()
+            # list provides an empty list of context items if needed.
+            objects << getattr(manifest.device.token, 'get_context_items',
+                               list)()
 
     Extension:
         id = 'actions.' + manifest.device.name
         point = 'psi.controller.actions'
         ExperimentState:
             name = manifest.device.name
+
+    Extension:
+        id = 'preferences.' +  manifest.device.name
+        point = 'psi.experiment.preferences'
+        rank = 10
+        ItemPreferences:
+            name = manifest.device.name
+            item = manifest.device
+            auto_save = ['token_name']
+            set_preferences => (workbench, preferences):
+                # Override the set_preferences since we need to loop into the
+                # token generation machinery. The output does not have access
+                # to this plugin. This is a hack. I'm sure I'll figure out a
+                # better approach eventually.
+                core = workbench.get_plugin('enaml.workbench.core')
+                command = 'psi.controller.{}.set_token' \
+                    .format(manifest.device.name)
+                core.invoke_command(command, parameters=preferences)
 
 
 enamldef EpochOutputManifest(AnalogOutputManifest): manifest:
@@ -101,7 +147,7 @@ enamldef ToggleManifest(DeviceManifest): manifest:
         Command:
             id = manifest.id + '.toggle'
             handler = partial(toggle, output=manifest.device)
-            
+
     Extension:
         id = 'toggle_actions.' + manifest.device.name
         point = 'enaml.workbench.ui.actions'

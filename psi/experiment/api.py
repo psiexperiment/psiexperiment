@@ -1,1 +1,2 @@
-from .preferences import Preferences, UIPreferences, PluginPreferences
+from .preferences import (Preferences, ItemPreferences, UIPreferences,
+                          PluginPreferences)

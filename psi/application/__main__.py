@@ -182,6 +182,7 @@ def run(args):
     # manifest. First, we need to load the experiment plugin to ensure that it
     # initializes everything properly. Then we can load the default layout and
     # preferences.
+    log.info('Loading experiment plugin')
     workbench.get_plugin('psi.experiment')
     deferred_call(core.invoke_command, 'psi.get_default_preferences')
     deferred_call(core.invoke_command, 'psi.get_default_layout')

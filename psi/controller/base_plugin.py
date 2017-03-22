@@ -116,17 +116,14 @@ class BasePlugin(Plugin):
         master_engine = None
 
         point = self.workbench.get_extension_point(IO_POINT)
-        if point is None:
-            return
-
         for extension in point.extensions:
             for device in extension.get_children(Device):
                 log.debug('Found device {}'.format(device.name))
                 devices[device.name] = device
-                try:
-                    manifest = device.load_manifest()
+                manifest = device.load_manifest()
+                if manifest is not None:
                     self.workbench.register(manifest)
-                except NotImplementedError:
+                else:
                     m = 'No manifest defind for device {}'.format(device.name)
                     log.warn(m)
 
@@ -226,9 +223,6 @@ class BasePlugin(Plugin):
         states = {}
 
         point = self.workbench.get_extension_point(ACTION_POINT)
-        if point is None:
-            return
-
         for extension in point.extensions:
             found_states = extension.get_children(ExperimentState)
             found_events = extension.get_children(ExperimentEvent)
@@ -282,23 +276,6 @@ class BasePlugin(Plugin):
     def stop_engines(self):
         for engine in self._engines.values():
             engine.stop()
-
-    def configure_output(self, output_name, token_name):
-        log.debug('Setting {} to {}'.format(output_name, token_name))
-        output = self._outputs[output_name]
-        if output._token_name == token_name:
-            return
-
-        plugin = self.workbench.get_plugin('psi.token')
-        if isinstance(output, EpochOutput):
-            g = plugin.generate_epoch_token
-        else:
-            g = plugin.generate_continuous_token
-
-        t = g(token_name, output.name, output.label)
-        output._token = t
-        output._token_name = token_name
-        self.context._refresh_items()
 
     def get_output(self, output_name):
         return self._outputs[output_name]

@@ -22,8 +22,6 @@ class Output(Device):
 
     visible = d_(Bool(False))
 
-    # TODO: Allow the user to select which channel the output goes through from
-    # the GUI?
     target_name = d_(Unicode())
 
     channel = Property()
@@ -32,8 +30,8 @@ class Output(Device):
     fs = Property()
 
     # TODO: clean this up. it's sort of hackish.
-    _token_name = Unicode()
-    _token = Typed(Declarative)
+    token_name = d_(Unicode())
+    token = Typed(Declarative)
 
     def _observe_parent(self, event):
         self.target_name = event['value'].name
@@ -81,7 +79,7 @@ class AnalogOutput(Output):
         context = context.copy()
         context['fs'] = self.channel.fs
         context['calibration'] = self.channel.calibration
-        return self._token.initialize_factory(context)
+        return self.token.initialize_factory(context)
 
     def initialize_generator(self, context):
         factory = self.initialize_factory(context)
@@ -145,7 +143,7 @@ class EpochOutput(AnalogOutput):
         generator = self.initialize_generator(context)
         cb = EpochCallback(self, generator)
         self._cb = cb
-        self._duration = self._token.get_duration(context)
+        self._duration = self.token.get_duration(context)
 
     def start(self, plugin, start, delay):
         '''

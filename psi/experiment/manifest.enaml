@@ -124,13 +124,6 @@ def get_default_preferences(event):
         pass
 
 
-def setup_workspace(event):
-    plugin = event.workbench.get_plugin(PLUGIN_ID)
-    ui = event.workbench.get_plugin('enaml.workbench.ui')
-    plugin.setup_workspace(ui.workspace)
-    plugin.setup_toolbars(ui.workspace)
-
-
 enamldef ExperimentManifest(PluginManifest):
     '''
     This plugin acts as the entry point for all other plugins in this example.
@@ -177,9 +170,6 @@ enamldef ExperimentManifest(PluginManifest):
         Command:
             id = 'psi.get_default_preferences'
             handler = get_default_preferences
-        #Command:
-        #    id = 'psi.setup_workspace'
-        #    handler = setup_workspace
 
     Extension:
         id = 'actions'

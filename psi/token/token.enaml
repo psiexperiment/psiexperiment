@@ -20,7 +20,7 @@ class _EpochToken(Cos2Envelope):
         global_name = self.parameters[0].name
         return context[global_name]
 
-    
+
 enamldef EpochToken(_EpochToken):
 
     name = 'epoch'
