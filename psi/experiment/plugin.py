@@ -10,13 +10,11 @@ from enaml.widgets.api import Action, ToolBar
 from enaml.widgets.toolkit_object import ToolkitObject
 
 from .preferences import Preferences
-from .manifests import CompatibleManifest, RequiredManifest
 
 
 TOOLBAR_POINT = 'psi.experiment.toolbar'
 WORKSPACE_POINT = 'psi.experiment.workspace'
 PREFERENCES_POINT = 'psi.experiment.preferences'
-MANIFEST_POINT = 'psi.experiment.manifest'
 
 
 class MissingDockLayoutValidator(DockLayoutValidator):
@@ -28,19 +26,29 @@ class MissingDockLayoutValidator(DockLayoutValidator):
 class ExperimentPlugin(Plugin):
 
     _preferences = Typed(dict, {})
+    _workspace_contributions = Typed(list)
+    _toolbar_contributions = Typed(list)
 
     def start(self):
+        log.debug('Starting experiment plugin')
         self._refresh_preferences()
+        self._refresh_workspace()
+        self._refresh_toolbars()
         self._bind_observers()
 
-    def setup_workspace(self, workspace):
-        log.debug('Setting up workspace')
+    def stop(self):
+        self._unbind_observers()
+
+    def _refresh_workspace(self, event=None):
+        log.debug('Refreshing workspace')
+        ui = self.workbench.get_plugin('enaml.workbench.ui')
         point = self.workbench.get_extension_point(WORKSPACE_POINT)
         for extension in point.extensions:
-            extension.factory(self.workbench, workspace)
-        log.debug('Done setting up workspace')
+            extension.factory(ui.workbench, ui.workspace)
 
-    def setup_toolbar(self, workspace):
+    def _refresh_toolbars(self, event=None):
+        log.debug('Refreshing toolbars')
+        ui = self.workbench.get_plugin('enaml.workbench.ui')
         toolbars = []
         point = self.workbench.get_extension_point(TOOLBAR_POINT)
         for extension in point.extensions:
@@ -48,7 +56,33 @@ class ExperimentPlugin(Plugin):
             tb = ToolBar(name=extension.id)
             tb.children.extend(children)
             toolbars.append(tb)
-        workspace.toolbars = toolbars
+        ui.workspace.toolbars = toolbars
+
+    def _refresh_preferences(self, event=None):
+        preferences = {}
+        point = self.workbench.get_extension_point(PREFERENCES_POINT)
+        for extension in point.extensions:
+            preference = extension.get_children(Preferences)[0]
+            if preference.name in preferences:
+                raise ValueError('Cannot reuse preference name')
+            preferences[preference.name] = preference
+        self._preferences = preferences
+
+    def _bind_observers(self):
+        self.workbench.get_extension_point(PREFERENCES_POINT) \
+            .observe('extensions', self._refresh_preferences)
+        self.workbench.get_extension_point(TOOLBAR_POINT) \
+            .observe('extensions', self._refresh_toolbars)
+        self.workbench.get_extension_point(WORKSPACE_POINT) \
+            .observe('extensions', self._refresh_workspace)
+
+    def _unbind_observers(self):
+        self.workbench.get_extension_point(PREFERENCES_POINT) \
+            .unobserve('extensions', self._refresh_preferences)
+        self.workbench.get_extension_point(TOOLBAR_POINT) \
+            .unobserve('extensions', self._refresh_toolbars)
+        self.workbench.get_extension_point(WORKSPACE_POINT) \
+            .unobserve('extensions', self._refresh_workspace)
 
     def _get_toolbar_layout(self, toolbars):
         # TODO: This needs some work. It's not *quite* working 100%, especially
@@ -75,8 +109,8 @@ class ExperimentPlugin(Plugin):
                 'dock_layout': ui.workspace.dock_area.save_layout()}
 
     def set_layout(self, layout):
+        log.debug('Setting layout')
         ui = self.workbench.get_plugin('enaml.workbench.ui')
-        ui._window.set_geometry(layout['geometry'])
         ui._window.set_geometry(layout['geometry'])
         self._set_toolbar_layout(ui.workspace.toolbars, layout['toolbars'])
         ui.workspace.dock_area.layout = layout['dock_layout']
@@ -86,16 +120,6 @@ class ExperimentPlugin(Plugin):
             log.debug('{} missing from saved dock layout'.format(item))
             op = FloatItem(item=item)
             deferred_call(ui.workspace.dock_area.update_layout, op)
-
-    def _refresh_preferences(self, event=None):
-        preferences = {}
-        point = self.workbench.get_extension_point(PREFERENCES_POINT)
-        for extension in point.extensions:
-            preference = extension.get_children(Preferences)[0]
-            if preference.name in preferences:
-                raise ValueError('Cannot reuse preference name')
-            preferences[preference.name] = preference
-        self._preferences = preferences
 
     def _bind_observers(self):
         self.workbench.get_extension_point(PREFERENCES_POINT) \

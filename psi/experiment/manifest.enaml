@@ -32,12 +32,6 @@ preferences_fd_kwargs = {
 }
 
 
-def experiment_view_factory(workbench):
-    workspace = ExperimentWorkspace()
-    workspace.window_title = 'Persistent View'
-    return workspace
-
-
 def save_layout(event):
     file_name = FileDialogEx.get_save_file_name(**layout_fd_kwargs)
     if file_name:
@@ -79,6 +73,8 @@ def get_default_layout(event):
         _load_layout(event, file_name)
     except IOError:
         pass
+    #import pdb
+    #pdb.set_trace()
 
 
 def save_preferences(event):
@@ -128,16 +124,11 @@ def get_default_preferences(event):
         pass
 
 
-def window_factory(workbench):
-    return ExperimentWorkbenchWindow()
-
-
 def setup_workspace(event):
-    log.debug('Setting up workspace')
     plugin = event.workbench.get_plugin(PLUGIN_ID)
     ui = event.workbench.get_plugin('enaml.workbench.ui')
     plugin.setup_workspace(ui.workspace)
-    plugin.setup_toolbar(ui.workspace)
+    plugin.setup_toolbars(ui.workspace)
 
 
 enamldef ExperimentManifest(PluginManifest):
@@ -152,12 +143,12 @@ enamldef ExperimentManifest(PluginManifest):
     Extension:
         id = 'workspace'
         point = 'enaml.workbench.ui.workspaces'
-        factory = experiment_view_factory
+        factory = lambda workbench: ExperimentWorkspace()
 
     Extension:
         id = 'window'
         point = 'enaml.workbench.ui.window_factory'
-        factory = window_factory
+        factory = lambda workbench: ExperimentWorkbenchWindow()
 
     Extension:
         id = 'commands'
@@ -186,9 +177,9 @@ enamldef ExperimentManifest(PluginManifest):
         Command:
             id = 'psi.get_default_preferences'
             handler = get_default_preferences
-        Command:
-            id = 'psi.setup_workspace'
-            handler = setup_workspace
+        #Command:
+        #    id = 'psi.setup_workspace'
+        #    handler = setup_workspace
 
     Extension:
         id = 'actions'
@@ -254,7 +245,6 @@ enamldef ExperimentManifest(PluginManifest):
             label = 'Revert to default'
             command = 'psi.get_default_preferences'
             group = 'preferences_default'
-
 
     ExtensionPoint:
         id = 'toolbar'

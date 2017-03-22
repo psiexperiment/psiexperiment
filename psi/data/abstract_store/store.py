@@ -9,7 +9,6 @@ from .data_source import DataTable, EventDataTable, DataChannel
 
 class AbstractStore(Sink):
 
-    initialized = Bool(False)
     _channels = Typed(dict)
 
     def prepare(self, plugin):
@@ -19,7 +18,6 @@ class AbstractStore(Sink):
         # TODO: This seems a bit hackish. Do we really need this?
         self._channels['trial_log'] = self.trial_log
         self._channels['event_log'] = self.event_log
-        self.initialized = True
 
     def get_source(self, source_name):
         try:

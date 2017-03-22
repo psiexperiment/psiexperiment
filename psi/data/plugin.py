@@ -44,14 +44,14 @@ class DataPlugin(Plugin):
     def stop(self):
         self._unbind_observers()
 
-    def _refresh_sinks(self):
+    def _refresh_sinks(self, event=None):
         sinks = []
         point = self.workbench.get_extension_point(SINK_POINT)
         for extension in point.extensions:
             sinks.extend(extension.get_children(Sink))
         self._sinks = sinks
 
-    def _refresh_plots(self):
+    def _refresh_plots(self, event=None):
         plots = []
         point = self.workbench.get_extension_point(PLOT_POINT)
         for extension in point.extensions:
