@@ -30,10 +30,10 @@ experiment_descriptions = {
     },
     'appetitive_gonogo_food': {
         'manifests': [
-            'psi.application.experiment.appetitive.ControllerManifest',
             'psi.data.trial_log.manifest.TrialLogManifest',
             'psi.data.event_log.manifest.EventLogManifest',
             'psi.data.sdt_analysis.manifest.SDTAnalysisManifest',
+            'psi.application.experiment.appetitive.ControllerManifest',
             data_store_manifest,
         ],
     },
@@ -135,20 +135,7 @@ def get_base_path(dirname, experiment):
     return base_path
 
 
-def main():
-    parser = argparse.ArgumentParser(description='Run experiment')
-    parser.add_argument('experiment', type=str, help='Experiment to run',
-                        choices=experiment_descriptions.keys())
-    parser.add_argument('pathname', type=str, help='Filename', nargs='?',
-                        default='<memory>')
-    parser.add_argument('--io', type=str, default=None,
-                        help='Hardware configuration')
-    parser.add_argument('--debug', default=True, action='store_true',
-                        help='Debug mode?')
-    parser.add_argument('--debug_warning', default=False, action='store_true',
-                        help='Debug mode?')
-    args = parser.parse_args()
-
+def run(args):
     for config in ['LAYOUT_ROOT', 'PREFERENCES_ROOT']:
         path = get_config(config)
         new_path = os.path.join(path, args.experiment)
@@ -175,14 +162,13 @@ def main():
     experiment_description = experiment_descriptions[args.experiment]
     manifests = [m() for m in application.get_manifests(experiment_description['manifests'])]
     manifests += [application.get_io_manifest(args.io)()]
+
     workbench = application.initialize_workbench(manifests)
-
     core = workbench.get_plugin('enaml.workbench.core')
-    core.invoke_command('enaml.workbench.ui.select_workspace',
-                        {'workspace': 'psi.experiment.workspace'})
-
     base_path = get_base_path(args.pathname, args.experiment)
     core.invoke_command('psi.data.set_base_path', {'base_path': base_path})
+    core.invoke_command('enaml.workbench.ui.select_workspace',
+                        {'workspace': 'psi.experiment.workspace'})
 
     ui = workbench.get_plugin('enaml.workbench.ui')
     with warnings.catch_warnings():
@@ -193,11 +179,42 @@ def main():
     # the application is started (the application needs to load the plugins
     # first). For example, the controller IO extension point will automatically
     # load a series of manifests based on the equipment described in the IO
-    # manifest.
-    deferred_call(core.invoke_command, 'psi.setup_workspace')
+    # manifest. First, we need to load the experiment plugin to ensure that it
+    # initializes everything properly. Then we can load the default layout and
+    # preferences.
+    workbench.get_plugin('psi.experiment')
     deferred_call(core.invoke_command, 'psi.get_default_preferences')
     deferred_call(core.invoke_command, 'psi.get_default_layout')
+    log.debug('Starting application')
     ui.start_application()
+
+
+def main():
+    parser = argparse.ArgumentParser(description='Run experiment')
+    parser.add_argument('experiment', type=str, help='Experiment to run',
+                        choices=experiment_descriptions.keys())
+    parser.add_argument('pathname', type=str, help='Filename', nargs='?',
+                        default='<memory>')
+    parser.add_argument('--io', type=str, default=None,
+                        help='Hardware configuration')
+    parser.add_argument('--debug', default=True, action='store_true',
+                        help='Debug mode?')
+    parser.add_argument('--debug_warning', default=False, action='store_true',
+                        help='Debug mode?')
+    parser.add_argument('--pdb', default=False, action='store_true',
+                        help='Autolaunch PDB?')
+    args = parser.parse_args()
+
+    try:
+        run(args)
+    except:
+        if args.pdb:
+            import pdb, traceback, sys
+            type, value, tb = sys.exc_info()
+            traceback.print_exc()
+            pdb.post_mortem(tb)
+        else:
+            raise
 
 
 if __name__ == '__main__':
