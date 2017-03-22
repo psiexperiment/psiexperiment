@@ -17,51 +17,10 @@ from ..util import rpc
 
 from .base_plugin import BasePlugin
 from .output import AnalogOutput, Toggle, Trigger
-from .output_view import OutputDockItem
 from .experiment_action import (ExperimentState, ExperimentEvent,
                                 ExperimentAction)
 
 from .output_manifest import ToggleManifest, TriggerManifest
-
-
-def _contribute_outputs(workbench, workspace):
-    plugin = workbench.get_plugin('psi.controller')
-    item = OutputDockItem(workspace.dock_area, controller=plugin,
-                          name='controller_outputs', title='Outputs')
-    op = InsertItem(item=item.name, position='top')
-    deferred_call(workspace.dock_area.update_layout, op)
-
-
-def contribute_to_workspace(workbench, workspace):
-    _contribute_outputs(workbench, workspace)
-
-
-def find_context_items(workbench, which):
-    controller = workbench.get_plugin('psi.controller')
-    items = []
-    for output in controller._outputs.values():
-        if output._token is not None:
-            items.extend(output._token.get_context_items())
-    return items
-
-
-def find_items(workbench, which):
-    # TODO: I'm not a fan of this. It seems a bit hackish. For example, we
-    # should at least be able to add a "configurable" method to the group.
-    plugin = workbench.get_plugin('psi.controller')
-    if which == 'items':
-        return find_context_items(workbench, which)
-    groups = [ContextGroup(name=o.name, label=o.label) \
-              for o in plugin._outputs.values() if o.visible]
-    log.debug('Found {} outputs'.format(len(groups)))
-    return groups
-
-
-def find_actions(workbench, klass):
-    if klass is ExperimentState:
-        plugin = workbench.get_plugin('psi.controller')
-        return [ExperimentState(name=k) for k in plugin._outputs]
-    return []
 
 
 def start_experiment(event):
@@ -77,18 +36,6 @@ enamldef BaseManifest(PSIManifest): manifest:
     '''
     id = 'psi.controller'
     factory = BasePlugin
-
-    Extension:
-        # Ensures that context group items are automatically created for the
-        # outputs.
-        id = 'automatic_context'
-        point = 'psi.context.items'
-        factory = find_items
-
-    Extension:
-        id = 'automatic_actions'
-        point = 'psi.controller.actions'
-        factory = find_actions
 
     ExtensionPoint:
         id = 'psi.controller.io'
@@ -129,6 +76,9 @@ enamldef BaseManifest(PSIManifest): manifest:
         Command:
             id = 'psi.controller.set_pause_ok'
             handler = rpc('psi.controller', 'set_pause_ok')
+        Command:
+            id = 'psi.controller.configure_output'
+            handler = rpc('psi.controller', 'configure_output')
         Command:
             id = 'psi.controller.prepare_epoch_output'
             handler = rpc('psi.controller', 'prepare_epoch_output')
@@ -203,6 +153,9 @@ enamldef BaseManifest(PSIManifest): manifest:
         MenuItem:
             path = '/equipment'
             label = 'Equipment'
+        MenuItem:
+            path = '/equipment/output'
+            label = 'Outputs'
 
     Extension:
         id = 'base_actions'
@@ -221,11 +174,6 @@ enamldef BaseManifest(PSIManifest): manifest:
         ExperimentAction:
             event = 'experiment_end'
             command = 'psi.controller.stop_engines'
-
-    Extension:
-        id = 'base_workspace'
-        point = 'psi.experiment.workspace'
-        factory = contribute_to_workspace
 
     Extension:
         id = 'preferences'

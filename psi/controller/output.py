@@ -135,7 +135,7 @@ class EpochOutput(AnalogOutput):
     _cb = Typed(object)
     _duration = Typed(object)
 
-    def initialize(self, plugin, context):
+    def setup(self, plugin, context):
         '''
         Set up the generator in preparation for producing the signal. This
         allows the generator to cache some potentially expensive computations
@@ -164,6 +164,11 @@ class EpochOutput(AnalogOutput):
     def configure(self, plugin):
         self._block_samples = int(self.channel.fs*self.block_size)
 
+    def load_manifest(self):
+        with enaml.imports():
+            from .output_manifest import EpochOutputManifest
+            return EpochOutputManifest(device=self)
+
 
 def continuous_callback(output, generator):
     offset = 0
@@ -189,6 +194,11 @@ class ContinuousOutput(AnalogOutput):
         cb = continuous_callback(self, generator)
         cb.next()
         self.engine.register_ao_callback(cb.next, self.channel.name)
+
+    def load_manifest(self):
+        with enaml.imports():
+            from .output_manifest import ContinuousOutputManifest
+            return ContinuousOutputManifest(device=self)
 
 
 class DigitalOutput(Output):

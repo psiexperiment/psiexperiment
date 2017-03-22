@@ -4,16 +4,15 @@ import numpy as np
 
 from atom.api import Typed
 
-from enaml.core.api import d_
-from enaml.widgets.api import Action
+from enaml.core.api import d_, Looper, Include
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
 
-from psi.core.enaml.api import PSIManifest
-from psi.context.api import ContextGroup, Parameter
+from psi.context.api import ContextGroup
 
 from .device_manifest import DeviceManifest
+from .experiment_action import ExperimentState
 
 
 def toggle_off(event, output):
@@ -35,10 +34,63 @@ def toggle(event, output):
         toggle_off(event, output)
 
 
+enamldef AnalogOutputManifest(DeviceManifest): manifest:
+
+    Extension:
+        id = 'epoch_menu.' + manifest.device.name
+        point = 'enaml.workbench.ui.actions'
+        MenuItem:
+            path = '/equipment/output/{}'.format(manifest.device.name)
+            label = '{} ({})'.format(manifest.device.label, output_type)
+            ItemGroup:
+                exclusive = True
+                id = manifest.device.name
+        Looper:
+            # Provide this in the subclass
+            iterable << tokens.values()
+            ActionItem:
+                path = '/equipment/output/{}/{}'.format(manifest.device.name, loop_item.name)
+                label << loop_item.label
+                group = manifest.device.name
+                command = 'psi.controller.configure_output'
+                parameters = {'output_name': manifest.device.name, 'token_name': loop_item.name}
+                checked << manifest.device._token_name == loop_item.name
+                checkable = True
+
+    Extension:
+        id = 'items.' + manifest.device.name
+        point = 'psi.context.items'
+        ContextGroup:
+            name = manifest.device.name
+            label = manifest.device.label
+            visible = manifest.device.visible
+
+        Include:
+            objects << getattr(manifest.device._token, 'get_context_items', list)()
+
+    Extension:
+        id = 'actions.' + manifest.device.name
+        point = 'psi.controller.actions'
+        ExperimentState:
+            name = manifest.device.name
+
+
+enamldef EpochOutputManifest(AnalogOutputManifest): manifest:
+
+    attr tokens << workbench.get_plugin('psi.token')._epoch_tokens
+    attr output_type = 'epoch'
+
+
+enamldef ContinuousOutputManifest(AnalogOutputManifest): manifest:
+
+    attr tokens << workbench.get_plugin('psi.token')._continuous_tokens
+    attr output_type = 'continuous'
+
+
 enamldef ToggleManifest(DeviceManifest): manifest:
 
     Extension:
-        id = 'toggle_commands'
+        id = 'toggle_commands.' + manifest.device.name
         point = 'enaml.workbench.core.commands'
         Command:
             id = manifest.id + '.off'
@@ -51,7 +103,7 @@ enamldef ToggleManifest(DeviceManifest): manifest:
             handler = partial(toggle, output=manifest.device)
             
     Extension:
-        id = 'toggle_actions'
+        id = 'toggle_actions.' + manifest.device.name
         point = 'enaml.workbench.ui.actions'
         ActionItem:
             path = '/equipment/{}'.format(manifest.device.name)

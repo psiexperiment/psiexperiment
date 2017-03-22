@@ -31,7 +31,8 @@ enamldef TokenManifest(PluginManifest):
                 pass
 
         ContinuousToken:
-            name = 'Silence'
+            name = 'silence'
+            label = 'silence'
             Silence:
                 pass
 

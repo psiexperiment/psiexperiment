@@ -116,6 +116,9 @@ class BasePlugin(Plugin):
         master_engine = None
 
         point = self.workbench.get_extension_point(IO_POINT)
+        if point is None:
+            return
+
         for extension in point.extensions:
             for device in extension.get_children(Device):
                 log.debug('Found device {}'.format(device.name))
@@ -223,6 +226,9 @@ class BasePlugin(Plugin):
         states = {}
 
         point = self.workbench.get_extension_point(ACTION_POINT)
+        if point is None:
+            return
+
         for extension in point.extensions:
             found_states = extension.get_children(ExperimentState)
             found_events = extension.get_children(ExperimentEvent)
@@ -278,19 +284,18 @@ class BasePlugin(Plugin):
             engine.stop()
 
     def configure_output(self, output_name, token_name):
-        # Link the specified token to the output
         log.debug('Setting {} to {}'.format(output_name, token_name))
         output = self._outputs[output_name]
         if output._token_name == token_name:
             return
 
         plugin = self.workbench.get_plugin('psi.token')
-        if isinstance(output, ContinuousOutput):
-            t = plugin.generate_continuous_token(token_name, output.name,
-                                                 output.label)
+        if isinstance(output, EpochOutput):
+            g = plugin.generate_epoch_token
         else:
-            t = plugin.generate_epoch_token(token_name, output.name,
-                                            output.label)
+            g = plugin.generate_continuous_token
+
+        t = g(token_name, output.name, output.label)
         output._token = t
         output._token_name = token_name
         self.context._refresh_items()
@@ -309,7 +314,7 @@ class BasePlugin(Plugin):
         output = self.get_epoch_output(output_name)
         if context is None:
             context = self.context.get_values()
-        output.initialize(self, context)
+        output.setup(self, context)
 
     def start_epoch_output(self, output_name, start=None, delay=0):
         if start is None:
