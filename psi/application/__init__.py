@@ -54,8 +54,6 @@ def initialize_workbench(extra_manifests,
     workbench.register(ExperimentManifest())
     workbench.register(TokenManifest())
 
-    ui = workbench.get_plugin('enaml.workbench.ui')
-
     for manifest in extra_manifests:
         workbench.register(manifest)
 

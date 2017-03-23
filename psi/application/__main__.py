@@ -4,6 +4,7 @@ log = logging.getLogger(__name__)
 import faulthandler
 faulthandler.enable()
 
+import pdb
 import traceback
 import warnings
 import sys
@@ -17,6 +18,7 @@ import tables as tb
 import yaml
 
 from enaml.application import deferred_call
+from enaml.qt.qt_application import QtApplication
 
 from psi import application
 from psi import get_config, set_config
@@ -30,10 +32,10 @@ experiment_descriptions = {
     },
     'appetitive_gonogo_food': {
         'manifests': [
+            'psi.application.experiment.appetitive.ControllerManifest',
             'psi.data.trial_log.manifest.TrialLogManifest',
             'psi.data.event_log.manifest.EventLogManifest',
             'psi.data.sdt_analysis.manifest.SDTAnalysisManifest',
-            'psi.application.experiment.appetitive.ControllerManifest',
             data_store_manifest,
         ],
     },
@@ -136,6 +138,8 @@ def get_base_path(dirname, experiment):
 
 
 def run(args):
+    app = QtApplication()
+
     for config in ['LAYOUT_ROOT', 'PREFERENCES_ROOT']:
         path = get_config(config)
         new_path = os.path.join(path, args.experiment)
@@ -183,6 +187,7 @@ def run(args):
     # initializes everything properly. Then we can load the default layout and
     # preferences.
     log.info('Loading experiment plugin')
+    workbench.get_plugin('psi.controller')
     workbench.get_plugin('psi.experiment')
     deferred_call(core.invoke_command, 'psi.get_default_preferences')
     deferred_call(core.invoke_command, 'psi.get_default_layout')
@@ -210,7 +215,6 @@ def main():
         run(args)
     except:
         if args.pdb:
-            import pdb, traceback, sys
             type, value, tb = sys.exc_info()
             traceback.print_exc()
             pdb.post_mortem(tb)

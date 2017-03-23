@@ -103,6 +103,7 @@ def load_preferences(event):
 
 
 def _load_preferences(event, file_name):
+    log.debug('Loading preferences from {}'.format(file_name))
     with open(file_name, 'rb') as fh:
         preferences = pickle.load(fh)
     plugin = event.workbench.get_plugin('psi.experiment')

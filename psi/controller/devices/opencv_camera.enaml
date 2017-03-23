@@ -99,6 +99,7 @@ enamldef CameraDockItem(DockItem):
 
     title = device.label
     alias device: viewer.device
+    closable = False
 
     Container:
         constraints = [
@@ -134,10 +135,6 @@ class OpenCVCamera(Device):
         return self.camera.read()
 
     def __del__(self):
-        print 'deleted'
-        print 'deleted'
-        print 'deleted'
-        print 'deleted'
         self.camera.release()
         
     def load_manifest(self):

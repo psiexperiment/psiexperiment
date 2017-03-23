@@ -199,6 +199,28 @@ class ContinuousOutput(AnalogOutput):
             return ContinuousOutputManifest(device=self)
 
 
+def null_callback(output):
+    offset = 0
+    engine = output.engine
+    channel = output.channel
+    while True:
+        yield
+        with engine.lock:
+            samples = engine.get_space_available(channel.name, offset)
+            waveform = np.zeros(samples)
+            engine.append_hw_ao(waveform)
+            offset += samples
+
+
+class NullOutput(AnalogOutput):
+    # Used in the event where a channel does not have a continuous output defined.
+
+    def configure(self, plugin):
+        cb = null_callback(self)
+        cb.next()
+        self.engine.register_ao_callback(cb.next, self.channel.name)
+
+
 class DigitalOutput(Output):
 
     def configure(self, plugin):

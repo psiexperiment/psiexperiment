@@ -190,23 +190,6 @@ class BasePlugin(Plugin):
                 channel.engine = None
                 del channels[channel.name]
 
-        # Hack for channels that don't define a continuous output. TODO?
-        # Somehow find a better way to do this?
-        for channel in channels.values():
-            if isinstance(channel, AOChannel):
-                if channel.continuous_output is not None:
-                    break
-                else:
-                    plugin = self.workbench.get_plugin('psi.token')
-                    output = ContinuousOutput(name=channel.name + '_default_',
-                                              visible=False)
-                    t = plugin.generate_continuous_token('Silence',
-                                                         output.name,
-                                                         output.label)
-                    output._token = t
-                    output.target = channel
-                    outputs[output.name] = output
-
         self._master_engine = master_engine
         self._channels = channels
         self._engines = engines
@@ -227,13 +210,6 @@ class BasePlugin(Plugin):
             found_states = extension.get_children(ExperimentState)
             found_events = extension.get_children(ExperimentEvent)
             found_actions = extension.get_children(ExperimentAction)
-            if extension.factory is not None:
-                objs = extension.factory(self.workbench, ExperimentState)
-                found_states.extend(objs)
-                objs = extension.factory(self.workbench, ExperimentEvent)
-                found_events.extend(objs)
-                objs = extension.factory(self.workbench, ExperimentAction)
-                found_actions.extend(objs)
 
             for state in found_states:
                 if state.name in states:
@@ -260,7 +236,7 @@ class BasePlugin(Plugin):
         log.debug(' * Events: %r', self._events.keys())
         log.debug(' * Actions')
         for action in self._actions:
-            log.info('    - {} linked to {}' \
+            log.debug('    - {} linked to {}' \
                      .format(action.event, action.command))
 
     def configure_engines(self):

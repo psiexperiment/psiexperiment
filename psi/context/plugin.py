@@ -96,10 +96,6 @@ class ContextPlugin(Plugin):
 
             items = extension.get_children(ContextItem)
             groups = extension.get_children(ContextGroup)
-            factory = getattr(extension, 'factory')
-            if factory is not None:
-                items.extend(factory(self.workbench, 'items'))
-                groups.extend(factory(self.workbench, 'groups'))
 
             for group in groups:
                 log.debug('Adding context group {}'.format(group.name))

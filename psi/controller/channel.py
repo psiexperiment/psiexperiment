@@ -7,7 +7,7 @@ from atom.api import Unicode, Enum, Typed, Tuple, Property
 from enaml.core.api import Declarative, d_
 
 from .calibration import Calibration
-from .output import ContinuousOutput, EpochOutput
+from .output import ContinuousOutput, EpochOutput, NullOutput
 
 from psi import SimpleState
 
@@ -88,9 +88,14 @@ class AOChannel(Channel):
         return [o for o in self.outputs if isinstance(o, EpochOutput)]
 
     def configure(self, plugin):
+        # Hack?
+        if self.continuous_output is None:
+            null_output = NullOutput()
+            null_output.target = self
         for output in self.outputs:
             log.debug('Configuring output {}'.format(output.name))
             output.configure(plugin)
+
 
 
 class DIChannel(Channel):
