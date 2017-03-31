@@ -5,7 +5,10 @@ from enaml.workbench.ui.workbench_window import WorkbenchWindow
 
 
 enamldef ExperimentWorkbenchWindow(WorkbenchWindow):
-
+    '''
+    Customize the workbench window to include toolbars and a status bar. Also
+    ensure that the experiment is stopped before the window can be closed.
+    '''
     closing ::
         # Make sure the experiment isn't running when the close button is
         # pressed.

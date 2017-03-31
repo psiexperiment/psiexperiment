@@ -6,7 +6,7 @@ from enaml.application import deferred_call
 from enaml.layout.api import FloatItem, InsertItem
 from enaml.layout.dock_layout import DockLayoutValidator
 from enaml.workbench.plugin import Plugin
-from enaml.widgets.api import Action, ToolBar
+from enaml.widgets.api import Action, ToolBar, DockItem
 from enaml.widgets.toolkit_object import ToolkitObject
 
 from .preferences import Preferences
@@ -40,8 +40,6 @@ class ExperimentPlugin(Plugin):
         self._unbind_observers()
 
     def _refresh_workspace(self, event=None):
-        from enaml.widgets.api import DockItem
-        from enaml.layout.api import InsertItem
         log.debug('Refreshing workspace')
         ui = self.workbench.get_plugin('enaml.workbench.ui')
         point = self.workbench.get_extension_point(WORKSPACE_POINT)

@@ -4,7 +4,7 @@ log = logging.getLogger(__name__)
 import enaml
 from enaml.application import deferred_call
 from enaml.layout.api import InsertItem
-from enaml.widgets.api import Action
+from enaml.widgets.api import Action, ToolBar
 from enaml.workbench.api import Extension, ExtensionPoint, PluginManifest
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem
@@ -81,58 +81,60 @@ enamldef BaseManifest(PluginManifest): manifest:
         id = 'toolbar'
         rank = 1
         point = 'psi.experiment.toolbar'
-        Action:
-            text = u'\u27A4 Start'
-            tool_tip = 'Start experiment'
-            triggered ::
-                plugin = workbench.get_plugin('enaml.workbench.core')
-                plugin.invoke_command('psi.controller.start')
-            enabled << workbench.get_plugin('psi.controller').experiment_state \
-                == 'initialized'
-        Action:
-            text = u'\u23F9 Stop'
-            tool_tip = 'Stop experiment'
-            triggered ::
-                plugin = workbench.get_plugin('enaml.workbench.core')
-                plugin.invoke_command('psi.controller.stop')
-            enabled <<  workbench.get_plugin('psi.controller').experiment_state \
-                not in ('initialized', 'stopped')
-        Action:
-            separator = True
-        Action:
-            text << u'\u23E9 Resume' if checked else u'\u23F8 Pause'
-            checkable = True
-            enabled << workbench.get_plugin('psi.controller')._pause_ok
-            tool_tip << 'Resume' if checked else 'Pause'
-            toggled ::
-                plugin = workbench.get_plugin('enaml.workbench.core')
-                if checked:
-                    plugin.invoke_command('psi.controller.request_pause')
-                else:
-                    plugin.invoke_command('psi.controller.request_resume')
-        Action:
-            separator = True
 
-        # Apply/Revert logic should pass through the controller so we can
-        # ensure that the changes occur at the appropriate time in a trial
-        # (i.e., in between trials). 
-        Action:
-            text = 'Apply'
-            enabled << workbench.get_plugin('psi.context').changes_pending \
-                and not workbench.get_plugin('psi.controller')._apply_requested \
-                and workbench.get_plugin('psi.controller').experiment_state \
-                in ('running', 'paused')
-            triggered :: 
-                plugin = workbench.get_plugin('enaml.workbench.core')
-                plugin.invoke_command('psi.controller.request_apply')
-        Action:
-            text = 'Revert'
-            enabled << workbench.get_plugin('psi.context').changes_pending \
-                and workbench.get_plugin('psi.controller').experiment_state \
-                in ('running', 'paused')
-            triggered :: 
-                plugin = workbench.get_plugin('enaml.workbench.core')
-                plugin.invoke_command('psi.context.revert_changes')
+        ToolBar:
+            Action:
+                text = u'\u27A4 Start'
+                tool_tip = 'Start experiment'
+                triggered ::
+                    plugin = workbench.get_plugin('enaml.workbench.core')
+                    plugin.invoke_command('psi.controller.start')
+                enabled << workbench.get_plugin('psi.controller').experiment_state \
+                    == 'initialized'
+            Action:
+                text = u'\u23F9 Stop'
+                tool_tip = 'Stop experiment'
+                triggered ::
+                    plugin = workbench.get_plugin('enaml.workbench.core')
+                    plugin.invoke_command('psi.controller.stop')
+                enabled <<  workbench.get_plugin('psi.controller').experiment_state \
+                    not in ('initialized', 'stopped')
+            Action:
+                separator = True
+            Action:
+                text << u'\u23E9 Resume' if checked else u'\u23F8 Pause'
+                checkable = True
+                enabled << workbench.get_plugin('psi.controller')._pause_ok
+                tool_tip << 'Resume' if checked else 'Pause'
+                toggled ::
+                    plugin = workbench.get_plugin('enaml.workbench.core')
+                    if checked:
+                        plugin.invoke_command('psi.controller.request_pause')
+                    else:
+                        plugin.invoke_command('psi.controller.request_resume')
+            Action:
+                separator = True
+
+            # Apply/Revert logic should pass through the controller so we can
+            # ensure that the changes occur at the appropriate time in a trial
+            # (i.e., in between trials). 
+            Action:
+                text = 'Apply'
+                enabled << workbench.get_plugin('psi.context').changes_pending \
+                    and not workbench.get_plugin('psi.controller')._apply_requested \
+                    and workbench.get_plugin('psi.controller').experiment_state \
+                    in ('running', 'paused')
+                triggered :: 
+                    plugin = workbench.get_plugin('enaml.workbench.core')
+                    plugin.invoke_command('psi.controller.request_apply')
+            Action:
+                text = 'Revert'
+                enabled << workbench.get_plugin('psi.context').changes_pending \
+                    and workbench.get_plugin('psi.controller').experiment_state \
+                    in ('running', 'paused')
+                triggered :: 
+                    plugin = workbench.get_plugin('enaml.workbench.core')
+                    plugin.invoke_command('psi.context.revert_changes')
 
     Extension:
         id = 'base_menu'

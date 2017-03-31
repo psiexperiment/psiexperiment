@@ -1,8 +1,7 @@
 from enaml.application import deferred_call
 from enaml.layout.api import InsertItem
-from enaml.widgets.api import Action, DockItem, Container, Label
+from enaml.widgets.api import Action, DockItem, Container, Label, ToolBar
 from enaml.workbench.api import Extension, ExtensionPoint
-from enaml.workbench.ui.api import ActionItem, MenuItem, Autostart
 
 from ..context.api import (ContextGroup, Parameter, EnumParameter,
                            BoolParameter, Result)
@@ -55,33 +54,35 @@ enamldef AppetitiveManifest(BaseManifest): manifest:
         id = 'debug_toolbar'
         rank = 1000
         point = 'psi.experiment.toolbar'
-        # TODO: Improve the enabled feature
-        Action:
-            text = 'Remind'
-            triggered ::
-                plugin = workbench.get_plugin(manifest.id)
-                plugin.request_remind()
-            enabled <<  workbench.get_plugin(manifest.id).experiment_state \
-                not in ('initialized', 'stopped')
-        Action:
-            text = 'Poke'
-            checkable = True
-            toggled ::
-                plugin = workbench.get_plugin(manifest.id)
-                if checked:
-                    plugin.handle_event(Event.digital_np_start)
-                else:
-                    plugin.handle_event(Event.digital_np_end)
-            enabled <<  workbench.get_plugin(manifest.id).experiment_state \
-                not in ('initialized', 'stopped')
-        Action:
-            text = 'Reward'
-            triggered ::
-                plugin = workbench.get_plugin(manifest.id)
-                plugin.handle_event(Event.digital_reward_start)
-                plugin.handle_event(Event.digital_reward_end)
-            enabled << workbench.get_plugin(manifest.id).experiment_state \
-                not in ('initialized', 'stopped')
+
+        ToolBar:
+            name = 'debug_toolbar'
+            Action:
+                text = 'Remind'
+                triggered ::
+                    plugin = workbench.get_plugin(manifest.id)
+                    plugin.request_remind()
+                enabled <<  workbench.get_plugin(manifest.id).experiment_state \
+                    not in ('initialized', 'stopped')
+            Action:
+                text = 'Poke'
+                checkable = True
+                toggled ::
+                    plugin = workbench.get_plugin(manifest.id)
+                    if checked:
+                        plugin.handle_event(Event.digital_np_start)
+                    else:
+                        plugin.handle_event(Event.digital_np_end)
+                enabled <<  workbench.get_plugin(manifest.id).experiment_state \
+                    not in ('initialized', 'stopped')
+            Action:
+                text = 'Reward'
+                triggered ::
+                    plugin = workbench.get_plugin(manifest.id)
+                    plugin.handle_event(Event.digital_reward_start)
+                    plugin.handle_event(Event.digital_reward_end)
+                enabled << workbench.get_plugin(manifest.id).experiment_state \
+                    not in ('initialized', 'stopped')
 
     # Parameters used by the appetitive Go-Nogo controller.
     Extension:
