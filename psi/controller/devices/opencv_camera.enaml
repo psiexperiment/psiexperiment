@@ -1,10 +1,15 @@
 from __future__ import division
 
+import logging
+log = logging.getLogger(__name__)
+
 import os.path
 from functools import partial
 from datetime import datetime 
 
-from atom.api import Int, Value, Tuple
+import numpy as np
+
+from atom.api import Int, Value, Tuple, Bool, Float
 
 from enaml.core.api import d_
 from enaml.qt import QtGui, QtCore
@@ -24,67 +29,120 @@ from ..device_manifest import DeviceManifest
 
 
 def capture_image(event, device):
-    result, image = device.capture()
     data = event.workbench.get_plugin('psi.data')
-    if data.base_path != '<memory>':
-        image_base = os.path.join(data.base_path, 'camera', str(device.device))
-        if not os.path.exists(image_base):
-            os.makedirs(image_base)
+    if data.base_path == '<memory>':
+        return
 
-        timestamp = event.parameters.get('timestamp', None)
-        event_name = event.parameters.get('event', 'manual')
+    image = device.read()
+    image_base = os.path.join(data.base_path, 'camera', str(device.name))
+    if not os.path.exists(image_base):
+        os.makedirs(image_base)
 
-        if timestamp is None:
-            name = datetime.now().strftime('%Y%M%d%H%M%S') + '_' + event_name
+    timestamp = event.parameters.get('timestamp', None)
+    event_name = event.parameters.get('event', 'manual')
+    if timestamp is None:
+        name = datetime.now().strftime('%Y%M%d%H%M%S') + '_' + event_name
+    else:
+        name = str(timestamp) + '_' + event_name
+    image_filename = '{}.png'.format(name)
+    image_fullfile = os.path.join(image_base, image_filename)
+    cv2.imwrite(image_fullfile, image)
+
+
+def start(event, device):
+    device.start()
+
+
+def stop(event, device):
+    device.stop()
+
+
+class QCaptureImage(QtCore.QThread):
+
+    image_acquired = QtCore.pyqtSignal(QtGui.QImage)
+
+    def __init__(self, device):
+        super(QCaptureImage, self).__init__()
+        self.minterval = int(device.interval*1e3)
+        self.device = device
+        self.visible = False
+        self.width = None
+        self.height = None
+        self.image = None
+
+    def __del__(self):
+        self.wait()
+
+    def run(self):
+        while True:
+            if self.visible and self.device.active:
+                self.acquire()
+                self.resize_and_emit()
+        self.msleep(self.minterval)
+
+    def acquire(self):
+        image = self.device.read()
+        if image is None:
+            log.warn('Unable to read from {}'.format(self.device.name))
         else:
-            name = str(timestamp) + '_' + event_name
-        image_filename = '{}.png'.format(name)
-        image_fullfile = os.path.join(image_base, image_filename)
-        cv2.imwrite(image_fullfile, image)
+            self.image = image
+
+    def resize_and_emit(self):
+        if self.image is not None:
+            h, w = self.image.shape[:2]
+            if min(self.width, self.height) == 0:
+                return
+            sf = min(self.height/h, self.width/w)
+            new_size = int(sf*w), int(sf*h)
+            resized = cv2.resize(self.image, new_size)
+            qimage = array2qimage(resized)
+            self.image_acquired.emit(qimage)
+
+    @QtCore.pyqtSlot(bool)
+    def set_visible(self, visible):
+        self.visible = visible
+
+    @QtCore.pyqtSlot(int, int)
+    def set_size(self, width, height):
+        self.width = width
+        self.height = height
+        self.resize_and_emit()
 
 
 class QCameraViewer(QtGui.QWidget):
 
+    visible = QtCore.pyqtSignal(bool) 
+    resize = QtCore.pyqtSignal(int, int)
+
     def __init__(self, parent, device):
         super(QCameraViewer, self).__init__(parent)
-        self.device = device
+        self.image = None
+        self.capture_image = QCaptureImage(device)
+        self.capture_image.image_acquired.connect(self.setImage)
+        self.visible.connect(self.capture_image.set_visible)
+        self.resize.connect(self.capture_image.set_size)
+        self.capture_image.start()
 
-        self.captureVideo()
-        self.timer = QtCore.QTimer()
-        self.timer.setInterval(100)
-        self.timer.timeout.connect(self.captureVideo)
-        self.timer.start()
+    def showEvent(self, event):
+        self.visible.emit(True)
 
-    def captureVideo(self):
-        result, image = self.device.capture()
-        if image is not None:
-            self.setImage(image)
+    def hideEvent(self, event):
+        self.visible.emit(False)
+
+    def resizeEvent(self, event):
+        size = event.size()
+        self.resize.emit(size.width(), size.height())
 
     def paintEvent(self, event):
-        painter = QtGui.QPainter(self)
-        painter.drawImage(0, 0, self.image)
-        self.paintImage = QtGui.QImage()
+        if self.image is not None:
+            painter = QtGui.QPainter(self)
+            painter.drawImage(0, 0, self.image)
+            self.paintImage = QtGui.QImage()
 
-    def initUI(self):
-        self.show(image)
-
+    @QtCore.pyqtSlot(QtGui.QImage)
     def setImage(self, image):
-        h, w = image.shape[:2]
-        width = self.parent().width()
-        height = self.parent().height()
-        if min(width, height) == 0:
-            return
-        sf = min(height/h, width/w)
-        new_size = int(sf*w), int(sf*h)
-        resized = cv2.resize(image, new_size)
-        qimage = array2qimage(resized)
-        self.image = qimage
-        self.resize(width, height)
+        self.image = image
         self.repaint()
-
-    def __del__(self):
-        # TODO Hack, not a good place for it.
-        self.device.camera.release()
 
 
 class CameraViewer(RawWidget):
@@ -95,48 +153,30 @@ class CameraViewer(RawWidget):
         return QCameraViewer(parent, device=self.device)
 
 
-enamldef CameraDockItem(DockItem):
-
-    title = device.label
-    alias device: viewer.device
-    closable = False
-
-    Container:
-        constraints = [
-            viewer.width == 300,
-            viewer.height == 300,
-        ]
-
-        CameraViewer: viewer:
-            pass
-
-
-def contribute_to_workspace(workbench, workspace, device):
-    device.start()
-    name = 'Camera {}'.format(device.label)
-    item = CameraDockItem(workspace.dock_area, name=name, device=device)
-    op = InsertItem(item=item.name, position='top')
-    deferred_call(workspace.dock_area.update_layout, op)
-
-
 class OpenCVCamera(Device):
 
     device = d_(Int())
     resolution = d_(Tuple(Int(), Int()))
     camera = Value()
+    active = Bool(False)
+    interval = d_(Float(0.01))
 
     def start(self):
         self.camera = cv2.VideoCapture(self.device)
         self.camera.set(3, self.resolution[0]) # width
         self.camera.set(4, self.resolution[1]) # height
         self.camera.read()
+        self.active = True
 
-    def capture(self):
-        return self.camera.read()
+    def read(self):
+        if self.active:
+            return self.camera.read()[1]
 
-    def __del__(self):
-        self.camera.release()
-        
+    def stop(self):
+        if self.active:
+            self.active = False
+            self.camera.release()
+
     def load_manifest(self):
         return OpenCVCameraManifest(device=self)
 
@@ -149,11 +189,26 @@ enamldef OpenCVCameraManifest(DeviceManifest): manifest:
         Command:
             id = manifest.id + '.capture_image'
             handler = partial(capture_image, device=manifest.device)
+        Command:
+            id = manifest.id + '.start'
+            handler = partial(start, device=manifest.device)
+        Command:
+            id = manifest.id + '.stop'
+            handler = partial(stop, device=manifest.device)
 
     Extension:
         id = 'opencv_workspace'
         point = 'psi.experiment.workspace'
-        factory = partial(contribute_to_workspace, device=manifest.device)
+        DockItem:
+            title = manifest.device.label
+            name = 'camera_{}'.format(manifest.device.name)
+            closable = False
+            
+            Container: container:
+                CameraViewer: viewer:
+                    hug_width = 'weak'
+                    hug_height = 'weak'
+                    device = manifest.device
 
     Extension:
         id = 'toggle_actions'

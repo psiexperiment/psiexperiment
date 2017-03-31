@@ -46,7 +46,13 @@ def initialize_workbench(extra_manifests,
         from psi.experiment.manifest import ExperimentManifest
         from psi.token.manifest import TokenManifest
 
+    plugin_ids = []
+    def track_plugins(event):
+        plugin_ids.append(event['value'])
+
     workbench = Workbench()
+    workbench.observe('plugin_added', track_plugins)
+
     workbench.register(CoreManifest())
     workbench.register(UIManifest())
     workbench.register(ContextManifest())
@@ -57,4 +63,4 @@ def initialize_workbench(extra_manifests,
     for manifest in extra_manifests:
         workbench.register(manifest)
 
-    return workbench
+    return workbench, plugin_ids

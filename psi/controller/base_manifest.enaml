@@ -5,11 +5,10 @@ import enaml
 from enaml.application import deferred_call
 from enaml.layout.api import InsertItem
 from enaml.widgets.api import Action
-from enaml.workbench.api import Extension, ExtensionPoint
+from enaml.workbench.api import Extension, ExtensionPoint, PluginManifest
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem
 
-from psi.core.enaml.api import PSIManifest
 from psi.experiment.api import Preferences
 from psi.context.api import ContextGroup
 
@@ -29,7 +28,7 @@ def start_experiment(event):
     controller.start_experiment()
 
 
-enamldef BaseManifest(PSIManifest): manifest:
+enamldef BaseManifest(PluginManifest): manifest:
     '''
     Defines the core functionality that most controller plugins will share
     (start, stop, pause, apply/revert settings).
@@ -76,18 +75,6 @@ enamldef BaseManifest(PSIManifest): manifest:
         Command:
             id = 'psi.controller.set_pause_ok'
             handler = rpc('psi.controller', 'set_pause_ok')
-        Command:
-            id = 'psi.controller.configure_output'
-            handler = rpc('psi.controller', 'configure_output')
-        Command:
-            id = 'psi.controller.prepare_epoch_output'
-            handler = rpc('psi.controller', 'prepare_epoch_output')
-        Command:
-            id = 'psi.controller.start_epoch_output'
-            handler = rpc('psi.controller', 'start_epoch_output')
-        Command:
-            id = 'psi.controller.clear_epoch_output'
-            handler = rpc('psi.controller', 'clear_epoch_output')
 
     # Uses unicode symbols as icons for sake of simplicity.
     Extension:

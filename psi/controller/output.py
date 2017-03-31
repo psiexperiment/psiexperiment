@@ -129,23 +129,24 @@ class EpochCallback(object):
 
 class EpochOutput(AnalogOutput):
 
+    manifest = __name__ + '_manifest.EpochOutputManifest'
+    
     method = Enum('merge', 'replace', 'multiply')
     _cb = Typed(object)
     _duration = Typed(object)
 
-    def setup(self, plugin, context):
+    def setup(self, context):
         '''
         Set up the generator in preparation for producing the signal. This
         allows the generator to cache some potentially expensive computations
         in advance rather than just before we actually want the signal played.
         '''
-        # Load the context from the plugin if not provided already.
         generator = self.initialize_generator(context)
         cb = EpochCallback(self, generator)
         self._cb = cb
         self._duration = self.token.get_duration(context)
 
-    def start(self, plugin, start, delay):
+    def start(self, start, delay):
         '''
         Actually start the generator. It must have been initialized first.
         '''
@@ -156,16 +157,11 @@ class EpochOutput(AnalogOutput):
         self.engine.register_ao_callback(self._cb.next, self.channel.name)
         return self._duration
 
-    def clear(self, plugin, end, delay):
+    def clear(self, end, delay):
         self._cb.clear(end, delay)
 
     def configure(self, plugin):
         self._block_samples = int(self.channel.fs*self.block_size)
-
-    def load_manifest(self):
-        with enaml.imports():
-            from .output_manifest import EpochOutputManifest
-            return EpochOutputManifest(device=self)
 
 
 def continuous_callback(output, generator):
@@ -185,9 +181,8 @@ def continuous_callback(output, generator):
 
 class ContinuousOutput(AnalogOutput):
 
-    def configure(self, plugin):
+    def setup(self, context):
         log.debug('Configuring continuous output {}'.format(self.name))
-        context = plugin.context.get_values()
         generator = self.initialize_generator(context)
         cb = continuous_callback(self, generator)
         cb.next()

@@ -40,11 +40,21 @@ class ExperimentPlugin(Plugin):
         self._unbind_observers()
 
     def _refresh_workspace(self, event=None):
+        from enaml.widgets.api import DockItem
+        from enaml.layout.api import InsertItem
         log.debug('Refreshing workspace')
         ui = self.workbench.get_plugin('enaml.workbench.ui')
         point = self.workbench.get_extension_point(WORKSPACE_POINT)
         for extension in point.extensions:
-            extension.factory(ui.workbench, ui.workspace)
+            if extension.factory is not None:
+                extension.factory(ui.workbench, ui.workspace)
+            for item in extension.get_children(DockItem):
+                if hasattr(item, 'plugin'):
+                    plugin = self.workbench.get_plugin(extension.parent.id)
+                    item.plugin = plugin
+                item.set_parent(ui.workspace.dock_area)
+                op = FloatItem(item=item.name)
+                deferred_call(ui.workspace.dock_area.update_layout, op)
 
     def _refresh_toolbars(self, event=None):
         log.debug('Refreshing toolbars')

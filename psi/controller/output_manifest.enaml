@@ -47,15 +47,49 @@ def set_token(event, device, output_type):
     context_plugin._refresh_items()
 
 
+def prepare_output(event, output):
+    core = event.workbench.get_plugin('enaml.workbench.core')
+    context = core.invoke_command('psi.context.get_values')
+    output.setup(context)
+
+
+def start_output(event, output):
+    start = event.parameters['timestamp']
+    delay = event.parameters.get('delay', 0)
+    duration = output.start(start, delay)
+
+    controller = event.workbench.get_plugin('psi.controller')
+    controller.invoke_actions('{}_start'.format(output.name), start+delay)
+    controller.invoke_actions('{}_end'.format(output.name),
+                              start+delay+duration, delayed=True)
+
+
+def clear_output(event, output):
+    end = event.parameters['timestamp']
+    delay = event.parameters.get('delay', 0)
+    output.clear(end, delay)
+    controller = event.workbench.get_plugin('psi.controller')
+    controller.invoke_actions('{}_end'.format(output.name), end+delay)
+
+
 enamldef AnalogOutputManifest(DeviceManifest): manifest:
 
     Extension:
         id = 'output_commands'
         point = 'enaml.workbench.core.commands'
         Command:
-            id = 'psi.controller.{}.set_token'.format(manifest.device.name)
+            id = manifest.device.name + '.set_token'
             handler = partial(set_token, device=manifest.device,
                               output_type=output_type)
+        Command:
+            id = manifest.device.name + '.prepare'
+            handler = partial(prepare_output, output=manifest.device)
+        Command:
+            id = manifest.device.name + '.start'
+            handler = partial(start_output, output=manifest.device)
+        Command:
+            id = manifest.device.name + '.clear'
+            handler = partial(clear_output, output=manifest.device)
 
     Extension:
         id = 'output_menu.' + manifest.device.name
@@ -70,11 +104,11 @@ enamldef AnalogOutputManifest(DeviceManifest): manifest:
             # Provide this in the subclass
             iterable << tokens.values()
             ActionItem:
-                path = '/equipment/output/{}/{}'.format(manifest.device.name, loop_item.name)
+                path = '/equipment/output/{}/{}'.format(manifest.device.name, 
+                                                        loop_item.name)
                 label << loop_item.label
                 group = manifest.device.name
-                command = 'psi.controller.{}.set_token'.format(manifest.device.name)
-                parameters = {'token_name': loop_item.name}
+                command = manifest.device.name + '.set_token'
                 checked << manifest.device.token_name == loop_item.name
                 checkable = True
 
@@ -116,20 +150,19 @@ enamldef AnalogOutputManifest(DeviceManifest): manifest:
                 # to this plugin. This is a hack. I'm sure I'll figure out a
                 # better approach eventually.
                 core = workbench.get_plugin('enaml.workbench.core')
-                command = 'psi.controller.{}.set_token' \
-                    .format(manifest.device.name)
+                command = manifest.device.name + '.set_token'
                 core.invoke_command(command, parameters=preferences)
 
 
 enamldef EpochOutputManifest(AnalogOutputManifest): manifest:
 
-    attr tokens << workbench.get_plugin('psi.token')._epoch_tokens
+    attr tokens = workbench.get_plugin('psi.token')._epoch_tokens
     attr output_type = 'epoch'
 
 
 enamldef ContinuousOutputManifest(AnalogOutputManifest): manifest:
 
-    attr tokens << workbench.get_plugin('psi.token')._continuous_tokens
+    attr tokens = workbench.get_plugin('psi.token')._continuous_tokens
     attr output_type = 'continuous'
 
 
@@ -158,6 +191,7 @@ enamldef ToggleManifest(DeviceManifest): manifest:
             parameters << {'state': checked}
             checked << manifest.device.state
             checkable = True
+            status_tip = command
 
 
 enamldef TriggerManifest(DeviceManifest): manifest:
@@ -168,7 +202,7 @@ enamldef TriggerManifest(DeviceManifest): manifest:
         Command:
             id = manifest.id + '.trigger'
             handler = partial(fire, output=manifest.device)
-            
+
     Extension:
         id = 'trigger_actions'
         point = 'enaml.workbench.ui.actions'
@@ -176,3 +210,4 @@ enamldef TriggerManifest(DeviceManifest): manifest:
             path = '/equipment/{}'.format(manifest.device.name)
             label = '{} trigger'.format(manifest.device.label)
             command = manifest.id + '.trigger'
+            status_tip = command

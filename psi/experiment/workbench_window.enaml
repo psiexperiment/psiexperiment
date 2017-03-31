@@ -1,6 +1,6 @@
 from enaml.core.api import Include
 from enaml.stdlib.message_box import warning
-from enaml.widgets.api import DockArea, Container
+from enaml.widgets.api import Container, StatusBar, DockArea
 from enaml.workbench.ui.workbench_window import WorkbenchWindow
 
 
@@ -17,3 +17,6 @@ enamldef ExperimentWorkbenchWindow(WorkbenchWindow):
 
     Include:
         objects << window_model.workspace.toolbars
+
+    StatusBar:
+        name = 'status_bar'

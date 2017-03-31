@@ -14,35 +14,19 @@ from ..device import Device
 from ..device_manifest import DeviceManifest
 
 
-def contribute_to_workspace(workbench, workspace, device):
-    item = PelletDispenserDockItem(workspace.dock_area, device=device,
-                                   name=device.name)
-    op = InsertItem(item=item.name, position='top')
-    deferred_call(workspace.dock_area.update_layout, op)
-
-
-enamldef PelletDispenserDockItem(DockItem):
-
-    title = 'Pellet Dispenser' 
-    attr device
-
-    Container:
-        Label:
-            text << 'Pellets dispensed: {:d}'.format(device.pellets_dispensed)
-
-
 class PelletDispenser(Device):
 
     output_name = d_(Unicode())
     pellets_dispensed = Int(0)
 
-    def dispense_pellet(self):
-        controller = self.workbench.get_plugin('psi.controller')
-        context = self.workbench.get_plugin('psi.context')
-        pellets = context.get_value('{}_pellets'.format(self.name))
-        output = controller.get_output(self.output_name)
+    def dispense_pellet(self, event):
+        core = event.workbench.get_plugin('enaml.workbench.core')
+
+        parameters = {'context_name': '{}_pellets'.format(self.name)}
+        pellets = core.invoke_command('psi.context.get_value', parameters)
+        command = '{}.trigger'.format(self.output_name)
         for pellet in range(pellets):
-            timed_call(pellet*1e3*0.5, output.fire)
+            timed_call(pellet*1e3*0.5, core.invoke_command, command)
             self.pellets_dispensed += 1
 
     def load_manifest(self):
@@ -87,4 +71,12 @@ enamldef PelletDispenserManifest(DeviceManifest): manifest:
     Extension:
         id = 'pump_workspace'
         point = 'psi.experiment.workspace'
-        factory = partial(contribute_to_workspace, device=manifest.device)
+
+        DockItem:
+            name << manifest.device.name + '.workspace'
+            title << manifest.device.label
+            closable = False
+            Container:
+                Label:
+                    text << 'Pellets dispensed: {:d}' \
+                        .format(manifest.device.pellets_dispensed)

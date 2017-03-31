@@ -133,7 +133,9 @@ class ContextPlugin(Plugin):
 
     def _unbind_observers(self):
         self.workbench.get_extension_point(SELECTORS_POINT) \
-            .unobserve('extensions', self._refresh_all)
+            .unobserve('extensions', self._refresh_selectors)
+        self.workbench.get_extension_point(ITEMS_POINT) \
+            .unobserve('extensions', self._refresh_items)
 
     @observe('context_items')
     def _bind_context_items(self, change):

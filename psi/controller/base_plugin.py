@@ -256,33 +256,6 @@ class BasePlugin(Plugin):
     def get_output(self, output_name):
         return self._outputs[output_name]
 
-    def get_epoch_output(self, output_name):
-        output = self.get_output(output_name)
-        if not isinstance(output, EpochOutput):
-            m = 'Epoch output {} does not exist'
-            raise AttributeError(m.format(output_name))
-        return output
-
-    def prepare_epoch_output(self, output_name, context=None):
-        output = self.get_epoch_output(output_name)
-        if context is None:
-            context = self.context.get_values()
-        output.setup(self, context)
-
-    def start_epoch_output(self, output_name, start=None, delay=0):
-        if start is None:
-            start = self.get_ts()
-        duration = self.get_epoch_output(output_name).start(self, start, delay)
-        self.invoke_actions('{}_start'.format(output_name), start+delay)
-        self.invoke_actions('{}_end'.format(output_name), start+delay+duration,
-                            delayed=True)
-
-    def clear_epoch_output(self, output_name, end=None, delay=0):
-        if end is None:
-            end = self.get_ts()
-        self.get_epoch_output(output_name).clear(self, end, delay)
-        self.invoke_actions('{}_end'.format(output_name), end+delay)
-
     def _get_action_context(self):
         context = {}
         for state in self._states.values():
@@ -328,7 +301,10 @@ class BasePlugin(Plugin):
                 kwargs = action.kwargs.copy()
                 kwargs['timestamp'] = timestamp
                 kwargs['event'] = event_name
-                self.core.invoke_command(action.command, parameters=kwargs)
+                try:
+                    self.core.invoke_command(action.command, parameters=kwargs)
+                except ValueError, e:
+                    log.warn(e)
 
     def request_apply(self):
         if not self.apply_changes():

@@ -39,13 +39,16 @@ enamldef IOManifest(PluginManifest): manifest:
 
         OpenCVCamera:
             device = 0
+            interval = 0.1
             resolution = (320, 240)
             name = 'behavior_camera'
             label = 'Behavior camera'
 
         OpenCVCamera:
             device = 1
-            resolution = (640, 480)
+            interval = 0.1
+            resolution = (1920, 1080)
+            #resolution = (320, 240)
             name = 'pupil_camera'
             label = 'Pupil camera'
 
@@ -69,7 +72,7 @@ enamldef IOManifest(PluginManifest): manifest:
         NIDAQEngine:
             name = 'NI'
             master_clock = True
-            
+
             # Since we're using an AnalogThreshold input to detect nose pokes
             # and reward contact, we want a fairly short AI monitor period to
             # ensure that we detect these events quickly.

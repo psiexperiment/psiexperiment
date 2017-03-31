@@ -29,12 +29,9 @@ data_store_manifest = 'psi.data.bcolz_store.manifest.BColzStoreManifest'
 
 experiment_descriptions = {
     'appetitive_gonogo_food': {
-    },
-    'appetitive_gonogo_food': {
         'manifests': [
             'psi.application.experiment.appetitive.ControllerManifest',
             'psi.data.trial_log.manifest.TrialLogManifest',
-            'psi.data.event_log.manifest.EventLogManifest',
             'psi.data.sdt_analysis.manifest.SDTAnalysisManifest',
             data_store_manifest,
         ],
@@ -167,19 +164,13 @@ def run(args):
     manifests = [m() for m in application.get_manifests(experiment_description['manifests'])]
     manifests += [application.get_io_manifest(args.io)()]
 
-    workbench = application.initialize_workbench(manifests)
+    workbench, plugin_ids = application.initialize_workbench(manifests)
     core = workbench.get_plugin('enaml.workbench.core')
     base_path = get_base_path(args.pathname, args.experiment)
     core.invoke_command('psi.data.set_base_path', {'base_path': base_path})
     core.invoke_command('enaml.workbench.ui.select_workspace',
                         {'workspace': 'psi.experiment.workspace'})
 
-    ui = workbench.get_plugin('enaml.workbench.ui')
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-        ui.show_window()
-
-    # We need to use deferred call to ensure these commands are invoked *after*
     # the application is started (the application needs to load the plugins
     # first). For example, the controller IO extension point will automatically
     # load a series of manifests based on the equipment described in the IO
@@ -189,10 +180,24 @@ def run(args):
     log.info('Loading experiment plugin')
     workbench.get_plugin('psi.controller')
     workbench.get_plugin('psi.experiment')
-    deferred_call(core.invoke_command, 'psi.get_default_preferences')
-    deferred_call(core.invoke_command, 'psi.get_default_layout')
+
+    # We need to use deferred call to ensure these commands are invoked *after*
+    if not args.no_config:
+        deferred_call(core.invoke_command, 'psi.get_default_preferences')
+        deferred_call(core.invoke_command, 'psi.get_default_layout')
+    
+    log.debug('Showing window')
+    ui = workbench.get_plugin('enaml.workbench.ui')
+    with warnings.catch_warnings():
+        warnings.simplefilter('ignore')
+        ui.show_window()
+
     log.debug('Starting application')
     ui.start_application()
+
+    # Unregister all plugins (ensures that stop method is called if needed)
+    for plugin_id in plugin_ids[::-1]:
+        workbench.unregister(plugin_id)
 
 
 def main():
@@ -209,6 +214,8 @@ def main():
                         help='Debug mode?')
     parser.add_argument('--pdb', default=False, action='store_true',
                         help='Autolaunch PDB?')
+    parser.add_argument('--no_config', default=False, action='store_true', 
+                        help="Don't load preexisting config files")
     args = parser.parse_args()
 
     try:

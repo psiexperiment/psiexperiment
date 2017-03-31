@@ -6,13 +6,12 @@ from enaml.layout.api import VSplitLayout, TabLayout
 from enaml.styling import StyleSheet, Style, Setter
 from enaml.widgets.api import (Container, DockArea, DockItem, VGroup, HGroup,
                                Label, FileDialogEx, Action)
-from enaml.workbench.api import Extension, ExtensionPoint
+from enaml.workbench.api import Extension, ExtensionPoint, PluginManifest
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
-from enaml.layout.api import InsertItem, InsertTab
+from enaml.layout.api import FloatItem
 from enaml.application import deferred_call
 
-from psi.core.enaml.api import PSIManifest
 from psi.controller.api import ExperimentAction
 from psi.experiment.api import Preferences
 
@@ -38,7 +37,6 @@ def changes_pending(event):
 def contribute_to_workspace(workbench, workspace):
     plugin = workbench.get_plugin(PLUGIN_ID)
 
-    target = None
     for group_name, group in plugin.context_groups.items():
         if group.visible:
             item = ContextDockItem(workspace.dock_area, 
@@ -47,26 +45,17 @@ def contribute_to_workspace(workbench, workspace):
                                    name=group_name,
                                    title=group.label, 
                                    closable=False)
-            if target is None:
-                op = InsertItem(item=item.name, position='left')
-            else:
-                op = InsertTab(item=item.name, target=target)
+            op = FloatItem(item=item.name)
             deferred_call(workspace.dock_area.update_layout, op)
-            target = group_name
 
-    target = None
     for name, selector in plugin.selectors.items():
         item = SequenceDockItem(workspace.dock_area,
                                 selector=selector,
                                 name=name,
                                 title=name,
                                 closable=False)
-        if target is None:
-            op = InsertItem(item=item.name, position='left')
-        else:
-            op = InsertTab(item=item.name, target=target)
+        op = FloatItem(item=item.name)
         deferred_call(workspace.dock_area.update_layout, op)
-        target = name
 
     # TODO: this is currently broken
     #item = CurrentValuesDockItem(workspace.dock_area, 
@@ -86,7 +75,6 @@ def contribute_to_workspace(workbench, workspace):
     #deferred_call(workspace.dock_area.update_layout, op)
 
 
-
 def apply_changes(event):
     context = event.workbench.get_plugin(PLUGIN_ID)
     context.apply_changes()
@@ -98,7 +86,7 @@ def revert_changes(event):
     context.revert_changes()
 
 
-enamldef ContextManifest(PSIManifest): manifest:
+enamldef ContextManifest(PluginManifest): manifest:
     '''Manifest for the plugin handling the sequence selector
     '''
     id = PLUGIN_ID
