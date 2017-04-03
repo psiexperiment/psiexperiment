@@ -31,6 +31,9 @@ class BaseSelector(SimpleState, Declarative):
         self.context_items = context_items
         self.updated = True
 
+    def get_item(self, item_name):
+        return self.context_plugin.get_item(item_name)
+
     def get_item_info(self, item_name, attribute):
         return self.context_plugin.get_item_info(item_name)[attribute]
 
@@ -41,7 +44,8 @@ class SingleSetting(BaseSelector):
 
     def append_item(self, item_name):
         if item_name not in self.setting:
-            self.setting[item_name] = self.get_item_info(item_name, 'default')
+            item = self.get_item(item_name)
+            self.setting[item_name] = item.default
         super(SingleSetting, self).append_item(item_name)
 
     def get_iterator(self, cycles=None):
@@ -54,8 +58,8 @@ class SingleSetting(BaseSelector):
         return self.setting[item_name]
 
     def set_value(self, item_name, value):
-        dtype = self.get_item_info(item_name, 'dtype')
-        self.setting[item_name] = dtype.type(value)
+        item = self.get_item(item_name)
+        self.setting[item_name] = item.coerce_to_type(value)
         self.updated = True
 
     def __eq__(self, other):

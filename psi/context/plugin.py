@@ -198,8 +198,11 @@ class ContextPlugin(Plugin):
             self._namespace.update_expressions(expressions)
             yield self.get_values()
 
+    def get_item(self, item_name):
+        return self.context_items[item_name]
+
     def get_item_info(self, item_name):
-        item = self.context_items[item_name]
+        item = self.get_item(item_name)
         return {
             'dtype': item.dtype,
             'label': item.label,

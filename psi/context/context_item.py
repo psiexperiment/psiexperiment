@@ -60,6 +60,10 @@ class ContextItem(SimpleState, Declarative):
                 return False
         return True
 
+    def coerce_to_type(self, value):
+        coerce_function = np.dtype(self.dtype).type
+        return coerce_function(value)
+
 
 class Result(ContextItem):
     '''
