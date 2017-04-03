@@ -10,7 +10,8 @@ from psi.controller.api import (AIChannel, AOChannel, ExperimentAction,
                                 Trigger, Toggle, DOChannel, Input)
 
 from psi.controller.input import (Downsample, IIRFilter, Threshold, Edges,
-                                  CalibratedInput, RMS, SPL)
+                                  CalibratedInput, RMS, SPL,
+                                  AccumulateSegments)
 
 from psi.controller.calibration import GolayCalibration, FlatCalibration
 from psi.controller.calibration.util import db
@@ -69,7 +70,7 @@ enamldef IOManifest(PluginManifest): manifest:
             label = 'Room light'
             target_name = 'room_light'
 
-        NIDAQEngine:
+        NIDAQEngine: engine:
             name = 'NI'
             master_clock = True
 
@@ -77,7 +78,7 @@ enamldef IOManifest(PluginManifest): manifest:
             # and reward contact, we want a fairly short AI monitor period to
             # ensure that we detect these events quickly.
             hw_ai_monitor_period = 0.01
-            hw_ao_monitor_period = 1
+            hw_ao_monitor_period = 2
 
             AOChannel:
                 label = 'Speaker'
@@ -102,7 +103,7 @@ enamldef IOManifest(PluginManifest): manifest:
                 fs = 0
                 dtype = np.dtype('bool')
 
-            AIChannel:
+            AIChannel: channel:
                 label = 'Microphone'
                 name = 'microphone'
                 channel = 'Dev1/ai5'
@@ -111,21 +112,22 @@ enamldef IOManifest(PluginManifest): manifest:
                 expected_range = (-10, 10)
                 dtype = np.dtype('float64')
                 terminal_mode = 'differential'
-                #calibration = FlatCalibration(db(28.92e-3))
                 calibration = FlatCalibration(db(10))
 
-                CalibratedInput:
-                    IIRFilter:
-                        f_highpass = 1000
-                        f_lowpass = 40000
-                        ftype = 'butter'
-                        N = 4
-                        btype = 'bandpass'
-                        name = 'microphone'
-                        RMS:
-                            duration = 1
-                            SPL:
-                                name = 'noise_level'
+                AccumulateSegments:
+                    n = 50
+                    CalibratedInput:
+                        IIRFilter:
+                            f_highpass = 1000
+                            f_lowpass = 40000
+                            ftype = 'butter'
+                            N = 4
+                            btype = 'bandpass'
+                            name = 'microphone'
+                            RMS:
+                                duration = 1
+                                SPL:
+                                    name = 'noise_level'
 
             AIChannel:
                 label = 'Nose poke IR'

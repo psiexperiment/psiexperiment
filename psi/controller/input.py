@@ -33,13 +33,13 @@ def broadcast(targets):
 
 
 @coroutine
-def accumulate(n, target):
+def accumulate_segments(n, axis, target):
     data = []
     while True:
-        d = (yield)[np.newaxis]
+        d = (yield)
         data.append(d)
         if len(data) == n:
-            data = np.concatenate(data)
+            data = np.concatenate(data, axis=axis)
             target(data)
             data = []
 
@@ -317,13 +317,14 @@ class IIRFilter(Input):
                          self.ftype, cb).send
 
 
-class Accumulate(Input):
+class AccumulateSegments(Input):
 
     n = d_(Int())
+    axis = d_(Int(-1))
 
     def configure_callback(self, plugin):
-        cb = super(Accumulate, self).configure_callback(plugin)
-        return accumulate(self.n, cb).send
+        cb = super(AccumulateSegments, self).configure_callback(plugin)
+        return accumulate_segments(self.n, self.axis, cb).send
 
 
 class Downsample(Input):
