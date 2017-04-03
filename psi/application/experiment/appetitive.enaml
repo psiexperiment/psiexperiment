@@ -81,7 +81,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
         ExperimentAction:
             event = 'response_end'
             command = 'target.clear'
-            kwargs = {'delay': 0.25}
+            kwargs = {'delay': 0.5}
 
         ExperimentAction:
             event = 'to_start'
