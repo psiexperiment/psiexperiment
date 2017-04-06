@@ -28,6 +28,7 @@ from ..device import Device
 from ..device_manifest import DeviceManifest
 
 
+
 def capture_image(event, device):
     data = event.workbench.get_plugin('psi.data')
     if data.base_path == '<memory>':
@@ -47,6 +48,7 @@ def capture_image(event, device):
     image_filename = '{}.png'.format(name)
     image_fullfile = os.path.join(image_base, image_filename)
     cv2.imwrite(image_fullfile, image)
+    log.debug('Captured image from {}'.format(device.name))
 
 
 def start(event, device):

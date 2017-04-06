@@ -3,12 +3,13 @@ log = logging.getLogger(__name__)
 
 from functools import partial
 import operator as op
+import threading
 
 import numpy as np
 
 from atom.api import Enum, Bool, Typed
 from enaml.application import timed_call
-from enaml.qt.QtCore import QTimer
+from enaml.qt.QtCore import QTimer, QThreadPool
 from enaml.workbench.plugin import Plugin
 
 from .channel import Channel, AOChannel
@@ -18,7 +19,7 @@ from .input import Input
 from .device import Device
 
 from .experiment_action import (ExperimentAction, ExperimentEvent,
-                                ExperimentState)
+                                ExperimentState, QExperimentActionTask)
 from .output import ContinuousOutput, EpochOutput
 
 
@@ -81,12 +82,14 @@ class BasePlugin(Plugin):
     _states = Typed(dict, {})
     _actions = Typed(list, {})
     _timers = Typed(dict, {})
+    _pool = Typed(object)
 
     def start(self):
         log.debug('Starting controller plugin')
         self._refresh_io()
         self._refresh_actions()
         self._bind_observers()
+        self._pool = QThreadPool.globalInstance()
         self.core = self.workbench.get_plugin('enaml.workbench.core')
         self.context = self.workbench.get_plugin('psi.context')
         self.data = self.workbench.get_plugin('psi.data')
@@ -293,18 +296,31 @@ class BasePlugin(Plugin):
         # again. Should we wrap it in a deferred call?
         for action in self._actions:
             if action.match(context):
-                m = 'Invoking command {} with parameters {}'
-                log.debug(m.format(action.command, action.kwargs))
-                
-                # Add the event name and timestamp to the parameters passed to
-                # the command. 
-                kwargs = action.kwargs.copy()
-                kwargs['timestamp'] = timestamp
-                kwargs['event'] = event_name
-                try:
-                    self.core.invoke_command(action.command, parameters=kwargs)
-                except ValueError, e:
-                    log.warn(e)
+                self._invoke_action(action, event_name, timestamp)
+
+    def _invoke_action(self, action, event_name, timestamp):
+        # Add the event name and timestamp to the parameters passed to the
+        # command. 
+        kwargs = action.kwargs.copy()
+        kwargs['timestamp'] = timestamp
+        kwargs['event'] = event_name
+        try:
+            if action.concurrent:
+                m = 'Invoking command {} with parameters {} in new thread'
+                log.debug(m.format(action.command, kwargs))
+                self._invoke_action_concurrent(action, kwargs)
+            else:
+                m = 'Invoking command {} with parameters {} in current thread'
+                log.debug(m.format(action.command, kwargs))
+                self.core.invoke_command(action.command, parameters=kwargs)
+        except ValueError, e:
+            log.warn(e)
+
+    def _invoke_action_concurrent(self, action, kwargs):
+        method = partial(self.core.invoke_command, action.command,
+                         parameters=kwargs)
+        task = QExperimentActionTask(method)
+        self._pool.start(task)
 
     def request_apply(self):
         if not self.apply_changes():
@@ -355,6 +371,7 @@ class BasePlugin(Plugin):
         self._pause_ok = value
 
     def start_timer(self, name, duration, callback):
+        log.debug('Starting timer {}'.format(name))
         timer = QTimer()
         timer.timeout.connect(callback)
         timer.setSingleShot(True)
