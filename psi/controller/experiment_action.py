@@ -1,5 +1,9 @@
+import logging
+log = logging.getLogger(__name__)
+
 from atom.api import Unicode, Int, Dict, Bool, Typed
 from enaml.core.api import Declarative, d_
+from enaml.qt.QtCore import QRunnable
 import code
 
 
@@ -51,9 +55,24 @@ class ExperimentAction(Declarative):
     # Arguments to pass to command
     kwargs = d_(Dict())
 
+    # Should the action be invoked in its own thread?
+    concurrent = d_(Bool(False))
+
     # Defines order of invocation. Less than 100 invokes before default. Higher
-    # than 100 invokes after default.
+    # than 100 invokes after default. Note that if concurrent is True, then
+    # order of execution is not guaranteed.
     weight = d_(Int(100))
 
     def match(self, context):
         return eval(self.event, context)
+
+
+class QExperimentActionTask(QRunnable):
+
+    def __init__(self, method):
+        super(QExperimentActionTask, self).__init__()
+        self.method = method
+
+    def run(self):
+        log.debug('Running action in remote thread')
+        self.method()
