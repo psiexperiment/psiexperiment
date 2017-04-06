@@ -73,15 +73,28 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             event = 'trial_start'
             command = 'target.start'
             kwargs = {'delay': 0.25}
+            #concurrent = True
+            weight = 0
+
+        # By the time this happens, the animal may already have pulled out of
+        # the nose-poke, so we are going to capture a series of images at
+        # various timeponits and see which one gives us the cleanest image..
+        ExperimentAction:
+            event = 'np_start'
+            command = 'pupil_camera.capture_image'
+            concurrent = True
 
         ExperimentAction:
-            event = 'trial_start'
+            event = 'np_duration_elapsed'
             command = 'pupil_camera.capture_image'
+            concurrent = True
 
         ExperimentAction:
             event = 'response_end'
             command = 'target.clear'
-            kwargs = {'delay': 0.5}
+            kwargs = {'delay': 1}
+            #concurrent = True
+            weight = 0
 
         ExperimentAction:
             event = 'to_start'
