@@ -118,17 +118,9 @@ def get_base_path(dirname, experiment):
         # Find out the next session from the YAML file.
         settings_root = get_config('SETTINGS_ROOT')
         config_file = os.path.join(settings_root, '.bcolz_store')
-        if os.path.exists(config_file):
-            with open(config_file, 'r') as fh:
-                session_info = yaml.load(fh)
-        else:
-            session_info = {}
-        next_session = session_info.get(base_path, -1) + 1
-        session_info[base_path] = next_session
-        with open(config_file, 'w') as fh:
-            yaml.dump(session_info, fh)
 
-        base_path = os.path.join(base_path, 'session_' + str(next_session))
+        session_name = dt.datetime.now().strftime('%Y%M%d_%H%M%S')
+        base_path = os.path.join(base_path, session_name)
         os.makedirs(base_path)
 
     return base_path
