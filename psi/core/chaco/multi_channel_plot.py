@@ -1,4 +1,4 @@
-from __future__ import division
+
 
 from traits.api import Instance, on_trait_change
 

@@ -48,8 +48,8 @@ enamldef IOManifest(PluginManifest): manifest:
         OpenCVCamera:
             device = 1
             interval = 0.1
-            resolution = (1920, 1080)
-            #resolution = (320, 240)
+            #resolution = (1920, 1080)
+            resolution = (640, 480)
             name = 'pupil_camera'
             label = 'Pupil camera'
 

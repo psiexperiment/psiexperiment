@@ -313,7 +313,7 @@ class BasePlugin(Plugin):
                 m = 'Invoking command {} with parameters {} in current thread'
                 log.debug(m.format(action.command, kwargs))
                 self.core.invoke_command(action.command, parameters=kwargs)
-        except ValueError, e:
+        except ValueError as e:
             log.warn(e)
 
     def _invoke_action_concurrent(self, action, kwargs):

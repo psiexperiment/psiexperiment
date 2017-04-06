@@ -6,8 +6,7 @@ import numpy as np
 from psi.context.api import Parameter
 
 from .block import Block
-from .primitives import (single_input, Cos2Envelope, cos2envelope_factory,
-                         pregenerate_samples)
+from .primitives import (single_input, Cos2Envelope, cos2envelope_factory)
 
 
 enamldef Token(Block):
@@ -25,7 +24,6 @@ enamldef EpochToken(_EpochToken):
 
     name = 'epoch'
     label = 'epoch'
-    #factory = lambda **kwargs: pregenerate_samples(cos2envelope_factory, **kwargs)
     factory = cos2envelope_factory
 
 
@@ -35,7 +33,7 @@ def default_continuous_factory(fs, calibration, input_factory):
     offset = 0
 
     input_generator = input_factory()
-    input_generator.next()
+    next(input_generator)
 
     while True:
         kwargs = (yield waveform)

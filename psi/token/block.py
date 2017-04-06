@@ -75,5 +75,5 @@ class Block(Declarative):
     def initialize_generator(self, context):
         factory = self.initialize_factory(context)
         generator = factory()
-        generator.next()
+        next(generator)
         return generator

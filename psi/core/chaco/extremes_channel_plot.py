@@ -1,7 +1,7 @@
-from __future__ import division
+
 
 import numpy as np
-from channel_plot import ChannelPlot
+from .channel_plot import ChannelPlot
 from traits.api import Any, Property, cached_property, Int, Bool
 from traitsui.api import View, Item
 

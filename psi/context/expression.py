@@ -13,7 +13,7 @@ def _dict_to_expr(d):
     for k, v in d.items():
         if not isinstance(v, Expr):
             log.trace('Processing {}: converting {} to expression'.format(k, v))
-            e[k] = Expr(unicode(v))
+            e[k] = Expr(str(v))
         else:
             e[k] = v
     return e
@@ -74,7 +74,7 @@ class _RecursiveAttrDict(dict):
         return _RecursiveAttrDict(other)
 
     def update(self, *args, **kwargs):
-        for k, v in dict(*args, **kwargs).iteritems():
+        for k, v in dict(*args, **kwargs).items():
             self[k] = v
 
     __setattr__ = __setitem__
@@ -103,7 +103,7 @@ class _FullNameGetter(ast.NodeVisitor):
 class Expr(object):
 
     def __init__(self, expression):
-        if not isinstance(expression, basestring):
+        if not isinstance(expression, str):
             raise ValueError('Expression must be a string')
         if not expression:
             raise ValueError('No value provided for expression')

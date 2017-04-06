@@ -37,10 +37,22 @@ class BaseSelector(SimpleState, Declarative):
     def get_item_info(self, item_name, attribute):
         return self.context_plugin.get_item_info(item_name)[attribute]
 
+    def __eq__(self, other):
+        if not isinstance(other, self.__class__):
+            return False
+        for attr in self._attrs:
+            if getattr(self, attr) != getattr(other, attr):
+                return False
+        return True
+
+    def __hash__(self):
+        return hash(getattr(self, a) for a in self._attrs)
+
 
 class SingleSetting(BaseSelector):
 
     setting = Typed(dict, ())
+    _attrs = ['context_items', 'setting']
 
     def append_item(self, item_name):
         if item_name not in self.setting:
@@ -62,20 +74,12 @@ class SingleSetting(BaseSelector):
         self.setting[item_name] = item.coerce_to_type(value)
         self.updated = True
 
-    def __eq__(self, other):
-        if not isinstance(other, self.__class__):
-            return False
-        attrs = ['context_items', 'setting']
-        for attr in attrs:
-            if getattr(self, attr) != getattr(other, attr):
-                return False
-        return True
-
 
 class SequenceSelector(BaseSelector):
 
     settings = ContainerList(default=[])
     order = Enum(*choice.options.values())
+    _attrs = ['context_items', 'settings', 'order']
 
     def add_setting(self, values=None):
         if values is None:
@@ -124,12 +128,3 @@ class SequenceSelector(BaseSelector):
 
     def get_value(self, setting_index, item_name):
         return self.settings[setting_index][item_name]
-
-    def __eq__(self, other):
-        if not isinstance(other, self.__class__):
-            return False
-        attrs = ['context_items', 'settings', 'order']
-        for attr in attrs:
-            if getattr(self, attr) != getattr(other, attr):
-                return False
-        return True

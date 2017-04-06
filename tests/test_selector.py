@@ -39,17 +39,17 @@ class TestSettingSequence(unittest.TestCase):
     def test_selector_move(self):
         self.selector.move_parameter(self.parameters[1])
         names = [p.name for p in self.selector.parameters]
-        expected_names = [u'b', u'a', u'c', u'd', u'e']
+        expected_names = ['b', 'a', 'c', 'd', 'e']
         self.assertEqual(expected_names, names)
 
         self.selector.move_parameter(self.parameters[0], self.parameters[-1])
         names = [p.name for p in self.selector.parameters]
-        expected_names = [u'b', u'c', u'd', u'e', u'a']
+        expected_names = ['b', 'c', 'd', 'e', 'a']
         self.assertEqual(expected_names, names)
 
         self.selector.move_parameter(self.parameters[0], self.parameters[1])
         names = [p.name for p in self.selector.parameters]
-        expected_names = [u'b', u'a', u'c', u'd', u'e']
+        expected_names = ['b', 'a', 'c', 'd', 'e']
         self.assertEqual(expected_names, names)
 
     @pytest.mark.skip(reason='requires context plugin to be present')

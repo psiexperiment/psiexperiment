@@ -127,8 +127,8 @@ class AbstractSignalQueue(object):
             try:
                 key, data = self.pop_next(decrement=decrement)
                 self._generator = data['factory']()
-                self._generator.next()
-                self._delay = data['delays'].next()
+                next(self._generator)
+                self._delay = next(data['delays'])
                 self._notifier(key, self._samples)
             except QueueEmptyError:
                 queue_empty = True

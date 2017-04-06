@@ -12,7 +12,7 @@ import numpy as np
 from atom.api import Int, Value, Tuple, Bool, Float
 
 from enaml.core.api import d_
-from enaml.qt import QtGui, QtCore
+from enaml.qt import QtGui, QtCore, QtWidgets
 from enaml.widgets.api import RawWidget, DockItem, Container
 from enaml.workbench.api import PluginManifest, Extension, Plugin
 from enaml.workbench.core.api import Command
@@ -61,7 +61,7 @@ def stop(event, device):
 
 class QCaptureImage(QtCore.QThread):
 
-    image_acquired = QtCore.pyqtSignal(QtGui.QImage)
+    image_acquired = QtCore.Signal(QtGui.QImage)
 
     def __init__(self, device):
         super(QCaptureImage, self).__init__()
@@ -76,11 +76,12 @@ class QCaptureImage(QtCore.QThread):
         self.wait()
 
     def run(self):
+        log.debug("Starting QCaptureImage")
         while True:
             if self.visible and self.device.active:
                 self.acquire()
                 self.resize_and_emit()
-        self.msleep(self.minterval)
+            self.msleep(self.minterval)
 
     def acquire(self):
         image = self.device.read()
@@ -100,21 +101,21 @@ class QCaptureImage(QtCore.QThread):
             qimage = array2qimage(resized)
             self.image_acquired.emit(qimage)
 
-    @QtCore.pyqtSlot(bool)
+    @QtCore.Slot(bool)
     def set_visible(self, visible):
         self.visible = visible
 
-    @QtCore.pyqtSlot(int, int)
+    @QtCore.Slot(int, int)
     def set_size(self, width, height):
         self.width = width
         self.height = height
         self.resize_and_emit()
 
 
-class QCameraViewer(QtGui.QWidget):
+class QCameraViewer(QtWidgets.QWidget):
 
-    visible = QtCore.pyqtSignal(bool) 
-    resize = QtCore.pyqtSignal(int, int)
+    visible = QtCore.Signal(bool) 
+    resize = QtCore.Signal(int, int)
 
     def __init__(self, parent, device):
         super(QCameraViewer, self).__init__(parent)
@@ -141,7 +142,7 @@ class QCameraViewer(QtGui.QWidget):
             painter.drawImage(0, 0, self.image)
             self.paintImage = QtGui.QImage()
 
-    @QtCore.pyqtSlot(QtGui.QImage)
+    @QtCore.Slot(QtGui.QImage)
     def setImage(self, image):
         self.image = image
         self.repaint()

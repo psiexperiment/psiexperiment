@@ -1,7 +1,7 @@
 import logging
 log = logging.getLogger(__name__)
 
-import cPickle as pickle
+import pickle as pickle
 from copy import deepcopy
 
 from atom.api import Typed, Bool, Str, observe
@@ -130,12 +130,16 @@ class ContextPlugin(Plugin):
             .observe('extensions', self._refresh_selectors)
         self.workbench.get_extension_point(ITEMS_POINT) \
             .observe('extensions', self._refresh_items)
+        self.workbench.get_extension_point(SYMBOLS_POINT) \
+            .observe('extensions', self._refresh_symbols)
 
     def _unbind_observers(self):
         self.workbench.get_extension_point(SELECTORS_POINT) \
             .unobserve('extensions', self._refresh_selectors)
         self.workbench.get_extension_point(ITEMS_POINT) \
             .unobserve('extensions', self._refresh_items)
+        self.workbench.get_extension_point(SYMBOLS_POINT) \
+            .unobserve('extensions', self._refresh_symbols)
 
     @observe('context_items')
     def _bind_context_items(self, change):
@@ -256,7 +260,7 @@ class ContextPlugin(Plugin):
             return
         try:
             log.debug('Configuring next setting from selector %s', selector)
-            expressions = self._iterators[selector].next()
+            expressions = next(self._iterators[selector])
             self._namespace.update_expressions(expressions)
         except KeyError:
             m = 'Avaliable selectors include {}'.format(self._iterators.keys())

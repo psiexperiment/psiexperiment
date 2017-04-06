@@ -13,6 +13,6 @@ class PSIManifest(PluginManifest):
 
     def _get_id(self):
         if self.base_id:
-            return unicode('.'.join((self.base_id, self.contribution.name)))
+            return str('.'.join((self.base_id, self.contribution.name)))
         else:
-            return unicode(self.contribution.name)
+            return str(self.contribution.name)

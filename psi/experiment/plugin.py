@@ -3,7 +3,7 @@ log = logging.getLogger(__name__)
 
 from atom.api import Typed
 from enaml.application import deferred_call
-from enaml.layout.api import FloatItem, InsertItem
+from enaml.layout.api import FloatItem
 from enaml.layout.dock_layout import DockLayoutValidator
 from enaml.workbench.plugin import Plugin
 from enaml.widgets.api import Action, ToolBar, DockItem

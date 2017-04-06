@@ -19,7 +19,7 @@ enamldef ExperimentWorkbenchWindow(WorkbenchWindow):
                     'Please stop the experiment before exiting.')
 
     Include:
-        objects << window_model.workspace.toolbars
+        objects << getattr(window_model.workspace, 'toolbars', [])
 
     StatusBar:
         name = 'status_bar'

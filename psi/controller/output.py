@@ -84,7 +84,7 @@ class AnalogOutput(Output):
     def initialize_generator(self, context):
         factory = self.initialize_factory(context)
         generator = factory()
-        generator.next()
+        next(generator)
         return generator
 
 
@@ -100,9 +100,9 @@ class EpochCallback(object):
     def start(self, start, delay):
         self.offset = int((start+delay)*self.channel.fs)
         self.active = True
-        self.next()
+        next(self)
 
-    def next(self):
+    def __next__(self):
         if not self.active:
             raise StopIteration
         with self.engine.lock:
@@ -154,7 +154,7 @@ class EpochOutput(AnalogOutput):
             m = '{} was not initialized'.format(self.name)
             raise SystemError(m)
         self._cb.start(start, delay)
-        self.engine.register_ao_callback(self._cb.next, self.channel.name)
+        self.engine.register_ao_callback(self._cb.__next__, self.channel.name)
         return self._duration
 
     def clear(self, end, delay):
@@ -185,8 +185,8 @@ class ContinuousOutput(AnalogOutput):
         log.debug('Configuring continuous output {}'.format(self.name))
         generator = self.initialize_generator(context)
         cb = continuous_callback(self, generator)
-        cb.next()
-        self.engine.register_ao_callback(cb.next, self.channel.name)
+        next(cb)
+        self.engine.register_ao_callback(cb.__next__, self.channel.name)
 
     def load_manifest(self):
         with enaml.imports():
@@ -212,8 +212,8 @@ class NullOutput(AnalogOutput):
 
     def configure(self, plugin):
         cb = null_callback(self)
-        cb.next()
-        self.engine.register_ao_callback(cb.next, self.channel.name)
+        next(cb)
+        self.engine.register_ao_callback(cb.__next__, self.channel.name)
 
 
 class DigitalOutput(Output):

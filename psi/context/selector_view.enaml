@@ -4,7 +4,7 @@ from enaml.layout.api import (vbox, hbox)
 from enaml.widgets.api import (PushButton, Field, Container, VGroup, HGroup,
                                Label, ObjectCombo, DockItem)
 
-from selector import SequenceSelector, SingleSetting
+from .selector import SequenceSelector, SingleSetting
 
 
 enamldef SequenceSettingField(Field):

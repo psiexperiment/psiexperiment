@@ -36,7 +36,7 @@ def test_eval(workbench):
         dict(repetitions=10, level=60, fc=32e3/10),
     ]
     context = workbench.get_plugin('psi.context')
-    print context.selectors['default'].settings
+    print(context.selectors['default'].settings)
 
     # Ensure that we loop properly through the selector sequence
     context.apply_changes()
@@ -53,7 +53,7 @@ def test_eval(workbench):
     # Ensure that changes to expressions after apply_changes does not affect the
     # result.
     context.apply_changes()
-    context.context_items['fc'].expression = u'1e3'
+    context.context_items['fc'].expression = '1e3'
     for e in expected:
         context.next_setting('default', save_prior=False)
         assert e == context.get_values()

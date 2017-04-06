@@ -8,7 +8,6 @@ from atom.api import Unicode, Typed, Property
 from enaml.workbench.api import Extension, PluginManifest
 from enaml.workbench.core.api import Command
 
-import yaml
 import pandas as pd
 import numpy as np
 import bcolz

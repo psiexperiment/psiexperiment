@@ -2,7 +2,8 @@ import numpy as np
 
 from traits.api import Float, Bool, Int
 
-from neurogen.calibration.util import psd, psd_freq 
+from psi.controller.calibration.util import psd, psd_freq
+
 from .base_channel_plot import BaseChannelPlot
 
 

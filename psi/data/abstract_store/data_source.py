@@ -40,7 +40,9 @@ class EventDataTable(DataTable):
     def get_epochs(self, start_event, end_event, lb, ub):
         m = 'Getting epochs for {} and {}'
         log.debug(m.format(start_event, end_event))
-        query = 'event == "{e}"' 
+        # We need to specify the string literal as a bytes object. This seems
+        # to be an obscure edge-case of Python 3 + numexpr.
+        query = 'event == b"{e}"' 
         column = 'timestamp'
         starts = self.query(query, {'e': start_event}, column)
         ends = self.query(query, {'e': end_event}, column)
@@ -58,8 +60,6 @@ class EventDataTable(DataTable):
         try:
             epochs = np.c_[starts, ends]
         except:
-            print starts
-            print ends
             raise
         m = ((epochs >= lb) & (epochs < ub)) | np.isnan(epochs)
         return epochs[m.any(axis=-1)]
@@ -160,9 +160,9 @@ class DataChannel(DataSource):
 
         if check_bounds:
             if lb < 0:
-                raise ValueError, "start must be >= 0"
+                raise ValueError("start must be >= 0")
             if ub >= len(self.data):
-                raise ValueError, "end must be <= signal length"
+                raise ValueError("end must be <= signal length")
 
         if np.iterable(lb):
             return [self[lb:ub] for lb, ub in zip(lb, ub)]

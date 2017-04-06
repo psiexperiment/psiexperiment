@@ -52,7 +52,7 @@ class Window(HasTraits):
     def set_hoop(self, value):
         # x-value, center-volt, half-height
         x, m, h = value
-        print "split", x, m, h
+        print("split", x, m, h)
         self.points = (x, m-h), (x, m+h)
 
     def _set_points(self, points):

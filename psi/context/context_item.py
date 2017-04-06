@@ -1,15 +1,3 @@
-# TODO:
-# * Figure out how to add parameters that can only be evaluated once at the
-#   beginning of an experiment (e.g., for setting sampling rate, etc.). One way
-#   to do this would be to simply set a scope. By default, most parameters would
-#   fall in the `trial` scope (i.e., can be changed from trial to trial).
-#   However, experiment scope parameters would be frozen once the experiment
-#   begins. Do we also want to implement a block scope? Some experiments revolve
-#   around the concept of a trial block.
-# * Add in some sanity checks. For example, if we define `go_probability`, we do
-#   not want it to have an equation that depends on a rovable parameter. Is this
-#   worthwhile to implement?
-
 import numpy as np
 
 from enaml.core.declarative import Declarative, d_
@@ -63,6 +51,9 @@ class ContextItem(SimpleState, Declarative):
     def coerce_to_type(self, value):
         coerce_function = np.dtype(self.dtype).type
         return coerce_function(value)
+
+    def __hash__(self):
+        return id(self)
 
 
 class Result(ContextItem):

@@ -19,7 +19,7 @@ def coroutine(func):
     '''Decorator to auto-start a coroutine.'''
     def start(*args, **kwargs):
         cr = func(*args, **kwargs)
-        cr.next()
+        next(cr)
         return cr
     return start
 
@@ -48,7 +48,7 @@ def accumulate_segments(n, axis, target):
 def iirfilter(N, Wn, rp, rs, btype, ftype, target):
     b, a = signal.iirfilter(N, Wn, rp, rs, btype, ftype=ftype)
     if np.any(np.abs(np.roots(a)) > 1):
-        raise ValueError, 'Unstable filter coefficients'
+        raise ValueError('Unstable filter coefficients')
     zf = signal.lfilter_zi(b, a)
     while True:
         y = (yield)
@@ -60,7 +60,7 @@ def iirfilter(N, Wn, rp, rs, btype, ftype, target):
 def decimate(q, target):
     b, a = signal.cheby1(4, 0.05, 0.8/q)
     if np.any(np.abs(np.roots(a)) > 1):
-        raise ValueError, 'Unstable filter coefficients'
+        raise ValueError('Unstable filter coefficients')
     zf = signal.lfilter_zi(b, a)
     y_remainder = np.array([])
     while True:

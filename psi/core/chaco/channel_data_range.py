@@ -1,4 +1,4 @@
-from __future__ import division
+
 
 import logging
 log = logging.getLogger(__name__)

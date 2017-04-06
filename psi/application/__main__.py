@@ -1,9 +1,6 @@
 import logging.config
 log = logging.getLogger(__name__)
 
-import faulthandler
-faulthandler.enable()
-
 import pdb
 import traceback
 import warnings
@@ -15,7 +12,6 @@ import warnings
 import datetime as dt
 
 import tables as tb
-import yaml
 
 from enaml.application import deferred_call
 from enaml.qt.qt_application import QtApplication
@@ -160,6 +156,7 @@ def run(args):
     core = workbench.get_plugin('enaml.workbench.core')
     base_path = get_base_path(args.pathname, args.experiment)
     core.invoke_command('psi.data.set_base_path', {'base_path': base_path})
+
     core.invoke_command('enaml.workbench.ui.select_workspace',
                         {'workspace': 'psi.experiment.workspace'})
 
@@ -170,6 +167,9 @@ def run(args):
     # initializes everything properly. Then we can load the default layout and
     # preferences.
     log.info('Loading experiment plugin')
+    ui = workbench.get_plugin('enaml.workbench.ui')
+    ui.show_window()
+
     workbench.get_plugin('psi.controller')
     workbench.get_plugin('psi.experiment')
 
@@ -178,12 +178,6 @@ def run(args):
         deferred_call(core.invoke_command, 'psi.get_default_preferences')
         deferred_call(core.invoke_command, 'psi.get_default_layout')
     
-    log.debug('Showing window')
-    ui = workbench.get_plugin('enaml.workbench.ui')
-    with warnings.catch_warnings():
-        warnings.simplefilter('ignore')
-        ui.show_window()
-
     log.debug('Starting application')
     ui.start_application()
 

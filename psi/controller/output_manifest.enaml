@@ -111,6 +111,7 @@ enamldef AnalogOutputManifest(DeviceManifest): manifest:
                 command = manifest.device.name + '.set_token'
                 checked << manifest.device.token_name == loop_item.name
                 checkable = True
+                parameters = {'token_name': loop_item.name}
 
     Extension:
         # For some reason this doesn't get loaded if it's lumped together with

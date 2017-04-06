@@ -162,6 +162,7 @@ enamldef AppetitiveManifest(BaseManifest): manifest:
             Result:
                 name = 'trial_type'
                 dtype = 'S32'
+                compact_label = 'Type'
             Result:
                 name = 'score'
                 dtype = 'S32'
