@@ -6,17 +6,18 @@ from enaml.workbench.ui.workbench_window import WorkbenchWindow
 
 enamldef ExperimentWorkbenchWindow(WorkbenchWindow):
     '''
-    Customize the workbench window to include toolbars and a status bar. Also
-    ensure that the experiment is stopped before the window can be closed.
+    Customize the workbench window:
+        * Add toolbars and a status bar
+        * Ensure that the experiment is stopped before closing window
     '''
+    attr controller
+    attr c
+
     closing ::
-        # Make sure the experiment isn't running when the close button is
-        # pressed.
-        plugin = workbench.get_plugin('psi.controller')
-        if plugin.experiment_state in ('running', 'paused'):
+        if controller.experiment_state in ('running', 'paused'):
             change['value'].ignore()
-            warning(self, 'Experiment running', 
-                    'Please stop the experiment before exiting.')
+            m = 'Please stop the experiment before exiting.'
+            warning(self, 'Experiment running', m)
 
     Include:
         objects << getattr(window_model.workspace, 'toolbars', [])
