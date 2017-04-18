@@ -41,7 +41,7 @@ PREFERENCES_ROOT = os.path.join(SETTINGS_ROOT, 'preferences')
 LAYOUT_ROOT = os.path.join(SETTINGS_ROOT, 'layout')
 
 # Ensure the folders exist
-for setting_name, setting_value in globals().items():
+for setting_name, setting_value in list(globals().items()):
     if setting_name.endswith('_ROOT') and not os.path.exists(setting_value):
         os.makedirs(setting_value)
 
