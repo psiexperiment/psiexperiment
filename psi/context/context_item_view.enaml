@@ -50,7 +50,8 @@ template ContextItemTemplate(context_item, MemberType, scope: 'experiment'):
     HGroup: group:
         spacing = 0
         padding = 0
-        enabled << controller.experiment_state not in ('running', 'paused')
+        enabled << workbench.get_plugin('psi.controller') \
+            .experiment_state not in ('running', 'paused')
 
         Label: label:
             text = context_item.label

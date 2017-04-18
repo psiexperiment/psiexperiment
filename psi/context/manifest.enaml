@@ -35,18 +35,11 @@ def changes_pending(event):
 
 def contribute_to_workspace(workbench, workspace):
     plugin = workbench.get_plugin(PLUGIN_ID)
-
     for group_name, group in plugin.context_groups.items():
-        import operator
         if group.visible:
-            items = [i for i in plugin.context_items.values() if i.group == group_name]
-            items = sorted(items, key=operator.attrgetter('label'))
-
-            item = ContextDockItem(workspace.dock_area, 
-                                   context_items=items,
-                                   name=group_name,
-                                   title=group.label, 
-                                   closable=False)
+            item = ContextDockItem(workspace.dock_area, group_name=group_name,
+                                   plugin=plugin, name=group_name,
+                                   title=group.label, closable=False)
             op = FloatItem(item=item.name)
             deferred_call(workspace.dock_area.update_layout, op)
 

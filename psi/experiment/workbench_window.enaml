@@ -10,11 +10,9 @@ enamldef ExperimentWorkbenchWindow(WorkbenchWindow):
         * Add toolbars and a status bar
         * Ensure that the experiment is stopped before closing window
     '''
-    attr controller
-    attr c
-
     closing ::
-        if controller.experiment_state in ('running', 'paused'):
+        plugin = workbench.get_plugin('psi.controller')
+        if plugin.experiment_state in ('running', 'paused'):
             change['value'].ignore()
             m = 'Please stop the experiment before exiting.'
             warning(self, 'Experiment running', m)

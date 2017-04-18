@@ -126,12 +126,6 @@ def get_default_preferences(event):
         pass
 
 
-def create_window(workbench):
-    controller = workbench.get_plugin('psi.controller')
-    context = workbench.get_plugin('psi.context')
-    return ExperimentWorkbenchWindow(controller=controller, c=context)
-
-
 enamldef ExperimentManifest(PluginManifest):
     '''
     This plugin acts as the entry point for all other plugins in this example.
@@ -149,7 +143,7 @@ enamldef ExperimentManifest(PluginManifest):
     Extension:
         id = 'window'
         point = 'enaml.workbench.ui.window_factory'
-        factory = create_window
+        factory = lambda workbench: ExperimentWorkbenchWindow()
 
     Extension:
         id = 'commands'
