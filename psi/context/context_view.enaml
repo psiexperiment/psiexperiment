@@ -13,22 +13,7 @@ from .context_item_view import ContextItem
 ################################################################################
 # Parameter view
 ################################################################################
-def align_edges(widgets, edges):
-    constraints = []
-    w_base = widgets[0]
-    for w in widgets[1:]:
-        if 'left' in edges:
-            constraints.append(w.left == w_base.left)
-        if 'right' in edges:
-            constraints.append(w.right == w_base.right)
-        if 'top' in edges:
-            constraints.append(w.top == w_base.top)
-        if 'bottom' in edges:
-            constraints.append(w.bottom == w_base.bottom)
-    return constraints
-
-
-def get_items(context_items, group_name):
+def get_context_items(context_items, group_name):
     subset = [i for i in context_items.values() if i.group == group_name]
     return sorted(subset, key=operator.attrgetter('label'))
 
@@ -37,8 +22,9 @@ enamldef ContextDockItem(DockItem):
     # By taking the `context` as an attribute rather than a list of parameters,
     # this ensures that the GUI is updated if the parameters list is ever
     # overwritten (e.g., by the revert logic).
-    attr plugin
-    attr group_name
+    #attr plugin
+    #attr group_name
+    attr context_items
 
     # Define a style that grays out the field when it's been selected to be a #
     # roving parameter.
@@ -53,9 +39,8 @@ enamldef ContextDockItem(DockItem):
     VGroup:
         spacing = 0
         Looper:
-            # This ensures that the container updates whenever the parameters
-            # attribute is updated.
-            iterable << get_items(plugin.context_items, group_name)
+            #iterable << get_context_items(plugin.context_items, group_name)
+            iterable << context_items
             ContextItem:
                 context_item = loop_item
 
@@ -63,94 +48,94 @@ enamldef ContextDockItem(DockItem):
 ################################################################################
 # Current values view
 ################################################################################
-def get_style_classes(plugin, context_name):
-    styles = []
-    if plugin.value_changed(context_name):
-        styles.append('changed')
-    if getattr(plugin.context_items[context_name], 'rove', False):
-        styles.append('roving')
-    return ' '.join(styles)
-
-
-def filter_current_values(plugin, current_values, mode):
-    items = sorted(current_values.items())
-    if mode == 'all':
-        return items
-    elif mode == 'changed':
-        return [(k, v) for k, v in items if plugin.value_changed(k)]
-    elif mode == 'roving':
-        return [(k, v) for k, v in items if \
-                getattr(plugin.context_items[k], 'rove', False)] 
-
-
-enamldef CurrentValuesDockItem(DockItem):
-    attr context
-
-    StyleSheet:
-        Style:
-            style_class = 'changed'
-            Setter:
-                field = 'font-weight'
-                value = 'bold'
-        Style:
-            style_class = 'roving'
-            Setter:
-                field = 'background-color'
-                value = 'white'
-
-    Container:
-        VGroup:
-            padding = 0
-            spacing = 0
-
-            Looper:
-                iterable << sorted(context._namespace._locals.items())
-                HGroup:
-                    padding = 0
-                    spacing = 0
-                    Label:
-                        style_class << get_style_classes(context, loop_item[0])
-                        text << context.context_items[loop_item[0]].label
-                    Label:
-                        style_class << get_style_classes(context, loop_item[0])
-                        text << str(loop_item[1])
-
-
-def get_prior_values(prior_values):
-    if len(prior_values) == 0:
-        return []
-    else:
-        return sorted(prior_values[-1].items())
-
-
-enamldef PriorValuesDockItem(DockItem):
-    attr context
-
-    StyleSheet:
-        Style:
-            style_class = 'changed'
-            Setter:
-                field = 'font-weight'
-                value = 'bold'
-        Style:
-            style_class = 'roving'
-            Setter:
-                field = 'background-color'
-                value = 'white'
-
-    Container:
-        VGroup:
-            padding = 0
-            spacing = 0
-
-            Looper:
-                iterable << get_prior_values(context._prior_values)
-                HGroup:
-                    padding = 0
-                    spacing = 0
-                    Label:
-                        style_class << get_style_classes(context, loop_item[0])
-                        text << context.context_items[loop_item[0]].label
-                    Label:
-                        style_class << get_style_classes(context, loop_item[0])
-                        text << str(loop_item[1])
+#def get_style_classes(plugin, context_name):
+#    styles = []
+#    if plugin.value_changed(context_name):
+#        styles.append('changed')
+#    if getattr(plugin.context_items[context_name], 'rove', False):
+#        styles.append('roving')
+#    return ' '.join(styles)
+#
+#
+#def filter_current_values(plugin, current_values, mode):
+#    items = sorted(current_values.items())
+#    if mode == 'all':
+#        return items
+#    elif mode == 'changed':
+#        return [(k, v) for k, v in items if plugin.value_changed(k)]
+#    elif mode == 'roving':
+#        return [(k, v) for k, v in items if \
+#                getattr(plugin.context_items[k], 'rove', False)] 
+#
+#
+#enamldef CurrentValuesDockItem(DockItem):
+#    attr context
+#
+#    StyleSheet:
+#        Style:
+#            style_class = 'changed'
+#            Setter:
+#                field = 'font-weight'
+#                value = 'bold'
+#        Style:
+#            style_class = 'roving'
+#            Setter:
+#                field = 'background-color'
+#                value = 'white'
+#
+#    Container:
+#        VGroup:
+#            padding = 0
+#            spacing = 0
+#
+#            Looper:
+#                iterable << sorted(context._namespace._locals.items())
+#                HGroup:
+#                    padding = 0
+#                    spacing = 0
+#                    Label:
+#                        style_class << get_style_classes(context, loop_item[0])
+#                        text << context.context_items[loop_item[0]].label
+#                    Label:
+#                        style_class << get_style_classes(context, loop_item[0])
+#                        text << str(loop_item[1])
+#
+#
+#def get_prior_values(prior_values):
+#    if len(prior_values) == 0:
+#        return []
+#    else:
+#        return sorted(prior_values[-1].items())
+#
+#
+#enamldef PriorValuesDockItem(DockItem):
+#    attr context
+#
+#    StyleSheet:
+#        Style:
+#            style_class = 'changed'
+#            Setter:
+#                field = 'font-weight'
+#                value = 'bold'
+#        Style:
+#            style_class = 'roving'
+#            Setter:
+#                field = 'background-color'
+#                value = 'white'
+#
+#    Container:
+#        VGroup:
+#            padding = 0
+#            spacing = 0
+#
+#            Looper:
+#                iterable << get_prior_values(context._prior_values)
+#                HGroup:
+#                    padding = 0
+#                    spacing = 0
+#                    Label:
+#                        style_class << get_style_classes(context, loop_item[0])
+#                        text << context.context_items[loop_item[0]].label
+#                    Label:
+#                        style_class << get_style_classes(context, loop_item[0])
+#                        text << str(loop_item[1])

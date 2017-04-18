@@ -50,8 +50,7 @@ template ContextItemTemplate(context_item, MemberType, scope: 'experiment'):
     HGroup: group:
         spacing = 0
         padding = 0
-        enabled << workbench.get_plugin('psi.controller') \
-            .experiment_state not in ('running', 'paused')
+        enabled << controller.experiment_state not in ('running', 'paused')
 
         Label: label:
             text = context_item.label
@@ -65,15 +64,9 @@ template ContextItemTemplate(context_item, MemberType, scope: 'trial'):
         padding = 0
         CheckBox: label:
             tool_tip << context_item.name
-            checked << context_item.name in \
-                workbench.get_plugin('psi.context').roving_items
-            toggled ::
-                context = workbench.get_plugin('psi.context')
-                if checked:
-                    context.rove_item(context_item.name)
-                else:
-                    context.unrove_item(context_item.name)
+            status_tip << context_item.name
             text << context_item.label
+            checked := context_item.rove
         WidgetDynamicTemplate:
             pass
 

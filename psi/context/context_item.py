@@ -2,7 +2,7 @@ import numpy as np
 
 from enaml.core.declarative import Declarative, d_
 from atom.api import (Unicode, Typed, Value, Enum, List, Event, Property,
-                      observe)
+                      observe, Bool)
 
 from .. import SimpleState
 
@@ -23,14 +23,11 @@ class ContextItem(SimpleState, Declarative):
     dtype = d_(Unicode())
 
     # Name of the group to display the item under.
-    group = d_(Unicode()).tag(transient=True)
+    group = d_(Unicode())
 
     # Compact label where there is less space in the GUI (e.g., under a column
     # heading for example).
     compact_label = d_(Unicode())
-
-    # Attributes to compare to determine equality of two items.
-    _cmp_attrs = ['name']
 
     updated = Event()
 
@@ -40,20 +37,8 @@ class ContextItem(SimpleState, Declarative):
     def _default_compact_label(self):
         return self.label
 
-    def __eq__(self, other):
-        if not isinstance(other, self.__class__):
-            return False
-        for attr in self._cmp_attrs:
-            if getattr(self, attr) != getattr(other, attr):
-                return False
-        return True
-
     def coerce_to_type(self, value):
-        coerce_function = np.dtype(self.dtype).type
-        return coerce_function(value)
-
-    def __hash__(self):
-        return id(self)
+        return np.dtype(self.dtype).type(value)
 
 
 class Result(ContextItem):
@@ -76,7 +61,6 @@ class Parameter(ContextItem):
     # Default value of the context item when used as part of a selector.
     default = d_(Value())
 
-    # Expression used to determine value of item.
     expression = d_(Unicode())
 
     # Defines the span over which the item's value does not change:
@@ -87,17 +71,14 @@ class Parameter(ContextItem):
     #   sense for it to be a roving item.
     scope = d_(Enum('trial', 'experiment', 'arbitrary'))
 
-    _cmp_attrs = ContextItem._cmp_attrs + ['expression']
+    # Is the value of this item managed by a selector?
+    rove = d_(Bool())
 
     def _default_expression(self):
         return str(self.default)
 
     def _default_dtype(self):
         return np.array(self.default).dtype.str
-
-    @observe('expression')
-    def _notify_update(self, event):
-        self.updated = event
 
 
 class EnumParameter(Parameter):
@@ -110,10 +91,7 @@ class EnumParameter(Parameter):
         return np.array(self.choices.values()).dtype.str
 
     def _get_expression(self):
-        try:
-            return self.choices[self.selected]
-        except:
-            return None
+        return self.choices.get(self.selected, None)
 
     def _set_expression(self, expression):
         for k, v in self.choices.items():
@@ -127,7 +105,7 @@ class EnumParameter(Parameter):
 
     @observe('selected')
     def _notify_update(self, event):
-        self.updated = event
+        self.notify('expression', self.expression)
 
 
 class FileParameter(Parameter):

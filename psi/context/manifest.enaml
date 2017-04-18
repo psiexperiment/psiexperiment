@@ -18,8 +18,7 @@ from psi.experiment.api import Preferences
 from .plugin import ContextPlugin
 from .symbol import ImportedSymbol
 
-from .context_view import (ContextDockItem, CurrentValuesDockItem,
-                           PriorValuesDockItem)
+from .context_view import ContextDockItem
 from .selector_view import SequenceDockItem
 
 from ..util import rpc
@@ -38,10 +37,13 @@ def contribute_to_workspace(workbench, workspace):
     plugin = workbench.get_plugin(PLUGIN_ID)
 
     for group_name, group in plugin.context_groups.items():
+        import operator
         if group.visible:
+            items = [i for i in plugin.context_items.values() if i.group == group_name]
+            items = sorted(items, key=operator.attrgetter('label'))
+
             item = ContextDockItem(workspace.dock_area, 
-                                   plugin=plugin,
-                                   group_name=group_name, 
+                                   context_items=items,
                                    name=group_name,
                                    title=group.label, 
                                    closable=False)
