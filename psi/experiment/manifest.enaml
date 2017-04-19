@@ -1,8 +1,8 @@
 import logging
 log = logging.getLogger(__name__)
 
-
 import pickle
+import yaml
 
 import os
 import numpy as np
@@ -91,8 +91,8 @@ def _save_preferences(event, file_name):
     if not file_name.endswith('.preferences'):
         file_name += '.preferences'
     preferences = plugin.get_preferences()
-    with open(file_name, 'wb') as fh:
-        pickle.dump(preferences, fh)
+    with open(file_name, 'w') as fh:
+        yaml.dump(preferences, fh, default_flow_style=False)
 
 
 def load_preferences(event):
@@ -105,8 +105,8 @@ def load_preferences(event):
 
 def _load_preferences(event, file_name):
     log.debug('Loading preferences from {}'.format(file_name))
-    with open(file_name, 'rb') as fh:
-        preferences = pickle.load(fh, encoding='latin1')
+    with open(file_name, 'r') as fh:
+        preferences = yaml.load(fh)
     plugin = event.workbench.get_plugin('psi.experiment')
     plugin.set_preferences(preferences)
 

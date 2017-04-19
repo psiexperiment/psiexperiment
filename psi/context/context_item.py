@@ -16,7 +16,7 @@ class ContextItem(SimpleState, Declarative):
     name = d_(Unicode())
 
     # Long-format label for display in the GUI. Include units were applicable.
-    label = d_(Unicode())
+    label = d_(Unicode()).tag(preference=True)
 
     # Datatype of the value. Required for properly initializing some data
     # plugins (e.g., those that save data to a HDF5 file).
@@ -59,9 +59,9 @@ class Parameter(ContextItem):
     a go trial).
     '''
     # Default value of the context item when used as part of a selector.
-    default = d_(Value())
+    default = d_(Value()).tag(preference=True)
 
-    expression = d_(Unicode())
+    expression = d_(Unicode()).tag(preference=True)
 
     # Defines the span over which the item's value does not change:
     # * experiment - the value cannot change once the experiment begins
@@ -72,7 +72,7 @@ class Parameter(ContextItem):
     scope = d_(Enum('trial', 'experiment', 'arbitrary'))
 
     # Is the value of this item managed by a selector?
-    rove = d_(Bool())
+    rove = d_(Bool()).tag(preference=True)
 
     def _default_expression(self):
         return str(self.default)

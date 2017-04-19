@@ -142,7 +142,7 @@ enamldef AnalogOutputManifest(DeviceManifest): manifest:
         point = 'psi.experiment.preferences'
         rank = 10
         ItemPreferences:
-            name = manifest.device.name
+            name = 'output.' + manifest.device.name
             item = manifest.device
             auto_save = ['token_name']
             set_preferences => (workbench, preferences):

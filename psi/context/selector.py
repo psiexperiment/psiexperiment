@@ -21,7 +21,6 @@ class BaseSelector(SimpleState, Declarative):
     def append_item(self, item):
         context_items = self.context_items[:]
         context_items.append(item)
-        print('appending', id(item))
         self.context_items = context_items
         self.updated = True
 
@@ -34,7 +33,7 @@ class BaseSelector(SimpleState, Declarative):
 
 class SingleSetting(BaseSelector):
 
-    setting = Typed(dict, ())
+    setting = Typed(dict, ()).tag(preference=True)
 
     def append_item(self, item):
         if item not in self.setting:
@@ -57,8 +56,9 @@ class SingleSetting(BaseSelector):
 
 class SequenceSelector(BaseSelector):
 
-    settings = ContainerList(default=[])
-    order = d_(Enum(*choice.options.keys()))
+    #settings = ContainerList(default=[]).tag(preference=True)
+    settings = Typed(list, {}).tag(preference=True)
+    order = d_(Enum(*choice.options.keys())).tag(preference=True)
 
     def add_setting(self, values=None):
         if values is None:
@@ -66,11 +66,15 @@ class SequenceSelector(BaseSelector):
         for item in self.context_items:
             if item not in values:
                 values[item.name] = item.default
-        self.settings.append(values)
+        settings = self.settings[:]
+        settings.append(values)
+        self.settings = settings
         self.updated = True
 
     def remove_setting(self, setting):
-        self.settings.remove(setting)
+        settings = self.settings[:]
+        settings.remove(setting)
+        self.settings = settings
         self.updated = True
 
     def append_item(self, item):

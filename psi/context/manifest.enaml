@@ -18,6 +18,7 @@ from psi.experiment.api import Preferences
 
 from .plugin import ContextPlugin
 from .symbol import ImportedSymbol
+from .context_item import Parameter
 
 from .context_view import ContextDockItem
 from .selector_view import SequenceDockItem
@@ -82,6 +83,14 @@ def revert_changes(event):
     context.revert_changes()
 
 
+def get_preferences(obj):
+    state = {}
+    for k, v in obj.members().items():
+        if v.metadata and v.metadata.get('preference', False):
+            state[k] = getattr(obj, k)
+    return state
+    
+    
 enamldef ContextManifest(PluginManifest): manifest:
     '''Manifest for the plugin handling the sequence selector
     '''
@@ -165,18 +174,31 @@ enamldef ContextManifest(PluginManifest): manifest:
             name = 'context'
             get_preferences => (workbench):
                 plugin = workbench.get_plugin(manifest.id)
-                return {
-                    'context_items': plugin.context_items,
-                    'selectors': plugin.selectors,
-                }
+
+                # Build the context item state
+                parameter_state = {}
+                for i in plugin.context_items.values():
+                    if isinstance(i, Parameter):
+                        group_state = parameter_state.setdefault(i.group, {})
+                        group_state[i.name] = get_preferences(i)
+
+                # Build the selector state
+                selector_state = {}
+                for s in plugin.selectors.values():
+                    selector_state[s.name] = get_preferences(s)
+
+                return dict(parameters=parameter_state, selectors=selector_state)
 
             set_preferences => (workbench, preferences):
                 plugin = workbench.get_plugin(manifest.id)
-                context_items = preferences['context_items']
-                selectors = preferences['selectors']
+                parameter_state = preferences['parameters']
+                selector_state = preferences['selectors']
+
                 for item in plugin.context_items.values():
-                    state = context_items[item.name].__getstate__()
-                    item.__setstate__(deepcopy(state))
+                    group_state = parameter_state.get(item.group, {})
+                    state = group_state.get(item.name, {})
+                    item.__setstate__(state)
+
                 for selector in plugin.selectors.values():
-                    state = selectors[selector.name].__getstate__()
-                    selector.__setstate__(deepcopy(state))
+                    state = selector_state.get(selector.name, {})
+                    selector.__setstate__(state)

@@ -41,7 +41,7 @@ template ContextItemTemplate(context_item, MemberType, scope):
         spacing = 0
         padding = 0
         Label: label:
-            text = context_item.label
+            text << context_item.label
         WidgetDynamicTemplate:
             pass
 
@@ -54,7 +54,7 @@ template ContextItemTemplate(context_item, MemberType, scope: 'experiment'):
             .experiment_state not in ('running', 'paused')
 
         Label: label:
-            text = context_item.label
+            text << context_item.label
         WidgetDynamicTemplate:
             pass
 
