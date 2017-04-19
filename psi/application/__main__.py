@@ -174,8 +174,9 @@ def run(args):
     workbench.get_plugin('psi.experiment')
 
     # We need to use deferred call to ensure these commands are invoked *after*
-    if not args.no_config:
+    if not args.no_preferences:
         deferred_call(core.invoke_command, 'psi.get_default_preferences')
+    if not args.no_layout:
         deferred_call(core.invoke_command, 'psi.get_default_layout')
     
     log.debug('Starting application')
@@ -196,12 +197,14 @@ def main():
                         help='Hardware configuration')
     parser.add_argument('--debug', default=True, action='store_true',
                         help='Debug mode?')
-    parser.add_argument('--debug_warning', default=False, action='store_true',
+    parser.add_argument('--debug-warning', default=False, action='store_true',
                         help='Debug mode?')
     parser.add_argument('--pdb', default=False, action='store_true',
                         help='Autolaunch PDB?')
-    parser.add_argument('--no_config', default=False, action='store_true', 
-                        help="Don't load preexisting config files")
+    parser.add_argument('--no-preferences', default=False, action='store_true', 
+                        help="Don't load existing preference files")
+    parser.add_argument('--no-layout', default=False, action='store_true', 
+                        help="Don't load existing layout files")
     args = parser.parse_args()
 
     try:
