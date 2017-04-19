@@ -10,19 +10,19 @@ from .selector import SequenceSelector, SingleSetting
 enamldef SequenceSettingField(Field):
     attr selector
     attr setting_index
-    attr parameter_name
-    text << str(selector.get_value(setting_index, parameter_name))
+    attr item
+    text << str(selector.get_value(setting_index, item))
     text ::
-        selector.set_value(setting_index, parameter_name, text)
+        selector.set_value(setting_index, item, text)
 
 
 enamldef SingleSettingField(Field):
     attr selector
     attr setting
-    attr parameter_name
-    text << str(selector.get_value(parameter_name))
+    attr item
+    text << str(selector.get_value(item))
     text ::
-        selector.set_value(parameter_name, text)
+        selector.set_value(item, text)
 
 
 ################################################################################
@@ -48,13 +48,12 @@ class UpdateSelectorWidgets(object):
             return []
         lw = []
         sw = [SettingRemoveButton(setting=s, selector=selector) for s in settings]
-        for item_name in context_items:
-            label = Label(text=selector.get_item_info(item_name, 'label'))
+        for item in context_items:
+            label = Label(text=item.label)
             lw.append(label)
             for j, s in enumerate(settings):
                 field = SequenceSettingField(selector=selector,
-                                             setting_index=j,
-                                             parameter_name=item_name)
+                                             setting_index=j, item=item)
                 sw.append(field)
         lw.extend(sw)
         self.old_widgets = self.widgets
@@ -107,9 +106,6 @@ template SelectorContainerTemplate(selector, MemberType: SequenceSelector):
                 ObjectCombo:
                     items = list(selector.get_member('order').items)
                     selected := selector.order
-                    to_string = lambda x: x.__name__
-                    selected ::
-                        selector.updated = True
 
         Container: labels:
             share_layout = True
@@ -165,10 +161,8 @@ template SelectorContainerTemplate(selector, MemberType: SequenceSelector):
 
             Include: inc:
                 destroy_old = False
-                objects << update_selector_widgets(selector,
-                                                   selector.context_items,
-                                                   selector.settings)
-
+                objects << update_selector_widgets(
+                    selector, selector.context_items, selector.settings)
 
 
 ################################################################################
@@ -176,13 +170,14 @@ template SelectorContainerTemplate(selector, MemberType: SequenceSelector):
 ################################################################################
 def update_single_setting_widgets(selector, context_items, setting):
     widgets = []
-    for item_name in context_items:
-        label = Label(text=selector.get_item_info(item_name, 'label'))
+    for item in context_items:
+        label = Label(text=item.label)
         widgets.append(label)
         field = SingleSettingField(selector=selector, setting=setting,
-                                   parameter_name=item_name)
+                                   item=item)
         widgets.append(field)
     return widgets
+
 
 template SelectorContainerTemplate(selector, MemberType: SingleSetting):
 

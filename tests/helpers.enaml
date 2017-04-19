@@ -8,9 +8,8 @@ from psi.controller.base_manifest import BaseManifest
 
 PLUGIN_ID = 'psi.controller'
 
+
 enamldef TestManifest(BaseManifest): manifest:
-
-
     id = PLUGIN_ID
 
     Extension:
@@ -38,3 +37,4 @@ enamldef TestManifest(BaseManifest): manifest:
         point = 'psi.context.selectors'
         SequenceSelector:
             name = 'default'
+            order = 'ascending'

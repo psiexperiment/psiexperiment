@@ -148,7 +148,7 @@ enamldef AnalogOutputManifest(DeviceManifest): manifest:
             set_preferences => (workbench, preferences):
                 # Override the set_preferences since we need to loop into the
                 # token generation machinery. The output does not have access
-                # to this plugin. This is a hack. I'm sure I'll figure out a
+                # to this plugin. TODO This is a hack. I'm sure I'll figure out a
                 # better approach eventually.
                 core = workbench.get_plugin('enaml.workbench.core')
                 command = manifest.device.name + '.set_token'

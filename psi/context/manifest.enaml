@@ -1,5 +1,6 @@
 import pickle
 import os.path
+from copy import deepcopy
 
 from enaml.core.api import Looper
 from enaml.layout.api import VSplitLayout, TabLayout
@@ -165,11 +166,17 @@ enamldef ContextManifest(PluginManifest): manifest:
             get_preferences => (workbench):
                 plugin = workbench.get_plugin(manifest.id)
                 return {
-                    'context_items': plugin._get_all_expressions(),
+                    'context_items': plugin.context_items,
                     'selectors': plugin.selectors,
-                    'roving_items': plugin.roving_items
                 }
 
             set_preferences => (workbench, preferences):
                 plugin = workbench.get_plugin(manifest.id)
-                plugin._update_attrs(**preferences)
+                context_items = preferences['context_items']
+                selectors = preferences['selectors']
+                for item in plugin.context_items.values():
+                    state = context_items[item.name].__getstate__()
+                    item.__setstate__(deepcopy(state))
+                for selector in plugin.selectors.values():
+                    state = selectors[selector.name].__getstate__()
+                    selector.__setstate__(deepcopy(state))

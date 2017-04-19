@@ -70,7 +70,7 @@ def check_sequence(f):
 
 
 @check_sequence
-def ascending(sequence, c=np.inf):
+def ascending(sequence, c=np.inf, key=None):
     '''
     Returns elements from the sequence in ascending order.  When the last
     element is reached, loop around to the beginning.
@@ -83,7 +83,7 @@ def ascending(sequence, c=np.inf):
     >>> choice.next()
     3
     '''
-    sequence.sort()
+    sequence.sort(key=key)
     cycle = 0
     while cycle < c:
         for i in range(len(sequence)):
@@ -92,7 +92,7 @@ def ascending(sequence, c=np.inf):
 
 
 @check_sequence
-def descending(sequence, c=np.inf):
+def descending(sequence, c=np.inf, key=None):
     '''
     Returns elements from the sequence in descending order.  When the last
     element is reached, loop around to the beginning.
@@ -105,7 +105,7 @@ def descending(sequence, c=np.inf):
     >>> choice.next()
     8
     '''
-    sequence.sort(reverse=True)
+    sequence.sort(key=key, reverse=True)
     cycle = 0
     while cycle < c:
         for i in range(len(sequence)):
@@ -114,7 +114,7 @@ def descending(sequence, c=np.inf):
 
 
 @check_sequence
-def pseudorandom(sequence, seed=None):
+def pseudorandom(sequence, seed=None, key=None):
     '''
     Returns a randomly selected element from the sequence.
     '''
@@ -130,7 +130,7 @@ def pseudorandom(sequence, seed=None):
 
 
 @check_sequence
-def exact_order(sequence, c=np.inf):
+def exact_order(sequence, c=np.inf, key=None):
     '''
     Returns elements in the exact order they are provided.
 
@@ -150,7 +150,7 @@ def exact_order(sequence, c=np.inf):
 
 
 @check_sequence
-def shuffled_set(sequence, c=np.inf):
+def shuffled_set(sequence, c=np.inf, key=None):
     '''
     Returns a randomly selected element from the sequence and removes it from
     the sequence.  Once the sequence is exhausted, repopulate list with the
@@ -166,7 +166,7 @@ def shuffled_set(sequence, c=np.inf):
 
 
 @check_sequence
-def counterbalanced(sequence, n, c=np.inf):
+def counterbalanced(sequence, n, c=np.inf, key=None):
     '''
     Ensures that each value in `sequence` is presented an equal number of times
     over `n` trials.  At the end of the set, will regenerate a new list.  If you
