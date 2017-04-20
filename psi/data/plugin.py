@@ -39,7 +39,6 @@ class DataPlugin(Plugin):
         # the shadow copy but the live copy. What do we do?
         context = self.workbench.get_plugin('psi.context')
         context.observe('context_items', self._context_items_changed)
-        context.observe('_roving_items', self._context_items_changed)
 
     def stop(self):
         self._unbind_observers()
@@ -72,7 +71,7 @@ class DataPlugin(Plugin):
 
     def _context_items_changed(self, items=None):
         context = self.workbench.get_plugin('psi.context')
-        self.context_info = context.get_context_info()
+        self.context_info = context.context_items.copy()
         for sink in self._sinks:
             sink.context_info_updated(self.context_info)
 

@@ -35,13 +35,13 @@ enamldef TableConfig(PopupView): popup:
                     else:
                         widget.columns.remove(loop_item[0])
             Label:
-                text = '{} | {}'.format(loop_item[1]['label'],
-                                        loop_item[1]['compact_label'])
+                text << '{} | {}'.format(loop_item[1].label,
+                                        loop_item[1].compact_label)
 
 
 enamldef TrialLogDockItem(DockItem):
 
-    attr data_plugin
+    attr data_plugin = workbench.get_plugin('psi.data')
     closable = False
 
     title_bar_right_clicked ::
@@ -73,16 +73,6 @@ enamldef TrialLogDockItem(DockItem):
                 return 'white'
 
 
-def contribute_to_workspace(workbench, workspace):
-    plugin = workbench.get_plugin('psi.data')
-    item = TrialLogDockItem(workspace.dock_area, 
-                            data_plugin=plugin,
-                            name='trial_log', 
-                            title='Trial Log')
-    op = InsertItem(item=item.name, position='right')
-    deferred_call(workspace.dock_area.update_layout, op)
-
-
 enamldef TrialLogManifest(PluginManifest): manifest:
 
     id = PLUGIN_ID
@@ -90,7 +80,9 @@ enamldef TrialLogManifest(PluginManifest): manifest:
     Extension:
         id = 'workspace'
         point = 'psi.experiment.workspace'
-        factory = contribute_to_workspace
+        TrialLogDockItem:
+            name = 'trial_log'
+            title = 'Trial Log'
 
     Extension:
         id = 'preferences'
