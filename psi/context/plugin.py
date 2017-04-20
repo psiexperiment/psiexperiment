@@ -9,7 +9,7 @@ from enaml.application import deferred_call
 from enaml.layout.api import InsertItem, InsertTab
 from enaml.workbench.plugin import Plugin
 
-from .context_item import ContextItem, Parameter
+from .context_item import ContextItem, Parameter, ContextMeta
 from .context_group import ContextGroup
 from .expression import ExpressionNamespace
 from .selector import BaseSelector
@@ -27,6 +27,8 @@ class ContextPlugin(Plugin):
     '''
     context_groups = Typed(dict, {})
     context_items = Typed(dict, {})
+    context_meta = Typed(dict, {})
+
     selectors = Typed(dict, ())
     symbols = Typed(dict, ())
 
@@ -73,13 +75,16 @@ class ContextPlugin(Plugin):
         log.debug('Refreshing context items')
         context_groups = {}
         context_items = {}
+        context_meta = {}
         items = []
         groups = []
+        meta = []
 
         point = self.workbench.get_extension_point(ITEMS_POINT)
         for extension in point.extensions:
             items.extend(extension.get_children(ContextItem))
             groups.extend(extension.get_children(ContextGroup))
+            meta.extend(extension.get_children(ContextMeta))
 
         for group in groups:
             log.debug('Adding context group {}'.format(group.name))
@@ -100,6 +105,9 @@ class ContextPlugin(Plugin):
             if item.name in context_items:
                 m = 'Context item {} already defined'.format(item.name)
                 raise ValueError(m)
+            for m in meta:
+                item.meta[m] = m.default_value
+
             context_items[item.name] = item
 
         self.context_items = context_items

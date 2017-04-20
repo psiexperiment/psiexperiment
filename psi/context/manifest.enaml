@@ -104,9 +104,6 @@ enamldef ContextManifest(PluginManifest): manifest:
         id = 'items'
 
     ExtensionPoint:
-        id = 'results'
-
-    ExtensionPoint:
         id = 'symbols'
 
     Extension:

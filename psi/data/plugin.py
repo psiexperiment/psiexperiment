@@ -77,7 +77,7 @@ class DataPlugin(Plugin):
 
     def _prepare_trial_log(self):
         ci = self.context_info.items()
-        arrays = dict((k, np.array([], dtype=i['dtype'])) for k, i in ci)
+        arrays = dict((k, np.array([], dtype=i.dtype)) for k, i in ci)
         self.trial_log = pd.DataFrame(arrays)
 
     def _prepare_event_log(self):

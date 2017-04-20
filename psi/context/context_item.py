@@ -7,6 +7,13 @@ from atom.api import (Unicode, Typed, Value, Enum, List, Event, Property,
 from .. import SimpleState
 
 
+class ContextMeta(Declarative):
+
+    name = d_(Unicode())
+    label = d_(Unicode())
+    default_value = d_(Value())
+
+
 class ContextItem(SimpleState, Declarative):
     '''
     Defines the core elements of a context item. These items are made available
@@ -30,6 +37,8 @@ class ContextItem(SimpleState, Declarative):
     compact_label = d_(Unicode())
 
     updated = Event()
+
+    meta = Typed(dict, {})
 
     def _default_label(self):
         return self.name.capitalize()

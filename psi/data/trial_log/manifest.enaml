@@ -52,9 +52,9 @@ enamldef TrialLogDockItem(DockItem):
     Container: main_container:
         DataframeTable: trial_log_table:
             name = 'trial_log_table'
-            hug_width = 'weak'
             dataframe << data_plugin.trial_log
-            column_info << data_plugin.context_info
+            column_info << {k: i.compact_label for \
+                            k, i in data_plugin.context_info.items()}
 
             cell_color => (row, column):
                 # TODO: A bit of a hack here ...
@@ -71,6 +71,9 @@ enamldef TrialLogDockItem(DockItem):
                     elif tt == 'nogo_repeat':
                         return 'pink'
                 return 'white'
+
+
+from psi.context.context_item import ContextMeta
 
 
 enamldef TrialLogManifest(PluginManifest): manifest:
@@ -90,4 +93,12 @@ enamldef TrialLogManifest(PluginManifest): manifest:
         UIPreferences:
             name = 'trial_log_table_columns'
             item_name = 'trial_log_table'
-            auto_save = ['columns', 'column_state']
+            auto_save = ['state']
+
+    Extension:
+        id = 'context'
+        point = 'psi.context.items'
+        ContextMeta:
+            name = 'trial_log'
+            label = 'Show in trial log?'
+            default_value = False

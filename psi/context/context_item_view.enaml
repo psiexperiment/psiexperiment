@@ -1,7 +1,7 @@
-from enaml.core.api import DynamicTemplate
+from enaml.core.api import DynamicTemplate, Looper
 from enaml.layout.api import hbox, spacer
 from enaml.widgets.api import (Container, Field, CheckBox, Label, HGroup,
-                               PushButton, FileDialogEx)
+                               PushButton, PopupView, Form)
 
 from .context_item import (Result, Parameter, EnumParameter, FileParameter,
                            BoolParameter)
@@ -17,7 +17,6 @@ enamldef WidgetDynamicTemplate(DynamicTemplate):
 template WidgetTemplate(context_item, MemberType):
     Field: widget:
         text := context_item.expression
-        tool_tip << context_item.name
 
 
 template WidgetTemplate(context_item, MemberType: EnumParameter):

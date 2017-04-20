@@ -120,15 +120,12 @@ enamldef DataManifest(PluginManifest): manifest:
             title = 'Event Log'
             closable = True
 
-            title_bar_right_clicked ::
-                ColumnsPopup(self, data=plugin).show()
-
             Container:
                 DataframeTable:
                     hug_width = 'weak'
                     dataframe << plugin.event_log
                     columns = ['timestamp', 'event']
                     column_info = { 
-                        'timestamp': {'compact_label': 'Time'}, 
-                        'event': {'compact_label': 'Event'}, 
+                        'timestamp': 'Time (sec)',
+                        'event': 'Event',
                     }

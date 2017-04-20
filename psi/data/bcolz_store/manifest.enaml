@@ -52,7 +52,7 @@ class BColzStore(AbstractStore):
         Create a table to hold the event log.
         '''
         filename = self._get_filename('trial_log')
-        dtype = [(str(n), i['dtype']) for n, i in context_info.items()]
+        dtype = [(str(n), i.dtype) for n, i in context_info.items()]
         return bcolz.zeros(0, rootdir=filename, mode='w', dtype=dtype)
 
     def _create_event_log(self):
