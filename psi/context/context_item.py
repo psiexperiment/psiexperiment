@@ -38,7 +38,9 @@ class ContextItem(SimpleState, Declarative):
         return self.label
 
     def coerce_to_type(self, value):
-        return np.dtype(self.dtype).type(value)
+        coerce_function = np.dtype(self.dtype).type
+        value = coerce_function(value)
+        return np.asscalar(value)
 
 
 class Result(ContextItem):
