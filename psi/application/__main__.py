@@ -115,7 +115,7 @@ def get_base_path(dirname, experiment):
         settings_root = get_config('SETTINGS_ROOT')
         config_file = os.path.join(settings_root, '.bcolz_store')
 
-        session_name = dt.datetime.now().strftime('%Y%M%d_%H%M%S')
+        session_name = dt.datetime.now().strftime('%Y%m%d_%H%M%S')
         base_path = os.path.join(base_path, session_name)
         os.makedirs(base_path)
 
@@ -135,7 +135,7 @@ def run(args):
     if args.debug:
         # Show debugging information. This includes full tracebacks for
         # warnings.
-        dt_string = dt.datetime.now().strftime('%Y-%m-%d %H%M') 
+        dt_string = dt.datetime.now().strftime('%Y-%m-%d %H%M')
         filename = '{} {}'.format(dt_string, args.experiment)
         log_root = get_config('LOG_ROOT')
         configure_logging(os.path.join(log_root, filename))
