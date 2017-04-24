@@ -178,7 +178,7 @@ def run(args):
         deferred_call(core.invoke_command, 'psi.get_default_preferences')
     if not args.no_layout:
         deferred_call(core.invoke_command, 'psi.get_default_layout')
-    
+
     log.debug('Starting application')
     ui.start_application()
 
@@ -201,9 +201,9 @@ def main():
                         help='Debug mode?')
     parser.add_argument('--pdb', default=False, action='store_true',
                         help='Autolaunch PDB?')
-    parser.add_argument('--no-preferences', default=False, action='store_true', 
+    parser.add_argument('--no-preferences', default=False, action='store_true',
                         help="Don't load existing preference files")
-    parser.add_argument('--no-layout', default=False, action='store_true', 
+    parser.add_argument('--no-layout', default=False, action='store_true',
                         help="Don't load existing layout files")
     args = parser.parse_args()
 
