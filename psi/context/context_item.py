@@ -97,6 +97,7 @@ class EnumParameter(Parameter):
     expression = Property().tag(transient=True)
     choices = d_(Typed(dict))
     selected = d_(Unicode())
+    default = d_(Unicode())
 
     def _default_dtype(self):
         return np.array(self.choices.values()).dtype.str
@@ -113,6 +114,9 @@ class EnumParameter(Parameter):
             if expression is not None:
                 m = 'Could not map expression {} to choice'.format(expression)
                 raise ValueError(m)
+
+    def _default_selected(self):
+        return self.default
 
     @observe('selected')
     def _notify_update(self, event):

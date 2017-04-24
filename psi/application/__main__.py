@@ -115,7 +115,7 @@ def get_base_path(dirname, experiment):
         settings_root = get_config('SETTINGS_ROOT')
         config_file = os.path.join(settings_root, '.bcolz_store')
 
-        session_name = dt.datetime.now().strftime('%Y%M%d_%H%M%S')
+        session_name = dt.datetime.now().strftime('%Y%m%d_%H%M%S')
         base_path = os.path.join(base_path, session_name)
         os.makedirs(base_path)
 
@@ -135,7 +135,7 @@ def run(args):
     if args.debug:
         # Show debugging information. This includes full tracebacks for
         # warnings.
-        dt_string = dt.datetime.now().strftime('%Y-%m-%d %H%M') 
+        dt_string = dt.datetime.now().strftime('%Y-%m-%d %H%M')
         filename = '{} {}'.format(dt_string, args.experiment)
         log_root = get_config('LOG_ROOT')
         configure_logging(os.path.join(log_root, filename))
@@ -178,7 +178,7 @@ def run(args):
         deferred_call(core.invoke_command, 'psi.get_default_preferences')
     if not args.no_layout:
         deferred_call(core.invoke_command, 'psi.get_default_layout')
-    
+
     log.debug('Starting application')
     ui.start_application()
 
@@ -201,9 +201,9 @@ def main():
                         help='Debug mode?')
     parser.add_argument('--pdb', default=False, action='store_true',
                         help='Autolaunch PDB?')
-    parser.add_argument('--no-preferences', default=False, action='store_true', 
+    parser.add_argument('--no-preferences', default=False, action='store_true',
                         help="Don't load existing preference files")
-    parser.add_argument('--no-layout', default=False, action='store_true', 
+    parser.add_argument('--no-layout', default=False, action='store_true',
                         help="Don't load existing layout files")
     args = parser.parse_args()
 

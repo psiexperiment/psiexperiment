@@ -133,6 +133,7 @@ enamldef AppetitiveManifest(BaseManifest): manifest:
 
             Parameter:
                 name = 'go_probability'
+                label = 'Go probability'
                 compact_label = 'Pr'
                 default = 0.5
                 scope = 'arbitrary'

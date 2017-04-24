@@ -97,7 +97,7 @@ class ContextPlugin(Plugin):
                 items.append(item)
 
         for item in items:
-            log.debug('Adding context item {}'.format(item.name))
+            log.trace('Adding context item {}'.format(item.name))
             if item.group not in context_groups:
                 m = 'Group {} for {} does not exist'
                 m = m.format(item.group, item.name)

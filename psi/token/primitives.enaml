@@ -230,7 +230,7 @@ enamldef SAMEnvelope(Block): block:
         name = 'direction'
         label = 'Initial AM direction'
         compact_label = 'dir'
-        default = 1
+        default = 'positive'
         choices = {'positive': 1, 'negative': -1}
 
 

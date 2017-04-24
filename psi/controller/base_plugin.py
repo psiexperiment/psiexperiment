@@ -276,7 +276,7 @@ class BasePlugin(Plugin):
             if delay > 0:
                 cb = lambda: self._invoke_actions(event_name, timestamp)
                 self.start_timer(event_name, delay, cb)
-                return  
+                return
         self._invoke_actions(event_name, timestamp)
 
     def _invoke_actions(self, event_name, timestamp=None):
@@ -300,7 +300,7 @@ class BasePlugin(Plugin):
 
     def _invoke_action(self, action, event_name, timestamp):
         # Add the event name and timestamp to the parameters passed to the
-        # command. 
+        # command.
         kwargs = action.kwargs.copy()
         kwargs['timestamp'] = timestamp
         kwargs['event'] = event_name
