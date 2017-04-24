@@ -213,6 +213,7 @@ enamldef SequenceContainer(Container):
 
 enamldef SequenceDockItem(DockItem):
     attr selector
+    closable = False
 
     DynamicTemplate:
         base = SelectorContainerTemplate

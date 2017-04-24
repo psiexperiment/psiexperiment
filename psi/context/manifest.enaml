@@ -20,7 +20,7 @@ from .plugin import ContextPlugin
 from .symbol import ImportedSymbol
 from .context_item import Parameter
 
-from .context_view import ContextDockItem
+from .context_view import ContextDockItem, CurrentValuesDockItem
 from .selector_view import SequenceDockItem
 
 from ..util import rpc
@@ -34,42 +34,6 @@ def changes_pending(event):
     plugin = event.workbench.get_plugin(PLUGIN_ID)
     return plugin.changes_pending
 
-
-def contribute_to_workspace(workbench, workspace):
-    plugin = workbench.get_plugin(PLUGIN_ID)
-    for group_name, group in plugin.context_groups.items():
-        if group.visible:
-            item = ContextDockItem(workspace.dock_area, group_name=group_name,
-                                   plugin=plugin, name=group_name,
-                                   title=group.label, closable=False)
-            op = FloatItem(item=item.name)
-            deferred_call(workspace.dock_area.update_layout, op)
-
-    for name, selector in plugin.selectors.items():
-        item = SequenceDockItem(workspace.dock_area,
-                                selector=selector,
-                                name=name,
-                                title=name,
-                                closable=False)
-        op = FloatItem(item=item.name)
-        deferred_call(workspace.dock_area.update_layout, op)
-
-    # TODO: this is currently broken
-    #item = CurrentValuesDockItem(workspace.dock_area, 
-    #                             context=plugin,
-    #                             name='cv', 
-    #                             title='Current values',
-    #                             closable=False)
-    #op = InsertItem(item=item.name, position='left')
-    #deferred_call(workspace.dock_area.update_layout, op)
-
-    #item = PriorValuesDockItem(workspace.dock_area, 
-    #                           context=plugin,
-    #                           name='pv', 
-    #                           title='Prior values',
-    #                           closable=False)
-    #op = InsertItem(item=item.name, position='left')
-    #deferred_call(workspace.dock_area.update_layout, op)
 
 
 def apply_changes(event):
@@ -158,10 +122,10 @@ enamldef ContextManifest(PluginManifest): manifest:
             command = 'psi.context.apply_changes'
             weight = 10
 
-    Extension:
-        id = 'workspace'
-        point = 'psi.experiment.workspace'
-        factory = contribute_to_workspace
+    #Extension:
+    #    id = 'workspace'
+    #    point = 'psi.experiment.workspace'
+    #    factory = contribute_to_workspace
 
     Extension:
         id = 'preferences'
@@ -199,3 +163,28 @@ enamldef ContextManifest(PluginManifest): manifest:
                 for selector in plugin.selectors.values():
                     state = selector_state.get(selector.name, {})
                     selector.__setstate__(state)
+
+
+enamldef ContextViewManifest(PluginManifest): manifest:
+    
+    id = 'psi.context.view'
+
+    attr context_plugin << workbench.get_plugin('psi.context')
+
+    Extension:
+        id = 'context_view'
+        point = 'psi.experiment.workspace'
+
+        Looper:
+            iterable << [g for g in context_plugin.context_groups.values() if g.visible]
+            ContextDockItem:
+                group_name = loop_item.name
+                name = loop_item.name
+                title = loop_item.label
+
+        Looper:
+            iterable << context_plugin.selectors.values()
+            SequenceDockItem:
+                name = loop_item.name
+                title = loop_item.name
+                selector = loop_item

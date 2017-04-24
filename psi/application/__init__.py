@@ -42,6 +42,7 @@ def initialize_workbench(extra_manifests,
         from enaml.workbench.ui.ui_manifest import UIManifest
 
         from psi.context.manifest import ContextManifest
+        from psi.context.manifest import ContextViewManifest
         from psi.data.manifest import DataManifest
         from psi.experiment.manifest import ExperimentManifest
         from psi.token.manifest import TokenManifest
@@ -56,6 +57,7 @@ def initialize_workbench(extra_manifests,
     workbench.register(CoreManifest())
     workbench.register(UIManifest())
     workbench.register(ContextManifest())
+    workbench.register(ContextViewManifest())
     workbench.register(DataManifest())
     workbench.register(ExperimentManifest())
     workbench.register(TokenManifest())
