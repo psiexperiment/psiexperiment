@@ -81,7 +81,7 @@ def get_default_layout(event):
 def save_preferences(event):
     filename = event.parameters.get('filename', None)
     if filename is None:
-        filename = FileDialogEx.get_save_filename(**preferences_fd_kwargs)
+        filename = FileDialogEx.get_save_file_name(**preferences_fd_kwargs)
     if filename:
         _save_preferences(event, filename)
 
