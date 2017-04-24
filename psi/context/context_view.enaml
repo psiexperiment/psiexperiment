@@ -22,7 +22,7 @@ enamldef ContextDockItem(DockItem):
     # By taking the `context` as an attribute rather than a list of parameters,
     # this ensures that the GUI is updated if the parameters list is ever
     # overwritten (e.g., by the revert logic).
-    attr context_plugin << workbench.get_plugin('psi.context')
+    attr context_plugin = workbench.get_plugin('psi.context')
     attr group_name
     closable = False
 
@@ -79,7 +79,7 @@ def get_current_values(plugin, values):
 
 enamldef CurrentValuesDockItem(DockItem):
     attr context
-    attr context_plugin << workbench.get_plugin('psi.context')
+    attr context_plugin = workbench.get_plugin('psi.context')
 
     StyleSheet:
         Style:

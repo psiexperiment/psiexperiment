@@ -169,7 +169,7 @@ enamldef ContextViewManifest(PluginManifest): manifest:
     
     id = 'psi.context.view'
 
-    attr context_plugin << workbench.get_plugin('psi.context')
+    attr context_plugin = workbench.get_plugin('psi.context')
 
     Extension:
         id = 'context_view'
