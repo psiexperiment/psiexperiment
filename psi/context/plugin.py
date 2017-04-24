@@ -235,6 +235,7 @@ class ContextPlugin(Plugin):
         try:
             log.debug('Configuring next setting from selector %s', selector)
             expressions = next(self._iterators[selector])
+            expressions = {i.name: e for i, e in expressions.items()}
             self._namespace.update_expressions(expressions)
         except KeyError:
             m = 'Avaliable selectors include {}'.format(self._iterators.keys())

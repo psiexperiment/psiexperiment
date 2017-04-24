@@ -38,7 +38,7 @@ class ContextItem(SimpleState, Declarative):
 
     updated = Event()
 
-    meta = Typed(dict, {})
+    meta = Typed(dict, {}).tag(transient=True)
 
     def _default_label(self):
         return self.name.capitalize()

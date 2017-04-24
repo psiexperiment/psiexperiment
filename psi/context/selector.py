@@ -41,10 +41,11 @@ class SingleSetting(BaseSelector):
         super(SingleSetting, self).append_item(item)
 
     def get_iterator(self, cycles=None):
+        setting = {i: self.setting[i.name] for i in self.context_items}
         if cycles is None:
-            return itertools.cycle([self.setting.copy()])
+            return itertools.cycle([setting])
         else:
-            return [self.setting.copy()]*cycle
+            return [setting]*cycle
 
     def get_value(self, item):
         return self.setting[item.name]
@@ -56,7 +57,6 @@ class SingleSetting(BaseSelector):
 
 class SequenceSelector(BaseSelector):
 
-    #settings = ContainerList(default=[]).tag(preference=True)
     settings = Typed(list, {}).tag(preference=True)
     order = d_(Enum(*choice.options.keys())).tag(preference=True)
 
