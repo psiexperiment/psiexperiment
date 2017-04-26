@@ -68,7 +68,7 @@ class ContextPlugin(Plugin):
         point = self.workbench.get_extension_point(SYMBOLS_POINT)
         for extension in point.extensions:
             for symbol in extension.get_children(Symbol):
-                symbols[symbol.name] = symbol.get_object()
+                symbols[symbol.name] = symbol.get_object() 
         self.symbols = symbols
 
     def _refresh_items(self, event=None):
@@ -278,6 +278,9 @@ class ContextPlugin(Plugin):
 
     def _check_for_changes(self):
         for name, state in self._context_item_state.items():
+            if name not in self.context_items:
+                self.changes_pending = True
+                return
             item = self.context_items[name] 
             if (item.rove, item.expression) != state:
                 self.changes_pending = True
