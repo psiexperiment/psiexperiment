@@ -42,7 +42,6 @@ def apply_changes(event):
 
 
 def revert_changes(event):
-    # Force a refresh of the workspace to load the new context
     context = event.workbench.get_plugin(PLUGIN_ID)
     context.revert_changes()
 
