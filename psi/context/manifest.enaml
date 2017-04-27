@@ -121,11 +121,6 @@ enamldef ContextManifest(PluginManifest): manifest:
             command = 'psi.context.apply_changes'
             weight = 10
 
-    #Extension:
-    #    id = 'workspace'
-    #    point = 'psi.experiment.workspace'
-    #    factory = contribute_to_workspace
-
     Extension:
         id = 'preferences'
         point = 'psi.experiment.preferences'
