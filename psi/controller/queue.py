@@ -1,6 +1,8 @@
 import logging
 log = logging.getLogger(__name__)
 
+from enaml.core.api import Declarative
+
 import itertools
 import copy
 import uuid
@@ -26,17 +28,16 @@ def as_iterator(x):
     return x
 
 
-class AbstractSignalQueue(object):
+class AbstractSignalQueue(Declarative):
 
-    def __init__(self, notifier=None):
+    def __init__(self):
         self._data = {} # list of generators
         self._ordering = [] # order of items added to queue
         self._generator = None
         self._samples = 0
         self._delay = 0
-        if notifier is None:
-            notifier = lambda *args, **kw: None
-        self._notifier = notifier
+        self._kw = {}
+        self._notifiers = []
 
     def _add_factory(self, factory, trials, delays):
         key = uuid.uuid4()
@@ -48,14 +49,18 @@ class AbstractSignalQueue(object):
         self._data[key] = data
         return key
 
+    def connect(self, callback):
+        self._notifiers.append(callback)
+
     def insert(self, factory, trials, delays=None):
         k = self._add_factory(factory, trials, delays)
         self._ordering.insert(k)
         return k
 
-    def append(self, factory, trials, delays=None):
+    def append(self, factory, trials, delays=None, **kw):
         k = self._add_factory(factory, trials, delays)
         self._ordering.append(k)
+        self._kw[k] = kw
         return k
 
     def count_factories(self):
@@ -104,6 +109,7 @@ class AbstractSignalQueue(object):
         returned, the remaining part will be returned on subsequent calls to
         this function.
         '''
+        # TODO: Fix ITIs
         waveforms = []
         queue_empty = False
 
@@ -129,7 +135,8 @@ class AbstractSignalQueue(object):
                 self._generator = data['factory']()
                 next(self._generator)
                 self._delay = next(data['delays'])
-                self._notifier(key, self._samples)
+                for cb in self._notifiers:
+                    cb(key, self._samples, self._kw[key])
             except QueueEmptyError:
                 queue_empty = True
 

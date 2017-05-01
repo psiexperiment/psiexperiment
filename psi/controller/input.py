@@ -13,6 +13,7 @@ from enaml.workbench.api import Extension
 from psi import SimpleState
 from .channel import Channel
 from .calibration.util import db, dbi, patodb
+from .queue import AbstractSignalQueue
 
 
 def coroutine(func):
@@ -163,7 +164,7 @@ def extract_epochs(epoch_size, queue, buffer_size, target):
 
         while True:
             if (next_offset is None) and len(queue) > 0:
-                next_offset = queue.popleft()
+                key, next_offset, kw = queue.popleft()
             elif next_offset is None:
                 break
             elif next_offset < t0:
@@ -268,7 +269,7 @@ class Input(SimpleState, Declarative):
 class CalibratedInput(Input):
 
     def configure_callback(self, plugin):
-        cb = super(CalibratedInput, self).configure_callback(plugin)
+        cb = super().configure_callback(plugin)
         return calibrate(self.channel.calibration, cb).send
 
 
@@ -282,14 +283,14 @@ class RMS(Input):
 
     def configure_callback(self, plugin):
         n = int(self.duration*self.parent.fs)
-        cb = super(RMS, self).configure_callback(plugin)
+        cb = super().configure_callback(plugin)
         return rms(n, cb).send
 
 
 class SPL(Input):
 
     def configure_callback(self, plugin):
-        cb = super(SPL, self).configure_callback(plugin)
+        cb = super().configure_callback(plugin)
         return spl(cb).send
 
 
@@ -312,7 +313,7 @@ class IIRFilter(Input):
                     self.f_lowpass/(0.5*self.fs))
 
     def configure_callback(self, plugin):
-        cb = super(IIRFilter, self).configure_callback(plugin)
+        cb = super().configure_callback(plugin)
         return iirfilter(self.N, self.wn, None, None, self.btype,
                          self.ftype, cb).send
 
@@ -323,7 +324,7 @@ class AccumulateSegments(Input):
     axis = d_(Int(-1))
 
     def configure_callback(self, plugin):
-        cb = super(AccumulateSegments, self).configure_callback(plugin)
+        cb = super().configure_callback(plugin)
         return accumulate_segments(self.n, self.axis, cb).send
 
 
@@ -335,7 +336,7 @@ class Downsample(Input):
         return self.parent.fs/self.q
 
     def configure_callback(self, plugin):
-        cb = super(Downsample, self).configure_callback(plugin)
+        cb = super().configure_callback(plugin)
         return downsample(self.q, cb).send
 
 
@@ -347,7 +348,7 @@ class Decimate(Input):
         return self.parent.fs/self.q
 
     def configure_callback(self, plugin):
-        cb = super(Decimate, self).configure_callback(plugin)
+        cb = super().configure_callback(plugin)
         return decimate(self.q, cb).send
 
 
@@ -356,7 +357,7 @@ class Threshold(Input):
     threshold = d_(Float(0))
 
     def configure_callback(self, plugin):
-        cb = super(Threshold, self).configure_callback(plugin)
+        cb = super().configure_callback(plugin)
         return threshold(self.threshold, cb).send
 
 
@@ -371,7 +372,7 @@ class Edges(Input):
         return lambda data: p(data[0], data[1]/self.fs)
 
     def configure_callback(self, plugin):
-        cb = super(Edges, self).configure_callback(plugin)
+        cb = super().configure_callback(plugin)
         return edges(self.initial_state, self.debounce, cb).send
 
 
@@ -380,7 +381,7 @@ class Reject(Input):
     threshold = d_(Float())
 
     def configure_callback(self, plugin):
-        cb = super(Reject, self).configure_callback(plugin)
+        cb = super().configure_callback(plugin)
         return reject(self.threshold, cb).send
 
 
@@ -389,11 +390,21 @@ class Average(Input):
     n = d_(Float())
 
     def configure_callback(self, plugin):
-        cb = super(Average, self).configure_callback(plugin)
+        cb = super().configure_callback(plugin)
         return average(self.n, cb).send
 
 
-class Epoch(Input):
+class QueuedEpochInput(Input):
 
-    reference = d_(Unicode())
-    duration = d_(Float())
+    queue = d_(Typed(AbstractSignalQueue))
+    buffer_size = d_(Float(30))
+    epoch_size = d_(Float(8.5e-3))
+
+    def configure_callback(self, plugin):
+        cb = super().configure_callback(plugin)
+        buffer_samples = int(self.buffer_size*self.fs)
+        epoch_samples = int(self.epoch_size*self.fs)
+        queue = deque()
+        self.queue.connect(queue.append)
+        cb = extract_epochs(epoch_samples, queue, buffer_size, cb)
+        return cb.send

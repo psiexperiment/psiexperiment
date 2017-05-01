@@ -154,8 +154,10 @@ class ContextPlugin(Plugin):
 
     def _observe_item_rove(self, event):
         if event['value']:
+            log.debug('Roving {}'.format(event['object'].name))
             self.rove_item(event['object'])
         else:
+            log.debug('Unroving {}'.format(event['object'].name))
             self.unrove_item(event['object'])
 
     @observe('selectors')
@@ -181,6 +183,7 @@ class ContextPlugin(Plugin):
         selector = self.selectors[iterator].get_iterator(cycles=cycles)
         for expressions in selector:
             self._namespace.reset()
+            expressions = {i.name: e for i, e in expressions.items()}
             self._namespace.update_expressions(expressions)
             yield self.get_values()
 

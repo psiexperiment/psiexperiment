@@ -24,6 +24,13 @@ data_store_manifest = 'psi.data.bcolz_store.manifest.BColzStoreManifest'
 
 
 experiment_descriptions = {
+    'passive': {
+        'manifests': [
+            'psi.controller.passive_manifest.PassiveManifest',
+            'psi.data.trial_log.manifest.TrialLogManifest',
+            data_store_manifest,
+        ],
+    },
     'appetitive_gonogo_food': {
         'manifests': [
             'psi.application.experiment.appetitive.ControllerManifest',

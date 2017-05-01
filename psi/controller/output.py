@@ -15,6 +15,8 @@ from enaml.core.api import Declarative, d_
 from enaml.workbench.api import Plugin, Extension
 from enaml.qt.QtCore import QTimer
 
+from .queue import AbstractSignalQueue
+
 from .device import Device
 
 
@@ -129,9 +131,9 @@ class EpochCallback(object):
 
 class EpochOutput(AnalogOutput):
 
-    manifest = __name__ + '_manifest.EpochOutputManifest'
-    
-    method = Enum('merge', 'replace', 'multiply')
+    method = d_(Enum('merge', 'replace', 'multiply'))
+    manifest = 'psi.controller.output_manifest.EpochOutputManifest'
+
     _cb = Typed(object)
     _duration = Typed(object)
 
@@ -164,6 +166,45 @@ class EpochOutput(AnalogOutput):
         self._block_samples = int(self.channel.fs*self.block_size)
 
 
+def queued_epoch_callback(output, queue):
+    offset = 0
+    engine = output.engine
+    channel = output.channel
+    while True:
+        yield
+        samples = engine.get_buffered_samples(channel.name, offset)
+        log.debug('Generating {} samples from queue'.format(samples))
+        waveform, empty = queue.pop_buffer(samples)
+        engine.modify_hw_ao(waveform, offset, output.name)
+        offset += len(waveform)
+        if empty:
+            break
+
+
+class QueuedEpochOutput(EpochOutput):
+
+    manifest = 'psi.controller.output_manifest.QueuedEpochOutputManifest'
+    selector_name = d_(Unicode())
+    queue = d_(Typed(AbstractSignalQueue))
+
+    def setup(self, context):
+        for setting in context:
+            averages = setting.get('{}_averages', 1)
+            iti_duration = setting.get('iti_duration', 0)
+            factory = self.initialize_factory(setting)
+            iti_samples = int(iti_duration*self.fs)
+            self.queue.append(factory, averages, iti_samples)
+
+        cb = epoch_queue_callback(self, self.queue)
+        next(cb)
+        self.engine.register_ao_callback(cb.__next__, self.channel.name)
+
+    def load_manifest(self):
+        with enaml.imports():
+            from .output_manifest import QueuedEpochOutputManifest
+            return QueuedEpochOutputManifest(device=self)
+
+
 def continuous_callback(output, generator):
     offset = 0
     engine = output.engine
@@ -181,17 +222,14 @@ def continuous_callback(output, generator):
 
 class ContinuousOutput(AnalogOutput):
 
+    manifest = 'psi.controller.output_manifest.ContinuousOutputManifest'
+
     def setup(self, context):
         log.debug('Configuring continuous output {}'.format(self.name))
         generator = self.initialize_generator(context)
         cb = continuous_callback(self, generator)
         next(cb)
         self.engine.register_ao_callback(cb.__next__, self.channel.name)
-
-    def load_manifest(self):
-        with enaml.imports():
-            from .output_manifest import ContinuousOutputManifest
-            return ContinuousOutputManifest(device=self)
 
 
 def null_callback(output):
@@ -208,7 +246,8 @@ def null_callback(output):
 
 
 class NullOutput(AnalogOutput):
-    # Used in the event where a channel does not have a continuous output defined.
+    # Used in the event where a channel does not have a continuous output
+    # defined.
 
     def configure(self, plugin):
         cb = null_callback(self)
@@ -224,18 +263,17 @@ class DigitalOutput(Output):
 
 class Trigger(DigitalOutput):
 
+    manifest = 'psi.controller.output_manifest.TriggerManifest'
+
     duration = d_(Float(0.1))
 
     def fire(self):
         self.engine.fire_sw_do(self.channel.name, duration=self.duration)
 
-    def load_manifest(self):
-        with enaml.imports():
-            from .output_manifest import TriggerManifest
-            return TriggerManifest(device=self)
-
 
 class Toggle(DigitalOutput):
+
+    manifest = 'psi.controller.output_manifest.ToggleManifest'
 
     state = Bool(False)
 
@@ -251,8 +289,3 @@ class Toggle(DigitalOutput):
 
     def set_low(self):
         self.state = False
-
-    def load_manifest(self):
-        with enaml.imports():
-            from .output_manifest import ToggleManifest
-            return ToggleManifest(device=self)

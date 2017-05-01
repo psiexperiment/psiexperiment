@@ -10,74 +10,18 @@ from enaml.workbench.core.api import Command
 from psi.context.api import ContextGroup, Parameter, SequenceSelector
 from psi.controller.api import EpochOutput, ExperimentAction
 
+from psi.controller.output import QueuedEpochOutput
+#from psi.controller.input import ExtractEpoch
+
 from .base_manifest import BaseManifest
 from .base_plugin import BasePlugin
-from .queue import AbstractSignalQueue, FIFOSignalQueue
+
+from .queue import FIFOSignalQueue
 
 from psi.data.plots import (TimeContainer, ChannelPlot, TimeseriesPlot,
                             ExtremesChannelPlot, FFTContainer, FFTChannelPlot)
 
 import time
-
-
-def queue_trials(event):
-    plugin = event.workbench.get_plugin('psi.controller')
-    plugin.queue_trials()
-
-
-def queue_callback(output, queue):
-    offset = 0
-    engine = output.engine
-    channel = output.channel
-    while True:
-        yield
-        samples = engine.get_buffered_samples(channel.name, offset)
-        log.debug('Generating {} samples from queue'.format(samples))
-        waveform, empty = queue.pop_buffer(samples)
-        engine.modify_hw_ao(waveform, offset, output.name)
-        offset += len(waveform)
-        if empty:
-            break
-
-
-class PassivePlugin(BasePlugin):
-
-    queues = Typed(dict)
-    setting_map = Typed(dict)
-
-    def queue_trials(self):
-        averages = self.context.get_value('averages')
-        iti_duration = self.context.get_value('iti_duration')
-        queues = {}
-        setting_map = {}
-        for output in self._outputs.values():
-            if isinstance(output, EpochOutput):
-                queue = FIFOSignalQueue(self.trial_uploaded)
-                queues[output] = queue
-                cb = queue_callback(output, queue)
-                cb.next()
-                output.engine.register_ao_callback(cb.next,
-                                                   output.channel.name)
-
-        for setting in self.context.iter_settings('default', 1):
-            #setting.pop('averages')
-            #setting.pop('iti_duration')
-            for output, queue in queues.iteritems():
-                factory = output.initialize_factory(setting)
-                key = queue.append(factory, averages, iti_duration)
-                setting_map[key] = output, setting
-
-        self.queues = queues
-        self.setting_map = setting_map
-
-    def trial_uploaded(self, key, samples):
-        deferred_call(self._trial_uploaded, key, samples)
-
-    def _trial_uploaded(self, key, samples):
-        output, setting = self.setting_map[key]
-        setting['start_time'] = samples/output.fs
-        parameters = {'results': setting}
-        self.core.invoke_command('psi.data.process_trial', parameters)
 
 
 enamldef PassiveManifest(BaseManifest): manifest:
@@ -92,35 +36,24 @@ enamldef PassiveManifest(BaseManifest): manifest:
             handler = queue_trials
 
     Extension:
-        id = 'items'
-        point = 'psi.context.items'
-
-        ContextGroup:
-            name = 'trial'
-            label = 'Trial'
-
-        Parameter:
-            name = 'iti_duration'
-            label = 'Intertrial interval (s)'
-            compact_label = 'ITI'
-            default = 0.1
-            group = 'trial'
-
-        Parameter:
-            name = 'averages'
-            compact_label = 'N'
-            default = 1
-            group = 'trial'
-            scope = 'experiment'
-
-    Extension:
         id = 'io'
         point = 'psi.controller.io'
 
-        EpochOutput:
+        FIFOSignalQueue: dq
+            name = 'default'
+
+        QueuedEpochOutput:
             name = 'target'
             label = 'Target'
             target_name = 'speaker'
+            queue = dq
+
+        QueuedEpochInput:
+            name = 'erp'
+            source_name = 'microphone'
+            buffer_size = 10
+            epoch_size = 8.5e-3
+            queue = dq
 
     Extension:
         id = 'selectors'
@@ -132,35 +65,11 @@ enamldef PassiveManifest(BaseManifest): manifest:
         id = 'actions'
         point = 'psi.controller.actions'
         rank = 100
+
         ExperimentAction:
             event = 'experiment_prepare'
-            command = 'psi.controller.queue_trials'
+            command = 'target.prepare'
 
-    Extension:
-        id = 'plots'
-        point = 'psi.data.plots'
-
-        FFTContainer:
-            name = 'fft_plot_container'
-            title = 'FFT'
-            freq_lb = 0.1e3 
-            freq_ub = 10e3
-
-            FFTChannelPlot:
-                source = 'microphone'
-                line_color = (0, 0, 0)
-                value_range = (0, 100)
-                time_span = 1
-                axis_label = 'Level (dB SPL)'
-                reference = 20e-6
-
-        TimeContainer:
-            name = 'trial_plot_container' 
-            title = 'Trial timing'
-            trig_delay = 0
-            span = 20
-
-            ExtremesChannelPlot:
-               source = 'microphone'
-               line_color = (0, 0, 0)
-               value_range = (-1, 1)
+        ExperimentAction:
+            event = 'erp_epoch_acquired'
+            command = 'psi.controller.log_trial'
