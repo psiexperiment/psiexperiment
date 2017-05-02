@@ -28,23 +28,23 @@ def as_iterator(x):
     return x
 
 
-class AbstractSignalQueue(Declarative):
+class AbstractSignalQueue(object):
 
-    def __init__(self):
+    def __init__(self, *args, **kwargs):
         self._data = {} # list of generators
         self._ordering = [] # order of items added to queue
         self._generator = None
         self._samples = 0
         self._delay = 0
-        self._kw = {}
         self._notifiers = []
 
-    def _add_factory(self, factory, trials, delays):
+    def _add_factory(self, factory, trials, delays, metadata):
         key = uuid.uuid4()
         data = {
             'factory': factory,
             'trials': trials,
             'delays': as_iterator(delays),
+            'metadata': metadata,
         }
         self._data[key] = data
         return key
@@ -52,15 +52,14 @@ class AbstractSignalQueue(Declarative):
     def connect(self, callback):
         self._notifiers.append(callback)
 
-    def insert(self, factory, trials, delays=None):
-        k = self._add_factory(factory, trials, delays)
+    def insert(self, factory, trials, delays=None, metadata=None):
+        k = self._add_factory(factory, trials, delays, metadata)
         self._ordering.insert(k)
         return k
 
-    def append(self, factory, trials, delays=None, **kw):
-        k = self._add_factory(factory, trials, delays)
+    def append(self, factory, trials, delays=None, metadata=None):
+        k = self._add_factory(factory, trials, delays, metadata)
         self._ordering.append(k)
-        self._kw[k] = kw
         return k
 
     def count_factories(self):
@@ -100,7 +99,7 @@ class AbstractSignalQueue(Declarative):
             del self._data[key]
             self._ordering.remove(key)
 
-    def pop_buffer(self, samples, padding_size=1, decrement=True):
+    def pop_buffer(self, samples, decrement=True):
         '''
         Return the requested number of samples
 
@@ -109,44 +108,45 @@ class AbstractSignalQueue(Declarative):
         returned, the remaining part will be returned on subsequent calls to
         this function.
         '''
-        # TODO: Fix ITIs
         waveforms = []
         queue_empty = False
 
-        if (samples > 0) and (self._generator is not None):
-            waveform, complete = self._generator.send({'samples': samples})
-            samples -= len(waveform)
-            self._samples += len(waveform)
-            waveforms.append(waveform)
-            if complete:
-                self._generator = None
+        if samples > 0 and self._generator is not None:
+                waveform, complete = self._generator.send({'samples': samples})
+                samples -= len(waveform)
+                self._samples += len(waveform)
+                waveforms.append(waveform)
+                if complete:
+                    self._generator = None
 
-        if (samples > 0) and (self._delay > 0):
-            n_padding = min(self._delay, samples)
-            waveform = np.zeros(n_padding)
-            samples -= n_padding
-            self._samples += len(waveform)
-            self._delay -= n_padding
-            waveforms.append(waveform)
+        if samples > 0 and self._delay > 0:
+                n_padding = min(self._delay, samples)
+                waveform = np.zeros(n_padding)
+                samples -= n_padding
+                self._samples += len(waveform)
+                self._delay -= n_padding
+                waveforms.append(waveform)
 
-        if (self._generator is None):
+        if (self._generator is None) and (self._delay == 0):
             try:
                 key, data = self.pop_next(decrement=decrement)
                 self._generator = data['factory']()
                 next(self._generator)
                 self._delay = next(data['delays'])
                 for cb in self._notifiers:
-                    cb(key, self._samples, self._kw[key])
+                    args = self._samples, key, data['metadata']
+                    cb(args)
             except QueueEmptyError:
                 queue_empty = True
 
         if (samples > 0) and not queue_empty:
-            waveform, queue_empty = \
-                self.pop_buffer(samples, padding_size, decrement)
+            waveform, queue_empty =  self.pop_buffer(samples, decrement)
             waveforms.append(waveform)
 
         waveform = np.concatenate(waveforms, axis=-1) 
         log.trace('Generated {} samples'.format(waveform.shape))
+        if queue_empty:
+            log.info('Queue is now empty')
         return waveform, queue_empty
 
 
