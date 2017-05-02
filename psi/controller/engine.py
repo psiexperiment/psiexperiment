@@ -141,6 +141,7 @@ class Engine(SimpleState, Declarative):
         oi = self.hw_ao_buffer_map[output_name]
         self.hw_ao_buffer[:, oi, lb:ub] = data
         combined_data = self.hw_ao_buffer[..., lb:].sum(axis=1)
+
         self.write_hw_ao(combined_data, offset, timeout=1)
 
     def get_buffered_samples(self, channel_name, offset=0):

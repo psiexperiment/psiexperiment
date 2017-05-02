@@ -166,15 +166,15 @@ class EpochOutput(AnalogOutput):
         self._block_samples = int(self.channel.fs*self.block_size)
 
 
-def queued_epoch_callback(output, queue):
+def queued_epoch_callback(output, queue, auto_decrement):
     offset = 0
     engine = output.engine
     channel = output.channel
     while True:
         yield
         samples = engine.get_buffered_samples(channel.name, offset)
-        log.debug('Generating {} samples from queue'.format(samples))
-        waveform, empty = queue.pop_buffer(samples)
+        log.debug('Generating %d samples at %d from queue', samples, offset)
+        waveform, empty = queue.pop_buffer(samples, decrement=auto_decrement)
         engine.modify_hw_ao(waveform, offset, output.name)
         offset += len(waveform)
         if empty:
@@ -186,6 +186,7 @@ class QueuedEpochOutput(EpochOutput):
     manifest = 'psi.controller.output_manifest.QueuedEpochOutputManifest'
     selector_name = d_(Unicode())
     queue = d_(Typed(AbstractSignalQueue))
+    auto_decrement = d_(Bool(False))
 
     def setup(self, context):
         for setting in context:
@@ -193,16 +194,10 @@ class QueuedEpochOutput(EpochOutput):
             iti_duration = setting.get('iti_duration', 0)
             factory = self.initialize_factory(setting)
             iti_samples = int(iti_duration*self.fs)
-            self.queue.append(factory, averages, iti_samples)
-
-        cb = epoch_queue_callback(self, self.queue)
+            self.queue.append(factory, averages, iti_samples, setting)
+        cb = queued_epoch_callback(self, self.queue, self.auto_decrement)
         next(cb)
         self.engine.register_ao_callback(cb.__next__, self.channel.name)
-
-    def load_manifest(self):
-        with enaml.imports():
-            from .output_manifest import QueuedEpochOutputManifest
-            return QueuedEpochOutputManifest(device=self)
 
 
 def continuous_callback(output, generator):

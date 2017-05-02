@@ -34,9 +34,9 @@ enamldef IOManifest(PluginManifest): manifest:
         NIDAQEngine:
             name = 'NI'
             master_clock = True
-            
+
             hw_ai_monitor_period = 0.01
-            hw_ao_monitor_period = 2
+            hw_ao_monitor_period = 0.05
 
             AOChannel:
                 label = 'Speaker'
@@ -72,32 +72,3 @@ enamldef IOManifest(PluginManifest): manifest:
                             duration = 1
                             SPL:
                                 name = 'noise_level'
-
-    Extension:
-        id = 'plots'
-        point = 'psi.data.plots'
-
-        FFTContainer:
-            name = 'fft_plot_container'
-            title = 'FFT'
-            freq_lb = 0.1e3 
-            freq_ub = 10e3
-
-            FFTChannelPlot:
-                source = 'microphone'
-                line_color = (0, 0, 0)
-                value_range = (0, 100)
-                time_span = 1
-                axis_label = 'Level (dB SPL)'
-                reference = 20e-6
-
-        TimeContainer:
-            name = 'trial_plot_container' 
-            title = 'Trial timing'
-            trig_delay = 0
-            span = 20
-
-            ExtremesChannelPlot:
-               source = 'microphone'
-               line_color = (0, 0, 0)
-               value_range = (-1, 1)

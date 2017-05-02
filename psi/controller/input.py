@@ -2,6 +2,7 @@ import logging
 log = logging.getLogger(__name__)
 
 from functools import partial
+from collections import deque
 
 import numpy as np
 from scipy import signal
@@ -13,6 +14,7 @@ from enaml.workbench.api import Extension
 from psi import SimpleState
 from .channel import Channel
 from .calibration.util import db, dbi, patodb
+from .device import Device
 from .queue import AbstractSignalQueue
 
 
@@ -33,184 +35,7 @@ def broadcast(targets):
             target(data)
 
 
-@coroutine
-def accumulate_segments(n, axis, target):
-    data = []
-    while True:
-        d = (yield)
-        data.append(d)
-        if len(data) == n:
-            data = np.concatenate(data, axis=axis)
-            target(data)
-            data = []
-
-
-@coroutine
-def iirfilter(N, Wn, rp, rs, btype, ftype, target):
-    b, a = signal.iirfilter(N, Wn, rp, rs, btype, ftype=ftype)
-    if np.any(np.abs(np.roots(a)) > 1):
-        raise ValueError('Unstable filter coefficients')
-    zf = signal.lfilter_zi(b, a)
-    while True:
-        y = (yield)
-        y, zf = signal.lfilter(b, a, y, zi=zf)
-        target(y)
-
-
-@coroutine
-def decimate(q, target):
-    b, a = signal.cheby1(4, 0.05, 0.8/q)
-    if np.any(np.abs(np.roots(a)) > 1):
-        raise ValueError('Unstable filter coefficients')
-    zf = signal.lfilter_zi(b, a)
-    y_remainder = np.array([])
-    while True:
-        y = np.r_[y_remainder, (yield)]
-        remainder = len(y) % q
-        if remainder != 0:
-            y, y_remainder = y[:-remainder], y[-remainder:]
-        else:
-            y_remainder = np.array([])
-        y, zf = signal.lfilter(b, a, y, zi=zf)
-        target(y[::q])
-
-
-@coroutine
-def downsample(q, target):
-    y_remainder = np.array([])
-    while True:
-        y = np.r_[y_remainder, (yield)]
-        remainder = len(y) % q
-        if remainder != 0:
-            y, y_remainder = y[:-remainder], y[-remainder:]
-        else:
-            y_remainder = np.array([])
-        target(y[::q])
-
-
-@coroutine
-def threshold(threshold, target):
-    while True:
-        samples = (yield)
-        target(samples >= threshold)
-
-
-@coroutine
-def edges(initial_state, min_samples, target):
-    if min_samples < 1:
-        raise ValueError('min_samples must be greater than 1')
-    prior_samples = np.tile(initial_state, min_samples)
-    t_prior = -min_samples
-    while True:
-        # Wait for new data to become available
-        new_samples = (yield)
-        samples = np.r_[prior_samples, new_samples]
-        ts_change = np.flatnonzero(np.diff(samples, axis=-1)) + 1
-        ts_change = np.r_[ts_change, samples.shape[-1]]
-
-        for tlb, tub in zip(ts_change[:-1], ts_change[1:]):
-            if (tub-tlb) >= min_samples:
-                if initial_state == samples[tlb]:
-                    continue
-                edge = 'rising' if samples[tlb] == 1 else 'falling'
-                initial_state = samples[tlb]
-                target((edge, t_prior + tlb))
-        t_prior += new_samples.shape[-1]
-        target(('processed', t_prior))
-        prior_samples = samples[..., -min_samples:]
-
-
-@coroutine
-def reject(threshold, target):
-    while True:
-        data = (yield)
-        if np.all(np.max(np.abs(d), axis=-1) < reject_threshold):
-            # TODO: what about fails?
-            target(data)
-
-
-@coroutine
-def average(n, target):
-    data = (yield)
-    axis = 0
-    while True:
-        while data.shape[axis] >= n:
-            s = [Ellipsis]*data.ndim
-            s[axis] = np.s_[:block_size]
-            target(data[s].mean(axis=axis))
-            s[axis] = np.s_[block_size:]
-            data = data[s]
-        new_data = (yield)
-        data = np.concatenate((data, new_data), axis=axis)
-
-
-@coroutine
-def extract_epochs(epoch_size, queue, buffer_size, target):
-    buffer_size = int(buffer_size)
-    data = (yield)
-    buffer_shape = list(data.shape)
-    buffer_shape[-1] = buffer_size
-    ring_buffer = np.empty(buffer_shape, dtype=data.dtype)
-    next_offset = None
-    t0 = -buffer_size
-
-    while True:
-        # Newest data is always stored at the end of the ring buffer. To make
-        # room, we discard samples from the beginning of the buffer.
-        samples = data.shape[-1]
-        ring_buffer[..., :-samples] = ring_buffer[..., samples:]
-        ring_buffer[..., -samples:] = data
-        t0 += samples
-
-        while True:
-            if (next_offset is None) and len(queue) > 0:
-                key, next_offset, kw = queue.popleft()
-            elif next_offset is None:
-                break
-            elif next_offset < t0:
-                raise SystemError('Epoch lost')
-            elif (next_offset+epoch_size) > (t0+buffer_size):
-                break
-            else:
-                i = next_offset-t0
-                epoch = ring_buffer[..., i:i+epoch_size].copy()
-                target(epoch)
-                next_offset = None
-
-        data = (yield)
-
-
-@coroutine
-def calibrate(calibration, target):
-    # TODO: hack alert here
-    sens = dbi(calibration.get_sens(1000))
-    while True:
-        data = (yield)
-        target(data/sens)
-
-
-@coroutine
-def rms(n, target):
-    data = None
-    while True:
-        if data is None:
-            data = (yield)
-        else:
-            data = np.concatenate((data, (yield)), axis=-1)
-        while data.shape[-1] >= n:
-            result = np.mean(data[..., :n]**2, axis=0)**0.5
-            target(result[np.newaxis])
-            data = data[..., n:]
-
-
-@coroutine
-def spl(target):
-    while True:
-        data = (yield)
-        target(patodb(data))
-
-
-class Input(SimpleState, Declarative):
+class Input(Device):
 
     source_name = d_(Unicode())
 
@@ -254,7 +79,10 @@ class Input(SimpleState, Declarative):
 
     def configure_callback(self, plugin):
         '''
-        Configure callbacks only for named inputs.
+        Configure callback for named inputs to ensure that they are saved to
+        the data store.
+
+        Subclasses should be sure to invoke this via super().
         '''
         log.debug('Configuring callback for {}'.format(self.name))
         targets = [c.configure_callback(plugin) for c in self.children]
@@ -266,11 +94,34 @@ class Input(SimpleState, Declarative):
         return partial(plugin.ai_callback, self.name)
 
 
+@coroutine
+def calibrate(calibration, target):
+    # TODO: hack alert here
+    sens = dbi(calibration.get_sens(1000))
+    while True:
+        data = (yield)
+        target(data/sens)
+
+
 class CalibratedInput(Input):
 
     def configure_callback(self, plugin):
         cb = super().configure_callback(plugin)
         return calibrate(self.channel.calibration, cb).send
+
+
+@coroutine
+def rms(n, target):
+    data = None
+    while True:
+        if data is None:
+            data = (yield)
+        else:
+            data = np.concatenate((data, (yield)), axis=-1)
+        while data.shape[-1] >= n:
+            result = np.mean(data[..., :n]**2, axis=0)**0.5
+            target(result[np.newaxis])
+            data = data[..., n:]
 
 
 class RMS(Input):
@@ -287,11 +138,30 @@ class RMS(Input):
         return rms(n, cb).send
 
 
+@coroutine
+def spl(target):
+    while True:
+        data = (yield)
+        target(patodb(data))
+
+
 class SPL(Input):
 
     def configure_callback(self, plugin):
         cb = super().configure_callback(plugin)
         return spl(cb).send
+
+
+@coroutine
+def iirfilter(N, Wn, rp, rs, btype, ftype, target):
+    b, a = signal.iirfilter(N, Wn, rp, rs, btype, ftype=ftype)
+    if np.any(np.abs(np.roots(a)) > 1):
+        raise ValueError('Unstable filter coefficients')
+    zf = signal.lfilter_zi(b, a)
+    while True:
+        y = (yield)
+        y, zf = signal.lfilter(b, a, y, zi=zf)
+        target(y)
 
 
 class IIRFilter(Input):
@@ -318,6 +188,18 @@ class IIRFilter(Input):
                          self.ftype, cb).send
 
 
+@coroutine
+def accumulate_segments(n, axis, target):
+    data = []
+    while True:
+        d = (yield)
+        data.append(d)
+        if len(data) == n:
+            data = np.concatenate(data, axis=axis)
+            target(data)
+            data = []
+
+
 class AccumulateSegments(Input):
 
     n = d_(Int())
@@ -326,6 +208,19 @@ class AccumulateSegments(Input):
     def configure_callback(self, plugin):
         cb = super().configure_callback(plugin)
         return accumulate_segments(self.n, self.axis, cb).send
+
+
+@coroutine
+def downsample(q, target):
+    y_remainder = np.array([])
+    while True:
+        y = np.r_[y_remainder, (yield)]
+        remainder = len(y) % q
+        if remainder != 0:
+            y, y_remainder = y[:-remainder], y[-remainder:]
+        else:
+            y_remainder = np.array([])
+        target(y[::q])
 
 
 class Downsample(Input):
@@ -340,6 +235,24 @@ class Downsample(Input):
         return downsample(self.q, cb).send
 
 
+@coroutine
+def decimate(q, target):
+    b, a = signal.cheby1(4, 0.05, 0.8/q)
+    if np.any(np.abs(np.roots(a)) > 1):
+        raise ValueError('Unstable filter coefficients')
+    zf = signal.lfilter_zi(b, a)
+    y_remainder = np.array([])
+    while True:
+        y = np.r_[y_remainder, (yield)]
+        remainder = len(y) % q
+        if remainder != 0:
+            y, y_remainder = y[:-remainder], y[-remainder:]
+        else:
+            y_remainder = np.array([])
+        y, zf = signal.lfilter(b, a, y, zi=zf)
+        target(y[::q])
+
+
 class Decimate(Input):
 
     q = d_(Int())
@@ -352,6 +265,13 @@ class Decimate(Input):
         return decimate(self.q, cb).send
 
 
+@coroutine
+def threshold(threshold, target):
+    while True:
+        samples = (yield)
+        target(samples >= threshold)
+
+
 class Threshold(Input):
 
     threshold = d_(Float(0))
@@ -359,6 +279,31 @@ class Threshold(Input):
     def configure_callback(self, plugin):
         cb = super().configure_callback(plugin)
         return threshold(self.threshold, cb).send
+
+
+@coroutine
+def edges(initial_state, min_samples, target):
+    if min_samples < 1:
+        raise ValueError('min_samples must be greater than 1')
+    prior_samples = np.tile(initial_state, min_samples)
+    t_prior = -min_samples
+    while True:
+        # Wait for new data to become available
+        new_samples = (yield)
+        samples = np.r_[prior_samples, new_samples]
+        ts_change = np.flatnonzero(np.diff(samples, axis=-1)) + 1
+        ts_change = np.r_[ts_change, samples.shape[-1]]
+
+        for tlb, tub in zip(ts_change[:-1], ts_change[1:]):
+            if (tub-tlb) >= min_samples:
+                if initial_state == samples[tlb]:
+                    continue
+                edge = 'rising' if samples[tlb] == 1 else 'falling'
+                initial_state = samples[tlb]
+                target((edge, t_prior + tlb))
+        t_prior += new_samples.shape[-1]
+        target(('processed', t_prior))
+        prior_samples = samples[..., -min_samples:]
 
 
 class Edges(Input):
@@ -376,6 +321,15 @@ class Edges(Input):
         return edges(self.initial_state, self.debounce, cb).send
 
 
+@coroutine
+def reject(threshold, target):
+    while True:
+        data = (yield)
+        if np.all(np.max(np.abs(d), axis=-1) < reject_threshold):
+            # TODO: what about fails?
+            target(data)
+
+
 class Reject(Input):
 
     threshold = d_(Float())
@@ -383,6 +337,21 @@ class Reject(Input):
     def configure_callback(self, plugin):
         cb = super().configure_callback(plugin)
         return reject(self.threshold, cb).send
+
+
+@coroutine
+def average(n, target):
+    data = (yield)
+    axis = 0
+    while True:
+        while data.shape[axis] >= n:
+            s = [Ellipsis]*data.ndim
+            s[axis] = np.s_[:block_size]
+            target(data[s].mean(axis=axis))
+            s[axis] = np.s_[block_size:]
+            data = data[s]
+        new_data = (yield)
+        data = np.concatenate((data, new_data), axis=axis)
 
 
 class Average(Input):
@@ -394,9 +363,71 @@ class Average(Input):
         return average(self.n, cb).send
 
 
-class QueuedEpochInput(Input):
+@coroutine
+def notify_epoch_acquired(plugin, name, target):
+    action = '{}_acquired'.format(name)
+    while True:
+        epoch, key, metadata = (yield)
+        plugin.invoke_actions(action, key=key, metadata=metadata)
+
+
+class BaseEpoch(Input):
+
+    def configure_callback(self, plugin):
+        # This tacks on a notifier that triggers an action every time an epoch
+        # is acquired.
+        cb = super().configure_callback(plugin)
+        return notify_epoch_acquired(plugin, self.name, cb).send
+
+    def get_plugin_callback(self, plugin):
+        return partial(plugin.ai_epoch_callback, self.name)
+
+
+@coroutine
+def extract_epochs(epoch_size, queue, buffer_size, target):
+    buffer_size = int(buffer_size)
+    data = (yield)
+    buffer_shape = list(data.shape)
+    buffer_shape[-1] = buffer_size
+    ring_buffer = np.empty(buffer_shape, dtype=data.dtype)
+    next_offset = None
+    t0 = -buffer_size
+
+    while True:
+        # Newest data is always stored at the end of the ring buffer. To make
+        # room, we discard samples from the beginning of the buffer.
+        samples = data.shape[-1]
+        ring_buffer[..., :-samples] = ring_buffer[..., samples:]
+        ring_buffer[..., -samples:] = data
+        t0 += samples
+
+        while True:
+            log.debug('looping')
+            if (next_offset is None) and len(queue) > 0:
+                next_offset, key, metadata = queue.popleft()
+                log.debug('Next offset %d, current t0 %d', next_offset, t0)
+            elif next_offset is None:
+                break
+            elif next_offset < t0:
+                raise SystemError('Epoch lost')
+            elif (next_offset+epoch_size) > (t0+buffer_size):
+                break
+            else:
+                i = next_offset-t0
+                epoch = ring_buffer[..., i:i+epoch_size].copy()
+                target((epoch, key, metadata))
+                next_offset = None
+
+        data = (yield)
+        log.debug('received %r samples', data.shape)
+
+
+class ExtractEpochs(BaseEpoch):
+
+    manifest = 'psi.controller.input_manifest.QueuedEpochInputManifest'
 
     queue = d_(Typed(AbstractSignalQueue))
+
     buffer_size = d_(Float(30))
     epoch_size = d_(Float(8.5e-3))
 
@@ -404,7 +435,6 @@ class QueuedEpochInput(Input):
         cb = super().configure_callback(plugin)
         buffer_samples = int(self.buffer_size*self.fs)
         epoch_samples = int(self.epoch_size*self.fs)
-        queue = deque()
-        self.queue.connect(queue.append)
-        cb = extract_epochs(epoch_samples, queue, buffer_size, cb)
-        return cb.send
+        cb_queue = deque()
+        self.queue.connect(cb_queue.append)
+        return extract_epochs(epoch_samples, cb_queue, buffer_samples, cb).send

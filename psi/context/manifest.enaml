@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 import pickle
 import os.path
 from copy import deepcopy
@@ -149,11 +152,13 @@ enamldef ContextManifest(PluginManifest): manifest:
                 parameter_state = preferences['parameters']
                 selector_state = preferences['selectors']
 
+                log.debug('Setting context item states')
                 for item in plugin.context_items.values():
                     group_state = parameter_state.get(item.group, {})
                     state = group_state.get(item.name, {})
                     item.__setstate__(state)
 
+                log.debug('Setting selector states')
                 for selector in plugin.selectors.values():
                     state = selector_state.get(selector.name, {})
                     selector.__setstate__(state)

@@ -268,7 +268,7 @@ class BasePlugin(Plugin):
         return context
 
     def invoke_actions(self, event_name, timestamp=None, delayed=False,
-                       cancel_existing=True):
+                       cancel_existing=True, **kw):
         if cancel_existing:
             self.stop_timer(event_name)
         if delayed:
@@ -277,9 +277,9 @@ class BasePlugin(Plugin):
                 cb = lambda: self._invoke_actions(event_name, timestamp)
                 self.start_timer(event_name, delay, cb)
                 return
-        self._invoke_actions(event_name, timestamp)
+        self._invoke_actions(event_name, timestamp, **kw)
 
-    def _invoke_actions(self, event_name, timestamp=None):
+    def _invoke_actions(self, event_name, timestamp=None, **kw):
         if timestamp is not None:
             # The event is logged only if the timestamp is provided
             params = {'event': event_name, 'timestamp': timestamp}
@@ -296,12 +296,13 @@ class BasePlugin(Plugin):
         # again. Should we wrap it in a deferred call?
         for action in self._actions:
             if action.match(context):
-                self._invoke_action(action, event_name, timestamp)
+                self._invoke_action(action, event_name, timestamp, **kw)
 
-    def _invoke_action(self, action, event_name, timestamp):
+    def _invoke_action(self, action, event_name, timestamp, **kw):
         # Add the event name and timestamp to the parameters passed to the
         # command.
         kwargs = action.kwargs.copy()
+        kwargs.update(kw)
         kwargs['timestamp'] = timestamp
         kwargs['event'] = event_name
         try:
@@ -314,6 +315,7 @@ class BasePlugin(Plugin):
                 log.debug(m.format(action.command, kwargs))
                 self.core.invoke_command(action.command, parameters=kwargs)
         except ValueError as e:
+            raise
             log.warn(e)
 
     def _invoke_action_concurrent(self, action, kwargs):
@@ -360,6 +362,13 @@ class BasePlugin(Plugin):
         log.trace('Acquired {} samples from {}'.format(data.shape, name))
         parameters = {'name': name, 'data': data}
         self.core.invoke_command('psi.data.process_ai', parameters)
+
+    def ai_epoch_callback(self, name, data):
+        #log.trace('Acquired {} samples for epoch {}'.format(data.shape, 
+        epoch, key = data
+        print('epoch', name, epoch.shape, key)
+        #parameters = {'name': name, 'data': data}
+        #self.core.invoke_command('psi.data.process_ai_epoch', parameters)
 
     def et_callback(self, name, edge, timestamp):
         raise NotImplementedError

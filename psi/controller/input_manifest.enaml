@@ -1,0 +1,13 @@
+from enaml.workbench.api import Extension
+
+from .device_manifest import DeviceManifest
+from .experiment_action import ExperimentEvent
+
+
+enamldef QueuedEpochInputManifest(DeviceManifest): manifest:
+
+    Extension:
+        id = '{}.actions'.format(manifest.device.name)
+        point = 'psi.controller.actions'
+        ExperimentEvent:
+            name = '{}_acquired'.format(manifest.device.name)

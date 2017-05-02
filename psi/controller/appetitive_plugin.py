@@ -194,7 +194,7 @@ class AppetitivePlugin(BasePlugin):
             'reaction_time': np_end-np_start,
         })
         self.context.set_values(self.trial_info)
-        parameters ={'results': self.context.get_values()}
+        parameters = {'results': self.context.get_values()}
         self.core.invoke_command('psi.data.process_trial', parameters)
         self.prior_score = score
 

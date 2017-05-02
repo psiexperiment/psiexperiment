@@ -1,3 +1,6 @@
+import logging
+log =  logging.getLogger(__name__)
+
 from functools import partial
 
 import numpy as np
@@ -76,6 +79,14 @@ def clear_output(event, output):
     output.clear(end, delay)
     controller = event.workbench.get_plugin('psi.controller')
     controller.invoke_actions('{}_end'.format(output.name), end+delay)
+
+
+def decrement_key(event, output):
+    try:
+        output.queue.decrement_key(event.parameters['key'])
+    except KeyError:
+        m = 'Acquired extra epoch for {}'
+        log.debug(m.format(event.parameters['key']))
 
 
 enamldef AnalogOutputManifest(DeviceManifest): manifest:
@@ -175,6 +186,9 @@ enamldef QueuedEpochOutputManifest(EpochOutputManifest): manifest:
         Command:
             id = manifest.device.name + '.prepare_queue'
             handler = partial(prepare_output_queue, output=manifest.device)
+        Command:
+            id = manifest.device.name + '.decrement_key'
+            handler = partial(decrement_key, output=manifest.device)
 
     Extension:
         id = 'queued_epoch_{}'.format(manifest.name)
