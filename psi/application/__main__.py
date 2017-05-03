@@ -20,23 +20,16 @@ from psi import application
 from psi import get_config, set_config
 
 
-data_store_manifest = 'psi.data.bcolz_store.manifest.BColzStoreManifest'
-
-
 experiment_descriptions = {
     'passive': {
         'manifests': [
             'psi.controller.passive_manifest.PassiveManifest',
-            'psi.data.trial_log.manifest.TrialLogManifest',
-            data_store_manifest,
+            'psi.data.trial_log_counter.manifest.TrialLogCounterManifest',
         ],
     },
     'appetitive_gonogo_food': {
         'manifests': [
             'psi.application.experiment.appetitive.ControllerManifest',
-            'psi.data.trial_log.manifest.TrialLogManifest',
-            'psi.data.sdt_analysis.manifest.SDTAnalysisManifest',
-            data_store_manifest,
         ],
     },
     'abr': {
@@ -44,14 +37,12 @@ experiment_descriptions = {
             'psi.application.experiment.abr.ControllerManifest',
             'psi.data.trial_log.manifest.TrialLogManifest',
             'psi.data.event_log.manifest.EventLogManifest',
-            data_store_manifest,
         ],
     },
     'noise_exposure': {
         'manifests': [
             'psi.application.experiment.noise_exposure.ControllerManifest',
             'psi.data.event_log.manifest.EventLogManifest',
-            data_store_manifest,
         ],
     }
 }
@@ -79,7 +70,7 @@ def configure_logging(filename=None):
             '__main__': {'level': 'DEBUG'},
             'psi': {'level': 'TRACE'},
             'daqengine': {'level': 'TRACE'},
-            'psi.core.chaco': {'level': 'TRACE'},
+            'psi.core.chaco': {'level': 'INFO'},
             'psi.controller.engine': {'level': 'TRACE'},
             },
         'root': {
@@ -157,7 +148,7 @@ def run(args):
 
     experiment_description = experiment_descriptions[args.experiment]
     manifests = [m() for m in application.get_manifests(experiment_description['manifests'])]
-    manifests += [application.get_io_manifest(args.io)()]
+    manifests.insert(0, application.get_io_manifest(args.io)())
 
     workbench, plugin_ids = application.initialize_workbench(manifests)
     core = workbench.get_plugin('enaml.workbench.core')

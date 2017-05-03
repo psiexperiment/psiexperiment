@@ -27,13 +27,12 @@ IO_POINT = 'psi.controller.io'
 ACTION_POINT = 'psi.controller.actions'
 
 
-def get_named_inputs(input):
-    named_inputs = []
+def get_inputs(input):
+    inputs = []
     for child in input.children:
-        named_inputs.extend(get_named_inputs(child))
-    if input.name:
-        named_inputs.append(input)
-    return named_inputs
+        inputs.extend(get_inputs(child))
+    inputs.append(input)
+    return inputs
 
 
 class BasePlugin(Plugin):
@@ -118,17 +117,13 @@ class BasePlugin(Plugin):
         devices = {}
         master_engine = None
 
+        # TODO: Allow disabling of devices.
         point = self.workbench.get_extension_point(IO_POINT)
         for extension in point.extensions:
             for device in extension.get_children(Device):
                 log.debug('Found device {}'.format(device.name))
                 devices[device.name] = device
-                manifest = device.load_manifest()
-                if manifest is not None:
-                    self.workbench.register(manifest)
-                else:
-                    m = 'No manifest defind for device {}'.format(device.name)
-                    log.warn(m)
+                device.load_manifest(self.workbench)
 
             for engine in extension.get_children(Engine):
                 engines[engine.name] = engine
@@ -142,9 +137,9 @@ class BasePlugin(Plugin):
                     channels[channel.name] = channel
                     for output in getattr(channel, 'outputs', []):
                         outputs[output.name] = output
-                    for all_inputs in getattr(channel, 'inputs', []):
-                        for input in get_named_inputs(all_inputs):
-                            inputs[input.name] = input
+                    for i in getattr(channel, 'inputs', []):
+                        for ci in get_inputs(i):
+                            inputs[ci.name] = ci
 
         # Find unconnected outputs and inputs (these are allowed so that we can
         # split processing hierarchies across multiple manifests).
@@ -153,9 +148,9 @@ class BasePlugin(Plugin):
                 outputs[output.name] = output
 
         for extension in point.extensions:
-            for all_inputs in extension.get_children(Input):
-                for input in get_named_inputs(all_inputs):
-                    inputs[input.name] = input
+            for i in extension.get_children(Input):
+                for ci in get_inputs(i):
+                    inputs[ci.name] = ci
 
         # Link up outputs with channels if needed.  TODO: Can another output be
         # the target (e.g., if one wanted to combine multiple tokens into a
@@ -170,6 +165,7 @@ class BasePlugin(Plugin):
                 log.debug('Connecting output {} to target {}' \
                             .format(output.name, output.target_name))
                 output.target = target
+            output.load_manifest(self.workbench)
 
         for input in inputs.values():
             if input.source is None:
@@ -183,6 +179,7 @@ class BasePlugin(Plugin):
                 log.debug('Connecting input {} to source {}' \
                           .format(input.name, input.source_name))
                 input.source = source
+            input.load_manifest(self.workbench)
 
         # Remove channels that do not have an input or output defined. TODO: We
         # need to figure out how to configure which inputs/outputs are active
@@ -199,9 +196,6 @@ class BasePlugin(Plugin):
         self._outputs = outputs
         self._inputs = inputs
         self._devices = devices
-
-        log.debug('Available inputs: {}'.format(inputs.keys()))
-        log.debug('Available outputs: {}'.format(outputs.keys()))
 
     def _refresh_actions(self, event=None):
         actions = []
@@ -233,14 +227,6 @@ class BasePlugin(Plugin):
         self._states = states
         self._events = events
         self._actions = actions
-
-        log.debug('Configured experiment actions')
-        log.debug(' * States: %r', self._states.keys())
-        log.debug(' * Events: %r', self._events.keys())
-        log.debug(' * Actions')
-        for action in self._actions:
-            log.debug('    - {} linked to {}' \
-                     .format(action.event, action.command))
 
     def configure_engines(self):
         log.debug('Configuring engines')
@@ -287,7 +273,7 @@ class BasePlugin(Plugin):
 
         # Load the state of all events so that we can determine which actions
         # should be performed.
-        log.debug('Triggering event {}'.format(event_name))
+        log.trace('Triggering event {}'.format(event_name))
         with self._events[event_name]:
             context = self._get_action_context()
 
@@ -307,12 +293,12 @@ class BasePlugin(Plugin):
         kwargs['event'] = event_name
         try:
             if action.concurrent:
-                m = 'Invoking command {} with parameters {} in new thread'
-                log.debug(m.format(action.command, kwargs))
+                m = 'Invoking command {} in new thread'
+                log.trace(m.format(action.command))
                 self._invoke_action_concurrent(action, kwargs)
             else:
-                m = 'Invoking command {} with parameters {} in current thread'
-                log.debug(m.format(action.command, kwargs))
+                m = 'Invoking command {} in current thread'
+                log.trace(m.format(action.command))
                 self.core.invoke_command(action.command, parameters=kwargs)
         except ValueError as e:
             raise
@@ -356,21 +342,6 @@ class BasePlugin(Plugin):
         self.experiment_state = 'stopped'
 
     def pause_experiment(self):
-        raise NotImplementedError
-
-    def ai_callback(self, name, data):
-        log.trace('Acquired {} samples from {}'.format(data.shape, name))
-        parameters = {'name': name, 'data': data}
-        self.core.invoke_command('psi.data.process_ai', parameters)
-
-    def ai_epoch_callback(self, name, data):
-        #log.trace('Acquired {} samples for epoch {}'.format(data.shape, 
-        epoch, key = data
-        print('epoch', name, epoch.shape, key)
-        #parameters = {'name': name, 'data': data}
-        #self.core.invoke_command('psi.data.process_ai_epoch', parameters)
-
-    def et_callback(self, name, edge, timestamp):
         raise NotImplementedError
 
     def get_ts(self):

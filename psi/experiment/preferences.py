@@ -52,12 +52,3 @@ class PluginPreferences(_AutoPreferences):
 
     def get_object(self, workbench):
         return workbench.get_plugin(self.plugin_id)
-
-
-class UIPreferences(_AutoPreferences):
-
-    item_name = d_(Unicode())
-
-    def get_object(self, workbench):
-        ui = workbench.get_plugin('enaml.workbench.ui')
-        return ui.workspace.content.find(self.item_name)

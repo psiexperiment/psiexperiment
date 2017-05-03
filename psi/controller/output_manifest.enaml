@@ -5,7 +5,7 @@ from functools import partial
 
 import numpy as np
 
-from atom.api import Typed
+from atom.api import Typed, Property
 
 from enaml.core.api import d_, Looper, Include
 from enaml.workbench.api import Extension
@@ -15,8 +15,19 @@ from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
 from psi.context.api import ContextGroup, Parameter
 from psi.experiment.api import ItemPreferences
 
-from .device_manifest import DeviceManifest
-from .experiment_action import ExperimentState
+from psi.core.enaml.api import PSIManifest
+from .experiment_action import ExperimentState, ExperimentEvent
+
+
+class OutputManifest(PSIManifest): 
+
+    output = Property()
+
+    def _get_output(self):
+        return self.contribution
+
+    def _set_output(self, value):
+        self.contribution = value
 
 
 def toggle_off(event, output):
@@ -38,12 +49,12 @@ def toggle(event, output):
         toggle_off(event, output)
 
 
-def set_token(event, device, output_type):
+def set_token(event, output, output_type):
     token_plugin = event.workbench.get_plugin('psi.token')
     factory = getattr(token_plugin, 'generate_{}_token'.format(output_type))
-    token = factory(event.parameters['token_name'], device.name, device.label)
-    device.token = token
-    device.token_name = event.parameters['token_name']
+    token = factory(event.parameters['token_name'], output.name, output.label)
+    output.token = token
+    output.token_name = event.parameters['token_name']
 
     # TODO: This is a hack. Maybe?
     context_plugin = event.workbench.get_plugin('psi.context')
@@ -57,9 +68,12 @@ def prepare_output(event, output):
 
 
 def prepare_output_queue(event, output):
+    controller = event.workbench.get_plugin('psi.controller')
     context = event.workbench.get_plugin('psi.context')
     iterable = context.iter_settings(output.selector_name, 1)
-    output.setup(iterable)
+    action_name = output.name + '_complete'
+    complete_cb = partial(controller.invoke_actions, action_name)
+    output.setup(iterable, complete_cb)
 
 
 def start_output(event, output):
@@ -82,85 +96,89 @@ def clear_output(event, output):
 
 
 def decrement_key(event, output):
-    try:
-        output.queue.decrement_key(event.parameters['key'])
-    except KeyError:
-        m = 'Acquired extra epoch for {}'
-        log.debug(m.format(event.parameters['key']))
+    for epoch in event.parameters['data']:
+        try:
+            output.queue.decrement_key(epoch['key'])
+        except KeyError:
+            m = 'Acquired extra epoch for {}'
+            log.debug(m.format(epoch['key']))
 
 
-enamldef AnalogOutputManifest(DeviceManifest): manifest:
+
+enamldef AnalogOutputManifest(OutputManifest): manifest:
 
     Extension:
         id = 'output_commands'
         point = 'enaml.workbench.core.commands'
         Command:
-            id = manifest.device.name + '.set_token'
-            handler = partial(set_token, device=manifest.device,
+            id = manifest.output.name + '.set_token'
+            handler = partial(set_token, output=manifest.output,
                               output_type=output_type)
         Command:
-            id = manifest.device.name + '.prepare'
-            handler = partial(prepare_output, output=manifest.device)
+            id = manifest.output.name + '.prepare'
+            handler = partial(prepare_output, output=manifest.output)
         Command:
-            id = manifest.device.name + '.start'
-            handler = partial(start_output, output=manifest.device)
+            id = manifest.output.name + '.start'
+            handler = partial(start_output, output=manifest.output)
         Command:
-            id = manifest.device.name + '.clear'
-            handler = partial(clear_output, output=manifest.device)
+            id = manifest.output.name + '.clear'
+            handler = partial(clear_output, output=manifest.output)
 
     Extension:
-        id = 'output_menu.' + manifest.device.name
+        id = 'output_menu.' + manifest.output.name
         point = 'enaml.workbench.ui.actions'
         MenuItem:
-            path = '/equipment/output/{}'.format(manifest.device.name)
-            label = '{} ({})'.format(manifest.device.label, output_type)
+            path = '/equipment/output/{}'.format(manifest.output.name)
+            label = '{} ({})'.format(manifest.output.label, output_type)
             ItemGroup:
                 exclusive = True
-                id = manifest.device.name
+                id = manifest.output.name
         Looper:
             # Provide this in the subclass
             iterable << tokens.values()
             ActionItem:
-                path = '/equipment/output/{}/{}'.format(manifest.device.name, 
+                path = '/equipment/output/{}/{}'.format(manifest.output.name, 
                                                         loop_item.name)
                 label << loop_item.label
-                group = manifest.device.name
-                command = manifest.device.name + '.set_token'
-                checked << manifest.device.token_name == loop_item.name
+                group = manifest.output.name
+                command = manifest.output.name + '.set_token'
+                checked << manifest.output.token_name == loop_item.name
                 checkable = True
                 parameters = {'token_name': loop_item.name}
+                enabled << workbench.get_plugin('psi.controller').experiment_state \
+                    in ('initialized', 'stopped')
 
     Extension:
         # For some reason this doesn't get loaded if it's lumped together with
         # the following extension, so I've split them out. Not sure why. Some
         # exception is getting swallowed silently.
-        id = 'groups.' + manifest.device.name
+        id = 'groups.' + manifest.output.name
         point = 'psi.context.items'
         ContextGroup:
-            name = manifest.device.name
-            label = manifest.device.label
+            name = manifest.output.name
+            label = manifest.output.label
 
     Extension:
-        id = 'items.' + manifest.device.name
+        id = 'items.' + manifest.output.name
         point = 'psi.context.items'
         Include:
             # list provides an empty list of context items if needed.
-            objects << getattr(manifest.device.token, 'get_context_items',
+            objects << getattr(manifest.output.token, 'get_context_items',
                                list)()
 
     Extension:
-        id = 'actions.' + manifest.device.name
+        id = 'actions.' + manifest.output.name
         point = 'psi.controller.actions'
         ExperimentState:
-            name = manifest.device.name
+            name = manifest.output.name
 
     Extension:
-        id = 'preferences.' +  manifest.device.name
+        id = 'preferences.' +  manifest.output.name
         point = 'psi.experiment.preferences'
         rank = 10
         ItemPreferences:
-            name = 'output.' + manifest.device.name
-            item = manifest.device
+            name = 'output.' + manifest.output.name
+            item = manifest.output
             auto_save = ['token_name']
             set_preferences => (workbench, preferences):
                 # Override the set_preferences since we need to loop into the
@@ -168,7 +186,7 @@ enamldef AnalogOutputManifest(DeviceManifest): manifest:
                 # to this plugin. TODO This is a hack. I'm sure I'll figure out a
                 # better approach eventually.
                 core = workbench.get_plugin('enaml.workbench.core')
-                command = manifest.device.name + '.set_token'
+                command = manifest.output.name + '.set_token'
                 core.invoke_command(command, parameters=preferences)
 
 
@@ -181,34 +199,40 @@ enamldef EpochOutputManifest(AnalogOutputManifest): manifest:
 enamldef QueuedEpochOutputManifest(EpochOutputManifest): manifest:
 
     Extension:
-        id = 'epoch_output_commands'
-        point = 'enaml.workbench.core.commands'
-        Command:
-            id = manifest.device.name + '.prepare_queue'
-            handler = partial(prepare_output_queue, output=manifest.device)
-        Command:
-            id = manifest.device.name + '.decrement_key'
-            handler = partial(decrement_key, output=manifest.device)
+        id = 'actions'
+        point = 'psi.controller.actions'
+        ExperimentEvent:
+            name = manifest.output.name + '_complete'
 
     Extension:
-        id = 'queued_epoch_{}'.format(manifest.name)
+        id = 'commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = manifest.output.name + '.prepare_queue'
+            handler = partial(prepare_output_queue, output=manifest.output)
+        Command:
+            id = manifest.output.name + '.decrement_key'
+            handler = partial(decrement_key, output=manifest.output)
+
+    Extension:
+        id = 'items'
         point = 'psi.context.items'
 
         ContextGroup:
-            name = manifest.device.name + '_sequence'
-            label = manifest.device.label + ' epoch settings'
+            name = manifest.output.name + '_sequence'
+            label = manifest.output.label + ' epoch settings'
 
             Parameter:
-                name = '{}_iti_duration'.format(manifest.device.name)
-                label = '{} intertrial interval (s)'.format(manifest.device.label)
-                compact_label = 'ITI'
+                name = manifest.output.name + '_iti_duration'
+                label = manifest.output.label + ' intertrial interval (s)'
+                compact_label = manifest.output.label + ' ITI'
                 default = 0.1
                 scope = 'experiment'
 
             Parameter:
-                name = '{}_averages'.format(manifest.device.name)
-                label = '{} averages'.format(manifest.device.label)
-                compact_label = '{} N'.format(manifest.device.label)
+                name = manifest.output.name + '_averages'
+                label = manifest.output.label + '{} averages'
+                compact_label = manifest.output.label + '{} N'
                 default = 1
                 scope = 'experiment'
 
@@ -220,48 +244,48 @@ enamldef ContinuousOutputManifest(AnalogOutputManifest): manifest:
     attr output_type = 'continuous'
 
 
-enamldef ToggleManifest(DeviceManifest): manifest:
+enamldef ToggleManifest(OutputManifest): manifest:
 
     Extension:
-        id = 'toggle_commands.' + manifest.device.name
+        id = 'toggle_commands.' + manifest.output.name
         point = 'enaml.workbench.core.commands'
         Command:
             id = manifest.id + '.off'
-            handler = partial(toggle_off, output=manifest.device)
+            handler = partial(toggle_off, output=manifest.output)
         Command:
             id = manifest.id + '.on'
-            handler = partial(toggle_on, output=manifest.device)
+            handler = partial(toggle_on, output=manifest.output)
         Command:
             id = manifest.id + '.toggle'
-            handler = partial(toggle, output=manifest.device)
+            handler = partial(toggle, output=manifest.output)
 
     Extension:
-        id = 'toggle_actions.' + manifest.device.name
+        id = 'toggle_actions.' + manifest.output.name
         point = 'enaml.workbench.ui.actions'
         ActionItem:
-            path = '/equipment/{}'.format(manifest.device.name)
-            label = '{}'.format(manifest.device.label)
+            path = '/equipment/{}'.format(manifest.output.name)
+            label = '{}'.format(manifest.output.label)
             command = manifest.id + '.toggle'
             parameters << {'state': checked}
-            checked << manifest.device.state
+            checked << manifest.output.state
             checkable = True
             status_tip = command
 
 
-enamldef TriggerManifest(DeviceManifest): manifest:
+enamldef TriggerManifest(OutputManifest): manifest:
 
     Extension:
         id = 'trigger_commands'
         point = 'enaml.workbench.core.commands'
         Command:
             id = manifest.id + '.trigger'
-            handler = partial(fire, output=manifest.device)
+            handler = partial(fire, output=manifest.output)
 
     Extension:
         id = 'trigger_actions'
         point = 'enaml.workbench.ui.actions'
         ActionItem:
-            path = '/equipment/{}'.format(manifest.device.name)
-            label = '{} trigger'.format(manifest.device.label)
+            path = '/equipment/{}'.format(manifest.output.name)
+            label = '{} trigger'.format(manifest.output.label)
             command = manifest.id + '.trigger'
             status_tip = command

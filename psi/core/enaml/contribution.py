@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 import importlib
 
 from atom.api import Unicode
@@ -12,10 +15,14 @@ class PSIContribution(Declarative):
     label = d_(Unicode())
     manifest = d_(Unicode())
 
-    def load_manifest(self):
-        if self.manifest is not None:
+    def load_manifest(self, workbench):
+        if self.manifest and self.name:
             with enaml.imports():
                 module_name, class_name = self.manifest.rsplit('.', 1)
                 module = importlib.import_module(module_name)
-                klass = getattr(module, class_name)            
-                return klass(contribution=self)
+                manifest_class = getattr(module, class_name)            
+                manifest = manifest_class(contribution=self)
+            workbench.register(manifest)
+        else:
+            m = 'No manifest defind for contribution {}'
+            log.info(m.format(self.name))

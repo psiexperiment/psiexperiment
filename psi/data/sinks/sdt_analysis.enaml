@@ -9,14 +9,14 @@ from atom.api import ContainerList, Typed, Str, Int, observe, Bool
 from enaml.application import deferred_call
 from enaml.layout.api import InsertItem, hbox, vbox, spacer
 from enaml.widgets.api import (Container, DockItem, CheckBox, Label, Field, HGroup)
-from enaml.workbench.api import Extension, PluginManifest
+from enaml.workbench.api import Extension
 
 from psi.core.utils import find_extension
-from psi.core.enaml.dataframe_table_widget \
-    import DataframeTable
+from psi.core.enaml.api import PSIManifest
+from psi.core.enaml.dataframe_table_widget import DataframeTable
+from psi.experiment.api import ItemPreferences
 from ..plugin import Sink
 
-PLUGIN_ID = 'psi.data.sdt_analysis'
 
 EXTRA_COLS = {
     'mean': 'Fraction', 
@@ -27,6 +27,10 @@ EXTRA_COLS = {
 
 
 class SDTAnalysis(Sink):
+
+    manifest = __name__ + '.SDTAnalysisManifest'
+    name = 'sdt_analysis'
+    label = 'SDT Analysis'
 
     trial_log = Typed(pd.DataFrame)
     results = Typed(pd.DataFrame)
@@ -105,7 +109,7 @@ enamldef SDTAnalysisDockItem(DockItem):
 
     attr analysis
 
-    Container:
+    Container: sdt_container:
         constraints = [
             vbox(
                 hbox(
@@ -115,7 +119,7 @@ enamldef SDTAnalysisDockItem(DockItem):
                     repeat_nogo_field,
                     go_remind_field,
                 ),
-                table,
+                sdt_table,
             )
         ]
 
@@ -133,31 +137,27 @@ enamldef SDTAnalysisDockItem(DockItem):
             checked := analysis.include_go_remind
             text = 'Include reminders?'
 
-        DataframeTable: table:
+        DataframeTable: sdt_table:
             dataframe << analysis.results
             columns << analysis.visible_columns
             column_info << analysis.context_info
 
 
-def contribute_to_workspace(workbench, workspace):
-    extension = find_extension(workbench, PLUGIN_ID, 'sink', SDTAnalysis)
-    item = SDTAnalysisDockItem(workspace.dock_area, analysis=extension,
-                               name='sdt_analysis', title='SDT Analysis')
-    op = InsertItem(item=item.name, position='right')
-    deferred_call(workspace.dock_area.update_layout, op)
-
-
-enamldef SDTAnalysisManifest(PluginManifest): manifest:
-
-    id = PLUGIN_ID
-
-    Extension:
-        id = 'sink'
-        point = 'psi.data.sink'
-        SDTAnalysis:
-            pass
+enamldef SDTAnalysisManifest(PSIManifest): manifest:
 
     Extension:
         id = 'workspace'
         point = 'psi.experiment.workspace'
-        factory = contribute_to_workspace
+
+        SDTAnalysisDockItem: di:
+            analysis << manifest.contribution
+            name << manifest.contribution.name
+            title << manifest.contribution.label
+
+    #Extension:
+    #    id = 'preferences'
+    #    point = 'psi.experiment.preferences'
+    #    ItemPreferences:
+    #        item << di.find('sdt_table')
+    #        name << manifest.contribution.name
+    #        auto_save = ['state']

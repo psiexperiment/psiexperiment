@@ -15,6 +15,10 @@ from psi.context.api import ContextGroup, Parameter
 from psi.data.plots import (TimeContainer, ChannelPlot, TimeseriesPlot,
                             ExtremesChannelPlot, FFTContainer, FFTChannelPlot)
 
+from psi.data.sinks.event_log import EventLog
+from psi.data.sinks.trial_log import TrialLog
+from psi.data.sinks.sdt_analysis import SDTAnalysis
+
 
 enamldef ControllerManifest(AppetitiveManifest): manifest:
 
@@ -122,6 +126,19 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             name = 'target'
             label = 'Target'
             target_name = 'speaker'
+
+    Extension:
+        id = 'sinks'
+        point = 'psi.data.sinks'
+
+        SDTAnalysis:
+            pass
+
+        TrialLog:
+            pass
+
+        EventLog:
+            pass
 
     Extension:
         id = 'plots'

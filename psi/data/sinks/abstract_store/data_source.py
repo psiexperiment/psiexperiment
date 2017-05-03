@@ -30,7 +30,7 @@ class DataTable(DataSource):
 class EventDataTable(DataTable):
 
     def append(self, row):
-        super(EventDataTable, self).append(row)
+        super().append(row)
         self.added = {
             'lb': row[0],
             'ub': row[0],
@@ -62,6 +62,7 @@ class EventDataTable(DataTable):
         except:
             raise
         m = ((epochs >= lb) & (epochs < ub)) | np.isnan(epochs)
+
         return epochs[m.any(axis=-1)]
 
 

@@ -11,7 +11,7 @@ from .sink import Sink
 from .plots import PlotContainer
 
 
-SINK_POINT = 'psi.data.sink'
+SINK_POINT = 'psi.data.sinks'
 PLOT_POINT = 'psi.data.plots'
 
 
@@ -48,6 +48,8 @@ class DataPlugin(Plugin):
         point = self.workbench.get_extension_point(SINK_POINT)
         for extension in point.extensions:
             sinks.extend(extension.get_children(Sink))
+        for sink in sinks:
+            sink.load_manifest(self.workbench)
         self._sinks = sinks
 
     def _refresh_plots(self, event=None):
@@ -55,6 +57,8 @@ class DataPlugin(Plugin):
         point = self.workbench.get_extension_point(PLOT_POINT)
         for extension in point.extensions:
             plots.extend(extension.get_children(PlotContainer))
+        for container in plots:
+            container.load_manifest(self.workbench)
         self._plots = plots
 
     def _bind_observers(self):
@@ -97,23 +101,24 @@ class DataPlugin(Plugin):
         self._prepare_trial_log()
         self._prepare_event_log()
         controller = self.workbench.get_plugin('psi.controller')
-        self.inputs = controller._inputs.copy()
+        self.inputs = {k: v for k, v in controller._inputs.items() \
+                       if v.save}
         for sink in self._sinks:
             sink.prepare(self)
 
         # This needs to happen *after* we prepare the sinks (to ensure that
         # they have created the appropriate data stores).
-        self._prepare_plots()
+        #self._prepare_plots()
 
     def finalize(self):
         for sink in self._sinks:
             sink.finalize(self.workbench)
 
-    def process_trial(self, results):
+    def process_trials(self, results):
         self.trial_log = self.trial_log.append(results, ignore_index=True)
         for sink in self._sinks:
             sink.trial_log_updated(self.trial_log)
-            sink.process_trial(results)
+            sink.process_trials(results)
 
     def process_event(self, event, timestamp):
         row = {'event': event, 'timestamp': timestamp}
@@ -122,9 +127,13 @@ class DataPlugin(Plugin):
             sink.event_log_updated(self.event_log)
             sink.process_event(event, timestamp)
 
-    def process_ai(self, name, data):
+    def process_ai_continuous(self, name, data, **kw):
         for sink in self._sinks:
-            sink.process_ai(name, data)
+            sink.process_ai_continuous(name, data)
+
+    def process_ai_epochs(self, name, data, **kw):
+        for sink in self._sinks:
+            sink.process_ai_epochs(name, data)
 
     def set_current_time(self, name, timestamp):
         for sink in self._sinks:

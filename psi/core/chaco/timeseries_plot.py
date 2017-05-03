@@ -8,7 +8,7 @@ from traits.api import Float, Instance, Str, on_trait_change
 
 class TimeseriesPlot(ChannelPlot):
 
-    source = Instance('psi.data.abstract_store.data_source.DataTable')
+    source = Instance('psi.data.sinks.abstract_store.data_source.DataTable')
 
     rect_height = Float(0.5)
     rect_center = Float(0.5)

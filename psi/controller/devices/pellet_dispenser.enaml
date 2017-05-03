@@ -16,6 +16,7 @@ from ..device_manifest import DeviceManifest
 
 class PelletDispenser(Device):
 
+    manifest = __name__ + '.PelletDispenserManifest'
     output_name = d_(Unicode())
     pellets_dispensed = Int(0)
 
@@ -28,9 +29,6 @@ class PelletDispenser(Device):
         for pellet in range(pellets):
             timed_call(pellet*1e3*0.5, core.invoke_command, command)
             self.pellets_dispensed += 1
-
-    def load_manifest(self):
-        return PelletDispenserManifest(device=self)
 
 
 enamldef PelletDispenserManifest(DeviceManifest): manifest:

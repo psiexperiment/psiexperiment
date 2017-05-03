@@ -42,7 +42,7 @@ class NIDAQEngine(ni.Engine, Engine):
 
     # TODO: this is not configurable on some systems. How do we figure out if
     # it's configurable?
-    hw_ao_onboard_buffer = d_(Int(4095))
+    hw_ao_onboard_buffer = d_(Int(4095)).tag(metadata=True)
 
     # Since any function call takes a small fraction of time (e.g., nanoseconds
     # to milliseconds), we can't simply overwrite data starting at
@@ -51,22 +51,22 @@ class NIDAQEngine(ni.Engine, Engine):
     # buffer. This parameter will likely need some tweaking (i.e., only you can
     # determine an appropriate value for this based on the needs of your
     # program).
-    hw_ao_min_writeahead = d_(Int(8191 + 1000))
+    hw_ao_min_writeahead = d_(Int(8191 + 1000)).tag(metadata=True)
 
-    hw_ai_monitor_period = d_(Float(0.1))
+    hw_ai_monitor_period = d_(Float(0.1)).tag(metadata=True)
 
-    hw_ao_monitor_period = d_(Float(1))
+    hw_ao_monitor_period = d_(Float(1)).tag(metadata=True)
 
     # These need to be redefined here even though we define them in the parent
     # class.
-    _tasks = Typed(dict).tag(transient=True)
-    _callbacks = Typed(dict).tag(transient=True)
-    _timers = Typed(dict).tag(transient=True)
-    _uint32 = Typed(ctypes.c_uint32).tag(transient=True)
-    _uint64 = Typed(ctypes.c_uint64).tag(transient=True)
-    _int32 = Typed(ctypes.c_int32).tag(transient=True)
+    _tasks = Typed(dict)
+    _callbacks = Typed(dict)
+    _timers = Typed(dict)
+    _uint32 = Typed(ctypes.c_uint32)
+    _uint64 = Typed(ctypes.c_uint64)
+    _int32 = Typed(ctypes.c_int32)
 
-    ao_fs = Typed(float)
+    ao_fs = Typed(float).tag(metadata=True)
 
     terminal_mode_map = {
         'differential': mx.DAQmx_Val_Diff,

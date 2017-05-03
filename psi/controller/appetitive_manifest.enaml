@@ -2,6 +2,7 @@ from enaml.application import deferred_call
 from enaml.layout.api import InsertItem
 from enaml.widgets.api import Action, DockItem, Container, Label, ToolBar
 from enaml.workbench.api import Extension, ExtensionPoint
+from enaml.workbench.core.api import Command
 
 from ..context.api import (ContextGroup, Parameter, EnumParameter,
                            BoolParameter, Result)
@@ -40,6 +41,13 @@ def get_state(trial_state):
         return ''
     else:
         return trial_state.value.capitalize()
+
+
+def process_et(event):
+    plugin = event.workbench.get_plugin('psi.controller')
+    name = event.parameters['name']
+    for edge, ts in event.parameters['data']:
+        plugin.et_callback(name, edge, ts)
 
 
 enamldef AppetitiveManifest(BaseManifest): manifest:
@@ -227,6 +235,13 @@ enamldef AppetitiveManifest(BaseManifest): manifest:
                     text << get_state(plugin.trial_state)
 
     Extension:
+        id = 'appetitive_commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = 'psi.controller.process_et'
+            handler = process_et
+
+    Extension:
         id = 'appetitive_events'
         point = 'psi.controller.actions'
 
@@ -270,3 +285,11 @@ enamldef AppetitiveManifest(BaseManifest): manifest:
             event = 'experiment_end'
             command = 'psi.controller.set_pause_ok'
             kwargs = {'value': False}
+        ExperimentAction:
+            event = 'reward_contact_acquired'
+            command = 'psi.controller.process_et'
+            kwargs = {'name': 'reward_contact'}
+        ExperimentAction:
+            event = 'nose_poke_acquired'
+            command = 'psi.controller.process_et'
+            kwargs = {'name': 'nose_poke'}

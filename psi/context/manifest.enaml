@@ -26,7 +26,7 @@ from .context_item import Parameter
 from .context_view import ContextDockItem, CurrentValuesDockItem
 from .selector_view import SequenceDockItem
 
-from ..util import rpc
+from ..util import rpc, get_tagged_values
 from .. import get_config
 
 
@@ -36,7 +36,6 @@ PLUGIN_ID = 'psi.context'
 def changes_pending(event):
     plugin = event.workbench.get_plugin(PLUGIN_ID)
     return plugin.changes_pending
-
 
 
 def apply_changes(event):
@@ -50,11 +49,7 @@ def revert_changes(event):
 
 
 def get_preferences(obj):
-    state = {}
-    for k, v in obj.members().items():
-        if v.metadata and v.metadata.get('preference', False):
-            state[k] = getattr(obj, k)
-    return state
+    return get_tagged_values(obj, 'preference')
     
     
 enamldef ContextManifest(PluginManifest): manifest:

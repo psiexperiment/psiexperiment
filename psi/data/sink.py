@@ -1,16 +1,20 @@
 from atom.api import Typed
 from enaml.core.api import Declarative
+from psi.core.enaml.api import PSIContribution
 
 
-class Sink(Declarative):
+class Sink(PSIContribution):
 
-    def process_trial(self, results):
+    def process_trials(self, results):
         pass
 
     def process_event(self, event, timestamp):
         pass
 
-    def process_ai(self, name, data):
+    def process_ai_continuous(self, name, data):
+        pass
+
+    def process_ai_epochs(self, name, data):
         pass
 
     def trial_log_updated(self, trial_log):

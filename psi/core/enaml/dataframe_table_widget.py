@@ -45,7 +45,7 @@ class QDataFrameTableModel(QAbstractTableModel):
         elif role == Qt.DisplayRole:
             if orientation == Qt.Horizontal:
                 c = self._columns[section]
-                return self._column_info[c]
+                return self._column_info.get(c, 'UNDEFINED')
             else:
                 return str(section+1)
 

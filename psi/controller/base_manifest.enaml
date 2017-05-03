@@ -3,6 +3,7 @@ log = logging.getLogger(__name__)
 
 import enaml
 from enaml.application import deferred_call
+from enaml.core.api import Looper
 from enaml.layout.api import InsertItem
 from enaml.widgets.api import Action, ToolBar
 from enaml.workbench.api import Extension, ExtensionPoint, PluginManifest

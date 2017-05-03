@@ -2,22 +2,14 @@ import logging
 log = logging.getLogger(__name__)
 
 import os.path
-from glob import glob
 
-from atom.api import Unicode, Typed, Property
-from enaml.workbench.api import Extension, PluginManifest
-from enaml.workbench.core.api import Command
+from atom.api import Unicode, Typed
 
-import pandas as pd
 import numpy as np
 import bcolz
 
-from psi.core.utils import find_extension
-from psi import get_config
-
-from ..abstract_store.store import AbstractStore
-
-PLUGIN_ID = 'psi.data.bcolz_store'
+from psi.util import get_tagged_values
+from .abstract_store.store import AbstractStore
 
 
 class BColzStore(AbstractStore):
@@ -30,16 +22,22 @@ class BColzStore(AbstractStore):
     trial_log = Typed(object)
     event_log = Typed(object)
 
-    def process_trial(self, results):
-        row = [results[n] for n in self.trial_log.data.dtype.names]
-        self.trial_log.append(row)
+    def process_trials(self, results):
+        names = self.trial_log.data.dtype.names
+        rows = [r[n] for r in results for n in names]
+        self.trial_log.append(rows)
 
     def process_event(self, event, timestamp):
         self.event_log.append([timestamp, event])
 
-    def process_ai(self, name, data):
+    def process_ai_continuous(self, name, data):
         if self._channels[name] is not None:
             self._channels[name].append(data)
+
+    def process_ai_epochs(self, name, data):
+        epochs = [d['epoch'] for d in data]
+        if self._channels[name] is not None:
+            self._channels[name].append(epochs)
 
     def _get_filename(self, name):
         if self.base_path != '<memory>':
@@ -70,12 +68,26 @@ class BColzStore(AbstractStore):
                               dtype=input.channel.dtype, expectedlen=n)
 
         # Copy some attribute metadata over
-        for name, value in input.__getstate__().items():
+        values = get_tagged_values(input, 'metadata')
+        for name, value in values.items():
             carray.attrs[name] = value
-        for name, value in input.channel.__getstate__().items():
+
+        values = get_tagged_values(input.channel, 'metadata')
+        for name, value in values.items():
             carray.attrs['channel_' + name] = value
-        for name, value in input.engine.__getstate__().items():
+
+        values = get_tagged_values(input.engine, 'metadata')
+        for name, value in values.items():
             carray.attrs['engine_' + name] = value
+
+        return carray
+
+    def _create_epochs_input(self, input):
+        filename = self._get_filename(input.name)
+        epoch_samples = int(input.fs*input.epoch_size)
+        base = np.empty((0, epoch_samples))
+        carray = bcolz.carray(base, rootdir=filename, mode='w',
+                              dtype=input.channel.dtype)
         return carray
 
     def finalize(self, workbench):
@@ -91,14 +103,3 @@ class BColzStore(AbstractStore):
 
     def set_base_path(self, base_path):
         self.base_path = base_path
-
-
-enamldef BColzStoreManifest(PluginManifest): manifest:
-
-    id = PLUGIN_ID
-
-    Extension:
-        id = 'sink'
-        point = 'psi.data.sink'
-        BColzStore:
-            pass

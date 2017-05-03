@@ -4,14 +4,21 @@ from enaml.core.api import Looper
 from enaml.layout.api import InsertItem
 from enaml.widgets.api import (Container, Menu, Action, DockItem, PopupView,
                                Form, CheckBox, Label, HGroup)
-from enaml.workbench.api import Extension, PluginManifest
+from enaml.workbench.api import Extension
 
 import pandas as pd
 
-from psi.core.enaml.api import DataframeTable
-from psi.experiment.api import UIPreferences
+from psi.core.enaml.api import DataframeTable, PSIManifest
+from psi.experiment.api import ItemPreferences
 
-PLUGIN_ID = 'psi.data.trial_log'
+from ..sink import Sink
+
+
+class TrialLog(Sink):
+    
+    name = 'trial_log'
+    title = 'Trial log'
+    manifest = __name__ + '.TrialLogManifest'
 
 
 enamldef TableConfig(PopupView): popup:
@@ -42,6 +49,7 @@ enamldef TableConfig(PopupView): popup:
 enamldef TrialLogDockItem(DockItem):
 
     attr data_plugin = workbench.get_plugin('psi.data')
+
     closable = False
 
     title_bar_right_clicked ::
@@ -73,32 +81,19 @@ enamldef TrialLogDockItem(DockItem):
                 return 'white'
 
 
-from psi.context.context_item import ContextMeta
-
-
-enamldef TrialLogManifest(PluginManifest): manifest:
-
-    id = PLUGIN_ID
+enamldef TrialLogManifest(PSIManifest): manifest:
 
     Extension:
         id = 'workspace'
         point = 'psi.experiment.workspace'
-        TrialLogDockItem:
-            name = 'trial_log'
-            title = 'Trial Log'
+        TrialLogDockItem: di:
+            name << manifest.contribution.name
+            title << manifest.contribution.title
 
     Extension:
         id = 'preferences'
         point = 'psi.experiment.preferences'
-        UIPreferences:
-            name = 'trial_log_table_columns'
-            item_name = 'trial_log_table'
+        ItemPreferences:
+            item << di.find('trial_log_table')
+            name << manifest.contribution.name
             auto_save = ['state']
-
-    Extension:
-        id = 'context'
-        point = 'psi.context.items'
-        ContextMeta:
-            name = 'trial_log'
-            label = 'Show in trial log?'
-            default_value = False

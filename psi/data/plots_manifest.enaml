@@ -1,0 +1,46 @@
+from functools import partial
+
+from enaml.core.api import Conditional
+from enaml.widgets.api import DockItem, Container
+from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
+from traits_enaml.widgets.enable_canvas import EnableCanvas
+
+from psi.core.enaml.api import PSIManifest
+from psi.controller.api import ExperimentAction
+
+
+def prepare(event, container):
+    plugin = event.workbench.get_plugin('psi.data')
+    container.prepare(plugin)
+
+
+enamldef PlotContainerManifest(PSIManifest): manifest:
+
+    Extension:
+        id = 'command'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = manifest.contribution.name + '_prepare'
+            handler = partial(prepare, container=manifest.contribution)
+
+    Extension:
+        id = 'actions'
+        point = 'psi.controller.actions'
+        rank = 200
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = manifest.contribution.name + '_prepare'
+
+    Extension:
+        id = 'workspace'
+        point = 'psi.experiment.workspace'
+
+        DockItem:
+            closable = False
+            name << manifest.contribution.name
+            title << manifest.contribution.title
+
+            Container:
+                EnableCanvas:
+                    component << manifest.contribution.container
