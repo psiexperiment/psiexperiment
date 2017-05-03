@@ -6,21 +6,18 @@ from functools import partial
 
 import numpy as np
 
-from atom.api import (Unicode, Enum, Typed, Property, Float, observe, Callable,
-                      Int, Bool, Instance, Callable)
+from atom.api import (Unicode, Enum, Typed, Property, Float, Int, Bool)
 
-import enaml
-from enaml.application import timed_call
 from enaml.core.api import Declarative, d_
-from enaml.workbench.api import Plugin, Extension
-from enaml.qt.QtCore import QTimer
+from enaml.workbench.api import Extension
 
+from ..util import coroutine
 from .queue import AbstractSignalQueue
 
-from .device import Device
+from psi.core.enaml.api import PSIContribution
 
 
-class Output(Device):
+class Output(PSIContribution):
 
     visible = d_(Bool(False))
 
@@ -166,7 +163,8 @@ class EpochOutput(AnalogOutput):
         self._block_samples = int(self.channel.fs*self.block_size)
 
 
-def queued_epoch_callback(output, queue, auto_decrement):
+@coroutine
+def queued_epoch_callback(output, queue, auto_decrement, complete_cb=None):
     offset = 0
     engine = output.engine
     channel = output.channel
@@ -179,6 +177,8 @@ def queued_epoch_callback(output, queue, auto_decrement):
         offset += len(waveform)
         if empty:
             break
+    if complete_cb is not None:
+        complete_cb()
 
 
 class QueuedEpochOutput(EpochOutput):
@@ -188,18 +188,19 @@ class QueuedEpochOutput(EpochOutput):
     queue = d_(Typed(AbstractSignalQueue))
     auto_decrement = d_(Bool(False))
 
-    def setup(self, context):
+    def setup(self, context, complete_cb=None):
         for setting in context:
-            averages = setting.get('{}_averages', 1)
-            iti_duration = setting.get('iti_duration', 0)
+            averages = setting['{}_averages'.format(self.name)]
+            iti_duration = setting['{}_iti_duration'.format(self.name)]
             factory = self.initialize_factory(setting)
             iti_samples = int(iti_duration*self.fs)
             self.queue.append(factory, averages, iti_samples, setting)
-        cb = queued_epoch_callback(self, self.queue, self.auto_decrement)
-        next(cb)
+        cb = queued_epoch_callback(self, self.queue, self.auto_decrement,
+                                   complete_cb)
         self.engine.register_ao_callback(cb.__next__, self.channel.name)
 
 
+@coroutine
 def continuous_callback(output, generator):
     offset = 0
     engine = output.engine
@@ -223,10 +224,10 @@ class ContinuousOutput(AnalogOutput):
         log.debug('Configuring continuous output {}'.format(self.name))
         generator = self.initialize_generator(context)
         cb = continuous_callback(self, generator)
-        next(cb)
         self.engine.register_ao_callback(cb.__next__, self.channel.name)
 
 
+@coroutine
 def null_callback(output):
     offset = 0
     engine = output.engine
@@ -246,7 +247,6 @@ class NullOutput(AnalogOutput):
 
     def configure(self, plugin):
         cb = null_callback(self)
-        next(cb)
         self.engine.register_ao_callback(cb.__next__, self.channel.name)
 
 

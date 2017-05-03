@@ -45,7 +45,7 @@ class QDataFrameTableModel(QAbstractTableModel):
         elif role == Qt.DisplayRole:
             if orientation == Qt.Horizontal:
                 c = self._columns[section]
-                return self._column_info[c]
+                return self._column_info.get(c, 'UNDEFINED')
             else:
                 return str(section+1)
 
@@ -102,23 +102,17 @@ class QDataFrameTableView(QTableView):
         self.vheader.setSectionResizeMode(QHeaderView.Fixed)
         self.vheader.setDefaultSectionSize(20)
         self.hheader = self.horizontalHeader()
-        self.hheader.setSectionsMovable(True)
 
-    def save_state(self):
-        columns = self.model._columns[:]
-        state = [None]*len(columns)
-        for i in range(len(columns)):
-            c = columns[i]
-            size = self.hheader.sectionSize(i)
-            j = self.hheader.visualIndex(i)
-            state[j] = {'column': c, 'size': size}
-        return state
+    def get_column_widths(self):
+        widths = {}
+        for i, c in enumerate(self.model._columns):
+            widths[c] = self.hheader.sectionSize(i)
+        return widths
 
-    def set_state(self, state):
-        columns = []
-        for i, s in enumerate(state):
-            columns.append(s['column'])
-            self.setColumnWidth(i, s['size'])
+    def set_column_widths(self, widths):
+        for i, c in enumerate(self.model._columns):
+            width = widths[c]
+            self.setColumnWidth(i, width)
 
 
 class DataframeTable(RawWidget):
@@ -126,7 +120,7 @@ class DataframeTable(RawWidget):
     dataframe = d_(Typed(pd.DataFrame))
     columns = d_(ContainerList())
     column_info = d_(Typed(dict))
-    state = Property()
+    column_widths = Property()
 
     @d_func
     def cell_color(self, row, column):
@@ -144,24 +138,13 @@ class DataframeTable(RawWidget):
                                      cell_color=self.cell_color)
         return QDataFrameTableView(model, parent=parent)
 
-    @observe('dataframe')
-    def _dataframe_changed(self, change):
+    def _observe_dataframe(self, event):
         deferred_call(self._update_table)
 
-    def add_column(self, column_name):
-        self.columns.append(column_name)
+    def _observe_columns(self, event):
         deferred_call(self._update_table)
 
-    def remove_column(self, column_name):
-        self.columns.remove(column_name)
-        deferred_call(self._update_table)
-
-    @observe('columns')
-    def _columns_changed(self, change):
-        deferred_call(self._update_table)
-
-    @observe('column_info')
-    def _column_info_changed(self, change):
+    def _observe_column_info(self, event):
         deferred_call(self._update_table)
 
     def _update_table(self):
@@ -177,10 +160,9 @@ class DataframeTable(RawWidget):
             table.scrollToBottom()
             deferred_call(table.update)
 
-    def _get_state(self):
-        return self.get_widget().save_state()
+    def _get_column_widths(self):
+        return self.get_widget().get_column_widths()
 
-    def _set_state(self, state):
-        self.columns = [s['column'] for s in state]
-        self.get_widget().set_state(state)
+    def _set_column_widths(self, widths):
+        self.get_widget().set_column_widths(widths)
         self._update_table()

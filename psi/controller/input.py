@@ -7,43 +7,40 @@ from collections import deque
 import numpy as np
 from scipy import signal
 
-from atom.api import Unicode, Float, Typed, Int, Property, Enum
-from enaml.core.api import Declarative, d_
+from atom.api import Unicode, Float, Typed, Int, Property, Enum, Bool
+from enaml.core.api import d_
 from enaml.workbench.api import Extension
 
-from psi import SimpleState
+from ..util import coroutine
 from .channel import Channel
 from .calibration.util import db, dbi, patodb
 from .device import Device
 from .queue import AbstractSignalQueue
 
-
-def coroutine(func):
-    '''Decorator to auto-start a coroutine.'''
-    def start(*args, **kwargs):
-        cr = func(*args, **kwargs)
-        next(cr)
-        return cr
-    return start
+from psi.core.enaml.api import PSIContribution
 
 
 @coroutine
-def broadcast(targets):
+def broadcast(*targets):
     while True:
         data = (yield)
         for target in targets:
             target(data)
 
 
-class Input(Device):
+class Input(PSIContribution):
+
+    manifest = 'psi.controller.input_manifest.InputManifest'
 
     source_name = d_(Unicode())
+    save = d_(Bool(False))
 
-    source = Property().tag(transient=True)
-    channel = Property().tag(transient=True)
-    engine = Property().tag(transient=True)
-    fs = Property()
-    mode = Enum('continuous', 'event')
+    source = Property()
+    channel = Property()
+    engine = Property()
+
+    fs = Property().tag(metadata=True)
+    mode = Enum('continuous', 'events', 'epochs')
 
     def _get_source(self):
         if isinstance(self.parent, Extension):
@@ -52,9 +49,7 @@ class Input(Device):
 
     def _set_source(self, source):
         self.set_parent(source)
-
-    def _observe_parent(self, event):
-        self.source_name = event['value'].name
+        self.source_name = source.name
 
     def _get_fs(self):
         return self.parent.fs
@@ -66,9 +61,6 @@ class Input(Device):
                 return parent
             else:
                 parent = parent.parent
-
-    def _set_source(self, source):
-        self.set_parent(source)
 
     def _get_engine(self):
         return self.channel.engine
@@ -88,10 +80,11 @@ class Input(Device):
         targets = [c.configure_callback(plugin) for c in self.children]
         if self.name:
             targets.append(self.get_plugin_callback(plugin))
-        return broadcast(targets).send
+        return broadcast(*targets).send
 
     def get_plugin_callback(self, plugin):
-        return partial(plugin.ai_callback, self.name)
+        action = self.name + '_acquired'
+        return lambda data: plugin.invoke_actions(action, data=data)
 
 
 @coroutine
@@ -126,7 +119,7 @@ def rms(n, target):
 
 class RMS(Input):
 
-    duration = d_(Float())
+    duration = d_(Float()).tag(metadata=True)
 
     def _get_fs(self):
         n = int(self.duration*self.parent.fs)
@@ -166,11 +159,11 @@ def iirfilter(N, Wn, rp, rs, btype, ftype, target):
 
 class IIRFilter(Input):
 
-    N = d_(Int())
-    btype = d_(Enum('bandpass', 'lowpass', 'highpass', 'bandstop'))
-    ftype = d_(Enum('butter', 'cheby1', 'cheby2', 'ellip', 'bessel'))
-    f_highpass = d_(Float())
-    f_lowpass = d_(Float())
+    N = d_(Int()).tag(metadata=True)
+    btype = d_(Enum('bandpass', 'lowpass', 'highpass', 'bandstop')).tag(metadata=True)
+    ftype = d_(Enum('butter', 'cheby1', 'cheby2', 'ellip', 'bessel')).tag(metadata=True)
+    f_highpass = d_(Float()).tag(metadata=True)
+    f_lowpass = d_(Float()).tag(metadata=True)
     wn = Property()
 
     def _get_wn(self):
@@ -189,7 +182,34 @@ class IIRFilter(Input):
 
 
 @coroutine
-def accumulate_segments(n, axis, target):
+def blocked(block_size, target):
+    data = []
+    n = 0
+    while True:
+        d = (yield)
+        n += d.shape[-1]
+        data.append(d)
+        if n >= block_size:
+            merged = np.concatenate(data, axis=-1)
+            while merged.shape[-1] >= block_size:
+                target(merged[..., :block_size])
+                merged = merged[..., block_size:]
+            data = [merged]
+            n = merged.shape[-1]
+                
+
+class Blocked(Input):
+
+    duration = d_(Float()).tag(metadata=True)
+
+    def configure_callback(self, plugin):
+        cb = super().configure_callback(plugin)
+        block_size = int(self.duration*self.fs)
+        return blocked(block_size, cb).send
+
+
+@coroutine
+def accumulate(n, axis, target):
     data = []
     while True:
         d = (yield)
@@ -200,14 +220,14 @@ def accumulate_segments(n, axis, target):
             data = []
 
 
-class AccumulateSegments(Input):
+class Accumulate(Input):
 
-    n = d_(Int())
-    axis = d_(Int(-1))
+    n = d_(Int()).tag(metadata=True)
+    axis = d_(Int(-1)).tag(metadata=True)
 
     def configure_callback(self, plugin):
         cb = super().configure_callback(plugin)
-        return accumulate_segments(self.n, self.axis, cb).send
+        return accumulate(self.n, self.axis, cb).send
 
 
 @coroutine
@@ -225,7 +245,7 @@ def downsample(q, target):
 
 class Downsample(Input):
 
-    q = d_(Int())
+    q = d_(Int()).tag(metadata=True)
 
     def _get_fs(self):
         return self.parent.fs/self.q
@@ -255,7 +275,7 @@ def decimate(q, target):
 
 class Decimate(Input):
 
-    q = d_(Int())
+    q = d_(Int()).tag(metadata=True)
 
     def _get_fs(self):
         return self.parent.fs/self.q
@@ -274,7 +294,7 @@ def threshold(threshold, target):
 
 class Threshold(Input):
 
-    threshold = d_(Float(0))
+    threshold = d_(Float(0)).tag(metadata=True)
 
     def configure_callback(self, plugin):
         cb = super().configure_callback(plugin)
@@ -282,7 +302,7 @@ class Threshold(Input):
 
 
 @coroutine
-def edges(initial_state, min_samples, target):
+def edges(initial_state, min_samples, fs, target):
     if min_samples < 1:
         raise ValueError('min_samples must be greater than 1')
     prior_samples = np.tile(initial_state, min_samples)
@@ -294,31 +314,30 @@ def edges(initial_state, min_samples, target):
         ts_change = np.flatnonzero(np.diff(samples, axis=-1)) + 1
         ts_change = np.r_[ts_change, samples.shape[-1]]
 
+        events = []
         for tlb, tub in zip(ts_change[:-1], ts_change[1:]):
             if (tub-tlb) >= min_samples:
                 if initial_state == samples[tlb]:
                     continue
                 edge = 'rising' if samples[tlb] == 1 else 'falling'
                 initial_state = samples[tlb]
-                target((edge, t_prior + tlb))
+                ts = t_prior + tlb
+                events.append((edge, ts/fs))
+        events.append(('processed', t_prior/fs))
+        target(events)
         t_prior += new_samples.shape[-1]
-        target(('processed', t_prior))
         prior_samples = samples[..., -min_samples:]
 
 
 class Edges(Input):
 
-    initial_state = d_(Int(0))
-    debounce = d_(Int())
-    mode = 'event'
-
-    def get_plugin_callback(self, plugin):
-        p = partial(plugin.et_callback, self.name)
-        return lambda data: p(data[0], data[1]/self.fs)
+    initial_state = d_(Int(0)).tag(metadata=True)
+    debounce = d_(Int()).tag(metadata=True)
+    mode = 'events'
 
     def configure_callback(self, plugin):
         cb = super().configure_callback(plugin)
-        return edges(self.initial_state, self.debounce, cb).send
+        return edges(self.initial_state, self.debounce, self.fs, cb).send
 
 
 @coroutine
@@ -332,7 +351,7 @@ def reject(threshold, target):
 
 class Reject(Input):
 
-    threshold = d_(Float())
+    threshold = d_(Float()).tag(metadata=True)
 
     def configure_callback(self, plugin):
         cb = super().configure_callback(plugin)
@@ -356,7 +375,7 @@ def average(n, target):
 
 class Average(Input):
 
-    n = d_(Float())
+    n = d_(Float()).tag(metadata=True)
 
     def configure_callback(self, plugin):
         cb = super().configure_callback(plugin)
@@ -364,23 +383,20 @@ class Average(Input):
 
 
 @coroutine
-def notify_epoch_acquired(plugin, name, target):
-    action = '{}_acquired'.format(name)
+def iti(fs, target):
+    last_ts = 0
     while True:
-        epoch, key, metadata = (yield)
-        plugin.invoke_actions(action, key=key, metadata=metadata)
+        for edge, ts in (yield):
+            if edge == 'rising':
+                print((ts-last_ts)/fs)
+                last_ts = ts
 
 
-class BaseEpoch(Input):
+class ITI(Input):
 
     def configure_callback(self, plugin):
-        # This tacks on a notifier that triggers an action every time an epoch
-        # is acquired.
         cb = super().configure_callback(plugin)
-        return notify_epoch_acquired(plugin, self.name, cb).send
-
-    def get_plugin_callback(self, plugin):
-        return partial(plugin.ai_epoch_callback, self.name)
+        return iti(self.fs, cb).send
 
 
 @coroutine
@@ -401,8 +417,9 @@ def extract_epochs(epoch_size, queue, buffer_size, target):
         ring_buffer[..., -samples:] = data
         t0 += samples
 
+        # Loop until all epochs have been extracted from buffered data.
+        epochs = []
         while True:
-            log.debug('looping')
             if (next_offset is None) and len(queue) > 0:
                 next_offset, key, metadata = queue.popleft()
                 log.debug('Next offset %d, current t0 %d', next_offset, t0)
@@ -414,22 +431,28 @@ def extract_epochs(epoch_size, queue, buffer_size, target):
                 break
             else:
                 i = next_offset-t0
-                epoch = ring_buffer[..., i:i+epoch_size].copy()
-                target((epoch, key, metadata))
+                epoch = {
+                    'epoch': ring_buffer[..., i:i+epoch_size].copy(),
+                    'key': key,
+                    'metadata': metadata
+                }
+                epochs.append(epoch)
                 next_offset = None
 
+        if len(epochs) != 0:
+            target(epochs)
         data = (yield)
         log.debug('received %r samples', data.shape)
 
 
-class ExtractEpochs(BaseEpoch):
-
-    manifest = 'psi.controller.input_manifest.QueuedEpochInputManifest'
+class ExtractEpochs(Input):
 
     queue = d_(Typed(AbstractSignalQueue))
 
-    buffer_size = d_(Float(30))
-    epoch_size = d_(Float(8.5e-3))
+    buffer_size = d_(Float(30)).tag(metadata=True)
+    epoch_size = d_(Float(8.5e-3)).tag(metadata=True)
+
+    mode = 'epochs'
 
     def configure_callback(self, plugin):
         cb = super().configure_callback(plugin)

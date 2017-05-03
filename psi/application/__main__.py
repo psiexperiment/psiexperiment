@@ -20,40 +20,11 @@ from psi import application
 from psi import get_config, set_config
 
 
-data_store_manifest = 'psi.data.bcolz_store.manifest.BColzStoreManifest'
-
-
 experiment_descriptions = {
-    'passive': {
-        'manifests': [
-            'psi.controller.passive_manifest.PassiveManifest',
-            'psi.data.trial_log.manifest.TrialLogManifest',
-            data_store_manifest,
-        ],
-    },
-    'appetitive_gonogo_food': {
-        'manifests': [
-            'psi.application.experiment.appetitive.ControllerManifest',
-            'psi.data.trial_log.manifest.TrialLogManifest',
-            'psi.data.sdt_analysis.manifest.SDTAnalysisManifest',
-            data_store_manifest,
-        ],
-    },
-    'abr': {
-        'manifests': [
-            'psi.application.experiment.abr.ControllerManifest',
-            'psi.data.trial_log.manifest.TrialLogManifest',
-            'psi.data.event_log.manifest.EventLogManifest',
-            data_store_manifest,
-        ],
-    },
-    'noise_exposure': {
-        'manifests': [
-            'psi.application.experiment.noise_exposure.ControllerManifest',
-            'psi.data.event_log.manifest.EventLogManifest',
-            data_store_manifest,
-        ],
-    }
+    'passive': 'psi.controller.passive_manifest.PassiveManifest',
+    'appetitive_gonogo_food': 'psi.application.experiment.appetitive.ControllerManifest',
+    'abr': 'psi.application.experiment.abr.ControllerManifest',
+    'noise_exposure': 'psi.application.experiment.noise_exposure.ControllerManifest',
 }
 
 
@@ -79,7 +50,7 @@ def configure_logging(filename=None):
             '__main__': {'level': 'DEBUG'},
             'psi': {'level': 'TRACE'},
             'daqengine': {'level': 'TRACE'},
-            'psi.core.chaco': {'level': 'TRACE'},
+            'psi.core.chaco': {'level': 'INFO'},
             'psi.controller.engine': {'level': 'TRACE'},
             },
         'root': {
@@ -155,9 +126,9 @@ def run(args):
         # really need to deal with at the moment.
         warnings.simplefilter(action="ignore", category=FutureWarning)
 
-    experiment_description = experiment_descriptions[args.experiment]
-    manifests = [m() for m in application.get_manifests(experiment_description['manifests'])]
-    manifests += [application.get_io_manifest(args.io)()]
+    experiment_description = [experiment_descriptions[args.experiment]]
+    manifests = [m() for m in application.get_manifests(experiment_description)]
+    manifests.insert(0, application.get_io_manifest(args.io)())
 
     workbench, plugin_ids = application.initialize_workbench(manifests)
     core = workbench.get_plugin('enaml.workbench.core')

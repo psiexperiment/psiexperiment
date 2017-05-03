@@ -26,7 +26,7 @@ from .context_item import Parameter
 from .context_view import ContextDockItem, CurrentValuesDockItem
 from .selector_view import SequenceDockItem
 
-from ..util import rpc
+from ..util import rpc, get_tagged_values
 from .. import get_config
 
 
@@ -36,7 +36,6 @@ PLUGIN_ID = 'psi.context'
 def changes_pending(event):
     plugin = event.workbench.get_plugin(PLUGIN_ID)
     return plugin.changes_pending
-
 
 
 def apply_changes(event):
@@ -50,11 +49,7 @@ def revert_changes(event):
 
 
 def get_preferences(obj):
-    state = {}
-    for k, v in obj.members().items():
-        if v.metadata and v.metadata.get('preference', False):
-            state[k] = getattr(obj, k)
-    return state
+    return get_tagged_values(obj, 'preference')
     
     
 enamldef ContextManifest(PluginManifest): manifest:
@@ -145,12 +140,20 @@ enamldef ContextManifest(PluginManifest): manifest:
                 for s in plugin.selectors.values():
                     selector_state[s.name] = get_preferences(s)
 
-                return dict(parameters=parameter_state, selectors=selector_state)
+                # Build the meta state
+                meta_state = {}
+                for m in plugin.context_meta.values():
+                    meta_state[m.name] = [v.name for v in m.values]
+
+                return dict(parameters=parameter_state,
+                            selectors=selector_state,
+                            meta=meta_state)
 
             set_preferences => (workbench, preferences):
                 plugin = workbench.get_plugin(manifest.id)
                 parameter_state = preferences['parameters']
                 selector_state = preferences['selectors']
+                meta_state = preferences['meta']
 
                 log.debug('Setting context item states')
                 for item in plugin.context_items.values():
@@ -163,27 +166,33 @@ enamldef ContextManifest(PluginManifest): manifest:
                     state = selector_state.get(selector.name, {})
                     selector.__setstate__(state)
 
+                log.debug('Setting meta states')
+                for meta in plugin.context_meta.values():
+                    state = meta_state.get(meta.name, {})
+                    items = [plugin.context_items[n] for n in state]
+                    meta.values = items
+
 
 enamldef ContextViewManifest(PluginManifest): manifest:
-    
+
     id = 'psi.context.view'
 
-    attr context_plugin = workbench.get_plugin('psi.context')
+    attr context_plugin << workbench.get_plugin('psi.context')
 
     Extension:
         id = 'context_view'
         point = 'psi.experiment.workspace'
 
         Looper:
-            iterable << [g for g in context_plugin.context_groups.values() if g.visible]
+            iterable << context_plugin.context_groups.values()
             ContextDockItem:
-                group_name = loop_item.name
-                name = loop_item.name
-                title = loop_item.label
+                group_name << loop_item.name
+                name << loop_item.name
+                title << loop_item.label
 
         Looper:
             iterable << context_plugin.selectors.values()
             SequenceDockItem:
-                name = loop_item.name
-                title = loop_item.name
-                selector = loop_item
+                name << loop_item.name
+                title << loop_item.name
+                selector << loop_item

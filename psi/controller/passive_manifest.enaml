@@ -11,23 +11,28 @@ from psi.context.api import ContextGroup, Parameter, SequenceSelector
 from psi.controller.api import EpochOutput, ExperimentAction
 
 from psi.controller.output import QueuedEpochOutput
-from psi.controller.input import ExtractEpochs
+from psi.controller.input import ExtractEpochs, Input, Threshold, ITI, Edges
 
 from .base_manifest import BaseManifest
 from .base_plugin import BasePlugin
 
-from .queue import FIFOSignalQueue
+from .queue import InterleavedFIFOSignalQueue
 
 from psi.data.plots import (TimeContainer, ChannelPlot, TimeseriesPlot,
-                            ExtremesChannelPlot, FFTContainer, FFTChannelPlot)
+                            ExtremesChannelPlot, FFTContainer, FFTChannelPlot,
+                            PyQtGraphPlotContainer, GriddedEpochAveragePlot)
 
 import time
+
+from psi.data.sinks.epoch_average import EpochAverage
+from psi.data.sinks.trial_log_counter import TrialLogCounter
 
 
 def process_key(event):
     core = event.workbench.get_plugin('enaml.workbench.core')
-    parameters = {'results': event.parameters['metadata']}
-    core.invoke_command('psi.data.process_trial', parameters)
+    metadata = [e['metadata'] for e in event.parameters['data']]
+    parameters = {'results': metadata}
+    core.invoke_command('psi.data.process_trials', parameters)
 
 
 enamldef PassiveManifest(BaseManifest): manifest:
@@ -41,15 +46,24 @@ enamldef PassiveManifest(BaseManifest): manifest:
             label = 'Target'
             target_name = 'speaker'
             selector_name = 'default'
-            queue = FIFOSignalQueue()
+            queue = InterleavedFIFOSignalQueue()
             auto_decrement = False
 
         ExtractEpochs:
+            save = True
             name = 'erp'
-            source_name = 'microphone'
             buffer_size = 5
             epoch_size = 8.5e-3
             queue = output.queue
+            source_name = 'microphone'
+
+        Threshold:
+            source_name = 'microphone'
+            threshold = 0.1
+            Edges:
+                debounce = 50
+                ITI:
+                    pass
 
     Extension:
         id = 'selectors'
@@ -72,18 +86,37 @@ enamldef PassiveManifest(BaseManifest): manifest:
         ExperimentAction:
             event = 'experiment_prepare'
             command = 'target.prepare_queue'
-
         ExperimentAction:
             event = 'erp_acquired'
             command = 'psi.controller.process_key'
-
         ExperimentAction:
             event = 'erp_acquired'
             command = 'target.decrement_key'
+        ExperimentAction:
+            event = 'target_complete'
+            command = 'psi.controller.stop'
+
+    Extension:
+        id = 'sink'
+        point = 'psi.data.sinks'
+
+        EpochAverage:
+            pass
+
+        TrialLogCounter:
+            pass
 
     Extension:
         id = 'plots'
         point = 'psi.data.plots'
+
+        PyQtGraphPlotContainer:
+            name = 'testing'
+            title = 'foobar'
+
+            GriddedEpochAveragePlot:
+                name = 'epoch_average'
+                sink = 'epoch_average'
 
         FFTContainer:
             name = 'fft_plot_container'
@@ -103,9 +136,9 @@ enamldef PassiveManifest(BaseManifest): manifest:
             name = 'trial_plot_container' 
             title = 'Trial timing'
             trig_delay = 0
-            span = 5
+            span = 2.5
 
             ExtremesChannelPlot:
                source = 'microphone'
                line_color = (0, 0, 0)
-               value_range = (-1, 1)
+               value_range = (-0.5, 0.5)

@@ -158,6 +158,7 @@ class CameraViewer(RawWidget):
 
 class OpenCVCamera(Device):
 
+    manifest = __name__ + '.OpenCVCameraManifest'
     device = d_(Int())
     resolution = d_(Tuple(Int(), Int()))
     camera = Value()
@@ -179,9 +180,6 @@ class OpenCVCamera(Device):
         if self.active:
             self.active = False
             self.camera.release()
-
-    def load_manifest(self):
-        return OpenCVCameraManifest(device=self)
 
 
 enamldef OpenCVCameraManifest(DeviceManifest): manifest:

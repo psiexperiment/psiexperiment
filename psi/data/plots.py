@@ -1,19 +1,28 @@
 import logging
 log = logging.getLogger(__name__)
 
-from atom.api import Unicode, Float, Tuple, Int
+from atom.api import Unicode, Float, Tuple, Int, Typed
 from enaml.core.api import Declarative, d_
 
 from psi.core.chaco.api import ChannelDataRange, add_time_axis, add_default_grids
 from chaco.api import LinearMapper, LogMapper, OverlayPlotContainer, DataRange1D, PlotAxis
 from psi.core.chaco.base_channel_data_range import BaseChannelDataRange
 
-# TODO: refactor so overlays and underlays are also declarative
+# TODO: refactor so overlays and underlays can also be declarative
 
-class PlotContainer(Declarative):
+from psi.core.enaml.api import PSIContribution
+
+
+class PlotContainer(PSIContribution):
+
+    manifest = 'psi.data.plots_manifest.PlotContainerManifest'
 
     title = d_(Unicode())
     label = d_(Unicode())
+    container = Typed(object)
+
+    def _default_container(self):
+        return OverlayPlotContainer(padding=[50, 50, 50, 50])
 
 
 class TimeContainer(PlotContainer):
@@ -23,19 +32,16 @@ class TimeContainer(PlotContainer):
     major_grid_index = d_(Float(5))
     minor_grid_index = d_(Float(1))
 
-    def create_container(self, plugin):
-        index_range = ChannelDataRange(trig_delay=self.trig_delay, span=self.span)
+    def prepare(self, plugin):
+        index_range = ChannelDataRange(trig_delay=self.trig_delay,
+                                       span=self.span)
         index_mapper = LinearMapper(range=index_range)
-        container = OverlayPlotContainer(padding=[50, 50, 50, 50])
         for child in self.children:
             plot = child.create_plot(plugin, index_mapper)
-            container.add(plot)
-
-        # Add the time axis to the final plot
+            self.container.add(plot)
         add_time_axis(plot)
         add_default_grids(plot, major_index=self.major_grid_index,
                           minor_index=self.minor_grid_index)
-        return container
 
 
 class FFTContainer(PlotContainer):
@@ -43,22 +49,20 @@ class FFTContainer(PlotContainer):
     freq_lb = d_(Float(0.1e3))
     freq_ub = d_(Float(100e3))
 
-    def create_container(self, plugin):
-        container = OverlayPlotContainer(padding=[50, 50, 50, 50])
+    def prepare(self, plugin):
         index_range = BaseChannelDataRange(low_setting=self.freq_lb,
                                            high_setting=self.freq_ub)
         index_mapper = LogMapper(range=index_range)
         for child in self.children:
             plot = child.create_plot(plugin, index_mapper)
-            container.add(plot)
+            self.container.add(plot)
 
         add_default_grids(plot, major_index=5, minor_index=1)
         axis = PlotAxis(component=plot, orientation='bottom', title='Frequency (Hz)')
         plot.underlays.append(axis)
-        return container
 
 
-class Plot(Declarative):
+class Plot(PSIContribution):
 
     line_color = d_(Tuple())
     fill_color = d_(Tuple())
@@ -159,3 +163,30 @@ class FFTChannelPlot(Plot):
                             title=self.axis_label)
             plot.underlays.append(axis)
         return plot
+
+
+class PyQtGraphPlotContainer(PlotContainer):
+
+    manifest = __name__ + '_manifest.PyQtGraphPlotContainerManifest'
+
+    title = d_(Unicode())
+    label = d_(Unicode())
+
+
+class GriddedEpochAveragePlot(Plot):
+
+    manifest = __name__ + '_manifest.GriddedEpochAveragePlotManifest'
+    sink = d_(Unicode())
+    items = d_(Typed(list))
+
+    def create_plot(self, plugin, index_mapper):
+        sink = plugin.find_sink(self.sink)
+
+    def _observe_items(self, event):
+        print(event['value'])
+
+    def get_gridsize(self):
+        try:
+            return len(self.items), len(self.items)
+        except:
+            return 1, 1

@@ -7,68 +7,46 @@ from scipy.stats import norm
 
 from atom.api import ContainerList, Typed, Str, Int, observe, Bool
 from enaml.application import deferred_call
+from enaml.core.api import d_
 from enaml.layout.api import InsertItem, hbox, vbox, spacer
 from enaml.widgets.api import (Container, DockItem, CheckBox, Label, Field, HGroup)
-from enaml.workbench.api import Extension, PluginManifest
+from enaml.workbench.api import Extension
 
+from psi.context.context_item import OrderedContextMeta
 from psi.core.utils import find_extension
-from psi.core.enaml.dataframe_table_widget \
-    import DataframeTable
+from psi.core.enaml.api import PSIManifest
+from psi.core.enaml.dataframe_table_widget import DataframeTable
+from psi.experiment.api import ItemPreferences
 from ..plugin import Sink
 
-PLUGIN_ID = 'psi.data.sdt_analysis'
-
-EXTRA_COLS = {
-    'mean': 'Fraction', 
-    'size': '# trials',
-    'sum': '# Correct',
-    'z_score': 'd\'',
-}
 
 
 class SDTAnalysis(Sink):
 
+    manifest = __name__ + '.SDTAnalysisManifest'
+    name = 'sdt_analysis'
+    label = 'SDT Analysis'
+
     trial_log = Typed(pd.DataFrame)
     results = Typed(pd.DataFrame)
-    grouping = Typed(list, [])
-    visible_columns = Typed(list, [])
-    context_info = Typed(dict, {})
+    grouping = d_(Typed(list))
 
     limit = Int()
     include_repeat_nogo = Bool()
     include_go_remind = Bool()
 
-    def prepare(self, plugin):
-        if self.grouping:
-            return
-        g = [c for c, i in plugin.context_info.items() if getattr(i, 'rove', False)]
-        self.grouping = ['trial_type'] + g
-
-    def context_info_updated(self, context_info):
-        context_info = {n: i.compact_label for n, i in context_info.items()}
-        context_info.update(EXTRA_COLS)
-        self.context_info = context_info
-
     def trial_log_updated(self, trial_log):
         self.trial_log = trial_log
         self.update_results()
 
-    @observe('limit')
-    def limit_changed(self, event):
+    def _observe_limit(self, event):
         self.update_results()
 
-    @observe('include_repeat_nogo')
-    def include_repeat_nogo_changed(self, event):
+    def _observe_include_repeat_nogo(self, event):
         self.update_results()
 
-    @observe('include_go_remind')
-    def include_go_remind_changed(self, event):
+    def _observe_include_go_remind(self, event):
         self.update_results()
-
-    @observe('grouping')
-    def grouping_changed(self, event):
-        self.visible_columns = self.grouping + \
-            ['mean', 'size', 'sum', 'z_score']
 
     def update_results(self):
         if self.trial_log is None:
@@ -104,8 +82,10 @@ class SDTAnalysis(Sink):
 enamldef SDTAnalysisDockItem(DockItem):
 
     attr analysis
+    attr meta
+    closable = False
 
-    Container:
+    Container: sdt_container:
         constraints = [
             vbox(
                 hbox(
@@ -134,30 +114,54 @@ enamldef SDTAnalysisDockItem(DockItem):
             text = 'Include reminders?'
 
         DataframeTable: table:
+            name = 'table'
             dataframe << analysis.results
-            columns << analysis.visible_columns
-            column_info << analysis.context_info
+            columns << [i.name for i in meta.values] + \
+                ['size', 'sum', 'mean', 'z_score']
+            column_info << {
+                **{i.name: i.compact_label for i in meta.values},
+                **{'mean': 'Frac.',
+                   'size': '# trials',
+                   'sum': '# correct',
+                   'z_score': 'd\'', }
+            }
 
 
-def contribute_to_workspace(workbench, workspace):
-    extension = find_extension(workbench, PLUGIN_ID, 'sink', SDTAnalysis)
-    item = SDTAnalysisDockItem(workspace.dock_area, analysis=extension,
-                               name='sdt_analysis', title='SDT Analysis')
-    op = InsertItem(item=item.name, position='right')
-    deferred_call(workspace.dock_area.update_layout, op)
+class SDTContextMeta(OrderedContextMeta):
+
+    grouping = d_(Typed(list))
+
+    def _observe_values(self, event):
+        grouping = [v.name for v in self.values]
+        grouping.insert(0, 'trial_type')
+        self.grouping = grouping
 
 
-enamldef SDTAnalysisManifest(PluginManifest): manifest:
-
-    id = PLUGIN_ID
+enamldef SDTAnalysisManifest(PSIManifest): manifest:
 
     Extension:
-        id = 'sink'
-        point = 'psi.data.sink'
-        SDTAnalysis:
-            pass
+        id = 'items'
+        point = 'psi.context.items'
+        SDTContextMeta: meta:
+            name << manifest.contribution.name
+            label << '{} grouping'.format(manifest.contribution.label)
+            grouping >> manifest.contribution.grouping
 
     Extension:
         id = 'workspace'
         point = 'psi.experiment.workspace'
-        factory = contribute_to_workspace
+
+        SDTAnalysisDockItem: di:
+            analysis << manifest.contribution
+            name << manifest.contribution.name
+            title << manifest.contribution.label
+            meta << meta
+
+    Extension:
+        id = 'preferences'
+        point = 'psi.experiment.preferences'
+        rank = 200
+        ItemPreferences:
+            item << di.find('table')
+            name << manifest.contribution.name
+            auto_save = ['column_widths']

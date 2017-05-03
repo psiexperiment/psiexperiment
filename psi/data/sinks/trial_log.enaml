@@ -1,0 +1,80 @@
+from atom.api import ContainerList, Typed, Dict
+from enaml.application import deferred_call
+from enaml.core.api import Looper
+from enaml.layout.api import InsertItem
+from enaml.widgets.api import (Container, Menu, Action, DockItem, PopupView,
+                               Form, CheckBox, Label, HGroup)
+from enaml.workbench.api import Extension
+
+import pandas as pd
+
+from psi.context.context_item import OrderedContextMeta
+from psi.core.enaml.api import DataframeTable, PSIManifest
+from psi.experiment.api import ItemPreferences
+
+from ..sink import Sink
+
+
+class TrialLog(Sink):
+
+    name = 'trial_log'
+    title = 'Trial log'
+    manifest = __name__ + '.TrialLogManifest'
+
+
+enamldef TrialLogDockItem(DockItem):
+
+    attr data_plugin = workbench.get_plugin('psi.data')
+    attr meta
+    closable = False
+
+    Container:
+        DataframeTable:
+            name = 'table'
+            dataframe << data_plugin.trial_log
+            columns << [i.name for i in meta.values]
+            column_info << {k: i.compact_label for \
+                            k, i in data_plugin.context_info.items()}
+
+            cell_color => (row, column):
+                # TODO: A bit of a hack here ...
+                if 'trial_type' in dataframe:
+                    tt = dataframe.at[row, 'trial_type']
+                    if tt == 'go_remind':
+                        return 'forestgreen'
+                    elif tt == 'go':
+                        return 'lightgreen'
+                    elif tt == 'go_forced':
+                        return 'green'
+                    elif tt == 'nogo':
+                        return 'lightpink'
+                    elif tt == 'nogo_repeat':
+                        return 'pink'
+                return 'white'
+
+
+enamldef TrialLogManifest(PSIManifest): manifest:
+
+    Extension:
+        id = 'items'
+        point = 'psi.context.items'
+        OrderedContextMeta: meta:
+            name << manifest.contribution.name
+            label << '{} column'.format(manifest.contribution.title)
+
+    Extension:
+        id = 'preferences'
+        point = 'psi.experiment.preferences'
+        rank = 200
+        ItemPreferences:
+            item << di.find('table')
+            name << manifest.contribution.name
+            auto_save = ['column_widths']
+
+    Extension:
+        id = 'workspace'
+        point = 'psi.experiment.workspace'
+        TrialLogDockItem: di:
+            name << manifest.contribution.name
+            title << manifest.contribution.title
+            meta << meta

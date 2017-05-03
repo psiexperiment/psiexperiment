@@ -9,6 +9,7 @@ from enaml.application import deferred_call
 from enaml.layout.api import InsertItem, InsertTab
 from enaml.workbench.plugin import Plugin
 
+from ..util import get_tagged_values
 from .context_item import ContextItem, Parameter, ContextMeta
 from .context_group import ContextGroup
 from .expression import ExpressionNamespace
@@ -18,6 +19,10 @@ from .symbol import Symbol
 SELECTORS_POINT = 'psi.context.selectors'
 SYMBOLS_POINT = 'psi.context.symbols'
 ITEMS_POINT = 'psi.context.items'
+
+
+def get_preferences(obj):
+    return deepcopy(get_tagged_values(obj, 'preference'))
 
 
 class ContextPlugin(Plugin):
@@ -78,13 +83,13 @@ class ContextPlugin(Plugin):
         context_meta = {}
         items = []
         groups = []
-        meta = []
+        metas = []
 
         point = self.workbench.get_extension_point(ITEMS_POINT)
         for extension in point.extensions:
             items.extend(extension.get_children(ContextItem))
             groups.extend(extension.get_children(ContextGroup))
-            meta.extend(extension.get_children(ContextMeta))
+            metas.extend(extension.get_children(ContextMeta))
 
         for group in groups:
             log.debug('Adding context group {}'.format(group.name))
@@ -105,13 +110,14 @@ class ContextPlugin(Plugin):
             if item.name in context_items:
                 m = 'Context item {} already defined'.format(item.name)
                 raise ValueError(m)
-            for m in meta:
-                item.meta[m] = m.default_value
-
             context_items[item.name] = item
+
+        for meta in metas:
+            context_meta[meta.name] = meta
 
         self.context_items = context_items
         self.context_groups = context_groups
+        self.context_meta = context_meta
 
     def _bind_observers(self):
         self.workbench.get_extension_point(SELECTORS_POINT) \
@@ -312,17 +318,17 @@ class ContextPlugin(Plugin):
                 if not i.rove}
 
     def _apply_selector_state(self):
-        for name, selector in self.selectors.items():
-            self._selector_state[name] = deepcopy(selector.__getstate__())
+        state = {n: get_preferences(s) for n, s in self.selectors.items()}
+        self._selector_state = state
 
     def _revert_selector_state(self):
-        for name, selector in self.selectors.items():
-            selector.__setstate__(deepcopy(self._selector_state[name]))
+        for name, state in self._selector_state.items():
+            self.selectors[name].__setstate__(deepcopy(state))
 
     def _apply_context_item_state(self):
-        for name, item in self.context_items.items():
-            self._context_item_state[name] = deepcopy(item.__getstate__())
+        state = {n: get_preferences(i) for n, i in self.context_items.items()}
+        self._context_item_state = state
 
     def _revert_context_item_state(self):
-        for name, item in self.context_items.items():
-            item.__setstate__(deepcopy(self._context_item_state[name]))
+        for name, state in self._context_item_state.items():
+            self.context_items[name].__setstate__(deepcopy(state))

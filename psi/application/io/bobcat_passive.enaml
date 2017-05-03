@@ -10,11 +10,12 @@ from psi.controller.api import (AIChannel, AOChannel, ExperimentAction,
                                 Trigger, Toggle, DOChannel, Input)
 
 from psi.controller.input import (Downsample, IIRFilter, Threshold, Edges,
-                                  CalibratedInput, RMS, SPL, AccumulateSegments)
+                                  CalibratedInput, RMS, SPL)
 
 from psi.controller.calibration import GolayCalibration, FlatCalibration
 from psi.controller.calibration.util import db
 
+from psi.data.sinks.bcolz_store import BColzStore
 from psi.data.plots import (TimeContainer, ChannelPlot, TimeseriesPlot,
                             ExtremesChannelPlot, FFTContainer, FFTChannelPlot)
 
@@ -27,6 +28,14 @@ enamldef IOManifest(PluginManifest): manifest:
     This defines the hardware connections that are specific to the LBHB Bobcat
     computer for the appetitive experiment.
     '''
+
+    Extension:
+        id = 'data'
+        point = 'psi.data.sinks'
+
+        BColzStore:
+            pass
+        
     Extension:
         id = 'backend'
         point = 'psi.controller.io'
@@ -36,7 +45,7 @@ enamldef IOManifest(PluginManifest): manifest:
             master_clock = True
 
             hw_ai_monitor_period = 0.01
-            hw_ao_monitor_period = 0.05
+            hw_ao_monitor_period = 0.01
 
             AOChannel:
                 label = 'Speaker'
@@ -68,6 +77,7 @@ enamldef IOManifest(PluginManifest): manifest:
                         N = 4
                         btype = 'bandpass'
                         name = 'microphone'
+                        save = True
                         RMS:
                             duration = 1
                             SPL:

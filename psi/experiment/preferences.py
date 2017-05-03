@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 from atom.api import List, Unicode, Value
 from enaml.core.api import Declarative, d_, d_func
 
@@ -30,7 +33,11 @@ class _AutoPreferences(Preferences):
     def set_preferences(self, workbench, preferences):
         obj = self.get_object(workbench)
         for m, v in preferences.items():
-            setattr(obj, m, v)
+            try:
+                setattr(obj, m, v)
+            except AttributeError as e:
+                log.warn(e)
+                pass
 
     @d_func
     def get_preferences(self, workbench):
@@ -52,12 +59,3 @@ class PluginPreferences(_AutoPreferences):
 
     def get_object(self, workbench):
         return workbench.get_plugin(self.plugin_id)
-
-
-class UIPreferences(_AutoPreferences):
-
-    item_name = d_(Unicode())
-
-    def get_object(self, workbench):
-        ui = workbench.get_plugin('enaml.workbench.ui')
-        return ui.workspace.content.find(self.item_name)

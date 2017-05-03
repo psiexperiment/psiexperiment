@@ -1,0 +1,75 @@
+from atom.api import ContainerList, Typed, Dict
+from enaml.application import deferred_call
+from enaml.core.api import Looper
+from enaml.layout.api import InsertItem
+from enaml.widgets.api import (Container, Menu, Action, DockItem, PopupView,
+                               Form, CheckBox, Label, HGroup, VGroup)
+from enaml.workbench.api import Extension, PluginManifest
+
+import pandas as pd
+
+from psi.context.context_item import OrderedContextMeta
+from psi.core.enaml.api import DataframeTable, PSIManifest
+from psi.experiment.api import ItemPreferences
+from ..sink import Sink
+
+
+class TrialLogCounter(Sink):
+
+    name = 'trial_log_counter'
+    title = 'Trial log'
+    manifest = __name__ + '.TrialLogCounterManifest'
+
+
+def get_table(trial_log, grouping):
+    if trial_log is None:
+        return
+    grouping = grouping[1:]
+    result = trial_log.groupby(grouping).size()
+    result.name = 'n'
+    return result.reset_index()
+
+
+enamldef TrialLogCounterDockItem(DockItem):
+
+    attr data_plugin = workbench.get_plugin('psi.data')
+    attr meta
+    closable = False
+
+    Container:
+        DataframeTable:
+            name = 'table'
+            dataframe << get_table(data_plugin.trial_log, self.columns)
+            column_info << get_column_info(data_plugin.context_info)
+            columns << ['n'] + [i.name for i in meta.values]
+            column_info << {
+                **{i.name: i.compact_label for i in meta.values},
+                **{'n': 'N'}
+            }
+
+
+enamldef TrialLogCounterManifest(PSIManifest): manifest:
+
+    Extension:
+        id = 'items'
+        point = 'psi.context.items'
+        OrderedContextMeta: meta:
+            name << manifest.contribution.name
+            label << '{} column'.format(manifest.contribution.title)
+
+    Extension:
+        id = 'preferences'
+        point = 'psi.experiment.preferences'
+        rank = 200
+        ItemPreferences:
+            item << di.find('table')
+            name << manifest.contribution.name
+            auto_save = ['column_widths']
+
+    Extension:
+        id = 'workspace'
+        point = 'psi.experiment.workspace'
+        TrialLogCounterDockItem: di:
+            name << manifest.contribution.name
+            title << manifest.contribution.title
+            meta << meta

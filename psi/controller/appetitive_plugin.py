@@ -194,8 +194,9 @@ class AppetitivePlugin(BasePlugin):
             'reaction_time': np_end-np_start,
         })
         self.context.set_values(self.trial_info)
-        parameters = {'results': self.context.get_values()}
-        self.core.invoke_command('psi.data.process_trial', parameters)
+        result = self.context.get_values()
+        parameters = {'results': [result]}
+        self.core.invoke_command('psi.data.process_trials', parameters)
         self.prior_score = score
 
         self.invoke_actions('trial_end', ts)
@@ -386,7 +387,7 @@ class AppetitivePlugin(BasePlugin):
                 # `end_trial` function so that we can prepare for the next
                 # trial. Save the start of the nose-poke.
                 self.trial_info['np_start'] = timestamp
-            elif event == Event.reward_start:
+            elif event in (Event.reward_start, Event.digital_reward_start):
                 log.debug('Animal went to reward')
                 self.invoke_actions(Event.response_end.name, timestamp)
                 self.trial_info['response_ts'] = timestamp
@@ -405,7 +406,7 @@ class AppetitivePlugin(BasePlugin):
                 self.invoke_actions(Event.iti_start.name, self.get_ts())
                 self.start_event_timer('iti_duration', Event.iti_duration_elapsed)
             elif event in (Event.reward_start, Event.np_start,
-                           Event.digital_np_start):
+                           Event.digital_np_start, Event.digital_reward_start):
                 # Animal repoked. Reset timeout duration.
                 log.debug('Resetting timeout duration')
                 self.stop_event_timer()

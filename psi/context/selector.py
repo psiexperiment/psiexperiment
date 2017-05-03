@@ -15,8 +15,8 @@ from .. import SimpleState
 
 class BaseSelector(SimpleState, Declarative):
 
-    context_items = Typed(list, []).tag(transient=True)
-    updated = Event().tag(transient=True)
+    context_items = Typed(list, [])
+    updated = Event()
 
     context_item_order = Property().tag(preference=True)
 
