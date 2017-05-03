@@ -5,7 +5,7 @@ import numpy as np
 from enaml.workbench.api import PluginManifest, Extension
 
 from psi import get_config
-from psi.controller.engines.nidaq import NIDAQEngine
+from psi.controller.engines.null import NullEngine
 from psi.controller.api import (AIChannel, AOChannel, ExperimentAction,
                                 Trigger, Toggle, DOChannel, Input)
 
@@ -16,7 +16,6 @@ from psi.controller.input import (Downsample, IIRFilter, Threshold, Edges,
 from psi.controller.calibration import GolayCalibration, FlatCalibration
 from psi.controller.calibration.util import db
 
-from psi.controller.devices.opencv_camera import OpenCVCamera
 from psi.controller.devices.pellet_dispenser import PelletDispenser
 
 
@@ -38,21 +37,6 @@ enamldef IOManifest(PluginManifest): manifest:
             name = 'food_dispenser'
             label = 'Food dispenser'
 
-        OpenCVCamera:
-            device = 0
-            interval = 0.1
-            resolution = (320, 240)
-            name = 'behavior_camera'
-            label = 'Behavior camera'
-
-        OpenCVCamera:
-            device = 1
-            interval = 0.1
-            #resolution = (1920, 1080)
-            resolution = (640, 480)
-            name = 'pupil_camera'
-            label = 'Pupil camera'
-
         Trigger:
             # This is a required output for the food dispenser. The
             # plugin will look for this output by name. If not present,
@@ -70,15 +54,9 @@ enamldef IOManifest(PluginManifest): manifest:
             label = 'Room light'
             target_name = 'room_light'
 
-        NIDAQEngine: engine:
+        NullEngine: engine:
             name = 'NI'
             master_clock = True
-
-            # Since we're using an AnalogThreshold input to detect nose pokes
-            # and reward contact, we want a fairly short AI monitor period to
-            # ensure that we detect these events quickly.
-            hw_ai_monitor_period = 0.01
-            hw_ao_monitor_period = 2
 
             AOChannel:
                 label = 'Speaker'

@@ -31,12 +31,15 @@ class SimpleState(object):
                 del state[k]
         return state
 
+    def __setstate__(self, state):
+        for key, value in state.items():
+            setattr(self, key, value)
+
 
 def load_config():
     # Load the default settings
     from os import environ
     from . import config
-
     try:
         # Load the computer-specific settings
         path = environ['PSIEXPERIMENT_SETTINGS']

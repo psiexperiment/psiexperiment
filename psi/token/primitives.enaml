@@ -94,7 +94,7 @@ def cos2envelope_factory(fs, start_time, rise_time, duration, calibration,
 
     # Initialize the inputs
     input_generator = input_factory()
-    input_generator.next()
+    next(input_generator)
 
     while True:
         # Provide waveform and wait on instructions for next waveform
@@ -147,27 +147,6 @@ enamldef Cos2Envelope(Block): block:
 
 
 ################################################################################
-# Pregenerate samples
-################################################################################
-def pregenerate_samples(wrapped, fs, **kwargs):
-    block_size = int(10*fs)
-    input = wrapped(fs=fs, **kwargs)
-    input.next()
-    cached, complete = input.send({'samples': block_size})
-    waveform = None
-    complete = False
-
-    while True:
-        samples = kwargs['samples']
-        kwargs = (yield waveform, complete)
-        if len(cached) < samples:
-            c, complete = input.send({'samples': block_size})
-            cached = np.concatenate([cached, c])
-        waveform = cached[:samples]
-        cached = cached[samples:]
-
-
-################################################################################
 # SAM envelope
 ################################################################################
 @memory.cache
@@ -212,7 +191,7 @@ def samenvelope_factory(fs, depth, fm, delay, direction, calibration,
 
     # Initialize the inputs
     input_generator = input_factory()
-    input_generator.next()
+    next(input_generator)
 
     while True:
         kwargs = (yield waveform)

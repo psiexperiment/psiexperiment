@@ -25,7 +25,10 @@ class TokenPlugin(Plugin):
         self._refresh_tokens()
         self._bind_observers()
 
-    def _refresh_tokens(self):
+    def stop(self):
+        self._unbind_observers()
+
+    def _refresh_tokens(self, event=None):
         etokens = {}
         ctokens = {}
         point = self.workbench.get_extension_point(TOKENS_POINT)
@@ -42,6 +45,10 @@ class TokenPlugin(Plugin):
     def _bind_observers(self):
         self.workbench.get_extension_point(TOKENS_POINT) \
             .observe('extensions', self._refresh_tokens)
+
+    def _unbind_observers(self):
+        self.workbench.get_extension_point(TOKENS_POINT) \
+            .unobserve('extensions', self._refresh_tokens)
 
     def _generate_token(self, token, output_name, output_label, scope):
         token = copy.copy(token)

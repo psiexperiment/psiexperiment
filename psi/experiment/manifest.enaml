@@ -1,6 +1,8 @@
-# TODO: Find a smart way to set defaults on a per-paradigm basis (e.g., how do
-# we set the ID?)
-import cPickle as pickle
+import logging
+log = logging.getLogger(__name__)
+
+import pickle
+import yaml
 
 import os
 import numpy as np
@@ -29,12 +31,6 @@ preferences_fd_kwargs = {
     'name_filters': [get_config('PREFERENCES_WILDCARD')],
     'current_path': get_config('PREFERENCES_ROOT'),
 }
-
-
-def experiment_view_factory(workbench):
-    workspace = ExperimentWorkspace()
-    workspace.window_title = 'Persistent View'
-    return workspace
 
 
 def save_layout(event):
@@ -78,17 +74,14 @@ def get_default_layout(event):
         _load_layout(event, file_name)
     except IOError:
         pass
-
-
-def refresh_workspace(event, plugin_ids=None):
-    plugin = event.workbench.get_plugin(PLUGIN_ID)
-    plugin.refresh_workspace(plugin_ids)
+    #import pdb
+    #pdb.set_trace()
 
 
 def save_preferences(event):
     filename = event.parameters.get('filename', None)
     if filename is None:
-        filename = FileDialogEx.get_save_filename(**preferences_fd_kwargs)
+        filename = FileDialogEx.get_save_file_name(**preferences_fd_kwargs)
     if filename:
         _save_preferences(event, filename)
 
@@ -98,8 +91,8 @@ def _save_preferences(event, file_name):
     if not file_name.endswith('.preferences'):
         file_name += '.preferences'
     preferences = plugin.get_preferences()
-    with open(file_name, 'wb') as fh:
-        pickle.dump(preferences, fh)
+    with open(file_name, 'w') as fh:
+        yaml.dump(preferences, fh, default_flow_style=False)
 
 
 def load_preferences(event):
@@ -111,8 +104,9 @@ def load_preferences(event):
 
 
 def _load_preferences(event, file_name):
-    with open(file_name, 'rb') as fh:
-        preferences = pickle.load(fh)
+    log.debug('Loading preferences from {}'.format(file_name))
+    with open(file_name, 'r') as fh:
+        preferences = yaml.load(fh)
     plugin = event.workbench.get_plugin('psi.experiment')
     plugin.set_preferences(preferences)
 
@@ -132,10 +126,6 @@ def get_default_preferences(event):
         pass
 
 
-def window_factory(workbench):
-    return ExperimentWorkbenchWindow()
-
-
 enamldef ExperimentManifest(PluginManifest):
     '''
     This plugin acts as the entry point for all other plugins in this example.
@@ -148,12 +138,12 @@ enamldef ExperimentManifest(PluginManifest):
     Extension:
         id = 'workspace'
         point = 'enaml.workbench.ui.workspaces'
-        factory = experiment_view_factory
+        factory = lambda workbench: ExperimentWorkspace()
 
     Extension:
         id = 'window'
         point = 'enaml.workbench.ui.window_factory'
-        factory = window_factory
+        factory = lambda workbench: ExperimentWorkbenchWindow()
 
     Extension:
         id = 'commands'
@@ -170,9 +160,6 @@ enamldef ExperimentManifest(PluginManifest):
         Command:
             id = 'psi.get_default_layout'
             handler = get_default_layout
-        Command:
-            id = 'psi.refresh_workspace'
-            handler = refresh_workspace
         Command:
             id = 'psi.save_preferences'
             handler = save_preferences
@@ -250,7 +237,6 @@ enamldef ExperimentManifest(PluginManifest):
             label = 'Revert to default'
             command = 'psi.get_default_preferences'
             group = 'preferences_default'
-
 
     ExtensionPoint:
         id = 'toolbar'

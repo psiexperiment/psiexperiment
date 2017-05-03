@@ -1,0 +1,214 @@
+from functools import partial
+
+import numpy as np
+
+from atom.api import Typed
+
+from enaml.core.api import d_, Looper, Include
+from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
+from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
+
+from psi.context.api import ContextGroup
+from psi.experiment.api import ItemPreferences
+
+from .device_manifest import DeviceManifest
+from .experiment_action import ExperimentState
+
+
+def toggle_off(event, output):
+    output.set_low()
+
+
+def toggle_on(event, output):
+    output.set_high()
+
+
+def fire(event, output):
+    output.fire()
+
+
+def toggle(event, output):
+    if event.parameters['state']:
+        toggle_on(event, output)
+    else:
+        toggle_off(event, output)
+
+
+def set_token(event, device, output_type):
+    token_plugin = event.workbench.get_plugin('psi.token')
+    factory = getattr(token_plugin, 'generate_{}_token'.format(output_type))
+    token = factory(event.parameters['token_name'], device.name, device.label)
+    device.token = token
+    device.token_name = event.parameters['token_name']
+
+    # TODO: This is a hack. Maybe?
+    context_plugin = event.workbench.get_plugin('psi.context')
+    context_plugin._refresh_items()
+
+
+def prepare_output(event, output):
+    core = event.workbench.get_plugin('enaml.workbench.core')
+    context = core.invoke_command('psi.context.get_values')
+    output.setup(context)
+
+
+def start_output(event, output):
+    start = event.parameters['timestamp']
+    delay = event.parameters.get('delay', 0)
+    duration = output.start(start, delay)
+
+    controller = event.workbench.get_plugin('psi.controller')
+    controller.invoke_actions('{}_start'.format(output.name), start+delay)
+    controller.invoke_actions('{}_end'.format(output.name),
+                              start+delay+duration, delayed=True)
+
+
+def clear_output(event, output):
+    end = event.parameters['timestamp']
+    delay = event.parameters.get('delay', 0)
+    output.clear(end, delay)
+    controller = event.workbench.get_plugin('psi.controller')
+    controller.invoke_actions('{}_end'.format(output.name), end+delay)
+
+
+enamldef AnalogOutputManifest(DeviceManifest): manifest:
+
+    Extension:
+        id = 'output_commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = manifest.device.name + '.set_token'
+            handler = partial(set_token, device=manifest.device,
+                              output_type=output_type)
+        Command:
+            id = manifest.device.name + '.prepare'
+            handler = partial(prepare_output, output=manifest.device)
+        Command:
+            id = manifest.device.name + '.start'
+            handler = partial(start_output, output=manifest.device)
+        Command:
+            id = manifest.device.name + '.clear'
+            handler = partial(clear_output, output=manifest.device)
+
+    Extension:
+        id = 'output_menu.' + manifest.device.name
+        point = 'enaml.workbench.ui.actions'
+        MenuItem:
+            path = '/equipment/output/{}'.format(manifest.device.name)
+            label = '{} ({})'.format(manifest.device.label, output_type)
+            ItemGroup:
+                exclusive = True
+                id = manifest.device.name
+        Looper:
+            # Provide this in the subclass
+            iterable << tokens.values()
+            ActionItem:
+                path = '/equipment/output/{}/{}'.format(manifest.device.name, 
+                                                        loop_item.name)
+                label << loop_item.label
+                group = manifest.device.name
+                command = manifest.device.name + '.set_token'
+                checked << manifest.device.token_name == loop_item.name
+                checkable = True
+                parameters = {'token_name': loop_item.name}
+
+    Extension:
+        # For some reason this doesn't get loaded if it's lumped together with
+        # the following extension, so I've split them out. Not sure why. Some
+        # exception is getting swallowed silently.
+        id = 'groups.' + manifest.device.name
+        point = 'psi.context.items'
+        ContextGroup:
+            name = manifest.device.name
+            label = manifest.device.label
+
+    Extension:
+        id = 'items.' + manifest.device.name
+        point = 'psi.context.items'
+        Include:
+            # list provides an empty list of context items if needed.
+            objects << getattr(manifest.device.token, 'get_context_items',
+                               list)()
+
+    Extension:
+        id = 'actions.' + manifest.device.name
+        point = 'psi.controller.actions'
+        ExperimentState:
+            name = manifest.device.name
+
+    Extension:
+        id = 'preferences.' +  manifest.device.name
+        point = 'psi.experiment.preferences'
+        rank = 10
+        ItemPreferences:
+            name = 'output.' + manifest.device.name
+            item = manifest.device
+            auto_save = ['token_name']
+            set_preferences => (workbench, preferences):
+                # Override the set_preferences since we need to loop into the
+                # token generation machinery. The output does not have access
+                # to this plugin. TODO This is a hack. I'm sure I'll figure out a
+                # better approach eventually.
+                core = workbench.get_plugin('enaml.workbench.core')
+                command = manifest.device.name + '.set_token'
+                core.invoke_command(command, parameters=preferences)
+
+
+enamldef EpochOutputManifest(AnalogOutputManifest): manifest:
+
+    attr tokens = workbench.get_plugin('psi.token')._epoch_tokens
+    attr output_type = 'epoch'
+
+
+enamldef ContinuousOutputManifest(AnalogOutputManifest): manifest:
+
+    attr tokens = workbench.get_plugin('psi.token')._continuous_tokens
+    attr output_type = 'continuous'
+
+
+enamldef ToggleManifest(DeviceManifest): manifest:
+
+    Extension:
+        id = 'toggle_commands.' + manifest.device.name
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = manifest.id + '.off'
+            handler = partial(toggle_off, output=manifest.device)
+        Command:
+            id = manifest.id + '.on'
+            handler = partial(toggle_on, output=manifest.device)
+        Command:
+            id = manifest.id + '.toggle'
+            handler = partial(toggle, output=manifest.device)
+
+    Extension:
+        id = 'toggle_actions.' + manifest.device.name
+        point = 'enaml.workbench.ui.actions'
+        ActionItem:
+            path = '/equipment/{}'.format(manifest.device.name)
+            label = '{}'.format(manifest.device.label)
+            command = manifest.id + '.toggle'
+            parameters << {'state': checked}
+            checked << manifest.device.state
+            checkable = True
+            status_tip = command
+
+
+enamldef TriggerManifest(DeviceManifest): manifest:
+
+    Extension:
+        id = 'trigger_commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = manifest.id + '.trigger'
+            handler = partial(fire, output=manifest.device)
+
+    Extension:
+        id = 'trigger_actions'
+        point = 'enaml.workbench.ui.actions'
+        ActionItem:
+            path = '/equipment/{}'.format(manifest.device.name)
+            label = '{} trigger'.format(manifest.device.label)
+            command = manifest.id + '.trigger'
+            status_tip = command

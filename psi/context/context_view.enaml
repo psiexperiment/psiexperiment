@@ -13,22 +13,7 @@ from .context_item_view import ContextItem
 ################################################################################
 # Parameter view
 ################################################################################
-def align_edges(widgets, edges):
-    constraints = []
-    w_base = widgets[0]
-    for w in widgets[1:]:
-        if 'left' in edges:
-            constraints.append(w.left == w_base.left)
-        if 'right' in edges:
-            constraints.append(w.right == w_base.right)
-        if 'top' in edges:
-            constraints.append(w.top == w_base.top)
-        if 'bottom' in edges:
-            constraints.append(w.bottom == w_base.bottom)
-    return constraints
-
-
-def get_items(context_items, group_name):
+def get_context_items(context_items, group_name):
     subset = [i for i in context_items.values() if i.group == group_name]
     return sorted(subset, key=operator.attrgetter('label'))
 
@@ -37,8 +22,9 @@ enamldef ContextDockItem(DockItem):
     # By taking the `context` as an attribute rather than a list of parameters,
     # this ensures that the GUI is updated if the parameters list is ever
     # overwritten (e.g., by the revert logic).
-    attr plugin
+    attr context_plugin = workbench.get_plugin('psi.context')
     attr group_name
+    closable = False
 
     # Define a style that grays out the field when it's been selected to be a #
     # roving parameter.
@@ -53,9 +39,7 @@ enamldef ContextDockItem(DockItem):
     VGroup:
         spacing = 0
         Looper:
-            # This ensures that the container updates whenever the parameters
-            # attribute is updated.
-            iterable << get_items(plugin.context_items, group_name)
+            iterable << get_context_items(context_plugin.context_items, group_name)
             ContextItem:
                 context_item = loop_item
 
@@ -83,8 +67,19 @@ def filter_current_values(plugin, current_values, mode):
                 getattr(plugin.context_items[k], 'rove', False)] 
 
 
+def get_current_values(plugin, values):
+    current_values = []
+    for member in values.members().keys():
+        l = plugin.context_items[member].label
+        print(values, member)
+        v = getattr(values, member, 'UNDEFINED')
+        current_values.append((l, v))
+    return sorted(current_values)
+
+
 enamldef CurrentValuesDockItem(DockItem):
     attr context
+    attr context_plugin = workbench.get_plugin('psi.context')
 
     StyleSheet:
         Style:
@@ -102,17 +97,17 @@ enamldef CurrentValuesDockItem(DockItem):
         VGroup:
             padding = 0
             spacing = 0
-
+            attr values << context_plugin._namespace.values
             Looper:
-                iterable << sorted(context._namespace._locals.items())
+                iterable << get_current_values(context_plugin, values)
                 HGroup:
                     padding = 0
                     spacing = 0
                     Label:
-                        style_class << get_style_classes(context, loop_item[0])
-                        text << context.context_items[loop_item[0]].label
+                        text << str(loop_item[0])
+                        #style_class << get_style_classes(context, loop_item[0])
                     Label:
-                        style_class << get_style_classes(context, loop_item[0])
+                        #style_class << get_style_classes(context, loop_item[0])
                         text << str(loop_item[1])
 
 

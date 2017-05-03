@@ -4,62 +4,22 @@ log = logging.getLogger(__name__)
 import enaml
 from enaml.application import deferred_call
 from enaml.layout.api import InsertItem
-from enaml.widgets.api import Action
-from enaml.workbench.api import Extension, ExtensionPoint
+from enaml.widgets.api import Action, ToolBar
+from enaml.workbench.api import Extension, ExtensionPoint, PluginManifest
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem
 
-from psi.core.enaml.api import PSIManifest
 from psi.experiment.api import Preferences
 from psi.context.api import ContextGroup
 
 from ..util import rpc
 
 from .base_plugin import BasePlugin
-from .output import AnalogOutput
-from .output_view import OutputDockItem
+from .output import AnalogOutput, Toggle, Trigger
 from .experiment_action import (ExperimentState, ExperimentEvent,
                                 ExperimentAction)
 
-
-def _contribute_outputs(workbench, workspace):
-    plugin = workbench.get_plugin('psi.controller')
-    item = OutputDockItem(workspace.dock_area, controller=plugin,
-                          name='controller_outputs', title='Outputs')
-    op = InsertItem(item=item.name, position='top')
-    deferred_call(workspace.dock_area.update_layout, op)
-
-
-def contribute_to_workspace(workbench, workspace):
-    _contribute_outputs(workbench, workspace)
-
-
-def find_context_items(workbench, which):
-    controller = workbench.get_plugin('psi.controller')
-    items = []
-    for output in controller._outputs.values():
-        if output._token is not None:
-            items.extend(output._token.get_context_items())
-    return items
-
-
-def find_items(workbench, which):
-    # TODO: I'm not a fan of this. It seems a bit hackish. For example, we
-    # should at least be able to add a "configurable" method to the group.
-    plugin = workbench.get_plugin('psi.controller')
-    if which == 'items':
-        return find_context_items(workbench, which)
-    groups = [ContextGroup(name=o.name, label=o.label) \
-              for o in plugin._outputs.values() if o.visible]
-    log.debug('Found {} outputs'.format(len(groups)))
-    return groups
-
-
-def find_actions(workbench, klass):
-    if klass is ExperimentState:
-        plugin = workbench.get_plugin('psi.controller')
-        return [ExperimentState(name=k) for k in plugin._outputs]
-    return []
+from .output_manifest import ToggleManifest, TriggerManifest
 
 
 def start_experiment(event):
@@ -68,25 +28,13 @@ def start_experiment(event):
     controller.start_experiment()
 
 
-enamldef BaseManifest(PSIManifest): manifest:
+enamldef BaseManifest(PluginManifest): manifest:
     '''
     Defines the core functionality that most controller plugins will share
     (start, stop, pause, apply/revert settings).
     '''
     id = 'psi.controller'
     factory = BasePlugin
-
-    Extension:
-        # Ensures that context group items are automatically created for the
-        # outputs.
-        id = 'automatic_context'
-        point = 'psi.context.items'
-        factory = find_items
-
-    Extension:
-        id = 'automatic_actions'
-        point = 'psi.controller.actions'
-        factory = find_actions
 
     ExtensionPoint:
         id = 'psi.controller.io'
@@ -127,73 +75,66 @@ enamldef BaseManifest(PSIManifest): manifest:
         Command:
             id = 'psi.controller.set_pause_ok'
             handler = rpc('psi.controller', 'set_pause_ok')
-        Command:
-            id = 'psi.controller.prepare_epoch_output'
-            handler = rpc('psi.controller', 'prepare_epoch_output')
-        Command:
-            id = 'psi.controller.start_epoch_output'
-            handler = rpc('psi.controller', 'start_epoch_output')
-        Command:
-            id = 'psi.controller.clear_epoch_output'
-            handler = rpc('psi.controller', 'clear_epoch_output')
 
     # Uses unicode symbols as icons for sake of simplicity.
     Extension:
         id = 'toolbar'
         rank = 1
         point = 'psi.experiment.toolbar'
-        Action:
-            text = u'\u27A4 Start'
-            tool_tip = 'Start experiment'
-            triggered ::
-                plugin = workbench.get_plugin('enaml.workbench.core')
-                plugin.invoke_command('psi.controller.start')
-            enabled << workbench.get_plugin('psi.controller').experiment_state \
-                == 'initialized'
-        Action:
-            text = u'\u23F9 Stop'
-            tool_tip = 'Stop experiment'
-            triggered ::
-                plugin = workbench.get_plugin('enaml.workbench.core')
-                plugin.invoke_command('psi.controller.stop')
-            enabled <<  workbench.get_plugin('psi.controller').experiment_state \
-                not in ('initialized', 'stopped')
-        Action:
-            separator = True
-        Action:
-            text << u'\u23E9 Resume' if checked else u'\u23F8 Pause'
-            checkable = True
-            enabled << workbench.get_plugin('psi.controller')._pause_ok
-            tool_tip << 'Resume' if checked else 'Pause'
-            toggled ::
-                plugin = workbench.get_plugin('enaml.workbench.core')
-                if checked:
-                    plugin.invoke_command('psi.controller.request_pause')
-                else:
-                    plugin.invoke_command('psi.controller.request_resume')
-        Action:
-            separator = True
 
-        # Apply/Revert logic should pass through the controller so we can
-        # ensure that the changes occur at the appropriate time in a trial
-        # (i.e., in between trials). 
-        Action:
-            text = 'Apply'
-            enabled << workbench.get_plugin('psi.context').changes_pending \
-                and not workbench.get_plugin('psi.controller')._apply_requested \
-                and workbench.get_plugin('psi.controller').experiment_state \
-                in ('running', 'paused')
-            triggered :: 
-                plugin = workbench.get_plugin('enaml.workbench.core')
-                plugin.invoke_command('psi.controller.request_apply')
-        Action:
-            text = 'Revert'
-            enabled << workbench.get_plugin('psi.context').changes_pending \
-                and workbench.get_plugin('psi.controller').experiment_state \
-                in ('running', 'paused')
-            triggered :: 
-                plugin = workbench.get_plugin('enaml.workbench.core')
-                plugin.invoke_command('psi.context.revert_changes')
+        ToolBar:
+            Action:
+                text = 'Start'
+                tool_tip = 'Start experiment'
+                triggered ::
+                    plugin = workbench.get_plugin('enaml.workbench.core')
+                    plugin.invoke_command('psi.controller.start')
+                enabled << workbench.get_plugin('psi.controller').experiment_state \
+                    == 'initialized'
+            Action:
+                text = 'Stop'
+                tool_tip = 'Stop experiment'
+                triggered ::
+                    plugin = workbench.get_plugin('enaml.workbench.core')
+                    plugin.invoke_command('psi.controller.stop')
+                enabled <<  workbench.get_plugin('psi.controller').experiment_state \
+                    not in ('initialized', 'stopped')
+            Action:
+                separator = True
+            Action:
+                text << 'Resume' if checked else 'Pause'
+                checkable = True
+                enabled << workbench.get_plugin('psi.controller')._pause_ok
+                tool_tip << 'Resume' if checked else 'Pause'
+                toggled ::
+                    plugin = workbench.get_plugin('enaml.workbench.core')
+                    if checked:
+                        plugin.invoke_command('psi.controller.request_pause')
+                    else:
+                        plugin.invoke_command('psi.controller.request_resume')
+            Action:
+                separator = True
+
+            # Apply/Revert logic should pass through the controller so we can
+            # ensure that the changes occur at the appropriate time in a trial
+            # (i.e., in between trials). 
+            Action:
+                text = 'Apply'
+                enabled << workbench.get_plugin('psi.context').changes_pending \
+                    and not workbench.get_plugin('psi.controller')._apply_requested \
+                    and workbench.get_plugin('psi.controller').experiment_state \
+                    in ('running', 'paused')
+                triggered :: 
+                    plugin = workbench.get_plugin('enaml.workbench.core')
+                    plugin.invoke_command('psi.controller.request_apply')
+            Action:
+                text = 'Revert'
+                enabled << workbench.get_plugin('psi.context').changes_pending \
+                    and workbench.get_plugin('psi.controller').experiment_state \
+                    in ('running', 'paused')
+                triggered :: 
+                    plugin = workbench.get_plugin('enaml.workbench.core')
+                    plugin.invoke_command('psi.context.revert_changes')
 
     Extension:
         id = 'base_menu'
@@ -201,6 +142,10 @@ enamldef BaseManifest(PSIManifest): manifest:
         MenuItem:
             path = '/equipment'
             label = 'Equipment'
+            after = 'configuration'
+        MenuItem:
+            path = '/equipment/output'
+            label = 'Outputs'
 
     Extension:
         id = 'base_actions'
@@ -219,29 +164,3 @@ enamldef BaseManifest(PSIManifest): manifest:
         ExperimentAction:
             event = 'experiment_end'
             command = 'psi.controller.stop_engines'
-
-    Extension:
-        id = 'base_workspace'
-        point = 'psi.experiment.workspace'
-        factory = contribute_to_workspace
-
-    Extension:
-        id = 'preferences'
-        point = 'psi.experiment.preferences'
-        Preferences:
-            name = 'controller_outputs'
-            get_preferences => (workbench):
-                plugin = workbench.get_plugin(manifest.id)
-                return dict((n, o._token_name) \
-                            for n, o in plugin._outputs.items())
-
-            set_preferences => (workbench, preferences):
-                plugin = workbench.get_plugin(manifest.id)
-                if preferences is None:
-                    return
-                for output_name, token_name in preferences.items():
-                    try:
-                        plugin.configure_output(output_name, token_name)
-                    except KeyError:
-                        m = 'Preference file contains {}, but not found'
-                        log.info(m.format(output_name))

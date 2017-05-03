@@ -1,7 +1,7 @@
 import logging
 log = logging.getLogger(__name__)
 
-from atom.api import ContainerList, Typed
+from atom.api import ContainerList, Typed, Unicode
 from enaml.workbench.api import Plugin
 
 import numpy as np
@@ -26,6 +26,8 @@ class DataPlugin(Plugin):
     trial_log = Typed(pd.DataFrame)
     event_log = Typed(pd.DataFrame)
 
+    base_path = Unicode()
+
     def start(self):
         self._refresh_sinks()
         self._refresh_plots()
@@ -37,19 +39,18 @@ class DataPlugin(Plugin):
         # the shadow copy but the live copy. What do we do?
         context = self.workbench.get_plugin('psi.context')
         context.observe('context_items', self._context_items_changed)
-        context.observe('_roving_items', self._context_items_changed)
 
     def stop(self):
         self._unbind_observers()
 
-    def _refresh_sinks(self):
+    def _refresh_sinks(self, event=None):
         sinks = []
         point = self.workbench.get_extension_point(SINK_POINT)
         for extension in point.extensions:
             sinks.extend(extension.get_children(Sink))
         self._sinks = sinks
 
-    def _refresh_plots(self):
+    def _refresh_plots(self, event=None):
         plots = []
         point = self.workbench.get_extension_point(PLOT_POINT)
         for extension in point.extensions:
@@ -70,13 +71,13 @@ class DataPlugin(Plugin):
 
     def _context_items_changed(self, items=None):
         context = self.workbench.get_plugin('psi.context')
-        self.context_info = context.get_context_info()
+        self.context_info = context.context_items.copy()
         for sink in self._sinks:
             sink.context_info_updated(self.context_info)
 
     def _prepare_trial_log(self):
         ci = self.context_info.items()
-        arrays = dict((k, np.array([], dtype=i['dtype'])) for k, i in ci)
+        arrays = dict((k, np.array([], dtype=i.dtype)) for k, i in ci)
         self.trial_log = pd.DataFrame(arrays)
 
     def _prepare_event_log(self):
@@ -128,6 +129,11 @@ class DataPlugin(Plugin):
     def set_current_time(self, name, timestamp):
         for sink in self._sinks:
             sink.set_current_time(name, timestamp)
+
+    def set_base_path(self, base_path):
+        self.base_path = base_path
+        for sink in self._sinks:
+            sink.set_base_path(base_path)
 
     def find_source(self, source_name):
         '''

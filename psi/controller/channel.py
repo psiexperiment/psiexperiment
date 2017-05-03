@@ -7,7 +7,7 @@ from atom.api import Unicode, Enum, Typed, Tuple, Property
 from enaml.core.api import Declarative, d_
 
 from .calibration import Calibration
-from .output import ContinuousOutput, EpochOutput
+from .output import ContinuousOutput, EpochOutput, NullOutput
 
 from psi import SimpleState
 
@@ -43,14 +43,9 @@ class Channel(SimpleState, Declarative):
         pass
 
 
-class AIChannel(Channel):
-
-    TERMINAL_MODES = 'pseudodifferential', 'differential', 'RSE', 'NRSE'
+class InputChannel(Channel):
 
     inputs = Property().tag(transient=True)
-    expected_range = d_(Tuple())
-    terminal_mode = d_(Enum(*TERMINAL_MODES))
-    terminal_coupling = d_(Enum(None, 'AC', 'DC', 'ground'))
 
     def _get_inputs(self):
         return self.children
@@ -61,22 +56,39 @@ class AIChannel(Channel):
             input.configure(plugin)
 
 
-class AOChannel(Channel):
+class OutputChannel(Channel):
+
+    outputs = Property().tag(transient=True)
+
+    def _get_outputs(self):
+        return self.children
+
+    def configure(self, plugin):
+        for output in self.outputs:
+            log.debug('Configuring output {}'.format(output.name))
+            output.configure(plugin)
+
+
+class AIChannel(InputChannel):
+
+    TERMINAL_MODES = 'pseudodifferential', 'differential', 'RSE', 'NRSE'
+    expected_range = d_(Tuple())
+    terminal_mode = d_(Enum(*TERMINAL_MODES))
+    terminal_coupling = d_(Enum(None, 'AC', 'DC', 'ground'))
+
+
+class AOChannel(OutputChannel):
     '''
     An analog output channel supports one continuous and multiple epoch
     outputs.
     '''
     TERMINAL_MODES = 'pseudodifferential', 'differential', 'RSE'
 
-    outputs = Property().tag(transient=True)
     epoch_outputs = Property().tag(transient=True)
     continuous_output = Property().tag(transient=True)
 
     expected_range = d_(Tuple())
     terminal_mode = d_(Enum(*TERMINAL_MODES))
-
-    def _get_outputs(self):
-        return self.children
 
     def _get_continuous_output(self):
         for o in self.outputs:
@@ -88,30 +100,16 @@ class AOChannel(Channel):
         return [o for o in self.outputs if isinstance(o, EpochOutput)]
 
     def configure(self, plugin):
-        for output in self.outputs:
-            log.debug('Configuring output {}'.format(output.name))
-            output.configure(plugin)
+        # Hack?
+        if self.continuous_output is None:
+            null_output = NullOutput()
+            null_output.target = self
+        super(AOChannel, self).configure(plugin)
 
 
-class DIChannel(Channel):
-
-    inputs = Property().tag(transient=True)
-
-    def _get_inputs(self):
-        return self.children
-
-    def configure(self, plugin):
-        for input in self.inputs:
-            input.configure(plugin)
+class DIChannel(InputChannel):
+    pass
 
 
 class DOChannel(Channel):
-
-    outputs = Property().tag(transient=True)
-
-    def _get_outputs(self):
-        return self.children
-
-    def configure(self, plugin):
-        for output in self.outputs:
-            output.configure(plugin)
+    pass

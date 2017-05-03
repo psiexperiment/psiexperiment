@@ -29,25 +29,85 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
     Extension:
         id = 'actions'
         point = 'psi.controller.actions'
+        rank = 100
+        
+        # Experiment-level actions
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'background.prepare'
 
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'pupil_camera.start'
+
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'behavior_camera.start'
+
+        ExperimentAction:
+            event = 'experiment_start'
+            command = 'room_light_toggle.on'
+
+        ExperimentAction:
+            event = 'experiment_end'
+            command = 'room_light_toggle.on'
+
+        ExperimentAction:
+            event = 'experiment_end'
+            command = 'pupil_camera.stop'
+
+        ExperimentAction:
+            event = 'experiment_end'
+            command = 'behavior_camera.stop'
+
+        # Trial-level actions
         ExperimentAction:
             # Since generating the token can be expensive in terms of
             # computation, prepare this in advance as soon as possible. 
             event = 'trial_prepare'
-            command = 'psi.controller.prepare_epoch_output'
-            kwargs = {'output_name': 'target'}
+            command = 'target.prepare'
 
         ExperimentAction:
             # The operations required to actually generate and upload the token
             # take some time, so we have to allow for a small delay.
             event = 'trial_start'
-            command = 'psi.controller.start_epoch_output'
-            kwargs = {'output_name': 'target', 'delay': 0.15}
+            command = 'target.start'
+            kwargs = {'delay': 0.25}
+            #concurrent = True
+            weight = 0
+
+        # By the time this happens, the animal may already have pulled out of
+        # the nose-poke, so we are going to capture a series of images at
+        # various timeponits and see which one gives us the cleanest image..
+        ExperimentAction:
+            event = 'np_start'
+            command = 'pupil_camera.capture_image'
+            concurrent = True
+
+        ExperimentAction:
+            event = 'np_duration_elapsed'
+            command = 'pupil_camera.capture_image'
+            concurrent = True
 
         ExperimentAction:
             event = 'response_end'
-            command = 'psi.controller.clear_epoch_output'
-            kwargs = {'output_name': 'target', 'delay': 0.15}
+            command = 'target.clear'
+            kwargs = {'delay': 1}
+            #concurrent = True
+            weight = 0
+
+        ExperimentAction:
+            event = 'to_start'
+            command = 'room_light_toggle.off'
+
+        ExperimentAction:
+            event = 'to_end'
+            command = 'room_light_toggle.on'
+
+        ExperimentAction:
+            event = 'deliver_reward'
+            command = 'food_dispenser.dispense_pellet'
+
 
     Extension:
         id = 'io'

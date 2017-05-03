@@ -2,6 +2,9 @@ import pytest
 
 import enaml
 from enaml.workbench.api import Workbench
+from enaml.qt.qt_application import QtApplication
+
+app = QtApplication()
 
 
 with enaml.imports():
@@ -20,9 +23,10 @@ def workbench():
     workbench.register(TestManifest())
 
     context = workbench.get_plugin('psi.context')
-    context.rove_item('repetitions')
+    item = context.context_items['repetitions']
+    item.rove = True
     for r in (20, 15, 10, 2):
-        context.selectors['default'].add_setting(dict(repetitions=r))
+        context.selectors['default'].add_setting({item: r})
     return workbench
 
 
@@ -36,7 +40,6 @@ def test_eval(workbench):
         dict(repetitions=10, level=60, fc=32e3/10),
     ]
     context = workbench.get_plugin('psi.context')
-    print context.selectors['default'].settings
 
     # Ensure that we loop properly through the selector sequence
     context.apply_changes()
@@ -53,7 +56,7 @@ def test_eval(workbench):
     # Ensure that changes to expressions after apply_changes does not affect the
     # result.
     context.apply_changes()
-    context.context_items['fc'].expression = u'1e3'
+    context.context_items['fc'].expression = '1e3'
     for e in expected:
         context.next_setting('default', save_prior=False)
         assert e == context.get_values()
@@ -97,6 +100,7 @@ def test_update(workbench):
     context.revert_changes()
     assert context.changes_pending == False
 
-    context.selectors['default'].set_value(0, 'repetitions', '5')
+    item = context.context_items['repetitions']
+    context.selectors['default'].set_value(0, item, '5')
     assert context.changes_pending == True
-    assert context.selectors['default'].get_value(0, 'repetitions') == 5
+    assert context.selectors['default'].get_value(0, item) == 5

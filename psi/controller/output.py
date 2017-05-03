@@ -8,20 +8,20 @@ import numpy as np
 
 from atom.api import (Unicode, Enum, Typed, Property, Float, observe, Callable,
                       Int, Bool, Instance, Callable)
+
+import enaml
 from enaml.application import timed_call
 from enaml.core.api import Declarative, d_
 from enaml.workbench.api import Plugin, Extension
 from enaml.qt.QtCore import QTimer
 
+from .device import Device
 
-class Output(Declarative):
 
-    label = d_(Unicode())
-    name = d_(Unicode())
+class Output(Device):
+
     visible = d_(Bool(False))
 
-    # TODO: Allow the user to select which channel the output goes through from
-    # the GUI?
     target_name = d_(Unicode())
 
     channel = Property()
@@ -30,8 +30,8 @@ class Output(Declarative):
     fs = Property()
 
     # TODO: clean this up. it's sort of hackish.
-    _token_name = Unicode()
-    _token = Typed(Declarative)
+    token_name = d_(Unicode())
+    token = Typed(Declarative)
 
     def _observe_parent(self, event):
         self.target_name = event['value'].name
@@ -79,12 +79,12 @@ class AnalogOutput(Output):
         context = context.copy()
         context['fs'] = self.channel.fs
         context['calibration'] = self.channel.calibration
-        return self._token.initialize_factory(context)
+        return self.token.initialize_factory(context)
 
     def initialize_generator(self, context):
         factory = self.initialize_factory(context)
         generator = factory()
-        generator.next()
+        next(generator)
         return generator
 
 
@@ -100,9 +100,9 @@ class EpochCallback(object):
     def start(self, start, delay):
         self.offset = int((start+delay)*self.channel.fs)
         self.active = True
-        self.next()
+        next(self)
 
-    def next(self):
+    def __next__(self):
         if not self.active:
             raise StopIteration
         with self.engine.lock:
@@ -129,23 +129,24 @@ class EpochCallback(object):
 
 class EpochOutput(AnalogOutput):
 
+    manifest = __name__ + '_manifest.EpochOutputManifest'
+    
     method = Enum('merge', 'replace', 'multiply')
     _cb = Typed(object)
     _duration = Typed(object)
 
-    def initialize(self, plugin, context):
+    def setup(self, context):
         '''
         Set up the generator in preparation for producing the signal. This
         allows the generator to cache some potentially expensive computations
         in advance rather than just before we actually want the signal played.
         '''
-        # Load the context from the plugin if not provided already.
         generator = self.initialize_generator(context)
         cb = EpochCallback(self, generator)
         self._cb = cb
-        self._duration = self._token.get_duration(context)
+        self._duration = self.token.get_duration(context)
 
-    def start(self, plugin, start, delay):
+    def start(self, start, delay):
         '''
         Actually start the generator. It must have been initialized first.
         '''
@@ -153,10 +154,10 @@ class EpochOutput(AnalogOutput):
             m = '{} was not initialized'.format(self.name)
             raise SystemError(m)
         self._cb.start(start, delay)
-        self.engine.register_ao_callback(self._cb.next, self.channel.name)
+        self.engine.register_ao_callback(self._cb.__next__, self.channel.name)
         return self._duration
 
-    def clear(self, plugin, end, delay):
+    def clear(self, end, delay):
         self._cb.clear(end, delay)
 
     def configure(self, plugin):
@@ -180,13 +181,39 @@ def continuous_callback(output, generator):
 
 class ContinuousOutput(AnalogOutput):
 
-    def configure(self, plugin):
+    def setup(self, context):
         log.debug('Configuring continuous output {}'.format(self.name))
-        context = plugin.context.get_values()
         generator = self.initialize_generator(context)
         cb = continuous_callback(self, generator)
-        cb.next()
-        self.engine.register_ao_callback(cb.next, self.channel.name)
+        next(cb)
+        self.engine.register_ao_callback(cb.__next__, self.channel.name)
+
+    def load_manifest(self):
+        with enaml.imports():
+            from .output_manifest import ContinuousOutputManifest
+            return ContinuousOutputManifest(device=self)
+
+
+def null_callback(output):
+    offset = 0
+    engine = output.engine
+    channel = output.channel
+    while True:
+        yield
+        with engine.lock:
+            samples = engine.get_space_available(channel.name, offset)
+            waveform = np.zeros(samples)
+            engine.append_hw_ao(waveform)
+            offset += samples
+
+
+class NullOutput(AnalogOutput):
+    # Used in the event where a channel does not have a continuous output defined.
+
+    def configure(self, plugin):
+        cb = null_callback(self)
+        next(cb)
+        self.engine.register_ao_callback(cb.__next__, self.channel.name)
 
 
 class DigitalOutput(Output):
@@ -202,14 +229,30 @@ class Trigger(DigitalOutput):
     def fire(self):
         self.engine.fire_sw_do(self.channel.name, duration=self.duration)
 
+    def load_manifest(self):
+        with enaml.imports():
+            from .output_manifest import TriggerManifest
+            return TriggerManifest(device=self)
+
 
 class Toggle(DigitalOutput):
 
-    def _set_state(self, state):
-        self.engine.set_sw_do(self.channel.name, state)
+    state = Bool(False)
+
+    def _observe_state(self, event):
+        try:
+            # TODO: Fixme
+            self.engine.set_sw_do(self.channel.name, event['value'])
+        except:
+            pass
 
     def set_high(self):
-        self._set_state(1)
+        self.state = True
 
     def set_low(self):
-        self._set_state(0)
+        self.state = False
+
+    def load_manifest(self):
+        with enaml.imports():
+            from .output_manifest import ToggleManifest
+            return ToggleManifest(device=self)

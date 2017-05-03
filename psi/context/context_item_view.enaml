@@ -1,7 +1,7 @@
-from enaml.core.api import DynamicTemplate
+from enaml.core.api import DynamicTemplate, Looper
 from enaml.layout.api import hbox, spacer
 from enaml.widgets.api import (Container, Field, CheckBox, Label, HGroup,
-                               PushButton, FileDialogEx)
+                               PushButton, PopupView, Form)
 
 from .context_item import (Result, Parameter, EnumParameter, FileParameter,
                            BoolParameter)
@@ -17,7 +17,6 @@ enamldef WidgetDynamicTemplate(DynamicTemplate):
 template WidgetTemplate(context_item, MemberType):
     Field: widget:
         text := context_item.expression
-        tool_tip << context_item.name
 
 
 template WidgetTemplate(context_item, MemberType: EnumParameter):
@@ -41,7 +40,7 @@ template ContextItemTemplate(context_item, MemberType, scope):
         spacing = 0
         padding = 0
         Label: label:
-            text = context_item.label
+            text << context_item.label
         WidgetDynamicTemplate:
             pass
 
@@ -54,7 +53,7 @@ template ContextItemTemplate(context_item, MemberType, scope: 'experiment'):
             .experiment_state not in ('running', 'paused')
 
         Label: label:
-            text = context_item.label
+            text << context_item.label
         WidgetDynamicTemplate:
             pass
 
@@ -65,15 +64,9 @@ template ContextItemTemplate(context_item, MemberType, scope: 'trial'):
         padding = 0
         CheckBox: label:
             tool_tip << context_item.name
-            checked << context_item.name in \
-                workbench.get_plugin('psi.context').roving_items
-            toggled ::
-                context = workbench.get_plugin('psi.context')
-                if checked:
-                    context.rove_item(context_item.name)
-                else:
-                    context.unrove_item(context_item.name)
+            status_tip << context_item.name
             text << context_item.label
+            checked := context_item.rove
         WidgetDynamicTemplate:
             pass
 

@@ -1,0 +1,13 @@
+from atom.api import Property
+from psi.core.enaml.api import PSIManifest
+
+
+class DeviceManifest(PSIManifest):
+
+    device = Property()
+
+    def _get_device(self):
+        return self.contribution
+
+    def _set_device(self, value):
+        self.contribution = value

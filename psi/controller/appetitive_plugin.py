@@ -437,7 +437,7 @@ class AppetitivePlugin(BasePlugin):
                 self.trial_info['np_start'] = timestamp
 
     def start_event_timer(self, duration, event):
-        if isinstance(duration, basestring):
+        if isinstance(duration, str):
             duration = self.context.get_value(duration)
         log.info('Timer for {} with duration {}'.format(event, duration))
         callback = partial(self.handle_event, event)

@@ -3,20 +3,23 @@ log = logging.getLogger(__name__)
 
 from functools import partial
 import operator as op
+import threading
 
 import numpy as np
 
 from atom.api import Enum, Bool, Typed
 from enaml.application import timed_call
-from enaml.qt.QtCore import QTimer
+from enaml.qt.QtCore import QTimer, QThreadPool
 from enaml.workbench.plugin import Plugin
 
 from .channel import Channel, AOChannel
 from .engine import Engine
 from .output import Output
 from .input import Input
+from .device import Device
+
 from .experiment_action import (ExperimentAction, ExperimentEvent,
-                                ExperimentState)
+                                ExperimentState, QExperimentActionTask)
 from .output import ContinuousOutput, EpochOutput
 
 
@@ -68,6 +71,9 @@ class BasePlugin(Plugin):
     # Available inputs
     _inputs = Typed(dict, {})
 
+    # Available devices
+    _devices = Typed(dict, {})
+
     # This determines which engine is responsible for the clock
     _master_engine = Typed(Engine)
 
@@ -76,12 +82,14 @@ class BasePlugin(Plugin):
     _states = Typed(dict, {})
     _actions = Typed(list, {})
     _timers = Typed(dict, {})
+    _pool = Typed(object)
 
     def start(self):
         log.debug('Starting controller plugin')
         self._refresh_io()
         self._refresh_actions()
         self._bind_observers()
+        self._pool = QThreadPool.globalInstance()
         self.core = self.workbench.get_plugin('enaml.workbench.core')
         self.context = self.workbench.get_plugin('psi.context')
         self.data = self.workbench.get_plugin('psi.data')
@@ -107,10 +115,21 @@ class BasePlugin(Plugin):
         engines = {}
         outputs = {}
         inputs = {}
+        devices = {}
         master_engine = None
 
         point = self.workbench.get_extension_point(IO_POINT)
         for extension in point.extensions:
+            for device in extension.get_children(Device):
+                log.debug('Found device {}'.format(device.name))
+                devices[device.name] = device
+                manifest = device.load_manifest()
+                if manifest is not None:
+                    self.workbench.register(manifest)
+                else:
+                    m = 'No manifest defind for device {}'.format(device.name)
+                    log.warn(m)
+
             for engine in extension.get_children(Engine):
                 engines[engine.name] = engine
                 if engine.master_clock:
@@ -174,28 +193,12 @@ class BasePlugin(Plugin):
                 channel.engine = None
                 del channels[channel.name]
 
-        # Hack for channels that don't define a continuous output. TODO?
-        # Somehow find a better way to do this?
-        for channel in channels.values():
-            if isinstance(channel, AOChannel):
-                if channel.continuous_output is not None:
-                    break
-                else:
-                    plugin = self.workbench.get_plugin('psi.token')
-                    output = ContinuousOutput(name=channel.name + '_default_',
-                                              visible=False)
-                    t = plugin.generate_continuous_token('Silence',
-                                                         output.name,
-                                                         output.label)
-                    output._token = t
-                    output.target = channel
-                    outputs[output.name] = output
-
         self._master_engine = master_engine
         self._channels = channels
         self._engines = engines
         self._outputs = outputs
         self._inputs = inputs
+        self._devices = devices
 
         log.debug('Available inputs: {}'.format(inputs.keys()))
         log.debug('Available outputs: {}'.format(outputs.keys()))
@@ -210,13 +213,6 @@ class BasePlugin(Plugin):
             found_states = extension.get_children(ExperimentState)
             found_events = extension.get_children(ExperimentEvent)
             found_actions = extension.get_children(ExperimentAction)
-            if extension.factory is not None:
-                objs = extension.factory(self.workbench, ExperimentState)
-                found_states.extend(objs)
-                objs = extension.factory(self.workbench, ExperimentEvent)
-                found_events.extend(objs)
-                objs = extension.factory(self.workbench, ExperimentAction)
-                found_actions.extend(objs)
 
             for state in found_states:
                 if state.name in states:
@@ -243,7 +239,7 @@ class BasePlugin(Plugin):
         log.debug(' * Events: %r', self._events.keys())
         log.debug(' * Actions')
         for action in self._actions:
-            log.info('    - {} linked to {}' \
+            log.debug('    - {} linked to {}' \
                      .format(action.event, action.command))
 
     def configure_engines(self):
@@ -260,53 +256,8 @@ class BasePlugin(Plugin):
         for engine in self._engines.values():
             engine.stop()
 
-    def configure_output(self, output_name, token_name):
-        # Link the specified token to the output
-        log.debug('Setting {} to {}'.format(output_name, token_name))
-        output = self._outputs[output_name]
-        if output._token_name == token_name:
-            return
-
-        plugin = self.workbench.get_plugin('psi.token')
-        if isinstance(output, ContinuousOutput):
-            t = plugin.generate_continuous_token(token_name, output.name,
-                                                 output.label)
-        else:
-            t = plugin.generate_epoch_token(token_name, output.name,
-                                            output.label)
-        output._token = t
-        output._token_name = token_name
-        self.context._refresh_items()
-
     def get_output(self, output_name):
         return self._outputs[output_name]
-
-    def get_epoch_output(self, output_name):
-        output = self.get_output(output_name)
-        if not isinstance(output, EpochOutput):
-            m = 'Epoch output {} does not exist'
-            raise AttributeError(m.format(output_name))
-        return output
-
-    def prepare_epoch_output(self, output_name, context=None):
-        output = self.get_epoch_output(output_name)
-        if context is None:
-            context = self.context.get_values()
-        output.initialize(self, context)
-
-    def start_epoch_output(self, output_name, start=None, delay=0):
-        if start is None:
-            start = self.get_ts()
-        duration = self.get_epoch_output(output_name).start(self, start, delay)
-        self.invoke_actions('{}_start'.format(output_name), start+delay)
-        self.invoke_actions('{}_end'.format(output_name), start+delay+duration,
-                            delayed=True)
-
-    def clear_epoch_output(self, output_name, end=None, delay=0):
-        if end is None:
-            end = self.get_ts()
-        self.get_epoch_output(output_name).clear(self, end, delay)
-        self.invoke_actions('{}_end'.format(output_name), end+delay)
 
     def _get_action_context(self):
         context = {}
@@ -325,7 +276,7 @@ class BasePlugin(Plugin):
             if delay > 0:
                 cb = lambda: self._invoke_actions(event_name, timestamp)
                 self.start_timer(event_name, delay, cb)
-                return  
+                return
         self._invoke_actions(event_name, timestamp)
 
     def _invoke_actions(self, event_name, timestamp=None):
@@ -334,6 +285,8 @@ class BasePlugin(Plugin):
             params = {'event': event_name, 'timestamp': timestamp}
             self.core.invoke_command('psi.data.process_event', params)
 
+        # Load the state of all events so that we can determine which actions
+        # should be performed.
         log.debug('Triggering event {}'.format(event_name))
         with self._events[event_name]:
             context = self._get_action_context()
@@ -343,10 +296,31 @@ class BasePlugin(Plugin):
         # again. Should we wrap it in a deferred call?
         for action in self._actions:
             if action.match(context):
-                m = 'Invoking command {} with parameters {}'
-                log.debug(m.format(action.command, action.kwargs))
-                self.core.invoke_command(action.command,
-                                         parameters=action.kwargs)
+                self._invoke_action(action, event_name, timestamp)
+
+    def _invoke_action(self, action, event_name, timestamp):
+        # Add the event name and timestamp to the parameters passed to the
+        # command.
+        kwargs = action.kwargs.copy()
+        kwargs['timestamp'] = timestamp
+        kwargs['event'] = event_name
+        try:
+            if action.concurrent:
+                m = 'Invoking command {} with parameters {} in new thread'
+                log.debug(m.format(action.command, kwargs))
+                self._invoke_action_concurrent(action, kwargs)
+            else:
+                m = 'Invoking command {} with parameters {} in current thread'
+                log.debug(m.format(action.command, kwargs))
+                self.core.invoke_command(action.command, parameters=kwargs)
+        except ValueError as e:
+            log.warn(e)
+
+    def _invoke_action_concurrent(self, action, kwargs):
+        method = partial(self.core.invoke_command, action.command,
+                         parameters=kwargs)
+        task = QExperimentActionTask(method)
+        self._pool.start(task)
 
     def request_apply(self):
         if not self.apply_changes():
@@ -397,6 +371,7 @@ class BasePlugin(Plugin):
         self._pause_ok = value
 
     def start_timer(self, name, duration, callback):
+        log.debug('Starting timer {}'.format(name))
         timer = QTimer()
         timer.timeout.connect(callback)
         timer.setSingleShot(True)

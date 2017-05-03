@@ -150,22 +150,22 @@ class Engine(SimpleState, Declarative):
     def get_epoch_offset(self):
         pass
 
-    def register_ao_callback(self, callback):
+    def register_ao_callback(self, callback, channel_name):
         raise NotImplementedError
 
-    def register_ai_callback(self, callback):
+    def register_ai_callback(self, callback, channel_name):
         raise NotImplementedError
 
-    def register_et_callback(self, callback):
+    def register_et_callback(self, callback, channel_name):
         raise NotImplementedError
 
-    def unregister_ao_callback(self, callback):
+    def unregister_ao_callback(self, callback, channel_name):
         raise NotImplementedError
 
-    def unregister_ai_callback(self, callback):
+    def unregister_ai_callback(self, callback, channel_name):
         raise NotImplementedError
 
-    def unregister_et_callback(self, callback):
+    def unregister_et_callback(self, callback, channel_name):
         raise NotImplementedError
 
     def start(self):

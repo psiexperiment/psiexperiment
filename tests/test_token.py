@@ -58,7 +58,7 @@ def test_token_generation(tone_token, tone_context):
 
 def test_queue_generation(tone_token, tone_context):
     def notifier(self, key, index):
-        print key, index
+        print(key, index)
 
     queue = InterleavedFIFOSignalQueue(notifier=notifier)
 

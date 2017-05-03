@@ -13,8 +13,14 @@ from atom.api import (Typed, set_default, observe, Value, Event, Property,
 from enaml.core.declarative import d_, d_func
 from enaml.widgets.api import RawWidget
 from enaml.qt.QtCore import QAbstractTableModel, QModelIndex, Qt
-from enaml.qt.QtGui import (
-    QTableView, QHeaderView, QAbstractItemView, QFont, QColor)
+#from enaml.qt.QtWidgets import QTableView, QHeaderView, QAbstractItemView
+
+# Note that this is a bit of a hack to work with Qt4 until we can get rid of
+# the Traits/Chaco ecosystem.
+from enaml.qt.QtWidgets import QTableView, QHeaderView, QAbstractItemView
+
+# Ok to do here
+from enaml.qt.QtGui import QFont, QColor
 
 
 class QDataFrameTableModel(QAbstractTableModel):
@@ -34,7 +40,7 @@ class QDataFrameTableModel(QAbstractTableModel):
         elif role == Qt.DisplayRole:
             if orientation == Qt.Horizontal:
                 c = self._columns[section]
-                return self._column_info[c]['compact_label']
+                return self._column_info[c]
             else:
                 return str(section+1)
 
@@ -88,16 +94,26 @@ class QDataFrameTableView(QTableView):
     def _setup_headers(self):
         self.vheader = QHeaderView(Qt.Vertical)
         self.setVerticalHeader(self.vheader)
-        self.vheader.setResizeMode(QHeaderView.Fixed)
+        self.vheader.setSectionResizeMode(QHeaderView.Fixed)
         self.vheader.setDefaultSectionSize(20)
         self.hheader = self.horizontalHeader()
-        self.hheader.setMovable(True)
+        self.hheader.setSectionsMovable(True)
 
     def save_state(self):
-        return self.hheader.saveState()
+        columns = self.model._columns[:]
+        state = [None]*len(columns)
+        for i in range(len(columns)):
+            c = columns[i]
+            size = self.hheader.sectionSize(i)
+            j = self.hheader.visualIndex(i)
+            state[j] = {'column': c, 'size': size}
+        return state
 
     def set_state(self, state):
-        self.hheader.restoreState(state)
+        columns = []
+        for i, s in enumerate(state):
+            columns.append(s['column'])
+            self.setColumnWidth(i, s['size'])
 
 
 class DataframeTable(RawWidget):
@@ -105,7 +121,7 @@ class DataframeTable(RawWidget):
     dataframe = d_(Typed(pd.DataFrame))
     columns = d_(ContainerList())
     column_info = d_(Typed(dict))
-    column_state = Property()
+    state = Property()
 
     @d_func
     def cell_color(self, row, column):
@@ -156,8 +172,10 @@ class DataframeTable(RawWidget):
             table.scrollToBottom()
             table.update()
 
-    def _get_column_state(self):
+    def _get_state(self):
         return self.get_widget().save_state()
 
-    def _set_column_state(self, state):
+    def _set_state(self, state):
+        self.columns = [s['column'] for s in state]
         self.get_widget().set_state(state)
+        self._update_table()

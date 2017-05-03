@@ -1,6 +1,6 @@
-from __future__ import division
 
-from base_channel_plot import BaseChannelPlot
+
+from .base_channel_plot import BaseChannelPlot
 import numpy as np
 from traits.api import Bool, Property, cached_property, Int
 

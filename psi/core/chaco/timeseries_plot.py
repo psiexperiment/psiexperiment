@@ -2,7 +2,7 @@ import logging
 log = logging.getLogger(__name__)
 
 import numpy as np
-from channel_plot import ChannelPlot
+from .channel_plot import ChannelPlot
 from traits.api import Float, Instance, Str, on_trait_change
 
 

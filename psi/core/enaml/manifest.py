@@ -1,9 +1,18 @@
-from atom.api import List
-from enaml.core.api import d_
+from atom.api import Typed, Unicode, Property
+
 from enaml.workbench.api import PluginManifest
+
+from .contribution import PSIContribution
 
 
 class PSIManifest(PluginManifest):
 
-    supplements = d_(List())
-    requires = d_(List())
+    contribution = Typed(PSIContribution)
+    base_id = Unicode()
+    id = Property(cached=True)
+
+    def _get_id(self):
+        if self.base_id:
+            return str('.'.join((self.base_id, self.contribution.name)))
+        else:
+            return str(self.contribution.name)

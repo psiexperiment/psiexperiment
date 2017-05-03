@@ -19,7 +19,7 @@ def coroutine(func):
     '''Decorator to auto-start a coroutine.'''
     def start(*args, **kwargs):
         cr = func(*args, **kwargs)
-        cr.next()
+        next(cr)
         return cr
     return start
 
@@ -33,13 +33,13 @@ def broadcast(targets):
 
 
 @coroutine
-def accumulate(n, target):
+def accumulate_segments(n, axis, target):
     data = []
     while True:
-        d = (yield)[np.newaxis]
+        d = (yield)
         data.append(d)
         if len(data) == n:
-            data = np.concatenate(data)
+            data = np.concatenate(data, axis=axis)
             target(data)
             data = []
 
@@ -48,7 +48,7 @@ def accumulate(n, target):
 def iirfilter(N, Wn, rp, rs, btype, ftype, target):
     b, a = signal.iirfilter(N, Wn, rp, rs, btype, ftype=ftype)
     if np.any(np.abs(np.roots(a)) > 1):
-        raise ValueError, 'Unstable filter coefficients'
+        raise ValueError('Unstable filter coefficients')
     zf = signal.lfilter_zi(b, a)
     while True:
         y = (yield)
@@ -60,7 +60,7 @@ def iirfilter(N, Wn, rp, rs, btype, ftype, target):
 def decimate(q, target):
     b, a = signal.cheby1(4, 0.05, 0.8/q)
     if np.any(np.abs(np.roots(a)) > 1):
-        raise ValueError, 'Unstable filter coefficients'
+        raise ValueError('Unstable filter coefficients')
     zf = signal.lfilter_zi(b, a)
     y_remainder = np.array([])
     while True:
@@ -317,13 +317,14 @@ class IIRFilter(Input):
                          self.ftype, cb).send
 
 
-class Accumulate(Input):
+class AccumulateSegments(Input):
 
     n = d_(Int())
+    axis = d_(Int(-1))
 
     def configure_callback(self, plugin):
-        cb = super(Accumulate, self).configure_callback(plugin)
-        return accumulate(self.n, cb).send
+        cb = super(AccumulateSegments, self).configure_callback(plugin)
+        return accumulate_segments(self.n, self.axis, cb).send
 
 
 class Downsample(Input):

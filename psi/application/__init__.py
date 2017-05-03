@@ -42,19 +42,27 @@ def initialize_workbench(extra_manifests,
         from enaml.workbench.ui.ui_manifest import UIManifest
 
         from psi.context.manifest import ContextManifest
+        from psi.context.manifest import ContextViewManifest
         from psi.data.manifest import DataManifest
         from psi.experiment.manifest import ExperimentManifest
         from psi.token.manifest import TokenManifest
 
+    plugin_ids = []
+    def track_plugins(event):
+        plugin_ids.append(event['value'])
+
     workbench = Workbench()
+    workbench.observe('plugin_added', track_plugins)
+
     workbench.register(CoreManifest())
     workbench.register(UIManifest())
     workbench.register(ContextManifest())
+    workbench.register(ContextViewManifest())
     workbench.register(DataManifest())
     workbench.register(ExperimentManifest())
     workbench.register(TokenManifest())
 
     for manifest in extra_manifests:
-        workbench.register(manifest())
+        workbench.register(manifest)
 
-    return workbench
+    return workbench, plugin_ids

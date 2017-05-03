@@ -31,5 +31,8 @@ class Sink(Declarative):
     def set_current_time(self, name, timestamp):
         pass
 
+    def set_base_path(self, base_path):
+        pass
+
     def get_source(self, source_name):
         raise AttributeError

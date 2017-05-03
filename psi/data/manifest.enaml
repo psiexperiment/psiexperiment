@@ -1,10 +1,12 @@
 import enaml
 from enaml.application import deferred_call
 from enaml.layout.api import InsertItem
+from enaml.widgets.api import DockItem, Container
 from enaml.workbench.api import Extension, PluginManifest, ExtensionPoint
 from enaml.workbench.core.api import Command
 
 from psi.controller.api import ExperimentAction
+from psi.core.enaml.api import DataframeTable
 
 from .plugin import DataPlugin
 
@@ -42,6 +44,11 @@ def set_current_time(event):
     data.set_current_time(**event.parameters)
 
 
+def set_base_path(event):
+    data = event.workbench.get_plugin('psi.data')
+    data.set_base_path(**event.parameters)
+
+
 def contribute_to_workspace(workbench, workspace):
     with enaml.imports():
         from .plot_view import ChacoDockItem
@@ -57,6 +64,7 @@ def contribute_to_workspace(workbench, workspace):
 
 
 enamldef DataManifest(PluginManifest): manifest:
+
     id = PLUGIN_ID
     factory = DataPlugin
 
@@ -87,6 +95,9 @@ enamldef DataManifest(PluginManifest): manifest:
         Command:
             id = PLUGIN_ID + '.set_current_time'
             handler = set_current_time
+        Command:
+            id = PLUGIN_ID + '.set_base_path'
+            handler = set_base_path
 
     Extension:
         id = 'actions'
@@ -102,3 +113,19 @@ enamldef DataManifest(PluginManifest): manifest:
         id = 'workspace'
         point = 'psi.experiment.workspace'
         factory = contribute_to_workspace
+
+        DockItem:
+            attr plugin
+            name = 'event_log'
+            title = 'Event Log'
+            closable = True
+
+            Container:
+                DataframeTable:
+                    hug_width = 'weak'
+                    dataframe << plugin.event_log
+                    columns = ['timestamp', 'event']
+                    column_info = { 
+                        'timestamp': 'Time (sec)',
+                        'event': 'Event',
+                    }

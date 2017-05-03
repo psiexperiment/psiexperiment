@@ -1,22 +1,17 @@
-# TODO:
-# * Figure out how to add parameters that can only be evaluated once at the
-#   beginning of an experiment (e.g., for setting sampling rate, etc.). One way
-#   to do this would be to simply set a scope. By default, most parameters would
-#   fall in the `trial` scope (i.e., can be changed from trial to trial).
-#   However, experiment scope parameters would be frozen once the experiment
-#   begins. Do we also want to implement a block scope? Some experiments revolve
-#   around the concept of a trial block.
-# * Add in some sanity checks. For example, if we define `go_probability`, we do
-#   not want it to have an equation that depends on a rovable parameter. Is this
-#   worthwhile to implement?
-
 import numpy as np
 
 from enaml.core.declarative import Declarative, d_
 from atom.api import (Unicode, Typed, Value, Enum, List, Event, Property,
-                      observe)
+                      observe, Bool)
 
 from .. import SimpleState
+
+
+class ContextMeta(Declarative):
+
+    name = d_(Unicode())
+    label = d_(Unicode())
+    default_value = d_(Value())
 
 
 class ContextItem(SimpleState, Declarative):
@@ -28,23 +23,22 @@ class ContextItem(SimpleState, Declarative):
     name = d_(Unicode())
 
     # Long-format label for display in the GUI. Include units were applicable.
-    label = d_(Unicode())
+    label = d_(Unicode()).tag(preference=True)
 
     # Datatype of the value. Required for properly initializing some data
     # plugins (e.g., those that save data to a HDF5 file).
     dtype = d_(Unicode())
 
     # Name of the group to display the item under.
-    group = d_(Unicode()).tag(transient=True)
+    group = d_(Unicode())
 
     # Compact label where there is less space in the GUI (e.g., under a column
     # heading for example).
     compact_label = d_(Unicode())
 
-    # Attributes to compare to determine equality of two items.
-    _cmp_attrs = ['name']
-
     updated = Event()
+
+    meta = Typed(dict, {}).tag(transient=True)
 
     def _default_label(self):
         return self.name.capitalize()
@@ -52,13 +46,10 @@ class ContextItem(SimpleState, Declarative):
     def _default_compact_label(self):
         return self.label
 
-    def __eq__(self, other):
-        if not isinstance(other, self.__class__):
-            return False
-        for attr in self._cmp_attrs:
-            if getattr(self, attr) != getattr(other, attr):
-                return False
-        return True
+    def coerce_to_type(self, value):
+        coerce_function = np.dtype(self.dtype).type
+        value = coerce_function(value)
+        return np.asscalar(value)
 
 
 class Result(ContextItem):
@@ -79,10 +70,9 @@ class Parameter(ContextItem):
     a go trial).
     '''
     # Default value of the context item when used as part of a selector.
-    default = d_(Value())
+    default = d_(Value()).tag(preference=True)
 
-    # Expression used to determine value of item.
-    expression = d_(Unicode())
+    expression = d_(Unicode()).tag(preference=True)
 
     # Defines the span over which the item's value does not change:
     # * experiment - the value cannot change once the experiment begins
@@ -92,7 +82,8 @@ class Parameter(ContextItem):
     #   sense for it to be a roving item.
     scope = d_(Enum('trial', 'experiment', 'arbitrary'))
 
-    _cmp_attrs = ContextItem._cmp_attrs + ['expression']
+    # Is the value of this item managed by a selector?
+    rove = d_(Bool()).tag(preference=True)
 
     def _default_expression(self):
         return str(self.default)
@@ -100,25 +91,19 @@ class Parameter(ContextItem):
     def _default_dtype(self):
         return np.array(self.default).dtype.str
 
-    @observe('expression')
-    def _notify_update(self, event):
-        self.updated = event
-
 
 class EnumParameter(Parameter):
 
     expression = Property().tag(transient=True)
     choices = d_(Typed(dict))
     selected = d_(Unicode())
+    default = d_(Unicode())
 
     def _default_dtype(self):
         return np.array(self.choices.values()).dtype.str
 
     def _get_expression(self):
-        try:
-            return self.choices[self.selected]
-        except:
-            return None
+        return self.choices.get(self.selected, None)
 
     def _set_expression(self, expression):
         for k, v in self.choices.items():
@@ -130,9 +115,12 @@ class EnumParameter(Parameter):
                 m = 'Could not map expression {} to choice'.format(expression)
                 raise ValueError(m)
 
+    def _default_selected(self):
+        return self.default
+
     @observe('selected')
     def _notify_update(self, event):
-        self.updated = event
+        self.notify('expression', self.expression)
 
 
 class FileParameter(Parameter):

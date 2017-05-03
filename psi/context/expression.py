@@ -3,7 +3,7 @@ log = logging.getLogger(__name__)
 
 import ast
 
-from atom.api import Atom, Typed
+from atom.api import Atom, Typed, Value
 
 
 def _dict_to_expr(d):
@@ -13,7 +13,7 @@ def _dict_to_expr(d):
     for k, v in d.items():
         if not isinstance(v, Expr):
             log.trace('Processing {}: converting {} to expression'.format(k, v))
-            e[k] = Expr(unicode(v))
+            e[k] = Expr(str(v))
         else:
             e[k] = v
     return e
@@ -74,7 +74,7 @@ class _RecursiveAttrDict(dict):
         return _RecursiveAttrDict(other)
 
     def update(self, *args, **kwargs):
-        for k, v in dict(*args, **kwargs).iteritems():
+        for k, v in dict(*args, **kwargs).items():
             self[k] = v
 
     __setattr__ = __setitem__
@@ -103,7 +103,7 @@ class _FullNameGetter(ast.NodeVisitor):
 class Expr(object):
 
     def __init__(self, expression):
-        if not isinstance(expression, basestring):
+        if not isinstance(expression, str):
             raise ValueError('Expression must be a string')
         if not expression:
             raise ValueError('No value provided for expression')
@@ -123,7 +123,6 @@ class Expr(object):
 
 
 class ExpressionNamespace(Atom):
-
     # TODO - We make a copy of _locals, update the copy, then assign the copy
     # back to the class attribute. This ensures that the Enaml GUI is updated
     # properly. When signals are implemented in Enaml (hopefully by Enaml 1.0),
@@ -131,6 +130,8 @@ class ExpressionNamespace(Atom):
     _locals = Typed(_RecursiveAttrDict)
     _expressions = Typed(_RecursiveAttrDict)
     _globals = Typed(_RecursiveAttrDict)
+
+    values = Typed(Atom)
 
     def __init__(self, expressions=None, globals=None):
         self._expressions = _RecursiveAttrDict(_dict_to_expr(expressions))
@@ -143,7 +144,7 @@ class ExpressionNamespace(Atom):
     def update_symbols(self, symbols):
         self._globals.update(symbols)
 
-    def reset(self):
+    def reset(self, context_item_names=None):
         '''
         Clears the computed values (as well as any user-provided values) in
         preparation for the next cycle.

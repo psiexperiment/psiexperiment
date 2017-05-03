@@ -35,13 +35,13 @@ enamldef TableConfig(PopupView): popup:
                     else:
                         widget.columns.remove(loop_item[0])
             Label:
-                text = '{} | {}'.format(loop_item[1]['label'],
-                                        loop_item[1]['compact_label'])
+                text << '{} | {}'.format(loop_item[1].label,
+                                        loop_item[1].compact_label)
 
 
 enamldef TrialLogDockItem(DockItem):
 
-    attr data_plugin
+    attr data_plugin = workbench.get_plugin('psi.data')
     closable = False
 
     title_bar_right_clicked ::
@@ -52,9 +52,9 @@ enamldef TrialLogDockItem(DockItem):
     Container: main_container:
         DataframeTable: trial_log_table:
             name = 'trial_log_table'
-            hug_width = 'weak'
             dataframe << data_plugin.trial_log
-            column_info << data_plugin.context_info
+            column_info << {k: i.compact_label for \
+                            k, i in data_plugin.context_info.items()}
 
             cell_color => (row, column):
                 # TODO: A bit of a hack here ...
@@ -73,14 +73,7 @@ enamldef TrialLogDockItem(DockItem):
                 return 'white'
 
 
-def contribute_to_workspace(workbench, workspace):
-    plugin = workbench.get_plugin('psi.data')
-    item = TrialLogDockItem(workspace.dock_area, 
-                            data_plugin=plugin,
-                            name='trial_log', 
-                            title='Trial Log')
-    op = InsertItem(item=item.name, position='right')
-    deferred_call(workspace.dock_area.update_layout, op)
+from psi.context.context_item import ContextMeta
 
 
 enamldef TrialLogManifest(PluginManifest): manifest:
@@ -90,7 +83,9 @@ enamldef TrialLogManifest(PluginManifest): manifest:
     Extension:
         id = 'workspace'
         point = 'psi.experiment.workspace'
-        factory = contribute_to_workspace
+        TrialLogDockItem:
+            name = 'trial_log'
+            title = 'Trial Log'
 
     Extension:
         id = 'preferences'
@@ -98,4 +93,12 @@ enamldef TrialLogManifest(PluginManifest): manifest:
         UIPreferences:
             name = 'trial_log_table_columns'
             item_name = 'trial_log_table'
-            auto_save = ['columns', 'column_state']
+            auto_save = ['state']
+
+    Extension:
+        id = 'context'
+        point = 'psi.context.items'
+        ContextMeta:
+            name = 'trial_log'
+            label = 'Show in trial log?'
+            default_value = False
