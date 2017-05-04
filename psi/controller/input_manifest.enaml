@@ -1,0 +1,36 @@
+from atom.api import Property
+from enaml.core.api import Conditional
+from enaml.workbench.api import Extension
+
+from .device_manifest import DeviceManifest
+from .experiment_action import ExperimentEvent, ExperimentAction
+
+from psi.core.enaml.api import PSIManifest
+
+
+class _InputManifest(PSIManifest): 
+
+    input = Property()
+
+    def _get_input(self):
+        return self.contribution
+
+    def _set_input(self, value):
+        self.contribution = value
+
+
+enamldef InputManifest(_InputManifest): manifest:
+
+    Extension:
+        id = 'actions'
+        point = 'psi.controller.actions'
+
+        ExperimentEvent: event:
+            name = manifest.input.name + '_acquired'
+
+        Conditional:
+            condition << manifest.input.save
+            ExperimentAction:
+                event = event.name
+                command = 'psi.data.process_ai_' + manifest.input.mode
+                kwargs = {'name': manifest.input.name}

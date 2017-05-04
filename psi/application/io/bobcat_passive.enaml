@@ -15,6 +15,9 @@ from psi.controller.input import (Downsample, IIRFilter, Threshold, Edges,
 from psi.controller.calibration import GolayCalibration, FlatCalibration
 from psi.controller.calibration.util import db
 
+from psi.data.sinks.bcolz_store import BColzStore
+from psi.data.plots import (TimeContainer, ChannelPlot, TimeseriesPlot,
+                            ExtremesChannelPlot, FFTContainer, FFTChannelPlot)
 
 cal_root = get_config('CAL_ROOT')
 filename = os.path.join(cal_root, '161128 - Golay for training booth.cal')
@@ -25,6 +28,14 @@ enamldef IOManifest(PluginManifest): manifest:
     This defines the hardware connections that are specific to the LBHB Bobcat
     computer for the appetitive experiment.
     '''
+
+    Extension:
+        id = 'data'
+        point = 'psi.data.sinks'
+
+        BColzStore:
+            pass
+        
     Extension:
         id = 'backend'
         point = 'psi.controller.io'
@@ -32,9 +43,9 @@ enamldef IOManifest(PluginManifest): manifest:
         NIDAQEngine:
             name = 'NI'
             master_clock = True
-            
-            hw_ai_monitor_period = 1
-            hw_ao_monitor_period = 0.25
+
+            hw_ai_monitor_period = 0.01
+            hw_ao_monitor_period = 0.01
 
             AOChannel:
                 label = 'Speaker'
@@ -49,14 +60,13 @@ enamldef IOManifest(PluginManifest): manifest:
 
             AIChannel:
                 label = 'Microphone'
-                name = 'microphone'
+                name = 'microphone_input'
                 channel = 'Dev1/ai5'
                 start_trigger = 'ao/StartTrigger'
                 fs = 100e3
                 expected_range = (-10, 10)
                 dtype = np.dtype('float64')
                 terminal_mode = 'differential'
-                #calibration = FlatCalibration(db(28.92e-3))
                 calibration = FlatCalibration(db(10))
 
                 CalibratedInput:
@@ -67,3 +77,8 @@ enamldef IOManifest(PluginManifest): manifest:
                         N = 4
                         btype = 'bandpass'
                         name = 'microphone'
+                        save = True
+                        RMS:
+                            duration = 1
+                            SPL:
+                                name = 'noise_level'

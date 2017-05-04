@@ -3,82 +3,7 @@ log = logging.getLogger(__name__)
 
 import ast
 
-from atom.api import Atom, Typed, Value
-
-
-def _dict_to_expr(d):
-    if d is None:
-        return d
-    e = {}
-    for k, v in d.items():
-        if not isinstance(v, Expr):
-            log.trace('Processing {}: converting {} to expression'.format(k, v))
-            e[k] = Expr(str(v))
-        else:
-            e[k] = v
-    return e
-
-
-class _RecursiveAttrDict(dict):
-    '''
-    Dictionary that allows nesting and attribute-like access
-    '''
-    def __init__(self, items=None):
-        if items is not None:
-            if isinstance(items, dict):
-                for key, value in items.items():
-                    self.__setitem__(key, value)
-            else:
-                raise TypeError('expected dict')
-
-    def __getitem__(self, key):
-        if '.' in key:
-            initial, remainder = key.split('.', 1)
-            return self.__getitem__(initial)[remainder]
-        else:
-            return dict.__getitem__(self, key)
-
-    def __setitem__(self, key, value):
-        if '.' in key:
-            initial, remainder = key.split('.', 1)
-            target = self.setdefault(initial, _RecursiveAttrDict())
-            if not isinstance(target, _RecursiveAttrDict):
-                raise KeyError('Cannot set "{}" in "{}" ({})'
-                               .format(remainder, initial, repr(target)))
-            target[remainder] = value
-        else:
-            if isinstance(value, dict) and not \
-                    isinstance(value, _RecursiveAttrDict):
-                value = _RecursiveAttrDict(value)
-        dict.__setitem__(self, key, value)
-
-    def __contains__(self, key):
-        if '.' in key:
-            initial, remainder = key.split('.', 1)
-            if dict.__contains__(self, initial):
-                target = dict.__getitem__(self, initial)
-                if not isinstance(target, _RecursiveAttrDict):
-                    return False
-                return remainder in target
-            return False
-        else:
-            return dict.__contains__(self, key)
-
-    def setdefault(self, key, default):
-        if key not in self:
-            self[key] = default
-        return self[key]
-
-    def copy(self):
-        other = dict.copy(self)
-        return _RecursiveAttrDict(other)
-
-    def update(self, *args, **kwargs):
-        for k, v in dict(*args, **kwargs).items():
-            self[k] = v
-
-    __setattr__ = __setitem__
-    __getattr__ = __getitem__
+from atom.api import Atom, Typed
 
 
 class _FullNameGetter(ast.NodeVisitor):
@@ -123,23 +48,24 @@ class Expr(object):
 
 
 class ExpressionNamespace(Atom):
-    # TODO - We make a copy of _locals, update the copy, then assign the copy
-    # back to the class attribute. This ensures that the Enaml GUI is updated
-    # properly. When signals are implemented in Enaml (hopefully by Enaml 1.0),
-    # we will be able to get rid of this hack.
-    _locals = Typed(_RecursiveAttrDict)
-    _expressions = Typed(_RecursiveAttrDict)
-    _globals = Typed(_RecursiveAttrDict)
-
-    values = Typed(Atom)
+    _locals = Typed(dict, {})
+    _expressions = Typed(dict, {})
+    _globals = Typed(dict, {})
 
     def __init__(self, expressions=None, globals=None):
-        self._expressions = _RecursiveAttrDict(_dict_to_expr(expressions))
-        self._globals = _RecursiveAttrDict(globals)
-        self._locals = _RecursiveAttrDict()
+        #self._expressions = _RecursiveAttrDict(_dict_to_expr(expressions))
+        #self._globals = _RecursiveAttrDict(globals)
+        #self._locals = _RecursiveAttrDict()
+        if globals is None:
+            globals = {}
+        if expressions is None:
+            expressions = {}
+        self._locals = {}
+        self._globals = globals
+        self._expressions = {k: Expr(str(v)) for k, v in expressions.items()}
 
     def update_expressions(self, expressions):
-        self._expressions.update(_dict_to_expr(expressions))
+        self._expressions.update({k: Expr(str(v)) for k, v in expressions.items()})
 
     def update_symbols(self, symbols):
         self._globals.update(symbols)
@@ -149,7 +75,7 @@ class ExpressionNamespace(Atom):
         Clears the computed values (as well as any user-provided values) in
         preparation for the next cycle.
         '''
-        self._locals = _RecursiveAttrDict()
+        self._locals = {}
 
     def get_value(self, name, context=None):
         if name not in self._locals:

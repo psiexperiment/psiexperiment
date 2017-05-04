@@ -361,8 +361,8 @@ def tone_factory(fs, level, frequency, calibration):
         # rather than cache the result.
         kwargs = (yield waveform)
         samples = kwargs['samples']
-        t = np.arange(samples, dtype=np.float32)/fs + offset
-        waveform = np.cos(2*np.pi*t*frequency)
+        t = (np.arange(samples, dtype=np.float32) + offset)/fs
+        waveform = sf*np.cos(2*np.pi*t*frequency)
         offset += len(waveform)
 
 

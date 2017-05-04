@@ -1,0 +1,41 @@
+from enaml.widgets.api import DockItem, Container
+from enaml.workbench.api import Extension
+
+from psi.core.enaml.api import PSIManifest, DataframeTable
+from psi.experiment.preferences import ItemPreferences
+from ..sink import Sink
+
+
+class EventLog(Sink):
+    name = 'event_log'
+    title = 'Event log'
+    manifest = __name__ + '.EventLogManifest'
+
+
+enamldef EventLogManifest(PSIManifest): manifest:
+
+    Extension:
+        id = 'workspace'
+        point = 'psi.experiment.workspace'
+
+        DockItem:
+            closable = False
+            name << manifest.contribution.name
+            title << manifest.contribution.title
+
+            Container:
+                DataframeTable: event_log_table:
+                    dataframe << workbench.get_plugin('psi.data').event_log
+                    columns = ['timestamp', 'event']
+                    column_info = { 
+                        'timestamp': 'Time (sec)',
+                        'event': 'Event',
+                    }
+
+    Extension:
+        id = 'preferences'
+        point = 'psi.experiment.preferences'
+        ItemPreferences:
+            item << event_log_table
+            name << manifest.contribution.name
+            auto_save = ['state']

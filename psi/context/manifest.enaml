@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 import pickle
 import os.path
 from copy import deepcopy
@@ -23,7 +26,7 @@ from .context_item import Parameter
 from .context_view import ContextDockItem, CurrentValuesDockItem
 from .selector_view import SequenceDockItem
 
-from ..util import rpc
+from ..util import rpc, get_tagged_values
 from .. import get_config
 
 
@@ -35,24 +38,18 @@ def changes_pending(event):
     return plugin.changes_pending
 
 
-
 def apply_changes(event):
     context = event.workbench.get_plugin(PLUGIN_ID)
     context.apply_changes()
 
 
 def revert_changes(event):
-    # Force a refresh of the workspace to load the new context
     context = event.workbench.get_plugin(PLUGIN_ID)
     context.revert_changes()
 
 
 def get_preferences(obj):
-    state = {}
-    for k, v in obj.members().items():
-        if v.metadata and v.metadata.get('preference', False):
-            state[k] = getattr(obj, k)
-    return state
+    return get_tagged_values(obj, 'preference')
     
     
 enamldef ContextManifest(PluginManifest): manifest:
@@ -122,11 +119,6 @@ enamldef ContextManifest(PluginManifest): manifest:
             command = 'psi.context.apply_changes'
             weight = 10
 
-    #Extension:
-    #    id = 'workspace'
-    #    point = 'psi.experiment.workspace'
-    #    factory = contribute_to_workspace
-
     Extension:
         id = 'preferences'
         point = 'psi.experiment.preferences'
@@ -155,11 +147,13 @@ enamldef ContextManifest(PluginManifest): manifest:
                 parameter_state = preferences['parameters']
                 selector_state = preferences['selectors']
 
+                log.debug('Setting context item states')
                 for item in plugin.context_items.values():
                     group_state = parameter_state.get(item.group, {})
                     state = group_state.get(item.name, {})
                     item.__setstate__(state)
 
+                log.debug('Setting selector states')
                 for selector in plugin.selectors.values():
                     state = selector_state.get(selector.name, {})
                     selector.__setstate__(state)

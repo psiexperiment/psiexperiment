@@ -5,11 +5,16 @@
 # TODO - make this faster for simple row append. Do not redraw the entire
 # dataframe on each iteration. For now, it's fast enough.
 
+import logging
+log = logging.getLogger(__name__)
+
 import numpy as np
 import pandas as pd
 
 from atom.api import (Typed, set_default, observe, Value, Event, Property,
                       ContainerList)
+
+from enaml.application import deferred_call
 from enaml.core.declarative import d_, d_func
 from enaml.widgets.api import RawWidget
 from enaml.qt.QtCore import QAbstractTableModel, QModelIndex, Qt
@@ -40,7 +45,7 @@ class QDataFrameTableModel(QAbstractTableModel):
         elif role == Qt.DisplayRole:
             if orientation == Qt.Horizontal:
                 c = self._columns[section]
-                return self._column_info[c]
+                return self._column_info.get(c, 'UNDEFINED')
             else:
                 return str(section+1)
 
@@ -141,23 +146,23 @@ class DataframeTable(RawWidget):
 
     @observe('dataframe')
     def _dataframe_changed(self, change):
-        self._update_table()
+        deferred_call(self._update_table)
 
     def add_column(self, column_name):
         self.columns.append(column_name)
-        self._update_table()
+        deferred_call(self._update_table)
 
     def remove_column(self, column_name):
         self.columns.remove(column_name)
-        self._update_table()
+        deferred_call(self._update_table)
 
     @observe('columns')
     def _columns_changed(self, change):
-        self._update_table()
+        deferred_call(self._update_table)
 
     @observe('column_info')
     def _column_info_changed(self, change):
-        self._update_table()
+        deferred_call(self._update_table)
 
     def _update_table(self):
         if self.get_widget() is not None:
@@ -170,7 +175,7 @@ class DataframeTable(RawWidget):
             table.model = new_model
             table.setModel(new_model)
             table.scrollToBottom()
-            table.update()
+            deferred_call(table.update)
 
     def _get_state(self):
         return self.get_widget().save_state()

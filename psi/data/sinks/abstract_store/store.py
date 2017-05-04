@@ -2,7 +2,7 @@ import logging
 log = logging.getLogger(__name__)
 
 from atom.api import Bool, Typed
-from ..plugin import Sink
+from ...sink import Sink
 
 from .data_source import DataTable, EventDataTable, DataChannel
 

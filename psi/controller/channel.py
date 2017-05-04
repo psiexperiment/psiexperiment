@@ -9,29 +9,27 @@ from enaml.core.api import Declarative, d_
 from .calibration import Calibration
 from .output import ContinuousOutput, EpochOutput, NullOutput
 
-from psi import SimpleState
 
+class Channel(Declarative):
 
-class Channel(SimpleState, Declarative):
-
-    label = d_(Unicode())
+    label = d_(Unicode()).tag(metadata=True)
 
     # Device-specific channel identifier.
-    channel = d_(Unicode())
+    channel = d_(Unicode()).tag(metadata=True)
 
     # For software-timed channels, set sampling frequency to 0.
-    fs = d_(Typed(object))
+    fs = d_(Typed(object)).tag(metadata=True)
 
     # Can be blank for no start trigger (i.e., acquisition begins as soon as
     # task begins)
-    start_trigger = d_(Unicode())
+    start_trigger = d_(Unicode()).tag(metadata=True)
 
     # Used to properly configure data storage.
-    dtype = d_(Typed(np.dtype)).tag(transient=True)
+    dtype = d_(Typed(np.dtype))
 
-    engine = Property().tag(transient=True)
+    engine = Property()
 
-    calibration = d_(Typed(Calibration)).tag(transient=True)
+    calibration = d_(Typed(Calibration))
 
     def _get_engine(self):
         return self.parent
@@ -72,9 +70,9 @@ class OutputChannel(Channel):
 class AIChannel(InputChannel):
 
     TERMINAL_MODES = 'pseudodifferential', 'differential', 'RSE', 'NRSE'
-    expected_range = d_(Tuple())
-    terminal_mode = d_(Enum(*TERMINAL_MODES))
-    terminal_coupling = d_(Enum(None, 'AC', 'DC', 'ground'))
+    expected_range = d_(Tuple()).tag(metadata=True)
+    terminal_mode = d_(Enum(*TERMINAL_MODES)).tag(metadata=True)
+    terminal_coupling = d_(Enum(None, 'AC', 'DC', 'ground')).tag(metadata=True)
 
 
 class AOChannel(OutputChannel):
@@ -84,11 +82,11 @@ class AOChannel(OutputChannel):
     '''
     TERMINAL_MODES = 'pseudodifferential', 'differential', 'RSE'
 
-    epoch_outputs = Property().tag(transient=True)
-    continuous_output = Property().tag(transient=True)
+    epoch_outputs = Property()
+    continuous_output = Property()
 
-    expected_range = d_(Tuple())
-    terminal_mode = d_(Enum(*TERMINAL_MODES))
+    expected_range = d_(Tuple()).tag(metadata=True)
+    terminal_mode = d_(Enum(*TERMINAL_MODES)).tag(metadata=True)
 
     def _get_continuous_output(self):
         for o in self.outputs:

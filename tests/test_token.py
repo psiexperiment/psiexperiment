@@ -57,21 +57,29 @@ def test_token_generation(tone_token, tone_context):
 
 
 def test_queue_generation(tone_token, tone_context):
-    def notifier(self, key, index):
-        print(key, index)
+    queue = InterleavedFIFOSignalQueue()
 
-    queue = InterleavedFIFOSignalQueue(notifier=notifier)
-
+    fs = tone_context['fs']
+    iti_samples = int(fs*0.1)
     tone_context['target_tone_burst_rise_time'] = 0.25
+    tone_context['target_tone_burst_duration'] = 1
     factory = tone_token.initialize_factory(tone_context)
-    queue.append(factory, 2, 10000)
+    queue.append(factory, 1, iti_samples)
 
-    tone_context['target_tone_level'] = -3
+    tone_context['target_tone_burst_duration'] = 2
     factory = tone_token.initialize_factory(tone_context)
-    queue.append(factory, 2, 10000)
+    queue.append(factory, 2, iti_samples+13)
 
-    waveform, empty = queue.pop_buffer(1000e3)
+    w, empty = queue.pop_buffer(50e3)
+    waveforms = [w]
+    while not empty:
+        w, empty = queue.pop_buffer(10e3)
+        waveforms.append(w)
 
     import pylab as pl
-    pl.plot(waveform)
+    offset = 0
+    for w in waveforms:
+        i = np.arange(len(w)) + offset
+        pl.plot(i, w)
+        offset += len(w)
     pl.show()

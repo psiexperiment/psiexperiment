@@ -1,12 +1,11 @@
+import logging
+log = logging.getLogger(__name__)
+
 import enaml
-from enaml.application import deferred_call
-from enaml.layout.api import InsertItem
-from enaml.widgets.api import DockItem, Container
 from enaml.workbench.api import Extension, PluginManifest, ExtensionPoint
 from enaml.workbench.core.api import Command
 
 from psi.controller.api import ExperimentAction
-from psi.core.enaml.api import DataframeTable
 
 from .plugin import DataPlugin
 
@@ -14,9 +13,9 @@ from .plugin import DataPlugin
 PLUGIN_ID = 'psi.data'
 
 
-def process_trial(event):
+def process_trials(event):
     plugin = event.workbench.get_plugin(PLUGIN_ID)
-    return plugin.process_trial(**event.parameters)
+    return plugin.process_trials(**event.parameters)
 
 
 def process_event(event):
@@ -24,9 +23,20 @@ def process_event(event):
     return plugin.process_event(**event.parameters)
 
 
-def process_ai(event):
+def process_ai_continuous(event):
     plugin = event.workbench.get_plugin(PLUGIN_ID)
-    return plugin.process_ai(**event.parameters)
+    return plugin.process_ai_continuous(**event.parameters)
+
+
+def process_ai_epochs(event):
+    plugin = event.workbench.get_plugin(PLUGIN_ID)
+    return plugin.process_ai_epochs(**event.parameters)
+
+
+def process_ai_events(event):
+    #log.warn('PROCESS AI EVENTS NOT IMPLEMENTED')
+    # TODO:  implement this!
+    pass
 
 
 def prepare(event):
@@ -49,27 +59,13 @@ def set_base_path(event):
     data.set_base_path(**event.parameters)
 
 
-def contribute_to_workspace(workbench, workspace):
-    with enaml.imports():
-        from .plot_view import ChacoDockItem
-    plugin = workbench.get_plugin(PLUGIN_ID)
-    for plot in plugin._plots:
-        item = ChacoDockItem(workspace.dock_area, 
-                             plugin=plugin,
-                             container_name=plot.name, 
-                             name=plot.name,
-                             title=plot.title)
-        op = InsertItem(item=item.name, position='right')
-        deferred_call(workspace.dock_area.update_layout, op)
-
-
 enamldef DataManifest(PluginManifest): manifest:
 
     id = PLUGIN_ID
     factory = DataPlugin
 
     ExtensionPoint:
-        id = 'sink'
+        id = 'sinks'
 
     ExtensionPoint:
         id = 'plots'
@@ -78,14 +74,20 @@ enamldef DataManifest(PluginManifest): manifest:
         id = 'commands'
         point = 'enaml.workbench.core.commands'
         Command:
-            id = PLUGIN_ID + '.process_trial'
-            handler = process_trial
+            id = PLUGIN_ID + '.process_trials'
+            handler = process_trials
         Command:
             id = PLUGIN_ID + '.process_event'
             handler = process_event
         Command:
-            id = PLUGIN_ID + '.process_ai'
-            handler = process_ai
+            id = PLUGIN_ID + '.process_ai_continuous'
+            handler = process_ai_continuous
+        Command:
+            id = PLUGIN_ID + '.process_ai_epochs'
+            handler = process_ai_epochs
+        Command:
+            id = PLUGIN_ID + '.process_ai_events'
+            handler = process_ai_events
         Command:
             id = PLUGIN_ID + '.prepare'
             handler = prepare
@@ -108,24 +110,3 @@ enamldef DataManifest(PluginManifest): manifest:
         ExperimentAction:
             event = 'experiment_end'
             command = 'psi.data.finalize'
-
-    Extension:
-        id = 'workspace'
-        point = 'psi.experiment.workspace'
-        factory = contribute_to_workspace
-
-        DockItem:
-            attr plugin
-            name = 'event_log'
-            title = 'Event Log'
-            closable = True
-
-            Container:
-                DataframeTable:
-                    hug_width = 'weak'
-                    dataframe << plugin.event_log
-                    columns = ['timestamp', 'event']
-                    column_info = { 
-                        'timestamp': 'Time (sec)',
-                        'event': 'Event',
-                    }

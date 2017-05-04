@@ -11,13 +11,13 @@ from psi.controller.api import (AIChannel, AOChannel, ExperimentAction,
 
 from psi.controller.input import (Downsample, IIRFilter, Threshold, Edges,
                                   CalibratedInput, RMS, SPL,
-                                  AccumulateSegments)
+                                  Accumulate, Blocked)
 
 from psi.controller.calibration import GolayCalibration, FlatCalibration
 from psi.controller.calibration.util import db
-
 from psi.controller.devices.opencv_camera import OpenCVCamera
 from psi.controller.devices.pellet_dispenser import PelletDispenser
+from psi.data.sinks.bcolz_store import BColzStore
 
 
 cal_root = get_config('CAL_ROOT')
@@ -29,6 +29,14 @@ enamldef IOManifest(PluginManifest): manifest:
     This defines the hardware connections that are specific to the LBHB Bobcat
     computer for the appetitive experiment.
     '''
+
+    Extension:
+        id = 'data'
+        point = 'psi.data.sinks'
+
+        BColzStore:
+            pass
+
     Extension:
         id = 'backend'
         point = 'psi.controller.io'
@@ -114,20 +122,24 @@ enamldef IOManifest(PluginManifest): manifest:
                 terminal_mode = 'differential'
                 calibration = FlatCalibration(db(10))
 
-                AccumulateSegments:
-                    n = 50
-                    CalibratedInput:
-                        IIRFilter:
-                            f_highpass = 1000
-                            f_lowpass = 40000
-                            ftype = 'butter'
-                            N = 4
-                            btype = 'bandpass'
-                            name = 'microphone'
-                            RMS:
-                                duration = 1
-                                SPL:
-                                    name = 'noise_level'
+                Blocked:
+                    duration = 0.01
+                    Accumulate:
+                        n = 50
+                        CalibratedInput:
+                            IIRFilter:
+                                f_highpass = 1000
+                                f_lowpass = 40000
+                                ftype = 'butter'
+                                N = 4
+                                btype = 'bandpass'
+                                name = 'microphone'
+                                save = True
+                                RMS:
+                                    duration = 1
+                                    SPL:
+                                        save = True
+                                        name = 'noise_level'
 
             AIChannel:
                 label = 'Nose poke IR'
@@ -147,10 +159,12 @@ enamldef IOManifest(PluginManifest): manifest:
                     Downsample:
                         # effective Fs is 100
                         name = 'nose_poke_analog'
+                        save = True
                         q = 1000
                         Threshold:
                             threshold = 2.5
                             Edges:
+                                save = True
                                 debounce = 2
                                 name = 'nose_poke'
 
@@ -171,9 +185,11 @@ enamldef IOManifest(PluginManifest): manifest:
                     N = 1
                     Downsample:
                         name = 'reward_contact_analog'
+                        save = True
                         q = 1000
                         Threshold:
                             threshold = 2.5
                             Edges:
+                                save = True
                                 debounce = 2
                                 name = 'reward_contact'

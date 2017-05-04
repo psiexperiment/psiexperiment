@@ -6,7 +6,7 @@ import operator
 import collections
 from copy import deepcopy
 
-from atom.api import ContainerList, Typed, Enum, Event, Bool
+from atom.api import ContainerList, Typed, Enum, Event, Bool, Property
 from enaml.core.declarative import Declarative, d_
 
 from . import choice
@@ -17,6 +17,25 @@ class BaseSelector(SimpleState, Declarative):
 
     context_items = Typed(list, []).tag(transient=True)
     updated = Event().tag(transient=True)
+
+    context_item_order = Property().tag(preference=True)
+
+    def _get_context_item_order(self):
+        return [i.name for i in self.context_items]
+
+    def _set_context_item_order(self, order):
+        old_items = self.context_items[:]
+        new_items = []
+        for name in order:
+            for item in old_items[:]:
+                if item.name == name:
+                    new_items.append(item)
+                    old_items.remove(item)
+
+        # Be sure to tack on any old items that were not saved to the ordering
+        # in the preferences file.
+        new_items.extend(old_items)
+        self.context_items = new_items
 
     def append_item(self, item):
         context_items = self.context_items[:]
@@ -36,7 +55,7 @@ class SingleSetting(BaseSelector):
     setting = Typed(dict, ()).tag(preference=True)
 
     def append_item(self, item):
-        if item not in self.setting:
+        if item.name not in self.setting:
             self.setting[item.name] = item.default
         super(SingleSetting, self).append_item(item)
 
@@ -64,7 +83,7 @@ class SequenceSelector(BaseSelector):
         if values is None:
             values = {}
         for item in self.context_items:
-            if item not in values:
+            if item.name not in values:
                 values[item.name] = item.default
         settings = self.settings[:]
         settings.append(values)

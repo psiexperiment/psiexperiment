@@ -68,7 +68,7 @@ class ContextPlugin(Plugin):
         point = self.workbench.get_extension_point(SYMBOLS_POINT)
         for extension in point.extensions:
             for symbol in extension.get_children(Symbol):
-                symbols[symbol.name] = symbol.get_object()
+                symbols[symbol.name] = symbol.get_object() 
         self.symbols = symbols
 
     def _refresh_items(self, event=None):
@@ -154,8 +154,10 @@ class ContextPlugin(Plugin):
 
     def _observe_item_rove(self, event):
         if event['value']:
+            log.debug('Roving {}'.format(event['object'].name))
             self.rove_item(event['object'])
         else:
+            log.debug('Unroving {}'.format(event['object'].name))
             self.unrove_item(event['object'])
 
     @observe('selectors')
@@ -181,6 +183,7 @@ class ContextPlugin(Plugin):
         selector = self.selectors[iterator].get_iterator(cycles=cycles)
         for expressions in selector:
             self._namespace.reset()
+            expressions = {i.name: e for i, e in expressions.items()}
             self._namespace.update_expressions(expressions)
             yield self.get_values()
 
@@ -278,6 +281,9 @@ class ContextPlugin(Plugin):
 
     def _check_for_changes(self):
         for name, state in self._context_item_state.items():
+            if name not in self.context_items:
+                self.changes_pending = True
+                return
             item = self.context_items[name] 
             if (item.rove, item.expression) != state:
                 self.changes_pending = True

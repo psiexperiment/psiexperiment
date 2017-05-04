@@ -10,117 +10,58 @@ from enaml.workbench.core.api import Command
 from psi.context.api import ContextGroup, Parameter, SequenceSelector
 from psi.controller.api import EpochOutput, ExperimentAction
 
+from psi.controller.output import QueuedEpochOutput
+from psi.controller.input import ExtractEpochs, Input, Threshold, ITI, Edges
+
 from .base_manifest import BaseManifest
 from .base_plugin import BasePlugin
-from .queue import AbstractSignalQueue, FIFOSignalQueue
+
+from .queue import InterleavedFIFOSignalQueue
 
 from psi.data.plots import (TimeContainer, ChannelPlot, TimeseriesPlot,
                             ExtremesChannelPlot, FFTContainer, FFTChannelPlot)
 
 import time
 
-
-def queue_trials(event):
-    plugin = event.workbench.get_plugin('psi.controller')
-    plugin.queue_trials()
+from psi.data.sinks.epoch_average import EpochAverage
 
 
-def queue_callback(output, queue):
-    offset = 0
-    engine = output.engine
-    channel = output.channel
-    while True:
-        yield
-        samples = engine.get_buffered_samples(channel.name, offset)
-        log.debug('Generating {} samples from queue'.format(samples))
-        waveform, empty = queue.pop_buffer(samples)
-        engine.modify_hw_ao(waveform, offset, output.name)
-        offset += len(waveform)
-        if empty:
-            break
-
-
-class PassivePlugin(BasePlugin):
-
-    queues = Typed(dict)
-    setting_map = Typed(dict)
-
-    def queue_trials(self):
-        averages = self.context.get_value('averages')
-        iti_duration = self.context.get_value('iti_duration')
-        queues = {}
-        setting_map = {}
-        for output in self._outputs.values():
-            if isinstance(output, EpochOutput):
-                queue = FIFOSignalQueue(self.trial_uploaded)
-                queues[output] = queue
-                cb = queue_callback(output, queue)
-                cb.next()
-                output.engine.register_ao_callback(cb.next,
-                                                   output.channel.name)
-
-        for setting in self.context.iter_settings('default', 1):
-            #setting.pop('averages')
-            #setting.pop('iti_duration')
-            for output, queue in queues.iteritems():
-                factory = output.initialize_factory(setting)
-                key = queue.append(factory, averages, iti_duration)
-                setting_map[key] = output, setting
-
-        self.queues = queues
-        self.setting_map = setting_map
-
-    def trial_uploaded(self, key, samples):
-        deferred_call(self._trial_uploaded, key, samples)
-
-    def _trial_uploaded(self, key, samples):
-        output, setting = self.setting_map[key]
-        setting['start_time'] = samples/output.fs
-        parameters = {'results': setting}
-        self.core.invoke_command('psi.data.process_trial', parameters)
+def process_key(event):
+    core = event.workbench.get_plugin('enaml.workbench.core')
+    metadata = [e['metadata'] for e in event.parameters['data']]
+    parameters = {'results': metadata}
+    core.invoke_command('psi.data.process_trials', parameters)
 
 
 enamldef PassiveManifest(BaseManifest): manifest:
-
-    factory = PassivePlugin
-
-    Extension:
-        id = 'new_commands'
-        point = 'enaml.workbench.core.commands'
-        Command:
-            id = 'psi.controller.queue_trials'
-            handler = queue_trials
-
-    Extension:
-        id = 'items'
-        point = 'psi.context.items'
-
-        ContextGroup:
-            name = 'trial'
-            label = 'Trial'
-
-        Parameter:
-            name = 'iti_duration'
-            label = 'Intertrial interval (s)'
-            compact_label = 'ITI'
-            default = 0.1
-            group = 'trial'
-
-        Parameter:
-            name = 'averages'
-            compact_label = 'N'
-            default = 1
-            group = 'trial'
-            scope = 'experiment'
 
     Extension:
         id = 'io'
         point = 'psi.controller.io'
 
-        EpochOutput:
+        QueuedEpochOutput: output:
             name = 'target'
             label = 'Target'
             target_name = 'speaker'
+            selector_name = 'default'
+            queue = InterleavedFIFOSignalQueue()
+            auto_decrement = False
+
+        ExtractEpochs:
+            save = True
+            name = 'erp'
+            buffer_size = 5
+            epoch_size = 8.5e-3
+            queue = output.queue
+            source_name = 'microphone'
+
+        Threshold:
+            source_name = 'microphone'
+            threshold = 0.1
+            Edges:
+                debounce = 50
+                ITI:
+                    pass
 
     Extension:
         id = 'selectors'
@@ -129,12 +70,36 @@ enamldef PassiveManifest(BaseManifest): manifest:
             name = 'default'
 
     Extension:
+        id = 'passive_commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = 'psi.controller.process_key'
+            handler = process_key
+
+    Extension:
         id = 'actions'
         point = 'psi.controller.actions'
         rank = 100
+
         ExperimentAction:
             event = 'experiment_prepare'
-            command = 'psi.controller.queue_trials'
+            command = 'target.prepare_queue'
+        ExperimentAction:
+            event = 'erp_acquired'
+            command = 'psi.controller.process_key'
+        ExperimentAction:
+            event = 'erp_acquired'
+            command = 'target.decrement_key'
+        ExperimentAction:
+            event = 'target_complete'
+            command = 'psi.controller.stop'
+
+    Extension:
+        id = 'sink'
+        point = 'psi.data.sinks'
+
+        EpochAverage:
+            pass
 
     Extension:
         id = 'plots'
@@ -158,9 +123,9 @@ enamldef PassiveManifest(BaseManifest): manifest:
             name = 'trial_plot_container' 
             title = 'Trial timing'
             trig_delay = 0
-            span = 20
+            span = 2.5
 
             ExtremesChannelPlot:
                source = 'microphone'
                line_color = (0, 0, 0)
-               value_range = (-1, 1)
+               value_range = (-0.5, 0.5)

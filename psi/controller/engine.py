@@ -10,26 +10,25 @@ from atom.api import (Unicode, Float, Bool, observe, Property, Int, Typed,
 from enaml.core.api import Declarative, d_
 
 from .channel import Channel, AIChannel, AOChannel, DIChannel, DOChannel
-from psi import SimpleState
 
 
-class Engine(SimpleState, Declarative):
+class Engine(Declarative):
 
-    name = d_(Unicode())
-    master_clock = d_(Bool(False))
+    name = d_(Unicode()).tag(metadata=True)
+    master_clock = d_(Bool(False)).tag(metadata=True)
     lock = Value()
 
-    hw_ao_buffer_samples = Long().tag(transient=True)
-    hw_ao_buffer_offset = Long().tag(transient=True)
-    hw_ao_buffer = Typed(np.ndarray).tag(transient=True)
-    hw_ao_buffer_map = Typed(dict).tag(transient=True)
+    hw_ao_buffer_samples = Long()
+    hw_ao_buffer_offset = Long()
+    hw_ao_buffer = Typed(np.ndarray)
+    hw_ao_buffer_map = Typed(dict)
 
-    channels = Property().tag(transient=True)
-    hw_ao_channels = Property().tag(transient=True)
-    hw_ai_channels = Property().tag(transient=True)
-    hw_do_channels = Property().tag(transient=True)
-    hw_di_channels = Property().tag(transient=True)
-    sw_do_channels = Property().tag(transient=True)
+    channels = Property()
+    hw_ao_channels = Property()
+    hw_ai_channels = Property()
+    hw_do_channels = Property()
+    hw_di_channels = Property()
+    sw_do_channels = Property()
 
     def _get_channels(self):
         return [c for c in self.children if isinstance(c, Channel)]
@@ -86,7 +85,9 @@ class Engine(SimpleState, Declarative):
         This can only be used for the continuous output.
         '''
         # TODO: need to build-in support for multiple output channels. This
-        # needs to be linked to the callback somehow.
+        # needs to be linked to the callback somehow. I already have
+        # rudimentary support for the buffering of multiple channels, but many
+        # other parts need to be updated.
 
         # Store information regarding the data we have written to the output
         # buffer. This allows us to insert new signals from the epoch output
@@ -141,6 +142,7 @@ class Engine(SimpleState, Declarative):
         oi = self.hw_ao_buffer_map[output_name]
         self.hw_ao_buffer[:, oi, lb:ub] = data
         combined_data = self.hw_ao_buffer[..., lb:].sum(axis=1)
+
         self.write_hw_ao(combined_data, offset, timeout=1)
 
     def get_buffered_samples(self, channel_name, offset=0):
