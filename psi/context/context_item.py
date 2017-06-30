@@ -118,9 +118,9 @@ class Parameter(ContextItem):
 class EnumParameter(Parameter):
 
     expression = Property().tag(transient=True)
-    choices = d_(Typed(dict))
-    selected = d_(Unicode())
-    default = d_(Unicode())
+    choices = d_(Typed(dict)).tag(preference=True)
+    selected = d_(Unicode()).tag(preference=True)
+    default = d_(Unicode()).tag(preference=True)
 
     def _default_dtype(self):
         return np.array(self.choices.values()).dtype.str
