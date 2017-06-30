@@ -77,7 +77,8 @@ def prepare_output_queue(event, output):
 
 
 def start_output(event, output):
-    start = event.parameters['timestamp']
+    ts = event.parameters['timestamp']
+    start = event.parameters.get('start', ts)
     delay = event.parameters.get('delay', 0)
     duration = output.start(start, delay)
 
