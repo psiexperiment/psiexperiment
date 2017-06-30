@@ -8,7 +8,7 @@ from enaml.layout.api import InsertItem
 from enaml.widgets.api import Action, ToolBar
 from enaml.workbench.api import Extension, ExtensionPoint, PluginManifest
 from enaml.workbench.core.api import Command
-from enaml.workbench.ui.api import ActionItem, MenuItem
+from enaml.workbench.ui.api import MenuItem
 
 from psi.experiment.api import Preferences
 from psi.context.api import ContextGroup
