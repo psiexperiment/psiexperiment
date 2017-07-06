@@ -23,7 +23,7 @@ enamldef IOManifest(PluginManifest): manifest:
 
             AOChannel:
                 label = 'primary'
-                name = 'primary'
+                name = 'speaker_0'
                 channel = 'PXI1Slot8/ao0'
                 fs = 200e3
                 expected_range = (-10, 10)
@@ -32,7 +32,7 @@ enamldef IOManifest(PluginManifest): manifest:
 
             AOChannel:
                 label = 'secondary'
-                name = 'secondary'
+                name = 'speaker_1'
                 channel = 'PXI1Slot8/ao1'
                 fs = 200e3
                 expected_range = (-10, 10)
@@ -51,7 +51,7 @@ enamldef IOManifest(PluginManifest): manifest:
                 terminal_coupling = 'AC'
 
                 Input:
-                    name = 'probe_tube_microphone'
+                    name = 'microphone'
 
             AIChannel:
                 label = 'Reference microphone'

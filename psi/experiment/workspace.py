@@ -25,6 +25,7 @@ class ExperimentWorkspace(Workspace):
         self.load_io_plugin()
         self.load_controller_plugin()
         self.load_default_plugins()
+        deferred_call(self.load_toolbars)
         deferred_call(self.load_defaults)
 
     def load_default_plugins(self):
@@ -62,6 +63,9 @@ class ExperimentWorkspace(Workspace):
         if not args.no_layout:
             core.invoke_command('psi.get_default_layout')
 
+    def load_toolbars(self):
+        experiment = self.workbench.get_plugin('psi.experiment')
+        self.toolbars = experiment._toolbars
     def _default_content(self):
         return ExperimentView()
 

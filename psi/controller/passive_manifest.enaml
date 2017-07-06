@@ -44,7 +44,7 @@ enamldef PassiveManifest(BaseManifest): manifest:
         QueuedEpochOutput: output:
             name = 'target'
             label = 'Target'
-            target_name = 'speaker'
+            target_name = 'speaker_0'
             selector_name = 'default'
             queue = InterleavedFIFOSignalQueue()
             auto_decrement = False

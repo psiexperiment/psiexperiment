@@ -74,8 +74,6 @@ def get_default_layout(event):
         _load_layout(event, file_name)
     except IOError:
         pass
-    #import pdb
-    #pdb.set_trace()
 
 
 def save_preferences(event):

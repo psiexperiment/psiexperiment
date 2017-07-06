@@ -130,16 +130,17 @@ def _main(args):
         from psi.experiment.manifest import ExperimentManifest
 
     workbench = Workbench()
+    workbench.register(ExperimentManifest())
     workbench.register(CoreManifest())
     workbench.register(UIManifest())
 
     ui = workbench.get_plugin('enaml.workbench.ui')
-    workbench.register(ExperimentManifest())
     ui.select_workspace('psi.experiment.workspace')
     ui.show_window()
     ui.start_application()
 
     #core.invoke_command('psi.data.set_base_path', {'base_path': base_path})
+
 
 def main():
     parser = argparse.ArgumentParser(description='Run experiment')

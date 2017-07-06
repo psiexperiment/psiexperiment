@@ -27,7 +27,7 @@ class ExperimentPlugin(Plugin):
 
     _preferences = Typed(list)
     _workspace_contributions = Typed(list)
-    _toolbar_contributions = Typed(list)
+    _toolbars = Typed(list)
 
     def start(self):
         log.debug('Starting experiment plugin')
@@ -64,7 +64,7 @@ class ExperimentPlugin(Plugin):
             tb = ToolBar(name=extension.id)
             tb.children.extend(children)
             toolbars.append(tb)
-        ui.workspace.toolbars = toolbars
+        self._toolbars = toolbars
 
     def _refresh_preferences(self, event=None):
         log.debug('Refreshing preferences')
