@@ -14,6 +14,7 @@ from psi.controller.input import (Downsample, IIRFilter, Threshold, Edges,
 
 from psi.controller.calibration import GolayCalibration, FlatCalibration
 from psi.controller.calibration.util import db
+from psi.data.sinks.bcolz_store import BColzStore
 
 cal_root = get_config('CAL_ROOT')
 filename = os.path.join(cal_root, '161219 - Golay noise exposure D220TI speaker 1.cal')
@@ -24,6 +25,13 @@ enamldef IOManifest(PluginManifest): manifest:
     This defines the hardware connections that are specific to the LBHB Bobcat
     computer for the appetitive experiment.
     '''
+    Extension:
+        id = 'data'
+        point = 'psi.data.sinks'
+
+        BColzStore:
+            pass
+
     Extension:
         id = 'backend'
         point = 'psi.controller.io'
@@ -73,3 +81,4 @@ enamldef IOManifest(PluginManifest): manifest:
 
                 CalibratedInput:
                     name = 'microphone'
+                    save = True

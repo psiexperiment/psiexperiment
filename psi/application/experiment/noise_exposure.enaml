@@ -39,10 +39,13 @@ enamldef ControllerManifest(BaseManifest): manifest:
             N = 2
             f_highpass = 100
             name = 'filtered_microphone'
+            save = True
             RMS:
+                name = 'RMS'
                 duration = 1
                 SPL:
                     name = 'noise_level'
+                    save = True
 
     Extension:
         id = 'actions'
@@ -51,12 +54,11 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
         ExperimentAction:
             event = 'experiment_prepare'
-            command = 'psi.controller.prepare_epoch_output'
-            kwargs = {'output_name': 'exposure'}
+            command = 'exposure.prepare'
         ExperimentAction:
             event = 'experiment_start'
-            command = 'psi.controller.start_epoch_output'
-            kwargs = {'output_name': 'exposure', 'start': 2}
+            command = 'exposure.start'
+            kwargs = {'start': 2}
         ExperimentAction:
             event = 'exposure_end'
             command = 'psi.controller.stop'

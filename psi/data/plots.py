@@ -62,7 +62,7 @@ class FFTContainer(PlotContainer):
         plot.underlays.append(axis)
 
 
-class Plot(Declarative):
+class Plot(PSIContribution):
 
     line_color = d_(Tuple())
     fill_color = d_(Tuple())
@@ -163,3 +163,30 @@ class FFTChannelPlot(Plot):
                             title=self.axis_label)
             plot.underlays.append(axis)
         return plot
+
+
+class PyQtGraphPlotContainer(PlotContainer):
+
+    manifest = __name__ + '_manifest.PyQtGraphPlotContainerManifest'
+
+    title = d_(Unicode())
+    label = d_(Unicode())
+
+
+class GriddedEpochAveragePlot(Plot):
+
+    manifest = __name__ + '_manifest.GriddedEpochAveragePlotManifest'
+    sink = d_(Unicode())
+    items = d_(Typed(list))
+
+    def create_plot(self, plugin, index_mapper):
+        sink = plugin.find_sink(self.sink)
+
+    def _observe_items(self, event):
+        print(event['value'])
+
+    def get_gridsize(self):
+        try:
+            return len(self.items), len(self.items)
+        except:
+            return 1, 1

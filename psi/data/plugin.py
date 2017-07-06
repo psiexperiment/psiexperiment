@@ -59,6 +59,8 @@ class DataPlugin(Plugin):
             plots.extend(extension.get_children(PlotContainer))
         for container in plots:
             container.load_manifest(self.workbench)
+            for child in container.children:
+                child.load_manifest(self.workbench)
         self._plots = plots
 
     def _bind_observers(self):
@@ -91,12 +93,6 @@ class DataPlugin(Plugin):
         ])
         self.event_log = pd.DataFrame(arrays)
 
-    def _prepare_plots(self):
-        containers = {}
-        for plot in self._plots:
-            containers[plot.name] = plot.create_container(self)
-        self._containers = containers
-        
     def prepare(self):
         self._prepare_trial_log()
         self._prepare_event_log()
@@ -105,10 +101,6 @@ class DataPlugin(Plugin):
                        if v.save}
         for sink in self._sinks:
             sink.prepare(self)
-
-        # This needs to happen *after* we prepare the sinks (to ensure that
-        # they have created the appropriate data stores).
-        #self._prepare_plots()
 
     def finalize(self):
         for sink in self._sinks:

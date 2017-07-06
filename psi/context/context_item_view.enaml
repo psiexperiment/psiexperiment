@@ -1,14 +1,117 @@
 from enaml.core.api import DynamicTemplate, Looper
-from enaml.layout.api import hbox, spacer
+from enaml.layout.api import hbox, spacer, horizontal
 from enaml.widgets.api import (Container, Field, CheckBox, Label, HGroup,
-                               PushButton, PopupView, Form)
+                               PushButton, PopupView, Form, ObjectCombo)
 
 from .context_item import (Result, Parameter, EnumParameter, FileParameter,
-                           BoolParameter)
+                           BoolParameter, OrderedContextMeta)
 
 from enaml.widgets.api import ObjectCombo
 
+################################################################################
+# ContextMetaPopup
+################################################################################
+enamldef ContextMetaDynamicTemplate(DynamicTemplate):
+    attr meta
+    base = ContextMetaTemplate
+    args = (meta, type(meta))
 
+
+template ContextMetaTemplate(meta, MemberType: OrderedContextMeta):
+
+    HGroup:
+        padding = 0
+        Label:
+            text << meta.label
+        ObjectCombo:
+            items = [None] + meta.get_valid_indices(context_item)
+            to_string = lambda i: '' if i is None else str(i+1)
+            selected = meta.get_index(context_item)
+            selected::
+                meta.set_value(selected, context_item)
+
+
+enamldef ContextMetaPopup(PopupView): cm_popup:
+
+    attr context_item
+    attr context_meta
+
+    Container:
+        Looper:
+            iterable << context_meta.values()
+            ContextMetaDynamicTemplate:
+                meta = loop_item
+
+
+################################################################################
+# ContextItemTemplate
+################################################################################
+enamldef ContextItemDynamicTemplate(DynamicTemplate):
+    base = ContextItemTemplate
+    args = (context_item, type(context_item))
+
+
+template ContextItemTemplate(context_item, MemberType: Result):
+    HGroup: group:
+        spacing = 0
+        padding = 0
+        Label: label:
+            text << context_item.label
+
+
+template ContextItemTemplate(context_item, MemberType: Parameter):
+    ParameterDynamicTemplate:
+        pass
+
+
+################################################################################
+# ParameterTemplate
+################################################################################
+enamldef ParameterDynamicTemplate(DynamicTemplate):
+    base = ParameterTemplate
+    args = (context_item, type(context_item), context_item.scope)
+
+
+template ParameterTemplate(context_item, MemberType, scope):
+    HGroup: group:
+        spacing = 0
+        padding = 0
+        Label: label:
+            text << context_item.label
+        WidgetDynamicTemplate:
+            pass
+
+
+template ParameterTemplate(context_item, MemberType, scope: 'experiment'):
+    HGroup: group:
+        spacing = 0
+        padding = 0
+        enabled << workbench.get_plugin('psi.controller') \
+            .experiment_state not in ('running', 'paused')
+
+        Label: label:
+            text << context_item.label
+        WidgetDynamicTemplate:
+            pass
+
+
+template ParameterTemplate(context_item, MemberType, scope: 'trial'):
+    HGroup: group:
+        spacing = 0
+        padding = 0
+        CheckBox: label:
+            tool_tip << context_item.name
+            status_tip << context_item.name
+            text << context_item.label
+            checked := context_item.rove
+        WidgetDynamicTemplate:
+            pass
+
+
+
+################################################################################
+# WidgetTemplate
+################################################################################
 enamldef WidgetDynamicTemplate(DynamicTemplate):
     base = WidgetTemplate
     args = (context_item, type(context_item))
@@ -35,46 +138,29 @@ template WidgetTemplate(context_item, MemberType: BoolParameter):
                 context_item.expression = 'False'
 
 
-template ContextItemTemplate(context_item, MemberType, scope):
-    HGroup: group:
-        spacing = 0
-        padding = 0
-        Label: label:
-            text << context_item.label
-        WidgetDynamicTemplate:
-            pass
-
-
-template ContextItemTemplate(context_item, MemberType, scope: 'experiment'):
-    HGroup: group:
-        spacing = 0
-        padding = 0
-        enabled << workbench.get_plugin('psi.controller') \
-            .experiment_state not in ('running', 'paused')
-
-        Label: label:
-            text << context_item.label
-        WidgetDynamicTemplate:
-            pass
-
-
-template ContextItemTemplate(context_item, MemberType, scope: 'trial'):
-    HGroup: group:
-        spacing = 0
-        padding = 0
-        CheckBox: label:
-            tool_tip << context_item.name
-            status_tip << context_item.name
-            text << context_item.label
-            checked := context_item.rove
-        WidgetDynamicTemplate:
-            pass
-
-
+################################################################################
+# The container to tie it all together
+################################################################################
 enamldef ContextItem(Container):
     attr context_item
     padding = 0
 
-    DynamicTemplate:
-        base = ContextItemTemplate
-        args = (context_item, type(context_item), context_item.scope)
+    constraints = [
+        hbox(c, pb),
+        pb.width == 20,
+        pb.height == 20,
+    ]
+
+    Container: c:
+        padding = 0
+        ContextItemDynamicTemplate: t:
+            pass
+
+    PushButton: pb:
+        text << 'C'
+        clicked:: 
+            context_meta = workbench.get_plugin('psi.context').context_meta
+            cm_popup = ContextMetaPopup(parent=self, 
+                                        context_meta=context_meta,
+                                        context_item=context_item)
+            cm_popup.show()

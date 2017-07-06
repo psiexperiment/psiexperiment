@@ -185,7 +185,7 @@ class BasePlugin(Plugin):
         # need to figure out how to configure which inputs/outputs are active
         # (via GUI or config file) since some IO manifests may define
         # additional (unneeded) inputs and outputs.
-        for channel in channels.values():
+        for channel in list(channels.values()):
             if not channel.children:
                 channel.engine = None
                 del channels[channel.name]

@@ -170,8 +170,8 @@ enamldef AppetitiveManifest(BaseManifest): manifest:
                 dtype = 'S32'
             Result:
                 name = 'trial_type'
-                dtype = 'S32'
                 compact_label = 'Type'
+                dtype = 'S32'
             Result:
                 name = 'score'
                 dtype = 'S32'
@@ -196,7 +196,6 @@ enamldef AppetitiveManifest(BaseManifest): manifest:
                 dtype = 'float64'
             Result:
                 name = 'target_start'
-                label = 'Target start'
                 compact_label = 'T/'
                 dtype = 'float64'
             Result:

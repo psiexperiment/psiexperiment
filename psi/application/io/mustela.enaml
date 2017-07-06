@@ -11,7 +11,7 @@ from psi.controller.api import (AIChannel, AOChannel, ExperimentAction,
 
 from psi.controller.input import (Downsample, IIRFilter, Threshold, Edges,
                                   CalibratedInput, RMS, SPL,
-                                  AccumulateSegments)
+                                  Accumulate)
 
 from psi.controller.calibration import GolayCalibration, FlatCalibration
 from psi.controller.calibration.util import db
@@ -92,7 +92,7 @@ enamldef IOManifest(PluginManifest): manifest:
                 terminal_mode = 'differential'
                 calibration = FlatCalibration(db(10))
 
-                AccumulateSegments:
+                Accumulate:
                     n = 50
                     CalibratedInput:
                         IIRFilter:

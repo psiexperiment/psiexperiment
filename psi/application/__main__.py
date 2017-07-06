@@ -13,38 +13,17 @@ import datetime as dt
 
 import tables as tb
 
+import enaml
 from enaml.application import deferred_call
-from enaml.qt.qt_application import QtApplication
 
-from psi import application
 from psi import get_config, set_config
 
 
-experiment_descriptions = {
-    'passive': {
-        'manifests': [
-            'psi.controller.passive_manifest.PassiveManifest',
-            'psi.data.trial_log_counter.manifest.TrialLogCounterManifest',
-        ],
-    },
-    'appetitive_gonogo_food': {
-        'manifests': [
-            'psi.application.experiment.appetitive.ControllerManifest',
-        ],
-    },
-    'abr': {
-        'manifests': [
-            'psi.application.experiment.abr.ControllerManifest',
-            'psi.data.trial_log.manifest.TrialLogManifest',
-            'psi.data.event_log.manifest.EventLogManifest',
-        ],
-    },
-    'noise_exposure': {
-        'manifests': [
-            'psi.application.experiment.noise_exposure.ControllerManifest',
-            'psi.data.event_log.manifest.EventLogManifest',
-        ],
-    }
+experiments = {
+    'passive': 'psi.controller.passive_manifest.PassiveManifest',
+    'appetitive_gonogo_food': 'psi.application.experiment.appetitive.ControllerManifest',
+    'abr': 'psi.application.experiment.abr.ControllerManifest',
+    'noise_exposure': 'psi.application.experiment.noise_exposure.ControllerManifest',
 }
 
 
@@ -120,9 +99,7 @@ def get_base_path(dirname, experiment):
     return base_path
 
 
-def run(args):
-    app = QtApplication()
-
+def _main(args):
     for config in ['LAYOUT_ROOT', 'PREFERENCES_ROOT']:
         path = get_config(config)
         new_path = os.path.join(path, args.experiment)
@@ -146,52 +123,31 @@ def run(args):
         # really need to deal with at the moment.
         warnings.simplefilter(action="ignore", category=FutureWarning)
 
-    experiment_description = experiment_descriptions[args.experiment]
-    manifests = [m() for m in application.get_manifests(experiment_description['manifests'])]
-    manifests.insert(0, application.get_io_manifest(args.io)())
+    from enaml.workbench.api import Workbench
+    with enaml.imports():
+        from enaml.workbench.core.core_manifest import CoreManifest
+        from enaml.workbench.ui.ui_manifest import UIManifest
+        from psi.experiment.manifest import ExperimentManifest
 
-    workbench, plugin_ids = application.initialize_workbench(manifests)
-    core = workbench.get_plugin('enaml.workbench.core')
-    base_path = get_base_path(args.pathname, args.experiment)
-    core.invoke_command('psi.data.set_base_path', {'base_path': base_path})
+    workbench = Workbench()
+    workbench.register(CoreManifest())
+    workbench.register(UIManifest())
 
-    core.invoke_command('enaml.workbench.ui.select_workspace',
-                        {'workspace': 'psi.experiment.workspace'})
-
-    # the application is started (the application needs to load the plugins
-    # first). For example, the controller IO extension point will automatically
-    # load a series of manifests based on the equipment described in the IO
-    # manifest. First, we need to load the experiment plugin to ensure that it
-    # initializes everything properly. Then we can load the default layout and
-    # preferences.
-    log.info('Loading experiment plugin')
     ui = workbench.get_plugin('enaml.workbench.ui')
+    workbench.register(ExperimentManifest())
+    ui.select_workspace('psi.experiment.workspace')
     ui.show_window()
-
-    workbench.get_plugin('psi.controller')
-    workbench.get_plugin('psi.experiment')
-
-    # We need to use deferred call to ensure these commands are invoked *after*
-    if not args.no_preferences:
-        deferred_call(core.invoke_command, 'psi.get_default_preferences')
-    if not args.no_layout:
-        deferred_call(core.invoke_command, 'psi.get_default_layout')
-
-    log.debug('Starting application')
     ui.start_application()
 
-    # Unregister all plugins (ensures that stop method is called if needed)
-    for plugin_id in plugin_ids[::-1]:
-        workbench.unregister(plugin_id)
-
+    #core.invoke_command('psi.data.set_base_path', {'base_path': base_path})
 
 def main():
     parser = argparse.ArgumentParser(description='Run experiment')
     parser.add_argument('experiment', type=str, help='Experiment to run',
-                        choices=experiment_descriptions.keys())
+                        choices=experiments.keys())
     parser.add_argument('pathname', type=str, help='Filename', nargs='?',
                         default='<memory>')
-    parser.add_argument('--io', type=str, default=None,
+    parser.add_argument('--io', type=str, default=get_config('SYSTEM'),
                         help='Hardware configuration')
     parser.add_argument('--debug', default=True, action='store_true',
                         help='Debug mode?')
@@ -205,8 +161,12 @@ def main():
                         help="Don't load existing layout files")
     args = parser.parse_args()
 
+    # Map to the actual controller module.
+    args.controller = experiments[args.experiment]
+    set_config('ARGS', args)
+
     try:
-        run(args)
+        _main(args)
     except:
         if args.pdb:
             type, value, tb = sys.exc_info()

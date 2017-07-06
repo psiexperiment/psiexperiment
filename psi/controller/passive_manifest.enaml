@@ -19,11 +19,13 @@ from .base_plugin import BasePlugin
 from .queue import InterleavedFIFOSignalQueue
 
 from psi.data.plots import (TimeContainer, ChannelPlot, TimeseriesPlot,
-                            ExtremesChannelPlot, FFTContainer, FFTChannelPlot)
+                            ExtremesChannelPlot, FFTContainer, FFTChannelPlot,
+                            PyQtGraphPlotContainer, GriddedEpochAveragePlot)
 
 import time
 
 from psi.data.sinks.epoch_average import EpochAverage
+from psi.data.sinks.trial_log_counter import TrialLogCounter
 
 
 def process_key(event):
@@ -101,9 +103,20 @@ enamldef PassiveManifest(BaseManifest): manifest:
         EpochAverage:
             pass
 
+        TrialLogCounter:
+            pass
+
     Extension:
         id = 'plots'
         point = 'psi.data.plots'
+
+        PyQtGraphPlotContainer:
+            name = 'testing'
+            title = 'foobar'
+
+            GriddedEpochAveragePlot:
+                name = 'epoch_average'
+                sink = 'epoch_average'
 
         FFTContainer:
             name = 'fft_plot_container'

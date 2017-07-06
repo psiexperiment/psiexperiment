@@ -386,10 +386,10 @@ class Average(Input):
 def iti(fs, target):
     last_ts = 0
     while True:
-        edge, ts = (yield)
-        if edge == 'rising':
-            print((ts-last_ts)/fs)
-            last_ts = ts
+        for edge, ts in (yield):
+            if edge == 'rising':
+                print((ts-last_ts)/fs)
+                last_ts = ts
 
 
 class ITI(Input):

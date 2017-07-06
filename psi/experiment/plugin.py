@@ -3,7 +3,7 @@ log = logging.getLogger(__name__)
 
 from atom.api import Typed
 from enaml.application import deferred_call
-from enaml.layout.api import FloatItem
+from enaml.layout.api import InsertItem
 from enaml.layout.dock_layout import DockLayoutValidator
 from enaml.workbench.plugin import Plugin
 from enaml.widgets.api import Action, ToolBar, DockItem
@@ -51,8 +51,8 @@ class ExperimentPlugin(Plugin):
                     plugin = self.workbench.get_plugin(extension.parent.id)
                     item.plugin = plugin
                 item.set_parent(ui.workspace.dock_area)
-                op = FloatItem(item=item.name)
-                deferred_call(ui.workspace.dock_area.update_layout, op)
+                op = InsertItem(item=item.name)
+                ui.workspace.dock_area.update_layout(op)
 
     def _refresh_toolbars(self, event=None):
         log.debug('Refreshing toolbars')
@@ -110,8 +110,8 @@ class ExperimentPlugin(Plugin):
         for toolbar in toolbars:
             if toolbar.name in layout:
                 x, y, floating = layout[toolbar.name]
-                toolbar.proxy.widget.setFloating(floating)
-                toolbar.proxy.widget.move(x, y)
+                #toolbar.proxy.widget.setFloating(floating)
+                #toolbar.proxy.widget.move(x, y)
 
     def get_layout(self):
         ui = self.workbench.get_plugin('enaml.workbench.ui')
@@ -124,13 +124,14 @@ class ExperimentPlugin(Plugin):
         ui = self.workbench.get_plugin('enaml.workbench.ui')
         ui._window.set_geometry(layout['geometry'])
         self._set_toolbar_layout(ui.workspace.toolbars, layout['toolbars'])
-        ui.workspace.dock_area.layout = layout['dock_layout']
+
         available = [i.name for i in ui.workspace.dock_area.dock_items()]
         missing = MissingDockLayoutValidator(available)(layout['dock_layout'])
         for item in missing:
             log.debug('{} missing from saved dock layout'.format(item))
-            op = FloatItem(item=item)
-            deferred_call(ui.workspace.dock_area.update_layout, op)
+            op = InsertItem(item=item)
+            ui.workspace.dock_area.update_layout(op)
+        ui.workspace.dock_area.layout = layout['dock_layout']
 
     def _bind_observers(self):
         self.workbench.get_extension_point(PREFERENCES_POINT) \

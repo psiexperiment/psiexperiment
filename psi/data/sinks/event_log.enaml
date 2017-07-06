@@ -38,4 +38,4 @@ enamldef EventLogManifest(PSIManifest): manifest:
         ItemPreferences:
             item << event_log_table
             name << manifest.contribution.name
-            auto_save = ['state']
+            auto_save = ['column_widths']

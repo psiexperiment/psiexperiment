@@ -4,17 +4,42 @@ from enaml.core.declarative import Declarative, d_
 from atom.api import (Unicode, Typed, Value, Enum, List, Event, Property,
                       observe, Bool)
 
-from .. import SimpleState
-
 
 class ContextMeta(Declarative):
 
     name = d_(Unicode())
     label = d_(Unicode())
-    default_value = d_(Value())
 
 
-class ContextItem(SimpleState, Declarative):
+class OrderedContextMeta(ContextMeta):
+
+    values = d_(Typed(list, ()))
+    default_value = None
+
+    def set_value(self, position, context_item):
+        values = self.values[:]
+        if position is None:
+            values.remove(context_item)
+        else:
+            if context_item in values:
+                values.remove(context_item)
+            values.insert(position, context_item)
+        self.values = values
+
+    def get_index(self, context_item):
+        try:
+            return self.values.index(context_item)
+        except ValueError:
+            return None
+
+    def get_valid_indices(self, context_item):
+        n = len(self.values)
+        if context_item not in self.values:
+            n += 1
+        return list(range(n))
+
+
+class ContextItem(Declarative):
     '''
     Defines the core elements of a context item. These items are made available
     to the context namespace.
@@ -38,10 +63,8 @@ class ContextItem(SimpleState, Declarative):
 
     updated = Event()
 
-    meta = Typed(dict, {}).tag(transient=True)
-
     def _default_label(self):
-        return self.name.capitalize()
+        return self.name.capitalize().replace('_', ' ')
 
     def _default_compact_label(self):
         return self.label

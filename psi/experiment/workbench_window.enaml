@@ -18,7 +18,7 @@ enamldef ExperimentWorkbenchWindow(WorkbenchWindow):
             warning(self, 'Experiment running', m)
 
     Include:
-        objects << getattr(window_model.workspace, 'toolbars', [])
+        objects << window_model.workspace.toolbars
 
     StatusBar:
         name = 'status_bar'
