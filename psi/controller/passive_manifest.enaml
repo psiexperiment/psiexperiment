@@ -11,20 +11,20 @@ from psi.context.api import ContextGroup, Parameter, SequenceSelector
 from psi.controller.api import EpochOutput, ExperimentAction
 
 from psi.controller.output import QueuedEpochOutput
-from psi.controller.input import ExtractEpochs, Input, Threshold, ITI, Edges
+from psi.controller.input import ExtractEpochs, Input, Threshold, ITI, Edges, Blocked, Accumulate
 
 from .base_manifest import BaseManifest
 from .base_plugin import BasePlugin
 
 from .queue import InterleavedFIFOSignalQueue
 
-from psi.data.plots import (TimeContainer, ChannelPlot, TimeseriesPlot,
-                            ExtremesChannelPlot, FFTContainer, FFTChannelPlot,
-                            PyQtGraphPlotContainer, GriddedEpochAveragePlot)
+from psi.data.plots import (PGTimeContainer, 
+                            PGExtremesChannelPlot, 
+                            PGEpochAverageGridContainer,
+                            PGChannelPlot)
 
 import time
 
-from psi.data.sinks.epoch_average import EpochAverage
 from psi.data.sinks.trial_log_counter import TrialLogCounter
 
 
@@ -46,24 +46,26 @@ enamldef PassiveManifest(BaseManifest): manifest:
             label = 'Target'
             target_name = 'speaker_0'
             selector_name = 'default'
-            queue = InterleavedFIFOSignalQueue()
+            queue = InterleavedFIFOSignalQueue(fs=output.fs)
             auto_decrement = False
 
-        ExtractEpochs:
+        Blocked:
+            duration = 0.1
+            name = 'eeg'
             save = True
-            name = 'erp'
-            buffer_size = 5
-            epoch_size = 8.5e-3
-            queue = output.queue
-            source_name = 'microphone'
+            source_name = 'eeg_channel'
 
-        Threshold:
-            source_name = 'microphone'
-            threshold = 0.1
-            Edges:
-                debounce = 50
-                ITI:
-                    pass
+            Accumulate:
+                name = 'eeg_buffered'
+                n = 100
+
+                ExtractEpochs:
+                    save = True
+                    name = 'erp'
+                    buffer_size = 20
+                    epoch_size = 8.5e-3
+                    queue = output.queue
+                    source_name = 'eeg_buffered'
 
     Extension:
         id = 'selectors'
@@ -85,13 +87,21 @@ enamldef PassiveManifest(BaseManifest): manifest:
 
         ExperimentAction:
             event = 'experiment_prepare'
+            command = 'erp_average.prepare_grid'
+            kwargs = {'selector_name': 'default'}
+
+        ExperimentAction:
+            event = 'experiment_prepare'
             command = 'target.prepare_queue'
+
         ExperimentAction:
             event = 'erp_acquired'
             command = 'psi.controller.process_key'
+
         ExperimentAction:
             event = 'erp_acquired'
             command = 'target.decrement_key'
+
         ExperimentAction:
             event = 'target_complete'
             command = 'psi.controller.stop'
@@ -99,9 +109,7 @@ enamldef PassiveManifest(BaseManifest): manifest:
     Extension:
         id = 'sink'
         point = 'psi.data.sinks'
-
-        EpochAverage:
-            pass
+        rank = 100
 
         TrialLogCounter:
             pass
@@ -110,35 +118,15 @@ enamldef PassiveManifest(BaseManifest): manifest:
         id = 'plots'
         point = 'psi.data.plots'
 
-        PyQtGraphPlotContainer:
-            name = 'testing'
-            title = 'foobar'
+        PGEpochAverageGridContainer:
+            name = 'erp_average'
+            title = 'ERP average'
+            source_name = 'erp'
 
-            GriddedEpochAveragePlot:
-                name = 'epoch_average'
-                sink = 'epoch_average'
-
-        FFTContainer:
-            name = 'fft_plot_container'
-            title = 'FFT'
-            freq_lb = 0.1e3 
-            freq_ub = 10e3
-
-            FFTChannelPlot:
-                source = 'microphone'
-                line_color = (0, 0, 0)
-                value_range = (0, 100)
-                time_span = 1
-                axis_label = 'Level (dB SPL)'
-                reference = 20e-6
-
-        TimeContainer:
+        PGTimeContainer:
             name = 'trial_plot_container' 
             title = 'Trial timing'
-            trig_delay = 0
             span = 2.5
 
-            ExtremesChannelPlot:
-               source = 'microphone'
-               line_color = (0, 0, 0)
-               value_range = (-0.5, 0.5)
+            PGExtremesChannelPlot:
+                source_name = 'eeg'

@@ -78,26 +78,6 @@ def warn_with_traceback(message, category, filename, lineno, file=None,
     log.write(m)
 
 
-def get_base_path(dirname, experiment):
-    if dirname == '<memory>':
-        m = 'All data will be destroyed at end of experiment'
-        log.warn(m)
-        base_path = '<memory>'
-    else:
-        base_path = os.path.join(dirname, experiment)
-        if not os.path.exists(base_path):
-            os.makedirs(base_path)
-
-        # Find out the next session from the YAML file.
-        settings_root = get_config('SETTINGS_ROOT')
-        config_file = os.path.join(settings_root, '.bcolz_store')
-
-        session_name = dt.datetime.now().strftime('%Y%m%d_%H%M%S')
-        base_path = os.path.join(base_path, session_name)
-        os.makedirs(base_path)
-
-    return base_path
-
 
 def _main(args):
     for config in ['LAYOUT_ROOT', 'PREFERENCES_ROOT']:
@@ -138,8 +118,6 @@ def _main(args):
     ui.select_workspace('psi.experiment.workspace')
     ui.show_window()
     ui.start_application()
-
-    #core.invoke_command('psi.data.set_base_path', {'base_path': base_path})
 
 
 def main():

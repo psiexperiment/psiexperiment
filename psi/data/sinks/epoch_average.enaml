@@ -1,21 +1,43 @@
 import logging
 log = logging.getLogger(__name__)
 
+from atom.api import Typed, Event, Unicode
+from enaml.core.api import d_
+from enaml.workbench.api import Extension
 
-from atom.api import Typed, Event
 from ..sink import Sink
 
+from psi.core.enaml.api import PSIManifest
+from psi.context.context_item import OrderedContextMeta
 
 class EpochAverage(Sink):
+
+    manifest = __name__ + '.EpochAverageManifest'
+    name = 'epoch_average'
+    label = 'Epoch Average'
 
     cumulative_average = Typed(dict, {})
     cumulative_n = Typed(dict, {})
     updated = Event()
 
+    source = Typed(object)
+    source_name = d_(Unicode())
+    grouping = d_(Typed(object))
+
+    def prepare(self, plugin):
+        self.source = plugin.find_source(self.source_name)
+
+    def _observe_grouping(self, event):
+        self.cumulative_average = {}
+        self.cumulative_n = {}
+        self.recompute_averages()
+
+    def recompute_averages(self):
+        pass
+
     def process_ai_epochs(self, name, data):
         for d in data:
             self._process_epoch(d['key'], d['epoch'])
-        self.updated = True
 
     def _process_epoch(self, key, epoch):
         n = self.cumulative_n.setdefault(key, 1)
@@ -26,3 +48,14 @@ class EpochAverage(Sink):
             average = average * (n-1)/n + epoch * (1/n)
         self.cumulative_average[key] = average
         self.cumulative_n[key] += 1
+
+
+enamldef EpochAverageManifest(PSIManifest): manifest:
+
+    Extension:
+        id = 'items'
+        point = 'psi.context.items'
+        OrderedContextMeta:
+            name << manifest.contribution.name
+            label << '{} grouping'.format(manifest.contribution.label)
+            grouping >> manifest.contribution.grouping

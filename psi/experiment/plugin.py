@@ -17,10 +17,18 @@ WORKSPACE_POINT = 'psi.experiment.workspace'
 PREFERENCES_POINT = 'psi.experiment.preferences'
 
 
+# TODO: There's a bizzare bug in the warnings system that causes the global
+# namespace for the module invoking the validator to be cleared.
+DockLayoutValidator.warn = lambda *args, **kw: None
+
+
 class MissingDockLayoutValidator(DockLayoutValidator):
 
     def result(self, node):
         return self._available - self._seen_items
+
+    def warn(self, message):
+        return
 
 
 class ExperimentPlugin(Plugin):
@@ -130,7 +138,7 @@ class ExperimentPlugin(Plugin):
         for item in missing:
             log.debug('{} missing from saved dock layout'.format(item))
             op = InsertItem(item=item)
-            ui.workspace.dock_area.update_layout(op)
+            deferred_call(ui.workspace.dock_area.update_layout, op)
         ui.workspace.dock_area.layout = layout['dock_layout']
 
     def _bind_observers(self):

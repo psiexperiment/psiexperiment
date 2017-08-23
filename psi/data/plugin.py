@@ -1,3 +1,5 @@
+import os.path
+import datetime as dt
 import logging
 log = logging.getLogger(__name__)
 
@@ -7,12 +9,35 @@ from enaml.workbench.api import Plugin
 import numpy as np
 import pandas as pd
 
+from psi import get_config
+
 from .sink import Sink
 from .plots import PlotContainer
 
 
 SINK_POINT = 'psi.data.sinks'
 PLOT_POINT = 'psi.data.plots'
+
+
+def get_base_path(dirname, experiment):
+    if dirname == '<memory>':
+        m = 'All data will be destroyed at end of experiment'
+        log.warn(m)
+        base_path = '<memory>'
+    else:
+        base_path = os.path.join(dirname, experiment)
+        if not os.path.exists(base_path):
+            os.makedirs(base_path)
+
+        # Find out the next session from the YAML file.
+        settings_root = get_config('SETTINGS_ROOT')
+        config_file = os.path.join(settings_root, '.bcolz_store')
+
+        session_name = dt.datetime.now().strftime('%Y%m%d_%H%M%S')
+        base_path = os.path.join(base_path, session_name)
+        os.makedirs(base_path)
+
+    return base_path
 
 
 class DataPlugin(Plugin):
@@ -88,17 +113,19 @@ class DataPlugin(Plugin):
 
     def _prepare_event_log(self):
         arrays = dict([
-            ('timestamp', np.array([], dtype=np.dtype('float32'))), 
-            ('event', np.array([], dtype=np.dtype('S512'))), 
+            ('timestamp', np.array([], dtype=np.dtype('float32'))),
+            ('event', np.array([], dtype=np.dtype('S512'))),
         ])
         self.event_log = pd.DataFrame(arrays)
 
     def prepare(self):
+        self._set_base_path()
         self._prepare_trial_log()
         self._prepare_event_log()
         controller = self.workbench.get_plugin('psi.controller')
-        self.inputs = {k: v for k, v in controller._inputs.items() \
-                       if v.save}
+        # TODO: somehow make results available if needed even if not persisted
+        # forever?
+        self.inputs = {k: v for k, v in controller._inputs.items() if v.save}
         for sink in self._sinks:
             sink.prepare(self)
 
@@ -131,10 +158,11 @@ class DataPlugin(Plugin):
         for sink in self._sinks:
             sink.set_current_time(name, timestamp)
 
-    def set_base_path(self, base_path):
-        self.base_path = base_path
+    def _set_base_path(self):
+        args = get_config('ARGS')
+        self.base_path = get_base_path(args.pathname, args.experiment)
         for sink in self._sinks:
-            sink.set_base_path(base_path)
+            sink.set_base_path(self.base_path)
 
     def find_source(self, source_name):
         '''

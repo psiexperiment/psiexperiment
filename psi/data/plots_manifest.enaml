@@ -1,6 +1,6 @@
 from functools import partial
 
-from enaml.core.api import Conditional
+from enaml.core.api import Include
 from enaml.widgets.api import DockItem, Container
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
@@ -48,96 +48,71 @@ enamldef PlotContainerManifest(PSIManifest): manifest:
 
 from atom.api import Typed, set_default
 from enaml.core.api import Include, d_
+from enaml.workbench.api import Workbench
 from enaml.widgets.api import RawWidget
 import pyqtgraph as pg
 pg.setConfigOption('background', 'w')
 pg.setConfigOption('foreground', 'k')
 
 
-class PyQtGraphCanvas(RawWidget):
-
-    components = d_(Typed(object))
+class PGCanvas(RawWidget):
 
     hug_width = set_default('ignore')
     hug_height = set_default('ignore')
 
+    view = Typed(pg.GraphicsView)
+    component = d_(Typed(pg.GraphicsWidget))
+
     def create_widget(self, parent):
-        w = pg.GraphicsLayoutWidget(parent, border=(100, 100, 100))
-        component = self.components[0]
-        rows, cols = component.get_gridsize()
-        for r in range(rows):
-            w.nextRow()
-            for c in range(cols):
-                w.addPlot(title='plot {} {}'.format(r, c))
+        self.view = pg.GraphicsView(parent)
+        self.view.setCentralItem(self.component)
+        return self.view
 
-            #w.nextRow()
-            #w.addPlot(labels={'left': ('Foobar',), 'bottom': ('Foz',)})
-
-        #w.addLabel('SIDEBAR', angle=90, rowspan=4)
-        #w.addPlot(row=2, col=2)
-        #w.addPlot(row=2, col=3)
-        #w.nextRow()
-        #w.nextRow()
-        #w.addPlot('ABR 1')
-        #w.addPlot('ABR 2')
-        #w.addPlot('ABR 3')
-        return w
-        #self.component.set_parent(parent)
-        #return self.component
-        #if self.component is not None:
-        #    self._window = Window(parent, component=self.component,
-        #                          bgcolor=self.component.bgcolor)
-        #    enable_widget = self._window.control
-        #else:
-        #    self._window = None
-        #    enable_widget = None
-
-        #return enable_widget
-
-    def _component_updated(self, event):
-        print('component updated', event)
-
-    def _observe_components(self, event):
-        for c in event.get('oldvalue', []):
-            c.unobserve('updated', self._component_updated)
-        for c in event.get('value', []):
-            c.observe('updated', self._component_updated)
+    def observe_component(self, event):
+        self.view.setCentralItem(event['value'])
 
 
-enamldef PyQtGraphPlotContainerManifest(PSIManifest): manifest:
+enamldef PGPlotContainerManifest(PSIManifest): manifest:
 
-    #Extension:
-    #    id = 'command'
-    #    point = 'enaml.workbench.core.commands'
-    #    Command:
-    #        id = manifest.contribution.name + '_prepare'
-    #        handler = partial(prepare, container=manifest.contribution)
+    Extension:
+        id = 'command'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = manifest.contribution.name + '_prepare'
+            handler = partial(prepare, container=manifest.contribution)
 
-    #Extension:
-    #    id = 'actions'
-    #    point = 'psi.controller.actions'
-    #    rank = 200
-    #    ExperimentAction:
-    #        event = 'experiment_prepare'
-    #        command = manifest.contribution.name + '_prepare'
+    Extension:
+        id = 'actions'
+        point = 'psi.controller.actions'
+        rank = 200
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = manifest.contribution.name + '_prepare'
 
     Extension:
         id = 'workspace'
         point = 'psi.experiment.workspace'
 
         DockItem:
-            closable = False
             name << manifest.contribution.name
             title << manifest.contribution.title
 
             Container:
-                PyQtGraphCanvas:
-                    components << manifest.contribution.children
+                PGCanvas: canvas:
+                    component << manifest.contribution.container
 
 
 from psi.context.context_item import OrderedContextMeta
 
-enamldef GriddedEpochAveragePlotManifest(PSIManifest): manifest:
+
+def prepare_grid(event, contribution):
+    selector_name = event.parameters.get('selector_name', 'default')
+    context = event.workbench.get_plugin('psi.context')
+    iterable = context.iter_settings(selector_name, 1)
+    contribution.prepare_grid(iterable)
+
+
+enamldef PGEpochAverageGridContainerManifest(PGPlotContainerManifest): manifest:
 
     Extension:
         id = 'items'
@@ -147,17 +122,9 @@ enamldef GriddedEpochAveragePlotManifest(PSIManifest): manifest:
             label << 'Epoch average plot'
             values >> manifest.contribution.items
 
-    #Extension:
-    #    id = 'command'
-    #    point = 'enaml.workbench.core.commands'
-    #    Command:
-    #        id = manifest.contribution.name + '_prepare'
-    #        handler = partial(prepare, container=manifest.contribution)
-
-    #Extension:
-    #    id = 'actions'
-    #    point = 'psi.controller.actions'
-    #    rank = 200
-    #    ExperimentAction:
-    #        event = 'experiment_prepare'
-    #        command = manifest.contribution.name + '_prepare'
+    Extension:
+        id = 'commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = manifest.contribution.name + '.prepare_grid'
+            handler = partial(prepare_grid, contribution=manifest.contribution)

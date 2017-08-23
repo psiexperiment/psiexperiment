@@ -69,27 +69,6 @@ class Calibration(object):
         return cls.from_spl([0, 100e3], [0, 0], vrms, **kwargs)
 
     @classmethod
-    def from_single_vrms(cls, frequency, magnitude, vrms=1, **kwargs):
-        '''
-        Generates a calibration object based on
-
-        Parameters
-        ----------
-        frequency : array-like
-            List of freuquencies (in Hz)
-        magnitude : array-like
-            List of magnitudes (e.g., speaker output in Pa) for the specified
-            RMS voltage.
-        vrms : float
-            RMS voltage (in Volts)
-
-        Additional kwargs are passed to the class initialization.
-        '''
-        raise NotImplementedError
-        sensitivity = util.db(vrms)-magnitude-util.db(20e-6)
-        return cls(frequency, sensitivity, **kwargs)
-
-    @classmethod
     def from_magnitude(cls, frequency, magnitude, vrms=1, **kwargs):
         '''
         Generates a calibration object based on the recorded magnitude (Pa)
@@ -149,6 +128,24 @@ class Calibration(object):
 
 
 class FlatCalibration(Calibration):
+
+    @classmethod
+    def from_spl(cls, spl, vrms=1, **kwargs):
+        '''
+        Generates a calibration object based on the recorded SPL
+
+        Parameters
+        ----------
+        spl : array-like
+            List of magnitudes (e.g., speaker output in SPL) for the specified
+            RMS voltage.
+        vrms : float
+            RMS voltage (in Volts)
+
+        Additional kwargs are passed to the class initialization.
+        '''
+        sensitivity = util.db(vrms)-spl-util.db(20e-6)
+        return cls(sensitivity, **kwargs)
 
     def __init__(self, sensitivity, fixed_gain=0):
         self._sensitivity = sensitivity

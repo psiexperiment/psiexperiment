@@ -24,7 +24,7 @@ class ChannelDataRange(BaseChannelDataRange):
 
     def _trig_delay_changed(self):
         self.refresh()
-        
+
     def _update_mode_changed(self):
         self.refresh()
 

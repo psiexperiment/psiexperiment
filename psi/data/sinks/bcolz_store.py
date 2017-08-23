@@ -9,7 +9,8 @@ import numpy as np
 import bcolz
 
 from psi.util import get_tagged_values
-from .abstract_store.store import AbstractStore
+from .abstract_store import (AbstractStore, ContinuousDataChannel,
+                             EpochDataChannel)
 
 
 class BColzStore(AbstractStore):
@@ -35,9 +36,8 @@ class BColzStore(AbstractStore):
             self._channels[name].append(data)
 
     def process_ai_epochs(self, name, data):
-        epochs = [d['epoch'] for d in data]
         if self._channels[name] is not None:
-            self._channels[name].append(epochs)
+            self._channels[name].append(data)
 
     def _get_filename(self, name):
         if self.base_path != '<memory>':
@@ -80,7 +80,7 @@ class BColzStore(AbstractStore):
         for name, value in values.items():
             carray.attrs['engine_' + name] = value
 
-        return carray
+        return ContinuousDataChannel(data=carray, fs=input.fs)
 
     def _create_epochs_input(self, input):
         filename = self._get_filename(input.name)
@@ -88,7 +88,7 @@ class BColzStore(AbstractStore):
         base = np.empty((0, epoch_samples))
         carray = bcolz.carray(base, rootdir=filename, mode='w',
                               dtype=input.channel.dtype)
-        return carray
+        return EpochDataChannel(data=carray, fs=input.fs)
 
     def finalize(self, workbench):
         log.debug('Flushing all data to disk')

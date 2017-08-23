@@ -30,7 +30,8 @@ def as_iterator(x):
 
 class AbstractSignalQueue(object):
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, fs):
+        self._fs = fs
         self._data = {} # list of generators
         self._ordering = [] # order of items added to queue
         self._generator = None
@@ -134,7 +135,7 @@ class AbstractSignalQueue(object):
                 next(self._generator)
                 self._delay = next(data['delays'])
                 for cb in self._notifiers:
-                    args = self._samples, key, data['metadata']
+                    args = self._samples/self._fs, key, data['metadata']
                     cb(args)
             except QueueEmptyError:
                 queue_empty = True
@@ -143,7 +144,7 @@ class AbstractSignalQueue(object):
             waveform, queue_empty =  self.pop_buffer(samples, decrement)
             waveforms.append(waveform)
 
-        waveform = np.concatenate(waveforms, axis=-1) 
+        waveform = np.concatenate(waveforms, axis=-1)
         log.trace('Generated {} samples'.format(waveform.shape))
         if queue_empty:
             log.info('Queue is now empty')

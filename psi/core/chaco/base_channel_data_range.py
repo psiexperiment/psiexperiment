@@ -6,7 +6,7 @@ class BaseChannelDataRange(DataRange1D):
 
     current_time = Float()
 
-    sources = List(Instance('psi.data.sinks.abstract_store.data_source.DataSource'))
+    sources = List(Instance('psi.data.sinks.abstract_store.DataSource'))
 
     def _set_current_time(self, time):
         if self.current_time < time:

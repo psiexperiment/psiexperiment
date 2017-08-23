@@ -56,6 +56,7 @@ class NIDAQEngine(ni.Engine, Engine):
     hw_ai_monitor_period = d_(Float(0.1)).tag(metadata=True)
 
     hw_ao_monitor_period = d_(Float(1)).tag(metadata=True)
+    hw_ao_buffer_size = d_(Float(10)).tag(metadata=True)
 
     # These need to be redefined here even though we define them in the parent
     # class.

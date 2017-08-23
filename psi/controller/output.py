@@ -192,9 +192,11 @@ class QueuedEpochOutput(EpochOutput):
         for setting in context:
             averages = setting['{}_averages'.format(self.name)]
             iti_duration = setting['{}_iti_duration'.format(self.name)]
+            token_duration = self.token.get_duration(setting)
             factory = self.initialize_factory(setting)
-            iti_samples = int(iti_duration*self.fs)
-            self.queue.append(factory, averages, iti_samples, setting)
+            delay_duration = iti_duration-token_duration
+            delay_samples = int(delay_duration*self.fs)
+            self.queue.append(factory, averages, delay_samples, setting)
         cb = queued_epoch_callback(self, self.queue, self.auto_decrement,
                                    complete_cb)
         self.engine.register_ao_callback(cb.__next__, self.channel.name)

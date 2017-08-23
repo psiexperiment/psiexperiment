@@ -196,7 +196,7 @@ def blocked(block_size, target):
                 merged = merged[..., block_size:]
             data = [merged]
             n = merged.shape[-1]
-                
+
 
 class Blocked(Input):
 
@@ -400,7 +400,7 @@ class ITI(Input):
 
 
 @coroutine
-def extract_epochs(epoch_size, queue, buffer_size, target):
+def extract_epochs(fs, epoch_size, queue, buffer_size, target):
     buffer_size = int(buffer_size)
     data = (yield)
     buffer_shape = list(data.shape)
@@ -422,6 +422,7 @@ def extract_epochs(epoch_size, queue, buffer_size, target):
         while True:
             if (next_offset is None) and len(queue) > 0:
                 next_offset, key, metadata = queue.popleft()
+                next_offset = int(next_offset*fs)
                 log.debug('Next offset %d, current t0 %d', next_offset, t0)
             elif next_offset is None:
                 break
@@ -460,4 +461,4 @@ class ExtractEpochs(Input):
         epoch_samples = int(self.epoch_size*self.fs)
         cb_queue = deque()
         self.queue.connect(cb_queue.append)
-        return extract_epochs(epoch_samples, cb_queue, buffer_samples, cb).send
+        return extract_epochs(self.fs, epoch_samples, cb_queue, buffer_samples, cb).send

@@ -12,7 +12,7 @@ class BaseChannelPlot(BaseXYPlot):
     Not meant for use as a stand-alone plot.  Provides the base properties and
     methods shared by all subclasses.
     '''
-    source = Instance('psi.data.sinks.abstract_store.data_source.DataChannel')
+    source = Instance('psi.data.sinks.abstract_store.DataChannel')
 
     fill_color = black_color_trait
     line_color = black_color_trait
