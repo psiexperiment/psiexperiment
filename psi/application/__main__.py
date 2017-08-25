@@ -5,22 +5,16 @@ import pdb
 import traceback
 import warnings
 import sys
-import re
 import argparse
 import os.path
-import warnings
 import datetime as dt
 
-import tables as tb
-
 import enaml
-from enaml.application import deferred_call
 
 from psi import get_config, set_config
 
 
 experiments = {
-    'passive': 'psi.controller.passive_manifest.PassiveManifest',
     'appetitive_gonogo_food': 'psi.application.experiment.appetitive.ControllerManifest',
     'abr': 'psi.application.experiment.abr.ControllerManifest',
     'noise_exposure': 'psi.application.experiment.noise_exposure.ControllerManifest',
@@ -76,7 +70,6 @@ def warn_with_traceback(message, category, filename, lineno, file=None,
     log = file if hasattr(file,'write') else sys.stderr
     m = warnings.formatwarning(message, category, filename, lineno, line)
     log.write(m)
-
 
 
 def _main(args):

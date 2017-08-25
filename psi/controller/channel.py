@@ -29,7 +29,7 @@ class Channel(Declarative):
 
     engine = Property()
 
-    calibration = d_(Typed(Calibration))
+    calibration = d_(Typed(Calibration)).tag(metadata=True)
 
     def _get_engine(self):
         return self.parent
@@ -96,13 +96,6 @@ class AOChannel(OutputChannel):
 
     def _get_epoch_outputs(self):
         return [o for o in self.outputs if isinstance(o, EpochOutput)]
-
-    def configure(self, plugin):
-        # Hack?
-        if self.continuous_output is None:
-            null_output = NullOutput()
-            null_output.target = self
-        super(AOChannel, self).configure(plugin)
 
 
 class DIChannel(InputChannel):

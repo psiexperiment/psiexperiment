@@ -2,7 +2,7 @@ import logging
 log = logging.getLogger(__name__)
 
 from functools import partial
-from collections import deque
+from copy import copy
 
 import numpy as np
 from scipy import signal
@@ -341,21 +341,23 @@ class Edges(Input):
 
 
 @coroutine
-def reject(threshold, target):
+def reject_epochs(threshold, target):
     while True:
-        data = (yield)
-        if np.all(np.max(np.abs(d), axis=-1) < reject_threshold):
-            # TODO: what about fails?
-            target(data)
+        epochs = (yield)
+        valid = []
+        for epoch in epochs:
+            if np.max(np.abs(epoch['signal'])) < reject_threshold:
+                valid.append(epoch)
+        target(epochs)
 
 
-class Reject(Input):
+class RejectEpochs(Input):
 
     threshold = d_(Float()).tag(metadata=True)
 
     def configure_callback(self, plugin):
         cb = super().configure_callback(plugin)
-        return reject(self.threshold, cb).send
+        return reject_epochs(self.threshold, cb).send
 
 
 @coroutine
@@ -400,14 +402,16 @@ class ITI(Input):
 
 
 @coroutine
-def extract_epochs(fs, epoch_size, queue, buffer_size, target):
-    buffer_size = int(buffer_size)
+def extract_epochs(fs, queue, epoch_size, buffer_size, target):
+    buffer_samples = int(buffer_size*fs)
+    epoch_samples = int(epoch_size*fs)
+
     data = (yield)
     buffer_shape = list(data.shape)
-    buffer_shape[-1] = buffer_size
+    buffer_shape[-1] = buffer_samples
     ring_buffer = np.empty(buffer_shape, dtype=data.dtype)
     next_offset = None
-    t0 = -buffer_size
+    t0 = -buffer_samples
 
     while True:
         # Newest data is always stored at the end of the ring buffer. To make
@@ -421,27 +425,30 @@ def extract_epochs(fs, epoch_size, queue, buffer_size, target):
         epochs = []
         while True:
             if (next_offset is None) and len(queue) > 0:
-                next_offset, key, metadata = queue.popleft()
-                next_offset = int(next_offset*fs)
-                log.debug('Next offset %d, current t0 %d', next_offset, t0)
-            elif next_offset is None:
+                offset, signal_size, key, metadata = queue.popleft()
+                next_offset = int(offset*fs)
+                log.trace('Next offset %d, current t0 %d', next_offset, t0)
+
+            if next_offset is None:
                 break
             elif next_offset < t0:
                 raise SystemError('Epoch lost')
-            elif (next_offset+epoch_size) > (t0+buffer_size):
+            elif (next_offset+epoch_samples) > (t0+buffer_samples):
                 break
             else:
                 i = next_offset-t0
                 epoch = {
-                    'epoch': ring_buffer[..., i:i+epoch_size].copy(),
+                    'signal': ring_buffer[..., i:i+epoch_samples].copy(),
                     'key': key,
-                    'metadata': metadata
+                    'metadata': metadata,
+                    'offset': offset,
                 }
                 epochs.append(epoch)
                 next_offset = None
 
         if len(epochs) != 0:
             target(epochs)
+
         data = (yield)
         log.debug('received %r samples', data.shape)
 
@@ -457,8 +464,6 @@ class ExtractEpochs(Input):
 
     def configure_callback(self, plugin):
         cb = super().configure_callback(plugin)
-        buffer_samples = int(self.buffer_size*self.fs)
-        epoch_samples = int(self.epoch_size*self.fs)
-        cb_queue = deque()
-        self.queue.connect(cb_queue.append)
-        return extract_epochs(self.fs, epoch_samples, cb_queue, buffer_samples, cb).send
+        cb_queue = self.queue.create_connection()
+        return extract_epochs(self.fs, cb_queue, self.epoch_size,
+                              self.buffer_size, cb).send

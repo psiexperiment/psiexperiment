@@ -1,5 +1,4 @@
-import numpy as np
-
+import numpy as np 
 from enaml.workbench.api import PluginManifest, Extension
 
 from psi.controller.engines.nidaq import NIDAQEngine
@@ -12,7 +11,6 @@ from psi.controller.input import (Downsample, IIRFilter, Threshold, Edges,
                                   Accumulate, Blocked)
 
 from psi.data.sinks.bcolz_store import BColzStore
-
 from psi.controller.calibration import FlatCalibration
 
 
@@ -50,85 +48,25 @@ enamldef IOManifest(PluginManifest): manifest:
         NIDAQEngine:
             name = 'NI_audio'
             master_clock = True
-            
-            hw_ao_monitor_period = 2
-            hw_ao_buffer_size = 10
 
-            #AOChannel:
-            #    label = 'primary_old'
-            #    name = 'speaker_0'
-            #    channel = 'PXI1Slot8/ao0'
-            #    fs = 200e3
-            #    expected_range = (-10, 10)
-            #    dtype = np.dtype('float64')
-            #    terminal_mode = 'pseudodifferential'
-
-            #AOChannel:
-            #    label = 'secondary'
-            #    name = 'speaker_1'
-            #    channel = 'PXI1Slot8/ao1'
-            #    fs = 200e3
-            #    expected_range = (-10, 10)
-            #    dtype = np.dtype('float64')
-            #    terminal_mode = 'pseudodifferential'
-
-            #AIChannel:
-            #    label = 'Probe tube microphone'
-            #    name = 'microphone'
-            #    channel = 'PXI1Slot8/ai0'
-            #    start_trigger = '/PXI1Slot8/ao/StartTrigger'
-            #    fs = 200e3
-            #    expected_range = (-10, 10)
-            #    dtype = np.dtype('float64')
-            #    terminal_mode = 'pseudodifferential'
-            #    terminal_coupling = 'AC'
-
-            #    Input:
-            #        name = '_mic'
-            #        save = True
-
-            #        IIRFilter:
-            #            f_highpass = 40
-            #            f_lowpass = 40000
-            #            ftype = 'butter'
-            #            N = 4
-            #            btype = 'bandpass'
-            #            name = 'microphone'
-            #            save = True
-
-
-            #AIChannel:
-            #    label = 'Reference microphone'
-            #    name = 'reference_microphone'
-            #    channel = 'PXI1Slot8/ai1'
-            #    start_trigger = '/PXI1Slot8/ao/StartTrigger'
-            #    fs = 200e3
-            #    expected_range = (-10, 10)
-            #    dtype = np.dtype('float64')
-            #    terminal_mode = 'pseudodifferential'
-            #    terminal_coupling = 'AC'
-
-            #    Input:
-            #        name = 'reference_microphone'
-
-            #AIChannel:
-            #    label = 'Continuous EEG'
-            #    name = 'eeg'
-            #    channel = 'PXI1Slot7/ai0'
-            #    start_trigger = '/PXI1Slot8/ao/StartTrigger'
-            #    fs = 25e3
-            #    expected_range = (-10, 10)
-            #    dtype = np.dtype('float64')
-            #    terminal_mode = 'pseudodifferential'
-            #    terminal_coupling = 'AC'
-
-            #  TESTING
+            hw_ao_monitor_period = 0.5
+            hw_ao_buffer_size = 5
 
             AOChannel:
                 label = 'primary'
                 name = 'speaker_0'
-                channel = 'PXI1Slot7/ao0'
-                fs = 200e3
+                channel = 'PXI1Slot8/ao0'
+                fs = 100e3
+                expected_range = (-10, 10)
+                dtype = np.dtype('float64')
+                terminal_mode = 'pseudodifferential'
+                calibration = FlatCalibration.from_spl(80)
+
+            AOChannel:
+                label = 'secondary'
+                name = 'speaker_1'
+                channel = 'PXI1Slot8/ao1'
+                fs = 100e3
                 expected_range = (-10, 10)
                 dtype = np.dtype('float64')
                 terminal_mode = 'pseudodifferential'
@@ -137,15 +75,37 @@ enamldef IOManifest(PluginManifest): manifest:
             AIChannel:
                 label = 'Probe tube microphone'
                 name = 'microphone'
-                channel = 'PXI1Slot7/ai1'
-                start_trigger = '/PXI1Slot7/ao/StartTrigger'
-                fs = 200e3
+                channel = 'PXI1Slot8/ai0'
+                start_trigger = '/PXI1Slot8/ao/StartTrigger'
+                fs = 100e3
                 expected_range = (-10, 10)
                 dtype = np.dtype('float64')
                 terminal_mode = 'pseudodifferential'
                 terminal_coupling = 'AC'
-                calibration = FlatCalibration(1)
 
                 Input:
-                    name = 'microphone'
+                    name = '_mic'
                     save = True
+
+                    IIRFilter:
+                        f_highpass = 40
+                        f_lowpass = 40000
+                        ftype = 'butter'
+                        N = 4
+                        btype = 'bandpass'
+                        name = 'microphone'
+                        save = True
+
+            AIChannel:
+                label = 'Reference microphone'
+                name = 'reference_microphone'
+                channel = 'PXI1Slot8/ai1'
+                start_trigger = '/PXI1Slot8/ao/StartTrigger'
+                fs = 100e3
+                expected_range = (-10, 10)
+                dtype = np.dtype('float64')
+                terminal_mode = 'pseudodifferential'
+                terminal_coupling = 'AC'
+
+                Input:
+                    name = 'reference_microphone'

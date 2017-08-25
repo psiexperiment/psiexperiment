@@ -31,3 +31,9 @@ def coroutine(func):
         return cr
     return start
 
+
+def copy_declarative(old, **kw):
+    attributes = get_tagged_values(old, 'metadata')
+    attributes.update(kw)
+    new = old.__class__(**attributes)
+    return new

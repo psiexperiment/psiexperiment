@@ -235,7 +235,7 @@ class ContinuousDataChannel(DataChannel):
 class EpochDataChannel(DataChannel):
 
     def append(self, data):
-        epochs = [d['epoch'] for d in data]
+        epochs = [d['signal'] for d in data]
         self.data.append(epochs)
         self.added = data
 

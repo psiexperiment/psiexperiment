@@ -34,11 +34,16 @@ def single_input(function):
 
 def no_inputs(function):
     def wrapper(*args, **kwargs):
-        input_factories = kwargs.pop('input_factories')
+        input_factories = kwargs.pop('input_factories', [])
         if len(input_factories) != 0:
             raise ValueError('Cannot accept any input factories')
         return function(*args, **kwargs)
     return wrapper
+
+
+def generate_waveform(generator, samples):
+    generator.send(None)
+    return generator.send({'samples': samples})
 
 
 ################################################################################
@@ -352,7 +357,7 @@ enamldef BandlimitedNoise(Block):
 # Tone
 ################################################################################
 @no_inputs
-def tone_factory(fs, level, frequency, calibration):
+def tone_factory(fs, level, frequency, polarity, calibration):
     sf = calibration.get_sf(frequency, level)
     waveform = None
     offset = 0
@@ -362,7 +367,7 @@ def tone_factory(fs, level, frequency, calibration):
         kwargs = (yield waveform)
         samples = kwargs['samples']
         t = (np.arange(samples, dtype=np.float32) + offset)/fs
-        waveform = sf*np.cos(2*np.pi*t*frequency)
+        waveform = polarity*sf*np.cos(2*np.pi*t*frequency)
         offset += len(waveform)
 
 
@@ -383,6 +388,13 @@ enamldef Tone(Block):
         label = 'frequency (Hz)'
         compact_label = 'fc'
         default = 1000.0
+
+    EnumParameter:
+        name = 'polarity'
+        label = 'Initial tone polarity'
+        compact_label = 'pol'
+        default = 'positive'
+        choices = {'positive': 1, 'negative': -1}
 
 
 @no_inputs

@@ -16,6 +16,8 @@ from .queue import AbstractSignalQueue
 
 from psi.core.enaml.api import PSIContribution
 
+import time
+
 
 class Output(PSIContribution):
 
@@ -101,7 +103,7 @@ class EpochCallback(object):
         self.active = True
         next(self)
 
-    def __next__(self):
+    def send(self, event):
         if not self.active:
             raise StopIteration
         with self.engine.lock:
@@ -153,7 +155,7 @@ class EpochOutput(AnalogOutput):
             m = '{} was not initialized'.format(self.name)
             raise SystemError(m)
         self._cb.start(start, delay)
-        self.engine.register_ao_callback(self._cb.__next__, self.channel.name)
+        self.engine.register_ao_callback(self._cb.send, self.channel.name)
         return self._duration
 
     def clear(self, end, delay):
@@ -169,9 +171,10 @@ def queued_epoch_callback(output, queue, auto_decrement, complete_cb=None):
     engine = output.engine
     channel = output.channel
     while True:
-        yield
+        event = (yield)
         samples = engine.get_buffered_samples(channel.name, offset)
         log.debug('Generating %d samples at %d from queue', samples, offset)
+        start = time.time()
         waveform, empty = queue.pop_buffer(samples, decrement=auto_decrement)
         engine.modify_hw_ao(waveform, offset, output.name)
         offset += len(waveform)
@@ -189,32 +192,32 @@ class QueuedEpochOutput(EpochOutput):
     auto_decrement = d_(Bool(False))
 
     def setup(self, context, complete_cb=None):
+        log.debug('Setting up queue for {}'.format(self.name))
         for setting in context:
             averages = setting['{}_averages'.format(self.name)]
             iti_duration = setting['{}_iti_duration'.format(self.name)]
             token_duration = self.token.get_duration(setting)
-            factory = self.initialize_factory(setting)
             delay_duration = iti_duration-token_duration
-            delay_samples = int(delay_duration*self.fs)
-            self.queue.append(factory, averages, delay_samples, setting)
+            # Somewhat surprisingly it appears to be faster to use factories in
+            # the queue rather than creating the waveforms for ABR tone pips,
+            # even for very short signal durations.
+            factory = self.initialize_factory(setting)
+            self.queue.append(factory, averages, delay_duration, token_duration,
+                              setting)
         cb = queued_epoch_callback(self, self.queue, self.auto_decrement,
                                    complete_cb)
-        self.engine.register_ao_callback(cb.__next__, self.channel.name)
+        self.engine.register_ao_callback(cb.send, self.channel.name)
 
 
 @coroutine
-def continuous_callback(output, generator):
-    offset = 0
-    engine = output.engine
-    channel = output.channel
+def continuous_callback(generator):
     while True:
-        yield
-        with engine.lock:
-            samples = engine.get_space_available(channel.name, offset)
-            log.debug('Generating {} samples for {}'.format(samples,
-                                                            channel.name))
+        event = (yield)
+        with event.engine.lock:
+            samples = event.engine.get_space_available(event.channel_name)
+            log.debug('Generating {} samples for {}'.format(samples, event.channel_name))
             waveform = generator.send({'samples': samples})
-            engine.append_hw_ao(waveform)
+            event.engine.append_hw_ao(waveform)
             offset += len(waveform)
 
 
@@ -225,21 +228,19 @@ class ContinuousOutput(AnalogOutput):
     def setup(self, context):
         log.debug('Configuring continuous output {}'.format(self.name))
         generator = self.initialize_generator(context)
-        cb = continuous_callback(self, generator)
-        self.engine.register_ao_callback(cb.__next__, self.channel.name)
+        cb = continuous_callback(generator)
+        self.engine.register_ao_callback(cb.send, self.channel.name)
 
 
 @coroutine
-def null_callback(output):
+def null_callback():
     offset = 0
-    engine = output.engine
-    channel = output.channel
     while True:
-        yield
-        with engine.lock:
-            samples = engine.get_space_available(channel.name, offset)
+        event = (yield)
+        with event.engine.lock:
+            samples = event.engine.get_space_available(event.channel_name, offset)
             waveform = np.zeros(samples)
-            engine.append_hw_ao(waveform)
+            event.engine.append_hw_ao(waveform)
             offset += samples
 
 
@@ -248,8 +249,8 @@ class NullOutput(AnalogOutput):
     # defined.
 
     def configure(self, plugin):
-        cb = null_callback(self)
-        self.engine.register_ao_callback(cb.__next__, self.channel.name)
+        cb = null_callback()
+        self.engine.register_ao_callback(cb.send, self.channel.name)
 
 
 class DigitalOutput(Output):

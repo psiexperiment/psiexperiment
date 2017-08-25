@@ -107,6 +107,9 @@ enamldef ContextManifest(PluginManifest): manifest:
         Command:
             id = PLUGIN_ID + '.changes_pending'
             handler = changes_pending
+        Command:
+            id = PLUGIN_ID + '.unique_values'
+            handler = rpc(PLUGIN_ID, 'unique_values')
 
     Extension:
         id = 'context_actions'

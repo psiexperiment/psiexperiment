@@ -10,9 +10,9 @@ from atom.api import Unicode, Float, Tuple, Int, Typed, Property, Atom
 from enaml.core.api import Declarative, d_
 from enaml.application import deferred_call
 
-from psi.core.chaco.api import ChannelDataRange, add_time_axis, add_default_grids
-from chaco.api import LinearMapper, LogMapper, OverlayPlotContainer, DataRange1D, PlotAxis
-from psi.core.chaco.base_channel_data_range import BaseChannelDataRange
+#from psi.core.chaco.api import ChannelDataRange, add_time_axis, add_default_grids
+#from chaco.api import LinearMapper, LogMapper, OverlayPlotContainer, DataRange1D, PlotAxis
+#from psi.core.chaco.base_channel_data_range import BaseChannelDataRange
 
 # TODO: refactor so overlays and underlays can also be declarative
 
@@ -256,8 +256,19 @@ class MultiLine(pg.QtGui.QGraphicsPathItem):
         self.setPath(self.path)
 
     def setData(self, x, y_min, y_max):
-        self.path = arrayToQPath(x, y_min, y_max)
+        path = pg.QtGui.QPainterPath()
+        for p, ls, le in zip(x, y_min, y_max):
+            path.moveTo(p, ls)
+            path.lineTo(p, le)
+        self.path = path
         self.setPath(self.path)
+
+        #x = np.column_stack([x, x]).ravel()
+        #y = np.column_stack([y_min, y_max]).ravel()
+        #self.path = arrayToQPath(x, y_min, y_max)
+
+        #self.path = pg.arrayToQPath(x, y, 'pairs')
+        #self.setPath(self.path)
         self.prepareGeometryChange()
         self.update()
 
@@ -267,6 +278,10 @@ class PGExtremesChannelPlot(PGChannelPlot):
     container = Typed(object)
     downsample = Int()
     time = Typed(object)
+
+    y_min = Typed(object)
+    y_max = Typed(object)
+    fill = Typed(object)
 
     def decimate_extremes(self, y, downsample):
         # If data is empty, return imediately
@@ -283,27 +298,49 @@ class PGExtremesChannelPlot(PGChannelPlot):
 
     def create_plot(self, plugin, container):
         self.container = container
-        self.plot = MultiLine()
+
+        self.plot = pg.PlotCurveItem(pen='k')
+        self.container.plot_item.addItem(self.plot)
+        #self.y_max = pg.PlotCurveItem(pen='r')
+        #self.fill = pg.FillBetweenItem(self.y_min, self.y_max, pen='k')
+
+        #self.container.plot_item.addItem(self.y_min)
+        #self.container.plot_item.addItem(self.y_max)
+        #self.container.plot_item.addItem(self.fill)
+
+        #self.plot = MultiLine()
+
         self.source = plugin.find_source(self.source_name)
         self.container.data_range.add_source(self.source, self)
-        self.container.plot_item.addItem(self.plot)
         self.container.plot_item.setMouseEnabled(x=False, y=True)
-        self.container.plot_item.vb.geometryChanged.connect(self.compute_pixel_size)
+
+        # TODO: For some reason this crashes if we attempt to connect directly
+        # to the compute pixel size function.
+        def handle(*args, obj=self, **kwargs):
+            self.compute_pixel_size()
+
+        self.container.plot_item.vb.geometryChanged.connect(handle)
         return self.plot
 
-    def compute_pixel_size(self):
-        pixel_width, _ = self.container.plot_item.vb.viewPixelSize()
-        self.downsample = int(pixel_width*self.source.fs)
-        time = np.arange(self.container.span*self.source.fs)/self.source.fs
-        self.time = time[::self.downsample]
+    def compute_pixel_size(self, *args, **kwargs):
+        try:
+            pixel_width, _ = self.container.plot_item.vb.viewPixelSize()
+            self.downsample = int(pixel_width*self.source.fs)
+            time = np.arange(self.container.span*self.source.fs)/self.source.fs
+            self.time = time[::self.downsample]
+        except:
+            pass
 
     def update_range(self, low, high):
         if self.downsample != 0:
+            log.trace('Downsampling signal at {}'.format(self.downsample))
             data = self.source.get_range(low, high)
             y_min, y_max = self.decimate_extremes(data, self.downsample)
             n = len(y_min)
             t = self.time[:n]
-            deferred_call(self.plot.setData, t, y_min, y_max)
+            x = np.column_stack([t, t]).ravel()
+            y = np.column_stack([y_min, y_max]).ravel()
+            deferred_call(self.plot.setData, x, y)
 
 
 class CustomViewBox(pg.ViewBox):
@@ -372,15 +409,15 @@ class PGEpochAverageGridContainer(PGPlotContainer):
             self.process_epoch(epoch)
         deferred_call(self.update_plots)
 
-    def process_epoch(self, data):
-        key = self.extract_key(data['metadata'])
-        epoch = data['epoch']
+    def process_epoch(self, epoch):
+        key = self.extract_key(epoch['metadata'])
+        signal = epoch['signal']
 
         n = self.cumulative_n.get(key, 0) + 1
-        time, average = self.cumulative_average.get(key, (None, epoch))
-        delta = epoch-average
+        time, average = self.cumulative_average.get(key, (None, signal))
+        delta = signal-average
         average = average + delta/n
-        delta2 = epoch-average
+        delta2 = signal-average
         M2 = delta*delta2
         var = M2/(n-1)
 

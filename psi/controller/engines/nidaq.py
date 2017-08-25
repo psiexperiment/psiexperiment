@@ -12,7 +12,6 @@ from ..engine import Engine
 from daqengine import ni
 import PyDAQmx as mx
 
-
 def get_channel_property(channels, property, allow_unique=False):
     values = [getattr(c, property) for c in channels]
     if allow_unique:
@@ -88,7 +87,7 @@ class NIDAQEngine(ni.Engine, Engine):
         ni.Engine.__init__(self)
         Engine.__init__(self, *args, **kwargs)
 
-    def configure(self, plugin):
+    def configure(self, plugin=None):
         log.debug('Configuring {} engine'.format(self.name))
         if self.sw_do_channels:
             log.debug('Configuring SW DO channels')

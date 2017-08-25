@@ -1,139 +1,189 @@
 import logging
 log = logging.getLogger(__name__)
 
+from atom.api import Typed
 import numpy as np
 
+from enaml.application import deferred_call
 from enaml.workbench.api import Extension
-from enaml.workbench.ui.api import Branding
+from enaml.workbench.core.api import Command
 
-from psi.context.selector import SequenceSelector
-from psi.controller.api import EpochOutput, ContinuousOutput
-from psi.controller.base_plugin import BasePlugin
-from psi.controller.input import IIRFilter, Average, Accumulate, Epoch, Reject
+from psi.context.api import ContextGroup, Parameter, SequenceSelector
+from psi.context import choice
+from psi.controller.api import EpochOutput, ExperimentAction
+
+from psi.controller.output import QueuedEpochOutput, NullOutput
+from psi.controller.input import ExtractEpochs, Input, Threshold, ITI, Edges, Blocked, Accumulate, RejectEpochs
+
 from psi.controller.base_manifest import BaseManifest
-from psi.controller.engines.nidaq import NIDAQEngine
 
-from psi.context.api import ContextGroup, Parameter
+from psi.controller.queue import InterleavedFIFOSignalQueue
 
-from psi.data.plots import (TimeContainer, ChannelPlot, TimeseriesPlot,
-                            ExtremesChannelPlot)
+from psi.util import copy_declarative
+
+from psi.data.plots import (PGTimeContainer, 
+                            PGExtremesChannelPlot, 
+                            PGEpochAverageGridContainer,
+                            PGChannelPlot)
+
+from psi.data.sinks.trial_log_counter import TrialLogCounter
+
+from psi.controller.calibration.tone import tone_calibration
+
+
+def process_key(event):
+    core = event.workbench.get_plugin('enaml.workbench.core')
+    metadata = [e['metadata'] for e in event.parameters['data']]
+    parameters = {'results': metadata}
+    core.invoke_command('psi.data.process_trials', parameters)
+
+
+def calibrate_output(event):
+    # Load the plugins we'll need
+    core = event.workbench.get_plugin('enaml.workbench.core')
+    controller = event.workbench.get_plugin('psi.controller')
+
+    p = event.parameters
+
+    selector_name = p.get('selector_name', 'default')
+    parameter_name = p.get('parameter_name', 'target_tone_frequency')
+    parameters = {'item_name': parameter_name, 'iterator': selector_name}
+    frequencies = core.invoke_command('psi.context.unique_values', parameters)
+    frequencies = list(frequencies)
+
+    # Get the configuration for the channels
+    output_channel = controller.get_output(p['output_name']).channel
+    input_channel = controller.get_input(p['input_name']).channel
+
+    engine = copy_declarative(output_channel.engine, 
+                              name='cal_engine',
+                              hw_ao_monitor_period=1, 
+                              hw_ai_monitor_period=0.1)
+    copy_declarative(output_channel, name='output', parent=engine)
+    copy_declarative(input_channel, name='input', parent=engine)
+
+    log.debug('Calibrating {}'.format(p['output_name']))
+    # Run the calibration and update the output with that calibration
+    output_channel.calibration = tone_calibration(engine, frequencies)
 
 
 enamldef ControllerManifest(BaseManifest): manifest:
-
-    id = 'psi.controller'
-    factory = ABRController
-
-    Extension:
-        id = 'branding'
-        point = 'enaml.workbench.ui.branding'
-        Branding:
-            title = 'Sequence Controller'
 
     Extension:
         id = 'io'
         point = 'psi.controller.io'
 
-        ContinuousOutput:
-            label = 'Background'
+        NullOutput:
             name = 'background'
-            target_name = 'primary'
+            label = 'Background'
+            target_name = 'speaker_0'
 
-        EpochOutput:
-            label = 'Stimulus'
-            name = 'stimulus'
-            target_name = 'primary'
+        QueuedEpochOutput: output:
+            name = 'target'
+            label = 'Target'
+            target_name = 'speaker_0'
+            selector_name = 'default'
+            queue = InterleavedFIFOSignalQueue(fs=output.fs)
+            auto_decrement = False
 
-        IIRFilter:
-            source_name = 'eeg'
-            f_lowpass = 3000
-            f_highpass = 300
-            btype = 'bandpass'
-            ftype = 'butter'
-            N = 1
-            name = 'filtered_eeg'
+        Blocked:
+            duration = 0.1
+            name = 'eeg'
+            save = True
+            source_name = 'eeg_channel'
 
-            Epoch:
-                name = 'filtered_erp'
-                reference = 'stimulus'
-                duration = 8.5e-3
+            Accumulate:
+                name = 'eeg_buffered'
+                n = 10
 
-                Accumulate:
-                    n = 2
-                    Reject:
-                        threshold << 5
-                        Average:
-                            n << workbench.get_plugin('psi.context').get_value('averages')
-                            name = 'mean_erp'
+                ExtractEpochs:
+                    save = True
+                    name = 'erp'
+                    buffer_size = 20
+                    epoch_size = 8.5e-3
+                    queue = output.queue
 
-    Extension:
-        id = 'items'
-        point = 'psi.context.items'
-
-        ContextGroup:
-            name = 'epoch'
-            label = 'Acquisition settings'
-
-        Parameter:
-            name = 'averages'
-            label = 'Averages'
-            compact_label = 'N'
-            dtype = np.dtype('int')
-            default = 1024
-            expression = '1024'
-            group = 'epoch'
-            scope = 'experiment'
-
-        Parameter:
-            name = 'window'
-            label = 'Window (s)'
-            compact_label = 'W'
-            dtype = np.dtype('float32')
-            default = 8.5e-3
-            expression = '8.5e-3'
-            group = 'epoch'
-            scope = 'experiment'
-
-        Parameter:
-            name = 'reject_threshold'
-            label = 'Reject threshold (V)'
-            compact_label = 'Rej.'
-            dtype = np.dtype('float32')
-            default = 0.2
-            expression = '0.2'
-            group = 'epoch'
-            scope = 'experiment'
-
-        Parameter:
-            name = 'exp_mic_gain'
-            label = 'Experiment microphone gain (dB)'
-            compact_label = 'gain'
-            dtype = np.dtype('float32')
-            default = 40
-            expression = '40'
-            group = 'epoch'
-            scope = 'experiment'
-
-        Parameter:
-            name = 'iti'
-            label = 'Intertrial interval (s)'
-            compact_label = 'ITI'
-            dtype = np.dtype('float32')
-            default = 1/20.0
-            expression = '1/20.0'
-            group = 'epoch'
-            scope = 'experiment'
+                    RejectEpochs:
+                        threshold = 2.5
+                        name = 'valid_erp'
+                        save = True
 
     Extension:
         id = 'selectors'
         point = 'psi.context.selectors'
+
         SequenceSelector:
-            name = 'sequence'
+            name = 'default'
+
+    Extension:
+        id = 'passive_commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = 'psi.controller.process_key'
+            handler = process_key
+        Command:
+            id = 'psi.controller.calibrate_output'
+            handler = calibrate_output
 
     Extension:
         id = 'actions'
         point = 'psi.controller.actions'
+        rank = 100
+
+        # The order of actions for experiment_prepare is important. We need to
+        # make sure that the calibration is run before the queue is prepared.
+        # Once the queue is prepared, the calibration has been set for those
+        # stimuli.
         ExperimentAction:
-            event = 'experiment_start'
-            command = 'psi.context.next_setting'
-            kwargs = {'selector': 'sequence', 'save_prior': False}
+            event = 'experiment_prepare'
+            command = 'psi.controller.calibrate_output'
+            kwargs = {
+                'input_name': 'microphone',
+                'output_name': 'target',
+                'parameter_name': 'target_tone_frequency',
+            }
+
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'erp_average.prepare_grid'
+
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'target.prepare_queue'
+
+        ExperimentAction:
+            event = 'erp_acquired'
+            command = 'psi.controller.process_key'
+
+        ExperimentAction:
+            event = 'valid_erp_acquired'
+            command = 'target.decrement_key'
+
+        ExperimentAction:
+            event = 'target_complete'
+            command = 'psi.controller.stop'
+
+    Extension:
+        id = 'sink'
+        point = 'psi.data.sinks'
+        rank = 100
+
+        TrialLogCounter:
+            pass
+
+    Extension:
+        id = 'plots'
+        point = 'psi.data.plots'
+
+        PGEpochAverageGridContainer:
+            name = 'erp_average'
+            title = 'ERP average'
+            source_name = 'valid_erp'
+
+        PGTimeContainer:
+            name = 'trial_plot_container' 
+            title = 'Trial timing'
+            span = 1
+
+            PGExtremesChannelPlot:
+                source_name = 'eeg'

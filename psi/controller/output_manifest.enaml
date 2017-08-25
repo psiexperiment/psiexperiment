@@ -95,7 +95,7 @@ def clear_output(event, output):
     controller = event.workbench.get_plugin('psi.controller')
     controller.invoke_actions('{}_end'.format(output.name), end+delay)
 
-
+    
 def decrement_key(event, output):
     for epoch in event.parameters['data']:
         try:
@@ -103,7 +103,6 @@ def decrement_key(event, output):
         except KeyError:
             m = 'Acquired extra epoch for {}'
             log.debug(m.format(epoch['key']))
-
 
 
 enamldef AnalogOutputManifest(OutputManifest): manifest:

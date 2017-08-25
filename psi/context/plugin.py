@@ -73,7 +73,7 @@ class ContextPlugin(Plugin):
         point = self.workbench.get_extension_point(SYMBOLS_POINT)
         for extension in point.extensions:
             for symbol in extension.get_children(Symbol):
-                symbols[symbol.name] = symbol.get_object() 
+                symbols[symbol.name] = symbol.get_object()
         self.symbols = symbols
 
     def _refresh_items(self, event=None):
@@ -185,13 +185,18 @@ class ContextPlugin(Plugin):
     def _get_iterators(self):
         return {k: v.get_iterator() for k, v in self.selectors.items()}
 
-    def iter_settings(self, iterator, cycles=None):
+    def iter_settings(self, iterator='default', cycles=None):
         selector = self.selectors[iterator].get_iterator(cycles=cycles)
-        for expressions in selector:
+        for setting in selector:
             self._namespace.reset()
-            expressions = {i.name: e for i, e in expressions.items()}
+            expressions = {i.name: i.to_expression(e) for i, e in setting.items()}
             self._namespace.update_expressions(expressions)
             yield self.get_values()
+
+    def unique_values(self, item_name, iterator='default'):
+        iterable = self.iter_settings(iterator, 1)
+        values = set(c[item_name] for c in iterable)
+        return values
 
     def get_item(self, item_name):
         return self.context_items[item_name]
@@ -290,7 +295,7 @@ class ContextPlugin(Plugin):
             if name not in self.context_items:
                 self.changes_pending = True
                 return
-            item = self.context_items[name] 
+            item = self.context_items[name]
             if (item.rove, item.expression) != state:
                 self.changes_pending = True
                 return

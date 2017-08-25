@@ -245,6 +245,9 @@ class BasePlugin(Plugin):
     def get_output(self, output_name):
         return self._outputs[output_name]
 
+    def get_input(self, input_name):
+        return self._inputs[input_name]
+
     def _get_action_context(self):
         context = {}
         for state in self._states.values():

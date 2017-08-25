@@ -5,6 +5,7 @@ from fractions import gcd
 
 def db(target, reference=1):
     target = np.asarray(target, dtype=np.double)
+    reference = np.asarray(reference, dtype=np.double)
     return 20*np.log10(target/reference)
 
 

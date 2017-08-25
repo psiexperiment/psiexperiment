@@ -110,6 +110,7 @@ class Calibration(object):
 
     def get_spl(self, frequency, voltage):
         sensitivity = self.get_sens(frequency)
+        print(sensitivity)
         return util.db(voltage)-sensitivity-util.db(20e-6)
 
     def get_sf(self, frequency, spl, attenuation=0):
@@ -128,6 +129,13 @@ class Calibration(object):
 
 
 class FlatCalibration(Calibration):
+
+    @classmethod
+    def as_attenuation(cls, vrms=1, **kwargs):
+        '''
+        Allows levels to be specified in dB attenuation
+        '''
+        return cls.from_spl(0, vrms, **kwargs)
 
     @classmethod
     def from_spl(cls, spl, vrms=1, **kwargs):

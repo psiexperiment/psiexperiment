@@ -114,6 +114,9 @@ class Parameter(ContextItem):
     def _default_dtype(self):
         return np.array(self.default).dtype.str
 
+    def to_expression(self, value):
+        return str(value)
+
 
 class EnumParameter(Parameter):
 
@@ -144,6 +147,9 @@ class EnumParameter(Parameter):
     @observe('selected')
     def _notify_update(self, event):
         self.notify('expression', self.expression)
+
+    def to_expression(self, value):
+        return str(self.choices.get(value, None))
 
 
 class FileParameter(Parameter):

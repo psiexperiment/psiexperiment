@@ -53,7 +53,7 @@ class Engine(Declarative):
         return [c for c in self.children if \
                 isinstance(c, DOChannel) and c.fs == 0]
 
-    def configure(self, plugin):
+    def configure(self, plugin=None):
         self.lock = threading.Lock()
 
         if self.hw_ao_channels:
@@ -67,18 +67,22 @@ class Engine(Declarative):
                     output_map[output.name] = i+1
                 max_outputs = max(max_outputs, len(channel.epoch_outputs)+1)
             self.hw_ao_buffer_map = output_map
+            log.debug('Created buffer map {}'.format(output_map))
 
             # Setup the ring buffer (so we can meld in existing data without
             # having to regenerate samples for the other outputs in the
             # channel)
             n_channels = len(self.hw_ao_channels)
             buffer_shape = (n_channels, max_outputs, self.hw_ao_buffer_samples)
+            log.debug('Created buffer {}'.format(buffer_shape))
             self.hw_ao_buffer = np.zeros(buffer_shape, dtype=np.double)
             self.hw_ao_buffer_offset = -self.hw_ao_buffer_samples
 
         for channel in self.channels:
             log.debug('Configuring channel {}'.format(channel.name))
             channel.configure(plugin)
+
+        self._configured = True
 
     def append_hw_ao(self, data):
         '''
@@ -145,29 +149,29 @@ class Engine(Declarative):
 
         self.write_hw_ao(combined_data, offset, timeout=1)
 
-    def get_buffered_samples(self, channel_name, offset=0):
+    def get_buffered_samples(self, channel_name=None, offset=0):
         buffer_offset = offset-self.hw_ao_buffer_offset
         return self.hw_ao_buffer_samples-buffer_offset
 
     def get_epoch_offset(self):
         pass
 
-    def register_ao_callback(self, callback, channel_name):
+    def register_ao_callback(self, callback, channel_name=None):
         raise NotImplementedError
 
-    def register_ai_callback(self, callback, channel_name):
+    def register_ai_callback(self, callback, channel_name=None):
         raise NotImplementedError
 
-    def register_et_callback(self, callback, channel_name):
+    def register_et_callback(self, callback, channel_name=None):
         raise NotImplementedError
 
-    def unregister_ao_callback(self, callback, channel_name):
+    def unregister_ao_callback(self, callback, channel_name=None):
         raise NotImplementedError
 
-    def unregister_ai_callback(self, callback, channel_name):
+    def unregister_ai_callback(self, callback, channel_name=None):
         raise NotImplementedError
 
-    def unregister_et_callback(self, callback, channel_name):
+    def unregister_et_callback(self, callback, channel_name=None):
         raise NotImplementedError
 
     def start(self):

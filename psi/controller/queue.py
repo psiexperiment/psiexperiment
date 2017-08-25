@@ -1,13 +1,14 @@
 import logging
 log = logging.getLogger(__name__)
 
-from enaml.core.api import Declarative
-
 import itertools
 import copy
 import uuid
+from collections import deque
 
 import numpy as np
+
+from enaml.core.api import Declarative
 
 
 class QueueEmptyError(Exception):
@@ -34,17 +35,20 @@ class AbstractSignalQueue(object):
         self._fs = fs
         self._data = {} # list of generators
         self._ordering = [] # order of items added to queue
-        self._generator = None
+        self._source = None
         self._samples = 0
-        self._delay = 0
+        self._delay_samples = 0
         self._notifiers = []
 
-    def _add_factory(self, factory, trials, delays, metadata):
+    def _add_source(self, source, trials, delays, duration, metadata):
         key = uuid.uuid4()
+        if duration is None:
+            duration = source.shape[-1]/self._fs
         data = {
-            'factory': factory,
+            'source': source,
             'trials': trials,
             'delays': as_iterator(delays),
+            'duration': duration,
             'metadata': metadata,
         }
         self._data[key] = data
@@ -53,13 +57,18 @@ class AbstractSignalQueue(object):
     def connect(self, callback):
         self._notifiers.append(callback)
 
-    def insert(self, factory, trials, delays=None, metadata=None):
-        k = self._add_factory(factory, trials, delays, metadata)
+    def create_connection(self):
+        queue = deque()
+        self.connect(queue.append)
+        return queue
+
+    def insert(self, source, trials, delays=None, duration=None, metadata=None):
+        k = self._add_source(source, trials, delays, duration, metadata)
         self._ordering.insert(k)
         return k
 
-    def append(self, factory, trials, delays=None, metadata=None):
-        k = self._add_factory(factory, trials, delays, metadata)
+    def append(self, source, trials, delays=None, duration=None, metadata=None):
+        k = self._add_source(source, trials, delays, duration, metadata)
         self._ordering.append(k)
         return k
 
@@ -97,8 +106,20 @@ class AbstractSignalQueue(object):
             raise KeyError('{} not in queue'.format(key))
         self._data[key]['trials'] -= n
         if self._data[key]['trials'] <= 0:
-            del self._data[key]
-            self._ordering.remove(key)
+            self.remove_key(key)
+
+    def _get_samples_waveform(self, samples):
+        if samples > len(self._source):
+            waveform = self._source
+            complete = True
+        else:
+            waveform = self._source[:samples]
+            self._source = self._source[samples:]
+            complete = False
+        return waveform, complete
+
+    def _get_samples_generator(self, samples):
+        return self._source.send({'samples': samples})
 
     def pop_buffer(self, samples, decrement=True):
         '''
@@ -112,42 +133,58 @@ class AbstractSignalQueue(object):
         waveforms = []
         queue_empty = False
 
-        if samples > 0 and self._generator is not None:
-                waveform, complete = self._generator.send({'samples': samples})
-                samples -= len(waveform)
-                self._samples += len(waveform)
-                waveforms.append(waveform)
-                if complete:
-                    self._generator = None
+        if samples > 0 and self._source is not None:
+            # That this is a dynamic function that is set when the next
+            # source is loaded (see below in this method).
+            waveform, complete = self._get_samples(samples)
+            samples -= len(waveform)
+            self._samples += len(waveform)
+            waveforms.append(waveform)
+            if complete:
+                self._source = None
 
-        if samples > 0 and self._delay > 0:
-                n_padding = min(self._delay, samples)
-                waveform = np.zeros(n_padding)
-                samples -= n_padding
-                self._samples += len(waveform)
-                self._delay -= n_padding
-                waveforms.append(waveform)
-
-        if (self._generator is None) and (self._delay == 0):
-            try:
-                key, data = self.pop_next(decrement=decrement)
-                self._generator = data['factory']()
-                next(self._generator)
-                self._delay = next(data['delays'])
-                for cb in self._notifiers:
-                    args = self._samples/self._fs, key, data['metadata']
-                    cb(args)
-            except QueueEmptyError:
-                queue_empty = True
-
-        if (samples > 0) and not queue_empty:
-            waveform, queue_empty =  self.pop_buffer(samples, decrement)
+        if samples > 0 and self._delay_samples > 0:
+            n_padding = min(self._delay_samples, samples)
+            waveform = np.zeros(n_padding)
+            samples -= n_padding
+            self._samples += len(waveform)
+            self._delay_samples -= n_padding
             waveforms.append(waveform)
 
+        if (self._source is None) and (self._delay_samples == 0):
+            try:
+                key, data = self.pop_next(decrement=decrement)
+                if callable(data['source']):
+                    # Be sure to start the factory (hmm... shouldn't this be
+                    # started in advance?)
+                    self._source = data['source']()
+                    next(self._source)
+                    self._get_samples = self._get_samples_generator
+                else:
+                    self._source = data['source']
+                    self._get_samples = self._get_samples_waveform
+
+                delay = next(data['delays'])
+                self._delay_samples = int(delay*self._fs)
+
+                t0 = self._samples/self._fs
+                duration = data['duration']
+                args = t0, duration, key, data['metadata']
+                for cb in self._notifiers:
+                    cb(args)
+
+            except QueueEmptyError:
+                queue_empty = True
+                waveform = np.zeros(samples)
+                waveforms.append(waveform)
+                log.info('Queue is now empty')
+
+        if (samples > 0) and not queue_empty:
+            waveform, queue_empty = self.pop_buffer(samples, decrement)
+            waveforms.append(waveform)
+            samples -= len(waveform)
+
         waveform = np.concatenate(waveforms, axis=-1)
-        log.trace('Generated {} samples'.format(waveform.shape))
-        if queue_empty:
-            log.info('Queue is now empty')
         return waveform, queue_empty
 
 
@@ -187,9 +224,18 @@ class InterleavedFIFOSignalQueue(AbstractSignalQueue):
         # Advance i only if the current key is not removed.  If the current key
         # was removed from _ordering, then the current value of i already
         # points to the next key in the sequence.
-        if data['trials'] != 0:
-            self.i = (self.i + 1) % len(self._ordering)
+        #if data['trials'] != 0:
+        self.i = (self.i + 1) % len(self._ordering)
         return key, data
+
+    def decrement_key(self, key, n=1):
+        if key not in self._ordering:
+            raise KeyError('{} not in queue'.format(key))
+        self._data[key]['trials'] -= n
+        for data in self._data.values():
+            if data['trials'] > 0:
+                return
+        raise QueueEmptyError
 
 
 class RandomSignalQueue(AbstractSignalQueue):
