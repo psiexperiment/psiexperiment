@@ -207,17 +207,19 @@ class InterleavedFIFOSignalQueue(AbstractSignalQueue):
 
     def __init__(self, *args, **kwargs):
         super(InterleavedFIFOSignalQueue, self).__init__(*args, **kwargs)
-        self.i = 0
+        self._i = 0
+        self._complete = False
 
     def decrement_key(self, key, n=1):
         super(InterleavedFIFOSignalQueue, self).decrement_key(key, n)
-        if self.i >= len(self._ordering):
-            self.i = 0
+        if self._i >= len(self._ordering):
+            self._i = 0
 
     def next_key(self):
-        if len(self._ordering) == 0:
+        #if len(self._ordering) == 0:
+        if self._complete:
             raise QueueEmptyError
-        return self._ordering[self.i]
+        return self._ordering[self._i]
 
     def pop_next(self, decrement=True):
         key, data = super(InterleavedFIFOSignalQueue, self).pop_next(decrement)
@@ -225,7 +227,7 @@ class InterleavedFIFOSignalQueue(AbstractSignalQueue):
         # was removed from _ordering, then the current value of i already
         # points to the next key in the sequence.
         #if data['trials'] != 0:
-        self.i = (self.i + 1) % len(self._ordering)
+        self._i = (self._i + 1) % len(self._ordering)
         return key, data
 
     def decrement_key(self, key, n=1):
@@ -235,7 +237,7 @@ class InterleavedFIFOSignalQueue(AbstractSignalQueue):
         for data in self._data.values():
             if data['trials'] > 0:
                 return
-        raise QueueEmptyError
+        self._complete = True
 
 
 class RandomSignalQueue(AbstractSignalQueue):

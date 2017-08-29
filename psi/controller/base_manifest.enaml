@@ -46,12 +46,14 @@ enamldef BaseManifest(PluginManifest): manifest:
     Extension:
         id = 'commands'
         point = 'enaml.workbench.core.commands'
+
         Command:
             id = 'psi.controller.start'
             handler = start_experiment
         Command:
             id = 'psi.controller.stop'
             handler = rpc('psi.controller', 'stop_experiment')
+
         Command:
             id = 'psi.controller.next_trial'
             handler = rpc('psi.controller', 'end_trial')
@@ -65,6 +67,10 @@ enamldef BaseManifest(PluginManifest): manifest:
             id = 'psi.controller.request_resume'
             handler = rpc('psi.controller', 'request_resume')
         Command:
+            id = 'psi.controller.set_pause_ok'
+            handler = rpc('psi.controller', 'set_pause_ok')
+
+        Command:
             id = 'psi.controller.configure_engines'
             handler = rpc('psi.controller', 'configure_engines')
         Command:
@@ -74,8 +80,8 @@ enamldef BaseManifest(PluginManifest): manifest:
             id = 'psi.controller.stop_engines'
             handler = rpc('psi.controller', 'stop_engines')
         Command:
-            id = 'psi.controller.set_pause_ok'
-            handler = rpc('psi.controller', 'set_pause_ok')
+            id = 'psi.controller.reset_engines'
+            handler = rpc('psi.controller', 'reset_engines')
 
     # Uses unicode symbols as icons for sake of simplicity.
     Extension:

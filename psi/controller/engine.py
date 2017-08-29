@@ -177,5 +177,11 @@ class Engine(Declarative):
     def start(self):
         raise NotImplementedError
 
+    def stop(self):
+        raise NotImplementedError
+
+    def reset(self):
+        raise NotImplementedError
+
     def get_ts(self):
         raise NotImplementedError

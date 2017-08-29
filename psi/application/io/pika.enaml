@@ -1,6 +1,9 @@
+import os.path
+
 import numpy as np 
 from enaml.workbench.api import PluginManifest, Extension
 
+from psi import get_config
 from psi.controller.engines.nidaq import NIDAQEngine
 from psi.controller.api import (ContinuousOutput, EpochOutput, AIChannel,
                                 AOChannel, ExperimentAction, Trigger, Toggle,
@@ -11,7 +14,11 @@ from psi.controller.input import (Downsample, IIRFilter, Threshold, Edges,
                                   Accumulate, Blocked)
 
 from psi.data.sinks.bcolz_store import BColzStore
-from psi.controller.calibration import FlatCalibration
+from psi.controller.calibration import InterpCalibration
+
+
+cal_root = get_config('CAL_ROOT')
+cal_filename = os.path.join(cal_root, '161219 - Golay calibration with 377C01 AO1 LBHB dome tweeter and coupler.mic')
 
 
 enamldef IOManifest(PluginManifest): manifest:
@@ -37,8 +44,8 @@ enamldef IOManifest(PluginManifest): manifest:
             AIChannel:
                 label = 'Continuous EEG'
                 name = 'eeg_channel'
-                channel = 'PXI1Slot8/ai0'
-                start_trigger = '/PXI1Slot7/ao/StartTrigger'
+                channel = 'PXI1Slot7/ai0'
+                start_trigger = '/PXI1Slot8/ao/StartTrigger'
                 fs = 25e3
                 expected_range = (-10, 10)
                 dtype = np.dtype('float64')
@@ -49,39 +56,38 @@ enamldef IOManifest(PluginManifest): manifest:
             name = 'NI_audio'
             master_clock = True
 
-            hw_ao_monitor_period = 0.5
-            hw_ao_buffer_size = 5
+            hw_ao_monitor_period = 1
+            hw_ao_buffer_size = 10
 
             AOChannel:
                 label = 'primary'
                 name = 'speaker_0'
                 channel = 'PXI1Slot8/ao0'
-                fs = 100e3
+                fs = 200e3
                 expected_range = (-10, 10)
                 dtype = np.dtype('float64')
                 terminal_mode = 'pseudodifferential'
-                calibration = FlatCalibration.from_spl(80)
 
             AOChannel:
                 label = 'secondary'
                 name = 'speaker_1'
                 channel = 'PXI1Slot8/ao1'
-                fs = 100e3
+                fs = 200e3
                 expected_range = (-10, 10)
                 dtype = np.dtype('float64')
                 terminal_mode = 'pseudodifferential'
-                calibration = FlatCalibration.from_spl(80)
 
             AIChannel:
                 label = 'Probe tube microphone'
                 name = 'microphone'
                 channel = 'PXI1Slot8/ai0'
                 start_trigger = '/PXI1Slot8/ao/StartTrigger'
-                fs = 100e3
+                fs = 200e3
                 expected_range = (-10, 10)
                 dtype = np.dtype('float64')
                 terminal_mode = 'pseudodifferential'
                 terminal_coupling = 'AC'
+                calibration = InterpCalibration.from_mic_file(cal_filename, fixed_gain=-40)
 
                 Input:
                     name = '_mic'
@@ -101,7 +107,7 @@ enamldef IOManifest(PluginManifest): manifest:
                 name = 'reference_microphone'
                 channel = 'PXI1Slot8/ai1'
                 start_trigger = '/PXI1Slot8/ao/StartTrigger'
-                fs = 100e3
+                fs = 200e3
                 expected_range = (-10, 10)
                 dtype = np.dtype('float64')
                 terminal_mode = 'pseudodifferential'

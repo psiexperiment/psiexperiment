@@ -9,11 +9,12 @@ from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 
 from psi.context.api import ContextGroup, Parameter, SequenceSelector
+from psi.context.selector import FixedSpacing, CartesianProduct
 from psi.context import choice
 from psi.controller.api import EpochOutput, ExperimentAction
 
 from psi.controller.output import QueuedEpochOutput, NullOutput
-from psi.controller.input import ExtractEpochs, Input, Threshold, ITI, Edges, Blocked, Accumulate, RejectEpochs
+from psi.controller.input import ExtractEpochs, Input, Threshold, ITI, Edges, Blocked, Accumulate, RejectEpochs, IIRFilter
 
 from psi.controller.base_manifest import BaseManifest
 
@@ -65,6 +66,9 @@ def calibrate_output(event):
     log.debug('Calibrating {}'.format(p['output_name']))
     # Run the calibration and update the output with that calibration
     output_channel.calibration = tone_calibration(engine, frequencies)
+    for frequency in frequencies:
+        spl = output_channel.calibration.get_spl(frequency, 1)
+        log.info('{:.2f} Hz & 1vrms is {:.2f} dB SPL'.format(frequency, spl))
 
 
 enamldef ControllerManifest(BaseManifest): manifest:
@@ -94,25 +98,33 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
             Accumulate:
                 name = 'eeg_buffered'
-                n = 10
+                n = 100
 
-                ExtractEpochs:
-                    save = True
-                    name = 'erp'
-                    buffer_size = 20
-                    epoch_size = 8.5e-3
-                    queue = output.queue
+                IIRFilter:
+                    N = 2
+                    btype = 'bandpass'
+                    ftype = 'butter'
+                    f_highpass = 200
+                    f_lowpass = 10000
 
-                    RejectEpochs:
-                        threshold = 2.5
-                        name = 'valid_erp'
+                    ExtractEpochs: extract:
                         save = True
+                        name = 'erp'
+                        buffer_size = 50
+                        epoch_size = 8.5e-3
+                        queue = output.queue
+                        delay = 47.5/extract.fs
+
+                        RejectEpochs:
+                            threshold = 2.5
+                            name = 'valid_erp'
+                            save = True
 
     Extension:
         id = 'selectors'
         point = 'psi.context.selectors'
 
-        SequenceSelector:
+        CartesianProduct:
             name = 'default'
 
     Extension:
@@ -152,7 +164,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
             command = 'target.prepare_queue'
 
         ExperimentAction:
-            event = 'erp_acquired'
+            event = 'valid_erp_acquired'
             command = 'psi.controller.process_key'
 
         ExperimentAction:
@@ -183,7 +195,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
         PGTimeContainer:
             name = 'trial_plot_container' 
             title = 'Trial timing'
-            span = 1
+            span = 10
 
             PGExtremesChannelPlot:
                 source_name = 'eeg'

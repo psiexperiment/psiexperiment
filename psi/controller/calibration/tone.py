@@ -101,7 +101,7 @@ def tone_spl(engine, frequencies, *args, **kwargs):
     return calibration.get_spl(frequencies, rms)
 
 
-def tone_sens(engine, frequencies, gain=-50, vrms=1, *args, **kwargs):
+def tone_sens(engine, frequencies, gain=-40, vrms=1, *args, **kwargs):
     kwargs.update(dict(gain=gain, vrms=vrms))
     output_spl = tone_spl(engine, frequencies, *args, **kwargs)
     mesg = 'Output {}dB SPL at {}Hz, {}dB gain, {}Vrms'

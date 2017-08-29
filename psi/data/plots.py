@@ -312,7 +312,7 @@ class PGExtremesChannelPlot(PGChannelPlot):
 
         self.source = plugin.find_source(self.source_name)
         self.container.data_range.add_source(self.source, self)
-        self.container.plot_item.setMouseEnabled(x=False, y=True)
+        self.container.plot_item.setMouseEnabled(x=True, y=True)
 
         # TODO: For some reason this crashes if we attempt to connect directly
         # to the compute pixel size function.

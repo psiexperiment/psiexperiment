@@ -74,6 +74,9 @@ class BColzStore(AbstractStore):
 
         values = get_tagged_values(input.channel, 'metadata')
         for name, value in values.items():
+            if name == 'calibration':
+                #TODO: FIXME
+                continue
             carray.attrs['channel_' + name] = value
 
         values = get_tagged_values(input.engine, 'metadata')

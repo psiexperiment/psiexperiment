@@ -242,6 +242,10 @@ class BasePlugin(Plugin):
         for engine in self._engines.values():
             engine.stop()
 
+    def reset_engines(self):
+        for engine in self._engines.values():
+            engine.reset()
+
     def get_output(self, output_name):
         return self._outputs[output_name]
 

@@ -80,6 +80,10 @@ class Input(PSIContribution):
         targets = [c.configure_callback(plugin) for c in self.children]
         if self.name:
             targets.append(self.get_plugin_callback(plugin))
+
+        # If we have only one target, no need to add another function layer
+        if len(targets) == 1:
+            return targets[0]
         return broadcast(*targets).send
 
     def get_plugin_callback(self, plugin):
@@ -341,23 +345,15 @@ class Edges(Input):
 
 
 @coroutine
-def reject_epochs(threshold, target):
+def reject_epochs(reject_threshold, target):
     while True:
         epochs = (yield)
         valid = []
         for epoch in epochs:
             if np.max(np.abs(epoch['signal'])) < reject_threshold:
                 valid.append(epoch)
-        target(epochs)
+        target(valid)
 
-
-class RejectEpochs(Input):
-
-    threshold = d_(Float()).tag(metadata=True)
-
-    def configure_callback(self, plugin):
-        cb = super().configure_callback(plugin)
-        return reject_epochs(self.threshold, cb).send
 
 
 @coroutine
@@ -402,16 +398,21 @@ class ITI(Input):
 
 
 @coroutine
-def extract_epochs(fs, queue, epoch_size, buffer_size, target):
+def extract_epochs(fs, queue, epoch_size, buffer_size, delay, target):
     buffer_samples = int(buffer_size*fs)
     epoch_samples = int(epoch_size*fs)
+    delay_samples = int(delay*fs)
 
     data = (yield)
     buffer_shape = list(data.shape)
     buffer_shape[-1] = buffer_samples
     ring_buffer = np.empty(buffer_shape, dtype=data.dtype)
     next_offset = None
-    t0 = -buffer_samples
+
+    # This is the timestamp of the sample at the end of the buffer. To
+    # calculate the timestamp of samples at the beginning of the buffer,
+    # subtract buffer_samples from t_end, 
+    t_end = -delay_samples
 
     while True:
         # Newest data is always stored at the end of the ring buffer. To make
@@ -419,7 +420,7 @@ def extract_epochs(fs, queue, epoch_size, buffer_size, target):
         samples = data.shape[-1]
         ring_buffer[..., :-samples] = ring_buffer[..., samples:]
         ring_buffer[..., -samples:] = data
-        t0 += samples
+        t_end += samples
 
         # Loop until all epochs have been extracted from buffered data.
         epochs = []
@@ -427,16 +428,21 @@ def extract_epochs(fs, queue, epoch_size, buffer_size, target):
             if (next_offset is None) and len(queue) > 0:
                 offset, signal_size, key, metadata = queue.popleft()
                 next_offset = int(offset*fs)
-                log.trace('Next offset %d, current t0 %d', next_offset, t0)
+                log.trace('Next offset %d, current t_end %d', next_offset, t_end)
 
             if next_offset is None:
                 break
-            elif next_offset < t0:
+            elif next_offset < (t_end - buffer_samples):
                 raise SystemError('Epoch lost')
-            elif (next_offset+epoch_samples) > (t0+buffer_samples):
+            elif (next_offset+epoch_samples) > (t_end):
                 break
             else:
-                i = next_offset-t0
+                # Add buffer_samples to ensure that i is indexed from the
+                # beginning of the array. This ensures that we do not run into
+                # the edge-case where we are using a negative indexing and we
+                # want to index from, say, -10 to -0. This will result in odd
+                # behavior.
+                i = next_offset-t_end+buffer_samples
                 epoch = {
                     'signal': ring_buffer[..., i:i+epoch_samples].copy(),
                     'key': key,
@@ -453,17 +459,39 @@ def extract_epochs(fs, queue, epoch_size, buffer_size, target):
         log.debug('received %r samples', data.shape)
 
 
-class ExtractEpochs(Input):
+class EpochInput(Input):
+
+    epoch_size = Property()
+    mode = 'epochs'
+
+    def _get_epoch_size(self):
+        return self.parent.epoch_size
+        
+
+class ExtractEpochs(EpochInput):
 
     queue = d_(Typed(AbstractSignalQueue))
-
     buffer_size = d_(Float(30)).tag(metadata=True)
     epoch_size = d_(Float(8.5e-3)).tag(metadata=True)
 
-    mode = 'epochs'
+    # This can be set to account for things such as the AO and AI filter delays
+    # on the 4461. For AO at 100 kHz, the output delay is ~0.48 msec. For the
+    # AI at 25e-3, the input delay is 63 samples (divide this by the
+    # acquisition rate).
+    delay = d_(Float(0)).tag(metadata=True)
 
     def configure_callback(self, plugin):
         cb = super().configure_callback(plugin)
         cb_queue = self.queue.create_connection()
         return extract_epochs(self.fs, cb_queue, self.epoch_size,
-                              self.buffer_size, cb).send
+                              self.buffer_size, self.delay, cb).send
+
+
+class RejectEpochs(EpochInput):
+
+    threshold = d_(Float()).tag(metadata=True)
+
+    def configure_callback(self, plugin):
+        cb = super().configure_callback(plugin)
+        return reject_epochs(self.threshold, cb).send
+

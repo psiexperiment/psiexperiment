@@ -2,9 +2,11 @@ from enaml.application import deferred_call
 from enaml.core.api import Include, DynamicTemplate, Looper
 from enaml.layout.api import (vbox, hbox)
 from enaml.widgets.api import (PushButton, Field, Container, VGroup, HGroup,
-                               Label, ObjectCombo, DockItem)
+                               Label, ObjectCombo, DockItem, GroupBox)
+from enaml.stdlib.fields import FloatField
 
-from .selector import SequenceSelector, SingleSetting
+from .selector import SingleSetting, FixedSpacing, SequenceSelector, CartesianProduct
+from . import selector as selector_classes
 
 
 enamldef SequenceSettingField(Field):
@@ -202,10 +204,114 @@ template SelectorContainerTemplate(selector, MemberType: SingleSetting):
 
 
 ################################################################################
+# CartesianProduct
+################################################################################
+from psi.core.enaml.list_widget import List as ListWidget
+
+
+template SelectorContainerTemplate(selector, MemberType: CartesianProduct):
+
+    Container:
+        VGroup:
+            Looper:
+                iterable << selector.context_items[:]
+                VGroup:
+                    Label:
+                        text = loop_item.label
+                    ListWidget:
+                        items := selector.settings[loop_item.name]
+                        from_view => (text):
+                            return loop_item.coerce_to_type(text)
+
+
+        #Table:
+        #    columns << selector.context_items[:]
+
+        #    get_length => (column):
+        #        return len(selector.settings[column.name])
+        #        
+        #    get_data => (row, column):
+        #        try:
+        #            column_data = selector.settings[column.name]
+        #            return column_data[row]
+        #        except IndexError:
+        #            return ''
+
+        #    set_data => (row, column, value):
+        #        try:
+        #            column_data = selector.settings[column.name]
+        #            if len(column_data) == row:
+        #                column_data.append(float(value))
+        #            else:
+        #                column_data[row] = float(value)
+        #            return True
+        #        except IndexError:
+        #            return False
+        #        except ValueError:
+        #            return False
+
+
+################################################################################
+# FixedSpacing
+################################################################################
+enamldef FixedSpacingSetting(GroupBox):
+
+    attr setting
+
+    HGroup:
+
+        padding = 0
+        spacing = 0
+
+        VGroup:
+            padding = 0
+            spacing = 0
+            Label:
+                text = 'Start'
+            FloatField:
+                value := setting.start
+        VGroup:
+            padding = 0
+            spacing = 0
+            Label:
+                text = 'Stop'
+            FloatField:
+                value := setting.stop
+        VGroup:
+            padding = 0
+            spacing = 0
+            Label:
+                text = 'Step'
+            FloatField:
+                value := setting.step_size
+        VGroup:
+            padding = 0
+            spacing = 0
+            Label:
+                text = 'Mode'
+            ObjectCombo:
+                items = list(setting.get_member('step_mode').items)
+                selected := setting.step_mode
+
+
+template SelectorContainerTemplate(selector, MemberType: FixedSpacing):
+
+    VGroup:
+        #padding = 0
+        #spacing = 0
+        Looper:
+            iterable << selector.context_items
+            FixedSpacingSetting:
+                title = loop_item.label
+                setting << selector.settings[loop_item.name]
+
+
+################################################################################
 # Core elements
 ################################################################################
 enamldef SequenceContainer(Container):
     attr selector
+
     DynamicTemplate:
         base = SelectorContainerTemplate
         args = (selector, type(selector))

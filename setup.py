@@ -10,7 +10,8 @@ setup(
     description='Module for running trial-based experiments.',
 	entry_points={
 		'console_scripts': [
-			'psi = psi.application.__main__:main'
+			'psi=psi.application.cmd_launcher:main',
+			'cfts=psi.application.cfts_launcher:main'
 		]
 	},
 )

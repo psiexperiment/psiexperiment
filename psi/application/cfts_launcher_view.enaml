@@ -1,0 +1,52 @@
+from enaml.widgets.api import Window, ObjectCombo, Label, Field, Container, Form, HGroup, PushButton, VGroup
+
+
+enamldef LauncherView(Window): main:
+
+    attr launcher
+
+    Container:
+
+        VGroup:
+
+            PushButton:
+                text = 'Acoustic system calibration'
+                enabled = False
+            PushButton:
+                text = 'In-ear calibration'
+                enabled = False
+            PushButton:
+                text = 'ABR'
+                clicked ::
+                    launcher.launch_abr()
+                enabled << bool(launcher.note and \
+                                launcher.ear and \
+                                launcher.animal and \
+                                launcher.experimenter)
+            PushButton:
+                text = 'DPOAE'
+                enabled = False
+
+        Form:
+            Label:
+                text = 'Experimenter'
+            ObjectCombo:
+                items = ['Brad', 'Sean']
+                selected := launcher.experimenter
+            Label:
+                text = 'Animal'
+            HGroup:
+                padding = 0
+                Field:
+                    text := launcher.animal
+                ObjectCombo:
+                    items = ['right', 'left']
+                    selected := launcher.ear
+            Label:
+                text = 'Note'
+            Field:
+                text := launcher.note
+            Label:
+                text = 'Base folder'
+            Label:
+                text << launcher.base_folder

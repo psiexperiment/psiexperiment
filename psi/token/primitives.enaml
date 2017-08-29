@@ -358,7 +358,9 @@ enamldef BandlimitedNoise(Block):
 ################################################################################
 @no_inputs
 def tone_factory(fs, level, frequency, polarity, calibration):
-    sf = calibration.get_sf(frequency, level)
+    # Since the scaling factor is based on Vrms, we need to convert this to
+    # the peak-to-peak scaling factor.
+    sf = calibration.get_sf(frequency, level)*np.sqrt(2)
     waveform = None
     offset = 0
     while True:
@@ -391,7 +393,7 @@ enamldef Tone(Block):
 
     EnumParameter:
         name = 'polarity'
-        label = 'Initial tone polarity'
+        label = 'polarity'
         compact_label = 'pol'
         default = 'positive'
         choices = {'positive': 1, 'negative': -1}

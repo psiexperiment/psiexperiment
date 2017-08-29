@@ -165,3 +165,10 @@ class NIDAQEngine(ni.Engine, Engine):
         # same for all.
         return np.clip(self.ao_write_space_available(offset),
                        0, self.hw_ao_buffer_samples)
+
+    def reset(self):
+        devices = []
+        for task in self._tasks.values():
+            devices.extend(task._devices)
+        devices = set(devices)
+        print(devices)

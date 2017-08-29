@@ -110,7 +110,6 @@ class Calibration(object):
 
     def get_spl(self, frequency, voltage):
         sensitivity = self.get_sens(frequency)
-        print(sensitivity)
         return util.db(voltage)-sensitivity-util.db(20e-6)
 
     def get_sf(self, frequency, spl, attenuation=0):
@@ -196,6 +195,9 @@ class InterpCalibration(Calibration):
     def get_sens(self, frequency):
         # Since sensitivity is in dB(V/Pa), subtracting fixed_gain from
         # sensitivity will *increase* the sensitivity of the system.
+        print('getting sensitivity')
+        print(frequency)
+        print(self._interp(frequency))
         return self._interp(frequency)-self._fixed_gain
 
 
@@ -211,6 +213,12 @@ class PointCalibration(Calibration):
         self._fixed_gain = fixed_gain
 
     def get_sens(self, frequency):
+        if np.iterable(frequency):
+            return np.array([self._get_sens(f) for f in frequency])
+        else:
+            return self._get_sens(frequency)
+
+    def _get_sens(self, frequency):
         try:
             i = np.flatnonzero(np.equal(self._frequency, frequency))[0]
         except IndexError:

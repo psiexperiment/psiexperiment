@@ -19,7 +19,7 @@ class Acquire(object):
         # Setup input
         ai_fs = engine.hw_ai_channels[0].fs
         ai_cb = extract_epochs(ai_fs, self.ai_queue, epoch_size, epoch_size*10,
-                               self.ai_callback)
+                               0, self.ai_callback)
         self.engine.register_ai_callback(ai_cb.send)
 
     def ao_callback(self, event):

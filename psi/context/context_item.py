@@ -151,6 +151,9 @@ class EnumParameter(Parameter):
     def to_expression(self, value):
         return str(self.choices.get(value, None))
 
+    def coerce_to_type(self, value):
+        return str(value)
+
 
 class FileParameter(Parameter):
 

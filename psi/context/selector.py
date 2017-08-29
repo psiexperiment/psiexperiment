@@ -6,7 +6,7 @@ import operator
 import collections
 from copy import deepcopy
 
-from atom.api import ContainerList, Typed, Enum, Event, Bool, Property
+from atom.api import Atom, ContainerList, Typed, Enum, Event, Bool, Property, Float
 from enaml.core.declarative import Declarative, d_
 
 from . import choice
@@ -74,9 +74,63 @@ class SingleSetting(BaseSelector):
         self.updated = True
 
 
+class _FixedSpacing(Atom):
+
+    start = Float()
+    stop = Float()
+    step_size = Float()  
+    step_mode = Enum('linear', 'octave', 'log')
+
+    def get_values(self):
+        f = getattr(self, '_get_values_{}'.format(self.step_mode))
+        return f()
+
+    def _get_values_linear(self):
+        return self._get_linear_range(self.start, self.stop, self.step_size)
+
+    def _get_linear_range(self, start, stop, step):
+        n_steps = (stop-start)//step + 1
+        return np.arange(n_steps)*step + start
+
+    def _get_values_octave(self):
+        start = np.round(np.log2(self.start*1e-3)/self.step_size)*self.step_size
+        stop = np.round(np.log2(self.stop*1e-3)/self.step_size)*self.step_size
+        step = self.step_size
+        return 2**self._get_linear_range(start, stop, step)*1e3
+
+
+class FixedSpacing(BaseSelector):
+
+    settings = Typed(dict, {}).tag(preference=True)
+
+    def append_item(self, item):
+        self.settings[item.name] = _FixedSpacing()
+        super().append_item(item)
+
+
+class CartesianProduct(BaseSelector):
+
+    settings = Typed(dict, {}).tag(preference=True)
+
+    def append_item(self, item):
+        self.settings.setdefault(item.name, [])
+        super().append_item(item)
+
+    def add_setting(self, item, value):
+        self.settings[item.name].append(value)
+
+    def get_settings(self):
+        values = [self.settings[i.name] for i in self.context_items]
+        return [dict(zip(self.context_items, s)) for s in itertools.product(*values)]
+
+    def get_iterator(self, cycles=np.inf):
+        settings = self.get_settings()
+        return choice.exact_order(settings, cycles)
+
+
 class SequenceSelector(BaseSelector):
 
-    settings = Typed(list, {}).tag(preference=True)
+    settings = Typed(list).tag(preference=True)
     order = d_(Enum(*choice.options.keys())).tag(preference=True)
 
     def add_setting(self, values=None):

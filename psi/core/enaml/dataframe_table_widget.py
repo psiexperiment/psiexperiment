@@ -18,13 +18,7 @@ from enaml.application import deferred_call
 from enaml.core.declarative import d_, d_func
 from enaml.widgets.api import RawWidget
 from enaml.qt.QtCore import QAbstractTableModel, QModelIndex, Qt
-#from enaml.qt.QtWidgets import QTableView, QHeaderView, QAbstractItemView
-
-# Note that this is a bit of a hack to work with Qt4 until we can get rid of
-# the Traits/Chaco ecosystem.
 from enaml.qt.QtWidgets import QTableView, QHeaderView, QAbstractItemView
-
-# Ok to do here
 from enaml.qt.QtGui import QFont, QColor
 
 
