@@ -25,8 +25,11 @@ class BColzStore(AbstractStore):
 
     def process_trials(self, results):
         names = self.trial_log.data.dtype.names
-        rows = [r[n] for r in results for n in names]
-        self.trial_log.append(rows)
+        columns = [] 
+        for name in names:
+            rows = [result[name] for result in results]
+            columns.append(rows)
+        self.trial_log.append(columns)
 
     def process_event(self, event, timestamp):
         self.event_log.append([timestamp, event])
