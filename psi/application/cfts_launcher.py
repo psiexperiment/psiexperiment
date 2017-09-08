@@ -1,5 +1,6 @@
 import subprocess
 import os.path
+import datetime as dt
 
 from atom.api import Atom, Unicode, Typed
 
@@ -32,17 +33,18 @@ class Launcher(Atom):
         self._update_base_folder()
 
     def launch_abr(self):
-        subprocess.check_output(['psi', 'abr', self.base_folder])
+        dt_string = dt.datetime.now().strftime('%Y%m%d-%H%M')
+        base_folder = self.base_folder.format(date_time=dt_string,
+                                              experiment='ABR')
+        subprocess.check_output(['psi', 'abr', base_folder])
 
     def _update_base_folder(self):
-        template = '{experimenter} {animal} {ear} {{experiment}}'
-        self.base_folder = os.path.join(
-            get_config('DATA_ROOT'),
-            self.note,
-            self.experimenter,
-            self.animal,
-            self.ear
-        )
+        data_root = get_config('DATA_ROOT')
+        template = '{{date_time}} {experimenter} {animal} {ear} {note} {{experiment}}'
+        formatted = template.format(experimenter=self.experimenter,
+                                    animal=self.animal, ear=self.ear,
+                                    note=self.note)
+        self.base_folder = os.path.join(data_root, formatted)
 
 
 def main():

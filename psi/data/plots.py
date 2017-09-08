@@ -55,6 +55,9 @@ class Plot(PSIContribution):
     line_color = d_(Tuple())
     fill_color = d_(Tuple())
 
+    def context_info_updated(self, info):
+        pass
+
 
 class TimeseriesPlot(Plot):
 
@@ -363,9 +366,7 @@ class CustomViewBox(pg.ViewBox):
 
 class PGEpochAverageGridContainer(PGPlotContainer):
 
-    manifest = __name__ + '_manifest.PGEpochAverageGridContainerManifest'
-
-    items = d_(Typed(list))
+    items = d_(Typed(dict))
     source_name = d_(Unicode())
     source = Typed(object)
 
@@ -379,6 +380,11 @@ class PGEpochAverageGridContainer(PGPlotContainer):
     plots = Typed(dict)
     time = Typed(object)
 
+    context_info = Typed(object)
+
+    def context_info_updated(self, info):
+        self.context_info = info
+
     def _default_grid(self):
         return set(), set()
 
@@ -388,21 +394,21 @@ class PGEpochAverageGridContainer(PGPlotContainer):
         self.cumulative_average = {}
         self.cumulative_var = {}
         self.cumulative_n = {}
-        self.items = [
-            {'name': 'target_tone_level'},
-            {'name': 'target_tone_frequency'},
-        ]
 
     def prepare_grid(self, iterable):
-        self.items = [
-            {'name': 'target_tone_level'},
-            {'name': 'target_tone_frequency'},
-        ]
+        self.items = {
+            'row': {'name': 'target_tone_level'},
+            'column': {'name': 'target_tone_frequency'},
+        }
         keys = [self.extract_key(c) for c in iterable]
         self.update_grid(keys)
 
     def extract_key(self, context):
-        return tuple(context[i['name']] for i in self.items)
+        ci = self.items['row']
+        row = None if ci is None else context[ci['name']]
+        ci = self.items['column']
+        column = None if ci is None else context[ci['name']]
+        return row, column
 
     def epochs_acquired(self, event):
         for epoch in event['value']:
@@ -429,8 +435,7 @@ class PGEpochAverageGridContainer(PGPlotContainer):
         self.cumulative_var[key] = var
         self.cumulative_n[key] = n
 
-    def update_grid(self, keys):
-        rows, cols = map(set, zip(*keys))
+    def update_grid(self, rows, cols):
         cur_rows, cur_cols = self.grid
         if rows.issubset(cur_rows) and cols.issubset(cur_cols):
             return
@@ -452,15 +457,9 @@ class PGEpochAverageGridContainer(PGPlotContainer):
                 self.container.addItem(item, r+1, c+1)
                 if base_item is None:
                     base_item = item
-                else:
-                    #item.setXLink(base_item)
-                    #item.setYLink(base_item)
-                    pass
                 item.enableAutoRange(False, False)
                 item.setMouseEnabled(x=False, y=True)
                 item.setXRange(0, 8.5e-3)
-                #curve = pg.PlotCurveItem()
-                #item.addItem(curve)
                 plots[row, col] = item.plot()
         self.plots = plots
         self.grid = (rows, cols)

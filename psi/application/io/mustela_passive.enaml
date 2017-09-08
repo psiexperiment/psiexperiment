@@ -1,0 +1,61 @@
+import numpy as np
+
+from enaml.workbench.api import PluginManifest, Extension
+
+from psi.controller.engines.null import NullEngine
+
+from psi.controller.api import (ContinuousOutput, EpochOutput, AIChannel,
+                                AOChannel, ExperimentAction, Trigger, Toggle,
+                                DOChannel, Input)
+
+from psi.controller.input import (Downsample, IIRFilter, Threshold, Edges,
+                                  CalibratedInput, RMS, SPL,
+                                  Accumulate, Blocked)
+
+from psi.data.sinks.bcolz_store import BColzStore
+
+from psi.controller.calibration import FlatCalibration
+
+
+enamldef IOManifest(PluginManifest): manifest:
+
+    Extension:
+        id = 'data'
+        point = 'psi.data.sinks'
+
+        BColzStore:
+            pass
+
+    Extension:
+        id = 'backend'
+        point = 'psi.controller.io'
+
+        NullEngine:
+            name = 'NI_audio'
+            master_clock = True
+
+            AOChannel:
+                label = 'primary'
+                name = 'speaker_0'
+                channel = 'PXI1Slot7/ao0'
+                fs = 200e3
+                expected_range = (-10, 10)
+                dtype = np.dtype('float64')
+                terminal_mode = 'pseudodifferential'
+                calibration = FlatCalibration.from_spl(40)
+
+            AIChannel:
+                label = 'Probe tube microphone'
+                name = 'microphone'
+                channel = 'PXI1Slot7/ai1'
+                start_trigger = '/PXI1Slot7/ao/StartTrigger'
+                fs = 200e3
+                expected_range = (-10, 10)
+                dtype = np.dtype('float64')
+                terminal_mode = 'pseudodifferential'
+                terminal_coupling = 'AC'
+                calibration = FlatCalibration(1)
+
+                Input:
+                    name = 'microphone'
+                    save = True

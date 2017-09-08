@@ -8,29 +8,18 @@ from .experiment_action import ExperimentEvent, ExperimentAction
 from psi.core.enaml.api import PSIManifest
 
 
-class _InputManifest(PSIManifest): 
-
-    input = Property()
-
-    def _get_input(self):
-        return self.contribution
-
-    def _set_input(self, value):
-        self.contribution = value
-
-
-enamldef InputManifest(_InputManifest): manifest:
+enamldef InputManifest(PSIManifest): manifest:
 
     Extension:
-        id = 'actions'
+        id = 'actions.' + manifest.contribution.name
         point = 'psi.controller.actions'
 
         ExperimentEvent: event:
-            name = manifest.input.name + '_acquired'
+            name = manifest.contribution.name + '_acquired'
 
         Conditional:
-            condition << manifest.input.save
+            condition << manifest.contribution.save
             ExperimentAction:
                 event = event.name
-                command = 'psi.data.process_ai_' + manifest.input.mode
-                kwargs = {'name': manifest.input.name}
+                command = 'psi.data.process_ai_' + manifest.contribution.mode
+                kwargs = {'name': manifest.contribution.name}

@@ -82,8 +82,6 @@ class Engine(Declarative):
             log.debug('Configuring channel {}'.format(channel.name))
             channel.configure(plugin)
 
-        self._configured = True
-
     def append_hw_ao(self, data):
         '''
         This can only be used for the continuous output.

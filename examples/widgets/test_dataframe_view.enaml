@@ -1,0 +1,31 @@
+import random
+
+from atom.api import Atom, List, ContainerList
+from enaml.widgets.api import Window, Container, Label, PushButton
+
+from psi.core.enaml.list_view import ListView
+
+
+class Selector(Atom):
+
+    items = List()
+
+    def _observe_items(self, event):
+        print(event)
+
+
+enamldef Main(Window):
+
+    attr selector = Selector(items=['a', 'b', 'c'])
+
+    Container:
+        EditableTable:
+            items := selector.items
+            updated::
+                print('items were updated')
+
+        PushButton:
+            text = 'Change items'
+            clicked::
+                selector.items = \
+                    [random.choice('abcdefghijklmnopqrstuvwxyz') for i in range(3)]

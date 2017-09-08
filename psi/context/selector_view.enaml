@@ -206,7 +206,7 @@ template SelectorContainerTemplate(selector, MemberType: SingleSetting):
 ################################################################################
 # CartesianProduct
 ################################################################################
-from psi.core.enaml.list_widget import List as ListWidget
+from psi.core.enaml.list_view import ListView
 
 
 template SelectorContainerTemplate(selector, MemberType: CartesianProduct):
@@ -218,37 +218,10 @@ template SelectorContainerTemplate(selector, MemberType: CartesianProduct):
                 VGroup:
                     Label:
                         text = loop_item.label
-                    ListWidget:
-                        items := selector.settings[loop_item.name]
-                        from_view => (text):
-                            return loop_item.coerce_to_type(text)
-
-
-        #Table:
-        #    columns << selector.context_items[:]
-
-        #    get_length => (column):
-        #        return len(selector.settings[column.name])
-        #        
-        #    get_data => (row, column):
-        #        try:
-        #            column_data = selector.settings[column.name]
-        #            return column_data[row]
-        #        except IndexError:
-        #            return ''
-
-        #    set_data => (row, column, value):
-        #        try:
-        #            column_data = selector.settings[column.name]
-        #            if len(column_data) == row:
-        #                column_data.append(float(value))
-        #            else:
-        #                column_data[row] = float(value)
-        #            return True
-        #        except IndexError:
-        #            return False
-        #        except ValueError:
-        #            return False
+                    ListView:
+                        items << selector.settings[loop_item.name]
+                        updated::
+                            selector.settings[loop_item.name] = items
 
 
 ################################################################################

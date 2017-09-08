@@ -2,7 +2,7 @@ import numpy as np
 
 from enaml.core.declarative import Declarative, d_
 from atom.api import (Unicode, Typed, Value, Enum, List, Event, Property,
-                      observe, Bool)
+                      observe, Bool, Dict)
 
 
 class ContextMeta(Declarative):
@@ -11,32 +11,55 @@ class ContextMeta(Declarative):
     label = d_(Unicode())
 
 
+class ChoiceContextMeta(ContextMeta):
+
+    choices = d_(List())
+    values = d_(Dict())
+
+    def get_choices(self, context_item):
+        return self.choices
+
+    def set_choice(self, choice, context_item):
+        values = self.values.copy()
+        if choice is None:
+            values = {k: v for k, v in values.items() if v != context_item}
+        else:
+            values[choice] = context_item
+        self.values = values
+
+    def get_choice(self, context_item):
+        for k, v in self.values.items():
+            if v == context_item:
+                return k
+        return None
+
+
 class OrderedContextMeta(ContextMeta):
 
     values = d_(Typed(list, ()))
-    default_value = None
 
-    def set_value(self, position, context_item):
+    def set_choice(self, choice, context_item):
         values = self.values[:]
-        if position is None:
+        if choice is None:
             values.remove(context_item)
         else:
+            position = int(choice)-1
             if context_item in values:
                 values.remove(context_item)
             values.insert(position, context_item)
         self.values = values
 
-    def get_index(self, context_item):
+    def get_choice(self, context_item):
         try:
             return self.values.index(context_item)
         except ValueError:
             return None
 
-    def get_valid_indices(self, context_item):
+    def get_choices(self, context_item):
         n = len(self.values)
         if context_item not in self.values:
             n += 1
-        return list(range(n))
+        return [str(i+1) for i in range(n)]
 
 
 class ContextItem(Declarative):

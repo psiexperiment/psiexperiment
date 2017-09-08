@@ -8,6 +8,7 @@ from enaml.workbench.core.api import Command
 
 from psi.core.enaml.api import PSIManifest
 from psi.controller.api import ExperimentAction
+from psi.context.context_item import ChoiceContextMeta
 
 
 def prepare(event, container):
@@ -43,8 +44,6 @@ enamldef PlotContainerManifest(PSIManifest): manifest:
 
             Container:
                 pass
-                #EnableCanvas:
-                #    component << manifest.contribution.container
 
 
 from atom.api import Typed, set_default
@@ -73,6 +72,33 @@ class PGCanvas(RawWidget):
         self.view.setCentralItem(event['value'])
 
 
+from enaml.core.api import Looper
+from enaml.widgets.api import PopupView , Label, ObjectCombo
+from .qt_completer import QtLineCompleter
+
+
+enamldef ConfigPopup(PopupView):
+
+    attr context_items
+    attr contribution
+
+    Container:
+        Looper:
+            iterable << contribution.context_items[:]
+            ObjectCombo:
+                items << [None] + [c for c in context_items.values() if c != loop_item]
+                to_string = lambda x: '' if x is None else x.label
+                selected << loop_item
+
+        ObjectCombo:
+            items << [None] + [c for c in context_items.values() if c not in contribution.context_items]
+            to_string = lambda x: '' if x is None else x.label
+            selected::
+                items = contribution.context_items[:]
+                items.append(selected)
+                contribution.context_items = items
+
+
 enamldef PGPlotContainerManifest(PSIManifest): manifest:
 
     Extension:
@@ -98,12 +124,15 @@ enamldef PGPlotContainerManifest(PSIManifest): manifest:
             name << manifest.contribution.name
             title << manifest.contribution.title
 
+            title_bar_right_clicked::
+                context = workbench.get_plugin('psi.context')
+                popup = ConfigPopup(context_items=context.context_items,
+                                    contribution=manifest.contribution)
+                popup.show()
+
             Container:
                 PGCanvas: canvas:
                     component << manifest.contribution.container
-
-
-from psi.context.context_item import OrderedContextMeta
 
 
 def prepare_grid(event, contribution):
@@ -114,14 +143,6 @@ def prepare_grid(event, contribution):
 
 
 enamldef PGEpochAverageGridContainerManifest(PGPlotContainerManifest): manifest:
-
-    Extension:
-        id = 'items'
-        point = 'psi.context.items'
-        OrderedContextMeta: meta:
-            name << manifest.contribution.name
-            label << 'Epoch average plot'
-            values >> manifest.contribution.items
 
     Extension:
         id = 'commands'

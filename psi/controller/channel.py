@@ -7,7 +7,8 @@ from atom.api import Unicode, Enum, Typed, Tuple, Property
 from enaml.core.api import Declarative, d_
 
 from .calibration import Calibration
-from .output import ContinuousOutput, EpochOutput, NullOutput
+from .output import ContinuousOutput, EpochOutput
+from ..util import coroutine
 
 
 class Channel(Declarative):
@@ -75,6 +76,18 @@ class AIChannel(InputChannel):
     terminal_coupling = d_(Enum(None, 'AC', 'DC', 'ground')).tag(metadata=True)
 
 
+@coroutine
+def null_callback():
+    offset = 0
+    while True:
+        event = (yield)
+        with event.engine.lock:
+            samples = event.engine.get_space_available(event.channel_name, offset)
+            waveform = np.zeros(samples)
+            event.engine.append_hw_ao(waveform)
+            offset += samples
+
+
 class AOChannel(OutputChannel):
     '''
     An analog output channel supports one continuous and multiple epoch
@@ -87,6 +100,12 @@ class AOChannel(OutputChannel):
 
     expected_range = d_(Tuple()).tag(metadata=True)
     terminal_mode = d_(Enum(*TERMINAL_MODES)).tag(metadata=True)
+
+    def configure(self, plugin):
+        super().configure(plugin)
+        if self.continuous_output is None:
+            cb = null_callback()
+            self.engine.register_ao_callback(cb.send, self.name)
 
     def _get_continuous_output(self):
         for o in self.outputs:

@@ -13,9 +13,10 @@ from psi.context.selector import FixedSpacing, CartesianProduct
 from psi.context import choice
 from psi.controller.api import EpochOutput, ExperimentAction
 
-from psi.controller.output import QueuedEpochOutput, NullOutput
+from psi.controller.output import QueuedEpochOutput
 from psi.controller.input import ExtractEpochs, Input, Threshold, ITI, Edges, Blocked, Accumulate, RejectEpochs, IIRFilter
 
+from psi.context.api import Result, ContextGroup
 from psi.controller.base_manifest import BaseManifest
 
 from psi.controller.queue import InterleavedFIFOSignalQueue
@@ -27,14 +28,20 @@ from psi.data.plots import (PGTimeContainer,
                             PGEpochAverageGridContainer,
                             PGChannelPlot)
 
-from psi.data.sinks.trial_log_counter import TrialLogCounter
+from psi.data.sinks.epoch_counter import EpochCounter
 
 from psi.controller.calibration.tone import tone_calibration
 
 
-def process_key(event):
+def save_trial(event):
+    '''
+    Saves the trial
+    '''
     core = event.workbench.get_plugin('enaml.workbench.core')
-    metadata = [e['metadata'] for e in event.parameters['data']]
+    metadata = []
+    for epoch in event.parameters['data']:
+        m = e['metadata'].copy()
+        metadata.append(m)
     parameters = {'results': metadata}
     core.invoke_command('psi.data.process_trials', parameters)
 
@@ -77,11 +84,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
         id = 'io'
         point = 'psi.controller.io'
 
-        NullOutput:
-            name = 'background'
-            label = 'Background'
-            target_name = 'speaker_0'
-
         QueuedEpochOutput: output:
             name = 'target'
             label = 'Target'
@@ -101,6 +103,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 n = 100
 
                 IIRFilter:
+                    name = 'eeg_buffered_filtered'
                     N = 2
                     btype = 'bandpass'
                     ftype = 'butter'
@@ -109,16 +112,16 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
                     ExtractEpochs: extract:
                         save = True
-                        name = 'erp'
                         buffer_size = 50
                         epoch_size = 8.5e-3
                         queue = output.queue
                         delay = 47.5/extract.fs
+                        name = 'erp'
 
                         RejectEpochs:
+                            save = True
                             threshold = 2.5
                             name = 'valid_erp'
-                            save = True
 
     Extension:
         id = 'selectors'
@@ -131,8 +134,8 @@ enamldef ControllerManifest(BaseManifest): manifest:
         id = 'passive_commands'
         point = 'enaml.workbench.core.commands'
         Command:
-            id = 'psi.controller.process_key'
-            handler = process_key
+            id = 'psi.controller.save_trial'
+            handler = save_trial
         Command:
             id = 'psi.controller.calibrate_output'
             handler = calibrate_output
@@ -164,8 +167,8 @@ enamldef ControllerManifest(BaseManifest): manifest:
             command = 'target.prepare_queue'
 
         ExperimentAction:
-            event = 'valid_erp_acquired'
-            command = 'psi.controller.process_key'
+            event = 'erp_acquired'
+            command = 'psi.controller.save_trial'
 
         ExperimentAction:
             event = 'valid_erp_acquired'
@@ -178,10 +181,16 @@ enamldef ControllerManifest(BaseManifest): manifest:
     Extension:
         id = 'sink'
         point = 'psi.data.sinks'
-        rank = 100
 
-        TrialLogCounter:
-            pass
+        EpochCounter:
+            name = 'erp_counter'
+            label = 'ERPs acquired'
+            epoch_name = 'erp'
+
+        EpochCounter:
+            name = 'valid_erp_counter'
+            label = 'Valid ERPs acquired'
+            epoch_name = 'valid_erp'
 
     Extension:
         id = 'plots'

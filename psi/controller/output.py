@@ -131,7 +131,6 @@ class EpochCallback(object):
 class EpochOutput(AnalogOutput):
 
     method = d_(Enum('merge', 'replace', 'multiply'))
-    manifest = 'psi.controller.output_manifest.EpochOutputManifest'
 
     _cb = Typed(object)
     _duration = Typed(object)
@@ -186,7 +185,6 @@ def queued_epoch_callback(output, queue, auto_decrement, complete_cb=None):
 
 class QueuedEpochOutput(EpochOutput):
 
-    manifest = 'psi.controller.output_manifest.QueuedEpochOutputManifest'
     selector_name = d_(Unicode())
     queue = d_(Typed(AbstractSignalQueue))
     auto_decrement = d_(Bool(False))
@@ -223,33 +221,10 @@ def continuous_callback(generator):
 
 class ContinuousOutput(AnalogOutput):
 
-    manifest = 'psi.controller.output_manifest.ContinuousOutputManifest'
-
     def setup(self, context):
         log.debug('Configuring continuous output {}'.format(self.name))
         generator = self.initialize_generator(context)
         cb = continuous_callback(generator)
-        self.engine.register_ao_callback(cb.send, self.channel.name)
-
-
-@coroutine
-def null_callback():
-    offset = 0
-    while True:
-        event = (yield)
-        with event.engine.lock:
-            samples = event.engine.get_space_available(event.channel_name, offset)
-            waveform = np.zeros(samples)
-            event.engine.append_hw_ao(waveform)
-            offset += samples
-
-
-class NullOutput(AnalogOutput):
-    # Used in the event where a channel does not have a continuous output
-    # defined.
-
-    def configure(self, plugin):
-        cb = null_callback()
         self.engine.register_ao_callback(cb.send, self.channel.name)
 
 
@@ -261,8 +236,6 @@ class DigitalOutput(Output):
 
 class Trigger(DigitalOutput):
 
-    manifest = 'psi.controller.output_manifest.TriggerManifest'
-
     duration = d_(Float(0.1))
 
     def fire(self):
@@ -270,8 +243,6 @@ class Trigger(DigitalOutput):
 
 
 class Toggle(DigitalOutput):
-
-    manifest = 'psi.controller.output_manifest.ToggleManifest'
 
     state = Bool(False)
 

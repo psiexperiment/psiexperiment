@@ -4,33 +4,13 @@ from enaml.widgets.api import (Container, Field, CheckBox, Label, HGroup,
                                PushButton, PopupView, Form, ObjectCombo)
 
 from .context_item import (Result, Parameter, EnumParameter, FileParameter,
-                           BoolParameter, OrderedContextMeta)
+                           BoolParameter, ChoiceContextMeta, OrderedContextMeta)
 
 from enaml.widgets.api import ObjectCombo
 
 ################################################################################
 # ContextMetaPopup
 ################################################################################
-enamldef ContextMetaDynamicTemplate(DynamicTemplate):
-    attr meta
-    base = ContextMetaTemplate
-    args = (meta, type(meta))
-
-
-template ContextMetaTemplate(meta, MemberType: OrderedContextMeta):
-
-    HGroup:
-        padding = 0
-        Label:
-            text << meta.label
-        ObjectCombo:
-            items = [None] + meta.get_valid_indices(context_item)
-            to_string = lambda i: '' if i is None else str(i+1)
-            selected = meta.get_index(context_item)
-            selected::
-                meta.set_value(selected, context_item)
-
-
 enamldef ContextMetaPopup(PopupView): cm_popup:
 
     attr context_item
@@ -39,8 +19,16 @@ enamldef ContextMetaPopup(PopupView): cm_popup:
     Container:
         Looper:
             iterable << context_meta.values()
-            ContextMetaDynamicTemplate:
-                meta = loop_item
+            HGroup:
+                padding = 0
+                Label:
+                    text = loop_item.label
+                ObjectCombo:
+                    items = [None] + loop_item.get_choices(context_item)
+                    to_string = lambda i: '' if i is None else str(i)
+                    selected = loop_item.get_choice(context_item)
+                    selected::
+                        loop_item.set_choice(selected, context_item)
 
 
 ################################################################################

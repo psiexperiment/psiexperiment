@@ -19,17 +19,6 @@ from psi.core.enaml.api import PSIManifest
 from .experiment_action import ExperimentState, ExperimentEvent
 
 
-class OutputManifest(PSIManifest): 
-
-    output = Property()
-
-    def _get_output(self):
-        return self.contribution
-
-    def _set_output(self, value):
-        self.contribution = value
-
-
 def toggle_off(event, output):
     output.set_low()
 
@@ -105,44 +94,44 @@ def decrement_key(event, output):
             log.debug(m.format(epoch['key']))
 
 
-enamldef AnalogOutputManifest(OutputManifest): manifest:
+enamldef AnalogOutputManifest(PSIManifest): manifest:
 
     Extension:
         id = 'output_commands'
         point = 'enaml.workbench.core.commands'
         Command:
-            id = manifest.output.name + '.set_token'
-            handler = partial(set_token, output=manifest.output,
+            id = manifest.contribution.name + '.set_token'
+            handler = partial(set_token, output=manifest.contribution,
                               output_type=output_type)
         Command:
-            id = manifest.output.name + '.prepare'
-            handler = partial(prepare_output, output=manifest.output)
+            id = manifest.contribution.name + '.prepare'
+            handler = partial(prepare_output, output=manifest.contribution)
         Command:
-            id = manifest.output.name + '.start'
-            handler = partial(start_output, output=manifest.output)
+            id = manifest.contribution.name + '.start'
+            handler = partial(start_output, output=manifest.contribution)
         Command:
-            id = manifest.output.name + '.clear'
-            handler = partial(clear_output, output=manifest.output)
+            id = manifest.contribution.name + '.clear'
+            handler = partial(clear_output, output=manifest.contribution)
 
     Extension:
-        id = 'output_menu.' + manifest.output.name
+        id = 'output_menu.' + manifest.contribution.name
         point = 'enaml.workbench.ui.actions'
         MenuItem:
-            path = '/equipment/output/{}'.format(manifest.output.name)
-            label = '{} ({})'.format(manifest.output.label, output_type)
+            path = '/equipment/output/{}'.format(manifest.contribution.name)
+            label = '{} ({})'.format(manifest.contribution.label, output_type)
             ItemGroup:
                 exclusive = True
-                id = manifest.output.name
+                id = manifest.contribution.name
         Looper:
             # Provide this in the subclass
             iterable << tokens.values()
             ActionItem:
-                path = '/equipment/output/{}/{}'.format(manifest.output.name, 
+                path = '/equipment/output/{}/{}'.format(manifest.contribution.name, 
                                                         loop_item.name)
                 label << loop_item.label
-                group = manifest.output.name
-                command = manifest.output.name + '.set_token'
-                checked << manifest.output.token_name == loop_item.name
+                group = manifest.contribution.name
+                command = manifest.contribution.name + '.set_token'
+                checked << manifest.contribution.token_name == loop_item.name
                 checkable = True
                 parameters = {'token_name': loop_item.name}
                 enabled << workbench.get_plugin('psi.controller').experiment_state \
@@ -152,33 +141,33 @@ enamldef AnalogOutputManifest(OutputManifest): manifest:
         # For some reason this doesn't get loaded if it's lumped together with
         # the following extension, so I've split them out. Not sure why. Some
         # exception is getting swallowed silently.
-        id = 'groups.' + manifest.output.name
+        id = 'groups.' + manifest.contribution.name
         point = 'psi.context.items'
         ContextGroup:
-            name = manifest.output.name
-            label = manifest.output.label
+            name = manifest.contribution.name
+            label = manifest.contribution.label
 
     Extension:
-        id = 'items.' + manifest.output.name
+        id = 'items.' + manifest.contribution.name
         point = 'psi.context.items'
         Include:
             # list provides an empty list of context items if needed.
-            objects << getattr(manifest.output.token, 'get_context_items',
+            objects << getattr(manifest.contribution.token, 'get_context_items',
                                list)()
 
     Extension:
-        id = 'actions.' + manifest.output.name
+        id = 'actions.' + manifest.contribution.name
         point = 'psi.controller.actions'
         ExperimentState:
-            name = manifest.output.name
+            name = manifest.contribution.name
 
     Extension:
-        id = 'preferences.' +  manifest.output.name
+        id = 'preferences.' +  manifest.contribution.name
         point = 'psi.experiment.preferences'
         rank = 10
         ItemPreferences:
-            name = 'output.' + manifest.output.name
-            item = manifest.output
+            name = 'output.' + manifest.contribution.name
+            item = manifest.contribution
             auto_save = ['token_name']
             set_preferences => (workbench, preferences):
                 # Override the set_preferences since we need to loop into the
@@ -186,7 +175,7 @@ enamldef AnalogOutputManifest(OutputManifest): manifest:
                 # to this plugin. TODO This is a hack. I'm sure I'll figure out a
                 # better approach eventually.
                 core = workbench.get_plugin('enaml.workbench.core')
-                command = manifest.output.name + '.set_token'
+                command = manifest.contribution.name + '.set_token'
                 core.invoke_command(command, parameters=preferences)
 
 
@@ -202,37 +191,37 @@ enamldef QueuedEpochOutputManifest(EpochOutputManifest): manifest:
         id = 'actions'
         point = 'psi.controller.actions'
         ExperimentEvent:
-            name = manifest.output.name + '_complete'
+            name = manifest.contribution.name + '_complete'
 
     Extension:
         id = 'commands'
         point = 'enaml.workbench.core.commands'
         Command:
-            id = manifest.output.name + '.prepare_queue'
-            handler = partial(prepare_output_queue, output=manifest.output)
+            id = manifest.contribution.name + '.prepare_queue'
+            handler = partial(prepare_output_queue, output=manifest.contribution)
         Command:
-            id = manifest.output.name + '.decrement_key'
-            handler = partial(decrement_key, output=manifest.output)
+            id = manifest.contribution.name + '.decrement_key'
+            handler = partial(decrement_key, output=manifest.contribution)
 
     Extension:
         id = 'items'
         point = 'psi.context.items'
 
         ContextGroup:
-            name = manifest.output.name + '_sequence'
-            label = manifest.output.label + ' epoch settings'
+            name = manifest.contribution.name + '_sequence'
+            label = manifest.contribution.label + ' epoch settings'
 
             Parameter:
-                name = manifest.output.name + '_iti_duration'
-                label = manifest.output.label + ' intertrial interval (s)'
-                compact_label = manifest.output.label + ' ITI'
+                name = manifest.contribution.name + '_iti_duration'
+                label = manifest.contribution.label + ' intertrial interval (s)'
+                compact_label = manifest.contribution.label + ' ITI'
                 default = 0.1
                 scope = 'experiment'
 
             Parameter:
-                name = manifest.output.name + '_averages'
-                label = manifest.output.label + ' averages'
-                compact_label = manifest.output.label + ' N'
+                name = manifest.contribution.name + '_averages'
+                label = manifest.contribution.label + ' averages'
+                compact_label = manifest.contribution.label + ' N'
                 default = 1
                 scope = 'experiment'
 
@@ -244,48 +233,48 @@ enamldef ContinuousOutputManifest(AnalogOutputManifest): manifest:
     attr output_type = 'continuous'
 
 
-enamldef ToggleManifest(OutputManifest): manifest:
+enamldef ToggleManifest(PSIManifest): manifest:
 
     Extension:
-        id = 'toggle_commands.' + manifest.output.name
+        id = 'toggle_commands.' + manifest.contribution.name
         point = 'enaml.workbench.core.commands'
         Command:
             id = manifest.id + '.off'
-            handler = partial(toggle_off, output=manifest.output)
+            handler = partial(toggle_off, output=manifest.contribution)
         Command:
             id = manifest.id + '.on'
-            handler = partial(toggle_on, output=manifest.output)
+            handler = partial(toggle_on, output=manifest.contribution)
         Command:
             id = manifest.id + '.toggle'
-            handler = partial(toggle, output=manifest.output)
+            handler = partial(toggle, output=manifest.contribution)
 
     Extension:
-        id = 'toggle_actions.' + manifest.output.name
+        id = 'toggle_actions.' + manifest.contribution.name
         point = 'enaml.workbench.ui.actions'
         ActionItem:
-            path = '/equipment/{}'.format(manifest.output.name)
-            label = '{}'.format(manifest.output.label)
+            path = '/equipment/{}'.format(manifest.contribution.name)
+            label = '{}'.format(manifest.contribution.label)
             command = manifest.id + '.toggle'
             parameters << {'state': checked}
-            checked << manifest.output.state
+            checked << manifest.contribution.state
             checkable = True
             status_tip = command
 
 
-enamldef TriggerManifest(OutputManifest): manifest:
+enamldef TriggerManifest(PSIManifest): manifest:
 
     Extension:
         id = 'trigger_commands'
         point = 'enaml.workbench.core.commands'
         Command:
             id = manifest.id + '.trigger'
-            handler = partial(fire, output=manifest.output)
+            handler = partial(fire, output=manifest.contribution)
 
     Extension:
         id = 'trigger_actions'
         point = 'enaml.workbench.ui.actions'
         ActionItem:
-            path = '/equipment/{}'.format(manifest.output.name)
-            label = '{} trigger'.format(manifest.output.label)
+            path = '/equipment/{}'.format(manifest.contribution.name)
+            label = '{} trigger'.format(manifest.contribution.label)
             command = manifest.id + '.trigger'
             status_tip = command

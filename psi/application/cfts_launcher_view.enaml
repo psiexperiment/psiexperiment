@@ -50,3 +50,7 @@ enamldef LauncherView(Window): main:
                 text = 'Base folder'
             Label:
                 text << launcher.base_folder
+                visible << bool(launcher.note and \
+                                launcher.ear and \
+                                launcher.animal and \
+                                launcher.experimenter)

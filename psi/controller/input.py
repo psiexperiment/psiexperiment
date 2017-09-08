@@ -30,8 +30,6 @@ def broadcast(*targets):
 
 class Input(PSIContribution):
 
-    manifest = 'psi.controller.input_manifest.InputManifest'
-
     source_name = d_(Unicode())
     save = d_(Bool(False))
 
@@ -345,18 +343,6 @@ class Edges(Input):
 
 
 @coroutine
-def reject_epochs(reject_threshold, target):
-    while True:
-        epochs = (yield)
-        valid = []
-        for epoch in epochs:
-            if np.max(np.abs(epoch['signal'])) < reject_threshold:
-                valid.append(epoch)
-        target(valid)
-
-
-
-@coroutine
 def average(n, target):
     data = (yield)
     axis = 0
@@ -397,6 +383,15 @@ class ITI(Input):
         return iti(self.fs, cb).send
 
 
+class EpochInput(Input):
+
+    epoch_size = Property()
+    mode = 'epochs'
+
+    def _get_epoch_size(self):
+        return self.parent.epoch_size
+
+
 @coroutine
 def extract_epochs(fs, queue, epoch_size, buffer_size, delay, target):
     buffer_samples = int(buffer_size*fs)
@@ -411,7 +406,7 @@ def extract_epochs(fs, queue, epoch_size, buffer_size, delay, target):
 
     # This is the timestamp of the sample at the end of the buffer. To
     # calculate the timestamp of samples at the beginning of the buffer,
-    # subtract buffer_samples from t_end, 
+    # subtract buffer_samples from t_end,
     t_end = -delay_samples
 
     while True:
@@ -459,15 +454,6 @@ def extract_epochs(fs, queue, epoch_size, buffer_size, delay, target):
         log.debug('received %r samples', data.shape)
 
 
-class EpochInput(Input):
-
-    epoch_size = Property()
-    mode = 'epochs'
-
-    def _get_epoch_size(self):
-        return self.parent.epoch_size
-        
-
 class ExtractEpochs(EpochInput):
 
     queue = d_(Typed(AbstractSignalQueue))
@@ -487,11 +473,26 @@ class ExtractEpochs(EpochInput):
                               self.buffer_size, self.delay, cb).send
 
 
+@coroutine
+def reject_epochs(reject_threshold, valid_target, invalid_target):
+    while True:
+        epochs = (yield)
+        for epoch in epochs:
+            # This is not an optimal approach. Normally I like to process all
+            # epochs then send a bulk update. However, this ensures that we
+            # preserve the correct ordering (in case that's important).
+            if np.max(np.abs(epoch['signal'])) < reject_threshold:
+                valid_target([epoch])
+            else:
+                invalid_target([epoch])
+
+
 class RejectEpochs(EpochInput):
 
     threshold = d_(Float()).tag(metadata=True)
 
     def configure_callback(self, plugin):
-        cb = super().configure_callback(plugin)
-        return reject_epochs(self.threshold, cb).send
-
+        valid_cb = super().configure_callback(plugin)
+        action = self.name + '_rejected'
+        reject_cb = lambda data: plugin.invoke_actions(action, data=data)
+        return reject_epochs(self.threshold, valid_cb, reject_cb).send
