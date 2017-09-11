@@ -149,14 +149,14 @@ enamldef ControllerManifest(BaseManifest): manifest:
         # make sure that the calibration is run before the queue is prepared.
         # Once the queue is prepared, the calibration has been set for those
         # stimuli.
-        ExperimentAction:
-            event = 'experiment_prepare'
-            command = 'psi.controller.calibrate_output'
-            kwargs = {
-                'input_name': 'microphone',
-                'output_name': 'target',
-                'parameter_name': 'target_tone_frequency',
-            }
+        #ExperimentAction:
+        #    event = 'experiment_prepare'
+        #    command = 'psi.controller.calibrate_output'
+        #    kwargs = {
+        #        'input_name': 'microphone',
+        #        'output_name': 'target',
+        #        'parameter_name': 'target_tone_frequency',
+        #    }
 
         ExperimentAction:
             event = 'experiment_prepare'

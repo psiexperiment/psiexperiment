@@ -4,7 +4,7 @@ log = logging.getLogger(__name__)
 from atom.api import Typed, Event, Unicode, Int
 from enaml.core.api import d_
 from enaml.workbench.api import Extension
-from enaml.widgets.api import Container, DockItem, HGroup, Label
+from enaml.widgets.api import Container, DockItem, Form, Label
 
 from ..sink import Sink
 
@@ -16,6 +16,7 @@ class EpochCounter(Sink):
 
     min_n = Int()
     max_n = Int()
+    total_n = Int()
     cumulative_n = Typed(dict, {})
     epoch_name = d_(Unicode())
     grouping = d_(Typed(list))
@@ -28,6 +29,7 @@ class EpochCounter(Sink):
         n = self.cumulative_n.values()
         self.max_n = max(n)
         self.min_n = min(n)
+        self.total_n = sum(n)
 
     def _process_epoch(self, key, epoch):
         self.cumulative_n[key] = n+1
@@ -41,21 +43,19 @@ enamldef EpochCounterManifest(PSIManifest): manifest:
         DockItem: di:
             name << manifest.contribution.name
             title << manifest.contribution.label
-            Container:
-                HGroup:
-                    spacing = 0
-                    padding = 0
-                    Label:
-                        text = 'Max epochs acquired'
-                    Label:
-                        text << str(manifest.contribution.max_n)
-                HGroup:
-                    spacing = 0
-                    padding = 0
-                    Label:
-                        text = 'Min epochs acquired'
-                    Label:
-                        text << str(manifest.contribution.min_n)
+            Form:
+                Label:
+                    text = 'Max epochs acquired'
+                Label:
+                    text << str(manifest.contribution.max_n)
+                Label:
+                    text = 'Min epochs acquired'
+                Label:
+                    text << str(manifest.contribution.min_n)
+                Label:
+                    text = 'Total epochs acquired'
+                Label:
+                    text << str(manifest.contribution.total_n)
 
     Extension:
         id = 'items'

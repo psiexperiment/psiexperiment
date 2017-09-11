@@ -400,8 +400,10 @@ class PGEpochAverageGridContainer(PGPlotContainer):
             'row': {'name': 'target_tone_level'},
             'column': {'name': 'target_tone_frequency'},
         }
-        keys = [self.extract_key(c) for c in iterable]
-        self.update_grid(keys)
+        rows, cols = [self.extract_key(c) for c in iterable]
+        rows = set(rows)
+        cols = set(cols)
+        self.update_grid(rows, cols)
 
     def extract_key(self, context):
         ci = self.items['row']
