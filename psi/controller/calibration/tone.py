@@ -5,7 +5,8 @@ import numpy as np
 
 from .util import tone_power_conv, db
 from ..util import acquire
-from . import FlatCalibration, PointCalibration
+from . import (FlatCalibration, PointCalibration, CalibrationTHDError,
+               CalibrationNFError)
 from ..queue import FIFOSignalQueue
 
 
@@ -56,7 +57,7 @@ def process_tone(fs, signal, frequencies, min_db=None, max_thd=None,
     if min_db is not None and np.any(freq_snr < min_db):
         m = freq_snr < min_db
         mesg = nf_err_mesg.format(frequencies[m], freq_snr[m])
-        raise CalibrationNFError(m)
+        raise CalibrationNFError(mesg)
 
     if max_thd is not None and np.any(freq_thd > max_thd):
         m = thd > max_thd
