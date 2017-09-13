@@ -1,31 +1,90 @@
 import random
 
-from atom.api import Atom, List, ContainerList
-from enaml.widgets.api import Window, Container, Label, PushButton
+import pandas as pd
 
-from psi.core.enaml.list_view import ListView
+from atom.api import Atom, Typed, Event, List, Dict
+from enaml.widgets.api import Window, Container, PushButton, HGroup, VGroup
 
-
-class Selector(Atom):
-
-    items = List()
-
-    def _observe_items(self, event):
-        print(event)
+from psi.core.enaml.editable_table_widget import DataFrameTable, ListDictTable
 
 
-enamldef Main(Window):
+class TrialLog(Atom):
 
-    attr selector = Selector(items=['a', 'b', 'c'])
+    table = Typed(pd.DataFrame)
+    updated = Event()
+
+    def _default_table(self):
+        return pd.DataFrame({
+            'ttype': ['go_remind', 'nogo', 'nogo', 'nogo', 'go'],
+            'mod_depth': [0.5, 0, 0, 0, 1],
+        })
+
+
+class Setting(Atom):
+
+    values = List(Dict())
+
+
+enamldef Main(Window): main:
+
+    attr trial_log = TrialLog()
+    attr ttype_map = {'go_remind': 'lightgreen', 'go': 'lightblue', 'nogo': 'pink'}
+    attr column_info = {
+        'ttype': {'label': 'Trial type', 'default': 'nogo'},
+        'mod_depth': {'label': 'Mod. depth (frac.)', 'coerce': float},
+        'reward_volume': {'label': 'Reward (ul)', 'default': -1},
+    }
+
+
+    attr setting = Setting(values=[
+        {'mod_depth': 0, 'reward_volume': 2},
+        {'mod_depth': 1, 'reward_volume': 4},
+        {'mod_depth': 2, 'reward_volume': 8},
+    ])
 
     Container:
-        EditableTable:
-            items := selector.items
-            updated::
-                print('items were updated')
+        VGroup:
+            DataFrameTable:
+                data << main.trial_log.table
+                column_info << main.column_info
+                get_cell_color => (row, col):
+                    ttype = data.iloc[row]['ttype']
+                    return ttype_map.get(ttype, 'white')
 
-        PushButton:
-            text = 'Change items'
-            clicked::
-                selector.items = \
-                    [random.choice('abcdefghijklmnopqrstuvwxyz') for i in range(3)]
+            ListDictTable:
+                editable = True
+                data << main.setting.values
+                column_info << main.column_info
+                get_columns => ():
+                    return ['mod_depth', 'reward_volume']
+
+        HGroup:
+            PushButton:
+                text = 'Print trial log'
+                clicked ::
+                    print(main.trial_log.table)
+
+            PushButton:
+                text = 'Print setting'
+                clicked ::
+                    print(id(main.setting.values))
+                    print(main.setting.values)
+
+            PushButton:
+                text = 'Reset trial log'
+                clicked ::
+                    print('reset trial log')
+                    main.trial_log.table = pd.DataFrame({
+                        'ttype': ['go_remind', 'nogo', 'nogo', 'nogo', 'go'],
+                        'mod_depth': [0.5, 0, 0, 0, 1],
+                    })
+
+            PushButton:
+                text = 'Reset setting'
+                clicked ::
+                    print('reset setting')
+                    main.setting.values = [
+                        {'mod_depth': 0, 'reward_volume': 2},
+                        {'mod_depth': 1, 'reward_volume': 4},
+                        {'mod_depth': 2, 'reward_volume': 8},
+                    ]
