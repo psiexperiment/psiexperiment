@@ -82,6 +82,11 @@ class Engine(Declarative):
             log.debug('Configuring channel {}'.format(channel.name))
             channel.configure(plugin)
 
+        # Required by engine superclass. This allows us to do the configuration
+        # on the fly when starting the engines if the configure method hasn't
+        # been called yet.
+        self._configured = True
+
     def append_hw_ao(self, data):
         '''
         This can only be used for the continuous output.
