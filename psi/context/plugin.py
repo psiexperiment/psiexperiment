@@ -61,11 +61,13 @@ class ContextPlugin(Plugin):
     def _refresh_selectors(self, event=None):
         # Hidden here to avoid circular import since selectors define a
         # reference to the context plugin.
+        log.debug('Refreshing selectors')
         selectors = {}
         point = self.workbench.get_extension_point(SELECTORS_POINT)
         for extension in point.extensions:
             for selector in extension.get_children(BaseSelector):
                 selectors[selector.name] = selector
+                selector.load_manifest(self.workbench)
         self.selectors = selectors
 
     def _refresh_symbols(self, event=None):

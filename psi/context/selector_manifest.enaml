@@ -1,23 +1,25 @@
 from enaml.application import deferred_call
-from enaml.core.api import Include, DynamicTemplate, Looper
+from enaml.core.api import Include, Looper
 from enaml.layout.api import (vbox, hbox)
+from enaml.workbench.api import Extension
 from enaml.widgets.api import (PushButton, Field, Container, VGroup, HGroup,
                                Label, ObjectCombo, DockItem, GroupBox)
 from enaml.stdlib.fields import FloatField
 
-from .selector import SingleSetting, FixedSpacing, SequenceSelector, CartesianProduct
+from psi.core.enaml.list_view import ListView
+from psi.core.enaml.api import PSIManifest
+
 from . import selector as selector_classes
 
 
-enamldef SequenceSettingField(Field):
-    attr selector
-    attr setting_index
-    attr item
-    text << str(selector.get_value(setting_index, item))
-    text ::
-        selector.set_value(setting_index, item, text)
+enamldef BaseSelectorManifest(PSIManifest): manifest:
+    pass
 
 
+
+################################################################################
+# SingleSetting
+################################################################################
 enamldef SingleSettingField(Field):
     attr selector
     attr setting
@@ -27,9 +29,65 @@ enamldef SingleSettingField(Field):
         selector.set_value(item, text)
 
 
+def update_single_setting_widgets(selector, context_items, setting):
+    widgets = []
+    for item in context_items:
+        label = Label(text=item.label)
+        widgets.append(label)
+        field = SingleSettingField(selector=selector, setting=setting,
+                                   item=item)
+        widgets.append(field)
+    return widgets
+
+
+enamldef SingleSettingContainer(Container):
+
+    attr selector
+
+    layout_constraints => ():
+        widgets = self.visible_widgets()
+        if len(widgets) == 0:
+            return []
+        label_widgets = widgets[::2]
+        setting_widgets = widgets[1::2]
+        row_constraints = [hbox(*label_widgets, spacing=0),
+                            hbox(*setting_widgets, spacing=0)]
+        constraints = [vbox(*row_constraints, spacing=0)]
+        for lw, sw in zip(label_widgets, setting_widgets):
+            constraints.append(lw.left == sw.left)
+        return constraints
+
+    Include: inc:
+        objects << update_single_setting_widgets(selector,
+                                                 selector.context_items,
+                                                 selector.setting)
+
+enamldef SingleSettingManifest(BaseSelectorManifest):
+
+    Extension:
+        id = 'selector.' + manifest.contribution.name
+        point = 'psi.experiment.workspace'
+
+        DockItem:
+            name = loop_item.name
+            title = loop_item.name
+
+            SingleSettingContainer:
+                selector = manifest.contribution
+
+
 ################################################################################
-# SequenceSelector UI defintion
+# SequenceSelector
 ################################################################################
+enamldef SequenceSettingField(Field):
+    attr selector
+    attr setting_index
+    attr item
+    text << str(selector.get_value(setting_index, item))
+    text ::
+        selector.set_value(setting_index, item, text)
+
+
 enamldef SettingRemoveButton(PushButton):
     attr setting
     attr selector
@@ -84,7 +142,10 @@ class SelectorWidgetManager(object):
 update_selector_widgets = SelectorWidgetManager()
 
 
-template SelectorContainerTemplate(selector, MemberType: SequenceSelector):
+enamldef SequenceSelectorContainer(Container):
+    
+    attr selector
+
     Container:
         VGroup:
             HGroup:
@@ -167,133 +228,48 @@ template SelectorContainerTemplate(selector, MemberType: SequenceSelector):
                     selector, selector.context_items, selector.settings)
 
 
-################################################################################
-# SingleSetting
-################################################################################
-def update_single_setting_widgets(selector, context_items, setting):
-    widgets = []
-    for item in context_items:
-        label = Label(text=item.label)
-        widgets.append(label)
-        field = SingleSettingField(selector=selector, setting=setting,
-                                   item=item)
-        widgets.append(field)
-    return widgets
+enamldef SequenceSelectorManifest(BaseSelectorManifest):
 
+    Extension:
+        id = 'selector.' + manifest.contribution.name
+        point = 'psi.experiment.workspace'
 
-template SelectorContainerTemplate(selector, MemberType: SingleSetting):
+        DockItem:
+            name = loop_item.name
+            title = loop_item.name
 
-    Container:
-        layout_constraints => ():
-            widgets = self.visible_widgets()
-            if len(widgets) == 0:
-                return []
-            label_widgets = widgets[::2]
-            setting_widgets = widgets[1::2]
-            row_constraints = [hbox(*label_widgets, spacing=0),
-                               hbox(*setting_widgets, spacing=0)]
-            constraints = [vbox(*row_constraints, spacing=0)]
-            for lw, sw in zip(label_widgets, setting_widgets):
-                constraints.append(lw.left == sw.left)
-            return constraints
-
-        Include: inc:
-            objects << update_single_setting_widgets(selector,
-                                                     selector.context_items,
-                                                     selector.setting)
+            SequenceSelectorContainer:
+                selector = manifest.contribution
 
 
 ################################################################################
 # CartesianProduct
 ################################################################################
-from psi.core.enaml.list_view import ListView
+enamldef CartesianProductContainer(Container):
 
-
-template SelectorContainerTemplate(selector, MemberType: CartesianProduct):
-
-    Container:
-        VGroup:
-            Looper:
-                iterable << selector.context_items[:]
-                VGroup:
-                    Label:
-                        text = loop_item.label
-                    ListView:
-                        items << selector.settings[loop_item.name]
-                        updated::
-                            selector.settings[loop_item.name] = items
-
-
-################################################################################
-# FixedSpacing
-################################################################################
-enamldef FixedSpacingSetting(GroupBox):
-
-    attr setting
-
-    HGroup:
-
-        padding = 0
-        spacing = 0
-
-        VGroup:
-            padding = 0
-            spacing = 0
-            Label:
-                text = 'Start'
-            FloatField:
-                value := setting.start
-        VGroup:
-            padding = 0
-            spacing = 0
-            Label:
-                text = 'Stop'
-            FloatField:
-                value := setting.stop
-        VGroup:
-            padding = 0
-            spacing = 0
-            Label:
-                text = 'Step'
-            FloatField:
-                value := setting.step_size
-        VGroup:
-            padding = 0
-            spacing = 0
-            Label:
-                text = 'Mode'
-            ObjectCombo:
-                items = list(setting.get_member('step_mode').items)
-                selected := setting.step_mode
-
-
-template SelectorContainerTemplate(selector, MemberType: FixedSpacing):
+    attr selector
 
     VGroup:
-        #padding = 0
-        #spacing = 0
         Looper:
-            iterable << selector.context_items
-            FixedSpacingSetting:
-                title = loop_item.label
-                setting << selector.settings[loop_item.name]
+            iterable << selector.context_items[:]
+            VGroup:
+                Label:
+                    text = loop_item.label
+                ListView:
+                    items << selector.settings[loop_item.name]
+                    updated::
+                        selector.settings[loop_item.name] = items
 
 
-################################################################################
-# Core elements
-################################################################################
-enamldef SequenceContainer(Container):
-    attr selector
+enamldef CartesianProductManifest(BaseSelectorManifest): manifest:
 
-    DynamicTemplate:
-        base = SelectorContainerTemplate
-        args = (selector, type(selector))
+    Extension:
+        id = 'selector.' + manifest.contribution.name
+        point = 'psi.experiment.workspace'
 
+        DockItem:
+            name = manifest.contribution.name
+            title = manifest.contribution.label
 
-enamldef SequenceDockItem(DockItem):
-    attr selector
-    closable = False
-
-    DynamicTemplate:
-        base = SelectorContainerTemplate
-        args = (selector, type(selector))
+            CartesianProductContainer:
+                selector = manifest.contribution

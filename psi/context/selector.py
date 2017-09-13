@@ -8,12 +8,13 @@ from copy import deepcopy
 
 from atom.api import Atom, ContainerList, Typed, Enum, Event, Bool, Property, Float
 from enaml.core.declarative import Declarative, d_
+from psi.core.enaml.api import PSIContribution
 
 from . import choice
 from .. import SimpleState
 
 
-class BaseSelector(SimpleState, Declarative):
+class BaseSelector(PSIContribution):
 
     context_items = Typed(list, [])
     updated = Event()
@@ -72,40 +73,6 @@ class SingleSetting(BaseSelector):
     def set_value(self, item, value):
         self.setting[item.name] = item.coerce_to_type(value)
         self.updated = True
-
-
-class _FixedSpacing(Atom):
-
-    start = Float()
-    stop = Float()
-    step_size = Float()
-    step_mode = Enum('linear', 'octave', 'log')
-
-    def get_values(self):
-        f = getattr(self, '_get_values_{}'.format(self.step_mode))
-        return f()
-
-    def _get_values_linear(self):
-        return self._get_linear_range(self.start, self.stop, self.step_size)
-
-    def _get_linear_range(self, start, stop, step):
-        n_steps = (stop-start)//step + 1
-        return np.arange(n_steps)*step + start
-
-    def _get_values_octave(self):
-        start = np.round(np.log2(self.start*1e-3)/self.step_size)*self.step_size
-        stop = np.round(np.log2(self.stop*1e-3)/self.step_size)*self.step_size
-        step = self.step_size
-        return 2**self._get_linear_range(start, stop, step)*1e3
-
-
-class FixedSpacing(BaseSelector):
-
-    settings = Typed(dict, {}).tag(preference=True)
-
-    def append_item(self, item):
-        self.settings[item.name] = _FixedSpacing()
-        super().append_item(item)
 
 
 class CartesianProduct(BaseSelector):

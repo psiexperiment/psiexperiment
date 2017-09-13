@@ -24,7 +24,6 @@ from .symbol import ImportedSymbol
 from .context_item import Parameter
 
 from .context_view import ContextDockItem, CurrentValuesDockItem
-from .selector_view import SequenceDockItem
 
 from ..util import rpc, get_tagged_values
 from .. import get_config
@@ -192,10 +191,3 @@ enamldef ContextViewManifest(PluginManifest): manifest:
                 group_name << loop_item.name
                 name << loop_item.name
                 title << loop_item.label
-
-        Looper:
-            iterable << context_plugin.selectors.values()
-            SequenceDockItem:
-                name << loop_item.name
-                title << loop_item.name
-                selector << loop_item

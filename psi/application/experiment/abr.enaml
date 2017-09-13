@@ -9,7 +9,7 @@ from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 
 from psi.context.api import ContextGroup, Parameter, SequenceSelector
-from psi.context.selector import FixedSpacing, CartesianProduct
+from psi.context.selector import CartesianProduct
 from psi.context import choice
 from psi.controller.api import EpochOutput, ExperimentAction
 
@@ -129,6 +129,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
         CartesianProduct:
             name = 'default'
+            label = 'ABR sequence'
 
     Extension:
         id = 'passive_commands'

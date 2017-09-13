@@ -24,8 +24,6 @@ class PSIContribution(Declarative):
         with enaml.imports():
             for c in cls.mro():
                 class_name = c.__name__ + 'Manifest'
-                module_name = c.__module__ + '_manifest'
-
                 # First, check to see if the manifest is defined in the same
                 # module as the contribution.
                 try:
@@ -36,11 +34,12 @@ class PSIContribution(Declarative):
 
                 # Second, check to see if the manifest is defined in another,
                 # appropriately-named, module.
+                module_name = c.__module__ + '_manifest'
                 try:
                     module = importlib.import_module(module_name)
                     manifest_class = getattr(module, class_name)
                     return manifest_class
-                except ImportError:
+                except ImportError as e:
                     pass
                 except AttributeError:
                     pass
