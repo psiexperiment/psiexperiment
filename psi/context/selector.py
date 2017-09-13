@@ -98,7 +98,7 @@ class CartesianProduct(BaseSelector):
 
 class SequenceSelector(BaseSelector):
 
-    settings = Typed(list).tag(preference=True)
+    settings = Typed(list, []).tag(preference=True)
     order = d_(Enum(*choice.options.keys())).tag(preference=True)
 
     def add_setting(self, values=None):

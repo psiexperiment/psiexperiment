@@ -228,18 +228,18 @@ enamldef SequenceSelectorContainer(Container):
                     selector, selector.context_items, selector.settings)
 
 
-enamldef SequenceSelectorManifest(BaseSelectorManifest):
+enamldef SequenceSelectorManifest(BaseSelectorManifest): manifest:
 
     Extension:
         id = 'selector.' + manifest.contribution.name
         point = 'psi.experiment.workspace'
 
         DockItem:
-            name = loop_item.name
-            title = loop_item.name
+            name = manifest.contribution.name
+            title = manifest.contribution.label
 
             SequenceSelectorContainer:
-                selector = manifest.contribution
+                selector << manifest.contribution
 
 
 ################################################################################
