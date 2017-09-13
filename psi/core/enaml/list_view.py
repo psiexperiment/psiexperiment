@@ -40,7 +40,6 @@ class ListView(RawWidget):
     _widget = Typed(QObject)
 
     def create_widget(self, parent):
-        print('items id', id(self.items))
         # Create the list model and accompanying controls:
         #self.set_items(self.items)
         widget = QListWidget(parent)
