@@ -473,18 +473,20 @@ class ExtractEpochs(EpochInput):
                               self.buffer_size, self.delay, cb).send
 
 
+
 @coroutine
-def reject_epochs(reject_threshold, valid_target, invalid_target):
+def reject_epochs(reject_threshold, valid_target):
     while True:
         epochs = (yield)
+        valid = []
+        invalid = []
         for epoch in epochs:
             # This is not an optimal approach. Normally I like to process all
             # epochs then send a bulk update. However, this ensures that we
             # preserve the correct ordering (in case that's important).
             if np.max(np.abs(epoch['signal'])) < reject_threshold:
-                valid_target([epoch])
-            else:
-                invalid_target([epoch])
+                valid.append(epoch)
+        valid_target(valid)
 
 
 class RejectEpochs(EpochInput):
@@ -493,6 +495,4 @@ class RejectEpochs(EpochInput):
 
     def configure_callback(self, plugin):
         valid_cb = super().configure_callback(plugin)
-        action = self.name + '_rejected'
-        reject_cb = lambda data: plugin.invoke_actions(action, data=data)
-        return reject_epochs(self.threshold, valid_cb, reject_cb).send
+        return reject_epochs(self.threshold, valid_cb).send
