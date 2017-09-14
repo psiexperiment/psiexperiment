@@ -8,6 +8,7 @@ import numpy as np
 
 from atom.api import (Unicode, Enum, Typed, Property, Float, Int, Bool)
 
+from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
 from enaml.workbench.api import Extension
 
@@ -69,9 +70,19 @@ class AnalogOutput(Output):
     block_size = d_(Float(2))
     visible = d_(Bool(True))
 
+    buffer_size = Property()
+
+    _buffer = Typed(np.ndarray)
+    _offset = Int(0)
     _generator = Typed(GeneratorType)
-    _offset = Int()
     _block_samples = Int()
+
+    def _get_buffer_size(self):
+        return self.channel.buffer_size
+
+    def _default__buffer(self):
+        buffer_samples = int(self.buffer_size*self.fs)
+        return np.zeros(buffer_samples, dtype=np.double)
 
     def configure(self, plugin):
         pass
@@ -87,6 +98,45 @@ class AnalogOutput(Output):
         generator = factory()
         next(generator)
         return generator
+
+    def get_samples(self, offset, samples, out=None):
+        # Draw from the buffer if needed.
+        log.debug('Requested {} samples at {} for {}' \
+                  .format(samples, offset, self.name))
+        if out is None:
+            out = np.empty(samples, dtype=np.double)
+        buffer_size = self._buffer.size
+
+        if self._offset < offset:
+            # This breaks an implicit software contract.
+            raise SystemError('Mismatch between offsets')
+
+        # Pull out buffered samples
+        if offset < self._offset:
+            lb = buffer_size-self._offset-offset
+            ub = min(lb + samples, buffer_size)
+            buffered_samples = ub-lb
+            out[:buffered_samples] = self._buffer[lb:ub]
+            samples -= buffered_samples
+
+        if samples < 0:
+            raise SystemError('Invalid request for samples')
+
+        # Generate new samples
+        if samples > 0:
+            data = self.get_next_samples(samples)
+            if samples > buffer_size:
+                self._buffer[:] = data[-buffer_size:]
+            else:
+                self._buffer = np.roll(self._buffer, -samples)
+                self._buffer[-samples:] = data
+            self._offset += samples
+            out[-samples:] = data
+
+        return out
+
+    def get_next_samples(self, samples):
+        raise NotImplementedError
 
 
 class EpochCallback(object):
@@ -117,7 +167,7 @@ class EpochCallback(object):
             self.offset += len(waveform)
             if complete:
                 raise StopIteration
-
+ 
     def clear(self, end, delay):
         with self.engine.lock:
             offset = int((end+delay)*self.channel.fs)
@@ -141,6 +191,7 @@ class EpochOutput(AnalogOutput):
         allows the generator to cache some potentially expensive computations
         in advance rather than just before we actually want the signal played.
         '''
+        raise NotImplementedError
         generator = self.initialize_generator(context)
         cb = EpochCallback(self, generator)
         self._cb = cb
@@ -164,33 +215,16 @@ class EpochOutput(AnalogOutput):
         self._block_samples = int(self.channel.fs*self.block_size)
 
 
-@coroutine
-def queued_epoch_callback(output, queue, auto_decrement, complete_cb=None):
-    offset = 0
-    engine = output.engine
-    channel = output.channel
-    while True:
-        event = (yield)
-        samples = engine.get_buffered_samples(channel.name, offset)
-        log.debug('Generating %d samples at %d from queue', samples, offset)
-        start = time.time()
-        waveform, empty = queue.pop_buffer(samples, decrement=auto_decrement)
-        engine.modify_hw_ao(waveform, offset, output.name)
-        offset += len(waveform)
-        if empty:
-            break
-    if complete_cb is not None:
-        complete_cb()
-
-
 class QueuedEpochOutput(EpochOutput):
 
     selector_name = d_(Unicode())
     queue = d_(Typed(AbstractSignalQueue))
     auto_decrement = d_(Bool(False))
+    complete_cb = Typed(object)
 
     def setup(self, context, complete_cb=None):
         log.debug('Setting up queue for {}'.format(self.name))
+        self.complete_cb = complete_cb
         for setting in context:
             averages = setting['{}_averages'.format(self.name)]
             iti_duration = setting['{}_iti_duration'.format(self.name)]
@@ -200,32 +234,26 @@ class QueuedEpochOutput(EpochOutput):
             # the queue rather than creating the waveforms for ABR tone pips,
             # even for very short signal durations.
             factory = self.initialize_factory(setting)
-            self.queue.append(factory, averages, delay_duration, token_duration,
-                              setting)
-        cb = queued_epoch_callback(self, self.queue, self.auto_decrement,
-                                   complete_cb)
-        self.engine.register_ao_callback(cb.send, self.channel.name)
+            self.queue.append(factory, averages, delay_duration, token_duration, setting)
 
-
-@coroutine
-def continuous_callback(generator):
-    while True:
-        event = (yield)
-        with event.engine.lock:
-            samples = event.engine.get_space_available(event.channel_name)
-            log.debug('Generating {} samples for {}'.format(samples, event.channel_name))
-            waveform = generator.send({'samples': samples})
-            event.engine.append_hw_ao(waveform)
-            offset += len(waveform)
+    def get_next_samples(self, samples):
+        log.debug('Getting samples from queue')
+        samples, empty = self.queue.pop_buffer(samples, self.auto_decrement)
+        if empty and self.complete_cb is not None:
+            deferred_call(self.complete_cb)
+        return samples
 
 
 class ContinuousOutput(AnalogOutput):
 
+    _generator = Typed(object)
+
     def setup(self, context):
         log.debug('Configuring continuous output {}'.format(self.name))
-        generator = self.initialize_generator(context)
-        cb = continuous_callback(generator)
-        self.engine.register_ao_callback(cb.send, self.channel.name)
+        self._generator = self.initialize_generator(context)
+
+    def get_next_samples(self, samples):
+        return self._generator.send({'samples': samples})
 
 
 class DigitalOutput(Output):

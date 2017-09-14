@@ -8,6 +8,7 @@ from ..util import acquire
 from . import (FlatCalibration, PointCalibration, CalibrationTHDError,
                CalibrationNFError)
 from ..queue import FIFOSignalQueue
+from ..output import QueuedEpochOutput
 
 
 from psi.token.primitives import (tone_factory, silence_factory,
@@ -88,6 +89,12 @@ def tone_power(engine, frequencies, gain=0, vrms=1, repetitions=1, min_db=10,
     factory = silence_factory(ao_fs, calibration)
     waveform = generate_waveform(factory, int(duration*ao_fs))
     queue.append(waveform, repetitions, iti)
+
+    # Attach the output to the channel
+    ao_channel = engine.hw_ao_channels[0]
+    output = QueuedEpochOutput(parent=ao_channel, queue=queue,
+                               auto_decrement=True)
+
     epochs = acquire(engine, queue, duration+iti)
 
     signal = np.concatenate([e['signal'][np.newaxis] for e in epochs])

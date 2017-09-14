@@ -7,25 +7,17 @@ class Acquire(object):
 
     def __init__(self, engine, queue, epoch_size):
         # Setup output
-        self.ao_queue = queue
         self.n_epochs = queue.count_trials()
         self.ai_queue = queue.create_connection()
         self.ai_epochs = []
         self.engine = engine
         self.complete = False
 
-        self.engine.register_ao_callback(self.ao_callback)
-
         # Setup input
         ai_fs = engine.hw_ai_channels[0].fs
         ai_cb = extract_epochs(ai_fs, self.ai_queue, epoch_size, epoch_size*10,
                                0, self.ai_callback)
         self.engine.register_ai_callback(ai_cb.send)
-
-    def ao_callback(self, event):
-        samples = event.engine.get_space_available(event.channel_name)
-        waveform, empty = self.ao_queue.pop_buffer(samples)
-        event.engine.append_hw_ao(waveform)
 
     def ai_callback(self, event):
         self.ai_epochs.extend(event)

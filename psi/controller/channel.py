@@ -4,6 +4,7 @@ log = logging.getLogger(__name__)
 import numpy as np
 
 from atom.api import Unicode, Enum, Typed, Tuple, Property
+from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
 
 from .calibration import Calibration
@@ -44,7 +45,7 @@ class Channel(Declarative):
 
 class InputChannel(Channel):
 
-    inputs = Property().tag(transient=True)
+    inputs = Property()
 
     def _get_inputs(self):
         return self.children
@@ -57,10 +58,14 @@ class InputChannel(Channel):
 
 class OutputChannel(Channel):
 
-    outputs = Property().tag(transient=True)
+    outputs = Property()
+    buffer_size = Property()
 
     def _get_outputs(self):
         return self.children
+
+    def _get_buffer_size(self):
+        return self.engine.get_buffer_size(self.name)
 
     def configure(self, plugin):
         for output in self.outputs:
@@ -76,45 +81,18 @@ class AIChannel(InputChannel):
     terminal_coupling = d_(Enum(None, 'AC', 'DC', 'ground')).tag(metadata=True)
 
 
-@coroutine
-def null_callback():
-    offset = 0
-    while True:
-        event = (yield)
-        with event.engine.lock:
-            samples = event.engine.get_space_available(event.channel_name, offset)
-            waveform = np.zeros(samples)
-            event.engine.append_hw_ao(waveform)
-            offset += samples
-
-
 class AOChannel(OutputChannel):
-    '''
-    An analog output channel supports one continuous and multiple epoch
-    outputs.
-    '''
+
     TERMINAL_MODES = 'pseudodifferential', 'differential', 'RSE'
-
-    epoch_outputs = Property()
-    continuous_output = Property()
-
     expected_range = d_(Tuple()).tag(metadata=True)
     terminal_mode = d_(Enum(*TERMINAL_MODES)).tag(metadata=True)
 
-    def configure(self, plugin):
-        super().configure(plugin)
-        if self.continuous_output is None:
-            cb = null_callback()
-            self.engine.register_ao_callback(cb.send, self.name)
-
-    def _get_continuous_output(self):
-        for o in self.outputs:
-            if isinstance(o, ContinuousOutput):
-                return o
-        return None
-
-    def _get_epoch_outputs(self):
-        return [o for o in self.outputs if isinstance(o, EpochOutput)]
+    def get_samples(self, offset, samples):
+        n_outputs = len(self.outputs)
+        waveforms = np.empty((n_outputs, samples))
+        for i, output in enumerate(self.outputs):
+            waveforms[i] = output.get_samples(offset, samples)
+        return np.sum(waveforms, axis=0)
 
 
 class DIChannel(InputChannel):
