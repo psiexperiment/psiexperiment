@@ -24,15 +24,16 @@ class EpochCounter(Sink):
     def process_ai_epochs(self, name, data):
         if name != self.epoch_name:
             return
+
         for d in data:
-            self._process_epoch(d['key'], d['epoch'])
+            key = d['key']
+            n = self.cumulative_n.get(key, 0)
+            self.cumulative_n[key] = n+1
+
         n = self.cumulative_n.values()
         self.max_n = max(n)
         self.min_n = min(n)
         self.total_n = sum(n)
-
-    def _process_epoch(self, key, epoch):
-        self.cumulative_n[key] = n+1
 
 
 enamldef EpochCounterManifest(PSIManifest): manifest:
