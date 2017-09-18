@@ -22,14 +22,17 @@ import time
 
 class Output(PSIContribution):
 
-    visible = d_(Bool(False))
-
     target_name = d_(Unicode())
 
     channel = Property()
     target = Property()
     engine = Property()
+
+    # These two are defined as properties because it's theoretically possible
+    # for the output to transform these (e.g., an output could upsample
+    # children or "equalize" something before passing it along).
     fs = Property()
+    calibration = Property()
 
     # TODO: clean this up. it's sort of hackish.
     token_name = d_(Unicode())
@@ -61,14 +64,11 @@ class Output(PSIContribution):
     def _get_fs(self):
         return self.channel.fs
 
+    def _get_calibration(self):
+        return self.channel.calibration
+
 
 class AnalogOutput(Output):
-
-    # This determines how many samples will be requested from the generator on
-    # each iteration. While we can request an arbitrary number of samples, this
-    # helps some caching mechanisms better cache the results for future calls.
-    block_size = d_(Float(2))
-    visible = d_(Bool(True))
 
     buffer_size = Property()
 
@@ -84,36 +84,24 @@ class AnalogOutput(Output):
         buffer_samples = int(self.buffer_size*self.fs)
         return np.zeros(buffer_samples, dtype=np.double)
 
-    def configure(self, plugin):
-        pass
-
-    def initialize_factory(self, context):
-        context = context.copy()
-        context['fs'] = self.channel.fs
-        context['calibration'] = self.channel.calibration
-        return self.token.initialize_factory(context)
-
-    def initialize_generator(self, context):
-        factory = self.initialize_factory(context)
-        generator = factory()
-        next(generator)
-        return generator
-
     def get_samples(self, offset, samples, out=None):
-        # Draw from the buffer if needed.
+        # TODO: eventually push this buffering down to the lowest layer (i.e.,
+        # token generation)? I need to think about this because one caveat is
+        # that we need to deal with stuff like QueuedEpochutput. This seems
+        # like a reasonably sensible place to handle caching for now.
         log.debug('Requested {} samples at {} for {}' \
                   .format(samples, offset, self.name))
         if out is None:
             out = np.empty(samples, dtype=np.double)
         buffer_size = self._buffer.size
 
-        if self._offset < offset:
+        if offset > self._offset:
             # This breaks an implicit software contract.
             raise SystemError('Mismatch between offsets')
 
         # Pull out buffered samples
         if offset < self._offset:
-            lb = buffer_size-self._offset-offset
+            lb = buffer_size+(offset-self._offset)
             ub = min(lb + samples, buffer_size)
             buffered_samples = ub-lb
             out[:buffered_samples] = self._buffer[lb:ub]
@@ -139,80 +127,31 @@ class AnalogOutput(Output):
         raise NotImplementedError
 
 
-class EpochCallback(object):
-
-    def __init__(self, output, generator):
-        self.output = output
-        self.engine = output.engine
-        self.channel = output.channel
-        self.active = False
-        self.generator = generator
-
-    def start(self, start, delay):
-        self.offset = int((start+delay)*self.channel.fs)
-        self.active = True
-        next(self)
-
-    def send(self, event):
-        if not self.active:
-            raise StopIteration
-        with self.engine.lock:
-            samples = self.engine.get_buffered_samples(self.channel.name,
-                                                       self.offset)
-            samples = min(self.output._block_samples, samples)
-            if samples == 0:
-                return
-            waveform, complete = self.generator.send({'samples': samples})
-            self.engine.modify_hw_ao(waveform, self.offset, self.output.name)
-            self.offset += len(waveform)
-            if complete:
-                raise StopIteration
- 
-    def clear(self, end, delay):
-        with self.engine.lock:
-            offset = int((end+delay)*self.channel.fs)
-            samples = self.engine.get_buffered_samples(self.channel.name,
-                                                       offset)
-            waveform = np.zeros(samples)
-            self.engine.modify_hw_ao(waveform, offset, self.output.name)
-            self.active = False
-
-
 class EpochOutput(AnalogOutput):
 
-    method = d_(Enum('merge', 'replace', 'multiply'))
+    generator = Typed(object)
+    active = Bool(False)
+    duration = Float()
 
-    _cb = Typed(object)
-    _duration = Typed(object)
+    def get_next_samples(self, samples):
+        if self.active:
+            waveform, complete = self.generator.send({'samples': samples})
+            if complete:
+                self.deactivate()
+                samples -= waveform.size
+                waveform = np.pad(waveform, (0, samples), 'constant')
+        else:
+            waveform = np.zeros(samples, dtype=np.double)
+        return waveform
 
-    def setup(self, context):
-        '''
-        Set up the generator in preparation for producing the signal. This
-        allows the generator to cache some potentially expensive computations
-        in advance rather than just before we actually want the signal played.
-        '''
-        raise NotImplementedError
-        generator = self.initialize_generator(context)
-        cb = EpochCallback(self, generator)
-        self._cb = cb
-        self._duration = self.token.get_duration(context)
+    def activate(self, offset):
+        self._offset = offset
+        self.active = True
+        self._buffer.fill(0)
 
-    def start(self, start, delay):
-        '''
-        Actually start the generator. It must have been initialized first.
-        '''
-        if self._cb is None:
-            m = '{} was not initialized'.format(self.name)
-            raise SystemError(m)
-        self._cb.start(start, delay)
-        self.engine.register_ao_callback(self._cb.send, self.channel.name)
-        return self._duration
-
-    def clear(self, end, delay):
-        self._cb.clear(end, delay)
-
-    def configure(self, plugin):
-        self._block_samples = int(self.channel.fs*self.block_size)
+    def deactivate(self):
+        self.generator = None
+        self.active = False
 
 
 class QueuedEpochOutput(EpochOutput):
@@ -221,20 +160,6 @@ class QueuedEpochOutput(EpochOutput):
     queue = d_(Typed(AbstractSignalQueue))
     auto_decrement = d_(Bool(False))
     complete_cb = Typed(object)
-
-    def setup(self, context, complete_cb=None):
-        log.debug('Setting up queue for {}'.format(self.name))
-        self.complete_cb = complete_cb
-        for setting in context:
-            averages = setting['{}_averages'.format(self.name)]
-            iti_duration = setting['{}_iti_duration'.format(self.name)]
-            token_duration = self.token.get_duration(setting)
-            delay_duration = iti_duration-token_duration
-            # Somewhat surprisingly it appears to be faster to use factories in
-            # the queue rather than creating the waveforms for ABR tone pips,
-            # even for very short signal durations.
-            factory = self.initialize_factory(setting)
-            self.queue.append(factory, averages, delay_duration, token_duration, setting)
 
     def get_next_samples(self, samples):
         log.debug('Getting samples from queue')
@@ -246,20 +171,14 @@ class QueuedEpochOutput(EpochOutput):
 
 class ContinuousOutput(AnalogOutput):
 
-    _generator = Typed(object)
-
-    def setup(self, context):
-        log.debug('Configuring continuous output {}'.format(self.name))
-        self._generator = self.initialize_generator(context)
+    generator = Typed(object)
 
     def get_next_samples(self, samples):
-        return self._generator.send({'samples': samples})
+        return self.generator.send({'samples': samples})
 
 
 class DigitalOutput(Output):
-
-    def configure(self, plugin):
-        pass
+    pass
 
 
 class Trigger(DigitalOutput):

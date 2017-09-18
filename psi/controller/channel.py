@@ -67,11 +67,6 @@ class OutputChannel(Channel):
     def _get_buffer_size(self):
         return self.engine.get_buffer_size(self.name)
 
-    def configure(self, plugin):
-        for output in self.outputs:
-            log.debug('Configuring output {}'.format(output.name))
-            output.configure(plugin)
-
 
 class AIChannel(InputChannel):
 

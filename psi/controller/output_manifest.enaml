@@ -17,6 +17,7 @@ from psi.experiment.api import ItemPreferences
 
 from psi.core.enaml.api import PSIManifest
 from .experiment_action import ExperimentState, ExperimentEvent
+from .queue import queues
 
 
 def toggle_off(event, output):
@@ -50,37 +51,83 @@ def set_token(event, output, output_type):
     context_plugin._refresh_items()
 
 
+def initialize_factory(output, context):
+    context['fs'] = output.fs
+    context['calibration'] = output.calibration
+    return output.token.initialize_factory(context)
+
+
 def prepare_output(event, output):
+    '''
+    Set up the generator in preparation for producing the signal. This allows
+    the generator to cache some potentially expensive computations in advance
+    rather than just before we actually want the signal played.
+    '''
     core = event.workbench.get_plugin('enaml.workbench.core')
     context = core.invoke_command('psi.context.get_values')
-    output.setup(context)
+
+    factory = initialize_factory(output, context)
+    generator = factory()
+    next(generator)
+    output.generator = generator
+    output.duration = output.token.get_duration(context)
 
 
 def prepare_output_queue(event, output):
+    log.debug('Setting up queue for {}'.format(output.name))
+
     controller = event.workbench.get_plugin('psi.controller')
     context = event.workbench.get_plugin('psi.context')
-    iterable = context.iter_settings(output.selector_name, 1)
+
     action_name = output.name + '_complete'
-    complete_cb = partial(controller.invoke_actions, action_name)
-    output.setup(iterable, complete_cb)
+    output.complete_cb = partial(controller.invoke_actions, action_name)
+
+    for setting in context.iter_settings(output.selector_name, 1):
+        averages = setting['{}_averages'.format(output.name)]
+        iti_duration = setting['{}_iti_duration'.format(output.name)]
+        token_duration = output.token.get_duration(setting)
+        delay_duration = iti_duration-token_duration
+        # Somewhat surprisingly it appears to be faster to use factories in
+        # the queue rather than creating the waveforms for ABR tone pips,
+        # even for very short signal durations.
+
+        factory = initialize_factory(output, setting)
+        output.queue.append(factory, averages, delay_duration, token_duration, setting)
+
+
+def set_output_queue(event, output):
+    queue_class = event.parameters['queue_class']
+    output.queue = queue_class(output.fs) 
 
 
 def start_output(event, output):
+    if output.generator is None:
+        raise SystemError('Output was not initialized properly')
+
     ts = event.parameters['timestamp']
     start = event.parameters.get('start', ts)
     delay = event.parameters.get('delay', 0)
-    duration = output.start(start, delay)
+
+    offset = int((start+delay)*output.channel.fs)
+    with output.engine.lock:
+        # Important to lock the engine when activating the output
+        output.activate(offset)
+        output.engine.update_hw_ao(offset, output.channel.name)
 
     controller = event.workbench.get_plugin('psi.controller')
     controller.invoke_actions('{}_start'.format(output.name), start+delay)
     controller.invoke_actions('{}_end'.format(output.name),
-                              start+delay+duration, delayed=True)
+                              start+delay+output.duration, delayed=True)
 
 
 def clear_output(event, output):
     end = event.parameters['timestamp']
     delay = event.parameters.get('delay', 0)
-    output.clear(end, delay)
+
+    offset = int((start+delay)*output.engine.fs)
+    output.deactivate()
+    output.engine.update_hw_ao(offset, output.channel.name)
+
     controller = event.workbench.get_plugin('psi.controller')
     controller.invoke_actions('{}_end'.format(output.name), end+delay)
 
@@ -123,7 +170,9 @@ enamldef AnalogOutputManifest(PSIManifest): manifest:
                 exclusive = True
                 id = manifest.contribution.name
         Looper:
-            # Provide this in the subclass
+            # Generate the token menu so we can select the right token. Tokens
+            # is defined in the appropriate subclass (to point to continuous vs
+            # epoch-based waveforms).
             iterable << tokens.values()
             ActionItem:
                 path = '/equipment/output/{}/{}'.format(manifest.contribution.name, 
@@ -200,6 +249,9 @@ enamldef QueuedEpochOutputManifest(EpochOutputManifest): manifest:
             id = manifest.contribution.name + '.prepare_queue'
             handler = partial(prepare_output_queue, output=manifest.contribution)
         Command:
+            id = manifest.contribution.name + '.set_queue'
+            handler = partial(set_output_queue, output=manifest.contribution)
+        Command:
             id = manifest.contribution.name + '.decrement_key'
             handler = partial(decrement_key, output=manifest.contribution)
 
@@ -224,6 +276,30 @@ enamldef QueuedEpochOutputManifest(EpochOutputManifest): manifest:
                 compact_label = manifest.contribution.label + ' N'
                 default = 1
                 scope = 'experiment'
+
+    Extension:
+        id = 'epoch_output_menu.' + manifest.contribution.name
+        point = 'enaml.workbench.ui.actions'
+        MenuItem:
+            path = '/equipment/output/{}/queue'.format(manifest.contribution.name)
+            label = 'ordering'
+            ItemGroup:
+                exclusive = True
+                id = manifest.contribution.name + '.queue'
+
+        Looper:
+            iterable << queues.items()
+
+            ActionItem:
+                path = '/equipment/output/{}/queue/{}'.format(manifest.contribution.name, loop_item[0])
+                label = loop_item[0]
+                group = manifest.contribution.name + '.queue'
+                checked << isinstance(manifest.contribution.queue, loop_item[1])
+                checkable = True
+                command = manifest.contribution.name + '.set_queue'
+                parameters = {'queue_class': loop_item[1]}
+                enabled << workbench.get_plugin('psi.controller').experiment_state \
+                    in ('initialized', 'stopped')
 
 
 

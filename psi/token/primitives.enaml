@@ -272,7 +272,7 @@ def _calculate_bandlimited_noise_iir(fs, calibration, center_frequency,
 def bandlimited_noise_factory(fs, seed, level, center_frequency,
                               pass_bandwidth, stop_bandwidth,
                               passband_attenuation, stopband_attenuation,
-                              calibration):
+                              equalize, calibration):
     waveform = None
     state = np.random.RandomState(seed)
 
@@ -282,8 +282,9 @@ def bandlimited_noise_factory(fs, seed, level, center_frequency,
         fs, center_frequency, pass_bandwidth, stop_bandwidth,
         passband_attenuation, stopband_attenuation)
 
-    iir, iir_zi = _calculate_bandlimited_noise_iir(
-        fs, calibration, center_frequency, pass_bandwidth)
+    if equalize:
+        iir, iir_zi = _calculate_bandlimited_noise_iir(
+            fs, calibration, center_frequency, pass_bandwidth)
 
     # This was copied from the EPL CFT. Need to figure out how this equation
     # works so we can document this better. But it works as intended to scale
@@ -300,7 +301,8 @@ def bandlimited_noise_factory(fs, seed, level, center_frequency,
         kwargs = (yield waveform)
         samples = kwargs['samples']
         waveform = state.uniform(low=low, high=high, size=samples)
-        waveform, iir_zi = signal.lfilter(iir, [1], waveform, zi=iir_zi)
+        if equalize:
+            waveform, iir_zi = signal.lfilter(iir, [1], waveform, zi=iir_zi)
         waveform, bp_zi = signal.lfilter(b, a, waveform, zi=bp_zi)
 
 
@@ -351,6 +353,11 @@ enamldef BandlimitedNoise(Block):
         label = 'stopband attenuation (dB)'
         compact_label = 'stop. atten.'
         default = 60.0
+
+    EnumParameter:
+        name = 'equalize'
+        default = 'yes'
+        choices = {'yes': True, 'no': False}
 
 
 ################################################################################

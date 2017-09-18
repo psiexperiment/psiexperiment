@@ -137,15 +137,18 @@ class Parameter(ContextItem):
     def _default_dtype(self):
         return np.array(self.default).dtype.str
 
+    def _default_label(self):
+        return self.name
+
     def to_expression(self, value):
         return str(value)
 
 
 class EnumParameter(Parameter):
 
-    expression = Property().tag(transient=True)
-    choices = d_(Typed(dict))
-    selected = d_(Unicode())
+    expression = Property()
+    choices = d_(Typed(dict)).tag(preference=True)
+    selected = d_(Unicode()).tag(preference=True)
     default = d_(Unicode())
 
     def _default_dtype(self):
@@ -155,6 +158,7 @@ class EnumParameter(Parameter):
         return self.choices.get(self.selected, None)
 
     def _set_expression(self, expression):
+        print(self.choices, expression)
         for k, v in self.choices.items():
             if v == expression:
                 self.selected = k

@@ -8,10 +8,9 @@ import numpy as np
 
 from atom.api import Unicode, Float, Tuple, Int, Typed, Property, Atom
 from enaml.core.api import Declarative, d_
-from enaml.application import deferred_call
+from enaml.application import deferred_call, timed_call
 
-#from psi.core.chaco.api import ChannelDataRange, add_time_axis, add_default_grids
-#from chaco.api import LinearMapper, LogMapper, OverlayPlotContainer, DataRange1D, PlotAxis
+#from psi.core.chaco.api import ChannelDataRange, add_time_axis, add_default_grids #from chaco.api import LinearMapper, LogMapper, OverlayPlotContainer, DataRange1D, PlotAxis
 #from psi.core.chaco.base_channel_data_range import BaseChannelDataRange
 
 # TODO: refactor so overlays and underlays can also be declarative
@@ -364,6 +363,8 @@ class CustomViewBox(pg.ViewBox):
         ev.accept()
 
 
+from atom.api import Bool
+
 class PGEpochAverageGridContainer(PGPlotContainer):
 
     items = d_(Typed(dict))
@@ -381,6 +382,8 @@ class PGEpochAverageGridContainer(PGPlotContainer):
     time = Typed(object)
 
     context_info = Typed(object)
+
+    _update_pending = Bool(False)
 
     def context_info_updated(self, info):
         self.context_info = info
@@ -400,10 +403,8 @@ class PGEpochAverageGridContainer(PGPlotContainer):
             'row': {'name': 'target_tone_level'},
             'column': {'name': 'target_tone_frequency'},
         }
-        rows, cols = [self.extract_key(c) for c in iterable]
-        rows = set(rows)
-        cols = set(cols)
-        self.update_grid(rows, cols)
+        keys = [self.extract_key(c) for c in iterable]
+        self.update_grid(keys)
 
     def extract_key(self, context):
         ci = self.items['row']
@@ -415,7 +416,9 @@ class PGEpochAverageGridContainer(PGPlotContainer):
     def epochs_acquired(self, event):
         for epoch in event['value']:
             self.process_epoch(epoch)
-        deferred_call(self.update_plots)
+        if not self._update_pending:
+            self._update_pending = True
+            timed_call(1000, self.update_plots)
 
     def process_epoch(self, epoch):
         key = self.extract_key(epoch['metadata'])
@@ -437,7 +440,10 @@ class PGEpochAverageGridContainer(PGPlotContainer):
         self.cumulative_var[key] = var
         self.cumulative_n[key] = n
 
-    def update_grid(self, rows, cols):
+    def update_grid(self, keys):
+        rows, cols = zip(*keys)
+        rows = set(rows)
+        cols = set(cols)
         cur_rows, cur_cols = self.grid
         if rows.issubset(cur_rows) and cols.issubset(cur_cols):
             return
@@ -450,24 +456,36 @@ class PGEpochAverageGridContainer(PGPlotContainer):
             self.container.addLabel(col, 0, c+1)
         for r, row in enumerate(sorted(rows)):
             self.container.addLabel(row, r+1, 0, angle=-90)
+
         for r, row in enumerate(sorted(rows)):
             for c, col in enumerate(sorted(cols)):
-                if not (row, col) in keys:
-                    continue
                 viewbox = CustomViewBox()
-                item = pg.PlotItem(viewBox=viewbox)
+                item = pg.PlotItem(viewBox=viewbox, pen='k')
                 self.container.addItem(item, r+1, c+1)
                 if base_item is None:
                     base_item = item
-                item.enableAutoRange(False, False)
+                else:
+                    item.setXLink(base_item)
+                    item.setYLink(base_item)
+
+                #item.enableAutoRange(False, False)
+                #item.disableAutoRange()
+                item.hideButtons()
+                if c != 0:
+                    item.hideAxis('left')
+                if r != (len(rows)-1):
+                    item.hideAxis('bottom')
+
                 item.setMouseEnabled(x=False, y=True)
                 item.setXRange(0, 8.5e-3)
                 plots[row, col] = item.plot()
+
         self.plots = plots
         self.grid = (rows, cols)
 
     def update_plots(self):
         keys = self.cumulative_average.keys()
         self.update_grid(keys)
-        for k, (time, average) in self.cumulative_average.items():
+        for k, (time, average) in list(self.cumulative_average.items()):
             self.plots[k].setData(time, average)
+        self._update_pending = False

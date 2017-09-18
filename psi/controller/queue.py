@@ -253,7 +253,7 @@ class RandomSignalQueue(AbstractSignalQueue):
 
 
 queues = {
-    'FIFO': FIFOSignalQueue,
-    'Interleaved FIFO': InterleavedFIFOSignalQueue,
-    'Random': RandomSignalQueue,
+    'first-in, first-out': FIFOSignalQueue,
+    'interleaved first-in, first-out': InterleavedFIFOSignalQueue,
+    'random': RandomSignalQueue,
 }

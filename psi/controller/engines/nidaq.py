@@ -830,30 +830,30 @@ class NIDAQEngine(Engine):
         for i, cb in self._callbacks.get('di', []):
             cb(samples[i])
 
-    def hw_ao_callback(self, samples):
-        # Get the next set of samples to upload to the buffer
-        n_channels = len(self.hw_ao_channels)
-        n_samples = samples
-        offset = self.get_offset()
-        data = np.zeros((n_channels, n_samples), dtype=np.double)
+    def _get_hw_ao_samples(self, offset, samples):
+        channels = len(self.hw_ao_channels)
+        data = np.empty((channels, samples), dtype=np.double)
         for i, channel in enumerate(self.hw_ao_channels):
             data[i] = channel.get_samples(offset, samples)
+        return data
+
+    def hw_ao_callback(self, samples):
+        # Get the next set of samples to upload to the buffer
+        offset = self.get_offset()
+        data = self._get_hw_ao_samples(offset, samples)
         self.write_hw_ao(data, timeout=1)
+
+    def update_hw_ao(self, offset, channel_name=None):
+        # Get the next set of samples to upload to the buffer. Ignore the
+        # channel name because we need to update all channels simultaneously.
+        samples = self.get_space_available(offset)
+        log.debug('Updating hw ao at {} with {} samples' \
+                  .format(offset, samples))
+        data = self._get_hw_ao_samples(offset, samples)
+        self.write_hw_ao(data, offset=offset, timeout=1)
 
     def get_ts(self):
         return self.ao_sample_clock()/self.ao_fs
-
-    def get_hw_ao_offset(self, channel_name=None):
-        # It doesn't matter what the output channel is. Offset will be the same
-        # for all.
-        return self.ao_write_position()
-
-    def get_space_available(self, channel_name=None, offset=None):
-        # It doesn't matter what the output channel is. Write space will be the
-        # same for all.
-        return self.ao_write_space_available(offset)
-        #return np.clip(self.ao_write_space_available(offset),
-        #               0, self.hw_ao_buffer_samples)
 
     def start(self):
         if not self._configured:
@@ -893,9 +893,9 @@ class NIDAQEngine(Engine):
         mx.DAQmxGetWriteCurrWritePos(task, self._uint64)
         return self._uint64.value
 
-    def ao_write_space_available(self, offset=None):
-        # TODO: this is where I set the extent to which we queue samples in the
-        # buffer.
+    def get_space_available(self, offset=None, channel_name=None):
+        # It doesn't matter what the output channel is. Space will be the same
+        # for all.
         try:
             task = self._tasks['hw_ao']
             mx.DAQmxGetWriteCurrWritePos(task, self._uint64)

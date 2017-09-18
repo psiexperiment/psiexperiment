@@ -178,12 +178,6 @@ class ContextPlugin(Plugin):
     def _observe_selector_updated(self, event):
         self._check_for_changes()
 
-    def _get_expressions(self):
-        # Return a dictionary of expressions for all context_items that are not
-        # managed by the selectors.
-        return {k: c.expression for k, c in self.context_items.items() \
-                if isinstance(c, Parameter) and not c.rove}
-
     def _get_iterators(self):
         return {k: v.get_iterator() for k, v in self.selectors.items()}
 

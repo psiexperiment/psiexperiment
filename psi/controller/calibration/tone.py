@@ -15,7 +15,6 @@ from psi.token.primitives import (tone_factory, silence_factory,
                                   generate_waveform)
 
 
-
 thd_err_mesg = 'Total harmonic distortion for {}Hz is {}%'
 nf_err_mesg = 'Power at {}Hz has SNR of {}dB'
 

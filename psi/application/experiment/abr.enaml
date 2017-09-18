@@ -40,7 +40,7 @@ def save_trial(event):
     core = event.workbench.get_plugin('enaml.workbench.core')
     metadata = []
     for epoch in event.parameters['data']:
-        m = e['metadata'].copy()
+        m = epoch['metadata'].copy()
         metadata.append(m)
     parameters = {'results': metadata}
     core.invoke_command('psi.data.process_trials', parameters)
@@ -70,7 +70,7 @@ def calibrate_output(event):
     copy_declarative(output_channel, name='output', parent=engine)
     copy_declarative(input_channel, name='input', parent=engine)
 
-    log.debug('Calibrating {}'.format(p['output_name']))
+    log.info('Calibrating {} for {} Hz'.format(p['output_name'], frequencies))
     # Run the calibration and update the output with that calibration
     output_channel.calibration = tone_calibration(engine, frequencies)
     for frequency in frequencies:
@@ -100,7 +100,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
             Accumulate:
                 name = 'eeg_buffered'
-                n = 100
+                n = 25
 
                 IIRFilter:
                     name = 'eeg_buffered_filtered'
@@ -150,14 +150,14 @@ enamldef ControllerManifest(BaseManifest): manifest:
         # make sure that the calibration is run before the queue is prepared.
         # Once the queue is prepared, the calibration has been set for those
         # stimuli.
-        #ExperimentAction:
-        #    event = 'experiment_prepare'
-        #    command = 'psi.controller.calibrate_output'
-        #    kwargs = {
-        #        'input_name': 'microphone',
-        #        'output_name': 'target',
-        #        'parameter_name': 'target_tone_frequency',
-        #    }
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'psi.controller.calibrate_output'
+            kwargs = {
+                'input_name': 'microphone',
+                'output_name': 'target',
+                'parameter_name': 'target_tone_frequency',
+            }
 
         ExperimentAction:
             event = 'experiment_prepare'
