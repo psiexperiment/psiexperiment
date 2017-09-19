@@ -31,14 +31,14 @@ def as_iterator(x):
 
 class AbstractSignalQueue(object):
 
-    def __init__(self, fs):
+    def __init__(self, fs, initial_delay=0):
         self._fs = fs
         self._data = {} # list of generators
         self._ordering = [] # order of items added to queue
         self._source = None
         self._samples = 0
-        self._delay_samples = 0
         self._notifiers = []
+        self._delay_samples = int(initial_delay * fs)
 
     def _add_source(self, source, trials, delays, duration, metadata):
         key = uuid.uuid4()

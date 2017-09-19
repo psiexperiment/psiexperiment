@@ -30,17 +30,21 @@ class BColzStore(AbstractStore):
             rows = [result[name] for result in results]
             columns.append(rows)
         self.trial_log.append(columns)
+        self.trial_log.data.flush()
 
     def process_event(self, event, timestamp):
         self.event_log.append([timestamp, event])
+        self.event_log.data.flush()
 
     def process_ai_continuous(self, name, data):
         if self._channels[name] is not None:
             self._channels[name].append(data)
+            self._channels[name].data.flush()
 
     def process_ai_epochs(self, name, data):
         if self._channels[name] is not None:
             self._channels[name].append(data)
+            self._channels[name].data.flush()
 
     def _get_filename(self, name):
         if self.base_path != '<memory>':
@@ -97,9 +101,6 @@ class BColzStore(AbstractStore):
         return EpochDataChannel(data=carray, fs=input.fs)
 
     def finalize(self, workbench):
-        log.debug('Flushing all data to disk')
-        for channel in self._channels.values():
-            channel.data.flush()
         if self.base_path != '<memory>':
             cmd = 'psi.save_preferences'
             filename = os.path.join(self.base_path, 'final')

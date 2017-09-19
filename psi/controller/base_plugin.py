@@ -239,6 +239,10 @@ class BasePlugin(Plugin):
             engine.start()
 
     def stop_engines(self):
+        for name, timer in list(self._timers.items()):
+            timer.timeout.disconnect()
+            timer.stop()
+            del self._timers[name]
         for engine in self._engines.values():
             engine.stop()
 

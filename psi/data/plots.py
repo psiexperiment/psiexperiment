@@ -5,129 +5,18 @@ from functools import partial
 import struct
 
 import numpy as np
+import pyqtgraph as pg
 
-from atom.api import Unicode, Float, Tuple, Int, Typed, Property, Atom
+from atom.api import (Unicode, Float, Tuple, Int, Typed, Property, Atom, Bool)
 from enaml.core.api import Declarative, d_
 from enaml.application import deferred_call, timed_call
-
-#from psi.core.chaco.api import ChannelDataRange, add_time_axis, add_default_grids #from chaco.api import LinearMapper, LogMapper, OverlayPlotContainer, DataRange1D, PlotAxis
-#from psi.core.chaco.base_channel_data_range import BaseChannelDataRange
-
-# TODO: refactor so overlays and underlays can also be declarative
 
 from psi.core.enaml.api import PSIContribution
 
 
-class PlotContainer(PSIContribution):
-
-    manifest = 'psi.data.plots_manifest.PlotContainerManifest'
-
-    title = d_(Unicode())
-    label = d_(Unicode())
-    container = Typed(object)
-
-    def _default_container(self):
-        return OverlayPlotContainer(padding=[50, 50, 50, 50])
-
-
-class TimeContainer(PlotContainer):
-
-    trig_delay = d_(Float())
-    span = d_(Float())
-    major_grid_index = d_(Float(5))
-    minor_grid_index = d_(Float(1))
-
-    def prepare(self, plugin):
-        index_range = ChannelDataRange(trig_delay=self.trig_delay,
-                                       span=self.span)
-        index_mapper = LinearMapper(range=index_range)
-        for child in self.children:
-            plot = child.create_plot(plugin, index_mapper)
-            self.container.add(plot)
-        add_time_axis(plot)
-        add_default_grids(plot, major_index=self.major_grid_index,
-                          minor_index=self.minor_grid_index)
-
-
-class Plot(PSIContribution):
-
-    line_color = d_(Tuple())
-    fill_color = d_(Tuple())
-
-    def context_info_updated(self, info):
-        pass
-
-
-class TimeseriesPlot(Plot):
-
-    source = d_(Unicode())
-    rising_event = d_(Unicode())
-    falling_event = d_(Unicode())
-    rect_center = d_(Float())
-    rect_height = d_(Float())
-
-    def create_plot(self, plugin, index_mapper):
-        m = 'Creating timeseries plot for {} with events {} and {}'
-        log.info(m.format(self.source, self.rising_event, self.falling_event))
-        from psi.core.chaco.api import TimeseriesPlot
-        source = plugin.find_source(self.source)
-        index_mapper.range.sources.append(source)
-        value_range = DataRange1D(low_setting=0, high_setting=1)
-        value_mapper = LinearMapper(range=value_range)
-        return TimeseriesPlot(source=source,
-                              index_mapper=index_mapper,
-                              value_mapper=value_mapper,
-                              rect_center=self.rect_center,
-                              rect_height=self.rect_height,
-                              rising_event=self.rising_event,
-                              falling_event=self.falling_event,
-                              fill_color=self.fill_color,
-                              line_color=self.line_color)
-
-
-class FFTChannelPlot(Plot):
-
-    source = d_(Unicode())
-    value_range = d_(Tuple(Float(), Float()))
-    time_span = d_(Float(1))
-    axis_label = d_(Unicode())
-    reference = d_(Float(1))
-
-    def create_plot(self, plugin, index_mapper):
-        from psi.core.chaco.api import FFTChannelPlot
-        source = plugin.find_source(self.source)
-        index_mapper.range.sources.append(source)
-        value_range = DataRange1D(low_setting=self.value_range[0],
-                                  high_setting=self.value_range[1])
-        value_mapper = LinearMapper(range=value_range)
-        plot = FFTChannelPlot(source=source,
-                              reference=self.reference,
-                              time_span=self.time_span,
-                              index_mapper=index_mapper,
-                              value_mapper=value_mapper,
-                              line_color=self.line_color)
-        if self.axis_label:
-            axis = PlotAxis(component=plot, orientation='left',
-                            title=self.axis_label)
-            plot.underlays.append(axis)
-        return plot
-
-
-import pyqtgraph as pg
-
-class PGPlotContainer(PlotContainer):
-
-    manifest = __name__ + '_manifest.PGPlotContainerManifest'
-
-    title = d_(Unicode())
-    label = d_(Unicode())
-
-    container = Typed(pg.GraphicsWidget)
-
-    def _default_container(self):
-        return pg.GraphicsLayout()
-
-
+################################################################################
+# Supporting classes
+################################################################################
 class ChannelDataRange(object):
 
     def __init__(self, container, span):
@@ -154,13 +43,54 @@ class ChannelDataRange(object):
         self.container.update_range(low_value, high_value)
 
 
-class PGTimeContainer(PGPlotContainer):
+class CustomViewBox(pg.ViewBox):
+
+    def wheelEvent(self, ev, axis=None):
+        mask = np.array(self.state['mouseEnabled'], dtype=np.float)
+        if axis is not None and axis >= 0 and axis < len(mask):
+            mv = mask[axis]
+            mask[:] = 0
+            mask[axis] = mv
+        s = ((mask*0.02)+1)**(ev.delta()*self.state['wheelScaleFactor'])
+        #center = Point(fn.invertQTransform(self.childGroup.transform()).map(ev.pos()))
+
+        self._resetTarget()
+        self.scaleBy(s, center=None)
+        self.sigRangeChangedManually.emit(self.state['mouseEnabled'])
+        ev.accept()
+
+
+################################################################################
+# Containers (defines a shared set of containers across axes)
+################################################################################
+class PlotContainer(PSIContribution):
+
+    title = d_(Unicode())
+    label = d_(Unicode())
+    container = Typed(pg.GraphicsWidget)
+
+    def _default_container(self):
+        return pg.GraphicsLayout()
+
+
+class Plot(PSIContribution):
+
+    line_color = d_(Tuple())
+    fill_color = d_(Tuple())
+
+
+
+class TimeContainer(PlotContainer):
 
     span = d_(Float())
     plot_item = Typed(pg.PlotItem)
     data_range = Typed(ChannelDataRange)
-
     plots = Typed(list, [])
+
+    # TODO: not implemented
+    trig_delay = d_(Float())
+    major_grid_index = d_(Float(5))
+    minor_grid_index = d_(Float(1))
 
     def prepare(self, plugin):
         viewbox = CustomViewBox()
@@ -179,13 +109,16 @@ class PGTimeContainer(PGPlotContainer):
             child.update_range(low, high)
 
 
-class PGPlot(PSIContribution):
+################################################################################
+# Plots
+################################################################################
+class Plot(PSIContribution):
 
     line_color = d_(Tuple())
     fill_color = d_(Tuple())
 
 
-class PGChannelPlot(PGPlot):
+class ChannelPlot(Plot):
 
     source_name = d_(Unicode())
     value_range = d_(Tuple(Float(), Float()))
@@ -205,77 +138,7 @@ class PGChannelPlot(PGPlot):
         self.plot.setData(t, data)
 
 
-def arrayToQPath(x, y_min, y_max):
-    """Convert an array of x,y coordinats to QPainterPath as efficiently as poss
-ible.
-    The *connect* argument may be 'all', indicating that each point should be
-    connected to the next; 'pairs', indicating that each pair of points
-    should be connected, or an array of int32 values (0 or 1) indicating
-    connections.
-    """
-    path = pg.QtGui.QPainterPath()
-    n = x.shape[0]*2
-
-    # create empty array, pad with extra space on either end
-    arr = np.empty(n+2, dtype=[('x', '>f8'), ('y', '>f8'), ('c', '>i4')])
-    # write first two integers
-    byteview = arr.view(dtype=np.ubyte)
-    byteview[:12] = 0
-    byteview.data[12:20] = struct.pack('>ii', n, 0)
-    # Fill array with vertex values
-    arr[1:-1]['x'][::2] = x
-    arr[1:-1]['x'][1::2] = x
-    arr[1:-1]['y'][::2] = y_min
-    arr[1:-1]['y'][1::2] = y_max
-
-    # decide which points are connected by lines
-    arr[1:-1]['c'][::2] = 1
-    arr[1:-1]['c'][1::2] = 0
-
-    # write last 0
-    lastInd = 20*(n+1)
-    byteview.data[lastInd:lastInd+4] = struct.pack('>i', 0)
-    # create datastream object and stream into path
-
-    ## Avoiding this method because QByteArray(str) leaks memory in PySide
-    #buf = QtCore.QByteArray(arr.data[12:lastInd+4])  # I think one unnecessary copy happens here
-
-    path.strn = byteview.data[12:lastInd+4] # make sure data doesn't run away
-    try:
-        buf = pg.QtCore.QByteArray.fromRawData(path.strn)
-    except TypeError:
-        buf = pg.QtCore.QByteArray(bytes(path.strn))
-    ds = pg.QtCore.QDataStream(buf)
-    ds >> path
-    return path
-
-
-class MultiLine(pg.QtGui.QGraphicsPathItem):
-
-    def __init__(self):
-        self.path = pg.arrayToQPath(np.array([]), np.array([]), 'pairs')
-        super().__init__(self.path)
-        self.setPath(self.path)
-
-    def setData(self, x, y_min, y_max):
-        path = pg.QtGui.QPainterPath()
-        for p, ls, le in zip(x, y_min, y_max):
-            path.moveTo(p, ls)
-            path.lineTo(p, le)
-        self.path = path
-        self.setPath(self.path)
-
-        #x = np.column_stack([x, x]).ravel()
-        #y = np.column_stack([y_min, y_max]).ravel()
-        #self.path = arrayToQPath(x, y_min, y_max)
-
-        #self.path = pg.arrayToQPath(x, y, 'pairs')
-        #self.setPath(self.path)
-        self.prepareGeometryChange()
-        self.update()
-
-
-class PGExtremesChannelPlot(PGChannelPlot):
+class ExtremesChannelPlot(ChannelPlot):
 
     container = Typed(object)
     downsample = Int()
@@ -303,14 +166,6 @@ class PGExtremesChannelPlot(PGChannelPlot):
 
         self.plot = pg.PlotCurveItem(pen='k')
         self.container.plot_item.addItem(self.plot)
-        #self.y_max = pg.PlotCurveItem(pen='r')
-        #self.fill = pg.FillBetweenItem(self.y_min, self.y_max, pen='k')
-
-        #self.container.plot_item.addItem(self.y_min)
-        #self.container.plot_item.addItem(self.y_max)
-        #self.container.plot_item.addItem(self.fill)
-
-        #self.plot = MultiLine()
 
         self.source = plugin.find_source(self.source_name)
         self.container.data_range.add_source(self.source, self)
@@ -345,27 +200,10 @@ class PGExtremesChannelPlot(PGChannelPlot):
             deferred_call(self.plot.setData, x, y)
 
 
-class CustomViewBox(pg.ViewBox):
-
-    def wheelEvent(self, ev, axis=None):
-        mask = np.array(self.state['mouseEnabled'], dtype=np.float)
-        if axis is not None and axis >= 0 and axis < len(mask):
-            mv = mask[axis]
-            mask[:] = 0
-            mask[axis] = mv
-        s = ((mask * 0.02) + 1) ** (ev.delta() * self.state['wheelScaleFactor']) # actual scaling factor
-
-        #center = Point(fn.invertQTransform(self.childGroup.transform()).map(ev.pos()))
-
-        self._resetTarget()
-        self.scaleBy(s, center=None)
-        self.sigRangeChangedManually.emit(self.state['mouseEnabled'])
-        ev.accept()
-
-
-from atom.api import Bool
-
-class PGEpochAverageGridContainer(PGPlotContainer):
+################################################################################
+# Special case. Need to think this through.
+################################################################################
+class GridContainer(PlotContainer):
 
     items = d_(Typed(dict))
     source_name = d_(Unicode())
@@ -460,7 +298,7 @@ class PGEpochAverageGridContainer(PGPlotContainer):
         for r, row in enumerate(sorted(rows)):
             for c, col in enumerate(sorted(cols)):
                 viewbox = CustomViewBox()
-                item = pg.PlotItem(viewBox=viewbox, pen='k')
+                item = pg.PlotItem(viewBox=viewbox)
                 self.container.addItem(item, r+1, c+1)
                 if base_item is None:
                     base_item = item
@@ -478,7 +316,7 @@ class PGEpochAverageGridContainer(PGPlotContainer):
 
                 item.setMouseEnabled(x=False, y=True)
                 item.setXRange(0, 8.5e-3)
-                plots[row, col] = item.plot()
+                plots[row, col] = item.plot(pen='k')
 
         self.plots = plots
         self.grid = (rows, cols)

@@ -22,6 +22,8 @@ class EpochCounter(Sink):
     grouping = d_(Typed(list))
 
     def process_ai_epochs(self, name, data):
+        # TODO: this has no way about knowing re artifacts that are always
+        # rejected. How to fix this?
         if name != self.epoch_name:
             return
 

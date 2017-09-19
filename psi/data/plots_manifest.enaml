@@ -1,14 +1,35 @@
 from functools import partial
 
-from enaml.core.api import Include
-from enaml.widgets.api import DockItem, Container
-from enaml.workbench.api import Extension
+from atom.api import Typed, set_default
+from enaml.core.api import Include, d_
+from enaml.widgets.api import DockItem, Container, RawWidget
+from enaml.workbench.api import Extension, Workbench
 from enaml.workbench.core.api import Command
-#from traits_enaml.widgets.enable_canvas import EnableCanvas
+
+import pyqtgraph as pg
+pg.setConfigOption('background', 'w')
+pg.setConfigOption('foreground', 'k')
 
 from psi.core.enaml.api import PSIManifest
 from psi.controller.api import ExperimentAction
 from psi.context.context_item import ChoiceContextMeta
+
+
+class PGCanvas(RawWidget):
+
+    hug_width = set_default('ignore')
+    hug_height = set_default('ignore')
+
+    view = Typed(pg.GraphicsView)
+    component = d_(Typed(pg.GraphicsWidget))
+
+    def create_widget(self, parent):
+        self.view = pg.GraphicsView(parent)
+        self.view.setCentralItem(self.component)
+        return self.view
+
+    def observe_component(self, event):
+        self.view.setCentralItem(event['value'])
 
 
 def prepare(event, container):
@@ -38,97 +59,8 @@ enamldef PlotContainerManifest(PSIManifest): manifest:
         point = 'psi.experiment.workspace'
 
         DockItem:
-            closable = False
             name << manifest.contribution.name
             title << manifest.contribution.title
-
-            Container:
-                pass
-
-
-from atom.api import Typed, set_default
-from enaml.core.api import Include, d_
-from enaml.workbench.api import Workbench
-from enaml.widgets.api import RawWidget
-import pyqtgraph as pg
-pg.setConfigOption('background', 'w')
-pg.setConfigOption('foreground', 'k')
-
-
-class PGCanvas(RawWidget):
-
-    hug_width = set_default('ignore')
-    hug_height = set_default('ignore')
-
-    view = Typed(pg.GraphicsView)
-    component = d_(Typed(pg.GraphicsWidget))
-
-    def create_widget(self, parent):
-        self.view = pg.GraphicsView(parent)
-        self.view.setCentralItem(self.component)
-        return self.view
-
-    def observe_component(self, event):
-        self.view.setCentralItem(event['value'])
-
-
-from enaml.core.api import Looper
-from enaml.widgets.api import PopupView , Label, ObjectCombo
-from .qt_completer import QtLineCompleter
-
-
-enamldef ConfigPopup(PopupView):
-
-    attr context_items
-    attr contribution
-
-    Container:
-        Looper:
-            iterable << contribution.context_items[:]
-            ObjectCombo:
-                items << [None] + [c for c in context_items.values() if c != loop_item]
-                to_string = lambda x: '' if x is None else x.label
-                selected << loop_item
-
-        ObjectCombo:
-            items << [None] + [c for c in context_items.values() if c not in contribution.context_items]
-            to_string = lambda x: '' if x is None else x.label
-            selected::
-                items = contribution.context_items[:]
-                items.append(selected)
-                contribution.context_items = items
-
-
-enamldef PGPlotContainerManifest(PSIManifest): manifest:
-
-    Extension:
-        id = 'command'
-        point = 'enaml.workbench.core.commands'
-        Command:
-            id = manifest.contribution.name + '_prepare'
-            handler = partial(prepare, container=manifest.contribution)
-
-    Extension:
-        id = 'actions'
-        point = 'psi.controller.actions'
-        rank = 200
-        ExperimentAction:
-            event = 'experiment_prepare'
-            command = manifest.contribution.name + '_prepare'
-
-    Extension:
-        id = 'workspace'
-        point = 'psi.experiment.workspace'
-
-        DockItem:
-            name << manifest.contribution.name
-            title << manifest.contribution.title
-
-            title_bar_right_clicked::
-                context = workbench.get_plugin('psi.context')
-                popup = ConfigPopup(context_items=context.context_items,
-                                    contribution=manifest.contribution)
-                popup.show()
 
             Container:
                 PGCanvas: canvas:
@@ -142,7 +74,7 @@ def prepare_grid(event, contribution):
     contribution.prepare_grid(iterable)
 
 
-enamldef PGEpochAverageGridContainerManifest(PGPlotContainerManifest): manifest:
+enamldef GridContainerManifest(PlotContainerManifest): manifest:
 
     Extension:
         id = 'commands'

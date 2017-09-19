@@ -13,7 +13,7 @@ from psi.context.selector import CartesianProduct
 from psi.context import choice
 from psi.controller.api import EpochOutput, ExperimentAction
 
-from psi.controller.output import QueuedEpochOutput
+from psi.controller.output import QueuedEpochOutput, EpochOutput
 from psi.controller.input import ExtractEpochs, Input, Threshold, ITI, Edges, Blocked, Accumulate, RejectEpochs, IIRFilter
 
 from psi.context.api import Result, ContextGroup
@@ -23,10 +23,8 @@ from psi.controller.queue import InterleavedFIFOSignalQueue
 
 from psi.util import copy_declarative
 
-from psi.data.plots import (PGTimeContainer, 
-                            PGExtremesChannelPlot, 
-                            PGEpochAverageGridContainer,
-                            PGChannelPlot)
+from psi.data.plots import (TimeContainer, ExtremesChannelPlot, GridContainer,
+                            ChannelPlot)
 
 from psi.data.sinks.epoch_counter import EpochCounter
 
@@ -89,7 +87,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
             label = 'Target'
             target_name = 'speaker_0'
             selector_name = 'default'
-            queue = InterleavedFIFOSignalQueue(fs=output.fs)
+            queue = InterleavedFIFOSignalQueue(fs=output.fs, initial_delay=1)
             auto_decrement = False
 
         Blocked:
@@ -197,15 +195,15 @@ enamldef ControllerManifest(BaseManifest): manifest:
         id = 'plots'
         point = 'psi.data.plots'
 
-        PGEpochAverageGridContainer:
+        GridContainer:
             name = 'erp_average'
             title = 'ERP average'
             source_name = 'valid_erp'
 
-        PGTimeContainer:
+        TimeContainer:
             name = 'trial_plot_container' 
             title = 'Trial timing'
             span = 10
 
-            PGExtremesChannelPlot:
+            ExtremesChannelPlot:
                 source_name = 'eeg'
