@@ -33,12 +33,6 @@ def process_ai_epochs(event):
     return plugin.process_ai_epochs(**event.parameters)
 
 
-def process_ai_events(event):
-    #log.warn('PROCESS AI EVENTS NOT IMPLEMENTED')
-    # TODO:  implement this!
-    pass
-
-
 def prepare(event):
     data = event.workbench.get_plugin('psi.data')
     data.prepare()
@@ -85,9 +79,6 @@ enamldef DataManifest(PluginManifest): manifest:
         Command:
             id = PLUGIN_ID + '.process_ai_epochs'
             handler = process_ai_epochs
-        Command:
-            id = PLUGIN_ID + '.process_ai_events'
-            handler = process_ai_events
         Command:
             id = PLUGIN_ID + '.prepare'
             handler = prepare

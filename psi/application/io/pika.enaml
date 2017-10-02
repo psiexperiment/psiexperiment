@@ -39,7 +39,7 @@ enamldef IOManifest(PluginManifest): manifest:
         # detected.
         NIDAQEngine:
             name = 'NI_eeg'
-            hw_ai_monitor_period = 0.1
+            hw_ai_monitor_period = 0.25
 
             AIChannel:
                 label = 'Continuous EEG'
@@ -56,8 +56,8 @@ enamldef IOManifest(PluginManifest): manifest:
             name = 'NI_audio'
             master_clock = True
 
-            hw_ao_monitor_period = 1
-            hw_ao_buffer_size = 10
+            hw_ao_monitor_period = 5
+            #hw_ao_buffer_size = 10
 
             AOChannel:
                 label = 'primary'

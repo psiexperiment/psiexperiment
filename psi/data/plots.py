@@ -232,6 +232,8 @@ class GridContainer(PlotContainer):
 
     items = d_(Typed(dict))
     source_name = d_(Unicode())
+    update_delay = d_(Float(0))
+
     source = Typed(object)
 
     trial_log = Typed(object)
@@ -279,9 +281,13 @@ class GridContainer(PlotContainer):
     def epochs_acquired(self, event):
         for epoch in event['value']:
             self.process_epoch(epoch)
-        if not self._update_pending:
-            self._update_pending = True
-            timed_call(1000, self.update_plots)
+        if self.update_delay > 0:
+            if not self._update_pending:
+                self._update_pending = True
+                delay_ms = int(self.update_delay*1e3)
+                timed_call(delay_ms, self.update_plots)
+        else:
+            deferred_call(self.update_plots)
 
     def process_epoch(self, epoch):
         key = self.extract_key(epoch['metadata'])
@@ -291,16 +297,12 @@ class GridContainer(PlotContainer):
         time, average = self.cumulative_average.get(key, (None, signal))
         delta = signal-average
         average = average + delta/n
-        delta2 = signal-average
-        M2 = delta*delta2
-        var = M2/(n-1)
 
         # TODO: Would be nice to move this out (e.g., precompute)?
         if time is None:
             time = np.arange(len(average))/self.source.fs
 
         self.cumulative_average[key] = time, average
-        self.cumulative_var[key] = var
         self.cumulative_n[key] = n
 
     def update_grid(self, keys):
@@ -341,6 +343,7 @@ class GridContainer(PlotContainer):
 
                 item.setMouseEnabled(x=False, y=True)
                 item.setXRange(0, 8.5e-3)
+                item.setYRange(-0.5, 0.5)
                 plots[row, col] = item.plot(pen='k')
 
         self.plots = plots

@@ -203,7 +203,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
         TimeContainer:
             name = 'trial_plot_container' 
             title = 'Trial timing'
-            span = 10
+            span = 2.5
 
             ExtremesChannelPlot:
                 source_name = 'eeg'
