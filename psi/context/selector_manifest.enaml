@@ -62,15 +62,16 @@ enamldef SingleSettingContainer(Container):
                                                  selector.context_items,
                                                  selector.setting)
 
-enamldef SingleSettingManifest(BaseSelectorManifest):
+
+enamldef SingleSettingManifest(BaseSelectorManifest): manifest:
 
     Extension:
         id = 'selector.' + manifest.contribution.name
         point = 'psi.experiment.workspace'
 
         DockItem:
-            name = loop_item.name
-            title = loop_item.name
+            name = manifest.contribution.name
+            title = manifest.contribution.label
 
             SingleSettingContainer:
                 selector = manifest.contribution

@@ -154,7 +154,7 @@ class AppetitivePlugin(BasePlugin):
             self.context.next_setting(self.next_selector(), save_prior=False)
             self.experiment_state = 'running'
             self.trial_state = TrialState.waiting_for_np_start
-            self.invoke_actions('experiment_start', self.get_ts())
+            self.invoke_actions('experiment_start')
             self.invoke_actions('trial_prepare', self.get_ts())
         except Exception as e:
             # TODO - provide user interface to notify of errors. How to

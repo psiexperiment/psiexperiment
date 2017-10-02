@@ -195,9 +195,6 @@ class InterpCalibration(Calibration):
     def get_sens(self, frequency):
         # Since sensitivity is in dB(V/Pa), subtracting fixed_gain from
         # sensitivity will *increase* the sensitivity of the system.
-        print('getting sensitivity')
-        print(frequency)
-        print(self._interp(frequency))
         return self._interp(frequency)-self._fixed_gain
 
 

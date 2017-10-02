@@ -70,7 +70,12 @@ def prepare_output(event, output):
     generator = factory()
     next(generator)
     output.generator = generator
-    output.duration = output.token.get_duration(context)
+    try:
+        output.duration = output.token.get_duration(context)
+    except AttributeError:
+        # TODO: This occurs for ContinuousTokens. Just make them return np.inf
+        # by default?
+        pass
 
 
 def prepare_output_queue(event, output):
@@ -121,13 +126,16 @@ def start_output(event, output):
 
 
 def clear_output(event, output):
+    log.debug('Clearing output {}'.format(output.name))
     end = event.parameters['timestamp']
     delay = event.parameters.get('delay', 0)
 
-    offset = int((start+delay)*output.engine.fs)
-    output.deactivate()
-    output.engine.update_hw_ao(offset, output.channel.name)
+    if output.active:
+        log.debug('Deactivating output {}'.format(output.name))
+        output.deactivate()
 
+    offset = int((end+delay)*output.fs)
+    output.engine.update_hw_ao(offset, output.channel.name)
     controller = event.workbench.get_plugin('psi.controller')
     controller.invoke_actions('{}_end'.format(output.name), end+delay)
 

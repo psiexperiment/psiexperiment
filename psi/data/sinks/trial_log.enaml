@@ -1,14 +1,11 @@
-from atom.api import ContainerList, Typed, Dict
-from enaml.application import deferred_call
-from enaml.core.api import Looper
-from enaml.layout.api import InsertItem
-from enaml.widgets.api import (Container, Menu, Action, DockItem, PopupView,
-                               Form, CheckBox, Label, HGroup)
+from atom.api import Typed
+from enaml.core.api import d_
+from enaml.widgets.api import Container, DockItem
 from enaml.workbench.api import Extension
 
-import pandas as pd
-
-from psi.core.enaml.api import DataframeTable, PSIManifest
+from psi.context.context_item import OrderedContextMeta
+from psi.core.enaml.api import PSIManifest
+from psi.core.enaml.editable_table_widget import DataFrameTable
 from psi.experiment.api import ItemPreferences
 
 from ..sink import Sink
@@ -17,68 +14,7 @@ from ..sink import Sink
 class TrialLog(Sink):
     
     name = 'trial_log'
-    title = 'Trial log'
-    manifest = __name__ + '.TrialLogManifest'
-
-
-enamldef TableConfig(PopupView): popup:
-
-    attr column_info
-    attr widget
-
-    parent_anchor = (0.0, 0.0)
-    arrow_size = 20
-    arrow_edge = 'right'
-    offset = (0, 0)
-
-    Form:
-        Looper:
-            iterable << sorted(column_info.items())
-            CheckBox:
-                checked << loop_item[0] in widget.columns
-                toggled ::
-                    if checked:
-                        widget.columns.append(loop_item[0])
-                    else:
-                        widget.columns.remove(loop_item[0])
-            Label:
-                text << '{} | {}'.format(loop_item[1].label,
-                                        loop_item[1].compact_label)
-
-
-enamldef TrialLogDockItem(DockItem):
-
-    attr data_plugin = workbench.get_plugin('psi.data')
-
-    closable = False
-
-    title_bar_right_clicked ::
-        TableConfig(self, 
-                    column_info=data_plugin.context_info,
-                    widget=self.find('trial_log_table')).show()
-
-    Container: main_container:
-        DataframeTable: trial_log_table:
-            name = 'trial_log_table'
-            dataframe << data_plugin.trial_log
-            column_info << {k: i.compact_label for \
-                            k, i in data_plugin.context_info.items()}
-
-            cell_color => (row, column):
-                # TODO: A bit of a hack here ...
-                if 'trial_type' in dataframe:
-                    tt = dataframe.at[row, 'trial_type']
-                    if tt == 'go_remind':
-                        return 'forestgreen'
-                    elif tt == 'go':
-                        return 'lightgreen'
-                    elif tt == 'go_forced':
-                        return 'green'
-                    elif tt == 'nogo':
-                        return 'lightpink'
-                    elif tt == 'nogo_repeat':
-                        return 'pink'
-                return 'white'
+    label = 'Trial log'
 
 
 enamldef TrialLogManifest(PSIManifest): manifest:
@@ -86,14 +22,38 @@ enamldef TrialLogManifest(PSIManifest): manifest:
     Extension:
         id = 'workspace'
         point = 'psi.experiment.workspace'
-        TrialLogDockItem: di:
+        DockItem: di:
             name << manifest.contribution.name
-            title << manifest.contribution.title
+            title << manifest.contribution.label
+            closable = False
+
+            attr data_plugin = workbench.get_plugin('psi.data')
+
+            Container: 
+                DataFrameTable: table:
+                    name = 'trial_log_table'
+                    data << data_plugin.trial_log
+                    get_cell_color => (row, column):
+                        if 'trial_type' in data:
+                            tt = data.at[row, 'trial_type']
+                            if tt == 'go_remind':
+                                return 'forestgreen'
+                            elif tt == 'go':
+                                return 'lightgreen'
+                            elif tt == 'go_forced':
+                                return 'green'
+                            elif tt == 'nogo':
+                                return 'lightpink'
+                            elif tt == 'nogo_repeat':
+                                return 'pink'
+                        return 'white'
 
     Extension:
-        id = 'preferences'
-        point = 'psi.experiment.preferences'
-        ItemPreferences:
-            item << di.find('trial_log_table')
+        id = 'items'
+        point = 'psi.context.items'
+        OrderedContextMeta: meta:
             name << manifest.contribution.name
-            auto_save = ['state']
+            label << '{} columns'.format(manifest.contribution.label)
+            values::
+                table.columns = [v.name for v in values]
+                table.column_info = {v.name: v for v in values}

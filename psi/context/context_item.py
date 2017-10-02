@@ -51,7 +51,7 @@ class OrderedContextMeta(ContextMeta):
 
     def get_choice(self, context_item):
         try:
-            return self.values.index(context_item)
+            return str(self.values.index(context_item) + 1)
         except ValueError:
             return None
 
@@ -158,7 +158,6 @@ class EnumParameter(Parameter):
         return self.choices.get(self.selected, None)
 
     def _set_expression(self, expression):
-        print(self.choices, expression)
         for k, v in self.choices.items():
             if v == expression:
                 self.selected = k

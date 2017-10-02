@@ -156,9 +156,16 @@ class EditableTable(RawWidget):
     editable = d_(Bool(False))
     updated = d_(Event())
 
-    column_info = d_(Dict(Unicode(), Dict(), {}))
+    column_info = d_(Dict(Unicode(), Typed(object), {}))
 
     data = d_(Typed(object))
+
+    def get_column_attribute(self, column_name, attribute, default):
+        column = self.column_info.get(column_name, {})
+        try:
+            return column.get(attribute, default)
+        except AttributeError:
+            return getattr(column, attribute, default)
 
     @d_func
     def get_cell_color(self, row_index, column_index):
@@ -173,10 +180,15 @@ class EditableTable(RawWidget):
     @d_func
     def get_column_label(self, column_index):
         column = self.get_columns()[column_index]
-        return self.column_info.get(column, {}).get('label', column)
+        try:
+            return self.get_column_attribute(column, 'compact_label', column)
+        except AttributeError:
+            return self.get_column_attribute(column, 'label', column)
 
     @d_func
     def get_rows(self):
+        if self.data is None:
+            return []
         return range(len(self.data))
 
     @d_func
@@ -224,7 +236,9 @@ class EditableTable(RawWidget):
     def _observe_data(self, event):
         # TODO: for lists does not reset if the values are equivalent. We then
         # lose a reference to the actual list.
+        self._reset_model()
 
+    def _reset_model(self):
         # Forces a reset of the model and view
         self.model.beginResetModel()
         self.model.endResetModel()
@@ -233,8 +247,17 @@ class EditableTable(RawWidget):
 class DataFrameTable(EditableTable):
 
     data = d_(Typed(pd.DataFrame))
+    columns = d_(Typed(object))
 
+    def _observe_columns(self, event):
+        self._reset_model()
+
+    @d_func
     def get_columns(self):
+        if self.columns is not None:
+            return self.columns
+        if self.data is None:
+            return []
         return self.data.columns
 
     def get_data(self, row_index, column_index):

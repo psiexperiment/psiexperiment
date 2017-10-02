@@ -20,10 +20,8 @@ from psi.experiment.api import ItemPreferences
 from ..plugin import Sink
 
 
-
 class SDTAnalysis(Sink):
 
-    manifest = __name__ + '.SDTAnalysisManifest'
     name = 'sdt_analysis'
     label = 'SDT Analysis'
 
@@ -95,7 +93,7 @@ enamldef SDTAnalysisDockItem(DockItem):
                     repeat_nogo_field,
                     go_remind_field,
                 ),
-                sdt_table,
+                table,
             )
         ]
 
@@ -116,36 +114,32 @@ enamldef SDTAnalysisDockItem(DockItem):
         DataframeTable: table:
             name = 'table'
             dataframe << analysis.results
-            columns << [i.name for i in meta.values] + \
-                ['size', 'sum', 'mean', 'z_score']
-            column_info << {
-                **{i.name: i.compact_label for i in meta.values},
-                **{'mean': 'Frac.',
-                   'size': '# trials',
-                   'sum': '# correct',
-                   'z_score': 'd\'', }
-            }
 
 
-class SDTContextMeta(OrderedContextMeta):
-
-    grouping = d_(Typed(list))
-
-    def _observe_values(self, event):
-        grouping = [v.name for v in self.values]
-        grouping.insert(0, 'trial_type')
-        self.grouping = grouping
-
+extra_columns = ['size', 'sum', 'mean', 'z_score']
+extra_column_info = {
+    'mean': {'label': 'Frac.'},
+    'size': {'label': '# trials'},
+    'sum': {'label': '# correct'},
+    'z_score': {'label': 'd\''},
+}
 
 enamldef SDTAnalysisManifest(PSIManifest): manifest:
 
     Extension:
         id = 'items'
         point = 'psi.context.items'
-        SDTContextMeta: meta:
+        OrderedContextMeta: meta:
             name << manifest.contribution.name
             label << '{} grouping'.format(manifest.contribution.label)
-            grouping >> manifest.contribution.grouping
+            values::
+                grouping = [v.name for v in values]
+                grouping.insert(0, 'trial_type')
+                table = di.find('table')
+                table.columns = grouping + extra_columns
+                column_info = {v.name: v for v in values}
+                column_info.update(extra_column_info)
+                table.column_info = column_info
 
     Extension:
         id = 'workspace'
@@ -157,11 +151,11 @@ enamldef SDTAnalysisManifest(PSIManifest): manifest:
             title << manifest.contribution.label
             meta << meta
 
-    Extension:
-        id = 'preferences'
-        point = 'psi.experiment.preferences'
-        rank = 200
-        ItemPreferences:
-            item << di.find('table')
-            name << manifest.contribution.name
-            auto_save = ['column_widths']
+    #Extension:
+    #    id = 'preferences'
+    #    point = 'psi.experiment.preferences'
+    #    rank = 200
+    #    ItemPreferences:
+    #        item << di.find('table')
+    #        name << manifest.contribution.name
+    #        auto_save = ['column_widths']

@@ -92,12 +92,15 @@ class TimeContainer(PlotContainer):
     major_grid_index = d_(Float(5))
     minor_grid_index = d_(Float(1))
 
+    y_min = d_(Float(-1))
+    y_max = d_(Float(1))
+
     def prepare(self, plugin):
         viewbox = CustomViewBox()
         self.plot_item = pg.PlotItem(viewBox=viewbox)
         self.plot_item.enableAutoRange(False, False)
         self.plot_item.setXRange(0, self.span)
-        self.plot_item.setYRange(-1e-3, 1e-3)
+        self.plot_item.setYRange(self.y_min, self.y_max)
         self.container.addItem(self.plot_item, 0, 0)
         self.data_range = ChannelDataRange(self, self.span)
         for child in self.children:
@@ -164,7 +167,8 @@ class ExtremesChannelPlot(ChannelPlot):
     def create_plot(self, plugin, container):
         self.container = container
 
-        self.plot = pg.PlotCurveItem(pen='k')
+        pen = pg.mkPen('k', width=1)
+        self.plot = pg.PlotCurveItem(pen=pen)
         self.container.plot_item.addItem(self.plot)
 
         self.source = plugin.find_source(self.source_name)
@@ -179,6 +183,13 @@ class ExtremesChannelPlot(ChannelPlot):
         self.container.plot_item.vb.geometryChanged.connect(handle)
         return self.plot
 
+    def update_buffers(self, *args, **kwargs):
+        data_samples = int(self.container.span/self.source.fs)
+        decimated_samples = int(data_samples/self.downsample)
+        self._data_limits = 0, 0
+        self._data_buffer = np.empty(x_range, dtype=np.float)
+        self._decimated_buffer = np.empty((2, x_range), dtype=np.float)
+
     def compute_pixel_size(self, *args, **kwargs):
         try:
             pixel_width, _ = self.container.plot_item.vb.viewPixelSize()
@@ -189,15 +200,29 @@ class ExtremesChannelPlot(ChannelPlot):
             pass
 
     def update_range(self, low, high):
-        if self.downsample != 0:
-            log.trace('Downsampling signal at {}'.format(self.downsample))
-            data = self.source.get_range(low, high)
-            y_min, y_max = self.decimate_extremes(data, self.downsample)
-            n = len(y_min)
-            t = self.time[:n]
-            x = np.column_stack([t, t]).ravel()
-            y = np.column_stack([y_min, y_max]).ravel()
-            deferred_call(self.plot.setData, x, y)
+        if self.downsample == 0:
+            return
+
+        #cache_low, cache_high = self._data_limits
+        #if cache_low > low:
+
+        #lb = int((low-cache_low)*self.source.fs)
+        #ub = int((high-cache_low)*self.source.fs)
+
+        #samples = self._data_buffer[lb:ub]
+        #if 
+
+        #if cache_low > low:
+
+
+        log.trace('Downsampling signal at {}'.format(self.downsample))
+        data = self.source.get_range(low, high)
+        y_min, y_max = self.decimate_extremes(data, self.downsample)
+        n = len(y_min)
+        t = np.arange(len(y_min))/self.source.fs*self.downsample
+        x = np.column_stack([t, t]).ravel()
+        y = np.column_stack([y_min, y_max]).ravel()
+        deferred_call(self.plot.setData, x, y)
 
 
 ################################################################################

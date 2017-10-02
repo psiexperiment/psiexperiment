@@ -85,7 +85,9 @@ def verify_channel_names(task, names):
     lines = channel_list(task)
     if names is not None:
         if len(lines) != len(names):
-            raise ValueError('Number of names must match number of lines')
+            m = 'Number of names must match number of lines. ' \
+                'Lines: {}, names: {}'
+            raise ValueError(m.format(lines, names))
     else:
         names = lines
     return names
@@ -314,8 +316,12 @@ def setup_hw_ai(fs, lines, expected_range, callback, callback_samples,
     log.debug('AI sample rate'.format(info.value))
     mx.DAQmxGetSampClkTimebaseRate(task, info)
     log.debug('AI timebase {}'.format(info.value))
-    mx.DAQmxGetAIFilterDelay(task, lines, info)
-    log.debug('AI filter delay {}'.format(info.value))
+    try:
+        mx.DAQmxGetAIFilterDelay(task, lines, info)
+        log.debug('AI filter delay {}'.format(info.value))
+    except mx.DAQError:
+        # Not a supported property
+        pass
     task._cb_ptr = cb_ptr
     task._cb_helper = callback_helper
 
@@ -645,7 +651,8 @@ class NIDAQEngine(Engine):
             initial_state = np.zeros(len(names), dtype=np.uint8)
         task_name = '{}_sw_do'.format(self.name)
         task = setup_sw_do(lines, task_name)
-        task._names = verify_channel_names(task, names)
+        #task._names = verify_channel_names(task, names)
+        task._names = names
         task._devices = device_list(task)
         self._tasks['sw_do'] = task
         self.write_sw_do(initial_state)
@@ -839,18 +846,21 @@ class NIDAQEngine(Engine):
 
     def hw_ao_callback(self, samples):
         # Get the next set of samples to upload to the buffer
-        offset = self.get_offset()
-        data = self._get_hw_ao_samples(offset, samples)
-        self.write_hw_ao(data, timeout=1)
+        with self.lock:
+            samples = self.get_space_available()
+            offset = self.get_offset()
+            data = self._get_hw_ao_samples(offset, samples)
+            self.write_hw_ao(data, timeout=1)
 
     def update_hw_ao(self, offset, channel_name=None):
         # Get the next set of samples to upload to the buffer. Ignore the
         # channel name because we need to update all channels simultaneously.
-        samples = self.get_space_available(offset)
-        log.debug('Updating hw ao at {} with {} samples' \
-                  .format(offset, samples))
-        data = self._get_hw_ao_samples(offset, samples)
-        self.write_hw_ao(data, offset=offset, timeout=1)
+        with self.lock:
+            samples = self.get_space_available(offset)
+            log.debug('Updating hw ao at {} with {} samples' \
+                    .format(offset, samples))
+            data = self._get_hw_ao_samples(offset, samples)
+            self.write_hw_ao(data, offset=offset, timeout=1)
 
     def get_ts(self):
         return self.ao_sample_clock()/self.ao_fs

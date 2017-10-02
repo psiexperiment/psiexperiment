@@ -26,7 +26,7 @@ enamldef ContextMetaPopup(PopupView): cm_popup:
                 ObjectCombo:
                     items = [None] + loop_item.get_choices(context_item)
                     to_string = lambda i: '' if i is None else str(i)
-                    selected = loop_item.get_choice(context_item)
+                    selected << loop_item.get_choice(context_item)
                     selected::
                         loop_item.set_choice(selected, context_item)
 
