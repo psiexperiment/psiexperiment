@@ -43,7 +43,10 @@ class AbstractSignalQueue(object):
     def _add_source(self, source, trials, delays, duration, metadata):
         key = uuid.uuid4()
         if duration is None:
-            duration = source.shape[-1]/self._fs
+            try:
+                duration = source.shape[-1]/self._fs
+            except AttributeError:
+                pass
         data = {
             'source': source,
             'trials': trials,
