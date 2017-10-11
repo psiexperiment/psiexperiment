@@ -33,6 +33,26 @@ def process_ai_epochs(event):
     return plugin.process_ai_epochs(**event.parameters)
 
 
+def process_ai_events(event):
+    plugin = event.workbench.get_plugin(PLUGIN_ID)
+    return plugin.process_ai_events(**event.parameters)
+
+
+def create_ai_epochs(event):
+    plugin = event.workbench.get_plugin(PLUGIN_ID)
+    return plugin.create_ai_epochs(**event.parameters)
+
+
+def create_ai_events(event):
+    plugin = event.workbench.get_plugin(PLUGIN_ID)
+    return plugin.create_ai_events(**event.parameters)
+
+
+def create_ai_continuous(event):
+    plugin = event.workbench.get_plugin(PLUGIN_ID)
+    return plugin.create_ai_continuous(**event.parameters)
+
+
 def prepare(event):
     data = event.workbench.get_plugin('psi.data')
     data.prepare()
@@ -67,18 +87,36 @@ enamldef DataManifest(PluginManifest): manifest:
     Extension:
         id = 'commands'
         point = 'enaml.workbench.core.commands'
+
         Command:
             id = PLUGIN_ID + '.process_trials'
             handler = process_trials
         Command:
             id = PLUGIN_ID + '.process_event'
             handler = process_event
+
+        # Commands to create stores for incoming data
         Command:
-            id = PLUGIN_ID + '.process_ai_continuous'
-            handler = process_ai_continuous
+            id = PLUGIN_ID + '.create_ai_events'
+            handler = create_ai_events
+        Command:
+            id = PLUGIN_ID + '.create_ai_epochs'
+            handler = create_ai_epochs
+        Command:
+            id = PLUGIN_ID + '.create_ai_continuous'
+            handler = create_ai_continuous
+
+        # Commands to process incoming data
+        Command:
+            id = PLUGIN_ID + '.process_ai_events'
+            handler = process_ai_events
         Command:
             id = PLUGIN_ID + '.process_ai_epochs'
             handler = process_ai_epochs
+        Command:
+            id = PLUGIN_ID + '.process_ai_continuous'
+            handler = process_ai_continuous
+
         Command:
             id = PLUGIN_ID + '.prepare'
             handler = prepare

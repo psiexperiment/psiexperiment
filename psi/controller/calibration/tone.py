@@ -81,7 +81,7 @@ def tone_power(engine, frequencies, gain=0, vrms=1, repetitions=1, min_db=10,
     queue = FIFOSignalQueue(ao_fs)
 
     for frequency in frequencies:
-        factory = tone_factory(ao_fs, gain, frequency, 1, calibration)
+        factory = tone_factory(ao_fs, gain, frequency, 0, 1, calibration)
         waveform = generate_waveform(factory, int(duration*ao_fs))
         queue.append(waveform, repetitions, iti)
 

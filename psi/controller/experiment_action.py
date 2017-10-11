@@ -4,7 +4,6 @@ log = logging.getLogger(__name__)
 from atom.api import Unicode, Int, Dict, Bool, Typed
 from enaml.core.api import Declarative, d_
 from enaml.qt.QtCore import QRunnable
-import code
 
 
 class ExperimentState(Declarative):

@@ -1,10 +1,6 @@
 #----------------------------------------------------------------------------
 #  Adapted from BSD-licensed module used by Enthought, Inc.
 #----------------------------------------------------------------------------
-
-# TODO - make this faster for simple row append. Do not redraw the entire
-# dataframe on each iteration. For now, it's fast enough.
-
 import numpy as np
 import pandas as pd
 
@@ -261,11 +257,15 @@ class DataFrameTable(EditableTable):
         return self.data.columns
 
     def get_data(self, row_index, column_index):
-        return str(self.data.iat[row_index, column_index])
+        row_label = self.data.index[row_index]
+        column_label = self.get_columns()[column_index]
+        return str(self.data.at[row_label, column_label])
 
     def set_data(self, row_index, column_index, value):
         value = self.coerce_to_type(column_index, value)
-        self.data.iat[row_index, column_index] = value
+        row_label = self.data.index[row_index]
+        column_label = self.get_columns()[column_index]
+        self.data.at[row_label, column_label] = value
 
     def remove_row(self, row_index):
         label = self.data.index[row_index]

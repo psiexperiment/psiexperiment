@@ -256,10 +256,13 @@ class BasePlugin(Plugin):
     def get_input(self, input_name):
         return self._inputs[input_name]
 
+    def get_channel(self, channel_name):
+        return self._channels[channel_name]
+
     def _get_action_context(self):
         context = {}
         for state in self._states.values():
-            context[state.name] = state.active
+            context[state.name + '_active'] = state.active
         for event in self._events.values():
             context[event.name] = event.active
         return context

@@ -19,7 +19,6 @@ class BColzStore(AbstractStore):
     further processing is done.
     '''
     base_path = Unicode()
-
     trial_log = Typed(object)
     event_log = Typed(object)
 
@@ -46,8 +45,8 @@ class BColzStore(AbstractStore):
             self._channels[name].append(data)
             self._channels[name].data.flush()
 
-    def _get_filename(self, name):
-        if self.base_path != '<memory>':
+    def _get_filename(self, name, save=True):
+        if save and (self.base_path != '<memory>'):
             return os.path.join(self.base_path, name)
         else:
             return None
@@ -68,40 +67,33 @@ class BColzStore(AbstractStore):
         dtype = [('timestamp', 'float32'), ('event', 'S512')]
         return bcolz.zeros(0, rootdir=filename, mode='w', dtype=dtype)
 
-    def _create_continuous_input(self, input):
-        n = int(input.fs*60*60)
-        filename = self._get_filename(input.name)
-        carray = bcolz.carray([], rootdir=filename, mode='w',
-                              dtype=input.channel.dtype, expectedlen=n)
+    def create_ai_continuous(self, name, fs, dtype, save, **metadata):
+        n = int(fs*60*60)
+        filename = self._get_filename(name, save)
+        carray = bcolz.carray([], rootdir=filename, mode='w', dtype=dtype,
+                              expectedlen=n)
+        carray.attrs[fs] = fs
+        for key, value in metadata.items():
+            try:
+                carray.attrs[key] = value
+            except TypeError:
+                m = 'Unable to save {} with value {} to {}'
+                log.warn(m.format(key, value, name))
+        self._channels[name] = ContinuousDataChannel(data=carray, fs=fs)
 
-        # Copy some attribute metadata over
-        values = get_tagged_values(input, 'metadata')
-        for name, value in values.items():
-            carray.attrs[name] = value
-
-        values = get_tagged_values(input.channel, 'metadata')
-        for name, value in values.items():
-            if name == 'calibration':
-                #TODO: FIXME
-                continue
-            carray.attrs['channel_' + name] = value
-
-        values = get_tagged_values(input.engine, 'metadata')
-        for name, value in values.items():
-            carray.attrs['engine_' + name] = value
-
-        return ContinuousDataChannel(data=carray, fs=input.fs)
-
-    def _create_epochs_input(self, input):
-        filename = self._get_filename(input.name)
-        epoch_samples = int(input.fs*input.epoch_size)
+    def create_ai_epochs(self, name, fs, epoch_size, dtype, save, **metadata):
+        filename = self._get_filename(name, save)
+        epoch_samples = int(fs*epoch_size)
         base = np.empty((0, epoch_samples))
-        carray = bcolz.carray(base, rootdir=filename, mode='w',
-                              dtype=input.channel.dtype)
-        return EpochDataChannel(data=carray, fs=input.fs)
+        carray = bcolz.carray(base, rootdir=filename, mode='w', dtype=dtype)
+        carray.attrs[fs] = fs
+        for key, value in metadata.items():
+            carray.attrs[key] = value
+        self._channels[name] = EpochDataChannel(data=carray, fs=fs)
 
     def finalize(self, workbench):
         if self.base_path != '<memory>':
+            # Save the settings file
             cmd = 'psi.save_preferences'
             filename = os.path.join(self.base_path, 'final')
             params = {'filename': filename}

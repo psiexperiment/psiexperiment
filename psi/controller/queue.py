@@ -39,6 +39,8 @@ class AbstractSignalQueue(object):
         self._samples = 0
         self._notifiers = []
         self._delay_samples = int(initial_delay * fs)
+        if self._delay_samples < 0:
+            raise ValueError('Invalid option for initial delay')
 
     def _add_source(self, source, trials, delays, duration, metadata):
         key = uuid.uuid4()
@@ -161,14 +163,16 @@ class AbstractSignalQueue(object):
                     # Be sure to start the factory (hmm... shouldn't this be
                     # started in advance?)
                     self._source = data['source']()
-                    next(self._source)
                     self._get_samples = self._get_samples_generator
+                    next(self._source)
                 else:
                     self._source = data['source']
                     self._get_samples = self._get_samples_waveform
 
                 delay = next(data['delays'])
                 self._delay_samples = int(delay*self._fs)
+                if self._delay_samples < 0:
+                    raise ValueError('Invalid option for delay samples')
 
                 t0 = self._samples/self._fs
                 duration = data['duration']

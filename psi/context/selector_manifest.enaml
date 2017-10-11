@@ -144,7 +144,7 @@ update_selector_widgets = SelectorWidgetManager()
 
 
 enamldef SequenceSelectorContainer(Container):
-    
+
     attr selector
 
     Container:

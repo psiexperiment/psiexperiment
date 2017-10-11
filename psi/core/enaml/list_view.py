@@ -42,8 +42,7 @@ class ListView(RawWidget):
     def create_widget(self, parent):
         # Create the list model and accompanying controls:
         #self.set_items(self.items)
-        #widget = QListWidget(parent)
-        view = QListView(parent)
+        widget = QListWidget(parent)
         widget.itemChanged.connect(self.on_edit)
         widget.setEditTriggers(QAbstractItemView.AnyKeyPressed)
         widget.setSelectionMode(QAbstractItemView.ExtendedSelection)

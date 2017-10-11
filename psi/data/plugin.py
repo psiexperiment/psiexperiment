@@ -101,9 +101,7 @@ class DataPlugin(Plugin):
         self._prepare_trial_log()
         self._prepare_event_log()
         controller = self.workbench.get_plugin('psi.controller')
-        # TODO: somehow make results available if needed even if not persisted
-        # forever?
-        self.inputs = {k: v for k, v in controller._inputs.items() if v.save}
+        self.inputs = {k: v for k, v in controller._inputs.items()}
         for sink in self._sinks:
             sink.prepare(self)
 
@@ -131,6 +129,14 @@ class DataPlugin(Plugin):
     def process_ai_epochs(self, name, data, **kw):
         for sink in self._sinks:
             sink.process_ai_epochs(name, data)
+
+    def create_ai_continuous(self, name, fs, dtype, save, **metadata):
+        for sink in self._sinks:
+            sink.create_ai_continuous(name, fs, dtype, save, **metadata)
+
+    def create_ai_epochs(self, name, fs, epoch_size, dtype, save, **metadata):
+        for sink in self._sinks:
+            sink.create_ai_epochs(name, fs, epoch_size, dtype, save, **metadata)
 
     def set_current_time(self, name, timestamp):
         for sink in self._sinks:

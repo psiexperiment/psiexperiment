@@ -20,7 +20,6 @@ def workbench():
     workbench.register(ContextManifest())
     workbench.register(DataManifest())
     workbench.register(HelperManifest())
-
     return workbench
 
 

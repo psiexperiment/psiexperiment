@@ -84,20 +84,19 @@ def prepare_output_queue(event, output):
     controller = event.workbench.get_plugin('psi.controller')
     context = event.workbench.get_plugin('psi.context')
 
-    action_name = output.name + '_complete'
+    action_name = output.name + '_end'
     output.complete_cb = partial(controller.invoke_actions, action_name)
 
     for setting in context.iter_settings(output.selector_name, 1):
         averages = setting['{}_averages'.format(output.name)]
         iti_duration = setting['{}_iti_duration'.format(output.name)]
         token_duration = output.token.get_duration(setting)
-        delay_duration = iti_duration-token_duration
         # Somewhat surprisingly it appears to be faster to use factories in
         # the queue rather than creating the waveforms for ABR tone pips,
         # even for very short signal durations.
 
         factory = initialize_factory(output, setting)
-        output.queue.append(factory, averages, delay_duration, token_duration, setting)
+        output.queue.append(factory, averages, iti_duration, token_duration, setting)
 
 
 def set_output_queue(event, output):
@@ -243,12 +242,6 @@ enamldef EpochOutputManifest(AnalogOutputManifest): manifest:
 
 
 enamldef QueuedEpochOutputManifest(EpochOutputManifest): manifest:
-
-    Extension:
-        id = 'actions'
-        point = 'psi.controller.actions'
-        ExperimentEvent:
-            name = manifest.contribution.name + '_complete'
 
     Extension:
         id = 'commands'

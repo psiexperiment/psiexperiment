@@ -1,0 +1,245 @@
+import logging
+log = logging.getLogger(__name__)
+
+
+import numpy as np
+
+from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
+
+from psi.context import choice
+from psi.context.api import ContextGroup, Parameter
+from psi.context.selector import CartesianProduct
+
+from psi.controller.api import ExperimentAction
+from psi.controller.base_manifest import BaseManifest
+from psi.controller.input import ExtractEpochs, Blocked, Accumulate, IIRFilter
+from psi.controller.output import QueuedEpochOutput
+from psi.controller.queue import InterleavedFIFOSignalQueue
+
+from psi.util import copy_declarative
+
+from psi.data.plots import (TimeContainer, ExtremesChannelPlot, GridContainer,
+                            ChannelPlot)
+
+from psi.data.sinks.trial_log import TrialLog
+
+from psi.controller.calibration.tone import tone_calibration
+
+
+def save_trial(event):
+    '''
+    Saves the trial
+    '''
+    core = event.workbench.get_plugin('enaml.workbench.core')
+    metadata = []
+    for epoch in event.parameters['data']:
+        m = epoch['metadata'].copy()
+        metadata.append(m)
+    parameters = {'results': metadata}
+    core.invoke_command('psi.data.process_trials', parameters)
+
+
+def calibrate_output(event):
+    calibrate_primary(event)
+    calibrate_secondary(event)
+
+
+def calibrate_primary(event):
+    # Load the plugins we'll need
+    core = event.workbench.get_plugin('enaml.workbench.core')
+    controller = event.workbench.get_plugin('psi.controller')
+
+    parameters = {'item_name': 'carrier_tone_frequency', 'iterator': 'default'}
+    frequencies = core.invoke_command('psi.context.unique_values', parameters)
+    frequencies = list(frequencies)
+
+    output_channel = controller.get_channel('speaker_0')
+    input_channel = controller.get_channel('microphone')
+    calibrate(output_channel, input_channel, frequencies)
+
+
+def calibrate_secondary(event):
+    # Load the plugins we'll need
+    core = event.workbench.get_plugin('enaml.workbench.core')
+    controller = event.workbench.get_plugin('psi.controller')
+
+    p = event.parameters
+    parameters = {'item_name': 'modulator_1_tone_frequency', 'iterator': 'default'}
+    frequencies1 = core.invoke_command('psi.context.unique_values', parameters)
+    parameters = {'item_name': 'modulator_2_tone_frequency', 'iterator': 'default'}
+    frequencies2 = core.invoke_command('psi.context.unique_values', parameters)
+    frequencies = list(frequencies1 | frequencies2)
+
+    # Get the configuration for the channels
+    output_channel = controller.get_channel('speaker_1')
+    input_channel = controller.get_channel('microphone')
+    calibrate(output_channel, input_channel, frequencies)
+
+
+def calibrate(output_channel, input_channel, frequencies):
+    engine = copy_declarative(output_channel.engine,
+                              name='cal_engine',
+                              hw_ao_monitor_period=1,
+                              hw_ai_monitor_period=0.1)
+    copy_declarative(output_channel, name='output', parent=engine)
+    copy_declarative(input_channel, name='input', parent=engine)
+
+    log.info('Calibrating {} for {} Hz'.format(output_channel.name, frequencies))
+    # Run the calibration and update the output with that calibration
+    output_channel.calibration = tone_calibration(engine, frequencies)
+    for frequency in frequencies:
+        spl = output_channel.calibration.get_spl(frequency, 1)
+        log.info('{:.2f} Hz & 1vrms is {:.2f} dB SPL'.format(frequency, spl))
+
+
+enamldef ControllerManifest(BaseManifest): manifest:
+
+    Extension:
+        id = 'io'
+        point = 'psi.controller.io'
+
+        QueuedEpochOutput: output_0:
+            name = 'carrier'
+            label = 'Carrier'
+            target_name = 'speaker_0'
+            selector_name = 'default'
+            queue = InterleavedFIFOSignalQueue(fs=output_0.fs, initial_delay=1)
+            auto_decrement = True
+
+        QueuedEpochOutput: output_1:
+            name = 'modulator_1'
+            label = 'Modulator 1'
+            target_name = 'speaker_1'
+            selector_name = 'default'
+            queue = InterleavedFIFOSignalQueue(fs=output_1.fs, initial_delay=1)
+            auto_decrement = True
+
+        QueuedEpochOutput: output_2:
+            name = 'modulator_2'
+            label = 'Modulator 2'
+            target_name = 'speaker_1'
+            selector_name = 'default'
+            queue = InterleavedFIFOSignalQueue(fs=output_2.fs, initial_delay=1)
+            auto_decrement = True
+
+        Blocked:
+            duration = 0.1
+            name = 'eeg'
+            save = True
+            source_name = 'eeg_channel'
+
+            Accumulate:
+                name = 'eeg_buffered'
+                n = 25
+
+                IIRFilter:
+                    name = 'eeg_buffered_filtered'
+                    N = 2
+                    btype = 'bandpass'
+                    ftype = 'butter'
+                    f_highpass = 200
+                    f_lowpass = 10000
+                    ExtractEpochs: extract:
+                        save = True
+                        buffer_size = 300
+                        epoch_size = 5
+                        queue = output_0.queue
+                        delay = 47.5/extract.fs
+                        name = 'erp'
+
+    Extension:
+        id = 'selectors'
+        point = 'psi.context.selectors'
+
+        CartesianProduct:
+            name = 'default'
+            label = 'EFR sequence'
+
+    Extension:
+        id = 'passive_commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = 'psi.controller.save_trial'
+            handler = save_trial
+        Command:
+            id = 'psi.controller.calibrate_output'
+            handler = calibrate_output
+
+    Extension:
+        id = 'context'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'fm'
+            label = 'FM'
+
+            Parameter:
+                name = 'fm'
+                label = 'Modulation frequency (Hz)'
+                compact_label = 'FM (Hz)'
+                dtype = 'float'
+                default = 1000
+
+            Parameter:
+                name = 'depth'
+                label = 'Modulation depth (frac)'
+                compact_label = 'Mod. depth (frac)'
+                dtype = 'float'
+                default = 1
+
+
+    Extension:
+        id = 'actions'
+        point = 'psi.controller.actions'
+        rank = 100
+
+        # The order of actions for experiment_prepare is important. We need to
+        # make sure that the calibration is run before the queue is prepared.
+        # Once the queue is prepared, the calibration has been set for those
+        # stimuli.
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'psi.controller.calibrate_output'
+
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'carrier.prepare_queue'
+
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'modulator_1.prepare_queue'
+
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'modulator_2.prepare_queue'
+
+        ExperimentAction:
+            event = 'erp_acquired'
+            command = 'psi.controller.save_trial'
+
+        ExperimentAction:
+            event = 'erp_queue_empty and not carrier_active'
+            command = 'psi.controller.stop'
+
+    Extension:
+        id = 'data'
+        point = 'psi.data.sinks'
+
+        TrialLog:
+            pass
+
+
+    Extension:
+        id = 'plots'
+        point = 'psi.data.plots'
+
+        TimeContainer:
+            name = 'trial_plot_container'
+            title = 'Trial timing'
+            span = 5
+            y_min = -.1
+            y_max = .1
+
+            ExtremesChannelPlot:
+                source_name = 'microphone'

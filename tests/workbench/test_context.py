@@ -1,28 +1,5 @@
 import pytest
 
-import enaml
-from enaml.workbench.api import Workbench
-from enaml.qt.qt_application import QtApplication
-app = QtApplication()
-
-
-with enaml.imports():
-    from enaml.workbench.core.core_manifest import CoreManifest
-    from psi.context.manifest import ContextManifest
-    from psi.data.manifest import DataManifest
-    from .helpers import HelperManifest
-
-
-@pytest.fixture
-def workbench():
-    workbench = Workbench()
-    workbench.register(CoreManifest())
-    workbench.register(ContextManifest())
-    workbench.register(DataManifest())
-    workbench.register(HelperManifest())
-
-    return workbench
-
 
 def test_eval(workbench):
     expected = [

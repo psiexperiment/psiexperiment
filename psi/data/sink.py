@@ -17,6 +17,12 @@ class Sink(PSIContribution):
     def process_ai_epochs(self, name, data):
         pass
 
+    def create_ai_continuous(self, *args, **kwargs):
+        pass
+
+    def create_ai_epochs(self, *args, **kwargs):
+        pass
+
     def trial_log_updated(self, trial_log):
         pass
 

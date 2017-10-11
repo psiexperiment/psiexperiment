@@ -364,7 +364,7 @@ enamldef BandlimitedNoise(Block):
 # Tone
 ################################################################################
 @no_inputs
-def tone_factory(fs, level, frequency, polarity, calibration):
+def tone_factory(fs, level, frequency, phase, polarity, calibration):
     # Since the scaling factor is based on Vrms, we need to convert this to
     # the peak-to-peak scaling factor.
     sf = calibration.get_sf(frequency, level)*np.sqrt(2)
@@ -376,7 +376,7 @@ def tone_factory(fs, level, frequency, polarity, calibration):
         kwargs = (yield waveform)
         samples = kwargs['samples']
         t = (np.arange(samples, dtype=np.float32) + offset)/fs
-        waveform = polarity*sf*np.cos(2*np.pi*t*frequency)
+        waveform = polarity*sf*np.cos(2*np.pi*t*frequency + phase)
         offset += len(waveform)
 
 
@@ -400,11 +400,16 @@ enamldef Tone(Block):
 
     EnumParameter:
         name = 'polarity'
-        label = 'polarity'
+        label = 'polarity (radians)'
         compact_label = 'pol'
         default = 'positive'
         choices = {'positive': 1, 'negative': -1}
 
+    Parameter:
+        name = 'phase'
+        label = 'phase'
+        compact_label = 'Θ'
+        default = 0
 
 @no_inputs
 def silence_factory(fs, calibration):

@@ -18,6 +18,7 @@ experiments = {
     'appetitive_gonogo_food': 'psi.application.experiment.appetitive.ControllerManifest',
     'abr': 'psi.application.experiment.abr.ControllerManifest',
     'noise_exposure': 'psi.application.experiment.noise_exposure.ControllerManifest',
+    'efr': 'psi.application.experiment.efr.ControllerManifest',
 }
 
 

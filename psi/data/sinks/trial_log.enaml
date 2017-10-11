@@ -12,12 +12,22 @@ from ..sink import Sink
 
 
 class TrialLog(Sink):
-    
+
     name = 'trial_log'
     label = 'Trial log'
 
 
 enamldef TrialLogManifest(PSIManifest): manifest:
+
+    Extension:
+        id = 'items'
+        point = 'psi.context.items'
+        OrderedContextMeta: meta:
+            name << manifest.contribution.name
+            label << '{} columns'.format(manifest.contribution.label)
+            #values::
+            #    table.columns = [v.name for v in values]
+            #    table.column_info = {v.name: v for v in values}
 
     Extension:
         id = 'workspace'
@@ -29,7 +39,7 @@ enamldef TrialLogManifest(PSIManifest): manifest:
 
             attr data_plugin = workbench.get_plugin('psi.data')
 
-            Container: 
+            Container:
                 DataFrameTable: table:
                     name = 'trial_log_table'
                     data << data_plugin.trial_log
@@ -47,13 +57,5 @@ enamldef TrialLogManifest(PSIManifest): manifest:
                             elif tt == 'nogo_repeat':
                                 return 'pink'
                         return 'white'
-
-    Extension:
-        id = 'items'
-        point = 'psi.context.items'
-        OrderedContextMeta: meta:
-            name << manifest.contribution.name
-            label << '{} columns'.format(manifest.contribution.label)
-            values::
-                table.columns = [v.name for v in values]
-                table.column_info = {v.name: v for v in values}
+                    columns << [v.name for v in meta.values]
+                    column_info << {v.name: v for v in meta.values}

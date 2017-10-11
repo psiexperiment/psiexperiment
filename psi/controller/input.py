@@ -31,14 +31,14 @@ def broadcast(*targets):
 class Input(PSIContribution):
 
     source_name = d_(Unicode())
-    save = d_(Bool(False))
+    save = d_(Bool(False)).tag(metadata=True)
 
     source = Property()
     channel = Property()
     engine = Property()
 
     fs = Property().tag(metadata=True)
-    mode = Enum('continuous', 'events', 'epochs')
+    dtype = Property().tag(metadata=True)
 
     def _get_source(self):
         if isinstance(self.parent, Extension):
@@ -51,6 +51,9 @@ class Input(PSIContribution):
 
     def _get_fs(self):
         return self.parent.fs
+
+    def _get_dtype(self):
+        return self.parent.dtype
 
     def _get_channel(self):
         parent = self.parent
@@ -76,8 +79,7 @@ class Input(PSIContribution):
         '''
         log.debug('Configuring callback for {}'.format(self.name))
         targets = [c.configure_callback(plugin) for c in self.children]
-        if self.name:
-            targets.append(self.get_plugin_callback(plugin))
+        targets.append(self.get_plugin_callback(plugin))
 
         # If we have only one target, no need to add another function layer
         if len(targets) == 1:
@@ -89,6 +91,25 @@ class Input(PSIContribution):
         return lambda data: plugin.invoke_actions(action, data=data)
 
 
+class ContinuousInput(Input):
+    pass
+
+
+class EventInput(Input):
+    pass
+
+
+class EpochInput(Input):
+
+    epoch_size = Property()
+
+    def _get_epoch_size(self):
+        return self.parent.epoch_size
+
+
+################################################################################
+# Continuous input types
+################################################################################
 @coroutine
 def calibrate(calibration, target):
     # TODO: hack alert here
@@ -98,7 +119,7 @@ def calibrate(calibration, target):
         target(data/sens)
 
 
-class CalibratedInput(Input):
+class CalibratedInput(ContinuousInput):
 
     def configure_callback(self, plugin):
         cb = super().configure_callback(plugin)
@@ -119,7 +140,7 @@ def rms(n, target):
             data = data[..., n:]
 
 
-class RMS(Input):
+class RMS(ContinuousInput):
 
     duration = d_(Float()).tag(metadata=True)
 
@@ -140,7 +161,7 @@ def spl(target):
         target(patodb(data))
 
 
-class SPL(Input):
+class SPL(ContinuousInput):
 
     def configure_callback(self, plugin):
         cb = super().configure_callback(plugin)
@@ -159,7 +180,7 @@ def iirfilter(N, Wn, rp, rs, btype, ftype, target):
         target(y)
 
 
-class IIRFilter(Input):
+class IIRFilter(ContinuousInput):
 
     N = d_(Int()).tag(metadata=True)
     btype = d_(Enum('bandpass', 'lowpass', 'highpass', 'bandstop')).tag(metadata=True)
@@ -200,7 +221,7 @@ def blocked(block_size, target):
             n = merged.shape[-1]
 
 
-class Blocked(Input):
+class Blocked(ContinuousInput):
 
     duration = d_(Float()).tag(metadata=True)
 
@@ -222,7 +243,7 @@ def accumulate(n, axis, target):
             data = []
 
 
-class Accumulate(Input):
+class Accumulate(ContinuousInput):
 
     n = d_(Int()).tag(metadata=True)
     axis = d_(Int(-1)).tag(metadata=True)
@@ -245,7 +266,7 @@ def downsample(q, target):
         target(y[::q])
 
 
-class Downsample(Input):
+class Downsample(ContinuousInput):
 
     q = d_(Int()).tag(metadata=True)
 
@@ -275,7 +296,7 @@ def decimate(q, target):
         target(y[::q])
 
 
-class Decimate(Input):
+class Decimate(ContinuousInput):
 
     q = d_(Int()).tag(metadata=True)
 
@@ -294,7 +315,7 @@ def threshold(threshold, target):
         target(samples >= threshold)
 
 
-class Threshold(Input):
+class Threshold(ContinuousInput):
 
     threshold = d_(Float(0)).tag(metadata=True)
 
@@ -331,17 +352,6 @@ def edges(initial_state, min_samples, fs, target):
         prior_samples = samples[..., -min_samples:]
 
 
-class Edges(Input):
-
-    initial_state = d_(Int(0)).tag(metadata=True)
-    debounce = d_(Int()).tag(metadata=True)
-    mode = 'events'
-
-    def configure_callback(self, plugin):
-        cb = super().configure_callback(plugin)
-        return edges(self.initial_state, self.debounce, self.fs, cb).send
-
-
 @coroutine
 def average(n, target):
     data = (yield)
@@ -357,7 +367,7 @@ def average(n, target):
         data = np.concatenate((data, new_data), axis=axis)
 
 
-class Average(Input):
+class Average(ContinuousInput):
 
     n = d_(Float()).tag(metadata=True)
 
@@ -366,34 +376,25 @@ class Average(Input):
         return average(self.n, cb).send
 
 
-@coroutine
-def iti(fs, target):
-    last_ts = 0
-    while True:
-        for edge, ts in (yield):
-            if edge == 'rising':
-                print((ts-last_ts)/fs)
-                last_ts = ts
+################################################################################
+# Event input types
+################################################################################
+class Edges(EventInput):
 
-
-class ITI(Input):
+    initial_state = d_(Int(0)).tag(metadata=True)
+    debounce = d_(Int()).tag(metadata=True)
 
     def configure_callback(self, plugin):
         cb = super().configure_callback(plugin)
-        return iti(self.fs, cb).send
+        return edges(self.initial_state, self.debounce, self.fs, cb).send
 
 
-class EpochInput(Input):
-
-    epoch_size = Property()
-    mode = 'epochs'
-
-    def _get_epoch_size(self):
-        return self.parent.epoch_size
-
-
+################################################################################
+# Epoch input types
+################################################################################
 @coroutine
-def extract_epochs(fs, queue, epoch_size, buffer_size, delay, target):
+def extract_epochs(fs, queue, epoch_size, buffer_size, delay, target,
+                   empty_queue_cb=None):
     buffer_samples = int(buffer_size*fs)
     epoch_samples = int(epoch_size*fs)
     delay_samples = int(delay*fs)
@@ -450,6 +451,10 @@ def extract_epochs(fs, queue, epoch_size, buffer_size, delay, target):
         if len(epochs) != 0:
             target(epochs)
 
+        if (next_offset is None) and (len(queue) == 0):
+            if empty_queue_cb is not None:
+                empty_queue_cb()
+
         data = (yield)
         log.debug('received %r samples', data.shape)
 
@@ -467,10 +472,13 @@ class ExtractEpochs(EpochInput):
     delay = d_(Float(0)).tag(metadata=True)
 
     def configure_callback(self, plugin):
+        action = self.name + '_queue_empty'
+        empty_queue_cb = lambda: plugin.invoke_actions(action)
         cb = super().configure_callback(plugin)
         cb_queue = self.queue.create_connection()
         return extract_epochs(self.fs, cb_queue, self.epoch_size,
-                              self.buffer_size, self.delay, cb).send
+                              self.buffer_size, self.delay, cb,
+                              empty_queue_cb).send
 
 
 

@@ -1,0 +1,88 @@
+import numpy as np
+
+from enaml.workbench.api import Extension, Plugin
+from enaml.workbench.core.api import Command
+from psi.context.api import (ContextGroup, Parameter, Result, Parameter,
+                             SequenceSelector)
+from psi.controller.base_manifest import BaseManifest
+from psi.controller.experiment_action import ExperimentState, ExperimentEvent, ExperimentAction
+
+
+EVENT_RESULTS = []
+
+
+def store_result(event):
+    global EVENT_RESULTS
+    EVENT_RESULTS.append(event.parameters['result'])
+
+
+enamldef HelperManifest(BaseManifest): manifest:
+
+    id = 'psi.controller'
+
+    Extension:
+        id = 'helper_items'
+        point = 'psi.context.items'
+        ContextGroup:
+            name = 'default'
+
+        Parameter:
+            name = 'repetitions'
+            default = 80
+            group = 'default'
+        Parameter:
+            name = 'level'
+            default = 60.0
+            group = 'default'
+        Parameter:
+            name = 'fc'
+            expression = '32e3/repetitions'
+            dtype = 'float64'
+            group = 'default'
+
+    Extension:
+        id = 'selectors'
+        point = 'psi.context.selectors'
+        SequenceSelector:
+            name = 'default'
+            order = 'ascending'
+
+    Extension:
+        id = 'helper_commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = 'store_result'
+            handler = store_result
+
+    Extension:
+        id = 'helper_actions'
+        point = 'psi.controller.actions'
+        ExperimentState:
+            name = 'trial'
+        ExperimentEvent:
+            name = 'dispense'
+
+        ExperimentAction:
+            event = 'dispense'
+            command = 'store_result'
+            kwargs = {'result': event}
+
+        ExperimentAction:
+            event = 'trial_start'
+            command = 'store_result'
+            kwargs = {'result': event}
+
+        ExperimentAction:
+            event = 'trial_end'
+            command = 'store_result'
+            kwargs = {'result': event}
+
+        ExperimentAction:
+            event = 'trial_active and dispense'
+            command = 'store_result'
+            kwargs = {'result': event}
+
+        ExperimentAction:
+            event = 'not trial_active and dispense'
+            command = 'store_result'
+            kwargs = {'result': event}
