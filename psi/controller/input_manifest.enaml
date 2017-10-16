@@ -74,7 +74,7 @@ enamldef EpochInputManifest(InputManifest): manifest:
             kwargs = {'name': manifest.contribution.name}
 
 
-enamldef ExtractEpochsManifest(InputManifest): manifest:
+enamldef ExtractEpochsManifest(EpochInputManifest): manifest:
 
     Extension:
         id = 'extract_epochs_actions.' + manifest.contribution.name

@@ -162,9 +162,9 @@ class BasePlugin(Plugin):
                 else:
                     m = "Unknown target {}".format(output.target_name)
                     raise ValueError(m)
-                log.debug('Connecting output {} to target {}' \
-                            .format(output.name, output.target_name))
                 output.target = target
+                m = 'Connected output {} to source {}'
+                log.debug(m.format(output.name, output.target_name))
             output.load_manifest(self.workbench)
 
         for input in inputs.values():
@@ -176,9 +176,9 @@ class BasePlugin(Plugin):
                 else:
                     m = "Unknown source {}".format(input.source_name)
                     raise ValueError(m)
-                log.debug('Connecting input {} to source {}' \
-                          .format(input.name, input.source_name))
                 input.source = source
+                m = 'Connected input {} to source {}'
+                log.debug(m.format(input.name, input.source_name))
             input.load_manifest(self.workbench)
 
         # Remove channels that do not have an input or output defined. TODO: We

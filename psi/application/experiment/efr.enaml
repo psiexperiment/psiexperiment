@@ -13,7 +13,7 @@ from psi.context.selector import CartesianProduct
 
 from psi.controller.api import ExperimentAction
 from psi.controller.base_manifest import BaseManifest
-from psi.controller.input import ExtractEpochs, Blocked, Accumulate, IIRFilter
+from psi.controller.input import ExtractEpochs, Accumulate, IIRFilter, Decimate
 from psi.controller.output import QueuedEpochOutput
 from psi.controller.queue import InterleavedFIFOSignalQueue
 
@@ -84,19 +84,14 @@ enamldef ControllerManifest(BaseManifest): manifest:
             queue = InterleavedFIFOSignalQueue(fs=output_0.fs, initial_delay=1)
             auto_decrement = True
 
-        Blocked:
-            duration = 0.25
-            name = 'eeg'
+        ExtractEpochs: extract:
             save = True
-            source_name = 'eeg_channel'
-
-            ExtractEpochs: extract:
-                save = True
-                buffer_size = 300
-                epoch_size = 30
-                queue = output_0.queue
-                delay = 47.5/extract.fs
-                name = 'erp'
+            buffer_size = 300
+            epoch_size = 30
+            queue = output_0.queue
+            delay = 47.5/extract.fs
+            name = 'erp'
+            source_name = 'eeg'
 
     Extension:
         id = 'selectors'
@@ -183,16 +178,17 @@ enamldef ControllerManifest(BaseManifest): manifest:
         TimeContainer:
             name = 'trial_plot_container'
             title = 'Trial timing'
-            span = 1
+            span = 5
+            delay = 0.5
 
-            ExtremesChannelPlot:
-                source_name = 'microphone'
-                pen_color = 'k'
-                y_min = -0.25
-                y_max = 0.25
+            #ExtremesChannelPlot:
+            #    source_name = 'microphone'
+            #    pen_color = 'k'
+            #    y_min = -0.25
+            #    y_max = 0.25
 
             ExtremesChannelPlot:
                 source_name = 'eeg'
-                pen_color = (255, 0, 0)
+                pen_color = 'k'
                 y_min = -5
                 y_max = 5

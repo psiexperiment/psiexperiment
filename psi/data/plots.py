@@ -1,6 +1,7 @@
 import logging
 log = logging.getLogger(__name__)
 
+import threading
 from functools import partial
 import struct
 
@@ -37,13 +38,10 @@ class ChannelDataRange(object):
         if high_value == low_value:
             return
         elif self.current_range != (low_value, high_value):
+            self.current_range = (low_value, high_value)
             self.container.update_range(low_value, high_value)
         else:
             plot.update_range(low_value, high_value)
-
-    def update_range(self, range):
-        self.current_range = (low_value, high_value)
-        self.container.update_range(low_value, high_value)
 
 
 ################################################################################
@@ -89,7 +87,6 @@ class TimeContainer(PlotContainer):
         container.addItem(self.x_axis, i+1, 1)
 
         # Link the child views
-        #container.addItem(self.base_viewbox, 0, i+1)
         for child in self.children[1:]:
             child.viewbox.setXLink(self.base_viewbox)
 
@@ -102,9 +99,9 @@ class TimeContainer(PlotContainer):
         self.update_range(-self.span, self.delay)
 
     def update_range(self, low, high):
-        updaters = [child.update_range(low, high) for child in self.children]
+        for child in self.children:
+            child.update_range(low, high)
         self.base_viewbox.setXRange(low, high, padding=0)
-        deferred_call(lambda c=updaters: [u() for u in c])
 
 
 ################################################################################
@@ -118,7 +115,6 @@ class Plot(PSIContribution):
 class ChannelPlot(Plot):
 
     source_name = d_(Unicode())
-    value_range = d_(Tuple(Float(), Float()))
 
     y_axis = Typed(pg.AxisItem)
     viewbox = Typed(pg.ViewBox)
@@ -137,6 +133,14 @@ class ExtremesChannelPlot(ChannelPlot):
     downsample_method = d_(Enum('peak', 'mean'))
     auto_downsample = d_(Bool(True))
     antialias = d_(Bool(True))
+
+    _cached_time = Typed(np.ndarray)
+    _update_pending = Bool(False)
+    _deferred_args = Typed(object)
+    _lock = Typed(object)
+
+    def _default__lock(self):
+        return threading.RLock()
 
     def _default_y_axis(self):
         y_axis = pg.AxisItem('left')
@@ -169,10 +173,16 @@ class ExtremesChannelPlot(ChannelPlot):
         self.y_axis.setLabel('TESTING', unitPrefix='Hz')
         container.data_range.add_source(self.source, self)
 
+        # Precompute the time array since this can be the "slow" point
+        # sometimes in computations
+        n = int(container.data_range.span*self.source.fs)
+        self._cached_time = np.arange(n)/self.source.fs
+
     def update_range(self, low, high):
+        m = 'Updating {} from {} to {}'
         data = self.source.get_range(low, high)
-        t = np.arange(len(data))/self.source.fs + low
-        return partial(self.plot.setData, t, data)
+        t = self._cached_time[:len(data)] + low
+        deferred_call(self.plot.setData, t, data)
 
 
 ################################################################################
@@ -286,8 +296,6 @@ class GridContainer(PlotContainer):
                     item.setXLink(base_item)
                     item.setYLink(base_item)
 
-                #item.enableAutoRange(False, False)
-                #item.disableAutoRange()
                 item.hideButtons()
                 if c != 0:
                     item.hideAxis('left')

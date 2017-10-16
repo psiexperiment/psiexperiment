@@ -1,9 +1,12 @@
 import logging
 log = logging.getLogger(__name__)
 
+import atexit
 import os.path
+import tempfile
+import shutil
 
-from atom.api import Unicode, Typed
+from atom.api import Unicode, Typed, List
 
 import numpy as np
 import bcolz
@@ -21,6 +24,7 @@ class BColzStore(AbstractStore):
     base_path = Unicode()
     trial_log = Typed(object)
     event_log = Typed(object)
+    temp_folders = List()
 
     def process_trials(self, results):
         names = self.trial_log.data.dtype.names
@@ -47,9 +51,12 @@ class BColzStore(AbstractStore):
 
     def _get_filename(self, name, save=True):
         if save and (self.base_path != '<memory>'):
-            return os.path.join(self.base_path, name)
+            filename = os.path.join(self.base_path, name)
         else:
-            return None
+            filename = tempfile.mkdtemp()
+            self.temp_folders.append(filename)
+            atexit.register(shutil.rmtree, filename)
+        return filename
 
     def _create_trial_log(self, context_info):
         '''

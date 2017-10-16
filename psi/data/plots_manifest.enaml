@@ -7,7 +7,6 @@ from enaml.workbench.api import Extension, Workbench
 from enaml.workbench.core.api import Command
 
 import pyqtgraph as pg
-#pg.setConfigOption('background', 'w')
 pg.setConfigOption('foreground', 'k')
 
 from psi.core.enaml.api import PSIManifest

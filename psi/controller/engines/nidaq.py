@@ -106,10 +106,18 @@ class SamplesGeneratedCallbackHelper(object):
 
     def __init__(self, callback):
         self._callback = callback
+        self._uint32 = ctypes.c_uint32()
 
     def __call__(self, task, event_type, callback_samples, callback_data):
         try:
-            self._callback(callback_samples)
+            mx.DAQmxSetWriteRelativeTo(task, mx.DAQmx_Val_CurrWritePos)
+            mx.DAQmxSetWriteOffset(task, 0)
+            while True:
+                mx.DAQmxGetWriteSpaceAvail(task, self._uint32)
+                available_samples = self._uint32.value
+                if available_samples < callback_samples:
+                    break
+                self._callback(callback_samples)
             return 0
         except Exception as e:
             log.exception(e)
@@ -126,14 +134,20 @@ class SamplesAcquiredCallbackHelper(object):
 
     def __call__(self, task, event_type, callback_samples, callback_data):
         try:
-            mx.DAQmxGetReadAvailSampPerChan(task, self._uint32)
-            available_samples = self._uint32.value
-            data_shape = self._n_channels, available_samples
-            data = np.empty(data_shape, dtype=np.double)
-            mx.DAQmxReadAnalogF64(task, available_samples, 0,
-                                    mx.DAQmx_Val_GroupByChannel, data,
-                                    data.size, self._int32, None)
-            self._callback(data)
+            while True:
+                mx.DAQmxGetReadAvailSampPerChan(task, self._uint32)
+                available_samples = self._uint32.value
+                blocks = (available_samples//callback_samples)
+                if blocks == 0:
+                    break
+                samples = blocks*callback_samples
+                data_shape = self._n_channels, samples
+                data = np.empty(data_shape, dtype=np.double)
+                mx.DAQmxReadAnalogF64(task, samples, 0,
+                                    mx.DAQmx_Val_GroupByChannel, data, data.size,
+                                    self._int32, None)
+                self._callback(data)
+                log.debug('Acquired {} samples'.format(data.shape))
             return 0
         except Exception as e:
             log.exception(e)
@@ -847,7 +861,7 @@ class NIDAQEngine(Engine):
     def hw_ao_callback(self, samples):
         # Get the next set of samples to upload to the buffer
         with self.lock:
-            samples = self.get_space_available()
+            #samples = self.get_space_available()
             offset = self.get_offset()
             data = self._get_hw_ao_samples(offset, samples)
             self.write_hw_ao(data, timeout=1)

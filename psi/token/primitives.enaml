@@ -168,7 +168,7 @@ def sam_eq_phase(delay, depth, direction):
     return 2.0*np.pi-phi if direction == 1 else phi
 
 
-@memory.cache
+#@memory.cache
 def sam_envelope(offset, samples, fs, depth, fm, delay, direction):
     eq_phase = sam_eq_phase(delay, depth, direction)
     eq_power = sam_eq_power(depth)

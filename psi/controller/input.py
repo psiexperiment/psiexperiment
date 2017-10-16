@@ -34,7 +34,7 @@ class Input(PSIContribution):
     source_name = d_(Unicode())
     save = d_(Bool(False)).tag(metadata=True)
 
-    source = Property().tag(metadata=True)
+    source = d_(Property().tag(metadata=True))
     channel = Property()
     engine = Property()
 
@@ -475,7 +475,6 @@ def extract_epochs(fs, queue, epoch_size, buffer_size, delay, epoch_name,
                 empty_queue_cb()
 
         data = (yield)
-        log.debug('received %r samples', data.shape)
 
 
 class ExtractEpochs(EpochInput):
