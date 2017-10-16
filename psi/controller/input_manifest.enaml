@@ -6,17 +6,11 @@ from .device_manifest import DeviceManifest
 from .experiment_action import ExperimentEvent, ExperimentAction
 
 from psi.core.enaml.api import PSIManifest
-from psi.util import get_tagged_values
+from psi.util import declarative_to_dict
 
 
 def get_metadata(contribution):
-    md = get_tagged_values(contribution, 'metadata')
-    channel_metadata = get_tagged_values(contribution.channel, 'metadata')
-    engine_metadata = get_tagged_values(contribution.engine, 'metadata')
-    md.update({'channel_' + k: v for k, v in channel_metadata.items()})
-    md.update({'engine_' + k: v for k, v in engine_metadata.items()})
-    md['name'] = contribution.name
-    return md
+    return declarative_to_dict(contribution, 'metadata')
 
 
 enamldef InputManifest(PSIManifest): manifest:
@@ -54,12 +48,12 @@ enamldef EventInputManifest(InputManifest): manifest:
 
         ExperimentAction:
             event = 'experiment_prepare'
-            command = 'psi.data.create_ai_event'
+            command = 'psi.data.create_ai_events'
             kwargs = get_metadata(manifest.contribution)
 
         ExperimentAction:
             event = manifest.contribution.name + '_acquired'
-            command = 'psi.data.process_ai_event'
+            command = 'psi.data.process_ai_events'
             kwargs = {'name': manifest.contribution.name}
 
 
@@ -71,12 +65,12 @@ enamldef EpochInputManifest(InputManifest): manifest:
 
         ExperimentAction:
             event = 'experiment_prepare'
-            command = 'psi.data.create_ai_epoch'
+            command = 'psi.data.create_ai_epochs'
             kwargs = get_metadata(manifest.contribution)
 
         ExperimentAction:
             event = manifest.contribution.name + '_acquired'
-            command = 'psi.data.process_ai_epoch'
+            command = 'psi.data.process_ai_epochs'
             kwargs = {'name': manifest.contribution.name}
 
 

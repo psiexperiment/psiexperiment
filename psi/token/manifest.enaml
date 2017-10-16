@@ -18,6 +18,9 @@ enamldef TokenManifest(PluginManifest):
         id = 'default_tokens'
         point = 'psi.token.tokens'
 
+        #########################################################################
+        # Continuous
+        #########################################################################
         ContinuousToken:
             name = 'continuous_bandlimited_noise'
             label = 'continuous bandlimited noise'
@@ -36,6 +39,9 @@ enamldef TokenManifest(PluginManifest):
             Silence:
                 pass
 
+        #########################################################################
+        # Epoch
+        #########################################################################
         EpochToken:
             name = 'bandlimited_noise_burst'
             label = 'bandlimited noise burst'
@@ -50,7 +56,20 @@ enamldef TokenManifest(PluginManifest):
                     pass
 
         EpochToken:
+            name = 'sam_tone'
+            label = 'SAM tone'
+            SAMEnvelope:
+                Tone:
+                    pass
+
+        EpochToken:
             name = 'tone_burst'
             label = 'tone'
             Tone:
+                pass
+
+        EpochToken:
+            name = 'silence'
+            label = 'silence'
+            Silence:
                 pass

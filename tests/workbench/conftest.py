@@ -18,7 +18,7 @@ def app():
 
 
 @pytest.fixture
-def workbench():
+def workbench(app):
     workbench = Workbench()
     workbench.register(CoreManifest())
     workbench.register(ContextManifest())

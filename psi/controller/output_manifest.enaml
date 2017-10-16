@@ -98,6 +98,8 @@ def prepare_output_queue(event, output):
         factory = initialize_factory(output, setting)
         output.queue.append(factory, averages, iti_duration, token_duration, setting)
 
+    controller.invoke_actions(output.name + '_start')
+
 
 def set_output_queue(event, output):
     queue_class = event.parameters['queue_class']

@@ -1,18 +1,12 @@
 import os.path
 
-import numpy as np
 from enaml.workbench.api import PluginManifest, Extension
 
 from psi import get_config
+
 from psi.controller.engines.nidaq import NIDAQEngine
-from psi.controller.api import (ContinuousOutput, EpochOutput, AIChannel,
-                                AOChannel, ExperimentAction, Trigger, Toggle,
-                                DOChannel, Input)
-
-from psi.controller.input import (Downsample, IIRFilter, Threshold, Edges,
-                                  CalibratedInput, RMS, SPL,
-                                  Accumulate, Blocked)
-
+from psi.controller.channel import AIChannel, AOChannel
+from psi.controller.input import ContinuousInput, IIRFilter
 from psi.data.sinks.bcolz_store import BColzStore
 from psi.controller.calibration import InterpCalibration
 
@@ -43,13 +37,13 @@ enamldef IOManifest(PluginManifest): manifest:
             hw_ai_monitor_period = 0.25
 
             AIChannel:
-                label = 'Continuous EEG'
+                label = 'EEG'
                 name = 'eeg_channel'
                 channel = 'PXI1Slot7/ai0'
                 start_trigger = '/PXI1Slot8/ao/StartTrigger'
                 fs = 25e3
                 expected_range = (-10, 10)
-                dtype = np.dtype('float64')
+                dtype = 'float64'
                 terminal_mode = 'differential'
                 terminal_coupling = 'AC'
 
@@ -57,6 +51,7 @@ enamldef IOManifest(PluginManifest): manifest:
             name = 'NI_audio'
             master_clock = True
 
+            hw_ai_monitor_period = 0.25
             hw_ao_monitor_period = 1
 
             AOChannel:
@@ -65,7 +60,7 @@ enamldef IOManifest(PluginManifest): manifest:
                 channel = 'PXI1Slot8/ao0'
                 fs = 200e3
                 expected_range = (-10, 10)
-                dtype = np.dtype('float64')
+                dtype = 'float64'
                 terminal_mode = 'pseudodifferential'
 
             AOChannel:
@@ -74,7 +69,7 @@ enamldef IOManifest(PluginManifest): manifest:
                 channel = 'PXI1Slot8/ao1'
                 fs = 200e3
                 expected_range = (-10, 10)
-                dtype = np.dtype('float64')
+                dtype = 'float64'
                 terminal_mode = 'pseudodifferential'
 
             AIChannel:
@@ -84,23 +79,19 @@ enamldef IOManifest(PluginManifest): manifest:
                 start_trigger = '/PXI1Slot8/ao/StartTrigger'
                 fs = 200e3
                 expected_range = (-10, 10)
-                dtype = np.dtype('float64')
-                terminal_mode = 'pseudodifferential'
+                dtype = 'float64'
+                terminal_mode = 'differential'
                 terminal_coupling = 'AC'
                 calibration = mic_cal
 
-                Input:
-                    name = '_mic'
-                    save = False
-
-                    IIRFilter:
-                        f_highpass = 250
-                        f_lowpass = 25000
-                        ftype = 'butter'
-                        N = 4
-                        btype = 'bandpass'
-                        name = 'microphone'
-                        save = True
+                IIRFilter:
+                    N = 4
+                    btype = 'bandpass'
+                    ftype = 'butter'
+                    f_highpass = 100
+                    f_lowpass = 50000
+                    name = 'microphone'
+                    save = True
 
             AIChannel:
                 label = 'Reference microphone'
@@ -109,9 +100,9 @@ enamldef IOManifest(PluginManifest): manifest:
                 start_trigger = '/PXI1Slot8/ao/StartTrigger'
                 fs = 200e3
                 expected_range = (-10, 10)
-                dtype = np.dtype('float64')
-                terminal_mode = 'pseudodifferential'
+                dtype = 'float64'
+                terminal_mode = 'differential'
                 terminal_coupling = 'AC'
 
-                Input:
+                ContinuousInput:
                     name = 'reference_microphone'

@@ -81,7 +81,6 @@ class CartesianProduct(BaseSelector):
 
     def append_item(self, item):
         self.settings.setdefault(item.name, [])
-        print(item.name, id(self.settings[item.name]))
         super().append_item(item)
 
     def add_setting(self, item, value):

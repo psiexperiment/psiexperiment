@@ -75,7 +75,6 @@ class AnalogOutput(Output):
     _buffer = Typed(np.ndarray)
     _offset = Int(0)
     _generator = Typed(GeneratorType)
-    _block_samples = Int()
 
     def _get_buffer_size(self):
         return self.channel.buffer_size

@@ -15,6 +15,7 @@ from ..util import coroutine
 class Channel(Declarative):
 
     label = d_(Unicode()).tag(metadata=True)
+    unit = d_(Unicode()).tag(metadata=True)
 
     # Device-specific channel identifier.
     channel = d_(Unicode()).tag(metadata=True)
@@ -27,10 +28,8 @@ class Channel(Declarative):
     start_trigger = d_(Unicode()).tag(metadata=True)
 
     # Used to properly configure data storage.
-    dtype = d_(Typed(np.dtype))
-
-    engine = Property()
-
+    dtype = d_(Unicode()).tag(metadata=True)
+    engine = Property().tag(metadata=True)
     calibration = d_(Typed(Calibration)).tag(metadata=True)
 
     def _get_engine(self):

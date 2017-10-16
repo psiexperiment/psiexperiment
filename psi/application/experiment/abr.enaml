@@ -4,19 +4,16 @@ log = logging.getLogger(__name__)
 from atom.api import Typed
 import numpy as np
 
-from enaml.application import deferred_call
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 
-from psi.context.api import ContextGroup, Parameter, SequenceSelector
+from psi.context.api import ContextGroup, Parameter
 from psi.context.selector import CartesianProduct
-from psi.context import choice
-from psi.controller.api import EpochOutput, ExperimentAction
+from psi.controller.api import ExperimentAction
 
 from psi.controller.output import QueuedEpochOutput, EpochOutput
-from psi.controller.input import ExtractEpochs, Input, Threshold, ITI, Edges, Blocked, Accumulate, RejectEpochs, IIRFilter
+from psi.controller.input import ExtractEpochs, Input, Blocked, Accumulate, RejectEpochs, IIRFilter
 
-from psi.context.api import Result, ContextGroup
 from psi.controller.base_manifest import BaseManifest
 
 from psi.controller.queue import InterleavedFIFOSignalQueue
@@ -91,14 +88,14 @@ enamldef ControllerManifest(BaseManifest): manifest:
             auto_decrement = False
 
         Blocked:
-            duration = 0.1
+            duration = 0.01
             name = 'eeg'
             save = True
             source_name = 'eeg_channel'
 
             Accumulate:
                 name = 'eeg_buffered'
-                n = 25
+                n = 100
 
                 IIRFilter:
                     name = 'eeg_buffered_filtered'
@@ -174,7 +171,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
             command = 'target.decrement_key'
 
         ExperimentAction:
-            event = 'target_complete'
+            event = 'target_end'
             command = 'psi.controller.stop'
 
     Extension:
@@ -203,7 +200,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
         TimeContainer:
             name = 'trial_plot_container' 
             title = 'Trial timing'
-            span = 1.5
+            span = 1
             y_min = -5
             y_max = 5
 

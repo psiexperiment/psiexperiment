@@ -1,4 +1,4 @@
-import enaml 
+import enaml
 with enaml.imports():
     from .helper_manifest import EVENT_RESULTS
 
@@ -21,3 +21,12 @@ def test_actions(workbench):
         'not trial_active and dispense',
     ]
     assert expected == EVENT_RESULTS
+
+
+def test_input_metadata(workbench):
+    import yaml
+    from psi.util import declarative_to_dict
+    controller = workbench.get_plugin('psi.controller')
+    mic = controller.get_input('microphone_filtered')
+    print(yaml.dump(declarative_to_dict(mic, 'metadata')))
+    assert False

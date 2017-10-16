@@ -72,11 +72,16 @@ class BColzStore(AbstractStore):
         filename = self._get_filename(name, save)
         carray = bcolz.carray([], rootdir=filename, mode='w', dtype=dtype,
                               expectedlen=n)
-        carray.attrs[fs] = fs
+        carray.attrs['fs'] = fs
         for key, value in metadata.items():
+            # TODO: hack alert. Need to find a way around this
+            if key == 'channel_calibration':
+                continue
             try:
                 carray.attrs[key] = value
-            except TypeError:
+                print(key)
+            except TypeError as e:
+                print(e)
                 m = 'Unable to save {} with value {} to {}'
                 log.warn(m.format(key, value, name))
         self._channels[name] = ContinuousDataChannel(data=carray, fs=fs)

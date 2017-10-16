@@ -37,6 +37,7 @@ def tone_context():
         'target_tone_burst_rise_time': 0,
         'target_tone_burst_duration': 1,
         'target_tone_polarity': 1,
+        'target_tone_phase': 0,
         'fs': fs,
         'calibration': calibration,
     }

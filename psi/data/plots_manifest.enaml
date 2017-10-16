@@ -7,7 +7,7 @@ from enaml.workbench.api import Extension, Workbench
 from enaml.workbench.core.api import Command
 
 import pyqtgraph as pg
-pg.setConfigOption('background', 'w')
+#pg.setConfigOption('background', 'w')
 pg.setConfigOption('foreground', 'k')
 
 from psi.core.enaml.api import PSIManifest
@@ -24,7 +24,7 @@ class PGCanvas(RawWidget):
     component = d_(Typed(pg.GraphicsWidget))
 
     def create_widget(self, parent):
-        self.view = pg.GraphicsView(parent)
+        self.view = pg.GraphicsView(parent, background=(240, 240, 240))
         self.view.setCentralItem(self.component)
         return self.view
 

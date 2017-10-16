@@ -30,15 +30,18 @@ def broadcast(*targets):
 
 class Input(PSIContribution):
 
+    name = d_(Unicode()).tag(metadata=True)
     source_name = d_(Unicode())
     save = d_(Bool(False)).tag(metadata=True)
 
-    source = Property()
+    source = Property().tag(metadata=True)
     channel = Property()
     engine = Property()
 
     fs = Property().tag(metadata=True)
     dtype = Property().tag(metadata=True)
+    label = Property().tag(metadata=True)
+    unit = Property().tag(metadata=True)
 
     def _get_source(self):
         if isinstance(self.parent, Extension):
@@ -54,6 +57,12 @@ class Input(PSIContribution):
 
     def _get_dtype(self):
         return self.parent.dtype
+
+    def _get_label(self):
+        return self.parent.label
+
+    def _get_unit(self):
+        return self.parent.unit
 
     def _get_channel(self):
         parent = self.parent
@@ -101,7 +110,7 @@ class EventInput(Input):
 
 class EpochInput(Input):
 
-    epoch_size = Property()
+    epoch_size = Property().tag(metadata=True)
 
     def _get_epoch_size(self):
         return self.parent.epoch_size
@@ -393,10 +402,9 @@ class Edges(EventInput):
 # Epoch input types
 ################################################################################
 @coroutine
-def extract_epochs(fs, queue, epoch_size, buffer_size, delay, target,
-                   empty_queue_cb=None):
+def extract_epochs(fs, queue, epoch_size, buffer_size, delay, epoch_name,
+                   target, empty_queue_cb=None):
     buffer_samples = int(buffer_size*fs)
-    epoch_samples = int(epoch_size*fs)
     delay_samples = int(delay*fs)
 
     data = (yield)
@@ -425,6 +433,10 @@ def extract_epochs(fs, queue, epoch_size, buffer_size, delay, target,
                 offset, signal_size, key, metadata = queue.popleft()
                 next_offset = int(offset*fs)
                 log.trace('Next offset %d, current t_end %d', next_offset, t_end)
+                if epoch_size > 0:
+                    epoch_samples = int(epoch_size*fs)
+                else:
+                    epoch_samples = int(signal_size*fs)
 
             if next_offset is None:
                 break
@@ -439,10 +451,17 @@ def extract_epochs(fs, queue, epoch_size, buffer_size, delay, target,
                 # want to index from, say, -10 to -0. This will result in odd
                 # behavior.
                 i = next_offset-t_end+buffer_samples
+                if metadata is not None:
+                    md = metadata.copy()
+                else:
+                    md = {}
+
+                md[epoch_name + '_start'] = offset
+
                 epoch = {
                     'signal': ring_buffer[..., i:i+epoch_samples].copy(),
                     'key': key,
-                    'metadata': metadata,
+                    'metadata': md,
                     'offset': offset,
                 }
                 epochs.append(epoch)
@@ -477,7 +496,7 @@ class ExtractEpochs(EpochInput):
         cb = super().configure_callback(plugin)
         cb_queue = self.queue.create_connection()
         return extract_epochs(self.fs, cb_queue, self.epoch_size,
-                              self.buffer_size, self.delay, cb,
+                              self.buffer_size, self.delay, self.name, cb,
                               empty_queue_cb).send
 
 

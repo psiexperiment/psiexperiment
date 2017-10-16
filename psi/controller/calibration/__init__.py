@@ -1,5 +1,3 @@
-
-
 from fractions import gcd
 
 from scipy.interpolate import interp1d
@@ -10,7 +8,7 @@ import tables
 import logging
 log = logging.getLogger(__name__)
 
-from atom.api import Float, Unicode
+from atom.api import Atom, Typed, Float, Callable
 from enaml.core.api import Declarative, d_
 from psi import SimpleState
 
@@ -39,7 +37,7 @@ class CalibrationNFError(CalibrationError):
 ################################################################################
 # Calibration routines
 ################################################################################
-class Calibration(object):
+class Calibration(Atom):
     '''
     Assumes that the system is linear for a given frequency
 
@@ -121,13 +119,16 @@ class Calibration(object):
         return self.get_spl(frequency, voltage)-level
 
     def set_fixed_gain(self, fixed_gain):
-        self._fixed_gain = fixed_gain
+        self.fixed_gain = fixed_gain
 
     def get_sens(self, frequency):
         raise NotImplementedError
 
 
 class FlatCalibration(Calibration):
+
+    sensitivity = Float().tag(metadata=True)
+    fixed_gain = Float().tag(metadata=True)
 
     @classmethod
     def as_attenuation(cls, vrms=1, **kwargs):
@@ -155,11 +156,11 @@ class FlatCalibration(Calibration):
         return cls(sensitivity, **kwargs)
 
     def __init__(self, sensitivity, fixed_gain=0):
-        self._sensitivity = sensitivity
-        self._fixed_gain = fixed_gain
+        self.sensitivity = sensitivity
+        self.fixed_gain = fixed_gain
 
     def get_sens(self, frequency):
-        return self._sensitivity-self._fixed_gain
+        return self.sensitivity-self.fixed_gain
 
 
 class InterpCalibration(Calibration):
@@ -185,29 +186,38 @@ class InterpCalibration(Calibration):
         value).
     '''
 
+    frequency = Typed(np.ndarray).tag(metadata=True)
+    sensitivity = Typed(np.ndarray).tag(metadata=True)
+    fixed_gain = Float(0).tag(metadata=True)
+    _interp = Callable()
+
     def __init__(self, frequency, sensitivity, fixed_gain=0):
-        self._frequency = frequency
-        self._sensitivity = sensitivity
-        self._fixed_gain = fixed_gain
+        self.frequency = frequency
+        self.sensitivity = sensitivity
+        self.fixed_gain = fixed_gain
         self._interp = interp1d(frequency, sensitivity, 'linear',
                                 bounds_error=False)
 
     def get_sens(self, frequency):
         # Since sensitivity is in dB(V/Pa), subtracting fixed_gain from
         # sensitivity will *increase* the sensitivity of the system.
-        return self._interp(frequency)-self._fixed_gain
+        return self._interp(frequency)-self.fixed_gain
 
 
 class PointCalibration(Calibration):
+
+    frequency = Typed(np.ndarray).tag(metadata=True)
+    sensitivity = Typed(np.ndarray).tag(metadata=True)
+    fixed_gain = Float(0).tag(metadata=True)
 
     def __init__(self, frequency, sensitivity, fixed_gain=0):
         if np.isscalar(frequency):
             frequency = [frequency]
         if np.isscalar(sensitivity):
             sensitivity = [sensitivity]
-        self._frequency = frequency
-        self._sensitivity = sensitivity
-        self._fixed_gain = fixed_gain
+        self.frequency = np.array(frequency)
+        self.sensitivity = np.array(sensitivity)
+        self.fixed_gain = fixed_gain
 
     def get_sens(self, frequency):
         if np.iterable(frequency):
@@ -217,12 +227,12 @@ class PointCalibration(Calibration):
 
     def _get_sens(self, frequency):
         try:
-            i = np.flatnonzero(np.equal(self._frequency, frequency))[0]
+            i = np.flatnonzero(np.equal(self.frequency, frequency))[0]
         except IndexError:
-            log.debug('Calibrated frequencies are %r', self._frequency)
+            log.debug('Calibrated frequencies are %r', self.frequency)
             m = 'Frequency {} not calibrated'.format(frequency)
             raise CalibrationError(m)
-        return self._sensitivity[i]-self._fixed_gain
+        return self.sensitivity[i]-self.fixed_gain
 
 
 class GolayCalibration(InterpCalibration):
@@ -249,7 +259,7 @@ class GolayCalibration(InterpCalibration):
                 'integer multiple of the requested sampling rate'
             raise ValueError(m.format(self._fs))
 
-        n = (len(self._frequency)-1)/fs_ratio + 1
+        n = (len(self.frequency)-1)/fs_ratio + 1
         if int(n) != n:
             m = 'Cannot achieve requested sampling rate ' \
                 'TODO: explain why'
@@ -257,9 +267,9 @@ class GolayCalibration(InterpCalibration):
         n = int(n)
 
         fc = (fl+fh)/2.0
-        freq = self._frequency
+        freq = self.frequency
         phase = self._phase
-        sens = self._sensitivity - (self.get_sens(fc) + self._fixed_gain)
+        sens = self.sensitivity - (self.get_sens(fc) + self.fixed_gain)
         sens[freq < fl] = 0
         sens[freq >= fh] = 0
         m, b = np.polyfit(freq[freq < fh], phase[freq < fh], 1)

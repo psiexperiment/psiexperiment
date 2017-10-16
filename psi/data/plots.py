@@ -7,7 +7,7 @@ import struct
 import numpy as np
 import pyqtgraph as pg
 
-from atom.api import (Unicode, Float, Tuple, Int, Typed, Property, Atom, Bool)
+from atom.api import (Unicode, Float, Tuple, Int, Typed, Property, Atom, Bool, Enum)
 from enaml.core.api import Declarative, d_
 from enaml.application import deferred_call, timed_call
 
@@ -19,21 +19,24 @@ from psi.core.enaml.api import PSIContribution
 ################################################################################
 class ChannelDataRange(object):
 
-    def __init__(self, container, span):
+    def __init__(self, container, span, delay=0.25):
         self.container = container
         self.span = span
-        self.current_time = 0
+        self.delay = delay
+        self.current_time = -delay
         self.current_range = None
 
     def add_source(self, source, plot):
         source.observe('added', partial(self.source_added, plot=plot))
 
     def source_added(self, event, plot):
-        self.current_time = max(self.current_time, event['value']['ub'])
+        self.current_time = max(self.current_time, event['value']['ub']-self.delay)
         spans = self.current_time // self.span
         high_value = (spans+1)*self.span
         low_value = high_value-self.span
-        if self.current_range != (low_value, high_value):
+        if high_value == low_value:
+            return
+        elif self.current_range != (low_value, high_value):
             self.container.update_range(low_value, high_value)
         else:
             plot.update_range(low_value, high_value)
@@ -41,23 +44,6 @@ class ChannelDataRange(object):
     def update_range(self, range):
         self.current_range = (low_value, high_value)
         self.container.update_range(low_value, high_value)
-
-
-class CustomViewBox(pg.ViewBox):
-
-    def wheelEvent(self, ev, axis=None):
-        mask = np.array(self.state['mouseEnabled'], dtype=np.float)
-        if axis is not None and axis >= 0 and axis < len(mask):
-            mv = mask[axis]
-            mask[:] = 0
-            mask[axis] = mv
-        s = ((mask*0.02)+1)**(ev.delta()*self.state['wheelScaleFactor'])
-        #center = Point(fn.invertQTransform(self.childGroup.transform()).map(ev.pos()))
-
-        self._resetTarget()
-        self.scaleBy(s, center=None)
-        self.sigRangeChangedManually.emit(self.state['mouseEnabled'])
-        ev.accept()
 
 
 ################################################################################
@@ -73,50 +59,58 @@ class PlotContainer(PSIContribution):
         return pg.GraphicsLayout()
 
 
-class Plot(PSIContribution):
-
-    line_color = d_(Tuple())
-    fill_color = d_(Tuple())
-
-
-
 class TimeContainer(PlotContainer):
 
-    span = d_(Float())
-    plot_item = Typed(pg.PlotItem)
     data_range = Typed(ChannelDataRange)
-    plots = Typed(list, [])
+    span = d_(Float(1))
+    delay = d_(Float(0.25))
 
-    # TODO: not implemented
-    trig_delay = d_(Float())
-    major_grid_index = d_(Float(5))
-    minor_grid_index = d_(Float(1))
+    x_axis = Typed(pg.AxisItem)
+    base_viewbox = Property()
 
-    y_min = d_(Float(-1))
-    y_max = d_(Float(1))
+    def _get_base_viewbox(self):
+        return self.children[0].viewbox
+
+    def _default_x_axis(self):
+        x_axis = pg.AxisItem('bottom')
+        x_axis.setGrid(127)
+        x_axis.setLabel('Time', unitPrefix='sec.')
+        x_axis.linkToView(self.children[0].viewbox)
+        return x_axis
+
+    def _default_container(self):
+        container = super()._default_container()
+        container.setSpacing(10)
+
+        # Add the axes to the layout
+        for i, child in enumerate(self.children):
+            container.addItem(child.y_axis, i, 0)
+            container.addItem(child.viewbox, i, 1)
+        container.addItem(self.x_axis, i+1, 1)
+
+        # Link the child views
+        #container.addItem(self.base_viewbox, 0, i+1)
+        for child in self.children[1:]:
+            child.viewbox.setXLink(self.base_viewbox)
+
+        return container
 
     def prepare(self, plugin):
-        viewbox = CustomViewBox()
-        self.plot_item = pg.PlotItem(viewBox=viewbox)
-        self.plot_item.enableAutoRange(False, False)
-        self.plot_item.setXRange(0, self.span)
-        self.plot_item.setYRange(self.y_min, self.y_max)
-        self.container.addItem(self.plot_item, 0, 0)
         self.data_range = ChannelDataRange(self, self.span)
         for child in self.children:
-            plot = child.create_plot(plugin, self)
-            self.plots.append(plot)
+            child.create_plot(plugin, self)
+        self.update_range(-self.span, self.delay)
 
     def update_range(self, low, high):
-        for child in self.children:
-            child.update_range(low, high)
+        updaters = [child.update_range(low, high) for child in self.children]
+        self.base_viewbox.setXRange(low, high, padding=0)
+        deferred_call(lambda c=updaters: [u() for u in c])
 
 
 ################################################################################
 # Plots
 ################################################################################
 class Plot(PSIContribution):
-
     line_color = d_(Tuple())
     fill_color = d_(Tuple())
 
@@ -126,103 +120,59 @@ class ChannelPlot(Plot):
     source_name = d_(Unicode())
     value_range = d_(Tuple(Float(), Float()))
 
+    y_axis = Typed(pg.AxisItem)
+    viewbox = Typed(pg.ViewBox)
     source = Typed(object)
     plot = Typed(object)
-
-    def create_plot(self, plugin, container):
-        self.source = plugin.find_source(self.source_name)
-        container.data_range.add_source(self.source, self)
-        self.plot = container.plot_item.plot()
-        return self.plot
-
-    def update_range(self, low, high):
-        data = self.source.get_range(low, high)
-        t = np.arange(len(data))/self.source.fs
-        self.plot.setData(t, data)
+    pen = Typed(object)
 
 
 class ExtremesChannelPlot(ChannelPlot):
 
-    container = Typed(object)
-    downsample = Int()
-    time = Typed(object)
+    y_min = d_(Float())
+    y_max = d_(Float())
+    pen_color = d_(Typed(object))
+    pen_width = d_(Float(0))
 
-    y_min = Typed(object)
-    y_max = Typed(object)
-    fill = Typed(object)
+    downsample_method = d_(Enum('peak', 'mean'))
+    auto_downsample = d_(Bool(True))
+    antialias = d_(Bool(True))
 
-    def decimate_extremes(self, y, downsample):
-        # If data is empty, return imediately
-        if y.size == 0:
-            return np.array([]), np.array([])
+    def _default_y_axis(self):
+        y_axis = pg.AxisItem('left')
+        y_axis.setPen(self.pen_color)
+        y_axis.linkToView(self.viewbox)
+        y_axis.setGrid(127)
+        return y_axis
 
-        # Determine the fragment size that we are unable to decimate.  A
-        # downsampling factor of 5 means that we perform the operation in chunks
-        # of 5 samples.  If we have only 13 samples of data, then we cannot
-        # decimate the last 3 samples and will simply discard them.
-        offset = int(y.shape[-1] % downsample)
-        y = y[..., :-offset].reshape((-1, downsample))
-        return y.min(-1), y.max(-1)
+    def _default_viewbox(self):
+        viewbox = pg.ViewBox(enableMouse=True, enableMenu=False)
+        viewbox.setBackgroundColor('w')
+        viewbox.disableAutoRange()
+        viewbox.setYRange(self.y_min, self.y_max)
+        viewbox.addItem(self.plot)
+        return viewbox
+
+    def _default_pen(self):
+        return pg.mkPen(self.pen_color, width=self.pen_width)
+
+    def _default_plot(self):
+        return pg.PlotCurveItem(pen=self.pen, antialias=self.antialias,
+                                downsampleMethod=self.downsample_method,
+                                auto_downsample=self.auto_downsample)
+
 
     def create_plot(self, plugin, container):
-        self.container = container
-
-        pen = pg.mkPen('k', width=1)
-        self.plot = pg.PlotCurveItem(pen=pen)
-        self.container.plot_item.addItem(self.plot)
-
         self.source = plugin.find_source(self.source_name)
-        self.container.data_range.add_source(self.source, self)
-        self.container.plot_item.setMouseEnabled(x=True, y=True)
-
-        # TODO: For some reason this crashes if we attempt to connect directly
-        # to the compute pixel size function.
-        def handle(*args, obj=self, **kwargs):
-            self.compute_pixel_size()
-
-        self.container.plot_item.vb.geometryChanged.connect(handle)
-        return self.plot
-
-    def update_buffers(self, *args, **kwargs):
-        data_samples = int(self.container.span/self.source.fs)
-        decimated_samples = int(data_samples/self.downsample)
-        self._data_limits = 0, 0
-        self._data_buffer = np.empty(x_range, dtype=np.float)
-        self._decimated_buffer = np.empty((2, x_range), dtype=np.float)
-
-    def compute_pixel_size(self, *args, **kwargs):
-        try:
-            pixel_width, _ = self.container.plot_item.vb.viewPixelSize()
-            self.downsample = int(pixel_width*self.source.fs)
-            time = np.arange(self.container.span*self.source.fs)/self.source.fs
-            self.time = time[::self.downsample]
-        except:
-            pass
+        #self.y_axis.setLabel(self.source.label, unitPrefix=self.source.unit)
+        # TODO FIXME
+        self.y_axis.setLabel('TESTING', unitPrefix='Hz')
+        container.data_range.add_source(self.source, self)
 
     def update_range(self, low, high):
-        if self.downsample == 0:
-            return
-
-        #cache_low, cache_high = self._data_limits
-        #if cache_low > low:
-
-        #lb = int((low-cache_low)*self.source.fs)
-        #ub = int((high-cache_low)*self.source.fs)
-
-        #samples = self._data_buffer[lb:ub]
-        #if 
-
-        #if cache_low > low:
-
-
-        log.trace('Downsampling signal at {}'.format(self.downsample))
         data = self.source.get_range(low, high)
-        y_min, y_max = self.decimate_extremes(data, self.downsample)
-        n = len(y_min)
-        t = np.arange(len(y_min))/self.source.fs*self.downsample
-        x = np.column_stack([t, t]).ravel()
-        y = np.column_stack([y_min, y_max]).ravel()
-        deferred_call(self.plot.setData, x, y)
+        t = np.arange(len(data))/self.source.fs + low
+        return partial(self.plot.setData, t, data)
 
 
 ################################################################################
@@ -249,6 +199,9 @@ class GridContainer(PlotContainer):
     context_info = Typed(object)
 
     _update_pending = Bool(False)
+
+    def _default_container(self):
+        return pg.GraphicsLayout()
 
     def context_info_updated(self, info):
         self.context_info = info

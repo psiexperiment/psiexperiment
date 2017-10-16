@@ -41,6 +41,11 @@ def save_trial(event):
 
 
 def calibrate_output(event):
+    calibrate_primary(event)
+    calibrate_secondary(event)
+
+
+def calibrate_primary(event):
     # Load the plugins we'll need
     core = event.workbench.get_plugin('enaml.workbench.core')
     controller = event.workbench.get_plugin('psi.controller')
@@ -50,6 +55,24 @@ def calibrate_output(event):
     frequencies = list(frequencies)
 
     output_channel = controller.get_channel('speaker_0')
+    input_channel = controller.get_channel('microphone')
+    calibrate(output_channel, input_channel, frequencies)
+
+
+def calibrate_secondary(event):
+    # Load the plugins we'll need
+    core = event.workbench.get_plugin('enaml.workbench.core')
+    controller = event.workbench.get_plugin('psi.controller')
+
+    p = event.parameters
+    parameters = {'item_name': 'modulator_1_tone_frequency', 'iterator': 'default'}
+    frequencies1 = core.invoke_command('psi.context.unique_values', parameters)
+    parameters = {'item_name': 'modulator_2_tone_frequency', 'iterator': 'default'}
+    frequencies2 = core.invoke_command('psi.context.unique_values', parameters)
+    frequencies = list(frequencies1 | frequencies2)
+
+    # Get the configuration for the channels
+    output_channel = controller.get_channel('speaker_1')
     input_channel = controller.get_channel('microphone')
     calibrate(output_channel, input_channel, frequencies)
 
@@ -84,19 +107,47 @@ enamldef ControllerManifest(BaseManifest): manifest:
             queue = InterleavedFIFOSignalQueue(fs=output_0.fs, initial_delay=1)
             auto_decrement = True
 
+        QueuedEpochOutput: output_1:
+            name = 'modulator_1'
+            label = 'Modulator 1'
+            target_name = 'speaker_1'
+            selector_name = 'default'
+            queue = InterleavedFIFOSignalQueue(fs=output_1.fs, initial_delay=1)
+            auto_decrement = True
+
+        QueuedEpochOutput: output_2:
+            name = 'modulator_2'
+            label = 'Modulator 2'
+            target_name = 'speaker_1'
+            selector_name = 'default'
+            queue = InterleavedFIFOSignalQueue(fs=output_2.fs, initial_delay=1)
+            auto_decrement = True
+
         Blocked:
             duration = 0.25
             name = 'eeg'
             save = True
             source_name = 'eeg_channel'
 
-            ExtractEpochs: extract:
-                save = True
-                buffer_size = 300
-                epoch_size = 30
-                queue = output_0.queue
-                delay = 47.5/extract.fs
-                name = 'erp'
+            Accumulate:
+                name = 'eeg_buffered'
+                n = 25
+
+                IIRFilter:
+                    name = 'eeg_buffered_filtered'
+                    N = 2
+                    btype = 'bandpass'
+                    ftype = 'butter'
+                    f_highpass = 200
+                    f_lowpass = 10000
+
+                    ExtractEpochs: extract:
+                        save = True
+                        buffer_size = 300
+                        epoch_size = 30
+                        queue = output_0.queue
+                        delay = 47.5/extract.fs
+                        name = 'erp'
 
     Extension:
         id = 'selectors'
@@ -159,6 +210,14 @@ enamldef ControllerManifest(BaseManifest): manifest:
         ExperimentAction:
             event = 'experiment_prepare'
             command = 'carrier.prepare_queue'
+
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'modulator_1.prepare_queue'
+
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'modulator_2.prepare_queue'
 
         ExperimentAction:
             event = 'erp_acquired'

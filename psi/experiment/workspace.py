@@ -66,6 +66,7 @@ class ExperimentWorkspace(Workspace):
     def load_toolbars(self):
         experiment = self.workbench.get_plugin('psi.experiment')
         self.toolbars = experiment._toolbars
+
     def _default_content(self):
         return ExperimentView()
 

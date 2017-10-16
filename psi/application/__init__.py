@@ -133,9 +133,7 @@ def _main(args):
     ui.select_workspace('psi.experiment.workspace')
     ui.show_window()
     base_path = get_base_path(args.pathname, args.experiment)
-    deferred_call(core.invoke_command, 
-                  'psi.data.set_base_path', 
-                  {'base_path': base_path})
+    deferred_call(core.invoke_command, 'psi.data.set_base_path', {'base_path': base_path})
     for command in args.commands:
         deferred_call(core.invoke_command, command)
     ui.start_application()

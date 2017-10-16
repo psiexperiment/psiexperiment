@@ -17,9 +17,29 @@ def rpc(plugin_name, method_name):
 
 def get_tagged_values(obj, tag_name, tag_value=True):
     result = {}
-    for k, v in obj.members().items():
-        if v.metadata and v.metadata.get(tag_name) == tag_value:
-            result[k] = getattr(obj, k)
+    for name, member in obj.members().items():
+        if member.metadata and member.metadata.get(tag_name) == tag_value:
+            value = getattr(obj, name)
+            result[name] = value
+    return result
+
+
+def declarative_to_dict(obj, tag_name, tag_value=True):
+    from atom.api import Atom
+    import numpy as np
+    result = {}
+    for name, member in obj.members().items():
+        if member.metadata and member.metadata.get(tag_name) == tag_value:
+            value = getattr(obj, name)
+            if isinstance(value, Atom):
+                # Recurse into the class
+                result[name] = declarative_to_dict(value, tag_name, tag_value)
+            elif isinstance(value, np.ndarray):
+                # Convert to a list
+                result[name] = value.tolist()
+            else:
+                result[name] = value
+    result['type'] = obj.__class__.__name__
     return result
 
 
