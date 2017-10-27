@@ -243,15 +243,11 @@ enamldef SAMEnvelope(Block): block:
 # Bandlimited noise
 ################################################################################
 @memory.cache
-def _calculate_bandlimited_noise_filter(fs, center_frequency, pass_bandwidth,
-                                        stop_bandwidth, passband_attenuation,
+def _calculate_bandlimited_noise_filter(fs, fl, fh, fls, fhs,
+                                        passband_attenuation,
                                         stopband_attenuation):
-    fl = center_frequency-0.5*pass_bandwidth
-    fh = center_frequency+0.5*pass_bandwidth
     Wp = np.array([fl, fh])/(0.5*fs)
-    fl = center_frequency-0.5*stop_bandwidth
-    fh = center_frequency+0.5*stop_bandwidth
-    Ws = np.array([fl, fh])/(0.5*fs)
+    Ws = np.array([fls, fhs])/(0.5*fs)
     b, a = signal.iirdesign(Wp, Ws, passband_attenuation, stopband_attenuation) 
     if np.any(np.abs(np.roots(a)) >= 1):
         raise ValueError('Unstable filter coefficients')
@@ -260,10 +256,7 @@ def _calculate_bandlimited_noise_filter(fs, center_frequency, pass_bandwidth,
 
 
 @memory.cache
-def _calculate_bandlimited_noise_iir(fs, calibration, center_frequency,
-                                     pass_bandwidth):
-    fl = center_frequency-0.5*pass_bandwidth
-    fh = center_frequency+0.5*pass_bandwidth
+def _calculate_bandlimited_noise_iir(fs, calibration, fl, fh):
     duration = 2.0/fl
     iir = calibration.get_iir(fs, fl, fh, duration)
     zi = signal.lfilter_zi(iir, [1])
@@ -271,22 +264,25 @@ def _calculate_bandlimited_noise_iir(fs, calibration, center_frequency,
 
 
 @no_inputs
-def bandlimited_noise_factory(fs, seed, level, center_frequency,
-                              pass_bandwidth, stop_bandwidth,
+def bandlimited_noise_factory(fs, seed, level, fl, fh, filter_rolloff,
                               passband_attenuation, stopband_attenuation,
                               equalize, calibration):
     waveform = None
     state = np.random.RandomState(seed)
 
+    center_frequency = (fl+fh)*0.5
+    pass_bandwidth = fh-fl
     sf = calibration.get_sf(center_frequency, level)
+
+    # Calculate the stop bandwidth as octaves above and below the passband.
+    fls, fhs = fl*(2**-filter_rolloff), fh*(2**filter_rolloff)
     
-    b, a, bp_zi = _calculate_bandlimited_noise_filter(
-        fs, center_frequency, pass_bandwidth, stop_bandwidth,
-        passband_attenuation, stopband_attenuation)
+    b, a, bp_zi = _calculate_bandlimited_noise_filter(fs, fl, fh, fls, fhs,
+                                                      passband_attenuation,
+                                                      stopband_attenuation)
 
     if equalize:
-        iir, iir_zi = _calculate_bandlimited_noise_iir(
-            fs, calibration, center_frequency, pass_bandwidth)
+        iir, iir_zi = _calculate_bandlimited_noise_iir(fs, calibration, fl, fh)
 
     # This was copied from the EPL CFT. Need to figure out how this equation
     # works so we can document this better. But it works as intended to scale
@@ -327,34 +323,34 @@ enamldef BandlimitedNoise(Block):
         default = 1
 
     Parameter:
-        name = 'center_frequency'
-        label = 'center frequency (Hz)'
-        compact_label = 'fc'
-        default = 8000.0
+        name = 'fl'
+        label = 'highpass cutoff (Hz)'
+        compact_label = 'fl'
+        default = 0.1e3
 
     Parameter:
-        name = 'pass_bandwidth'
-        label = 'pass bandwidth (Hz)'
-        compact_label = 'pass bw'
-        default = 6000.0
+        name = 'fh'
+        label = 'lowpass cutoff (Hz)'
+        compact_label = 'fh'
+        default = 20e3
 
     Parameter:
-        name = 'stop_bandwidth'
-        label = 'stop bandwidth (Hz)'
-        compact_label = 'stop bw'
-        default = 4000.0
+        name = 'filter_rolloff'
+        label = 'filter rolloff (octaves)'
+        compact_label = 'fr'
+        default = 3
 
     Parameter:
         name = 'passband_attenuation'
         label = 'passband attenuation (dB)'
         compact_label = 'pass. atten.'
-        default = 10.0
+        default = 0.1
 
     Parameter:
         name = 'stopband_attenuation'
         label = 'stopband attenuation (dB)'
         compact_label = 'stop. atten.'
-        default = 60.0
+        default = 90.0
 
     EnumParameter:
         name = 'equalize'

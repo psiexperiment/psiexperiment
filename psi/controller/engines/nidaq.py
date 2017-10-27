@@ -110,14 +110,7 @@ class SamplesGeneratedCallbackHelper(object):
 
     def __call__(self, task, event_type, callback_samples, callback_data):
         try:
-            mx.DAQmxSetWriteRelativeTo(task, mx.DAQmx_Val_CurrWritePos)
-            mx.DAQmxSetWriteOffset(task, 0)
-            while True:
-                mx.DAQmxGetWriteSpaceAvail(task, self._uint32)
-                available_samples = self._uint32.value
-                if available_samples < callback_samples:
-                    break
-                self._callback(callback_samples)
+            self._callback(callback_samples)
             return 0
         except Exception as e:
             log.exception(e)
@@ -766,6 +759,7 @@ class NIDAQEngine(Engine):
         self._callbacks['et'].remove((channel_name, s, callback))
 
     def write_hw_ao(self, data, offset=None, timeout=0):
+        log.debug('Writing {} samples at {}'.format(data.shape, offset))
         task = self._tasks['hw_ao']
         if offset is not None:
             # Overwrites data already in the buffer. Used to override changes to
@@ -861,10 +855,14 @@ class NIDAQEngine(Engine):
     def hw_ao_callback(self, samples):
         # Get the next set of samples to upload to the buffer
         with self.lock:
-            #samples = self.get_space_available()
-            offset = self.get_offset()
-            data = self._get_hw_ao_samples(offset, samples)
-            self.write_hw_ao(data, timeout=1)
+            log.debug('HW AO callback')
+            while True:
+                offset = self.get_offset()
+                available_samples = self.get_space_available(offset)
+                if available_samples < samples:
+                    break
+                data = self._get_hw_ao_samples(offset, samples)
+                self.write_hw_ao(data, timeout=0)
 
     def update_hw_ao(self, offset, channel_name=None):
         # Get the next set of samples to upload to the buffer. Ignore the
@@ -872,9 +870,9 @@ class NIDAQEngine(Engine):
         with self.lock:
             samples = self.get_space_available(offset)
             log.debug('Updating hw ao at {} with {} samples' \
-                    .format(offset, samples))
+                      .format(offset, samples))
             data = self._get_hw_ao_samples(offset, samples)
-            self.write_hw_ao(data, offset=offset, timeout=1)
+            self.write_hw_ao(data, offset=offset, timeout=0)
 
     def get_ts(self):
         return self.ao_sample_clock()/self.ao_fs
@@ -911,11 +909,12 @@ class NIDAQEngine(Engine):
 
     def get_offset(self, channel_name=None):
         # Doesn't matter. Offset is the same for all channels in the task.
-        task = self._tasks['hw_ao']
-        mx.DAQmxSetWriteRelativeTo(task, mx.DAQmx_Val_CurrWritePos)
-        mx.DAQmxSetWriteOffset(task, 0)
-        mx.DAQmxGetWriteCurrWritePos(task, self._uint64)
-        return self._uint64.value
+        with self.lock:
+            task = self._tasks['hw_ao']
+            mx.DAQmxSetWriteRelativeTo(task, mx.DAQmx_Val_CurrWritePos)
+            mx.DAQmxSetWriteOffset(task, 0)
+            mx.DAQmxGetWriteCurrWritePos(task, self._uint64)
+            return self._uint64.value
 
     def get_space_available(self, offset=None, channel_name=None):
         # It doesn't matter what the output channel is. Space will be the same

@@ -117,6 +117,7 @@ def start_output(event, output):
     offset = int((start+delay)*output.channel.fs)
     with output.engine.lock:
         # Important to lock the engine when activating the output
+        log.debug('Activating output')
         output.activate(offset)
         output.engine.update_hw_ao(offset, output.channel.name)
 

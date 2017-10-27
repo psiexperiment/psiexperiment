@@ -12,7 +12,7 @@ from psi.controller.api import (ExperimentState, ExperimentAction,
                                 ContinuousOutput, EpochOutput)
 
 from psi.context.api import ContextGroup, Parameter
-from psi.data.plots import (TimeContainer, ChannelPlot, ViewBox, TimeseriesPlot)
+from psi.data.plots import (TimeContainer, FFTContainer, ChannelPlot, ViewBox, TimeseriesPlot, FFTChannelPlot)
 
 from psi.data.sinks.event_log import EventLog
 from psi.data.sinks.trial_log import TrialLog
@@ -74,7 +74,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
         ExperimentAction:
             event = 'response_end'
             command = 'target.clear'
-            kwargs = {'delay': 1}
+            kwargs = {'delay': 0.5}
             #concurrent = True
             weight = 0
 
@@ -125,21 +125,24 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
         #FFTContainer:
         #    name = 'fft_plot_container'
         #    title = 'FFT'
-        #    freq_lb = 0.1e3 
-        #    freq_ub = 10e3
+        #    freq_lb = 5
+        #    freq_ub = 50000
 
-        #    FFTChannelPlot:
-        #        source = 'microphone'
-        #        line_color = (0, 0, 0)
-        #        value_range = (0, 100)
-        #        time_span = 1
-        #        axis_label = 'Level (dB SPL)'
-        #        reference = 20e-6
+        #    ViewBox:
+        #        y_min = -120
+        #        y_max = 100
+
+        #        FFTChannelPlot:
+        #            source_name = 'calibrated_microphone'
+        #            pen_color = (0, 0, 0)
+        #            time_span = 1
+        #            #axis_label = 'Level (dB SPL)'
+        #            #reference = 20e-6
 
         TimeContainer:
             name = 'trial_plot_container' 
             title = 'Trial timing'
-            span = 20
+            span = 10
 
             ViewBox:
                 y_min = 0
@@ -235,4 +238,3 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                     name = 'plot3'
                     source_name = 'microphone'
                     pen_color = 'k'
-

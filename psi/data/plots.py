@@ -13,6 +13,7 @@ from enaml.core.api import Declarative, d_
 from enaml.application import deferred_call, timed_call
 
 from psi.core.enaml.api import PSIContribution
+from psi.controller.calibration import util
 
 
 ################################################################################
@@ -37,9 +38,11 @@ class ChannelDataRange(Atom):
         low_value = (self.current_time//self.span)*self.span
         high_value = low_value+self.span
         if self.current_range != (low_value, high_value):
+            # this updates all plots linked to this data range
             self.current_range = (low_value, high_value)
             self.container.update_range(low_value, high_value)
         else:
+            # this updates only the plot that has new data
             plot.update_range(low_value, high_value)
 
 
@@ -52,32 +55,11 @@ class PlotContainer(PSIContribution):
     label = d_(Unicode())
     container = Typed(pg.GraphicsWidget)
 
-    def _default_container(self):
-        return pg.GraphicsLayout()
-
-
-class TimeContainer(PlotContainer):
-
-    data_range = Typed(ChannelDataRange)
-    span = d_(Float(1))
-    delay = d_(Float(0.25))
-
     x_axis = Typed(pg.AxisItem)
     base_viewbox = Property()
-    pixel_width = Float()
-
-    def _get_base_viewbox(self):
-        return self.children[0].viewbox
-
-    def _default_x_axis(self):
-        x_axis = pg.AxisItem('bottom')
-        x_axis.setGrid(127)
-        x_axis.setLabel('Time', unitPrefix='sec.')
-        x_axis.linkToView(self.children[0].viewbox)
-        return x_axis
 
     def _default_container(self):
-        container = super()._default_container()
+        container = pg.GraphicsLayout()
         container.setSpacing(10)
 
         # Add the x and y axes to the layout
@@ -90,20 +72,71 @@ class TimeContainer(PlotContainer):
         for child in self.children[1:]:
             child.viewbox.setXLink(self.base_viewbox)
 
-        # Ensure that the x axis shows the planned range
-        self.base_viewbox.setXRange(0, self.span, padding=0)
-
         return container
 
+    def _get_base_viewbox(self):
+        return self.children[0].viewbox
+
+    def _default_x_axis(self):
+        x_axis = pg.AxisItem('bottom')
+        x_axis.setGrid(127)
+        x_axis.linkToView(self.children[0].viewbox)
+        return x_axis
+
     def prepare(self, plugin):
-        self.data_range = ChannelDataRange(container=self, span=self.span)
         for child in self.children:
             child.prepare(plugin)
+
+
+class TimeContainer(PlotContainer):
+
+    data_range = Typed(ChannelDataRange)
+    span = d_(Float(1))
+    delay = d_(Float(0.25))
+
+    pixel_width = Float()
+
+    def _default_container(self):
+        container = super()._default_container()
+        # Ensure that the x axis shows the planned range
+        self.base_viewbox.setXRange(0, self.span, padding=0)
+        return container
+
+    def _default_data_range(self):
+        return ChannelDataRange(container=self, span=self.span)
 
     def update_range(self, low, high):
         for child in self.children:
             child.update_range(low, high)
         self.base_viewbox.setXRange(low, high, padding=0)
+
+    def _default_x_axis(self):
+        x_axis = super()._default_x_axis()
+        x_axis.setLabel('Time', unitPrefix='sec.')
+        return x_axis
+
+
+def format_log_ticks(values, scale, spacing):
+    values = 10**np.array(values).astype(np.float)
+    return ['{:.1f}'.format(v) for v in values]
+
+
+class FFTContainer(PlotContainer):
+
+    freq_lb = d_(Float(5))
+    freq_ub = d_(Float(50000))
+
+    def _default_container(self):
+        container = super()._default_container()
+        self.base_viewbox.setXRange(np.log10(self.freq_lb), np.log10(self.freq_ub), padding=0)
+        return container
+
+    def _default_x_axis(self):
+        x_axis = super()._default_x_axis()
+        x_axis.setLabel('Frequency', unitPrefix='Hz')
+        x_axis.logTickStrings = format_log_ticks
+        x_axis.setLogMode(True)
+        return x_axis
 
 
 ################################################################################
@@ -229,6 +262,30 @@ def decimate_extremes(data, downsample):
         shape = (-1, downsample)
     data = data[..., :-offset].reshape(shape).copy()
     return data.min(last_dim), data.max(last_dim)
+
+
+class FFTChannelPlot(ChannelPlot): 
+
+    time_span = d_(Float())
+    _cached_frequency = Typed(np.ndarray)
+
+    def _default_plot(self):
+        return pg.PlotCurveItem(pen=self.pen, antialias=self.antialias)
+
+    def prepare(self, plugin):
+        self.source = plugin.find_source(self.source_name)
+        n = int(self.source.fs*self.time_span)
+        self._cached_frequency = np.log10(np.fft.rfftfreq(n, self.source.fs**-1))
+        self.source.observe('added', self.update)
+
+    def update(self, event):
+        print(self.plot.isVisible())
+        ub = event['value']['ub']
+        if ub < self.time_span:
+            return
+        data = self.source.get_range(ub-self.time_span, ub)
+        psd = util.patodb(util.psd(data, self.source.fs))
+        deferred_call(self.plot.setData, self._cached_frequency, psd)
 
 
 class TimeseriesPlot(Plot):

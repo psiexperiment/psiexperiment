@@ -78,7 +78,7 @@ enamldef IOManifest(PluginManifest): manifest:
             # and reward contact, we want a fairly short AI monitor period to
             # ensure that we detect these events quickly.
             hw_ai_monitor_period = 0.01
-            hw_ao_monitor_period = 1
+            hw_ao_monitor_period = 0.25
 
             AOChannel:
                 label = 'Speaker'
@@ -114,25 +114,8 @@ enamldef IOManifest(PluginManifest): manifest:
                 terminal_mode = 'differential'
                 calibration = FlatCalibration(db(10))
 
-                Accumulate:
-                    name = 'microphone_accumulator'
-                    n = 50
-                    CalibratedInput:
-                        name = 'calibrated_microphone'
-                        IIRFilter:
-                            f_highpass = 1000
-                            f_lowpass = 40000
-                            ftype = 'butter'
-                            N = 4
-                            btype = 'bandpass'
-                            name = 'microphone'
-                            save = True
-                            RMS:
-                                name = 'microphone_rms'
-                                duration = 1
-                                SPL:
-                                    save = True
-                                    name = 'noise_level'
+                CalibratedInput:
+                    name = 'microphone'
 
             AIChannel:
                 label = 'Nose poke IR'
