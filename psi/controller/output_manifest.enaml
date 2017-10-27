@@ -150,6 +150,19 @@ def decrement_key(event, output):
             log.debug(m.format(epoch['key']))
 
 
+def plot_output(event, output):
+    core = event.workbench.get_plugin('enaml.workbench.core')
+    core.invoke_command('psi.context.apply_changes')
+    context = core.invoke_command('psi.context.get_values')
+
+    factory = initialize_factory(output, context)
+    generator = factory()
+    next(generator)
+    w = generator.send({'samples': 100000})
+
+     #TODO FINISH ME
+
+
 enamldef AnalogOutputManifest(PSIManifest): manifest:
 
     Extension:
@@ -168,26 +181,35 @@ enamldef AnalogOutputManifest(PSIManifest): manifest:
         Command:
             id = manifest.contribution.name + '.clear'
             handler = partial(clear_output, output=manifest.contribution)
+        Command:
+            id = manifest.contribution.name + '.plot'
+            handler = partial(plot_output, output=manifest.contribution)
 
     Extension:
         id = 'output_menu.' + manifest.contribution.name
         point = 'enaml.workbench.ui.actions'
-        MenuItem:
+        MenuItem: menu:
             path = '/equipment/output/{}'.format(manifest.contribution.name)
             label = '{} ({})'.format(manifest.contribution.label, output_type)
             ItemGroup:
+                id = manifest.contribution.name + '_commands'
+            ItemGroup:
                 exclusive = True
-                id = manifest.contribution.name
+                id = manifest.contribution.name + '_tokens'
+        ActionItem:
+            path = '{}/plot_output'.format(menu.path)
+            label = 'Plot output'
+            group = manifest.contribution.name + '_commands'
+            command = manifest.contribution.name + '.plot'
         Looper:
             # Generate the token menu so we can select the right token. Tokens
             # is defined in the appropriate subclass (to point to continuous vs
             # epoch-based waveforms).
             iterable << tokens.values()
             ActionItem:
-                path = '/equipment/output/{}/{}'.format(manifest.contribution.name, 
-                                                        loop_item.name)
+                path = '{}/{}'.format(menu.path, loop_item.name)
                 label << loop_item.label
-                group = manifest.contribution.name
+                group = manifest.contribution.name + '_tokens'
                 command = manifest.contribution.name + '.set_token'
                 checked << manifest.contribution.token_name == loop_item.name
                 checkable = True

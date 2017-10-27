@@ -33,24 +33,14 @@ def process_ai_epochs(event):
     return plugin.process_ai_epochs(**event.parameters)
 
 
-def process_ai_events(event):
+def create_ai_continuous(event):
     plugin = event.workbench.get_plugin(PLUGIN_ID)
-    return plugin.process_ai_events(**event.parameters)
+    return plugin.create_ai_continuous(**event.parameters)
 
 
 def create_ai_epochs(event):
     plugin = event.workbench.get_plugin(PLUGIN_ID)
     return plugin.create_ai_epochs(**event.parameters)
-
-
-def create_ai_events(event):
-    plugin = event.workbench.get_plugin(PLUGIN_ID)
-    return plugin.create_ai_events(**event.parameters)
-
-
-def create_ai_continuous(event):
-    plugin = event.workbench.get_plugin(PLUGIN_ID)
-    return plugin.create_ai_continuous(**event.parameters)
 
 
 def prepare(event):
@@ -97,9 +87,6 @@ enamldef DataManifest(PluginManifest): manifest:
 
         # Commands to create stores for incoming data
         Command:
-            id = PLUGIN_ID + '.create_ai_events'
-            handler = create_ai_events
-        Command:
             id = PLUGIN_ID + '.create_ai_epochs'
             handler = create_ai_epochs
         Command:
@@ -107,9 +94,6 @@ enamldef DataManifest(PluginManifest): manifest:
             handler = create_ai_continuous
 
         # Commands to process incoming data
-        Command:
-            id = PLUGIN_ID + '.process_ai_events'
-            handler = process_ai_events
         Command:
             id = PLUGIN_ID + '.process_ai_epochs'
             handler = process_ai_epochs

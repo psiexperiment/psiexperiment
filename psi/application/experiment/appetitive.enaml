@@ -12,9 +12,7 @@ from psi.controller.api import (ExperimentState, ExperimentAction,
                                 ContinuousOutput, EpochOutput)
 
 from psi.context.api import ContextGroup, Parameter
-from psi.data.plots import (TimeContainer, ChannelPlot, ExtremesChannelPlot)
-#from psi.data.plots import (TimeContainer, ChannelPlot, TimeseriesPlot,
-#                            ExtremesChannelPlot, FFTContainer, FFTChannelPlot)
+from psi.data.plots import (TimeContainer, ChannelPlot, ViewBox, TimeseriesPlot)
 
 from psi.data.sinks.event_log import EventLog
 from psi.data.sinks.trial_log import TrialLog
@@ -69,7 +67,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             # take some time, so we have to allow for a small delay.
             event = 'trial_start'
             command = 'target.start'
-            kwargs = {'delay': 0.25}
+            kwargs = {'delay': 0.5}
             #concurrent = True
             weight = 0
 
@@ -141,92 +139,100 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
         TimeContainer:
             name = 'trial_plot_container' 
             title = 'Trial timing'
-            trig_delay = 0
             span = 20
 
-            ChannelPlot:
-                source_name = 'reward_contact_analog'
-                line_color = (1, 0, 1)
-                value_range = (-20, 6)
+            ViewBox:
+                y_min = 0
+                y_max = 5
 
-            ChannelPlot:
-                source_name = 'nose_poke_analog'
-                line_color = (0, 0, 1)
-                value_range = (-20, 6)
+                ChannelPlot:
+                    name = 'plot1'
+                    source_name = 'reward_contact_analog'
+                    pen_color = 'b'
 
-            ExtremesChannelPlot:
-               source_name = 'microphone'
-               line_color = (0, 0, 0)
-               value_range = (-1, 1)
+                TimeseriesPlot:
+                    source_name = 'event_log'
+                    rising_event = 'reward_start'
+                    falling_event = 'reward_end'
+                    pen_color = (64, 105, 224, 113)
+                    fill_color = (64, 105, 224, 68)
+                    rect_center = 2.5
+                    rect_height = 1
 
-            #TimeseriesPlot:
-            #    source = 'event_log'
-            #    rising_event = 'reward_start'
-            #    falling_event = 'reward_end'
-            #    fill_color = (0.25, 0.41, 0.88, 0.25)
-            #    line_color = (0.25, 0.41, 0.88, 0.5)
-            #    rect_center = 0.25
-            #    rect_height = 0.2
+                ChannelPlot:
+                    name = 'plot2'
+                    source_name = 'nose_poke_analog'
+                    pen_color = 'r'
 
-            #TimeseriesPlot:
-            #    source = 'event_log'
-            #    rising_event = 'np_start'
-            #    falling_event = 'np_end'
-            #    fill_color = (.17, .54, .34, 0.25)
-            #    line_color = (.17, .54, .34, 0.5)
-            #    rect_center = 0.5
-            #    rect_height = 0.2
+                TimeseriesPlot:
+                    source_name = 'event_log'
+                    rising_event = 'np_start'
+                    falling_event = 'np_end'
+                    fill_color = (43, 138, 87, 68)
+                    pen_color = (43, 138, 87, 113)
+                    rect_center = 2.5
+                    rect_height = 1
 
-            #TimeseriesPlot:
-            #    source = 'event_log'
-            #    rising_event = 'digital_np_start'
-            #    falling_event = 'digital_np_end'
-            #    fill_color = (.17, .54, .34, 0.25)
-            #    line_color = (.17, .54, .34, 0.5)
-            #    rect_center = 0.5
-            #    rect_height = 0.1
+                TimeseriesPlot:
+                    source_name = 'event_log'
+                    rising_event = 'digital_np_start'
+                    falling_event = 'digital_np_end'
+                    fill_color = (43, 138, 87, 68)
+                    pen_color = (43, 138, 87, 113)
+                    rect_center = 2.5
+                    rect_height = 1
 
-            #TimeseriesPlot:
-            #    source = 'event_log'
-            #    rising_event = 'token_start'
-            #    falling_event = 'token_stop'
-            #    fill_color = (.5, .5, .5, 0.25)
-            #    line_color = (.5, .5, .5, 0.5)
-            #    rect_center = 0.7
-            #    rect_height = 0.1
+                TimeseriesPlot:
+                    source_name = 'event_log'
+                    rising_event = 'token_start'
+                    falling_event = 'token_stop'
+                    pen_color = (113, 113, 113, 113)
+                    fill_color = (113, 113, 113, 68)
+                    rect_center = 3.5
+                    rect_height = 1
 
-            #TimeseriesPlot:
-            #    source = 'event_log'
-            #    rising_event = 'hold_start'
-            #    falling_event = 'hold_end'
-            #    fill_color = (.75, .75, .75, 0.25)
-            #    line_color = (.75, .75, .75, 0.5)
-            #    rect_center = 0.8
-            #    rect_height = 0.1
+                TimeseriesPlot:
+                    source_name = 'event_log'
+                    rising_event = 'hold_start'
+                    falling_event = 'hold_end'
+                    pen_color = (192, 192, 192, 113)
+                    fill_color = (192, 192, 192, 68)
+                    rect_center = 4.5
+                    rect_height = 1
 
-            #TimeseriesPlot:
-            #    source = 'event_log'
-            #    rising_event = 'response_start'
-            #    falling_event = 'response_end'
-            #    fill_color = (.5, .5, .5, 0.25)
-            #    line_color = (.5, .5, .5, 0.5)
-            #    rect_center = 0.8
-            #    rect_height = 0.1
+                TimeseriesPlot:
+                    source_name = 'event_log'
+                    rising_event = 'response_start'
+                    falling_event = 'response_end'
+                    pen_color = (113, 113, 113, 113)
+                    fill_color = (113, 113, 113, 68)
+                    rect_center = 4.5
+                    rect_height = 1
 
-            #TimeseriesPlot:
-            #    source = 'event_log'
-            #    rising_event = 'to_start'
-            #    falling_event = 'to_end'
-            #    fill_color = (.25, .25, .25, 0.25)
-            #    line_color = (.25, .25, .25, 0.5)
-            #    rect_center = 0.8
-            #    rect_height = 0.1
+                TimeseriesPlot:
+                    source_name = 'event_log'
+                    rising_event = 'to_start'
+                    falling_event = 'to_end'
+                    fill_color = (64, 64, 64, 68)
+                    pen_color = (64, 64, 64, 113)
+                    rect_center = 4.5
+                    rect_height = 1
 
-            #TimeseriesPlot:
-            #    source = 'event_log'
-            #    rising_event = 'iti_start'
-            #    falling_event = 'iti_end'
-            #    fill_color = (0, 0, 0, 0.25)
-            #    line_color = (0, 0, 0, 0.5)
-            #    rect_center = 0.8
-            #    rect_height = 0.1
+                TimeseriesPlot:
+                    source_name = 'event_log'
+                    rising_event = 'iti_start'
+                    falling_event = 'iti_end'
+                    fill_color = (0, 0, 0, 68)
+                    pen_color = (0, 0, 0, 113)
+                    rect_center = 4.5
+                    rect_height = 1
+
+            ViewBox:
+                y_min = -1
+                y_max = 1
+
+                ChannelPlot:
+                    name = 'plot3'
+                    source_name = 'microphone'
+                    pen_color = 'k'
+

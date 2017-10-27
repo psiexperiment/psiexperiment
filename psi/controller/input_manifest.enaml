@@ -41,20 +41,7 @@ enamldef ContinuousInputManifest(InputManifest): manifest:
 
 
 enamldef EventInputManifest(InputManifest): manifest:
-
-    Extension:
-        id = 'event_actions.' + manifest.contribution.name
-        point = 'psi.controller.actions'
-
-        ExperimentAction:
-            event = 'experiment_prepare'
-            command = 'psi.data.create_ai_events'
-            kwargs = get_metadata(manifest.contribution)
-
-        ExperimentAction:
-            event = manifest.contribution.name + '_acquired'
-            command = 'psi.data.process_ai_events'
-            kwargs = {'name': manifest.contribution.name}
+    pass
 
 
 enamldef EpochInputManifest(InputManifest): manifest:

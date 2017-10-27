@@ -36,6 +36,12 @@ def prepare(event, container):
     container.prepare(plugin)
 
 
+def channel_plot_init(event, plot):
+    controller_plugin = event.workbench.get_plugin('psi.controller')
+    input = controller_plugin.get_input(plot.source_name)
+    plot.y_axis.setLabel(input.label, units=input.unit)
+
+
 enamldef PlotContainerManifest(PSIManifest): manifest:
 
     Extension:
@@ -64,6 +70,24 @@ enamldef PlotContainerManifest(PSIManifest): manifest:
             Container:
                 PGCanvas: canvas:
                     component << manifest.contribution.container
+
+
+enamldef ChannelPlotManifest(PSIManifest): manifest:
+
+    Extension:
+        id = 'command'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = manifest.contribution.name + '_init'
+            handler = partial(channel_plot_init, plot=manifest.contribution)
+
+    Extension:
+        id = 'actions'
+        point = 'psi.controller.actions'
+        rank = 200
+        ExperimentAction:
+            event = 'plugins_started'
+            command = manifest.contribution.name + '_init'
 
 
 def prepare_grid(event, contribution):

@@ -11,7 +11,7 @@ from psi.controller.api import (AIChannel, AOChannel, ExperimentAction,
 
 from psi.controller.input import (Downsample, IIRFilter, Threshold, Edges,
                                   CalibratedInput, RMS, SPL,
-                                  Accumulate, Blocked)
+                                  Accumulate)
 
 from psi.controller.calibration import GolayCalibration, FlatCalibration
 from psi.controller.calibration.util import db
@@ -86,7 +86,7 @@ enamldef IOManifest(PluginManifest): manifest:
                 channel = 'Dev1/ao0'
                 fs = 100e3
                 expected_range = (-10, 10)
-                dtype = np.dtype('float64')
+                dtype = 'float64'
                 terminal_mode = 'RSE'
                 calibration = \
                     GolayCalibration.from_file(filename, fixed_gain=-21.5)
@@ -95,13 +95,13 @@ enamldef IOManifest(PluginManifest): manifest:
                 name = 'food_dispense'
                 channel = 'Dev1/port0/line0'
                 fs = 0
-                dtype = np.dtype('bool')
+                dtype = 'bool'
 
             DOChannel:
                 name = 'room_light'
                 channel = 'Dev1/port0/line1'
                 fs = 0
-                dtype = np.dtype('bool')
+                dtype = 'bool'
 
             AIChannel: channel:
                 label = 'Microphone'
@@ -110,28 +110,29 @@ enamldef IOManifest(PluginManifest): manifest:
                 start_trigger = 'ao/StartTrigger'
                 fs = 100e3
                 expected_range = (-10, 10)
-                dtype = np.dtype('float64')
+                dtype = 'float64'
                 terminal_mode = 'differential'
                 calibration = FlatCalibration(db(10))
 
-                Blocked:
-                    duration = 0.01
-                    Accumulate:
-                        n = 50
-                        CalibratedInput:
-                            IIRFilter:
-                                f_highpass = 1000
-                                f_lowpass = 40000
-                                ftype = 'butter'
-                                N = 4
-                                btype = 'bandpass'
-                                name = 'microphone'
-                                save = True
-                                RMS:
-                                    duration = 1
-                                    SPL:
-                                        save = True
-                                        name = 'noise_level'
+                Accumulate:
+                    name = 'microphone_accumulator'
+                    n = 50
+                    CalibratedInput:
+                        name = 'calibrated_microphone'
+                        IIRFilter:
+                            f_highpass = 1000
+                            f_lowpass = 40000
+                            ftype = 'butter'
+                            N = 4
+                            btype = 'bandpass'
+                            name = 'microphone'
+                            save = True
+                            RMS:
+                                name = 'microphone_rms'
+                                duration = 1
+                                SPL:
+                                    save = True
+                                    name = 'noise_level'
 
             AIChannel:
                 label = 'Nose poke IR'
@@ -140,10 +141,11 @@ enamldef IOManifest(PluginManifest): manifest:
                 start_trigger = 'ao/StartTrigger'
                 fs = 100e3
                 expected_range = (-10, 10)
-                dtype = np.dtype('float64')
+                dtype = 'float64'
                 terminal_mode = 'differential'
 
                 IIRFilter:
+                    name = 'nose_poke_filtered'
                     f_lowpass = 25
                     btype = 'lowpass'
                     ftype = 'butter'
@@ -154,6 +156,7 @@ enamldef IOManifest(PluginManifest): manifest:
                         save = True
                         q = 1000
                         Threshold:
+                            name = 'nose_poke_threshold'
                             threshold = 2.5
                             Edges:
                                 save = True
@@ -161,16 +164,18 @@ enamldef IOManifest(PluginManifest): manifest:
                                 name = 'nose_poke'
 
             AIChannel:
-                label = 'Reward contact IR'
+                label = 'Reward IR'
+                unit = 'V'
                 name = 'reward_contact'
                 channel = 'Dev1/ai4'
                 start_trigger = 'ao/StartTrigger'
                 fs = 100e3
                 expected_range = (-10, 10)
-                dtype = np.dtype('float64')
+                dtype = 'float64'
                 terminal_mode = 'differential'
 
                 IIRFilter:
+                    name = 'reward_contact_filtered'
                     f_lowpass = 25
                     btype = 'lowpass'
                     ftype = 'butter'
@@ -180,6 +185,7 @@ enamldef IOManifest(PluginManifest): manifest:
                         save = True
                         q = 1000
                         Threshold:
+                            name = 'reward_contact_threshold'
                             threshold = 2.5
                             Edges:
                                 save = True

@@ -13,6 +13,7 @@ from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
 from enaml.workbench.ui.api import Workspace
 
+from psi.controller.experiment_action import ExperimentEvent
 from .. import get_config
 from .workspace import ExperimentWorkspace
 from .workbench_window import ExperimentWorkbenchWindow
@@ -142,6 +143,12 @@ enamldef ExperimentManifest(PluginManifest):
         id = 'window'
         point = 'enaml.workbench.ui.window_factory'
         factory = lambda workbench: ExperimentWorkbenchWindow()
+
+    Extension:
+        id = 'controller_actions'
+        point = 'psi.controller.actions'
+        ExperimentEvent:
+            name = 'plugins_started'
 
     Extension:
         id = 'commands'

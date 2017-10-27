@@ -253,6 +253,8 @@ def _calculate_bandlimited_noise_filter(fs, center_frequency, pass_bandwidth,
     fh = center_frequency+0.5*stop_bandwidth
     Ws = np.array([fl, fh])/(0.5*fs)
     b, a = signal.iirdesign(Wp, Ws, passband_attenuation, stopband_attenuation) 
+    if np.any(np.abs(np.roots(a)) >= 1):
+        raise ValueError('Unstable filter coefficients')
     zi = signal.lfilter_zi(b, a)
     return b, a, zi
 

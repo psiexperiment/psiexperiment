@@ -237,11 +237,14 @@ class PointCalibration(Calibration):
 
 class GolayCalibration(InterpCalibration):
 
+    fs = Float()
+    phase = Typed(np.ndarray)
+
     def __init__(self, fs, frequency, sensitivity, phase, fixed_gain=0):
         super(GolayCalibration, self).__init__(frequency, sensitivity,
                                                fixed_gain)
-        self._fs = fs
-        self._phase = phase
+        self.fs = fs
+        self.phase = phase
 
     @classmethod
     def from_file(cls, filename, **kwargs):
@@ -253,11 +256,11 @@ class GolayCalibration(InterpCalibration):
             return cls(fs, freq, sens, phase, **kwargs)
 
     def get_iir(self, fs, fl, fh, truncate=None):
-        fs_ratio = self._fs/fs
+        fs_ratio = self.fs/fs
         if int(fs_ratio) != fs_ratio:
             m = 'Calibration sampling rate, {}, must be an ' \
                 'integer multiple of the requested sampling rate'
-            raise ValueError(m.format(self._fs))
+            raise ValueError(m.format(self.fs))
 
         n = (len(self.frequency)-1)/fs_ratio + 1
         if int(n) != n:
@@ -268,13 +271,13 @@ class GolayCalibration(InterpCalibration):
 
         fc = (fl+fh)/2.0
         freq = self.frequency
-        phase = self._phase
+        phase = self.phase
         sens = self.sensitivity - (self.get_sens(fc) + self.fixed_gain)
         sens[freq < fl] = 0
         sens[freq >= fh] = 0
         m, b = np.polyfit(freq[freq < fh], phase[freq < fh], 1)
-        inv_phase = 2*np.pi*np.arange(len(freq))*m
-        inv_csd = util.dbi(sens)*np.exp(inv_phase*1j)
+        invphase = 2*np.pi*np.arange(len(freq))*m
+        inv_csd = util.dbi(sens)*np.exp(invphase*1j)
 
         # Need to trim so that the data is resampled accordingly
         if fs_ratio != 1:

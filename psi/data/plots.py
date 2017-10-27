@@ -18,26 +18,25 @@ from psi.core.enaml.api import PSIContribution
 ################################################################################
 # Supporting classes
 ################################################################################
-class ChannelDataRange(object):
+class ChannelDataRange(Atom):
 
-    def __init__(self, container, span, delay=0.25):
-        self.container = container
-        self.span = span
-        self.delay = delay
-        self.current_time = -delay
-        self.current_range = None
+    container = Typed(object)
+    span = Float(1)
+    delay = Float(0)
+    current_time = Float()
+    current_range = Tuple(Float(), Float())
+
+    def _default_current_range(self):
+        return 0, self.span
 
     def add_source(self, source, plot):
         source.observe('added', partial(self.source_added, plot=plot))
 
     def source_added(self, event, plot):
-        self.current_time = max(self.current_time, event['value']['ub']-self.delay)
-        spans = self.current_time // self.span
-        high_value = (spans+1)*self.span
-        low_value = high_value-self.span
-        if high_value == low_value:
-            return
-        elif self.current_range != (low_value, high_value):
+        self.current_time = max(self.current_time, event['value']['ub'])
+        low_value = (self.current_time//self.span)*self.span
+        high_value = low_value+self.span
+        if self.current_range != (low_value, high_value):
             self.current_range = (low_value, high_value)
             self.container.update_range(low_value, high_value)
         else:
@@ -65,6 +64,7 @@ class TimeContainer(PlotContainer):
 
     x_axis = Typed(pg.AxisItem)
     base_viewbox = Property()
+    pixel_width = Float()
 
     def _get_base_viewbox(self):
         return self.children[0].viewbox
@@ -80,23 +80,25 @@ class TimeContainer(PlotContainer):
         container = super()._default_container()
         container.setSpacing(10)
 
-        # Add the axes to the layout
+        # Add the x and y axes to the layout
         for i, child in enumerate(self.children):
             container.addItem(child.y_axis, i, 0)
             container.addItem(child.viewbox, i, 1)
         container.addItem(self.x_axis, i+1, 1)
 
-        # Link the child views
+        # Link the child viewboxes together
         for child in self.children[1:]:
             child.viewbox.setXLink(self.base_viewbox)
+
+        # Ensure that the x axis shows the planned range
+        self.base_viewbox.setXRange(0, self.span, padding=0)
 
         return container
 
     def prepare(self, plugin):
-        self.data_range = ChannelDataRange(self, self.span)
+        self.data_range = ChannelDataRange(container=self, span=self.span)
         for child in self.children:
-            child.create_plot(plugin, self)
-        self.update_range(-self.span, self.delay)
+            child.prepare(plugin)
 
     def update_range(self, low, high):
         for child in self.children:
@@ -107,44 +109,20 @@ class TimeContainer(PlotContainer):
 ################################################################################
 # Plots
 ################################################################################
-class Plot(PSIContribution):
-    line_color = d_(Tuple())
-    fill_color = d_(Tuple())
+class ViewBox(PSIContribution):
 
-
-class ChannelPlot(Plot):
-
-    source_name = d_(Unicode())
-
-    y_axis = Typed(pg.AxisItem)
     viewbox = Typed(pg.ViewBox)
-    source = Typed(object)
-    plot = Typed(object)
-    pen = Typed(object)
-
-
-class ExtremesChannelPlot(ChannelPlot):
-
+    y_axis = Typed(pg.AxisItem)
     y_min = d_(Float())
     y_max = d_(Float())
-    pen_color = d_(Typed(object))
-    pen_width = d_(Float(0))
 
-    downsample_method = d_(Enum('peak', 'mean'))
-    auto_downsample = d_(Bool(True))
-    antialias = d_(Bool(True))
+    data_range = Property()
 
-    _cached_time = Typed(np.ndarray)
-    _update_pending = Bool(False)
-    _deferred_args = Typed(object)
-    _lock = Typed(object)
-
-    def _default__lock(self):
-        return threading.RLock()
+    def _get_data_range(self):
+        return self.parent.data_range
 
     def _default_y_axis(self):
         y_axis = pg.AxisItem('left')
-        y_axis.setPen(self.pen_color)
         y_axis.linkToView(self.viewbox)
         y_axis.setGrid(127)
         return y_axis
@@ -154,35 +132,148 @@ class ExtremesChannelPlot(ChannelPlot):
         viewbox.setBackgroundColor('w')
         viewbox.disableAutoRange()
         viewbox.setYRange(self.y_min, self.y_max)
-        viewbox.addItem(self.plot)
+        for child in self.children:
+            viewbox.addItem(child.plot)
+        viewbox.sigResized.connect(lambda vb: child.update_decimation(vb))
         return viewbox
+
+    def prepare(self, plugin):
+        for child in self.children:
+            child.prepare(plugin)
+
+    def update_range(self, low, high):
+        for child in self.children:
+            child.update_range(low, high)
+
+
+class Plot(PSIContribution):
+
+    pen_color = d_(Typed(object))
+    pen_width = d_(Float(0))
+    antialias = d_(Bool(False))
+
+    pen = Typed(object)
+    plot = Typed(object)
 
     def _default_pen(self):
         return pg.mkPen(self.pen_color, width=self.pen_width)
 
+    def update_decimation(self, vb):
+        pass
+
+    def prepare(self, plugin):
+        pass
+
+
+class ChannelPlot(Plot):
+
+    source_name = d_(Unicode())
+    source = Typed(object)
+
+    downsample = Int(0)
+    _cached_time = Typed(np.ndarray)
+
     def _default_plot(self):
-        return pg.PlotCurveItem(pen=self.pen, antialias=self.antialias,
-                                downsampleMethod=self.downsample_method,
-                                auto_downsample=self.auto_downsample)
+        return pg.PlotCurveItem(pen=self.pen, antialias=self.antialias)
 
-
-    def create_plot(self, plugin, container):
+    def prepare(self, plugin):
         self.source = plugin.find_source(self.source_name)
-        #self.y_axis.setLabel(self.source.label, unitPrefix=self.source.unit)
-        # TODO FIXME
-        self.y_axis.setLabel('TESTING', unitPrefix='Hz')
-        container.data_range.add_source(self.source, self)
+        self.parent.data_range.add_source(self.source, self)
 
         # Precompute the time array since this can be the "slow" point
         # sometimes in computations
-        n = int(container.data_range.span*self.source.fs)
+        n = int(self.parent.data_range.span*self.source.fs)
         self._cached_time = np.arange(n)/self.source.fs
+        self.update_decimation(self.parent.viewbox)
+
+    def update_decimation(self, vb):
+        try:
+            width, _ = vb.viewPixelSize()
+            dt = self.source.fs**-1
+            self.downsample = int(width/dt/10)
+        except Exception as e:
+            pass
 
     def update_range(self, low, high):
-        m = 'Updating {} from {} to {}'
         data = self.source.get_range(low, high)
         t = self._cached_time[:len(data)] + low
-        deferred_call(self.plot.setData, t, data)
+        if self.downsample > 1:
+            t = t[::self.downsample]
+            d_min, d_max = decimate_extremes(data, self.downsample)
+            t = t[:len(d_min)]
+            x = np.c_[t, t].ravel()
+            y = np.c_[d_min, d_max].ravel()
+            deferred_call(self.plot.setData, x, y, connect='pairs')
+        else:
+            deferred_call(self.plot.setData, t, data)
+
+
+def decimate_extremes(data, downsample):
+    # If data is empty, return imediately
+    if data.size == 0:
+        return np.array([]), np.array([])
+
+    # Determine the "fragment" size that we are unable to decimate.  A
+    # downsampling factor of 5 means that we perform the operation in chunks of
+    # 5 samples.  If we have only 13 samples of data, then we cannot decimate
+    # the last 3 samples and will simply discard them.
+    last_dim = data.ndim
+    offset = data.shape[-1] % downsample
+
+    # Force a copy to be made, which speeds up min()/max().  Apparently min/max
+    # make a copy of a reshaped array before performing the operation, so we
+    # force it now so the copy only occurs once.
+    if data.ndim == 2:
+        shape = (len(data), -1, downsample)
+    else:
+        shape = (-1, downsample)
+    data = data[..., :-offset].reshape(shape).copy()
+    return data.min(last_dim), data.max(last_dim)
+
+
+class TimeseriesPlot(Plot):
+
+    source_name = d_(Unicode())
+    rising_event = d_(Unicode())
+    falling_event = d_(Unicode())
+    rect_center = d_(Float(0.5))
+    rect_height = d_(Float(1))
+
+    fill_color = d_(Typed(object))
+
+    brush = Typed(object)
+    source = Typed(object)
+
+    def _default_brush(self):
+        return pg.mkBrush(self.fill_color)
+
+    def _default_plot(self):
+        plot = pg.QtGui.QGraphicsPathItem()
+        plot.setPen(self.pen)
+        plot.setBrush(self.brush)
+        return plot
+        
+    def prepare(self, plugin):
+        self.source = plugin.find_source(self.source_name)
+        self.parent.data_range.add_source(self.source, self)
+        self.parent.data_range.observe('current_time', self.update)
+
+    def update(self, event=None):
+        low, high = self.parent.data_range.current_range
+        current_time = self.parent.data_range.current_time
+        epochs = self.source.get_epochs(self.rising_event, self.falling_event,
+                                        low, high, current_time)
+
+        path = pg.QtGui.QPainterPath()
+        y_start = self.rect_center - self.rect_height*0.5
+        for x_start, x_end in epochs:
+            x_width = x_end-x_start
+            r = pg.QtCore.QRectF(x_start, y_start, x_width, self.rect_height)
+            path.addRect(r)
+        deferred_call(self.plot.setPath, path)
+
+    def update_range(self, low, high):
+        self.update()
 
 
 ################################################################################

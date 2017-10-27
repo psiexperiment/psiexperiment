@@ -1,6 +1,8 @@
 import logging
 log = logging.getLogger(__name__)
 
+import threading
+
 from ..sink import Sink
 import numpy as np
 
@@ -12,7 +14,6 @@ class DataSource(Atom):
     data = Typed(object)
     current_time = Float(0)
     added = Event()
-    changed = Event()
 
     def set_current_time(self, current_time):
         self.current_time = current_time
@@ -24,46 +25,53 @@ class DataTable(DataSource):
         self.data.append(row)
 
     def query(self, string, condvars, field):
+        if len(self.data) == 0:
+            return []
         query = string.format(**condvars)
-        return self.data[query][field]
+        subset = self.data[query]
+        return subset[field]
 
 
 class EventDataTable(DataTable):
 
+    lock = Typed(object)
+
+    def _default_lock(self):
+        return threading.RLock()
+
     def append(self, row):
-        super().append(row)
+        with self.lock:
+            super().append(row)
         self.added = {
             'lb': row[0],
             'ub': row[0],
             'event': row[1],
         }
 
-    def get_epochs(self, start_event, end_event, lb, ub):
-        m = 'Getting epochs for {} and {}'
-        log.debug(m.format(start_event, end_event))
+    def get_epochs(self, start_event, end_event, lb, ub, current_time=np.nan):
         # We need to specify the string literal as a bytes object. This seems
         # to be an obscure edge-case of Python 3 + numexpr.
         query = 'event == b"{e}"'
         column = 'timestamp'
-        starts = self.query(query, {'e': start_event}, column)
-        ends = self.query(query, {'e': end_event}, column)
+        with self.lock:
+            starts = self.query(query, {'e': start_event}, column)
+            ends = self.query(query, {'e': end_event}, column)
 
         if len(starts) == 0 and len(ends) == 1:
             starts = [0]
         elif len(starts) == 1 and len(ends) == 0:
-            ends = [np.nan]
+            ends = [current_time]
         elif len(starts) > 0 and len(ends) > 0:
             if starts[0] > ends[0]:
                 starts = np.r_[0, starts]
             if starts[-1] > ends[-1]:
-                ends = np.r_[ends, np.nan]
+                ends = np.r_[ends, current_time]
 
         try:
             epochs = np.c_[starts, ends]
         except:
             raise
         m = ((epochs >= lb) & (epochs < ub)) | np.isnan(epochs)
-
         return epochs[m.any(axis=-1)]
 
 
@@ -82,22 +90,11 @@ class DataChannel(DataSource):
         may discard old data (e.g.  :class:`RAMChannel`), so we need to factor
         in the time offset when attempting to extract a given segment of the
         waveform for analysis.
-
-    Two events are supported.
-
     added
         New data has been added. If listeners have been caching the results of
         prior computations, they can assume that older data in the cache is
         valid.
-    changed
-        The underlying dataset has changed, but the time-range has not.
-
-    The changed event roughly corresponds to changes in the Y-axis (i.e. the
-    signal) while added roughly corresponds to changes in the X-axis (i.e.
-    addition of additional samples).
     '''
-    data = Typed(object)
-
     # Sampling frequency of the data stored in the buffer
     fs = Float()
 
@@ -106,10 +103,6 @@ class DataChannel(DataSource):
     # update t0.
     t0 = Float(0)
     shape = Property()
-    current_time = Float(0)
-
-    added = Event()
-    changed = Event()
 
     def _get_shape(self):
         return self.data.shape
@@ -242,24 +235,24 @@ class EpochDataChannel(DataChannel):
 
 class AbstractStore(Sink):
 
-    _channels = Typed(dict, {})
+    _stores = Typed(dict, {})
 
     def prepare(self, plugin):
         self._prepare_event_log()
         self._prepare_trial_log(plugin.context_info)
         # TODO: This seems a bit hackish. Do we really need this?
-        self._channels['trial_log'] = self.trial_log
-        self._channels['event_log'] = self.event_log
+        self._stores['trial_log'] = self.trial_log
+        self._stores['event_log'] = self.event_log
 
     def get_source(self, source_name):
         try:
-            return self._channels[source_name]
+            return self._stores[source_name]
         except KeyError as e:
             # TODO: Once we port to Python 3, add exception chaining.
             raise AttributeError(source_name) from e
 
     def set_current_time(self, name, timestamp):
-        self._channels[name].set_current_time(timestamp)
+        self._stores[name].set_current_time(timestamp)
 
     def _prepare_trial_log(self, context_info):
         data = self._create_trial_log(context_info)

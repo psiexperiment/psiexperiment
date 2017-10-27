@@ -1,5 +1,3 @@
-from atom.api import Typed
-from enaml.core.api import Declarative
 from psi.core.enaml.api import PSIContribution
 
 

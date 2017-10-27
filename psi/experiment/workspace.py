@@ -27,6 +27,11 @@ class ExperimentWorkspace(Workspace):
         self.load_default_plugins()
         deferred_call(self.load_toolbars)
         deferred_call(self.load_defaults)
+        deferred_call(self.plugins_started)
+
+    def plugins_started(self):
+        controller = self.workbench.get_plugin('psi.controller')
+        controller.invoke_actions('plugins_started')
 
     def load_default_plugins(self):
         with enaml.imports():
