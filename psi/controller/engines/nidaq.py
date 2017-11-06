@@ -855,7 +855,7 @@ class NIDAQEngine(Engine):
     def hw_ao_callback(self, samples):
         # Get the next set of samples to upload to the buffer
         with self.lock:
-            log.debug('HW AO callback')
+            log.debug('Hardware AO callback for {}'.format(self.name))
             while True:
                 offset = self.get_offset()
                 available_samples = self.get_space_available(offset)
