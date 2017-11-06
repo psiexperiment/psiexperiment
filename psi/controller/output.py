@@ -104,6 +104,8 @@ class AnalogOutput(Output):
             ub = min(lb + samples, buffer_size)
             buffered_samples = ub-lb
             out[:buffered_samples] = self._buffer[lb:ub]
+            log.debug('Pulled %d samples out of buffer for %s',
+                      buffered_samples, self.name)
             samples -= buffered_samples
 
         if samples < 0:

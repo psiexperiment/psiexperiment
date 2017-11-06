@@ -37,7 +37,7 @@ def configure_logging(filename=None):
             'console': {
                 'class': 'psi.core.logging.colorstreamhandler.ColorStreamHandler',
                 'formatter': 'simple',
-                'level': 'INFO',
+                'level': 'DEBUG',
                 },
             },
         'loggers': {

@@ -116,7 +116,8 @@ def start_output(event, output):
         # race conditions
         log.debug('Starting output {}'.format(output))
         output.activate(offset)
-        output.engine.update_hw_ao(offset, output.channel.name)
+        output.engine.update_hw_ao(offset, output.channel.name,
+                                   method='write_position')
 
     controller = event.workbench.get_plugin('psi.controller')
     controller.invoke_actions('{}_start'.format(output.name), start+delay)
@@ -138,7 +139,8 @@ def clear_output(event, output):
         # will overwrite any data that contains a fragment of the output
         # waveform.
         offset = int((end+delay)*output.fs)
-        output.engine.update_hw_ao(offset, output.channel.name)
+        output.engine.update_hw_ao(offset, output.channel.name,
+                                   method='write_position')
 
     controller = event.workbench.get_plugin('psi.controller')
     controller.invoke_actions('{}_end'.format(output.name), end+delay)

@@ -883,10 +883,17 @@ class NIDAQEngine(Engine):
                 data = self._get_hw_ao_samples(offset, samples)
                 self.write_hw_ao(data, timeout=0)
 
-    def update_hw_ao(self, offset, channel_name=None):
+    def update_hw_ao(self, offset, channel_name=None,
+                     method='space_available'):
         # Get the next set of samples to upload to the buffer. Ignore the
         # channel name because we need to update all channels simultaneously.
-        samples = self.get_space_available(offset)
+        if method == 'space_available':
+            samples = self.get_space_available(offset)
+        elif method == 'write_position':
+            samples = self.ao_write_position()-offset
+        else:
+            raise ValueError('Unsupported update method')
+
         if samples <= 0:
             log.trace('No update of hw ao required')
             return
