@@ -46,13 +46,6 @@ enamldef IOManifest(PluginManifest): manifest:
             name = 'food_dispenser'
             label = 'Food dispenser'
 
-        OpenCVCamera:
-            device = 0
-            interval = 0.1
-            resolution = (320, 240)
-            name = 'behavior_camera'
-            label = 'Behavior camera'
-
         Trigger:
             # This is a required output for the food dispenser. The
             # plugin will look for this output by name. If not present,

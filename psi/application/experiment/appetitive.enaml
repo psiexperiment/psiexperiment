@@ -40,20 +40,12 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             command = 'background.prepare'
 
         ExperimentAction:
-            event = 'experiment_prepare'
-            command = 'behavior_camera.start'
-
-        ExperimentAction:
             event = 'experiment_start'
             command = 'room_light_toggle.on'
 
         ExperimentAction:
             event = 'experiment_end'
             command = 'room_light_toggle.on'
-
-        ExperimentAction:
-            event = 'experiment_end'
-            command = 'behavior_camera.stop'
 
         # Trial-level actions
         ExperimentAction:
