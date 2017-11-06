@@ -3,11 +3,7 @@ log =  logging.getLogger(__name__)
 
 from functools import partial
 
-import numpy as np
-
-from atom.api import Typed, Property
-
-from enaml.core.api import d_, Looper, Include
+from enaml.core.api import Looper, Include
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
@@ -103,7 +99,7 @@ def prepare_output_queue(event, output):
 
 def set_output_queue(event, output):
     queue_class = event.parameters['queue_class']
-    output.queue = queue_class(output.fs) 
+    output.queue = queue_class(output.fs)
 
 
 def start_output(event, output):
@@ -113,11 +109,12 @@ def start_output(event, output):
     ts = event.parameters['timestamp']
     start = event.parameters.get('start', ts)
     delay = event.parameters.get('delay', 0)
-
     offset = int((start+delay)*output.channel.fs)
+
     with output.engine.lock:
-        # Important to lock the engine when activating the output
-        log.debug('Activating output')
+        # Important to lock the engine when activating the output to prevent
+        # race conditions
+        log.debug('Starting output {}'.format(output))
         output.activate(offset)
         output.engine.update_hw_ao(offset, output.channel.name)
 
@@ -128,27 +125,33 @@ def start_output(event, output):
 
 
 def clear_output(event, output):
-    log.debug('Clearing output {}'.format(output.name))
     end = event.parameters['timestamp']
     delay = event.parameters.get('delay', 0)
 
-    if output.active:
-        log.debug('Deactivating output {}'.format(output.name))
-        output.deactivate()
+    with output.engine.lock:
+        log.debug('Clearing output {}'.format(output.name))
+        # First, deactivate the output if it's still running
+        if output.active:
+            log.debug('Deactivating output {}'.format(output.name))
+            output.deactivate()
+        # Now, update the channel once the output has been deactivated. This
+        # will overwrite any data that contains a fragment of the output
+        # waveform.
+        offset = int((end+delay)*output.fs)
+        output.engine.update_hw_ao(offset, output.channel.name)
 
-    offset = int((end+delay)*output.fs)
-    output.engine.update_hw_ao(offset, output.channel.name)
     controller = event.workbench.get_plugin('psi.controller')
     controller.invoke_actions('{}_end'.format(output.name), end+delay)
 
-    
+
 def decrement_key(event, output):
-    for epoch in event.parameters['data']:
-        try:
-            output.queue.decrement_key(epoch['key'])
-        except KeyError:
-            m = 'Acquired extra epoch for {}'
-            log.debug(m.format(epoch['key']))
+    with output.engine.lock:
+        for epoch in event.parameters['data']:
+            try:
+                output.queue.decrement_key(epoch['key'])
+            except KeyError:
+                m = 'Acquired extra epoch for {}'
+                log.debug(m.format(epoch['key']))
 
 
 def plot_output(event, output):
@@ -160,7 +163,6 @@ def plot_output(event, output):
     generator = factory()
     next(generator)
     w = generator.send({'samples': 100000})
-
      #TODO FINISH ME
 
 
