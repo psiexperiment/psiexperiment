@@ -1,0 +1,69 @@
+import os.path
+from glob import glob
+
+from enaml.widgets.api import (Window, ObjectCombo, Label, Field, Container,
+                               Form, HGroup, PushButton, VGroup)
+
+
+from psi import get_config
+
+
+enamldef LauncherView(Window): main:
+
+    attr launcher
+
+    Container:
+
+        Form:
+            Label:
+                text = 'Experiment'
+            ObjectCombo:
+                items = ['', 'appetitive_gonogo_food']
+                to_string = lambda x: x.replace('_', ' ')
+                selected::
+                    launcher.experiment = selected
+                    p_root = get_config('PREFERENCES_ROOT')
+                    p_wildcard = get_config('PREFERENCES_WILDCARD')
+                    p_glob = p_wildcard[:-1].split('(')[1]
+                    p_search = os.path.join(p_root, selected, p_glob)
+                    settings.items = glob(p_search)
+
+            Label:
+                text = 'Experiment settings'
+            ObjectCombo: settings:
+                items = []
+                selected := launcher.preferences
+                to_string = lambda x: os.path.splitext(os.path.basename(x))[0]
+
+            Label:
+                text = 'Experimenter'
+            ObjectCombo:
+                items = ['Brad', 'Sean']
+                selected := launcher.experimenter
+
+            Label:
+                text = 'Animal'
+            ObjectCombo:
+                items = ['170704.0 1', '170704.0 2', '170704.0 3', '170704.0 4']
+                selected := launcher.animal
+
+            Label:
+                text = 'Note'
+            Field:
+                text := launcher.note
+
+            Label:
+                text = 'Base folder'
+            Label:
+                text << launcher.base_folder
+                visible << bool(launcher.note and \
+                                launcher.animal and \
+                                launcher.experimenter)
+
+        PushButton:
+            text = 'Start experiment'
+            clicked ::
+                launcher.start_experiment()
+            enabled << bool(launcher.note and \
+                            launcher.animal and \
+                            launcher.experimenter)

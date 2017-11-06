@@ -11,7 +11,8 @@ setup(
 	entry_points={
 		'console_scripts': [
 			'psi=psi.application.cmd_launcher:main',
-			'cfts=psi.application.cfts_launcher:main'
+			'cfts=psi.application.cfts_launcher:main',
+			'psi-gui=psi.application.gui_launcher:main',
 		]
 	},
 )

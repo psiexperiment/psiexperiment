@@ -132,8 +132,16 @@ def _main(args):
     core = workbench.get_plugin('enaml.workbench.core')
     ui.select_workspace('psi.experiment.workspace')
     ui.show_window()
+
+    # Set the base path for the data
     base_path = get_base_path(args.pathname, args.experiment)
-    deferred_call(core.invoke_command, 'psi.data.set_base_path', {'base_path': base_path})
+    deferred_call(core.invoke_command, 'psi.data.set_base_path', 
+                  {'base_path': base_path})
+
+    if args.preferences is not None:
+        deferred_call(core.invoke_command, 'psi.load_preferences', 
+                    {'filename': args.preferences})
+
     for command in args.commands:
         deferred_call(core.invoke_command, command)
     ui.start_application()
@@ -171,3 +179,5 @@ def add_default_options(parser):
                         help="Don't load existing layout files")
     parser.add_argument('-c', '--commands', nargs='+', default=[],
                         help='Commands to invoke') 
+    parser.add_argument('-p', '--preferences', type=str, nargs='?',
+                        help='Preferences file')
