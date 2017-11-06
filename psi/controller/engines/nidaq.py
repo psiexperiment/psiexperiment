@@ -140,7 +140,7 @@ class SamplesAcquiredCallbackHelper(object):
                                     mx.DAQmx_Val_GroupByChannel, data, data.size,
                                     self._int32, None)
                 self._callback(data)
-                log.debug('Acquired {} samples'.format(data.shape))
+                #log.trace('Acquired {} samples'.format(data.shape))
             return 0
         except Exception as e:
             log.exception(e)
@@ -256,6 +256,9 @@ def setup_hw_ao(fs, lines, expected_range, callback, callback_samples,
     task._n_channels = result.value
     log.debug('%d channels in task', task._n_channels)
 
+    #mx.DAQmxSetAOMemMapEnable(task, lines, True)
+    mx.DAQmxSetAODataXferReqCond(task, lines, mx.DAQmx_Val_OnBrdMemHalfFullOrLess)
+
     # This controls how quickly we can update the buffer on the device. On some
     # devices it is not user-settable. On the X-series PCIe-6321 I am able to
     # change it. On the M-xeries PCI 6259 it appears to be fixed at 8191
@@ -263,6 +266,22 @@ def setup_hw_ao(fs, lines, expected_range, callback, callback_samples,
     mx.DAQmxGetBufOutputOnbrdBufSize(task, result)
     task._onboard_buffer_size = result.value
     log.debug('Onboard buffer size %d', task._onboard_buffer_size)
+
+    result = ctypes.c_int32()
+    mx.DAQmxGetAODataXferMech(task, lines, result)
+    log.debug('Data transfer mechanism %d', result.value)
+    mx.DAQmxGetAODataXferReqCond(task, lines, result)
+    log.debug('Data transfer condition %d', result.value)
+    result = ctypes.c_uint32()
+    mx.DAQmxGetAOUseOnlyOnBrdMem(task, lines, result)
+    log.debug('Use only onboard memory %d', result.value)
+    mx.DAQmxGetAOMemMapEnable(task, lines, result)
+    log.debug('Memory mapping enabled %d', result.value)
+
+
+    #result = ctypes.c_int32()
+    #mx.DAQmxGetAODataXferMech(task, result)
+    #log.debug('DMA transfer mechanism %d', result.value)
 
     log.debug('Creating callback after every %d samples', callback_samples)
     callback_helper = SamplesGeneratedCallbackHelper(callback)
@@ -758,37 +777,6 @@ class NIDAQEngine(Engine):
         s = self._get_channel_slice('cd_task', channel_name)
         self._callbacks['et'].remove((channel_name, s, callback))
 
-    def write_hw_ao(self, data, offset=None, timeout=0):
-        log.debug('Writing {} samples at {}'.format(data.shape, offset))
-        task = self._tasks['hw_ao']
-        if offset is not None:
-            # Overwrites data already in the buffer. Used to override changes to
-            # the signal.
-            mx.DAQmxSetWriteRelativeTo(task, mx.DAQmx_Val_FirstSample)
-            mx.DAQmxSetWriteOffset(task, offset)
-            log.trace('Writing %d samples starting at %d', data.size, offset)
-        else:
-            # Appends data to the end of the buffer.
-            mx.DAQmxSetWriteRelativeTo(task, mx.DAQmx_Val_CurrWritePos)
-            mx.DAQmxSetWriteOffset(task, 0)
-            log.trace('Writing %d samples to end of buffer', data.size)
-
-        if __debug__:
-            mx.DAQmxGetWriteSpaceAvail(task, self._uint32)
-            available = self._uint32.value
-            log.trace('Before: current write space available %d', available)
-
-        mx.DAQmxWriteAnalogF64(task, data.shape[-1], False, timeout,
-                               mx.DAQmx_Val_GroupByChannel,
-                               data.astype(np.float64), self._int32, None)
-        if self._int32.value != data.shape[-1]:
-            raise ValueError('Unable to write all samples to channel')
-
-        if __debug__:
-            mx.DAQmxGetWriteSpaceAvail(task, self._uint32)
-            available = self._uint32.value
-            log.trace('After: current write space available %d', available)
-
     def write_sw_ao(self, state):
         task = self._tasks['sw_ao']
         state = np.array(state).astype(np.double)
@@ -852,14 +840,45 @@ class NIDAQEngine(Engine):
             data[i] = channel.get_samples(offset, samples)
         return data
 
+    def get_offset(self, channel_name=None):
+        # Doesn't matter. Offset is the same for all channels in the task.
+        task = self._tasks['hw_ao']
+        mx.DAQmxSetWriteRelativeTo(task, mx.DAQmx_Val_CurrWritePos)
+        mx.DAQmxSetWriteOffset(task, 0)
+        mx.DAQmxGetWriteCurrWritePos(task, self._uint64)
+        return self._uint64.value
+
+    def get_space_available(self, offset=None, channel_name=None):
+        # It doesn't matter what the output channel is. Space will be the same
+        # for all.
+        task = self._tasks['hw_ao']
+        mx.DAQmxGetWriteSpaceAvail(task, self._uint32)
+        available = self._uint32.value
+        log.trace('Current write space available %d', available)
+
+        # Compensate for offset if specified.
+        if offset is not None:
+            write_position = self.ao_write_position()
+            relative_offset = offset-write_position
+            log.trace('Compensating write space for requested offset %d', offset)
+            available -= relative_offset
+        return available
+
+    def ao_sample_clock(self):
+        task = self._tasks['hw_ao']
+        mx.DAQmxGetWriteTotalSampPerChanGenerated(task, self._uint64)
+        log.trace('%d samples per channel generated', self._uint64.value)
+        return self._uint64.value
+
     def hw_ao_callback(self, samples):
         # Get the next set of samples to upload to the buffer
         with self.lock:
-            log.debug('Hardware AO callback for {}'.format(self.name))
+            log.trace('Hardware AO callback for {}'.format(self.name))
             while True:
                 offset = self.get_offset()
                 available_samples = self.get_space_available(offset)
                 if available_samples < samples:
+                    log.trace('Not enough samples available for writing')
                     break
                 data = self._get_hw_ao_samples(offset, samples)
                 self.write_hw_ao(data, timeout=0)
@@ -867,15 +886,51 @@ class NIDAQEngine(Engine):
     def update_hw_ao(self, offset, channel_name=None):
         # Get the next set of samples to upload to the buffer. Ignore the
         # channel name because we need to update all channels simultaneously.
-        with self.lock:
-            samples = self.get_space_available(offset)
-            log.debug('Updating hw ao at {} with {} samples' \
-                      .format(offset, samples))
-            data = self._get_hw_ao_samples(offset, samples)
-            self.write_hw_ao(data, offset=offset, timeout=0)
+        samples = self.get_space_available(offset)
+        if samples <= 0:
+            log.trace('No update of hw ao required')
+            return
+        log.trace('Updating hw ao at {} with {} samples'.format(offset, samples))
+        data = self._get_hw_ao_samples(offset, samples)
+        self.write_hw_ao(data, offset=offset, timeout=0)
+
+    def ao_write_position(self):
+        task = self._tasks['hw_ao']
+        mx.DAQmxGetWriteCurrWritePos(task, self._uint64)
+        log.trace('Current write position %d', self._uint64.value)
+        return self._uint64.value
+
+    def write_hw_ao(self, data, offset=None, timeout=1):
+        # Due to historical limitations in the DAQmx API, the write offset is a
+        # signed 32-bit integer. For long-running applications, we will have an
+        # overflow if we attempt to set the offset relative to the first sample
+        # written. Therefore, we compute the write offset relative to the last
+        # sample written (for requested offsets it should be negative).
+        log.trace('Writing {} samples at {}'.format(data.shape, offset))
+        task = self._tasks['hw_ao']
+
+        if offset is not None:
+            write_position = self.ao_write_position()
+            relative_offset = offset-write_position
+            mx.DAQmxSetWriteOffset(task, relative_offset)
+            m = 'Write position %d, requested offset %d, relative offset %d'
+            log.trace(m, write_position, offset, relative_offset)
+            log.trace('AO samples generated %d', self.ao_sample_clock())
+
+        mx.DAQmxWriteAnalogF64(task, data.shape[-1], False, timeout,
+                               mx.DAQmx_Val_GroupByChannel,
+                               data.astype(np.float64), self._int32, None)
+
+        # Now, reset it back to 0
+        if offset is not None:
+            log.trace('Resetting write offset')
+            mx.DAQmxSetWriteOffset(task, 0)
+
+        log.trace('Write complete')
 
     def get_ts(self):
-        return self.ao_sample_clock()/self.ao_fs
+        with self.lock:
+            return self.ao_sample_clock()/self.ao_fs
 
     def start(self):
         if not self._configured:
@@ -906,40 +961,6 @@ class NIDAQEngine(Engine):
             mx.DAQmxClearTask(task)
         self._callbacks = {}
         self._configured = False
-
-    def get_offset(self, channel_name=None):
-        # Doesn't matter. Offset is the same for all channels in the task.
-        with self.lock:
-            task = self._tasks['hw_ao']
-            mx.DAQmxSetWriteRelativeTo(task, mx.DAQmx_Val_CurrWritePos)
-            mx.DAQmxSetWriteOffset(task, 0)
-            mx.DAQmxGetWriteCurrWritePos(task, self._uint64)
-            return self._uint64.value
-
-    def get_space_available(self, offset=None, channel_name=None):
-        # It doesn't matter what the output channel is. Space will be the same
-        # for all.
-        try:
-            task = self._tasks['hw_ao']
-            mx.DAQmxGetWriteCurrWritePos(task, self._uint64)
-            log.trace('Current write position %d', self._uint64.value)
-            if offset is not None:
-                mx.DAQmxSetWriteRelativeTo(task, mx.DAQmx_Val_FirstSample)
-                mx.DAQmxSetWriteOffset(task, offset)
-            else:
-                mx.DAQmxSetWriteRelativeTo(task, mx.DAQmx_Val_CurrWritePos)
-                mx.DAQmxSetWriteOffset(task, 0)
-            mx.DAQmxGetWriteSpaceAvail(task, self._uint32)
-            log.trace('Current write space available %d', self._uint32.value)
-            return self._uint32.value
-        except KeyError:
-            raise SystemError('No hardware-timed AO task configured')
-
-    def ao_sample_clock(self):
-        task = self._tasks['hw_ao']
-        mx.DAQmxGetWriteTotalSampPerChanGenerated(task, self._uint64)
-        log.trace('%d samples per channel generated', self._uint64.value)
-        return self._uint64.value
 
     def ai_sample_clock(self):
         task = self._tasks['hw_ai']

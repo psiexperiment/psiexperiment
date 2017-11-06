@@ -40,10 +40,11 @@ class ChannelDataRange(Atom):
         if self.current_range != (low_value, high_value):
             # this updates all plots linked to this data range
             self.current_range = (low_value, high_value)
-            self.container.update_range(low_value, high_value)
+            self.container.update_range(low_value, high_value,
+                                        self.current_time)
         else:
             # this updates only the plot that has new data
-            plot.update_range(low_value, high_value)
+            plot.update_range(low_value, high_value, self.current_time)
 
 
 ################################################################################
@@ -105,9 +106,9 @@ class TimeContainer(PlotContainer):
     def _default_data_range(self):
         return ChannelDataRange(container=self, span=self.span)
 
-    def update_range(self, low, high):
+    def update_range(self, low, high, current_time):
         for child in self.children:
-            child.update_range(low, high)
+            child.update_range(low, high, current_time)
         self.base_viewbox.setXRange(low, high, padding=0)
 
     def _default_x_axis(self):
@@ -174,9 +175,9 @@ class ViewBox(PSIContribution):
         for child in self.children:
             child.prepare(plugin)
 
-    def update_range(self, low, high):
+    def update_range(self, low, high, current_time):
         for child in self.children:
-            child.update_range(low, high)
+            child.update_range(low, high, current_time)
 
 
 class Plot(PSIContribution):
@@ -184,6 +185,8 @@ class Plot(PSIContribution):
     pen_color = d_(Typed(object))
     pen_width = d_(Float(0))
     antialias = d_(Bool(False))
+    update_interval = d_(Float(0))
+    last_update = Float(0)
 
     pen = Typed(object)
     plot = Typed(object)
@@ -196,6 +199,13 @@ class Plot(PSIContribution):
 
     def prepare(self, plugin):
         pass
+
+    def should_update(self, current_time):
+        if self.update_interval == 0:
+            return True
+        if (current_time-self.last_update) < self.update_interval:
+            return False
+        return True
 
 
 class ChannelPlot(Plot):
@@ -227,7 +237,12 @@ class ChannelPlot(Plot):
         except Exception as e:
             pass
 
-    def update_range(self, low, high):
+    def update_range(self, low, high, current_time):
+        if not self.should_update(current_time):
+            return
+        else:
+            self.last_update = current_time
+
         data = self.source.get_range(low, high)
         t = self._cached_time[:len(data)] + low
         if self.downsample > 1:
@@ -252,6 +267,8 @@ def decimate_extremes(data, downsample):
     # the last 3 samples and will simply discard them.
     last_dim = data.ndim
     offset = data.shape[-1] % downsample
+    if offset > 0:
+        data = data[..., :-offset]
 
     # Force a copy to be made, which speeds up min()/max().  Apparently min/max
     # make a copy of a reshaped array before performing the operation, so we
@@ -260,7 +277,7 @@ def decimate_extremes(data, downsample):
         shape = (len(data), -1, downsample)
     else:
         shape = (-1, downsample)
-    data = data[..., :-offset].reshape(shape).copy()
+    data = data.reshape(shape).copy()
     return data.min(last_dim), data.max(last_dim)
 
 
@@ -279,7 +296,6 @@ class FFTChannelPlot(ChannelPlot):
         self.source.observe('added', self.update)
 
     def update(self, event):
-        print(self.plot.isVisible())
         ub = event['value']['ub']
         if ub < self.time_span:
             return
@@ -316,6 +332,11 @@ class TimeseriesPlot(Plot):
         self.parent.data_range.observe('current_time', self.update)
 
     def update(self, event=None):
+        current_time = self.parent.data_range.current_time
+        if not self.should_update(current_time):
+            return
+        else:
+            self.last_update = current_time
         low, high = self.parent.data_range.current_range
         current_time = self.parent.data_range.current_time
         epochs = self.source.get_epochs(self.rising_event, self.falling_event,
@@ -329,7 +350,7 @@ class TimeseriesPlot(Plot):
             path.addRect(r)
         deferred_call(self.plot.setPath, path)
 
-    def update_range(self, low, high):
+    def update_range(self, low, high, current_time):
         self.update()
 
 

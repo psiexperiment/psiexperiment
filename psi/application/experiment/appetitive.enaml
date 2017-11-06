@@ -7,6 +7,7 @@ from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import Branding
 
+from psi.controller.input import Accumulate
 from psi.controller.appetitive_manifest import AppetitiveManifest
 from psi.controller.api import (ExperimentState, ExperimentAction,
                                 ContinuousOutput, EpochOutput)
@@ -60,14 +61,12 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             event = 'trial_start'
             command = 'target.start'
             kwargs = {'delay': 0.5}
-            #concurrent = True
             weight = 0
 
         ExperimentAction:
             event = 'response_end'
             command = 'target.clear'
             kwargs = {'delay': 0.5}
-            #concurrent = True
             weight = 0
 
         ExperimentAction:
@@ -144,6 +143,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                     name = 'plot1'
                     source_name = 'reward_contact_analog'
                     pen_color = 'b'
+                    #update_interval = 0.1
 
                 TimeseriesPlot:
                     source_name = 'event_log'
@@ -153,11 +153,13 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                     fill_color = (64, 105, 224, 68)
                     rect_center = 2.5
                     rect_height = 1
+                    update_interval = 0.1
 
                 ChannelPlot:
                     name = 'plot2'
                     source_name = 'nose_poke_analog'
                     pen_color = 'r'
+                    update_interval = 0.1
 
                 TimeseriesPlot:
                     source_name = 'event_log'
@@ -167,6 +169,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                     pen_color = (43, 138, 87, 113)
                     rect_center = 2.5
                     rect_height = 1
+                    update_interval = 0.1
 
                 TimeseriesPlot:
                     source_name = 'event_log'
@@ -176,6 +179,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                     pen_color = (43, 138, 87, 113)
                     rect_center = 2.5
                     rect_height = 1
+                    update_interval = 0.1
 
                 TimeseriesPlot:
                     source_name = 'event_log'
@@ -185,6 +189,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                     fill_color = (113, 113, 113, 68)
                     rect_center = 3.5
                     rect_height = 1
+                    update_interval = 0.1
 
                 TimeseriesPlot:
                     source_name = 'event_log'
@@ -194,6 +199,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                     fill_color = (192, 192, 192, 68)
                     rect_center = 4.5
                     rect_height = 1
+                    update_interval = 0.1
 
                 TimeseriesPlot:
                     source_name = 'event_log'
@@ -203,6 +209,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                     fill_color = (113, 113, 113, 68)
                     rect_center = 4.5
                     rect_height = 1
+                    update_interval = 0.1
 
                 TimeseriesPlot:
                     source_name = 'event_log'
@@ -212,6 +219,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                     pen_color = (64, 64, 64, 113)
                     rect_center = 4.5
                     rect_height = 1
+                    update_interval = 0.1
 
                 TimeseriesPlot:
                     source_name = 'event_log'
@@ -221,12 +229,14 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                     pen_color = (0, 0, 0, 113)
                     rect_center = 4.5
                     rect_height = 1
+                    update_interval = 0.1
 
             ViewBox:
                 y_min = -1
                 y_max = 1
 
                 ChannelPlot:
+                    update_interval = 0.1
                     name = 'plot3'
                     source_name = 'microphone'
                     pen_color = 'k'

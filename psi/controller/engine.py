@@ -26,7 +26,7 @@ class Engine(Declarative):
     sw_do_channels = Property()
 
     def _default_lock(self):
-        return threading.RLock()
+        return threading.Lock()
 
     def _get_channels(self):
         return [c for c in self.children if isinstance(c, Channel)]

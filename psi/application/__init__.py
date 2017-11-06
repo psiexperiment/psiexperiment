@@ -24,7 +24,7 @@ experiments = {
 
 def configure_logging(filename=None):
     time_format = '[%(relativeCreated)d %(thread)d %(name)s - %(levelname)s] %(message)s'
-    simple_format = '%(thread)d %(name)s - %(message)s'
+    simple_format = '%(asctime)s %(thread)d %(name)s - %(message)s'
 
     logging_config = {
         'version': 1,
@@ -37,15 +37,16 @@ def configure_logging(filename=None):
             'console': {
                 'class': 'psi.core.logging.colorstreamhandler.ColorStreamHandler',
                 'formatter': 'simple',
-                'level': 'DEBUG',
+                'level': 'INFO',
                 },
             },
         'loggers': {
             '__main__': {'level': 'DEBUG'},
-            'psi': {'level': 'TRACE'},
+            'psi': {'level': 'DEBUG'},
             'daqengine': {'level': 'TRACE'},
             'psi.core.chaco': {'level': 'INFO'},
             'psi.controller.engine': {'level': 'TRACE'},
+            'psi.controller.engines.nidaq': {'level': 'TRACE'},
             },
         'root': {
             'handlers': ['console'],
