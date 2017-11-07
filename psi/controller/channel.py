@@ -81,12 +81,14 @@ class AOChannel(OutputChannel):
     expected_range = d_(Tuple()).tag(metadata=True)
     terminal_mode = d_(Enum(*TERMINAL_MODES)).tag(metadata=True)
 
-    def get_samples(self, offset, samples):
+    def get_samples(self, offset, samples, out=None):
+        if out is None:
+            out = np.empty(samples, dtype=np.double)
         n_outputs = len(self.outputs)
         waveforms = np.empty((n_outputs, samples))
-        for i, output in enumerate(self.outputs):
-            waveforms[i] = output.get_samples(offset, samples)
-        return np.sum(waveforms, axis=0)
+        for output, waveform in zip(self.outputs, waveforms):
+            output.get_samples(offset, samples, out=waveform)
+        return np.sum(waveforms, axis=0, out=out)
 
 
 class DIChannel(InputChannel):

@@ -836,8 +836,8 @@ class NIDAQEngine(Engine):
     def _get_hw_ao_samples(self, offset, samples):
         channels = len(self.hw_ao_channels)
         data = np.empty((channels, samples), dtype=np.double)
-        for i, channel in enumerate(self.hw_ao_channels):
-            data[i] = channel.get_samples(offset, samples)
+        for channel, ch_data in zip(self.hw_ao_channels, data):
+            channel.get_samples(offset, samples, out=ch_data)
         return data
 
     def get_offset(self, channel_name=None):
