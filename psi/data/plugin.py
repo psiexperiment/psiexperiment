@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 
 from psi import get_config
+from psi.core.enaml.api import load_manifests
 
 from .sink import Sink
 from .plots import PlotContainer
@@ -61,10 +62,7 @@ class DataPlugin(Plugin):
         point = self.workbench.get_extension_point(PLOT_POINT)
         for extension in point.extensions:
             plots.extend(extension.get_children(PlotContainer))
-        for container in plots:
-            container.load_manifest(self.workbench)
-            for child in container.children:
-                child.load_manifest(self.workbench)
+        load_manifests(plots, self.workbench)
         self._plots = plots
 
     def _bind_observers(self):

@@ -1,8 +1,8 @@
 from functools import partial
 
 from atom.api import Typed, set_default
-from enaml.core.api import Include, d_
-from enaml.widgets.api import DockItem, Container, RawWidget
+from enaml.core.api import Include, d_, Looper
+from enaml.widgets.api import DockItem, Container, RawWidget, Label, Form, Field
 from enaml.workbench.api import Extension, Workbench
 from enaml.workbench.core.api import Command
 
@@ -11,7 +11,7 @@ pg.setConfigOption('foreground', 'k')
 
 from psi.core.enaml.api import PSIManifest
 from psi.controller.api import ExperimentAction
-from psi.context.context_item import ChoiceContextMeta
+from psi.context.context_item import OrderedContextMeta
 
 
 class PGCanvas(RawWidget):
@@ -31,33 +31,7 @@ class PGCanvas(RawWidget):
         self.view.setCentralItem(event['value'])
 
 
-def prepare(event, container):
-    plugin = event.workbench.get_plugin('psi.data')
-    container.prepare(plugin)
-
-
-def channel_plot_init(event, plot):
-    controller_plugin = event.workbench.get_plugin('psi.controller')
-    input = controller_plugin.get_input(plot.source_name)
-    plot.y_axis.setLabel(input.label, units=input.unit)
-
-
 enamldef PlotContainerManifest(PSIManifest): manifest:
-
-    Extension:
-        id = 'command'
-        point = 'enaml.workbench.core.commands'
-        Command:
-            id = manifest.contribution.name + '_prepare'
-            handler = partial(prepare, container=manifest.contribution)
-
-    Extension:
-        id = 'actions'
-        point = 'psi.controller.actions'
-        rank = 200
-        ExperimentAction:
-            event = 'experiment_prepare'
-            command = manifest.contribution.name + '_prepare'
 
     Extension:
         id = 'workspace'
@@ -65,11 +39,16 @@ enamldef PlotContainerManifest(PSIManifest): manifest:
 
         DockItem:
             name << manifest.contribution.name
-            title << manifest.contribution.title
+            title << manifest.contribution.label
 
             Container:
                 PGCanvas: canvas:
                     component << manifest.contribution.container
+
+
+def prepare_channel_plot(event, plot):
+    plugin = event.workbench.get_plugin('psi.data')
+    plot.source = plugin.find_source(plot.source_name)
 
 
 enamldef ChannelPlotManifest(PSIManifest): manifest:
@@ -78,8 +57,8 @@ enamldef ChannelPlotManifest(PSIManifest): manifest:
         id = 'command'
         point = 'enaml.workbench.core.commands'
         Command:
-            id = manifest.contribution.name + '_init'
-            handler = partial(channel_plot_init, plot=manifest.contribution)
+            id = manifest.contribution.name + '_prepare'
+            handler = partial(prepare_channel_plot, plot=manifest.contribution)
 
     Extension:
         id = 'actions'
@@ -87,21 +66,41 @@ enamldef ChannelPlotManifest(PSIManifest): manifest:
         rank = 200
         ExperimentAction:
             event = 'plugins_started'
-            command = manifest.contribution.name + '_init'
+            command = manifest.contribution.name + '_prepare'
 
 
-def prepare_grid(event, contribution):
-    selector_name = event.parameters.get('selector_name', 'default')
-    context = event.workbench.get_plugin('psi.context')
-    iterable = context.iter_settings(selector_name, 1)
-    contribution.prepare_grid(iterable)
-
-
-enamldef GridContainerManifest(PlotContainerManifest): manifest:
+enamldef EpochAveragePlotManifest(ChannelPlotManifest): manifest:
 
     Extension:
-        id = 'commands'
-        point = 'enaml.workbench.core.commands'
-        Command:
-            id = manifest.contribution.name + '.prepare_grid'
-            handler = partial(prepare_grid, contribution=manifest.contribution)
+        id = 'workspace.epoch_average_plot'
+        point = 'psi.experiment.workspace'
+
+        DockItem:
+            name << manifest.contribution.name + ' settings'
+            title << manifest.contribution.label + ' settings'
+
+            Container:
+                Form:
+                    Looper:
+                        iterable << manifest.contribution.filters.items()
+                        Label:
+                            text << loop_item[0]
+                        Field:
+                            text << str(loop_item[1])
+                            text ::
+                                value = loop_item.coerce_to_type(text)
+                                manifest.contribution.filters[loop_item.name] = value
+
+    Extension:
+        id = 'items'
+        point = 'psi.context.items'
+        OrderedContextMeta: meta:
+            name << manifest.contribution.name
+            label << manifest.contribution.label
+            values::
+                old_filters = manifest.contribution.filters.copy()
+                new_filters = {v.name: v.default for v in values}
+                for k, v in old_filters.items():
+                    if k in new_filters:
+                        new_filters[k] = v
+                manifest.contribution.filters = new_filters

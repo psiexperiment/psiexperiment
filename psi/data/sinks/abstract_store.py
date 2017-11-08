@@ -227,10 +227,30 @@ class ContinuousDataChannel(DataChannel):
 
 class EpochDataChannel(DataChannel):
 
+    metadata = Typed(list, [])
+    lock = Typed(object)
+
+    def _default_lock(self):
+        import threading
+        return threading.Lock()
+
     def append(self, data):
         epochs = [d['signal'] for d in data]
-        self.data.append(epochs)
+        metadata = [d['metadata'] for d in data]
+        with self.lock:
+            self.data.append(epochs)
+            self.metadata.extend(metadata)
         self.added = data
+
+    def get_epochs(self, filters):
+        def match(row, filters):
+            for k, v in filters.items():
+                if row[k] != v:
+                    return False
+            return True
+        with self.lock:
+            mask = np.array([match(m, filters) for m in self.metadata])
+            return self.data[:][mask]
 
 
 class AbstractStore(Sink):
