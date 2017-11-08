@@ -89,7 +89,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
             auto_decrement = False
 
         Blocked:
-            duration = 0.025
+            duration = 0.25
             name = 'eeg'
             save = True
             source_name = 'eeg_channel'

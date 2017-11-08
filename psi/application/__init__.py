@@ -19,6 +19,7 @@ experiments = {
     'abr': 'psi.application.experiment.abr.ControllerManifest',
     'noise_exposure': 'psi.application.experiment.noise_exposure.ControllerManifest',
     'efr': 'psi.application.experiment.efr.ControllerManifest',
+    'dual_efr': 'psi.application.experiment.dual_efr.ControllerManifest',
 }
 
 
