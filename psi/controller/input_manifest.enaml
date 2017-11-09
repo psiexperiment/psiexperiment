@@ -30,15 +30,18 @@ enamldef ContinuousInputManifest(InputManifest): manifest:
         id = 'continuous_actions.' + manifest.contribution.name
         point = 'psi.controller.actions'
 
-        ExperimentAction:
-            event = 'plugins_started'
-            command = 'psi.data.create_ai_continuous'
-            kwargs = get_metadata(manifest.contribution)
+        Conditional:
+            condition << manifest.contribution.save
 
-        ExperimentAction:
-            event = manifest.contribution.name + '_acquired'
-            command = 'psi.data.process_ai_continuous'
-            kwargs = {'name': manifest.contribution.name}
+            ExperimentAction:
+                event = 'plugins_started'
+                command = 'psi.data.create_ai_continuous'
+                kwargs = get_metadata(manifest.contribution)
+
+            ExperimentAction:
+                event = manifest.contribution.name + '_acquired'
+                command = 'psi.data.process_ai_continuous'
+                kwargs = {'name': manifest.contribution.name}
 
 
 enamldef EventInputManifest(InputManifest): manifest:
