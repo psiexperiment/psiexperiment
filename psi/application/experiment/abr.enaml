@@ -12,7 +12,7 @@ from psi.context.selector import CartesianProduct
 from psi.controller.api import ExperimentAction
 
 from psi.controller.output import QueuedEpochOutput, EpochOutput
-from psi.controller.input import ExtractEpochs, Input, Blocked, Accumulate, RejectEpochs, IIRFilter
+from psi.controller.input import ExtractEpochs, Input, Blocked, Accumulate, RejectEpochs, IIRFilter, Decimate
 
 from psi.controller.base_manifest import BaseManifest
 
@@ -88,15 +88,21 @@ enamldef ControllerManifest(BaseManifest): manifest:
             queue = InterleavedFIFOSignalQueue(fs=output.fs, initial_delay=1)
             auto_decrement = False
 
+        Decimate:
+            q = 25
+            name = 'ecg'
+            save = True
+            source_name = 'eeg_channel'
+
         Blocked:
-            duration = 0.25
+            duration = 0.1
             name = 'eeg'
             save = True
             source_name = 'eeg_channel'
 
             Accumulate:
                 name = 'eeg_buffered'
-                n = 25
+                n = 50
 
                 IIRFilter:
                     name = 'eeg_buffered_filtered'
@@ -115,6 +121,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
                         name = 'erp'
 
                         RejectEpochs:
+                            save = True
                             threshold = 2.5
                             name = 'valid_erp'
 
@@ -201,7 +208,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
         TimeContainer:
             name = 'trial_plot_container'
             label = 'Trial timing'
-            span = 4
+            span = 2
 
             ViewBox:
                 y_min = -5
@@ -209,4 +216,4 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
                 ChannelPlot:
                     pen_color = 'k'
-                    source_name = 'eeg'
+                    source_name = 'ecg'

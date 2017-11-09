@@ -6,7 +6,7 @@ from psi import get_config
 
 from psi.controller.engines.nidaq import NIDAQEngine
 from psi.controller.channel import AIChannel, AOChannel
-from psi.controller.input import ContinuousInput, IIRFilter
+from psi.controller.input import ContinuousInput, IIRFilter, Decimate
 from psi.data.sinks.bcolz_store import BColzStore
 from psi.controller.calibration import InterpCalibration
 
@@ -31,7 +31,7 @@ enamldef IOManifest(PluginManifest): manifest:
 
         NIDAQEngine:
             name = 'NI_EEG'
-            hw_ai_monitor_period = 0.25
+            hw_ai_monitor_period = 0.1
 
             AIChannel:
                 label = 'EEG'
@@ -81,12 +81,7 @@ enamldef IOManifest(PluginManifest): manifest:
                 terminal_coupling = 'AC'
                 calibration = mic_cal
 
-                IIRFilter:
-                    N = 4
-                    btype = 'bandpass'
-                    ftype = 'butter'
-                    f_highpass = 100
-                    f_lowpass = 40000
+                ContinuousInput:
                     name = 'microphone'
                     save = True
 
@@ -103,4 +98,3 @@ enamldef IOManifest(PluginManifest): manifest:
 
                 ContinuousInput:
                     name = 'reference_microphone'
-

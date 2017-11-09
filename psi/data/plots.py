@@ -48,7 +48,6 @@ class ChannelDataRange(Atom):
         source.observe('added', partial(self.source_added, plot=plot))
 
     def source_added(self, event, plot):
-        log.debug('Calling plot update')
         self.current_time = max(self.current_time, event['value']['ub'])
         plot.update()
 
@@ -402,7 +401,8 @@ class EpochAveragePlot(ChannelPlot):
         self.source.observe('added', self.update)
 
     def _update(self):
-        result = self.source.get_epochs(self.filters)
+        filters = {p.name: v for p, v in self.filters.items()}
+        result = self.source.get_epochs(filters)
         if len(result) == 0:
             return
         y = result.mean(axis=0)

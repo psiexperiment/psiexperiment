@@ -121,7 +121,6 @@ class EpochInput(Input):
 ################################################################################
 @coroutine
 def calibrate(calibration, target):
-    # TODO: hack alert here
     sens = dbi(calibration.get_sens(1000))
     while True:
         data = (yield)
