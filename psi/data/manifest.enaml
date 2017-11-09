@@ -118,7 +118,7 @@ enamldef DataManifest(PluginManifest): manifest:
         id = 'actions'
         point = 'psi.controller.actions'
         ExperimentAction:
-            event = 'experiment_prepare'
+            event = 'plugins_started'
             command = 'psi.data.prepare'
         ExperimentAction:
             event = 'experiment_end'

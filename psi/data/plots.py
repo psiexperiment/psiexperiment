@@ -360,6 +360,9 @@ class TimeseriesPlot(Plot):
     brush = Typed(object)
     source = Typed(object)
 
+    def _default_name(self):
+        return self.source_name + self.rising_event + '_timeseries'
+
     def _default_brush(self):
         return pg.mkBrush(self.fill_color)
 
@@ -369,8 +372,7 @@ class TimeseriesPlot(Plot):
         plot.setBrush(self.brush)
         return plot
 
-    def prepare(self, plugin):
-        self.source = plugin.find_source(self.source_name)
+    def _observe_source(self, event):
         self.parent.data_range.add_source(self.source, self)
         self.parent.data_range.observe('current_time', self.update)
 

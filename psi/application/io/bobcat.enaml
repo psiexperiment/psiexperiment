@@ -109,6 +109,7 @@ enamldef IOManifest(PluginManifest): manifest:
 
                 CalibratedInput:
                     name = 'microphone'
+                    save = True
 
             AIChannel:
                 label = 'Nose poke IR'

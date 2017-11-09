@@ -46,6 +46,30 @@ enamldef PlotContainerManifest(PSIManifest): manifest:
                     component << manifest.contribution.container
 
 
+
+def prepare_timeseries_plot(event, plot):
+    plugin = event.workbench.get_plugin('psi.data')
+    plot.source = plugin.find_source(plot.source_name)
+
+
+enamldef TimeseriesPlotManifest(PSIManifest): manifest:
+
+    Extension:
+        id = 'command'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = manifest.contribution.name + '_prepare'
+            handler = partial(prepare_channel_plot, plot=manifest.contribution)
+
+    Extension:
+        id = 'actions'
+        point = 'psi.controller.actions'
+        rank = 200
+        ExperimentAction:
+            event = 'plugins_started'
+            command = manifest.contribution.name + '_prepare'
+
+
 def prepare_channel_plot(event, plot):
     plugin = event.workbench.get_plugin('psi.data')
     plot.source = plugin.find_source(plot.source_name)
