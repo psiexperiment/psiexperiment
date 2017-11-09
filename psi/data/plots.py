@@ -91,10 +91,10 @@ class PlotContainer(PSIContribution):
 
     def update(self, event=None):
         if not self.update_pending:
-            deferred_call(self._update)
+            deferred_call(self._update, event)
             self.update_pending = True
 
-    def _update(self):
+    def _update(self, event=None):
         self.update_pending = False
 
 
@@ -121,7 +121,7 @@ class TimeContainer(PlotContainer):
         x_axis.setLabel('Time', unitPrefix='sec.')
         return x_axis
 
-    def _update(self):
+    def _update(self, event=None):
         low, high = self.data_range.current_range
         current_time = self.data_range.current_time
         for child in self.children:
@@ -240,12 +240,12 @@ class Plot(PSIContribution):
 
     def update(self, event=None):
         if not self.update_pending:
-            deferred_call(self._update)
+            deferred_call(self._update, event)
             self.update_pending = True
         else:
             log.debug('Update already pending for %s', self.source_name)
 
-    def _update(self):
+    def _update(self, event=None):
         self.update_pending = False
 
 
@@ -282,7 +282,7 @@ class ChannelPlot(Plot):
         except Exception as e:
             pass
 
-    def _update(self):
+    def _update(self, event=None):
         low, high = self.parent.data_range.current_range
         data = self.source.get_range(low, high)
         t = self._cached_time[:len(data)] + low
@@ -337,7 +337,7 @@ class FFTChannelPlot(ChannelPlot):
         self._cached_frequency = np.log10(np.fft.rfftfreq(n, self.source.fs**-1))
         self.source.observe('added', self.update)
 
-    def _update(self):
+    def _update(self, event=None):
         ub = event['value']['ub']
         if ub < self.time_span:
             return
@@ -360,6 +360,9 @@ class TimeseriesPlot(Plot):
     brush = Typed(object)
     source = Typed(object)
 
+    _rising = Typed(list, ())
+    _falling = Typed(list, ())
+
     def _default_name(self):
         return self.source_name + self.rising_event + '_timeseries'
 
@@ -375,12 +378,34 @@ class TimeseriesPlot(Plot):
     def _observe_source(self, event):
         self.parent.data_range.add_source(self.source, self)
         self.parent.data_range.observe('current_time', self.update)
+        self.source.observe('added', self.added)
 
-    def _update(self):
-        low, high = self.parent.data_range.current_range
+    def added(self, event):
+        value = event['value']
+        if value['event'] == self.rising_event:
+            self._rising.append(value['lb'])
+        elif value['event'] == self.falling_event:
+            self._falling.append(value['lb'])
+
+    def _update(self, event=None):
+        lb, ub = self.parent.data_range.current_range
         current_time = self.parent.data_range.current_time
-        epochs = self.source.get_epochs(self.rising_event, self.falling_event,
-                                        low, high, current_time)
+
+        starts = self._rising
+        ends = self._falling
+        if len(starts) == 0 and len(ends) == 1:
+            starts = [0]
+        elif len(starts) == 1 and len(ends) == 0:
+            ends = [current_time]
+        elif len(starts) > 0 and len(ends) > 0:
+            if starts[0] > ends[0]:
+                starts = np.r_[0, starts]
+            if starts[-1] > ends[-1]:
+                ends = np.r_[ends, current_time]
+
+        epochs = np.c_[starts, ends]
+        m = ((epochs >= lb) & (epochs < ub)) | np.isnan(epochs)
+        epochs = epochs[m.any(axis=-1)]
 
         path = pg.QtGui.QPainterPath()
         y_start = self.rect_center - self.rect_height*0.5
