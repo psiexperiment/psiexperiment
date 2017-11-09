@@ -6,7 +6,7 @@ from psi import get_config
 
 from psi.controller.engines.nidaq import NIDAQEngine
 from psi.controller.channel import AIChannel, AOChannel
-from psi.controller.input import ContinuousInput, IIRFilter
+from psi.controller.input import ContinuousInput, IIRFilter, Decimate
 from psi.data.sinks.bcolz_store import BColzStore
 from psi.controller.calibration import InterpCalibration
 
@@ -29,12 +29,9 @@ enamldef IOManifest(PluginManifest): manifest:
         id = 'backend'
         point = 'psi.controller.io'
 
-        # Order of engines is important here. We need the NI_eeg engine to
-        # start before the NI_audio engine to ensure that the start trigger is
-        # detected.
         NIDAQEngine:
-            name = 'NI_eeg'
-            hw_ai_monitor_period = 0.25
+            name = 'NI_EEG'
+            hw_ai_monitor_period = 0.1
 
             AIChannel:
                 label = 'EEG'
@@ -58,7 +55,7 @@ enamldef IOManifest(PluginManifest): manifest:
                 label = 'primary'
                 name = 'speaker_0'
                 channel = 'PXI1Slot8/ao0'
-                fs = 200e3
+                fs = 100e3
                 expected_range = (-10, 10)
                 dtype = 'float64'
                 terminal_mode = 'pseudodifferential'
@@ -67,7 +64,7 @@ enamldef IOManifest(PluginManifest): manifest:
                 label = 'secondary'
                 name = 'speaker_1'
                 channel = 'PXI1Slot8/ao1'
-                fs = 200e3
+                fs = 100e3
                 expected_range = (-10, 10)
                 dtype = 'float64'
                 terminal_mode = 'pseudodifferential'
@@ -77,19 +74,14 @@ enamldef IOManifest(PluginManifest): manifest:
                 name = 'microphone'
                 channel = 'PXI1Slot8/ai0'
                 start_trigger = '/PXI1Slot8/ao/StartTrigger'
-                fs = 200e3
+                fs = 100e3
                 expected_range = (-10, 10)
                 dtype = 'float64'
                 terminal_mode = 'differential'
                 terminal_coupling = 'AC'
                 calibration = mic_cal
 
-                IIRFilter:
-                    N = 4
-                    btype = 'bandpass'
-                    ftype = 'butter'
-                    f_highpass = 100
-                    f_lowpass = 50000
+                ContinuousInput:
                     name = 'microphone'
                     save = True
 
@@ -98,7 +90,7 @@ enamldef IOManifest(PluginManifest): manifest:
                 name = 'reference_microphone'
                 channel = 'PXI1Slot8/ai1'
                 start_trigger = '/PXI1Slot8/ao/StartTrigger'
-                fs = 200e3
+                fs = 100e3
                 expected_range = (-10, 10)
                 dtype = 'float64'
                 terminal_mode = 'differential'

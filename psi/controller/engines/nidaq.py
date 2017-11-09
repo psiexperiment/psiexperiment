@@ -140,7 +140,6 @@ class SamplesAcquiredCallbackHelper(object):
                                     mx.DAQmx_Val_GroupByChannel, data, data.size,
                                     self._int32, None)
                 self._callback(data)
-                #log.trace('Acquired {} samples'.format(data.shape))
             return 0
         except Exception as e:
             log.exception(e)
@@ -257,7 +256,7 @@ def setup_hw_ao(fs, lines, expected_range, callback, callback_samples,
     log.debug('%d channels in task', task._n_channels)
 
     #mx.DAQmxSetAOMemMapEnable(task, lines, True)
-    mx.DAQmxSetAODataXferReqCond(task, lines, mx.DAQmx_Val_OnBrdMemHalfFullOrLess)
+    #mx.DAQmxSetAODataXferReqCond(task, lines, mx.DAQmx_Val_OnBrdMemHalfFullOrLess)
 
     # This controls how quickly we can update the buffer on the device. On some
     # devices it is not user-settable. On the X-series PCIe-6321 I am able to
@@ -272,11 +271,11 @@ def setup_hw_ao(fs, lines, expected_range, callback, callback_samples,
     log.debug('Data transfer mechanism %d', result.value)
     mx.DAQmxGetAODataXferReqCond(task, lines, result)
     log.debug('Data transfer condition %d', result.value)
-    result = ctypes.c_uint32()
-    mx.DAQmxGetAOUseOnlyOnBrdMem(task, lines, result)
-    log.debug('Use only onboard memory %d', result.value)
-    mx.DAQmxGetAOMemMapEnable(task, lines, result)
-    log.debug('Memory mapping enabled %d', result.value)
+    #result = ctypes.c_uint32()
+    #mx.DAQmxGetAOUseOnlyOnBrdMem(task, lines, result)
+    #log.debug('Use only onboard memory %d', result.value)
+    #mx.DAQmxGetAOMemMapEnable(task, lines, result)
+    #log.debug('Memory mapping enabled %d', result.value)
 
 
     #result = ctypes.c_int32()

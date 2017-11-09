@@ -19,8 +19,7 @@ from psi.controller.queue import InterleavedFIFOSignalQueue
 
 from psi.util import copy_declarative
 
-from psi.data.plots import (TimeContainer, ExtremesChannelPlot, GridContainer,
-                            ChannelPlot)
+from psi.data.plots import (TimeContainer, ChannelPlot, ViewBox, FFTContainer, FFTChannelPlot)
 
 from psi.data.sinks.trial_log import TrialLog
 
@@ -42,7 +41,10 @@ def save_trial(event):
 
 def calibrate_output(event):
     calibrate_primary(event)
-    calibrate_secondary(event)
+    try:
+        calibrate_secondary(event)
+    except KeyError:
+        pass
 
 
 def calibrate_primary(event):
@@ -241,17 +243,30 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
         TimeContainer:
             name = 'trial_plot_container'
-            title = 'Trial timing'
-            span = 1
+            label = 'Trial timing'
+            span = 5
+            delay = 0.5
 
-            ExtremesChannelPlot:
-                source_name = 'microphone'
-                pen_color = 'k'
-                y_min = -0.25
-                y_max = 0.25
-
-            ExtremesChannelPlot:
-                source_name = 'eeg'
-                pen_color = (255, 0, 0)
+            ViewBox:
                 y_min = -5
                 y_max = 5
+
+                ChannelPlot:
+                    name = 'eeg_plot'
+                    source_name = 'eeg'
+                    pen_color = 'k'
+
+        FFTContainer:
+            name = 'fft_plot_container'
+            label = 'FFT'
+            freq_lb = 5
+            freq_ub = 50000
+
+            ViewBox:
+                y_min = -120
+                y_max = 100
+
+                FFTChannelPlot:
+                    source_name = 'microphone'
+                    pen_color = 'k'
+                    time_span = 5

@@ -121,7 +121,6 @@ class EpochInput(Input):
 ################################################################################
 @coroutine
 def calibrate(calibration, target):
-    # TODO: hack alert here
     sens = dbi(calibration.get_sens(1000))
     while True:
         data = (yield)
@@ -501,7 +500,7 @@ class ExtractEpochs(EpochInput):
 
 
 @coroutine
-def reject_epochs(reject_threshold, valid_target):
+def reject_epochs(reject_threshold, status, valid_target):
     while True:
         epochs = (yield)
         valid = []
@@ -513,12 +512,20 @@ def reject_epochs(reject_threshold, valid_target):
             if np.max(np.abs(epoch['signal'])) < reject_threshold:
                 valid.append(epoch)
         valid_target(valid)
+        status.total += len(epochs)
+        status.rejects += len(epochs)-len(valid)
+        status.reject_ratio = status.rejects / status.total
 
 
 class RejectEpochs(EpochInput):
 
     threshold = d_(Float()).tag(metadata=True)
+    reject_name = d_(Unicode()).tag(metadata=True)
+
+    total = Int()
+    rejects = Int()
+    reject_ratio = Float()
 
     def configure_callback(self, plugin):
         valid_cb = super().configure_callback(plugin)
-        return reject_epochs(self.threshold, valid_cb).send
+        return reject_epochs(self.threshold, self, valid_cb).send

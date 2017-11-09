@@ -13,14 +13,13 @@ from psi.context.selector import CartesianProduct
 
 from psi.controller.api import ExperimentAction
 from psi.controller.base_manifest import BaseManifest
-from psi.controller.input import ExtractEpochs, Accumulate, IIRFilter, Decimate
+from psi.controller.input import ExtractEpochs, Accumulate, IIRFilter, Decimate, Blocked
 from psi.controller.output import QueuedEpochOutput
 from psi.controller.queue import InterleavedFIFOSignalQueue
 
 from psi.util import copy_declarative
 
-from psi.data.plots import (TimeContainer, ExtremesChannelPlot, GridContainer,
-                            ChannelPlot)
+from psi.data.plots import (TimeContainer, ViewBox, ChannelPlot, FFTContainer, FFTChannelPlot)
 
 from psi.data.sinks.trial_log import TrialLog
 
@@ -84,14 +83,19 @@ enamldef ControllerManifest(BaseManifest): manifest:
             queue = InterleavedFIFOSignalQueue(fs=output_0.fs, initial_delay=1)
             auto_decrement = True
 
-        ExtractEpochs: extract:
+        Blocked:
+            duration = 0.25
+            name = 'eeg'
             save = True
-            buffer_size = 300
-            epoch_size = 30
-            queue = output_0.queue
-            delay = 47.5/extract.fs
-            name = 'erp'
-            source_name = 'eeg'
+            source_name = 'eeg_channel'
+
+            ExtractEpochs: extract:
+                save = True
+                buffer_size = 300
+                epoch_size = 30
+                queue = output_0.queue
+                delay = 47.5/extract.fs
+                name = 'erp'
 
     Extension:
         id = 'selectors'
@@ -177,18 +181,30 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
         TimeContainer:
             name = 'trial_plot_container'
-            title = 'Trial timing'
+            label = 'Trial timing'
             span = 5
             delay = 0.5
 
-            #ExtremesChannelPlot:
-            #    source_name = 'microphone'
-            #    pen_color = 'k'
-            #    y_min = -0.25
-            #    y_max = 0.25
-
-            ExtremesChannelPlot:
-                source_name = 'eeg'
-                pen_color = 'k'
+            ViewBox:
                 y_min = -5
                 y_max = 5
+
+                ChannelPlot:
+                    name = 'eeg_plot'
+                    source_name = 'eeg'
+                    pen_color = 'k'
+
+        FFTContainer:
+            name = 'fft_plot_container'
+            label = 'FFT'
+            freq_lb = 5
+            freq_ub = 50000
+
+            ViewBox:
+                y_min = -120
+                y_max = 100
+
+                FFTChannelPlot:
+                    source_name = 'microphone'
+                    pen_color = 'k'
+                    time_span = 5

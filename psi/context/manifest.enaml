@@ -176,7 +176,10 @@ enamldef ContextManifest(PluginManifest): manifest:
                 for meta in plugin.context_meta.values():
                     state = meta_state.get(meta.name, {})
                     items = [plugin.context_items[n] for n in state]
-                    meta.values = items
+                    try:
+                        meta.values = items
+                    except Exception as e:
+                        log.exception(e)
 
 
 enamldef ContextViewManifest(PluginManifest): manifest:

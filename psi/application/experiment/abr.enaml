@@ -12,7 +12,7 @@ from psi.context.selector import CartesianProduct
 from psi.controller.api import ExperimentAction
 
 from psi.controller.output import QueuedEpochOutput, EpochOutput
-from psi.controller.input import ExtractEpochs, Input, Blocked, Accumulate, RejectEpochs, IIRFilter
+from psi.controller.input import ExtractEpochs, Input, Blocked, Accumulate, RejectEpochs, IIRFilter, Decimate
 
 from psi.controller.base_manifest import BaseManifest
 
@@ -20,10 +20,11 @@ from psi.controller.queue import InterleavedFIFOSignalQueue
 
 from psi.util import copy_declarative
 
-from psi.data.plots import (TimeContainer, ExtremesChannelPlot, GridContainer,
-                            ChannelPlot)
+from psi.data.plots import (TimeContainer, ChannelPlot, EpochAveragePlot,
+                            ChannelPlot, ViewBox)
 
 from psi.data.sinks.epoch_counter import EpochCounter
+from psi.data.sinks.difference_epoch_counter import DifferenceEpochCounter
 
 from psi.controller.calibration.tone import tone_calibration
 
@@ -58,9 +59,9 @@ def calibrate_output(event):
     output_channel = controller.get_output(p['output_name']).channel
     input_channel = controller.get_input(p['input_name']).channel
 
-    engine = copy_declarative(output_channel.engine, 
+    engine = copy_declarative(output_channel.engine,
                               name='cal_engine',
-                              hw_ao_monitor_period=1, 
+                              hw_ao_monitor_period=1,
                               hw_ai_monitor_period=0.1)
     copy_declarative(output_channel, name='output', parent=engine)
     copy_declarative(input_channel, name='input', parent=engine)
@@ -87,15 +88,21 @@ enamldef ControllerManifest(BaseManifest): manifest:
             queue = InterleavedFIFOSignalQueue(fs=output.fs, initial_delay=1)
             auto_decrement = False
 
+        Decimate:
+            q = 25
+            name = 'ecg'
+            save = True
+            source_name = 'eeg_channel'
+
         Blocked:
-            duration = 0.01
+            duration = 0.1
             name = 'eeg'
             save = True
             source_name = 'eeg_channel'
 
             Accumulate:
                 name = 'eeg_buffered'
-                n = 100
+                n = 50
 
                 IIRFilter:
                     name = 'eeg_buffered_filtered'
@@ -156,10 +163,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
         ExperimentAction:
             event = 'experiment_prepare'
-            command = 'erp_average.prepare_grid'
-
-        ExperimentAction:
-            event = 'experiment_prepare'
             command = 'target.prepare_queue'
 
         ExperimentAction:
@@ -179,11 +182,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
         point = 'psi.data.sinks'
 
         EpochCounter:
-            name = 'erp_counter'
-            label = 'ERPs acquired'
-            epoch_name = 'erp'
-
-        EpochCounter:
             name = 'valid_erp_counter'
             label = 'Valid ERPs acquired'
             epoch_name = 'valid_erp'
@@ -192,17 +190,30 @@ enamldef ControllerManifest(BaseManifest): manifest:
         id = 'plots'
         point = 'psi.data.plots'
 
-        GridContainer:
-            name = 'erp_average'
-            title = 'ERP average'
-            source_name = 'valid_erp'
+        TimeContainer:
+            name = 'erp_container'
+            label = 'ERP average'
+            span = 8.5e-3
+
+            ViewBox:
+                y_min = -0.1
+                y_max = 0.1
+                label = 'Signal (V)'
+
+                EpochAveragePlot:
+                    name = 'erp_average'
+                    label = 'ERP average plot'
+                    source_name = 'valid_erp'
 
         TimeContainer:
-            name = 'trial_plot_container' 
-            title = 'Trial timing'
-            span = 1
-            y_min = -5
-            y_max = 5
+            name = 'trial_plot_container'
+            label = 'Trial timing'
+            span = 2
 
-            ExtremesChannelPlot:
-                source_name = 'eeg'
+            ViewBox:
+                y_min = -5
+                y_max = 5
+
+                ChannelPlot:
+                    pen_color = 'k'
+                    source_name = 'ecg'

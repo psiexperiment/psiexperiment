@@ -11,33 +11,16 @@ class ContextMeta(Declarative):
     label = d_(Unicode())
 
 
-class ChoiceContextMeta(ContextMeta):
+class UnorderedContextMeta(ContextMeta):
 
-    choices = d_(List())
-    values = d_(Dict())
-
-    def get_choices(self, context_item):
-        return self.choices
-
-    def set_choice(self, choice, context_item):
-        values = self.values.copy()
-        if choice is None:
-            values = {k: v for k, v in values.items() if v != context_item}
-        else:
-            values[choice] = context_item
-        self.values = values
-
-    def get_choice(self, context_item):
-        for k, v in self.values.items():
-            if v == context_item:
-                return k
-        return None
+    values = d_(Typed(set, {}))
 
 
 class OrderedContextMeta(ContextMeta):
 
     values = d_(Typed(list, ()))
 
+    # TODO: move most of this stuff to the enaml interface
     def set_choice(self, choice, context_item):
         values = self.values[:]
         if choice is None:

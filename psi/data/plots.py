@@ -24,27 +24,32 @@ class ChannelDataRange(Atom):
     container = Typed(object)
     span = Float(1)
     delay = Float(0)
-    current_time = Float()
+    current_time = Float(0)
     current_range = Tuple(Float(), Float())
 
     def _default_current_range(self):
         return 0, self.span
+
+    def _observe_delay(self, event):
+        self._update_range()
+
+    def _observe_current_time(self, event):
+        self._update_range()
+
+    def _observe_span(self, event):
+        self._update_range()
+
+    def _update_range(self):
+        low_value = (self.current_time//self.span)*self.span - self.delay
+        high_value = low_value+self.span
+        self.current_range = low_value, high_value
 
     def add_source(self, source, plot):
         source.observe('added', partial(self.source_added, plot=plot))
 
     def source_added(self, event, plot):
         self.current_time = max(self.current_time, event['value']['ub'])
-        low_value = (self.current_time//self.span)*self.span
-        high_value = low_value+self.span
-        if self.current_range != (low_value, high_value):
-            # this updates all plots linked to this data range
-            self.current_range = (low_value, high_value)
-            self.container.update_range(low_value, high_value,
-                                        self.current_time)
-        else:
-            # this updates only the plot that has new data
-            plot.update_range(low_value, high_value, self.current_time)
+        plot.update()
 
 
 ################################################################################
@@ -52,12 +57,12 @@ class ChannelDataRange(Atom):
 ################################################################################
 class PlotContainer(PSIContribution):
 
-    title = d_(Unicode())
+    label = d_(Unicode())
     label = d_(Unicode())
     container = Typed(pg.GraphicsWidget)
-
     x_axis = Typed(pg.AxisItem)
     base_viewbox = Property()
+    update_pending = Bool(False)
 
     def _default_container(self):
         container = pg.GraphicsLayout()
@@ -80,13 +85,17 @@ class PlotContainer(PSIContribution):
 
     def _default_x_axis(self):
         x_axis = pg.AxisItem('bottom')
-        x_axis.setGrid(127)
+        x_axis.setGrid(64)
         x_axis.linkToView(self.children[0].viewbox)
         return x_axis
 
-    def prepare(self, plugin):
-        for child in self.children:
-            child.prepare(plugin)
+    def update(self, event=None):
+        if not self.update_pending:
+            deferred_call(self._update)
+            self.update_pending = True
+
+    def _update(self):
+        self.update_pending = False
 
 
 class TimeContainer(PlotContainer):
@@ -101,20 +110,24 @@ class TimeContainer(PlotContainer):
         container = super()._default_container()
         # Ensure that the x axis shows the planned range
         self.base_viewbox.setXRange(0, self.span, padding=0)
+        self.data_range.observe('current_range', self.update)
         return container
 
     def _default_data_range(self):
         return ChannelDataRange(container=self, span=self.span)
 
-    def update_range(self, low, high, current_time):
-        for child in self.children:
-            child.update_range(low, high, current_time)
-        self.base_viewbox.setXRange(low, high, padding=0)
-
     def _default_x_axis(self):
         x_axis = super()._default_x_axis()
         x_axis.setLabel('Time', unitPrefix='sec.')
         return x_axis
+
+    def _update(self):
+        low, high = self.data_range.current_range
+        current_time = self.data_range.current_time
+        for child in self.children:
+            child._update()
+        self.base_viewbox.setXRange(low, high, padding=0)
+        super()._update()
 
 
 def format_log_ticks(values, scale, spacing):
@@ -143,6 +156,34 @@ class FFTContainer(PlotContainer):
 ################################################################################
 # Plots
 ################################################################################
+class CustomGraphicsViewBox(pg.ViewBox):
+
+    def __init__(self, data_range, *args, **kwargs):
+        self.data_range = data_range
+        super().__init__(*args, **kwargs)
+
+    def wheelEvent(self, ev, axis=None):
+        s = 1.02**(ev.delta() * self.state['wheelScaleFactor'])
+        if axis == 0:
+            self.data_range.span *= s
+        elif axis == 1:
+            vr = self.targetRect()
+            y_max = vr.topLeft().y() * s
+            y_min = vr.bottomRight().y() * s
+            self.setYRange(y_min, y_max)
+        ev.accept()
+
+    def mouseDragEvent(self, ev, axis=None):
+        ev.accept()
+        return
+        delta = ev.pos()-ev.lastPos()
+        tr = self.mapToView(delta)-self.mapToView(pg.Point(0, 0))
+        if axis == 0:
+            x = tr.x()
+            self.data_range.delay += x
+        ev.accept()
+
+
 class ViewBox(PSIContribution):
 
     viewbox = Typed(pg.ViewBox)
@@ -158,26 +199,22 @@ class ViewBox(PSIContribution):
     def _default_y_axis(self):
         y_axis = pg.AxisItem('left')
         y_axis.linkToView(self.viewbox)
-        y_axis.setGrid(127)
+        y_axis.setGrid(64)
         return y_axis
 
     def _default_viewbox(self):
-        viewbox = pg.ViewBox(enableMouse=True, enableMenu=False)
+        viewbox = CustomGraphicsViewBox(self.parent.data_range,
+                                        enableMenu=False)
         viewbox.setBackgroundColor('w')
         viewbox.disableAutoRange()
         viewbox.setYRange(self.y_min, self.y_max)
         for child in self.children:
             viewbox.addItem(child.plot)
-        viewbox.sigResized.connect(lambda vb: child.update_decimation(vb))
         return viewbox
 
-    def prepare(self, plugin):
+    def _update(self, event=None):
         for child in self.children:
-            child.prepare(plugin)
-
-    def update_range(self, low, high, current_time):
-        for child in self.children:
-            child.update_range(low, high, current_time)
+            child._update()
 
 
 class Plot(PSIContribution):
@@ -185,27 +222,31 @@ class Plot(PSIContribution):
     pen_color = d_(Typed(object))
     pen_width = d_(Float(0))
     antialias = d_(Bool(False))
-    update_interval = d_(Float(0))
-    last_update = Float(0)
+    label = d_(Unicode())
 
     pen = Typed(object)
     plot = Typed(object)
 
+    update_pending = Bool(False)
+
+    def _default_pen_color(self):
+        return 'k'
+
     def _default_pen(self):
         return pg.mkPen(self.pen_color, width=self.pen_width)
-
-    def update_decimation(self, vb):
-        pass
 
     def prepare(self, plugin):
         pass
 
-    def should_update(self, current_time):
-        if self.update_interval == 0:
-            return True
-        if (current_time-self.last_update) < self.update_interval:
-            return False
-        return True
+    def update(self, event=None):
+        if not self.update_pending:
+            deferred_call(self._update)
+            self.update_pending = True
+        else:
+            log.debug('Update already pending for %s', self.source_name)
+
+    def _update(self):
+        self.update_pending = False
 
 
 class ChannelPlot(Plot):
@@ -219,30 +260,30 @@ class ChannelPlot(Plot):
     def _default_plot(self):
         return pg.PlotCurveItem(pen=self.pen, antialias=self.antialias)
 
-    def prepare(self, plugin):
-        self.source = plugin.find_source(self.source_name)
+    def _observe_source(self, event):
         self.parent.data_range.add_source(self.source, self)
+        self.parent.data_range.observe('span', self.update_time)
+        self.parent.viewbox.sigResized.connect(lambda vb: self.update_decimation())
+        self.update_time(None)
+        self.update_decimation(self.parent.viewbox)
 
+    def update_time(self, event):
         # Precompute the time array since this can be the "slow" point
         # sometimes in computations
         n = int(self.parent.data_range.span*self.source.fs)
         self._cached_time = np.arange(n)/self.source.fs
-        self.update_decimation(self.parent.viewbox)
+        self.update_decimation()
 
-    def update_decimation(self, vb):
+    def update_decimation(self, event=None):
         try:
-            width, _ = vb.viewPixelSize()
+            width, _ = self.parent.viewbox.viewPixelSize()
             dt = self.source.fs**-1
-            self.downsample = int(width/dt/10)
+            self.downsample = int(width/dt/5)
         except Exception as e:
             pass
 
-    def update_range(self, low, high, current_time):
-        if not self.should_update(current_time):
-            return
-        else:
-            self.last_update = current_time
-
+    def _update(self):
+        low, high = self.parent.data_range.current_range
         data = self.source.get_range(low, high)
         t = self._cached_time[:len(data)] + low
         if self.downsample > 1:
@@ -251,9 +292,10 @@ class ChannelPlot(Plot):
             t = t[:len(d_min)]
             x = np.c_[t, t].ravel()
             y = np.c_[d_min, d_max].ravel()
-            deferred_call(self.plot.setData, x, y, connect='pairs')
+            self.plot.setData(x, y, connect='pairs')
         else:
-            deferred_call(self.plot.setData, t, data)
+            self.plot.setData(t, data)
+        self.update_pending = False
 
 
 def decimate_extremes(data, downsample):
@@ -281,7 +323,7 @@ def decimate_extremes(data, downsample):
     return data.min(last_dim), data.max(last_dim)
 
 
-class FFTChannelPlot(ChannelPlot): 
+class FFTChannelPlot(ChannelPlot):
 
     time_span = d_(Float())
     _cached_frequency = Typed(np.ndarray)
@@ -295,13 +337,14 @@ class FFTChannelPlot(ChannelPlot):
         self._cached_frequency = np.log10(np.fft.rfftfreq(n, self.source.fs**-1))
         self.source.observe('added', self.update)
 
-    def update(self, event):
+    def _update(self):
         ub = event['value']['ub']
         if ub < self.time_span:
             return
         data = self.source.get_range(ub-self.time_span, ub)
         psd = util.patodb(util.psd(data, self.source.fs))
-        deferred_call(self.plot.setData, self._cached_frequency, psd)
+        self.plot.setData(self._cached_frequency, psd)
+        self.update_pending = False
 
 
 class TimeseriesPlot(Plot):
@@ -325,18 +368,13 @@ class TimeseriesPlot(Plot):
         plot.setPen(self.pen)
         plot.setBrush(self.brush)
         return plot
-        
+
     def prepare(self, plugin):
         self.source = plugin.find_source(self.source_name)
         self.parent.data_range.add_source(self.source, self)
         self.parent.data_range.observe('current_time', self.update)
 
-    def update(self, event=None):
-        current_time = self.parent.data_range.current_time
-        if not self.should_update(current_time):
-            return
-        else:
-            self.last_update = current_time
+    def _update(self):
         low, high = self.parent.data_range.current_range
         current_time = self.parent.data_range.current_time
         epochs = self.source.get_epochs(self.rising_event, self.falling_event,
@@ -348,140 +386,25 @@ class TimeseriesPlot(Plot):
             x_width = x_end-x_start
             r = pg.QtCore.QRectF(x_start, y_start, x_width, self.rect_height)
             path.addRect(r)
-        deferred_call(self.plot.setPath, path)
-
-    def update_range(self, low, high, current_time):
-        self.update()
+        self.plot.setPath(path)
+        self.update_pending = False
 
 
-################################################################################
-# Special case. Need to think this through.
-################################################################################
-class GridContainer(PlotContainer):
+class EpochAveragePlot(ChannelPlot):
 
-    items = d_(Typed(dict))
-    source_name = d_(Unicode())
-    update_delay = d_(Float(0))
+    filters = Typed(dict, {})
 
-    source = Typed(object)
+    def _observe_source(self, event):
+        n = int(self.parent.data_range.span*self.source.fs)
+        self._cached_time = np.arange(n)/self.source.fs
+        self.update_decimation(self.parent.viewbox)
+        self.source.observe('added', self.update)
 
-    trial_log = Typed(object)
-
-    cumulative_average = Typed(dict, {})
-    cumulative_var = Typed(dict, {})
-    cumulative_n = Typed(dict, {})
-
-    grid = Typed(tuple)
-    plots = Typed(dict)
-    time = Typed(object)
-
-    context_info = Typed(object)
-
-    _update_pending = Bool(False)
-
-    def _default_container(self):
-        return pg.GraphicsLayout()
-
-    def context_info_updated(self, info):
-        self.context_info = info
-
-    def _default_grid(self):
-        return set(), set()
-
-    def prepare(self, plugin):
-        self.source = plugin.find_source(self.source_name)
-        self.source.observe('added', self.epochs_acquired)
-        self.cumulative_average = {}
-        self.cumulative_var = {}
-        self.cumulative_n = {}
-
-    def prepare_grid(self, iterable):
-        self.items = {
-            'row': {'name': 'target_tone_level'},
-            'column': {'name': 'target_tone_frequency'},
-        }
-        keys = [self.extract_key(c) for c in iterable]
-        self.update_grid(keys)
-
-    def extract_key(self, context):
-        ci = self.items['row']
-        row = None if ci is None else context[ci['name']]
-        ci = self.items['column']
-        column = None if ci is None else context[ci['name']]
-        return row, column
-
-    def epochs_acquired(self, event):
-        for epoch in event['value']:
-            self.process_epoch(epoch)
-        if self.update_delay > 0:
-            if not self._update_pending:
-                self._update_pending = True
-                delay_ms = int(self.update_delay*1e3)
-                timed_call(delay_ms, self.update_plots)
-        else:
-            deferred_call(self.update_plots)
-
-    def process_epoch(self, epoch):
-        key = self.extract_key(epoch['metadata'])
-        signal = epoch['signal']
-
-        n = self.cumulative_n.get(key, 0) + 1
-        time, average = self.cumulative_average.get(key, (None, signal))
-        delta = signal-average
-        average = average + delta/n
-
-        # TODO: Would be nice to move this out (e.g., precompute)?
-        if time is None:
-            time = np.arange(len(average))/self.source.fs
-
-        self.cumulative_average[key] = time, average
-        self.cumulative_n[key] = n
-
-    def update_grid(self, keys):
-        rows, cols = zip(*keys)
-        rows = set(rows)
-        cols = set(cols)
-        cur_rows, cur_cols = self.grid
-        if rows.issubset(cur_rows) and cols.issubset(cur_cols):
+    def _update(self):
+        filters = {p.name: v for p, v in self.filters.items()}
+        result = self.source.get_epochs(filters)
+        if len(result) == 0:
             return
-
-        log.debug('Updating grid')
-        self.container.clear()
-        plots = {}
-        base_item = None
-        for c, col in enumerate(sorted(cols)):
-            self.container.addLabel(col, 0, c+1)
-        for r, row in enumerate(sorted(rows)):
-            self.container.addLabel(row, r+1, 0, angle=-90)
-
-        for r, row in enumerate(sorted(rows)):
-            for c, col in enumerate(sorted(cols)):
-                viewbox = CustomViewBox()
-                item = pg.PlotItem(viewBox=viewbox)
-                self.container.addItem(item, r+1, c+1)
-                if base_item is None:
-                    base_item = item
-                else:
-                    item.setXLink(base_item)
-                    item.setYLink(base_item)
-
-                item.hideButtons()
-                if c != 0:
-                    item.hideAxis('left')
-                if r != (len(rows)-1):
-                    item.hideAxis('bottom')
-
-                item.setMouseEnabled(x=False, y=True)
-                item.setXRange(0, 8.5e-3)
-                item.setYRange(-0.5, 0.5)
-                plots[row, col] = item.plot(pen='k')
-
-        self.plots = plots
-        self.grid = (rows, cols)
-
-    def update_plots(self):
-        keys = self.cumulative_average.keys()
-        self.update_grid(keys)
-        for k, (time, average) in list(self.cumulative_average.items()):
-            self.plots[k].setData(time, average)
-        self._update_pending = False
+        y = result.mean(axis=0)
+        self.plot.setData(self._cached_time, y)
+        self.update_pending = False

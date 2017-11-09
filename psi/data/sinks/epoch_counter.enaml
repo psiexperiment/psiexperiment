@@ -9,7 +9,7 @@ from enaml.widgets.api import Container, DockItem, Form, Label
 from ..sink import Sink
 
 from psi.core.enaml.api import PSIManifest
-from psi.context.context_item import OrderedContextMeta
+from psi.context.context_item import UnorderedContextMeta
 
 
 class EpochCounter(Sink):
@@ -63,7 +63,6 @@ enamldef EpochCounterManifest(PSIManifest): manifest:
     Extension:
         id = 'items'
         point = 'psi.context.items'
-        OrderedContextMeta:
+        UnorderedContextMeta:
             name << manifest.contribution.name
             label << '{} grouping'.format(manifest.contribution.label)
-            #grouping >> manifest.contribution.grouping

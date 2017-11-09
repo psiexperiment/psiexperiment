@@ -4,13 +4,38 @@ from enaml.widgets.api import (Container, Field, CheckBox, Label, HGroup,
                                PushButton, PopupView, Form, ObjectCombo)
 
 from .context_item import (Result, Parameter, EnumParameter, FileParameter,
-                           BoolParameter, ChoiceContextMeta, OrderedContextMeta)
+                           BoolParameter, OrderedContextMeta,
+                           UnorderedContextMeta)
 
 from enaml.widgets.api import ObjectCombo
 
 ################################################################################
 # ContextMetaPopup
 ################################################################################
+template ContextMetaTemplate(context_meta, context_item, 
+                             MemberType: OrderedContextMeta):
+    ObjectCombo:
+        items = [None] + context_meta.get_choices(context_item)
+        to_string = lambda i: '' if i is None else str(i)
+        selected << context_meta.get_choice(context_item)
+        selected::
+            context_meta.set_choice(selected, context_item)
+
+template ContextMetaTemplate(context_meta, context_item, 
+                             MemberType: UnorderedContextMeta):
+
+    CheckBox:
+        checked << context_item in context_meta.values
+        checked ::
+            if checked:
+                values = context_meta.values.copy()
+                values.add(context_item)
+            else:
+                values = context_meta.values.copy()
+                values.remove(context_item)
+            context_meta.values = values
+
+
 enamldef ContextMetaPopup(PopupView): cm_popup:
 
     attr context_item
@@ -23,22 +48,14 @@ enamldef ContextMetaPopup(PopupView): cm_popup:
                 padding = 0
                 Label:
                     text = loop_item.label
-                ObjectCombo:
-                    items = [None] + loop_item.get_choices(context_item)
-                    to_string = lambda i: '' if i is None else str(i)
-                    selected << loop_item.get_choice(context_item)
-                    selected::
-                        loop_item.set_choice(selected, context_item)
+                DynamicTemplate:
+                    base = ContextMetaTemplate
+                    args = (loop_item, context_item, type(loop_item))
 
 
 ################################################################################
 # ContextItemTemplate
 ################################################################################
-enamldef ContextItemDynamicTemplate(DynamicTemplate):
-    base = ContextItemTemplate
-    args = (context_item, type(context_item))
-
-
 template ContextItemTemplate(context_item, MemberType: Result):
     HGroup: group:
         spacing = 0
@@ -48,18 +65,14 @@ template ContextItemTemplate(context_item, MemberType: Result):
 
 
 template ContextItemTemplate(context_item, MemberType: Parameter):
-    ParameterDynamicTemplate:
-        pass
+    DynamicTemplate:
+        base = ParameterTemplate
+        args = (context_item, type(context_item), context_item.scope)
 
 
 ################################################################################
 # ParameterTemplate
 ################################################################################
-enamldef ParameterDynamicTemplate(DynamicTemplate):
-    base = ParameterTemplate
-    args = (context_item, type(context_item), context_item.scope)
-
-
 template ParameterTemplate(context_item, MemberType, scope):
     HGroup: group:
         spacing = 0
@@ -141,8 +154,9 @@ enamldef ContextItem(Container):
 
     Container: c:
         padding = 0
-        ContextItemDynamicTemplate: t:
-            pass
+        DynamicTemplate: t:
+            base = ContextItemTemplate
+            args = (context_item, type(context_item))
 
     PushButton: pb:
         text << 'C'

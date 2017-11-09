@@ -1,6 +1,7 @@
 from atom.api import Property
 from enaml.core.api import Conditional
 from enaml.workbench.api import Extension
+from enaml.widgets.api import DockItem, Container, Label, Form
 
 from .device_manifest import DeviceManifest
 from .experiment_action import ExperimentEvent, ExperimentAction
@@ -29,15 +30,18 @@ enamldef ContinuousInputManifest(InputManifest): manifest:
         id = 'continuous_actions.' + manifest.contribution.name
         point = 'psi.controller.actions'
 
-        ExperimentAction:
-            event = 'experiment_prepare'
-            command = 'psi.data.create_ai_continuous'
-            kwargs = get_metadata(manifest.contribution)
+        Conditional:
+            condition << manifest.contribution.save
 
-        ExperimentAction:
-            event = manifest.contribution.name + '_acquired'
-            command = 'psi.data.process_ai_continuous'
-            kwargs = {'name': manifest.contribution.name}
+            ExperimentAction:
+                event = 'plugins_started'
+                command = 'psi.data.create_ai_continuous'
+                kwargs = get_metadata(manifest.contribution)
+
+            ExperimentAction:
+                event = manifest.contribution.name + '_acquired'
+                command = 'psi.data.process_ai_continuous'
+                kwargs = {'name': manifest.contribution.name}
 
 
 enamldef EventInputManifest(InputManifest): manifest:
@@ -51,7 +55,7 @@ enamldef EpochInputManifest(InputManifest): manifest:
         point = 'psi.controller.actions'
 
         ExperimentAction:
-            event = 'experiment_prepare'
+            event = 'plugins_started'
             command = 'psi.data.create_ai_epochs'
             kwargs = get_metadata(manifest.contribution)
 
@@ -69,3 +73,27 @@ enamldef ExtractEpochsManifest(EpochInputManifest): manifest:
 
         ExperimentEvent: event:
             name = manifest.contribution.name + '_queue_empty'
+
+
+enamldef RejectEpochsManifest(EpochInputManifest): manifest:
+
+    Extension:
+        id = 'reject_epochs_workspace.' + manifest.contribution.name
+        point = 'psi.experiment.workspace'
+
+        DockItem:
+            name = manifest.contribution.name
+            title = 'Epoch reject'
+            Form:
+                Label:
+                    text = 'Total epochs'
+                Label:
+                    text << str(manifest.contribution.total)
+                Label:
+                    text = 'Rejects'
+                Label:
+                    text << str(manifest.contribution.rejects)
+                Label:
+                    text = 'Reject ratio'
+                Label:
+                    text << '{:.2f}'.format(manifest.contribution.reject_ratio)
