@@ -138,6 +138,19 @@ class QEditableTableView(QTableView):
         for row in rows:
             self.model.insertRow(row)
 
+    def get_column_widths(self):
+        widths = {}
+        columns = self.model.interface.get_columns()
+        for i, c in enumerate(columns):
+            widths[c] = self.hheader.sectionSize(i)
+        return widths
+
+    def set_column_widths(self, widths):
+        columns = self.model.interface.get_columns()
+        for i, c in enumerate(columns):
+            width = widths[c]
+            self.setColumnWidth(i, width)
+
 
 class EditableTable(RawWidget):
 
@@ -153,6 +166,7 @@ class EditableTable(RawWidget):
     updated = d_(Event())
 
     column_info = d_(Dict(Unicode(), Typed(object), {}))
+    column_widths = Property()
 
     data = d_(Typed(object))
 
@@ -238,6 +252,13 @@ class EditableTable(RawWidget):
         # Forces a reset of the model and view
         self.model.beginResetModel()
         self.model.endResetModel()
+
+    def _get_column_widths(self):
+        return self.view.get_column_widths()
+
+    def _set_column_widths(self, widths):
+        self.view.set_column_widths(widths)
+        self._reset_model()
 
 
 class DataFrameTable(EditableTable):

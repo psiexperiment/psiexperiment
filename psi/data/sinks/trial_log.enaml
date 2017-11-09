@@ -25,9 +25,15 @@ enamldef TrialLogManifest(PSIManifest): manifest:
         OrderedContextMeta: meta:
             name << manifest.contribution.name
             label << '{} columns'.format(manifest.contribution.label)
-            #values::
-            #    table.columns = [v.name for v in values]
-            #    table.column_info = {v.name: v for v in values}
+
+    Extension:
+        id = 'preferences'
+        point = 'psi.experiment.preferences'
+        rank = 200
+        ItemPreferences:
+            item << table
+            name << manifest.contribution.name + '_table'
+            auto_save = ['column_widths']
 
     Extension:
         id = 'workspace'

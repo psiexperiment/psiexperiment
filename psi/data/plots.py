@@ -242,8 +242,6 @@ class Plot(PSIContribution):
         if not self.update_pending:
             deferred_call(self._update, event)
             self.update_pending = True
-        else:
-            log.debug('Update already pending for %s', self.source_name)
 
     def _update(self, event=None):
         self.update_pending = False
