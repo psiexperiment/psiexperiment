@@ -82,14 +82,14 @@ enamldef EpochAveragePlotManifest(ChannelPlotManifest): manifest:
             Container:
                 Form:
                     Looper:
-                        iterable << manifest.contribution.filters.items()
+                        iterable << meta.values[:]
                         Label:
-                            text << loop_item[0]
+                            text << loop_item.name
                         Field:
-                            text << str(loop_item[1])
+                            text << str(manifest.contribution.filters[loop_item])
                             text ::
                                 value = loop_item.coerce_to_type(text)
-                                manifest.contribution.filters[loop_item.name] = value
+                                manifest.contribution.filters[loop_item] = value
 
     Extension:
         id = 'items'
@@ -99,7 +99,7 @@ enamldef EpochAveragePlotManifest(ChannelPlotManifest): manifest:
             label << manifest.contribution.label
             values::
                 old_filters = manifest.contribution.filters.copy()
-                new_filters = {v.name: v.default for v in values}
+                new_filters = {v: v.default for v in values}
                 for k, v in old_filters.items():
                     if k in new_filters:
                         new_filters[k] = v
