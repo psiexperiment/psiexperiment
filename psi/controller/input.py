@@ -498,7 +498,6 @@ class ExtractEpochs(EpochInput):
                               empty_queue_cb).send
 
 
-
 @coroutine
 def reject_epochs(reject_threshold, status, valid_target):
     while True:
