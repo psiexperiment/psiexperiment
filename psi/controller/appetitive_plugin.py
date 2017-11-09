@@ -301,7 +301,7 @@ class AppetitivePlugin(BasePlugin):
         the event that occured. Depending on the experiment state, a particular
         event may not be processed.
         '''
-        log.debug('Recieved handle_event signal')
+        log.debug('Recieved handle_event signal for {}'.format(event.name))
         self.invoke_actions(event.name, timestamp)
 
         if self.experiment_state == 'paused':
