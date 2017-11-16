@@ -9,7 +9,8 @@ from atom.api import ContainerList, Typed, Str, Int, observe, Bool
 from enaml.application import deferred_call
 from enaml.core.api import d_
 from enaml.layout.api import InsertItem, hbox, vbox, spacer
-from enaml.widgets.api import (Container, DockItem, CheckBox, Label, Field, HGroup)
+from enaml.widgets.api import (Container, DockItem, CheckBox, Label, HGroup)
+from enaml.stdlib.fields import FloatField
 from enaml.workbench.api import Extension
 
 from psi.context.context_item import OrderedContextMeta
@@ -101,7 +102,7 @@ enamldef SDTAnalysisDockItem(DockItem):
         Label: limit_label:
             text = 'Trial limit'
             hug_width = 'strong'
-        Field: limit_field:
+        FloatField: limit_field:
             text << str(analysis.limit)
             text ::
                 analysis.limit = int(text)

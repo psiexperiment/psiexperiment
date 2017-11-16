@@ -137,9 +137,8 @@ enamldef ContextManifest(PluginManifest): manifest:
                 # Build the context item state
                 parameter_state = {}
                 for i in plugin.context_items.values():
-                    if isinstance(i, Parameter):
-                        group_state = parameter_state.setdefault(i.group, {})
-                        group_state[i.name] = get_preferences(i)
+                    group_state = parameter_state.setdefault(i.group, {})
+                    group_state[i.name] = get_preferences(i)
 
                 # Build the selector state
                 selector_state = {}

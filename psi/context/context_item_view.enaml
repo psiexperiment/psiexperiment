@@ -1,13 +1,36 @@
+from atom.api import Typed
 from enaml.core.api import DynamicTemplate, Looper
 from enaml.layout.api import hbox, spacer, horizontal
 from enaml.widgets.api import (Container, Field, CheckBox, Label, HGroup,
-                               PushButton, PopupView, Form, ObjectCombo)
+                               PushButton, PopupView, Form, ObjectCombo, VGroup)
+from enaml.validator import Validator
 
 from .context_item import (Result, Parameter, EnumParameter, FileParameter,
                            BoolParameter, OrderedContextMeta,
                            UnorderedContextMeta)
 
 from enaml.widgets.api import ObjectCombo
+
+from .expression import ExpressionNamespace
+
+
+class ContextItemValidator(Validator):
+
+    plugin = Typed(object)
+    item = Typed(object)
+
+    def validate(self, text):
+        try:
+            namespace = ExpressionNamespace()
+            expressions = self.plugin._get_expressions()
+            expressions[self.item.name] = text
+            namespace.update_expressions(expressions)
+            namespace.update_symbols(self.plugin.symbols)
+            namespace.get_value(self.item.name)
+            return True
+        except:
+            return False
+
 
 ################################################################################
 # ContextMetaPopup
@@ -41,7 +64,12 @@ enamldef ContextMetaPopup(PopupView): cm_popup:
     attr context_item
     attr context_meta
 
-    Container:
+    VGroup:
+        Form:
+            Label:
+                text = 'Short name'
+            Field:
+                text := context_item.compact_label
         Looper:
             iterable << context_meta.values()
             HGroup:
@@ -109,7 +137,6 @@ template ParameterTemplate(context_item, MemberType, scope: 'trial'):
             pass
 
 
-
 ################################################################################
 # WidgetTemplate
 ################################################################################
@@ -121,6 +148,9 @@ enamldef WidgetDynamicTemplate(DynamicTemplate):
 template WidgetTemplate(context_item, MemberType):
     Field: widget:
         text := context_item.expression
+        validator << ContextItemValidator(
+            plugin=workbench.get_plugin('psi.context'),
+            item=context_item)
 
 
 template WidgetTemplate(context_item, MemberType: EnumParameter):

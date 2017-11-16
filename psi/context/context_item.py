@@ -65,7 +65,7 @@ class ContextItem(Declarative):
 
     # Compact label where there is less space in the GUI (e.g., under a column
     # heading for example).
-    compact_label = d_(Unicode())
+    compact_label = d_(Unicode()).tag(preference=True)
 
     updated = Event()
 

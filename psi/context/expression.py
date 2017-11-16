@@ -48,14 +48,12 @@ class Expr(object):
 
 
 class ExpressionNamespace(Atom):
+
     _locals = Typed(dict, {})
     _expressions = Typed(dict, {})
     _globals = Typed(dict, {})
 
     def __init__(self, expressions=None, globals=None):
-        #self._expressions = _RecursiveAttrDict(_dict_to_expr(expressions))
-        #self._globals = _RecursiveAttrDict(globals)
-        #self._locals = _RecursiveAttrDict()
         if globals is None:
             globals = {}
         if expressions is None:

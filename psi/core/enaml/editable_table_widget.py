@@ -164,6 +164,7 @@ class EditableTable(RawWidget):
 
     editable = d_(Bool(False))
     updated = d_(Event())
+    autoscroll = d_(Bool(False))
 
     column_info = d_(Dict(Unicode(), Typed(object), {}))
     column_widths = Property()
@@ -252,6 +253,8 @@ class EditableTable(RawWidget):
         # Forces a reset of the model and view
         self.model.beginResetModel()
         self.model.endResetModel()
+        if self.autoscroll and self.view:
+            self.view.scrollToBottom()
 
     def _get_column_widths(self):
         return self.view.get_column_widths()
