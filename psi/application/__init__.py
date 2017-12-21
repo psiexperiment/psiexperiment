@@ -133,12 +133,13 @@ def _main(args):
     ui = workbench.get_plugin('enaml.workbench.ui')
     core = workbench.get_plugin('enaml.workbench.core')
     ui.select_workspace('psi.experiment.workspace')
-    ui.show_window()
 
-    # Set the base path for the data
+    # The base path must get set before the window is shown otherwise it will
+    # be too late to configure the store path for the files.
     base_path = get_base_path(args.pathname, args.experiment)
-    deferred_call(core.invoke_command, 'psi.data.set_base_path', 
-                  {'base_path': base_path})
+    core.invoke_command('psi.data.set_base_path', {'base_path': base_path})
+
+    ui.show_window()
 
     if args.preferences is not None:
         deferred_call(core.invoke_command, 'psi.load_preferences', 
