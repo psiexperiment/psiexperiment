@@ -427,7 +427,7 @@ class EpochAveragePlot(ChannelPlot):
         self.update_decimation(self.parent.viewbox)
         self.source.observe('added', self.update)
 
-    def _update(self):
+    def _update(self, event=None):
         filters = {p.name: v for p, v in self.filters.items()}
         result = self.source.get_epochs(filters)
         if len(result) == 0:
