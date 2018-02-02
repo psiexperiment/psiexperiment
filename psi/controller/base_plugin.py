@@ -288,8 +288,8 @@ class BasePlugin(Plugin):
         # Load the state of all events so that we can determine which actions
         # should be performed.
         log.trace('Triggering event {}'.format(event_name))
-        with self._events[event_name]:
-            context = self._get_action_context()
+        context = self._get_action_context()
+        context[event_name] = True
 
         # TODO: We cannot invoke this inside the with block because it may
         # result in infinite loops if one of the commands calls invoke_actions

@@ -9,13 +9,15 @@ from atom.api import ContainerList, Typed, Str, Int, observe, Bool
 from enaml.application import deferred_call
 from enaml.core.api import d_
 from enaml.layout.api import InsertItem, hbox, vbox, spacer
-from enaml.widgets.api import (Container, DockItem, CheckBox, Label, Field, HGroup)
+from enaml.widgets.api import (Container, DockItem, CheckBox, Label, HGroup)
+from enaml.stdlib.fields import FloatField
 from enaml.workbench.api import Extension
 
 from psi.context.context_item import OrderedContextMeta
 from psi.core.utils import find_extension
 from psi.core.enaml.api import PSIManifest
-from psi.core.enaml.dataframe_table_widget import DataframeTable
+#from psi.core.enaml.dataframe_table_widget import DataframeTable
+from psi.core.enaml.editable_table_widget import DataFrameTable
 from psi.experiment.api import ItemPreferences
 from ..plugin import Sink
 
@@ -93,14 +95,14 @@ enamldef SDTAnalysisDockItem(DockItem):
                     repeat_nogo_field,
                     go_remind_field,
                 ),
-                table,
+                sdt_table,
             )
         ]
 
         Label: limit_label:
             text = 'Trial limit'
             hug_width = 'strong'
-        Field: limit_field:
+        FloatField: limit_field:
             text << str(analysis.limit)
             text ::
                 analysis.limit = int(text)
@@ -111,17 +113,19 @@ enamldef SDTAnalysisDockItem(DockItem):
             checked := analysis.include_go_remind
             text = 'Include reminders?'
 
-        DataframeTable: table:
-            name = 'table'
-            dataframe << analysis.results
+        DataFrameTable: sdt_table:
+            name = 'sdt_table'
+            data << analysis.results
+            columns << [v.name for v in meta.values] + extra_columns
+            column_info << {**{v.name: v for v in meta.values}, **extra_column_info}
 
 
 extra_columns = ['size', 'sum', 'mean', 'z_score']
 extra_column_info = {
-    'mean': {'label': 'Frac.'},
-    'size': {'label': '# trials'},
-    'sum': {'label': '# correct'},
-    'z_score': {'label': 'd\''},
+    'mean': {'compact_label': 'Frac.'},
+    'size': {'compact_label': '# trials'},
+    'sum': {'compact_label': '# correct'},
+    'z_score': {'compact_label': 'd\''},
 }
 
 enamldef SDTAnalysisManifest(PSIManifest): manifest:
@@ -133,13 +137,7 @@ enamldef SDTAnalysisManifest(PSIManifest): manifest:
             name << manifest.contribution.name
             label << '{} grouping'.format(manifest.contribution.label)
             values::
-                grouping = [v.name for v in values]
-                grouping.insert(0, 'trial_type')
-                table = di.find('table')
-                table.columns = grouping + extra_columns
-                column_info = {v.name: v for v in values}
-                column_info.update(extra_column_info)
-                table.column_info = column_info
+                manifest.contribution.grouping = [v.name for v in values]
 
     Extension:
         id = 'workspace'
@@ -151,11 +149,11 @@ enamldef SDTAnalysisManifest(PSIManifest): manifest:
             title << manifest.contribution.label
             meta << meta
 
-    #Extension:
-    #    id = 'preferences'
-    #    point = 'psi.experiment.preferences'
-    #    rank = 200
-    #    ItemPreferences:
-    #        item << di.find('table')
-    #        name << manifest.contribution.name
-    #        auto_save = ['column_widths']
+    Extension:
+        id = 'preferences'
+        point = 'psi.experiment.preferences'
+        rank = 200
+        ItemPreferences:
+            item << di.find('sdt_table')
+            name << manifest.contribution.name
+            auto_save = ['column_widths']

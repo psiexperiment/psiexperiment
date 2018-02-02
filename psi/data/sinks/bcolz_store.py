@@ -55,6 +55,7 @@ class BColzStore(AbstractStore):
             filename = os.path.join(self.base_path, name)
         else:
             filename = os.path.join(self.temp_base_path, name)
+        log.info('Saving %s to %s', name, filename)
         return filename
 
     def _create_trial_log(self, context_info):

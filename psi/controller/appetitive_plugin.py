@@ -169,6 +169,7 @@ class AppetitivePlugin(BasePlugin):
         self.invoke_actions(Event.hold_start.name, ts)
         self.trial_state = TrialState.waiting_for_hold_period
         self.start_event_timer('hold_duration', Event.hold_end)
+        self.trial_info['trial_start'] = ts
 
     def end_trial(self, response):
         log.debug('Animal responded by {}, ending trial'.format(response))
@@ -181,7 +182,7 @@ class AppetitivePlugin(BasePlugin):
             if trial_type == 'nogo' else 0
 
         response_ts = self.trial_info.setdefault('response_ts', np.nan)
-        target_start = self.trial_info.setdefault('target_start', np.nan)
+        trial_start = self.trial_info.setdefault('trial_start', np.nan)
         np_end = self.trial_info.setdefault('np_end', np.nan)
         np_start = self.trial_info.setdefault('np_start', np.nan)
 
@@ -190,9 +191,10 @@ class AppetitivePlugin(BasePlugin):
             'trial_type': self.trial_type,
             'score': score.value,
             'correct': score in (TrialScore.correct_reject, TrialScore.hit),
-            'response_time': response_ts-target_start,
+            'response_time': response_ts-trial_start,
             'reaction_time': np_end-np_start,
         })
+
         self.context.set_values(self.trial_info)
         result = self.context.get_values()
         parameters = {'results': [result]}
@@ -237,10 +239,9 @@ class AppetitivePlugin(BasePlugin):
             log.debug('applied changes')
 
     def et_callback(self, name, edge, event_time):
-        if edge == 'processed':
-            parameters = {'name': 'event_log', 'timestamp': event_time}
-            self.core.invoke_command('psi.data.set_current_time', parameters)
-        else:
+        # TODO: this should be refined. e.g., for edges create a better event
+        # system.
+        if edge != 'processed':
             log.debug('Detected {} on {} at {}'.format(edge, name, event_time))
             event = self.event_map[edge, name]
             self.handle_event(event, event_time)
@@ -290,6 +291,8 @@ class AppetitivePlugin(BasePlugin):
                 timestamp = self.get_ts()
             log.debug('{} at {}'.format(event, timestamp))
             log.trace('Queuing handle_event')
+            # TODO: let's keep this in the original thread? Should we just use
+            # a lock rather than a deferred call?
             deferred_call(self._handle_event, event, timestamp)
         except Exception as e:
             log.exception(e)
@@ -301,7 +304,7 @@ class AppetitivePlugin(BasePlugin):
         the event that occured. Depending on the experiment state, a particular
         event may not be processed.
         '''
-        log.debug('Recieved handle_event signal')
+        log.debug('Recieved handle_event signal for {}'.format(event.name))
         self.invoke_actions(event.name, timestamp)
 
         if self.experiment_state == 'paused':

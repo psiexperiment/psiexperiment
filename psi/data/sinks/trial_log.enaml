@@ -1,6 +1,6 @@
 from atom.api import Typed
 from enaml.core.api import d_
-from enaml.widgets.api import Container, DockItem
+from enaml.widgets.api import Container, DockItem, CheckBox, VGroup
 from enaml.workbench.api import Extension
 
 from psi.context.context_item import OrderedContextMeta
@@ -25,9 +25,15 @@ enamldef TrialLogManifest(PSIManifest): manifest:
         OrderedContextMeta: meta:
             name << manifest.contribution.name
             label << '{} columns'.format(manifest.contribution.label)
-            #values::
-            #    table.columns = [v.name for v in values]
-            #    table.column_info = {v.name: v for v in values}
+
+    Extension:
+        id = 'preferences'
+        point = 'psi.experiment.preferences'
+        rank = 200
+        ItemPreferences:
+            item << table
+            name << manifest.contribution.name + '_table'
+            auto_save = ['column_widths']
 
     Extension:
         id = 'workspace'
@@ -40,6 +46,10 @@ enamldef TrialLogManifest(PSIManifest): manifest:
             attr data_plugin = workbench.get_plugin('psi.data')
 
             Container:
+                VGroup:
+                    CheckBox:
+                        text = 'Autoscroll?'
+                        checked := table.autoscroll
                 DataFrameTable: table:
                     name = 'trial_log_table'
                     data << data_plugin.trial_log
@@ -59,3 +69,4 @@ enamldef TrialLogManifest(PSIManifest): manifest:
                         return 'white'
                     columns << [v.name for v in meta.values]
                     column_info << {v.name: v for v in meta.values}
+                    autoscroll = True

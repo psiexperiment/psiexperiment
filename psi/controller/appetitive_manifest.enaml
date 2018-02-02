@@ -195,7 +195,7 @@ enamldef AppetitiveManifest(BaseManifest): manifest:
                 compact_label = 'R|'
                 dtype = 'float64'
             Result:
-                name = 'target_start'
+                name = 'trial_start'
                 compact_label = 'T/'
                 dtype = 'float64'
             Result:

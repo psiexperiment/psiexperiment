@@ -5,6 +5,7 @@ from enaml.workbench.api import Extension
 from enaml.widgets.api import (PushButton, Field, Container, VGroup, HGroup,
                                Label, ObjectCombo, DockItem, GroupBox)
 from enaml.stdlib.fields import FloatField
+from enaml.validator import Validator
 
 from psi.core.enaml.list_view import ListView
 from psi.core.enaml.api import PSIManifest
@@ -14,7 +15,6 @@ from . import selector as selector_classes
 
 enamldef BaseSelectorManifest(PSIManifest): manifest:
     pass
-
 
 
 ################################################################################
