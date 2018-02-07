@@ -130,7 +130,7 @@ class Parameter(ContextItem):
 class EnumParameter(Parameter):
 
     expression = Property()
-    choices = d_(Typed(dict)).tag(preference=True)
+    choices = d_(Typed(dict))
     selected = d_(Unicode()).tag(preference=True)
     default = d_(Unicode())
 
