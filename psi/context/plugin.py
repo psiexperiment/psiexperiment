@@ -182,11 +182,16 @@ class ContextPlugin(Plugin):
         return {k: v.get_iterator() for k, v in self.selectors.items()}
 
     def iter_settings(self, iterator='default', cycles=None):
-        selector = self.selectors[iterator].get_iterator(cycles=cycles)
-        for setting in selector:
+        # Some paradigms may not actually have an iterator.
+        if iterator:
+            selector = self.selectors[iterator].get_iterator(cycles=cycles)
+            for setting in selector:
+                self._namespace.reset()
+                expressions = {i.name: i.to_expression(e) for i, e in setting.items()}
+                self._namespace.update_expressions(expressions)
+                yield self.get_values()
+        else:
             self._namespace.reset()
-            expressions = {i.name: i.to_expression(e) for i, e in setting.items()}
-            self._namespace.update_expressions(expressions)
             yield self.get_values()
 
     def unique_values(self, item_name, iterator='default'):
