@@ -6,11 +6,9 @@ from atom.api import Typed, Unicode, Callable, Property
 import enaml
 
 from psi.context.api import Parameter
+from psi.token.block import ContinuousBlock, EpochBlock
 from enaml.core.api import Declarative, d_
 from enaml.workbench.api import Plugin, PluginManifest
-
-with enaml.imports():
-    from .token import ContinuousToken, EpochToken
 
 
 TOKENS_POINT = 'psi.token.tokens'
@@ -35,9 +33,9 @@ class TokenPlugin(Plugin):
         for extension in point.extensions:
             if extension.factory:
                 extension.factory()
-            for token in extension.get_children(EpochToken):
+            for token in extension.get_children(EpochBlock):
                 etokens[token.name] = token
-            for token in extension.get_children(ContinuousToken):
+            for token in extension.get_children(ContinuousBlock):
                 ctokens[token.name] = token
         self._epoch_tokens = etokens
         self._continuous_tokens = ctokens

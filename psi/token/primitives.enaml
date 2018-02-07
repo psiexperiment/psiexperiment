@@ -3,6 +3,8 @@ from __future__ import division
 import logging
 log = logging.getLogger(__name__)
 
+from functools import wraps
+
 import numpy as np
 from scipy import signal
 from joblib import Memory
@@ -10,7 +12,7 @@ from joblib import Memory
 from psi import get_config
 from psi.context.api import Parameter, EnumParameter
 
-from .block import Block
+from .block import EpochBlock, ContinuousBlock
 
 # NOTE: For some functions, it's better not to cache as there is a "hit" from
 # checking whether to load the results from disk or not.
@@ -22,6 +24,7 @@ memory = Memory(cachedir=cachedir, mmap_mode='r')
 # Utility
 ################################################################################
 def single_input(function):
+    @wraps(function)
     def wrapper(*args, **kwargs):
         input_factories = kwargs.pop('input_factories')
         if len(input_factories) == 0:
@@ -33,6 +36,7 @@ def single_input(function):
 
 
 def no_inputs(function):
+    @wraps(function)
     def wrapper(*args, **kwargs):
         input_factories = kwargs.pop('input_factories', [])
         if len(input_factories) != 0:
@@ -43,7 +47,7 @@ def no_inputs(function):
 
 def generate_waveform(generator, samples):
     generator.send(None)
-    return generator.send({'samples': samples})
+    return generator.send({'samples': samples})[0]
 
 
 ################################################################################
@@ -126,11 +130,15 @@ def cos2envelope_factory(fs, start_time, rise_time, duration, calibration,
             complete = False
 
 
-enamldef Cos2Envelope(Block): block:
+enamldef Cos2Envelope(EpochBlock): block:
 
     factory = cos2envelope_factory
     name = 'envelope'
     label = 'envelope'
+
+    get_duration => (context):
+        block_context = self.get_block_context(context)
+        return block_context['duration']
 
     Parameter:
         name = 'duration'
@@ -207,7 +215,7 @@ def samenvelope_factory(fs, depth, fm, delay, direction, calibration,
         offset += len(waveform)
 
 
-enamldef SAMEnvelope(Block): block:
+enamldef SAMEnvelope(ContinuousBlock): block:
 
     factory = samenvelope_factory
     name = 'SAM'
@@ -304,7 +312,7 @@ def bandlimited_noise_factory(fs, seed, level, fl, fh, filter_rolloff,
         waveform, bp_zi = signal.lfilter(b, a, waveform, zi=bp_zi)
 
 
-enamldef BandlimitedNoise(Block):
+enamldef BandlimitedNoise(ContinuousBlock):
     
     factory = bandlimited_noise_factory
     name = 'bandlimited_noise'
@@ -378,7 +386,7 @@ def tone_factory(fs, level, frequency, phase, polarity, calibration):
         offset += len(waveform)
 
 
-enamldef Tone(Block):
+enamldef Tone(ContinuousBlock):
 
     factory = tone_factory
     name = 'tone'
@@ -409,6 +417,10 @@ enamldef Tone(Block):
         compact_label = 'Θ'
         default = 0
 
+
+################################################################################
+# Silence
+################################################################################
 @no_inputs
 def silence_factory(fs, calibration):
     waveform = None
@@ -418,11 +430,79 @@ def silence_factory(fs, calibration):
         waveform = np.zeros(samples)
 
 
-################################################################################
-# Silence
-################################################################################
-enamldef Silence(Block):
+enamldef Silence(ContinuousBlock):
 
     factory = silence_factory
     name = 'silence'
     label = 'silence'
+
+
+
+################################################################################
+# Chirp
+################################################################################
+@no_inputs
+def chirp_factory(fs, start_frequency, end_frequency, duration, level,
+                  calibration):
+
+    # In this particular example, we go ahead and pregenerate the chirp
+    # waveform for simplictiy. This means that it won't support long-duration
+    # chirps easily.
+    waveform = None
+    complete = False
+    f0 = start_frequency
+    f1 = end_frequency
+    offset = 0
+
+    n = int(fs*duration)
+    t = np.arange(n, dtype=np.double) / fs
+    k = (end_frequency-start_frequency)/duration
+
+    # Compute instantaneous frequency, which can be used to compute the
+    # instantaneous scaling factor for each timepoint (thereby compensating for
+    # nonlinearities in the output).
+    ifreq = t*k + start_frequency
+    sf = calibration.get_sf(ifreq, level)*np.sqrt(2)
+
+    # Now, compute the chirp
+    chirp = sf*np.sin(2*np.pi*(start_frequency*t + k/2 * t**2))
+
+    while True:
+        kwargs = (yield waveform, complete)
+        samples = kwargs['samples']
+        waveform = chirp[offset:offset+samples]
+        offset += len(waveform)
+        n -= len(waveform)
+        if n <= 0:
+            complete = True
+
+
+enamldef Chirp(EpochBlock):
+
+    factory = chirp_factory
+    name = 'chirp'
+    label = 'chirp'
+
+    get_duration => (context):
+        block_context = self.get_block_context(context)
+        return block_context['duration']
+
+    Parameter:
+        name = 'level'
+        label = 'level (dB)'
+        default = -40
+
+    Parameter:
+        name = 'start_frequency'
+        label = 'start frequency (Hz)'
+        default = 250.0
+
+    Parameter:
+        name = 'end_frequency'
+        label = 'end frequency (Hz)'
+        default = 50e3
+
+    Parameter:
+        name = 'duration'
+        label = 'duration (sec)'
+        default = 1/50.0

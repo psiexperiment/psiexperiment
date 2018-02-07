@@ -2,7 +2,7 @@ import copy
 
 from atom.api import Unicode, Callable, Typed, Property
 
-from enaml.core.api import Declarative, d_
+from enaml.core.api import Declarative, d_, d_func
 
 from psi.context.api import Parameter
 
@@ -50,7 +50,7 @@ class Block(Declarative):
         return items
 
     def get_context_names(self):
-        return [item.name for item in self.get_context_items()] 
+        return [item.name for item in self.get_context_items()]
 
     def __copy__(self):
         cls = self.__class__
@@ -64,16 +64,31 @@ class Block(Declarative):
 
     def initialize_factory(self, context):
         input_factories = [b.initialize_factory(context) for b in self.blocks]
-        # Map the global name (e.g., as shown in the context plugin) to the
-        # block name.
-        bc = {bn: context[gn] for gn, bn in self.context_name_map.items()}
-        bc['fs'] = context['fs']
-        bc['calibration'] = context['calibration']
-        bc['input_factories'] = input_factories
-        return lambda: self.factory(**bc)
+        block_context = self.get_block_context(context)
+        block_context['fs'] = context['fs']
+        block_context['calibration'] = context['calibration']
+        block_context['input_factories'] = input_factories
+        return lambda: self.factory(**block_context)
 
     def initialize_generator(self, context):
         factory = self.initialize_factory(context)
         generator = factory()
         next(generator)
         return generator
+
+    def get_block_context(self, context):
+        return {bn: context[gn] for gn, bn in self.context_name_map.items()}
+
+    @d_func
+    def get_duration(self, context):
+        raise NotImplementedError
+
+
+class EpochBlock(Block):
+    pass
+
+
+class ContinuousBlock(Block):
+
+    def get_duration(self, context):
+        return np.inf
