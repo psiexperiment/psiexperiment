@@ -13,13 +13,6 @@ modules is the `Engine` class. This will serve as the sole communication layer
 between the NI hardware and your application. By doing so, this ensures a
 sufficient layer of abstraction that helps switch between DAQ hardware from
 different vendors (including Measurement Computing and OpenElec).
-
-Some parts of the code takes advantage of generators and coroutines. For details
-on this topic, see the following resources:
-
-    http://www.dabeaz.com/coroutines/
-    http://www.python.org/dev/peps/pep-0342/
-
 '''
 
 import logging

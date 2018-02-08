@@ -7,7 +7,8 @@ from copy import copy
 import numpy as np
 from scipy import signal
 
-from atom.api import Unicode, Float, Typed, Int, Property, Enum, Bool
+from atom.api import (Unicode, Float, Typed, Int, Property, Enum, Bool,
+                      Callable)
 from enaml.core.api import d_
 from enaml.workbench.api import Extension
 
@@ -88,7 +89,9 @@ class Input(PSIContribution):
         '''
         log.debug('Configuring callback for {}'.format(self.name))
         targets = [c.configure_callback(plugin) for c in self.children]
-        targets.append(self.get_plugin_callback(plugin))
+
+        if plugin is not None:
+            targets.append(self.get_plugin_callback(plugin))
 
         # If we have only one target, no need to add another function layer
         if len(targets) == 1:
@@ -98,6 +101,9 @@ class Input(PSIContribution):
     def get_plugin_callback(self, plugin):
         action = self.name + '_acquired'
         return lambda data: plugin.invoke_actions(action, data=data)
+
+    def add_callback(self, cb):
+        callback = Callback(parent=self, function=cb)
 
 
 class ContinuousInput(Input):
@@ -114,6 +120,15 @@ class EpochInput(Input):
 
     def _get_epoch_size(self):
         return self.parent.epoch_size
+
+
+class Callback(Input):
+
+    function = Callable()
+
+    def configure_callback(self, plugin):
+        log.debug('Configuring callback for {}'.format(self.name))
+        return self.function
 
 
 ################################################################################
@@ -488,14 +503,23 @@ class ExtractEpochs(EpochInput):
     # acquisition rate).
     delay = d_(Float(0)).tag(metadata=True)
 
+    _cb_queue = Typed(object)
+
     def configure_callback(self, plugin):
         action = self.name + '_queue_empty'
         empty_queue_cb = lambda: plugin.invoke_actions(action)
         cb = super().configure_callback(plugin)
-        cb_queue = self.queue.create_connection()
-        return extract_epochs(self.fs, cb_queue, self.epoch_size,
+        self._cb_queue = self.queue.create_connection()
+        return extract_epochs(self.fs, self._cb_queue, self.epoch_size,
                               self.buffer_size, self.delay, self.name, cb,
                               empty_queue_cb).send
+
+    def is_complete(self):
+        if self.queue.count_trials() != 0:
+            return False
+        if len(self._cb_queue) != 0:
+            return False
+        return True
 
 
 @coroutine

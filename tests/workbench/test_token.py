@@ -8,16 +8,6 @@ from enaml.workbench.api import Workbench
 from psi.controller.calibration import InterpCalibration
 from psi.controller.queue import InterleavedFIFOSignalQueue
 
-with enaml.imports():
-    from psi.token.manifest import TokenManifest
-
-
-@pytest.fixture
-def workbench():
-    workbench = Workbench()
-    workbench.register(TokenManifest())
-    return workbench
-
 
 @pytest.fixture
 def tone_token(workbench):

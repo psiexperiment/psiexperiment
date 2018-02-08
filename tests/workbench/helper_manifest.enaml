@@ -11,6 +11,7 @@ from psi.controller.engines.null import NullEngine
 from psi.controller.channel import AIChannel
 from psi.controller.input import Downsample, IIRFilter
 from psi.controller.calibration import PointCalibration
+from psi.token.primitives import Cos2Envelope, Tone
 
 
 EVENT_RESULTS = []
@@ -112,3 +113,12 @@ enamldef HelperManifest(BaseManifest): manifest:
             event = 'not trial_active and dispense'
             command = 'store_result'
             kwargs = {'result': event}
+
+    Extension:
+        id = 'helper_tokens'
+        point = 'psi.token.tokens'
+
+        Cos2Envelope:
+            name = 'tone_burst'
+            Tone:
+                pass

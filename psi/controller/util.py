@@ -14,13 +14,15 @@ class Acquire(object):
         self.complete = False
 
         # Setup input
-        ai_fs = engine.hw_ai_channels[0].fs
+        ai_fs = engine.get_channels('analog', 'input', 'hardware', False)[0].fs
         ai_cb = extract_epochs(ai_fs, self.ai_queue, epoch_size, epoch_size*10,
                                0, '', self.ai_callback)
         self.engine.register_ai_callback(ai_cb.send)
 
     def ai_callback(self, event):
+        print('callback')
         self.ai_epochs.extend(event)
+        print(len(self.ai_epochs))
         if len(self.ai_epochs) == self.n_epochs:
             self.complete = True
 

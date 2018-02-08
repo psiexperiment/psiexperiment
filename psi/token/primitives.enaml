@@ -149,7 +149,7 @@ def cos2envelope_factory(fs, start_time, rise_time, duration, calibration,
         # Generate the waveform
         envelope = cos2envelope(fs, offset, samples, start_time, rise_time,
                                 duration)
-        token = input_generator.send(kwargs)
+        token = input_generator.send(kwargs)[0]
         waveform = envelope*token
         offset += len(waveform)
 
@@ -239,7 +239,7 @@ def samenvelope_factory(fs, depth, fm, delay, direction, calibration,
     next(input_generator)
 
     while True:
-        kwargs = (yield waveform)
+        kwargs = (yield waveform, False)
         samples = kwargs['samples']
         env = sam_envelope(offset, samples, fs, depth, fm, delay, direction)
         token = input_generator.send(kwargs)
@@ -336,7 +336,7 @@ def bandlimited_noise_factory(fs, seed, level, fl, fh, filter_rolloff,
     low, high = -np.sqrt(3)*filter_sf*sf, np.sqrt(3)*filter_sf*sf
 
     while True:
-        kwargs = (yield waveform)
+        kwargs = (yield waveform, False)
         samples = kwargs['samples']
         waveform = state.uniform(low=low, high=high, size=samples)
         if equalize:
@@ -411,7 +411,7 @@ def tone_factory(fs, level, frequency, phase, polarity, calibration):
     while True:
         # Note. At least for 5 msec tones it's faster to just compute the array
         # rather than cache the result.
-        kwargs = (yield waveform)
+        kwargs = (yield waveform, False)
         samples = kwargs['samples']
         t = (np.arange(samples, dtype=np.float32) + offset)/fs
         waveform = polarity*sf*np.cos(2*np.pi*t*frequency + phase)
@@ -457,7 +457,7 @@ enamldef Tone(ContinuousBlock):
 def silence_factory(fs, calibration):
     waveform = None
     while True:
-        kwargs = (yield waveform)
+        kwargs = (yield waveform, False)
         samples = kwargs['samples']
         waveform = np.zeros(samples)
 

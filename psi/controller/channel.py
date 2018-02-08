@@ -54,6 +54,9 @@ class InputChannel(Channel):
             log.debug('Configuring input {}'.format(input.name))
             input.configure(plugin)
 
+    def add_input(self, input):
+        input.set_parent(self)
+
 
 class OutputChannel(Channel):
 

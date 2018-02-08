@@ -9,6 +9,7 @@ with enaml.imports():
     from enaml.workbench.core.core_manifest import CoreManifest
     from psi.context.manifest import ContextManifest
     from psi.data.manifest import DataManifest
+    from psi.token.manifest import TokenManifest
     from .helper_manifest import HelperManifest
 
 
@@ -23,6 +24,7 @@ def workbench(app):
     workbench.register(CoreManifest())
     workbench.register(ContextManifest())
     workbench.register(DataManifest())
+    workbench.register(TokenManifest())
     workbench.register(HelperManifest())
 
     context = workbench.get_plugin('psi.context')
