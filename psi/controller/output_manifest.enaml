@@ -12,7 +12,7 @@ from psi.context.api import ContextGroup, Parameter
 from psi.experiment.api import ItemPreferences
 
 from psi.core.enaml.api import PSIManifest
-from .experiment_action import ExperimentState, ExperimentEvent
+from .experiment_action import ExperimentState, ExperimentEvent, ExperimentAction
 from .queue import queues
 
 
@@ -330,6 +330,14 @@ enamldef QueuedEpochOutputManifest(EpochOutputManifest): manifest:
                 parameters = {'queue_class': loop_item[1]}
                 enabled << workbench.get_plugin('psi.controller').experiment_state \
                     in ('initialized', 'stopped')
+
+    Extension:
+        id = 'epoch_output_actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = manifest.contribution.name + '.prepare_queue'
 
 
 

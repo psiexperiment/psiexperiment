@@ -192,8 +192,8 @@ class InterpCalibration(Calibration):
     _interp = Callable()
 
     def __init__(self, frequency, sensitivity, fixed_gain=0):
-        self.frequency = frequency
-        self.sensitivity = sensitivity
+        self.frequency = np.asarray(frequency)
+        self.sensitivity = np.asarray(sensitivity)
         self.fixed_gain = fixed_gain
         self._interp = interp1d(frequency, sensitivity, 'linear',
                                 bounds_error=False)

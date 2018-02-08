@@ -203,8 +203,11 @@ class ViewBox(PSIContribution):
         return y_axis
 
     def _default_viewbox(self):
-        viewbox = CustomGraphicsViewBox(self.parent.data_range,
-                                        enableMenu=False)
+        try:
+            viewbox = CustomGraphicsViewBox(self.parent.data_range,
+                                            enableMenu=False)
+        except:
+            viewbox = pg.ViewBox(enableMenu=False)
         viewbox.setBackgroundColor('w')
         viewbox.disableAutoRange()
         viewbox.setYRange(self.y_min, self.y_max)
@@ -326,9 +329,6 @@ class FFTChannelPlot(ChannelPlot):
     time_span = d_(Float())
     _cached_frequency = Typed(np.ndarray)
 
-    def _default_plot(self):
-        return pg.PlotCurveItem(pen=self.pen, antialias=self.antialias)
-
     def prepare(self, plugin):
         self.source = plugin.find_source(self.source_name)
         n = int(self.source.fs*self.time_span)
@@ -432,4 +432,34 @@ class EpochAveragePlot(ChannelPlot):
             return
         y = result.mean(axis=0)
         self.plot.setData(self._cached_time, y)
+        self.update_pending = False
+
+
+class FFTEpochPlot(ChannelPlot):
+
+    filters = Typed(dict, {})
+    n_time = Int(0)
+    _cached_frequency = Typed(np.ndarray)
+
+    def _observe_source(self, event):
+        self.source.observe('added', self.update)
+
+    def _update(self, event=None):
+
+        filters = {p.name: v for p, v in self.filters.items()}
+        result = self.source.get_epochs(filters)
+        if len(result) == 0:
+            return
+        y = result.mean(axis=0)
+
+        # Update cached frequency if number of timepoints has changed.
+        if self.n_time != len(y):
+            self.n_time = len(y)
+            freq = np.fft.rfftfreq(self.n_time, self.source.fs**-1)
+            self._cached_frequency = np.log10(freq)
+
+        # Compute the PSD
+        psd = util.db(util.psd(y, self.source.fs))
+
+        self.plot.setData(self._cached_frequency, psd)
         self.update_pending = False

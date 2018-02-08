@@ -223,7 +223,6 @@ class InterleavedFIFOSignalQueue(AbstractSignalQueue):
             self._i = 0
 
     def next_key(self):
-        #if len(self._ordering) == 0:
         if self._complete:
             raise QueueEmptyError
         return self._ordering[self._i]
@@ -233,7 +232,6 @@ class InterleavedFIFOSignalQueue(AbstractSignalQueue):
         # Advance i only if the current key is not removed.  If the current key
         # was removed from _ordering, then the current value of i already
         # points to the next key in the sequence.
-        #if data['trials'] != 0:
         self._i = (self._i + 1) % len(self._ordering)
         return key, data
 

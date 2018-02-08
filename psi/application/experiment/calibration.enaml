@@ -1,0 +1,180 @@
+import logging
+log = logging.getLogger(__name__)
+
+from atom.api import Typed
+import numpy as np
+
+from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
+
+from psi.context.api import ContextGroup, Parameter, EnumParameter
+from psi.context.selector import CartesianProduct
+from psi.controller.api import ExperimentAction
+
+from psi.controller.output import QueuedEpochOutput, EpochOutput
+from psi.controller.input import ExtractEpochs, Input, Blocked, Accumulate, RejectEpochs, IIRFilter, Decimate
+
+from psi.controller.base_manifest import (BaseManifest, get_hw_ao_choices,
+                                          get_hw_ai_choices)
+
+from psi.controller.queue import InterleavedFIFOSignalQueue
+
+
+from psi.data.plots import (TimeContainer, ChannelPlot, EpochAveragePlot,
+                            ChannelPlot, ViewBox, FFTContainer, FFTEpochPlot)
+
+from psi.data.sinks.epoch_counter import EpochCounter
+from psi.token.primitives import Chirp
+
+
+from psi.controller.calibration import FlatCalibration
+
+
+def configure_hardware(event):
+    '''
+    Set the HW AO calibration to an attenuation
+    '''
+    context = event.workbench.get_plugin('psi.context')
+    values = context.get_values()
+
+    # Link up the desired inputs and outputs for the calibration
+    controller = event.workbench.get_plugin('psi.controller')
+    controller.connect_output('hw_ao', values['output_channel'])
+    controller.connect_input('hw_ai', values['input_channel'])
+
+    # Set up the queue now that we know what the channel is
+    output = controller.get_output('hw_ao')
+    output.queue = InterleavedFIFOSignalQueue(fs=output.fs, initial_delay=1)
+
+    # Set up the calibration. By setting fixed_gain to the attenuation, this
+    # will ensure that the waveform is scaled down to the desired attenuation.
+    output_channel = controller.get_channel(values['output_channel'])
+    output_channel.calibration = FlatCalibration.as_attenuation()
+
+
+enamldef ControllerManifest(BaseManifest): manifest:
+
+    Extension:
+        id = 'tokens'
+        point = 'psi.token.tokens'
+
+        Chirp:
+            pass
+
+    Extension:
+        id = 'io'
+        point = 'psi.controller.io'
+
+        QueuedEpochOutput: hw_ao:
+            name = 'hw_ao'
+            auto_decrement = True
+
+        Blocked: hw_ai:
+            duration = 0.1
+            name = 'hw_ai'
+            save = True
+
+            ExtractEpochs: extract:
+                save = True
+                buffer_size = 50
+                epoch_size = 1/50.0
+                queue << hw_ao.queue
+                name = 'epoch'
+
+    Extension:
+        id = 'context'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'calibration'
+            label = 'Calibration'
+
+            EnumParameter:
+                name = 'output_channel'
+                label = 'Output channel'
+                compact_label = 'ao'
+                choices << get_hw_ao_choices(workbench)
+                scope = 'experiment'
+
+            EnumParameter:
+                name = 'input_channel'
+                label = 'Input channel'
+                compact_label = 'input'
+                choices << get_hw_ai_choices(workbench)
+                scope = 'experiment'
+
+            Parameter:
+                name = 'input_gain'
+                label = 'Input gain (dB)'
+                compact_label = 'ai_gain'
+                dtype = 'float64'
+                default = 40
+                scope = 'experiment'
+
+            Parameter:
+                name = 'input_range'
+                label = 'Expected input range (Vpp)'
+                compact_label = 'ai_range'
+                dtype = 'float64'
+                default = 10
+                scope = 'experiment'
+
+    Extension:
+        id = 'calibration_commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = 'psi.controller.configure_hardware'
+            handler = configure_hardware
+
+    Extension:
+        id = 'actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'psi.controller.configure_hardware'
+            weight = 15
+
+        ExperimentAction:
+            event = 'epoch_queue_empty and not hw_ao_active'
+            command = 'psi.controller.stop'
+
+    Extension:
+        id = 'sink'
+        point = 'psi.data.sinks'
+
+        EpochCounter:
+            epoch_name = 'epoch'
+
+    Extension:
+        id = 'plots'
+        point = 'psi.data.plots'
+
+        TimeContainer:
+            name = 'epoch_container'
+            label = 'Epoch average'
+            span = 1/50.0
+
+            ViewBox:
+                y_min = -0.1
+                y_max = 0.1
+                label = 'Signal (V)'
+
+                EpochAveragePlot:
+                    name = 'epoch_average'
+                    label = 'Epoch average plot'
+                    source_name = 'epoch'
+
+        FFTContainer:
+            name = 'epoch_fft_container'
+            label = 'Epoch FFT'
+            freq_lb = 5
+            freq_ub = 50000
+
+            ViewBox:
+                y_min = -120
+                y_max = 100
+
+                FFTEpochPlot:
+                    source_name = 'epoch'
+                    pen_color = (0, 0, 0)

@@ -92,6 +92,38 @@ def cos2envelope(fs, offset, samples, start_time, rise_time, duration):
     return np.concatenate(concat, axis=-1)
 
 
+# TEST of a more easy to understand interface
+#class Cos2Envelope:
+#
+#    def __init__(self, fs, start_time, rise_time, duration, calibration, child):
+#        # TODO: Save
+#
+#    def reset(self):
+#        self.epoch_samples = int(self.duration*self.fs)
+#        self.offset = 0
+#        self.complete = False
+#        self.child.reset()
+#
+#    def next_samples(self, samples):
+#        # Ensure we don't produce more samples than needed to complete waveform
+#        samples = min(self.epoch_samples-self.offset, samples)
+#
+#        token = self.child.next_samples(samples)
+#        envelope = cos2envelope(self.fs, self.offset, self.samples,
+#                                self.start_time, self.rise_time, self.duration)
+#        waveform = envelope*token
+#        self.offset += len(waveform)
+#
+#        # Check if we're done
+#        if self.offset == self.epoch_samples:
+#            self.complete = True
+#        elif self.offset > self.epoch_samples:
+#            raise ValueError('Algorithm mistake!!')
+#        else:
+#            self.complete = False
+#
+#        return self.waveform, self.complete
+
 @single_input
 def cos2envelope_factory(fs, start_time, rise_time, duration, calibration,
                          input_factory):

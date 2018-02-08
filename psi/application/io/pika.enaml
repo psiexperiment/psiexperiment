@@ -41,7 +41,7 @@ enamldef IOManifest(PluginManifest): manifest:
                 fs = 25e3
                 expected_range = (-10, 10)
                 dtype = 'float64'
-                terminal_mode = 'differential'
+                terminal_mode = 'pseudodifferential'
                 terminal_coupling = 'AC'
 
         NIDAQEngine:
@@ -77,13 +77,9 @@ enamldef IOManifest(PluginManifest): manifest:
                 fs = 100e3
                 expected_range = (-10, 10)
                 dtype = 'float64'
-                terminal_mode = 'differential'
+                terminal_mode = 'pseudodifferential'
                 terminal_coupling = 'AC'
                 calibration = mic_cal
-
-                ContinuousInput:
-                    name = 'microphone'
-                    save = True
 
             AIChannel:
                 label = 'Reference microphone'
@@ -93,8 +89,5 @@ enamldef IOManifest(PluginManifest): manifest:
                 fs = 100e3
                 expected_range = (-10, 10)
                 dtype = 'float64'
-                terminal_mode = 'differential'
+                terminal_mode = 'pseudodifferential'
                 terminal_coupling = 'AC'
-
-                ContinuousInput:
-                    name = 'reference_microphone'

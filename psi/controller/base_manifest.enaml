@@ -29,6 +29,18 @@ def start_experiment(event):
     controller.start_experiment()
 
 
+def get_hw_ao_choices(workbench):
+    plugin = workbench.get_plugin('psi.controller')
+    channels = plugin.get_channels('analog', 'output', 'hardware', False)
+    return {c.label: '"{}"'.format(c.name) for c in channels}
+
+
+def get_hw_ai_choices(workbench):
+    plugin = workbench.get_plugin('psi.controller')
+    channels = plugin.get_channels('analog', 'input', 'hardware', False)
+    return {c.label: '"{}"'.format(c.name) for c in channels}
+
+
 enamldef BaseManifest(PluginManifest): manifest:
     '''
     Defines the core functionality that most controller plugins will share
