@@ -14,6 +14,7 @@ from ..util import coroutine
 
 class Channel(Declarative):
 
+    name = d_(Unicode()).tag(metadata=True)
     label = d_(Unicode()).tag(metadata=True)
     unit = d_(Unicode()).tag(metadata=True)
 

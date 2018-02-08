@@ -8,7 +8,7 @@ from psi.controller.engines.nidaq import NIDAQEngine
 from psi.controller.channel import AIChannel, AOChannel
 from psi.controller.input import ContinuousInput, IIRFilter, Decimate
 from psi.data.sinks.bcolz_store import BColzStore
-from psi.controller.calibration import InterpCalibration
+from psi.controller.calibration import InterpCalibration, FlatCalibration
 
 
 cal_root = get_config('CAL_ROOT')
@@ -71,7 +71,7 @@ enamldef IOManifest(PluginManifest): manifest:
 
             AIChannel:
                 label = 'Probe tube microphone'
-                name = 'microphone'
+                name = 'microphone_channel'
                 channel = 'PXI1Slot8/ai0'
                 start_trigger = '/PXI1Slot8/ao/StartTrigger'
                 fs = 100e3
@@ -83,7 +83,7 @@ enamldef IOManifest(PluginManifest): manifest:
 
             AIChannel:
                 label = 'Reference microphone'
-                name = 'reference_microphone'
+                name = 'reference_microphone_channel'
                 channel = 'PXI1Slot8/ai1'
                 start_trigger = '/PXI1Slot8/ao/StartTrigger'
                 fs = 100e3
@@ -91,3 +91,4 @@ enamldef IOManifest(PluginManifest): manifest:
                 dtype = 'float64'
                 terminal_mode = 'pseudodifferential'
                 terminal_coupling = 'AC'
+                calibration = FlatCalibration(1e-3)

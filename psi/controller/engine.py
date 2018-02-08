@@ -9,6 +9,7 @@ from atom.api import (Unicode, Float, Bool, observe, Property, Int, Typed,
                       Long, Value)
 from enaml.core.api import Declarative, d_
 
+from ..util import copy_declarative
 from .channel import Channel, AIChannel, AOChannel, DIChannel, DOChannel
 
 
@@ -72,6 +73,14 @@ class Engine(Declarative):
 
         return tuple(channels)
 
+    def get_channel(self, channel_name):
+        channels = self.get_channels(has_children=False)
+        for channel in channels:
+            if channel.name == channel_name:
+                return channel
+        m = '{} channel does not exist'.format(channel_name)
+        raise AttributeError(m)
+
     def remove_channel(self, channel):
         channel.set_parent(None)
 
@@ -109,3 +118,18 @@ class Engine(Declarative):
 
     def get_offset(self, channel_name):
         raise NotImplementedError
+
+    def clone(self, channel_names=None):
+        '''
+        Return a copy of this engine with specified channels incldued
+
+        This is intended as a utility function to assist various routines that
+        may need to do a quick operation before starting the experiment. For
+        example, calibration may only need to run a subset of the channels.
+        '''
+        new = copy_declarative(self)
+        if channel_names is not None:
+            for channel_name in channel_names:
+                channel = self.get_channel(channel_name)
+                copy_declarative(channel, parent=new)
+        return new

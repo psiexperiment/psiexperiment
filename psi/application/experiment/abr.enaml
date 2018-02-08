@@ -10,23 +10,22 @@ from enaml.workbench.core.api import Command
 from psi.context.api import ContextGroup, Parameter
 from psi.context.selector import CartesianProduct
 from psi.controller.api import ExperimentAction
-
-from psi.controller.output import QueuedEpochOutput, EpochOutput
-from psi.controller.input import ExtractEpochs, Input, Blocked, Accumulate, RejectEpochs, IIRFilter, Decimate
-
 from psi.controller.base_manifest import BaseManifest
-
+from psi.controller.calibration.tone import tone_calibration
+from psi.controller.input import (ContinuousInput, ExtractEpochs, Input,
+                                  Blocked, Accumulate, RejectEpochs, IIRFilter,
+                                  Decimate)
+from psi.controller.output import QueuedEpochOutput, EpochOutput
 from psi.controller.queue import InterleavedFIFOSignalQueue
 
 from psi.util import copy_declarative
 
 from psi.data.plots import (TimeContainer, ChannelPlot, EpochAveragePlot,
                             ChannelPlot, ViewBox)
-
 from psi.data.sinks.epoch_counter import EpochCounter
-from psi.data.sinks.difference_epoch_counter import DifferenceEpochCounter
 
-from psi.controller.calibration.tone import tone_calibration
+from psi.token.primitives import Cos2Envelope, Tone, BandlimitedNoise
+
 
 
 def save_trial(event):
@@ -42,43 +41,61 @@ def save_trial(event):
     core.invoke_command('psi.data.process_trials', parameters)
 
 
-def calibrate_output(event):
-    # Load the plugins we'll need
+def get_frequencies(event):
     core = event.workbench.get_plugin('enaml.workbench.core')
-    controller = event.workbench.get_plugin('psi.controller')
-
-    p = event.parameters
-
     selector_name = p.get('selector_name', 'default')
     parameter_name = p.get('parameter_name', 'target_tone_frequency')
     parameters = {'item_name': parameter_name, 'iterator': selector_name}
     frequencies = core.invoke_command('psi.context.unique_values', parameters)
-    frequencies = list(frequencies)
+    return list(frequencies)
 
-    # Get the configuration for the channels
-    output_channel = controller.get_output(p['output_name']).channel
-    input_channel = controller.get_input(p['input_name']).channel
 
-    engine = copy_declarative(output_channel.engine,
-                              name='cal_engine',
-                              hw_ao_monitor_period=1,
-                              hw_ai_monitor_period=0.1)
-    copy_declarative(output_channel, name='output', parent=engine)
-    copy_declarative(input_channel, name='input', parent=engine)
-
+def calibrate_channel(event):
     log.info('Calibrating {} for {} Hz'.format(p['output_name'], frequencies))
+    controller = event.workbench.get_plugin('psi.controller')
+    p = event.parameters
+
+    # Find the channels
+    ao_channel = controller.get_output(p['output_name']).channel
+    ai_channel = controller.get_input(p['input_name']).channel
+
+    # Get a list of planned frequencies
+    frequencies = get_frequencies(event)
+
     # Run the calibration and update the output with that calibration
-    output_channel.calibration = tone_calibration(engine, frequencies)
+    result = tone_spl(engine, frequencies, gain=-40,
+                      ao_channel_names=[ao_channel.name],
+                      ai_channel_name=ai_channel.name)
+
     for frequency in frequencies:
-        spl = output_channel.calibration.get_spl(frequency, 1)
+        spl = ao_channel.calibration.get_spl(frequency, 1)
         log.info('{:.2f} Hz & 1vrms is {:.2f} dB SPL'.format(frequency, spl))
 
 
 enamldef ControllerManifest(BaseManifest): manifest:
 
     Extension:
+        id = 'tokens'
+        point = 'psi.token.tokens'
+
+        # The most standard stimuli
+        Cos2Envelope:
+            name = 'tone_burst'
+            label = 'tone'
+            Tone:
+                pass
+
+        # Continuous noise (if desired for masking purposes)
+        BandlimitedNoise:
+            pass
+
+    Extension:
         id = 'io'
         point = 'psi.controller.io'
+
+        ContinuousInput:
+            name = 'microphone'
+            source_name = 'microphone_channel'
 
         QueuedEpochOutput: output:
             name = 'target'
@@ -140,8 +157,8 @@ enamldef ControllerManifest(BaseManifest): manifest:
             id = 'psi.controller.save_trial'
             handler = save_trial
         Command:
-            id = 'psi.controller.calibrate_output'
-            handler = calibrate_output
+            id = 'psi.controller.calibrate_channel'
+            handler = calibrate_channel
 
     Extension:
         id = 'actions'
@@ -153,6 +170,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
         # Once the queue is prepared, the calibration has been set for those
         # stimuli.
         ExperimentAction:
+            weight = 15
             event = 'experiment_prepare'
             command = 'psi.controller.calibrate_output'
             kwargs = {
@@ -160,10 +178,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 'output_name': 'target',
                 'parameter_name': 'target_tone_frequency',
             }
-
-        ExperimentAction:
-            event = 'experiment_prepare'
-            command = 'target.prepare_queue'
 
         ExperimentAction:
             event = 'erp_acquired'
