@@ -133,7 +133,7 @@ class BasePlugin(Plugin):
                         raise ValueError(m)
                     master_engine = engine
 
-                for channel in engine.channels:
+                for channel in engine.get_channels(has_children=False):
                     channels[channel.name] = channel
                     for output in getattr(channel, 'outputs', []):
                         outputs[output.name] = output
@@ -152,50 +152,51 @@ class BasePlugin(Plugin):
                 for ci in get_inputs(i):
                     inputs[ci.name] = ci
 
-        # Link up outputs with channels if needed.  TODO: Can another output be
-        # the target (e.g., if one wanted to combine multiple tokens into a
-        # single stream)?
-        for output in outputs.values():
-            if output.target is None:
-                if output.target_name in channels:
-                    target = channels[output.target_name]
-                else:
-                    m = "Unknown target {}".format(output.target_name)
-                    raise ValueError(m)
-                output.target = target
-                m = 'Connected output {} to source {}'
-                log.debug(m.format(output.name, output.target_name))
-            output.load_manifest(self.workbench)
-
-        for input in inputs.values():
-            if input.source is None:
-                if input.source_name in inputs:
-                    source = inputs[input.source_name]
-                elif input.source_name in channels:
-                    source = channels[input.source_name]
-                else:
-                    m = "Unknown source {}".format(input.source_name)
-                    raise ValueError(m)
-                input.source = source
-                m = 'Connected input {} to source {}'
-                log.debug(m.format(input.name, input.source_name))
-            input.load_manifest(self.workbench)
-
-        # Remove channels that do not have an input or output defined. TODO: We
-        # need to figure out how to configure which inputs/outputs are active
-        # (via GUI or config file) since some IO manifests may define
-        # additional (unneeded) inputs and outputs.
-        for channel in list(channels.values()):
-            if not channel.children:
-                channel.engine = None
-                del channels[channel.name]
-
+        # Need to save these to the instance before the next set of code as the
+        # `connect_output` and `connect_input` both require some of these.
         self._master_engine = master_engine
         self._channels = channels
         self._engines = engines
         self._outputs = outputs
         self._inputs = inputs
         self._devices = devices
+
+        for output in outputs.values():
+            if output.target is None and output.target_name:
+                self.connect_output(output.name, output.target_name)
+            output.load_manifest(self.workbench)
+
+        for input in inputs.values():
+            if input.source is None and input.source_name:
+                self.connect_input(input.name, input.source_name)
+            input.load_manifest(self.workbench)
+
+    def connect_output(self, output_name, target_name):
+        # Link up outputs with channels if needed.  TODO: Can another output be
+        # the target (e.g., if one wanted to combine multiple tokens into a
+        # single stream)?
+        if target_name in self._channels:
+            target = self._channels[target_name]
+        else:
+            m = "Unknown target {}".format(target_name)
+            raise ValueError(m)
+        self._outputs[output_name].target = target
+
+        m = 'Connected output {} to target {}'
+        log.debug(m.format(output_name, target_name))
+
+    def connect_input(self, input_name, source_name):
+        if source_name in self._inputs:
+            source = self._inputs[source_name]
+        elif source_name in self._channels:
+            source = self._channels[source_name]
+        else:
+            m = "Unknown source {}".format(source_name)
+            raise ValueError(m)
+        self._inputs[input_name].source = source
+
+        m = 'Connected input {} to source {}'
+        log.debug(m.format(input_name, source_name))
 
     def _refresh_actions(self, event=None):
         actions = []
@@ -258,6 +259,30 @@ class BasePlugin(Plugin):
 
     def get_channel(self, channel_name):
         return self._channels[channel_name]
+
+    def get_channels(self, mode=None, direction=None, timing=None,
+                     has_children=True):
+        '''
+        Return channels matching criteria across all engines
+
+        Parameters
+        ----------
+        mode : {None, 'analog', 'digital'
+            Type of channel
+        direction : {None, 'input, 'output'}
+            Direction
+        timing : {None, 'hardware', 'software'}
+            Hardware or software-timed channel. Hardware-timed channels have a
+            sampling frequency greater than 0.
+        has_children : bool
+            If True, return only channels that have configured inputs or
+            outputs.
+        '''
+        channels = []
+        for engine in self._engines.values():
+            ec = engine.get_channels(mode, direction, timing, has_children)
+            channels.extend(ec)
+        return channels
 
     def _get_action_context(self):
         context = {}

@@ -18,41 +18,65 @@ class Engine(Declarative):
     master_clock = d_(Bool(False)).tag(metadata=True)
     lock = Value()
 
-    channels = Property()
-    hw_ao_channels = Property()
-    hw_ai_channels = Property()
-    hw_do_channels = Property()
-    hw_di_channels = Property()
-    sw_do_channels = Property()
-
     def _default_lock(self):
         return threading.Lock()
 
-    def _get_channels(self):
-        return [c for c in self.children if isinstance(c, Channel)]
+    def get_channels(self, mode=None, direction=None, timing=None,
+                     has_children=True):
+        '''
+        Return channels matching criteria
 
-    def _get_hw_ao_channels(self):
-        return [c for c in self.children if \
-                isinstance(c, AOChannel) and c.fs != 0]
+        Parameters
+        ----------
+        mode : {None, 'analog', 'digital'
+            Type of channel
+        direction : {None, 'input, 'output'}
+            Direction
+        timing : {None, 'hardware', 'software'}
+            Hardware or software-timed channel. Hardware-timed channels have a
+            sampling frequency greater than 0.
+        has_children : bool
+            If True, return only channels that have configured inputs or
+            outputs.
+        '''
+        channels = [c for c in self.children if isinstance(c, Channel)]
 
-    def _get_hw_ai_channels(self):
-        return [c for c in self.children if \
-                isinstance(c, AIChannel) and c.fs != 0]
+        if has_children:
+            channels = [c for c in channels if len(c.children)]
 
-    def _get_hw_do_channels(self):
-        return [c for c in self.children if \
-                isinstance(c, DOChannel) and c.fs != 0]
+        if timing is not None:
+            if timing in ('hardware', 'hw'):
+                channels = [c for c in channels if c.fs != 0]
+            elif timing in ('software', 'sw'):
+                channels = [c for c in channels if c.fs == 0]
+            else:
+                raise ValueError('Unsupported timing')
 
-    def _get_hw_di_channels(self):
-        return [c for c in self.children if \
-                isinstance(c, DIChannel) and c.fs != 0]
+        if direction is not None:
+            if direction in ('input', 'in'):
+                matches = (AIChannel, DIChannel)
+            elif direction in ('output', 'out'):
+                matches = (AOChannel, DOChannel)
+            else:
+                raise ValueError('Unsupported direction')
+            channels = [c for c in channels if isinstance(c, matches)]
 
-    def _get_sw_do_channels(self):
-        return [c for c in self.children if \
-                isinstance(c, DOChannel) and c.fs == 0]
+        if mode is not None:
+            if mode == 'analog':
+                matches = (AIChannel, AOChannel)
+            elif mode == 'digital':
+                matches = (DIChannel, DOChannel)
+            else:
+                raise ValueError('Unsupported mode')
+            channels = [c for c in channels if isinstance(c, matches)]
+
+        return tuple(channels)
+
+    def remove_channel(self, channel):
+        channel.set_parent(None)
 
     def configure(self, plugin=None):
-        for channel in self.channels:
+        for channel in self.get_channels():
             log.debug('Configuring channel {}'.format(channel.name))
             channel.configure(plugin)
 

@@ -8,7 +8,7 @@ from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
 
 from .calibration import Calibration
-from .output import ContinuousOutput, EpochOutput
+from .output import QueuedEpochOutput, ContinuousOutput, EpochOutput
 from ..util import coroutine
 
 
@@ -65,6 +65,12 @@ class OutputChannel(Channel):
 
     def _get_buffer_size(self):
         return self.engine.get_buffer_size(self.name)
+
+    def add_queued_epoch_output(self, queue, auto_decrement=True):
+        # Subclasses of Enaml Declarative will automatically insert themselves
+        # as children of the parent when initialized.
+        QueuedEpochOutput(parent=self, queue=queue,
+                          auto_decrement=auto_decrement)
 
 
 class AIChannel(InputChannel):

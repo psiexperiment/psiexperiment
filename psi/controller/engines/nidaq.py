@@ -5,7 +5,7 @@ General notes for developers
 -----------------------------------------------------------------------------
 This is a wraper around the NI-DAQmx C API. Refer to the NI-DAQmx C reference
 (available as a Windows help file or as HTML documentation on the NI website).
-Google can help you quicly find the online documentation).
+Google can help you quickly find the online documentation).
 
 This code is under heavy development and I may change the API in significant
 ways. In general, the only portion of the code you should use in third-party
@@ -532,16 +532,17 @@ class NIDAQEngine(Engine):
 
     def configure(self, plugin=None):
         log.debug('Configuring {} engine'.format(self.name))
-        if self.sw_do_channels:
+
+        channels = self.get_channels('digital', 'output', 'software')
+        if channels:
             log.debug('Configuring SW DO channels')
-            channels = self.sw_do_channels
             lines = ','.join(get_channel_property(channels, 'channel', True))
             names = get_channel_property(channels, 'name', True)
             self.configure_sw_do(lines, names)
 
-        if self.hw_ai_channels:
+        channels = self.get_channels('analog', 'input', 'hardware')
+        if channels:
             log.debug('Configuring HW AI channels')
-            channels = self.hw_ai_channels
             lines = ','.join(get_channel_property(channels, 'channel', True))
             names = get_channel_property(channels, 'name', True)
             fs = get_channel_property(channels, 'fs')
@@ -557,9 +558,9 @@ class NIDAQEngine(Engine):
                                  start_trigger, terminal_mode,
                                  terminal_coupling)
 
-        if self.hw_di_channels:
+        channels = self.get_channels('digital', 'input', 'hardware')
+        if channels:
             log.debug('Configuring HW DI channels')
-            channels = self.hw_di_channels
             lines = ','.join(get_channel_property(channels, 'channel', True))
             names = get_channel_property(channels, 'name', True)
             fs = get_channel_property(channels, 'fs')
@@ -578,9 +579,9 @@ class NIDAQEngine(Engine):
         # TODO: eventually we should be able to inspect the  'start_trigger'
         # property on the channel configuration to decide the order in which the
         # tasks are started.
-        if self.hw_ao_channels:
+        channels = self.get_channels('analog', 'output', 'hardware')
+        if channels:
             log.debug('Configuring HW AO channels')
-            channels = self.hw_ao_channels
             lines = ','.join(get_channel_property(channels, 'channel', True))
             names = get_channel_property(channels, 'name', True)
             fs = get_channel_property(channels, 'fs')
@@ -618,6 +619,8 @@ class NIDAQEngine(Engine):
             newer ones) will optimize the output resolution based on the
             expected range of the signal.
         '''
+
+        log.debug('Configuring lines {}'.format(lines))
         callback_samples = int(self.hw_ao_monitor_period*fs)
         buffer_samples = int(self.hw_ao_buffer_size*fs)
         task_name = '{}_hw_ao'.format(self.name)
@@ -634,6 +637,7 @@ class NIDAQEngine(Engine):
                         start_trigger=None, terminal_mode=None,
                         terminal_coupling=None):
 
+        log.debug('Configuring lines {}'.format(lines))
         task_name = '{}_hw_ai'.format(self.name)
         callback_samples = int(self.hw_ai_monitor_period*fs)
         task = setup_hw_ai(fs, lines, expected_range, self._hw_ai_callback,
@@ -833,9 +837,9 @@ class NIDAQEngine(Engine):
             cb(samples[i])
 
     def _get_hw_ao_samples(self, offset, samples):
-        channels = len(self.hw_ao_channels)
-        data = np.empty((channels, samples), dtype=np.double)
-        for channel, ch_data in zip(self.hw_ao_channels, data):
+        channels = self.get_channels('analog', 'output', 'hardware')
+        data = np.empty((len(channels), samples), dtype=np.double)
+        for channel, ch_data in zip(channels, data):
             channel.get_samples(offset, samples, out=ch_data)
         return data
 

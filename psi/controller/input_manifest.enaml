@@ -34,7 +34,7 @@ enamldef ContinuousInputManifest(InputManifest): manifest:
             condition << manifest.contribution.save
 
             ExperimentAction:
-                event = 'plugins_started'
+                event = 'experiment_prepare'
                 command = 'psi.data.create_ai_continuous'
                 kwargs = get_metadata(manifest.contribution)
 
@@ -55,7 +55,7 @@ enamldef EpochInputManifest(InputManifest): manifest:
         point = 'psi.controller.actions'
 
         ExperimentAction:
-            event = 'plugins_started'
+            event = 'experiment_prepare'
             command = 'psi.data.create_ai_epochs'
             kwargs = get_metadata(manifest.contribution)
 
