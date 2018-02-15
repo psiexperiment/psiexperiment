@@ -34,6 +34,9 @@ class ContextItemValidator(Validator):
 
 ################################################################################
 # ContextMetaPopup
+# 
+# Defines the view that appears when configuring details regarding the
+# parameter.
 ################################################################################
 template ContextMetaTemplate(context_meta, context_item, 
                              MemberType: OrderedContextMeta):
