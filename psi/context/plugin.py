@@ -338,3 +338,7 @@ class ContextPlugin(Plugin):
     def _revert_context_item_state(self):
         for name, state in self._context_item_state.items():
             self.context_items[name].__setstate__(deepcopy(state))
+
+    @property
+    def has_selectors(self):
+        return len(self._selectors) != 0

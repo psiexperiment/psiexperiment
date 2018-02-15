@@ -95,12 +95,10 @@ template ContextItemTemplate(context_item, MemberType: Result):
 template ContextItemTemplate(context_item, MemberType: Parameter):
     DynamicTemplate:
         base = ParameterTemplate
-        args = (context_item, type(context_item), context_item.scope)
+        args = (context_item, type(context_item),
+                context_item.scope if workbench.get_plugin('psi.context').has_selectors else 'experiment')
 
 
-################################################################################
-# ParameterTemplate
-################################################################################
 template ParameterTemplate(context_item, MemberType, scope):
     HGroup: group:
         spacing = 0
