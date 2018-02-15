@@ -33,7 +33,7 @@ class BColzStore(AbstractStore):
 
     def process_trials(self, results):
         names = self.trial_log.data.dtype.names
-        columns = [] 
+        columns = []
         for name in names:
             rows = [result[name] for result in results]
             columns.append(rows)
@@ -108,6 +108,12 @@ class BColzStore(AbstractStore):
             params = {'filename': filename}
             core = workbench.get_plugin('enaml.workbench.core')
             core.invoke_command(cmd, params)
+
+    def create_table(self, name, dataframe):
+        filename = self._get_filename(name + '.csv')
+        if os.path.exists(filename):
+            raise IOError('{} already exists'.format(filename))
+        dataframe.to_csv(filename)
 
     def set_base_path(self, base_path):
         self.base_path = base_path

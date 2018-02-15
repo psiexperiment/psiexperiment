@@ -11,7 +11,8 @@ from psi.context.api import ContextGroup, Parameter
 from psi.context.selector import CartesianProduct
 from psi.controller.api import ExperimentAction
 from psi.controller.base_manifest import BaseManifest
-from psi.controller.calibration.tone import tone_calibration
+from psi.controller.calibration.tone import tone_sens
+from psi.controller.calibration import PointCalibration
 from psi.controller.input import (ContinuousInput, ExtractEpochs, Input,
                                   Blocked, Accumulate, RejectEpochs, IIRFilter,
                                   Decimate)
@@ -43,33 +44,39 @@ def save_trial(event):
 
 def get_frequencies(event):
     core = event.workbench.get_plugin('enaml.workbench.core')
-    selector_name = p.get('selector_name', 'default')
-    parameter_name = p.get('parameter_name', 'target_tone_frequency')
+    selector_name = event.parameters.get('selector_name', 'default')
+    parameter_name = event.parameters.get('parameter_name', 'target_tone_frequency')
     parameters = {'item_name': parameter_name, 'iterator': selector_name}
     frequencies = core.invoke_command('psi.context.unique_values', parameters)
     return list(frequencies)
 
 
 def calibrate_channel(event):
-    log.info('Calibrating {} for {} Hz'.format(p['output_name'], frequencies))
-    controller = event.workbench.get_plugin('psi.controller')
     p = event.parameters
+    controller = event.workbench.get_plugin('psi.controller')
 
-    # Find the channels
-    ao_channel = controller.get_output(p['output_name']).channel
-    ai_channel = controller.get_input(p['input_name']).channel
+    # Find the input and output to use for calibration
+    ao = controller.get_output(p['output_name'])
+    ai = controller.get_input(p['input_name'])
 
     # Get a list of planned frequencies
     frequencies = get_frequencies(event)
 
     # Run the calibration and update the output with that calibration
-    result = tone_spl(engine, frequencies, gain=-40,
-                      ao_channel_names=[ao_channel.name],
-                      ai_channel_name=ai_channel.name)
+    result = tone_sens(ao.engine, frequencies, gain=-40,
+                       ao_channel_name=ao.channel.name,
+                       ai_channel_names=[ai.channel.name], max_thd=2,
+                       min_snr=6)
 
-    for frequency in frequencies:
-        spl = ao_channel.calibration.get_spl(frequency, 1)
-        log.info('{:.2f} Hz & 1vrms is {:.2f} dB SPL'.format(frequency, spl))
+    log.info('Calibration for output %s using input %s', ao.name, ai.name)
+    log.info('\n' + str(result))
+
+    result = result.reset_index()
+    calibration = PointCalibration(result['frequency'], result['sens'])
+    ao.channel.calibration = calibration
+
+    data = event.workbench.get_plugin('psi.data')
+    data.create_table('ao_calibration', result)
 
 
 enamldef ControllerManifest(BaseManifest): manifest:
@@ -172,7 +179,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
         ExperimentAction:
             weight = 15
             event = 'experiment_prepare'
-            command = 'psi.controller.calibrate_output'
+            command = 'psi.controller.calibrate_channel'
             kwargs = {
                 'input_name': 'microphone',
                 'output_name': 'target',

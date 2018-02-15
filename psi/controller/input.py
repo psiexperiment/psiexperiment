@@ -493,6 +493,8 @@ def extract_epochs(fs, queue, epoch_size, buffer_size, delay, epoch_name,
 
 class ExtractEpochs(EpochInput):
 
+    _cb_queue = Typed(object)
+
     queue = d_(Typed(AbstractSignalQueue))
     buffer_size = d_(Float(30)).tag(metadata=True)
     epoch_size = d_(Float(8.5e-3)).tag(metadata=True)
@@ -503,23 +505,26 @@ class ExtractEpochs(EpochInput):
     # acquisition rate).
     delay = d_(Float(0)).tag(metadata=True)
 
-    _cb_queue = Typed(object)
+    complete = Bool(False)
 
-    def configure_callback(self, plugin):
-        action = self.name + '_queue_empty'
-        empty_queue_cb = lambda: plugin.invoke_actions(action)
+    def mark_complete(self):
+        self.complete = True
+
+    def configure_callback(self, plugin=None):
+        if plugin is not None:
+            action = self.name + '_queue_empty'
+            empty_queue_cb = broadcast(
+                self.mark_complete,
+                lambda: plugin.invoke_action(self.name + '_queue_empty')
+            )
+        else:
+            empty_queue_cb = self.mark_complete
+
         cb = super().configure_callback(plugin)
         self._cb_queue = self.queue.create_connection()
         return extract_epochs(self.fs, self._cb_queue, self.epoch_size,
                               self.buffer_size, self.delay, self.name, cb,
                               empty_queue_cb).send
-
-    def is_complete(self):
-        if self.queue.count_trials() != 0:
-            return False
-        if len(self._cb_queue) != 0:
-            return False
-        return True
 
 
 @coroutine

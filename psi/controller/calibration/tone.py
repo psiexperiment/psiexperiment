@@ -103,16 +103,20 @@ def process_tone(fs, signal, frequency, min_snr=None, max_thd=None,
 
 
 def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gain=0,
-               vrms=1, repetitions=2, min_snr=10, max_thd=1, thd_harmonics=3,
+               vrms=1, repetitions=2, min_snr=None, max_thd=None, thd_harmonics=3,
                duration=0.1, trim=0.01, iti=0.01):
     '''
-    Measure tone power of multiple input channels (in RMS).
+    Given a single output, measure response in multiple input channels.
+
+    Parameters
+    ----------
+    TODO
 
     Returns
     -------
     result : pandas DataFrame
         Dataframe will be indexed by output channel name and frequency. Columns
-        will be rms, snr and thd.
+        will be rms (in V), snr (in DB) and thd (in percent).
     '''
 
     frequencies = np.asarray(frequencies)
@@ -134,6 +138,7 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gain=0,
         factory = tone_factory(ao_fs, gain, frequency, 0, 1, calibration)
         waveform = generate_waveform(factory, int(duration*ao_fs))
         queue.append(waveform, repetitions, iti)
+
     factory = silence_factory(ao_fs, calibration)
     waveform = generate_waveform(factory, int(duration*ao_fs))
     queue.append(waveform, repetitions, iti)
@@ -154,7 +159,7 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gain=0,
         ai_channel.add_input(epoch_input)
 
     cal_engine.start()
-    while not epoch_input.is_complete():
+    while not epoch_input.complete:
         time.sleep(0.1)
     cal_engine.stop()
 
@@ -182,6 +187,20 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gain=0,
 
 
 def tone_spl(engine, *args, **kwargs):
+    '''
+    Given a single output, measure resulting SPL in multiple input channels.
+
+    Parameters
+    ----------
+    TODO
+
+    Returns
+    -------
+    result : pandas DataFrame
+        Dataframe will be indexed by output channel name and frequency. Columns
+        will be rms (in V), snr (in DB), thd (in percent) and spl (measured dB
+        SPL according to the input calibration).
+    '''
     result = tone_power(engine, *args, **kwargs)
 
     def map_spl(series, engine):
@@ -195,6 +214,27 @@ def tone_spl(engine, *args, **kwargs):
 
 
 def tone_sens(engine, frequencies, gain=-40, vrms=1, *args, **kwargs):
+    '''
+    Given a single output, measure sensitivity of output based on multiple
+    input channels.
+
+    Parameters
+    ----------
+    TODO
+
+    Returns
+    -------
+    result : pandas DataFrame
+        Dataframe will be indexed by output channel name and frequency. Columns
+        will be rms (in V), snr (in DB), thd (in percent), spl (measured dB
+        SPL according to the input calibration) norm_spl (the output, in dB
+        SPL, that would be generated assuming the tone is 1 VRMS and gain is 0)
+        and sens (sensitivity of output in dB(V/Pa)). These values are reported
+        separately for each input. Although the dB SPL, normalized SPL and
+        sensitivity of the output as measured by each input should agree, there
+        will be some equipment error. So, either average them together or
+        choose the most trustworthy input.
+    '''
     kwargs.update(dict(gain=gain, vrms=vrms))
     result = tone_spl(engine, frequencies, *args, **kwargs)
     result['norm_spl'] = result['spl'] - gain - db(vrms)

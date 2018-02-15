@@ -21,6 +21,9 @@ class Sink(PSIContribution):
     def create_ai_epochs(self, *args, **kwargs):
         pass
 
+    def create_table(self, name, dataframe):
+        pass
+
     def trial_log_updated(self, trial_log):
         pass
 
