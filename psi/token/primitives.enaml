@@ -208,7 +208,6 @@ def sam_eq_phase(delay, depth, direction):
     return 2.0*np.pi-phi if direction == 1 else phi
 
 
-#@memory.cache
 def sam_envelope(offset, samples, fs, depth, fm, delay, direction):
     eq_phase = sam_eq_phase(delay, depth, direction)
     eq_power = sam_eq_power(depth)
@@ -242,7 +241,7 @@ def samenvelope_factory(fs, depth, fm, delay, direction, calibration,
         kwargs = (yield waveform, False)
         samples = kwargs['samples']
         env = sam_envelope(offset, samples, fs, depth, fm, delay, direction)
-        token = input_generator.send(kwargs)
+        token = input_generator.send(kwargs)[0]
         waveform = env*token
         offset += len(waveform)
 

@@ -188,7 +188,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
             ViewBox:
                 y_min = -160
-                y_max = 20
+                y_max = -20
 
                 GroupedFFTEpochPlot:
                     name = 'epoch_fft_average'

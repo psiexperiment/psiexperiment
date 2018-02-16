@@ -1,9 +1,7 @@
 import logging
 log = logging.getLogger(__name__)
 
-import threading
 from functools import partial
-import struct
 
 import numpy as np
 import pyqtgraph as pg
@@ -426,6 +424,8 @@ class EpochAveragePlot(ChannelPlot):
         self.source.observe('added', self.update)
 
     def _update(self, event=None):
+        if self.source is None:
+            return
         result = self._get_epochs()
         y = result.mean(axis=0) if len(result) \
             else np.zeros_like(self._cached_time)
@@ -471,25 +471,23 @@ class FFTEpochPlot(ChannelPlot):
             return
         self.source.observe('added', self.update)
 
+        # Cache the frequency points. Must be in units of log for PyQtGraph.
+        n_time = int(self.source.fs * self.source.epoch_size)
+        freq = np.fft.rfftfreq(n_time, self.source.fs**-1)
+        self._cached_frequency = np.log10(freq)
+
     def _get_epochs(self):
         return self.source.get_epochs()
 
     def _update(self, event=None):
-        result = self._get_epochs()
-        self.n_epochs = len(result)
-        if len(result) == 0:
+        if self.source is None:
             return
-        y = result.mean(axis=0)
-
-        # Update cached frequency if number of timepoints has changed.
-        if self.n_time != len(y):
-            self.n_time = len(y)
-            freq = np.fft.rfftfreq(self.n_time, self.source.fs**-1)
-            self._cached_frequency = np.log10(freq)
-
-        # Compute the PSD
-        psd = util.db(util.psd(y, self.source.fs))
-
+        epoch = self._get_epochs()
+        if len(epoch):
+            y = epoch.mean(axis=0)
+            psd = util.db(util.psd(y, self.source.fs))
+        else:
+            psd = np.full_like(self._cached_frequency, np.nan)
         self.plot.setData(self._cached_frequency, psd)
         self.update_pending = False
 

@@ -72,6 +72,7 @@ enamldef ChannelPlotManifest(PSIManifest): manifest:
 
 from enaml.widgets.api import ObjectCombo
 
+
 enamldef ContextObjectCombo(ObjectCombo):
 
     attr context_item_name
@@ -91,11 +92,6 @@ enamldef EpochGroupMixin(ChannelPlotManifest): manifest:
 
             Container:
                 Form:
-                    Label:
-                        text = 'N epochs'
-                    Label:
-                        text << str(manifest.contribution.n_epochs)
-
                     Looper:
                         # We need to pull this from meta.values, not
                         # manifest.contribution.grouping. For some reason, if

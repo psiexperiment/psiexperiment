@@ -16,6 +16,7 @@ from psi.controller.base_manifest import BaseManifest
 from psi.controller.input import ExtractEpochs, Blocked, Accumulate, IIRFilter
 from psi.controller.output import QueuedEpochOutput
 from psi.controller.queue import InterleavedFIFOSignalQueue
+from psi.token.primitives import Tone, Silence, Cos2Envelope, SAMEnvelope
 
 from psi.util import copy_declarative
 
@@ -39,63 +40,23 @@ def save_trial(event):
     core.invoke_command('psi.data.process_trials', parameters)
 
 
-def calibrate_output(event):
-    calibrate_primary(event)
-    try:
-        calibrate_secondary(event)
-    except KeyError:
-        pass
-
-
-def calibrate_primary(event):
-    # Load the plugins we'll need
-    core = event.workbench.get_plugin('enaml.workbench.core')
-    controller = event.workbench.get_plugin('psi.controller')
-
-    parameters = {'item_name': 'carrier_tone_frequency', 'iterator': 'default'}
-    frequencies = core.invoke_command('psi.context.unique_values', parameters)
-    frequencies = list(frequencies)
-
-    output_channel = controller.get_channel('speaker_0')
-    input_channel = controller.get_channel('microphone')
-    calibrate(output_channel, input_channel, frequencies)
-
-
-def calibrate_secondary(event):
-    # Load the plugins we'll need
-    core = event.workbench.get_plugin('enaml.workbench.core')
-    controller = event.workbench.get_plugin('psi.controller')
-
-    p = event.parameters
-    parameters = {'item_name': 'modulator_1_tone_frequency', 'iterator': 'default'}
-    frequencies1 = core.invoke_command('psi.context.unique_values', parameters)
-    parameters = {'item_name': 'modulator_2_tone_frequency', 'iterator': 'default'}
-    frequencies2 = core.invoke_command('psi.context.unique_values', parameters)
-    frequencies = list(frequencies1 | frequencies2)
-
-    # Get the configuration for the channels
-    output_channel = controller.get_channel('speaker_1')
-    input_channel = controller.get_channel('microphone')
-    calibrate(output_channel, input_channel, frequencies)
-
-
-def calibrate(output_channel, input_channel, frequencies):
-    engine = copy_declarative(output_channel.engine,
-                              name='cal_engine',
-                              hw_ao_monitor_period=1,
-                              hw_ai_monitor_period=0.1)
-    copy_declarative(output_channel, name='output', parent=engine)
-    copy_declarative(input_channel, name='input', parent=engine)
-
-    log.info('Calibrating {} for {} Hz'.format(output_channel.name, frequencies))
-    # Run the calibration and update the output with that calibration
-    output_channel.calibration = tone_calibration(engine, frequencies)
-    for frequency in frequencies:
-        spl = output_channel.calibration.get_spl(frequency, 1)
-        log.info('{:.2f} Hz & 1vrms is {:.2f} dB SPL'.format(frequency, spl))
-
-
 enamldef ControllerManifest(BaseManifest): manifest:
+
+    Extension:
+        id = 'tokens'
+        point = 'psi.token.tokens'
+
+        Cos2Envelope:
+            name = 'tone'
+            label = 'tone'
+            Tone:
+                pass
+
+        Cos2Envelope:
+            name = 'silence'
+            label = 'silence'
+            Silence:
+                pass
 
     Extension:
         id = 'io'
@@ -165,9 +126,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
         Command:
             id = 'psi.controller.save_trial'
             handler = save_trial
-        Command:
-            id = 'psi.controller.calibrate_output'
-            handler = calibrate_output
 
     Extension:
         id = 'context'
@@ -207,7 +165,28 @@ enamldef ControllerManifest(BaseManifest): manifest:
         # stimuli.
         ExperimentAction:
             event = 'experiment_prepare'
-            command = 'psi.controller.calibrate_output'
+            command = 'psi.controller.tone_calibrate_channel'
+            kwargs = {
+                'input_name': 'microphone',
+                'output_name': 'speaker_0',
+                'parameter_name': 'carrier_tone_frequency',
+                'gain': -40,
+                'max_thd': 2,
+                'min_snr': 6,
+            }
+
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'psi.controller.tone_calibrate_channel'
+            kwargs = {
+                'input_name': 'microphone',
+                'output_name': 'speaker_1',
+                'parameter_name': ['modulator_1_tone_frequency',
+                                   'modulator_2_tone_frequency'],
+                'gain': -40,
+                'max_thd': 2,
+                'min_snr': 6,
+            }
 
         ExperimentAction:
             event = 'experiment_prepare'

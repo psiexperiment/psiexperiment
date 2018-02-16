@@ -97,7 +97,8 @@ class BColzStore(AbstractStore):
         carray.attrs['fs'] = fs
         for key, value in metadata.items():
             carray.attrs[key] = value
-        self._stores[name] = EpochDataChannel(data=carray, fs=fs)
+        self._stores[name] = EpochDataChannel(data=carray, fs=fs,
+                                              epoch_size=epoch_size)
         atexit.register(carray.flush)
 
     def finalize(self, workbench):

@@ -230,6 +230,7 @@ class EpochDataChannel(DataChannel):
 
     metadata = Typed(list, [])
     lock = Typed(object)
+    epoch_size = Typed(float)
 
     def _default_lock(self):
         return threading.Lock()
@@ -243,6 +244,9 @@ class EpochDataChannel(DataChannel):
         self.added = data
 
     def get_epochs(self, filters=None):
+        if len(self.data) == 0:
+            return []
+
         if filters is None:
             with self.lock:
                 return self.data[:]

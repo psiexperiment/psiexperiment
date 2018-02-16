@@ -5,7 +5,6 @@ log = logging.getLogger(__name__)
 import numpy as np
 
 from enaml.workbench.api import Extension
-from enaml.workbench.core.api import Command
 
 from psi.context import choice
 from psi.context.api import ContextGroup, Parameter, Result
@@ -13,9 +12,10 @@ from psi.context.selector import CartesianProduct
 
 from psi.controller.api import ExperimentAction
 from psi.controller.base_manifest import BaseManifest
-from psi.controller.input import ExtractEpochs, Accumulate, IIRFilter, Decimate, Blocked
+from psi.controller.input import ExtractEpochs, Accumulate, IIRFilter, Decimate, Blocked, ContinuousInput, IIRFilter
 from psi.controller.output import QueuedEpochOutput
 from psi.controller.queue import InterleavedFIFOSignalQueue
+from psi.token.primitives import Cos2Envelope, SAMEnvelope, Tone
 
 from psi.util import copy_declarative
 
@@ -23,53 +23,19 @@ from psi.data.plots import (TimeContainer, ViewBox, ChannelPlot, FFTContainer, F
 
 from psi.data.sinks.trial_log import TrialLog
 
-from psi.controller.calibration.tone import tone_calibration
-
-
-def save_trial(event):
-    '''
-    Saves the trial
-    '''
-    core = event.workbench.get_plugin('enaml.workbench.core')
-    metadata = []
-    for epoch in event.parameters['data']:
-        m = epoch['metadata'].copy()
-        metadata.append(m)
-    parameters = {'results': metadata}
-    core.invoke_command('psi.data.process_trials', parameters)
-
-
-def calibrate_output(event):
-    # Load the plugins we'll need
-    core = event.workbench.get_plugin('enaml.workbench.core')
-    controller = event.workbench.get_plugin('psi.controller')
-
-    parameters = {'item_name': 'carrier_tone_frequency', 'iterator': 'default'}
-    frequencies = core.invoke_command('psi.context.unique_values', parameters)
-    frequencies = list(frequencies)
-
-    output_channel = controller.get_channel('speaker_0')
-    input_channel = controller.get_channel('microphone')
-    calibrate(output_channel, input_channel, frequencies)
-
-
-def calibrate(output_channel, input_channel, frequencies):
-    engine = copy_declarative(output_channel.engine,
-                              name='cal_engine',
-                              hw_ao_monitor_period=1,
-                              hw_ai_monitor_period=0.1)
-    copy_declarative(output_channel, name='output', parent=engine)
-    copy_declarative(input_channel, name='input', parent=engine)
-
-    log.info('Calibrating {} for {} Hz'.format(output_channel.name, frequencies))
-    # Run the calibration and update the output with that calibration
-    output_channel.calibration = tone_calibration(engine, frequencies)
-    for frequency in frequencies:
-        spl = output_channel.calibration.get_spl(frequency, 1)
-        log.info('{:.2f} Hz & 1vrms is {:.2f} dB SPL'.format(frequency, spl))
-
 
 enamldef ControllerManifest(BaseManifest): manifest:
+
+    Extension:
+        id = 'tokens'
+        point = 'psi.token.tokens'
+
+        Cos2Envelope:
+            name = 'sam_tone'
+            label = 'SAM tone'
+            SAMEnvelope:
+                Tone:
+                    pass
 
     Extension:
         id = 'io'
@@ -82,6 +48,17 @@ enamldef ControllerManifest(BaseManifest): manifest:
             selector_name = 'default'
             queue = InterleavedFIFOSignalQueue(fs=output_0.fs, initial_delay=1)
             auto_decrement = True
+
+        ContinuousInput:
+            name = 'microphone'
+            source_name = 'microphone_channel'
+            IIRFilter:
+                name = 'microphone_filtered'
+                N = 2
+                btype = 'highpass'
+                ftype = 'butter'
+                f_highpass = 100
+                save = True
 
         Blocked:
             duration = 0.25
@@ -104,16 +81,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
         CartesianProduct:
             name = 'default'
             label = 'EFR sequence'
-
-    Extension:
-        id = 'passive_commands'
-        point = 'enaml.workbench.core.commands'
-        Command:
-            id = 'psi.controller.save_trial'
-            handler = save_trial
-        Command:
-            id = 'psi.controller.calibrate_output'
-            handler = calibrate_output
 
     Extension:
         id = 'context'
@@ -152,16 +119,21 @@ enamldef ControllerManifest(BaseManifest): manifest:
         # Once the queue is prepared, the calibration has been set for those
         # stimuli.
         ExperimentAction:
+            weight = 15
             event = 'experiment_prepare'
-            command = 'psi.controller.calibrate_output'
-
-        ExperimentAction:
-            event = 'experiment_prepare'
-            command = 'carrier.prepare_queue'
+            command = 'psi.controller.tone_calibrate_channel'
+            kwargs = {
+                'input_name': 'microphone',
+                'output_name': 'carrier',
+                'parameter_names': ['carrier_tone_frequency'],
+                'gain': -40,
+                'max_thd': 2,
+                'min_snr': 6,
+            }
 
         ExperimentAction:
             event = 'erp_acquired'
-            command = 'psi.controller.save_trial'
+            command = 'psi.controller.save_epoch_as_trial'
 
         ExperimentAction:
             event = 'erp_queue_empty and not carrier_active'
@@ -194,17 +166,26 @@ enamldef ControllerManifest(BaseManifest): manifest:
                     source_name = 'eeg'
                     pen_color = 'k'
 
-        FFTContainer:
-            name = 'fft_plot_container'
-            label = 'FFT'
-            freq_lb = 5
-            freq_ub = 50000
-
             ViewBox:
-                y_min = -120
-                y_max = 100
+                y_min = -1
+                y_max = 1
 
-                FFTChannelPlot:
-                    source_name = 'microphone'
+                ChannelPlot:
+                    name = 'microphone_plot'
+                    source_name = 'microphone_filtered'
                     pen_color = 'k'
-                    time_span = 5
+
+        #FFTContainer:
+        #    name = 'fft_plot_container'
+        #    label = 'FFT'
+        #    freq_lb = 5
+        #    freq_ub = 50000
+
+        #    ViewBox:
+        #        y_min = -120
+        #        y_max = 100
+
+        #        FFTChannelPlot:
+        #            source_name = 'microphone_filtered'
+        #            pen_color = 'k'
+        #            time_span = 5
