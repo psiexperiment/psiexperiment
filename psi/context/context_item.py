@@ -2,7 +2,7 @@ import numpy as np
 
 from enaml.core.declarative import Declarative, d_
 from atom.api import (Unicode, Typed, Value, Enum, List, Event, Property,
-                      observe, Bool, Dict)
+                      observe, Bool, Dict, Coerced)
 
 
 class ContextMeta(Declarative):
@@ -13,7 +13,7 @@ class ContextMeta(Declarative):
 
 class UnorderedContextMeta(ContextMeta):
 
-    values = d_(Typed(set, {}))
+    values = d_(Coerced(set))
 
 
 class OrderedContextMeta(ContextMeta):

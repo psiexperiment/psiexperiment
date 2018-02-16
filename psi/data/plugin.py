@@ -100,6 +100,7 @@ class DataPlugin(Plugin):
         self._prepare_event_log()
         controller = self.workbench.get_plugin('psi.controller')
         self.inputs = {k: v for k, v in controller._inputs.items()}
+        # TODO: This should go away ...
         for sink in self._sinks:
             sink.prepare(self)
 

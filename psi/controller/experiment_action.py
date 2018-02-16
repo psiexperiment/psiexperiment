@@ -51,7 +51,7 @@ class ExperimentAction(Declarative):
     # Command to invoke
     command = d_(Unicode())
 
-    # Arguments to pass to command
+    # Arguments to pass to command by keywod
     kwargs = d_(Dict())
 
     # Should the action be invoked in its own thread?

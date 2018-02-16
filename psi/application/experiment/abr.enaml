@@ -21,9 +21,9 @@ from psi.controller.queue import InterleavedFIFOSignalQueue
 
 from psi.util import copy_declarative
 
-from psi.data.plots import (TimeContainer, ChannelPlot, EpochAveragePlot,
-                            ChannelPlot, ViewBox)
-from psi.data.sinks.epoch_counter import EpochCounter
+from psi.data.plots import (TimeContainer, ChannelPlot,
+                            GroupedEpochAveragePlot, ChannelPlot, ViewBox)
+from psi.data.sinks.epoch_counter import GroupedEpochCounter
 
 from psi.token.primitives import Cos2Envelope, Tone, BandlimitedNoise
 
@@ -63,10 +63,13 @@ def calibrate_channel(event):
     frequencies = get_frequencies(event)
 
     # Run the calibration and update the output with that calibration
-    result = tone_sens(ao.engine, frequencies, gain=-40,
+    result = tone_sens(ao.engine,
+                       frequencies,
+                       gain=p['gain'],
                        ao_channel_name=ao.channel.name,
-                       ai_channel_names=[ai.channel.name], max_thd=2,
-                       min_snr=6)
+                       ai_channel_names=[ai.channel.name],
+                       max_thd=p['max_thd'],
+                       min_snr=p['min_snr'])
 
     log.info('Calibration for output %s using input %s', ao.name, ai.name)
     log.info('\n' + str(result))
@@ -104,6 +107,14 @@ enamldef ControllerManifest(BaseManifest): manifest:
             name = 'microphone'
             source_name = 'microphone_channel'
 
+            IIRFilter:
+                name = 'microphone_filtered'
+                N = 2
+                btype = 'highpass'
+                ftype = 'butter'
+                f_highpass = 100
+                save = True
+
         QueuedEpochOutput: output:
             name = 'target'
             label = 'Target'
@@ -126,7 +137,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
             Accumulate:
                 name = 'eeg_buffered'
-                n = 50
+                n = 10
 
                 IIRFilter:
                     name = 'eeg_buffered_filtered'
@@ -184,6 +195,9 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 'input_name': 'microphone',
                 'output_name': 'target',
                 'parameter_name': 'target_tone_frequency',
+                'gain': -40,
+                'max_thd': 2,
+                'min_snr': 6,
             }
 
         ExperimentAction:
@@ -202,10 +216,10 @@ enamldef ControllerManifest(BaseManifest): manifest:
         id = 'sink'
         point = 'psi.data.sinks'
 
-        EpochCounter:
+        GroupedEpochCounter:
             name = 'valid_erp_counter'
             label = 'Valid ERPs acquired'
-            epoch_name = 'valid_erp'
+            source_name = 'valid_erp'
 
     Extension:
         id = 'plots'
@@ -221,7 +235,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 y_max = 0.1
                 label = 'Signal (V)'
 
-                EpochAveragePlot:
+                GroupedEpochAveragePlot:
                     name = 'erp_average'
                     label = 'ERP average plot'
                     source_name = 'valid_erp'
@@ -232,9 +246,19 @@ enamldef ControllerManifest(BaseManifest): manifest:
             span = 2
 
             ViewBox:
+                name = 'ecg_view'
                 y_min = -5
                 y_max = 5
 
                 ChannelPlot:
                     pen_color = 'k'
                     source_name = 'ecg'
+
+            ViewBox:
+                name = 'microphone_view'
+                y_min = -0.1
+                y_max = 0.1
+
+                ChannelPlot:
+                    pen_color = 'r'
+                    source_name = 'microphone_filtered'

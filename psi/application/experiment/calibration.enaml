@@ -8,7 +8,7 @@ from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 
 from psi.context.api import ContextGroup, Parameter, EnumParameter
-from psi.context.selector import CartesianProduct
+from psi.context.selector import SequenceSelector
 from psi.controller.api import ExperimentAction
 
 from psi.controller.output import QueuedEpochOutput, EpochOutput
@@ -20,10 +20,14 @@ from psi.controller.base_manifest import (BaseManifest, get_hw_ao_choices,
 from psi.controller.queue import InterleavedFIFOSignalQueue
 
 
-from psi.data.plots import (TimeContainer, ChannelPlot, EpochAveragePlot,
-                            ChannelPlot, ViewBox, FFTContainer, FFTEpochPlot)
+from psi.data.plots import (TimeContainer, 
+                            ChannelPlot,
+                            GroupedEpochAveragePlot, 
+                            ChannelPlot, ViewBox,
+                            FFTContainer, 
+                            GroupedFFTEpochPlot)
 
-from psi.data.sinks.epoch_counter import EpochCounter
+from psi.data.sinks.epoch_counter import GroupedEpochCounter
 from psi.token.primitives import Chirp
 
 
@@ -32,7 +36,7 @@ from psi.controller.calibration import FlatCalibration
 
 def configure_hardware(event):
     '''
-    Set the HW AO calibration to an attenuation
+    Set the HW AO calibration to attenuation
     '''
     context = event.workbench.get_plugin('psi.context')
     values = context.get_values()
@@ -68,6 +72,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
         QueuedEpochOutput: hw_ao:
             name = 'hw_ao'
             auto_decrement = True
+            selector_name = 'default'
 
         Blocked: hw_ai:
             duration = 0.1
@@ -120,6 +125,14 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 scope = 'experiment'
 
     Extension:
+        id = 'selectors'
+        point = 'psi.context.selectors'
+
+        SequenceSelector:
+            name = 'default'
+            label = 'Sequence'
+
+    Extension:
         id = 'calibration_commands'
         point = 'enaml.workbench.core.commands'
         Command:
@@ -143,8 +156,10 @@ enamldef ControllerManifest(BaseManifest): manifest:
         id = 'sink'
         point = 'psi.data.sinks'
 
-        EpochCounter:
-            epoch_name = 'epoch'
+        GroupedEpochCounter:
+            name = 'epoch_counter'
+            label = 'N epochs'
+            source_name = 'epoch'
 
     Extension:
         id = 'plots'
@@ -160,7 +175,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 y_max = 0.1
                 label = 'Signal (V)'
 
-                EpochAveragePlot:
+                GroupedEpochAveragePlot:
                     name = 'epoch_average'
                     label = 'Epoch average plot'
                     source_name = 'epoch'
@@ -168,13 +183,15 @@ enamldef ControllerManifest(BaseManifest): manifest:
         FFTContainer:
             name = 'epoch_fft_container'
             label = 'Epoch FFT'
-            freq_lb = 5
+            freq_lb = 50.0
             freq_ub = 50000
 
             ViewBox:
-                y_min = -120
-                y_max = 100
+                y_min = -160
+                y_max = 20
 
-                FFTEpochPlot:
+                GroupedFFTEpochPlot:
+                    name = 'epoch_fft_average'
+                    label = 'FFT plot'
                     source_name = 'epoch'
                     pen_color = (0, 0, 0)

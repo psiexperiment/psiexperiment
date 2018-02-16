@@ -2,6 +2,7 @@ import logging
 log = logging.getLogger(__name__)
 
 import threading
+from collections import Counter
 
 from ..sink import Sink
 import numpy as np
@@ -231,7 +232,6 @@ class EpochDataChannel(DataChannel):
     lock = Typed(object)
 
     def _default_lock(self):
-        import threading
         return threading.Lock()
 
     def append(self, data):
@@ -242,15 +242,28 @@ class EpochDataChannel(DataChannel):
             self.metadata.extend(metadata)
         self.added = data
 
-    def get_epochs(self, filters):
+    def get_epochs(self, filters=None):
+        if filters is None:
+            with self.lock:
+                return self.data[:]
+
         def match(row, filters):
             for k, v in filters.items():
                 if row[k] != v:
                     return False
             return True
+
         with self.lock:
             mask = np.array([match(m, filters) for m in self.metadata])
             return self.data[:][mask]
+
+    def count_groups(self, grouping):
+        groups = [tuple(m[g] for g in grouping) for m in self.metadata]
+        return Counter(groups)
+
+    @property
+    def n_epochs(self):
+        return len(self.data)
 
 
 class AbstractStore(Sink):

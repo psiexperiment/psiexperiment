@@ -63,6 +63,12 @@ def set_base_path(event):
     data.set_base_path(**event.parameters)
 
 
+def attach_source(event):
+    contribution = event.parameters['contribution']
+    plugin = event.workbench.get_plugin('psi.data')
+    contribution.source = plugin.find_source(contribution.source_name)
+
+
 enamldef DataManifest(PluginManifest): manifest:
 
     id = PLUGIN_ID
@@ -101,6 +107,7 @@ enamldef DataManifest(PluginManifest): manifest:
             id = PLUGIN_ID + '.process_ai_continuous'
             handler = process_ai_continuous
 
+        # Commands to configure behavior
         Command:
             id = PLUGIN_ID + '.prepare'
             handler = prepare
@@ -113,6 +120,11 @@ enamldef DataManifest(PluginManifest): manifest:
         Command:
             id = PLUGIN_ID + '.set_base_path'
             handler = set_base_path
+
+        # Helper commands
+        Command:
+            id = PLUGIN_ID + '.attach_source'
+            handler = attach_source
 
     Extension:
         id = 'actions'

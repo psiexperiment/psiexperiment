@@ -8,7 +8,8 @@ import struct
 import numpy as np
 import pyqtgraph as pg
 
-from atom.api import (Unicode, Float, Tuple, Int, Typed, Property, Atom, Bool, Enum)
+from atom.api import (Unicode, Float, Tuple, Int, Typed, Property, Atom, Bool,
+                      Enum, List, Dict)
 from enaml.core.api import Declarative, d_
 from enaml.application import deferred_call, timed_call
 
@@ -238,9 +239,6 @@ class Plot(PSIContribution):
     def _default_pen(self):
         return pg.mkPen(self.pen_color, width=self.pen_width)
 
-    def prepare(self, plugin):
-        pass
-
     def update(self, event=None):
         if not self.update_pending:
             deferred_call(self._update, event)
@@ -417,37 +415,68 @@ class TimeseriesPlot(Plot):
 
 class EpochAveragePlot(ChannelPlot):
 
-    filters = Typed(dict, {})
+    n_epochs = Int()
 
     def _observe_source(self, event):
+        if self.source is None:
+            return
         n = int(self.parent.data_range.span*self.source.fs)
         self._cached_time = np.arange(n)/self.source.fs
         self.update_decimation(self.parent.viewbox)
         self.source.observe('added', self.update)
 
     def _update(self, event=None):
-        filters = {p.name: v for p, v in self.filters.items()}
-        result = self.source.get_epochs(filters)
-        if len(result) == 0:
-            return
-        y = result.mean(axis=0)
+        result = self._get_epochs()
+        y = result.mean(axis=0) if len(result) \
+            else np.zeros_like(self._cached_time)
         self.plot.setData(self._cached_time, y)
+        self.n_epochs = len(result)
         self.update_pending = False
+
+    def _get_epochs(self):
+        return self.source.get_epochs()
+
+
+class EpochGroupMixin(Atom):
+
+    groups = List()
+    filters = Dict()
+
+    def _get_epochs(self):
+        return self.source.get_epochs(self.filters)
+
+    def _observe_groups(self, event):
+        old_filters = self.filters.copy()
+        new_filters = {v.name: v.default for v in self.groups}
+        for k, v in old_filters.items():
+            if k in new_filters:
+                new_filters[k] = v
+        self.filters = new_filters
+        if self.source is not None:
+            self.update()
+
+
+class GroupedEpochAveragePlot(EpochGroupMixin, EpochAveragePlot):
+    pass
 
 
 class FFTEpochPlot(ChannelPlot):
 
-    filters = Typed(dict, {})
     n_time = Int(0)
+    n_epochs = Int()
     _cached_frequency = Typed(np.ndarray)
 
     def _observe_source(self, event):
+        if self.source is None:
+            return
         self.source.observe('added', self.update)
 
-    def _update(self, event=None):
+    def _get_epochs(self):
+        return self.source.get_epochs()
 
-        filters = {p.name: v for p, v in self.filters.items()}
-        result = self.source.get_epochs(filters)
+    def _update(self, event=None):
+        result = self._get_epochs()
+        self.n_epochs = len(result)
         if len(result) == 0:
             return
         y = result.mean(axis=0)
@@ -463,3 +492,7 @@ class FFTEpochPlot(ChannelPlot):
 
         self.plot.setData(self._cached_frequency, psd)
         self.update_pending = False
+
+
+class GroupedFFTEpochPlot(EpochGroupMixin, FFTEpochPlot):
+    pass

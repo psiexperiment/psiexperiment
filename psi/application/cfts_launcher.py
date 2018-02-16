@@ -30,11 +30,14 @@ class Launcher(Atom):
     def _observe_note(self, event):
         self._update_base_folder()
 
-    def launch_abr(self):
-        dt_string = dt.datetime.now().strftime('%Y%m%d-%H%M')
-        base_folder = self.base_folder.format(date_time=dt_string,
-                                              experiment='ABR')
-        subprocess.check_output(['psi', 'abr', base_folder])
+    def launch(self, experiment, save):
+        args = ['psi', experiment]
+        if save:
+            dt_string = dt.datetime.now().strftime('%Y%m%d-%H%M')
+            base_folder = self.base_folder.format(date_time=dt_string,
+                                                  experiment=experiment)
+            args.append(base_folder)
+        subprocess.check_output(args)
 
     def _update_base_folder(self):
         data_root = get_config('DATA_ROOT')

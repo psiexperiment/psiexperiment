@@ -512,11 +512,9 @@ class ExtractEpochs(EpochInput):
 
     def configure_callback(self, plugin=None):
         if plugin is not None:
-            action = self.name + '_queue_empty'
-            empty_queue_cb = broadcast(
-                self.mark_complete,
-                lambda: plugin.invoke_action(self.name + '_queue_empty')
-            )
+            def empty_queue_cb(plugin=plugin, input=self):
+                plugin.invoke_actions(input.name + '_queue_empty')
+                input.mark_complete()
         else:
             empty_queue_cb = self.mark_complete
 

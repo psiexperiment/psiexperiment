@@ -341,4 +341,4 @@ class ContextPlugin(Plugin):
 
     @property
     def has_selectors(self):
-        return len(self._selectors) != 0
+        return len(self.selectors) != 0

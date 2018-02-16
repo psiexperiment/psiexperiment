@@ -1,44 +1,64 @@
 import logging
 log = logging.getLogger(__name__)
 
-from atom.api import Typed, Event, Unicode, Int
+from atom.api import Typed, Event, Unicode, Int, List
 from enaml.core.api import d_
 from enaml.workbench.api import Extension
-from enaml.widgets.api import Container, DockItem, Form, Label
+from enaml.widgets.api import Container, DockItem, Form, Label, VGroup
 
 from ..sink import Sink
 
 from psi.core.enaml.api import PSIManifest
 from psi.context.context_item import UnorderedContextMeta
+from psi.controller.api import ExperimentAction
 
 
 class EpochCounter(Sink):
 
+    total_n = Int()
+    source_name = d_(Unicode())
+    source = Typed(object)
+
+    def _observe_source(self, event):
+        if self.source is None:
+            return
+        self.source.observe('added', self.update)
+
+    def update(self, event):
+        self.total_n = self.source.n_epochs
+
+
+class GroupedEpochCounter(EpochCounter):
+
     min_n = Int()
     max_n = Int()
-    total_n = Int()
-    cumulative_n = Typed(dict, {})
-    epoch_name = d_(Unicode())
-    grouping = d_(Typed(list))
+    groups_n = Int()
+    grouping = d_(List())
+    grouping_names = List()
 
-    def process_ai_epochs(self, name, data):
-        # TODO: this has no way about knowing re artifacts that are always
-        # rejected. How to fix this?
-        if name != self.epoch_name:
+    def _observe_grouping(self, event):
+        self.grouping_names = [v.name for v in self.grouping]
+
+    def update(self, event):
+        if self.source is None:
             return
-
-        for d in data:
-            key = d['key']
-            n = self.cumulative_n.get(key, 0)
-            self.cumulative_n[key] = n+1
-
-        n = self.cumulative_n.values()
-        self.max_n = max(n)
-        self.min_n = min(n)
-        self.total_n = sum(n)
+        counts = self.source.count_groups(self.grouping_names)
+        self.min_n = min(counts.values())
+        self.max_n = max(counts.values())
+        self.total_n = self.source.n_epochs
+        self.groups_n = len(counts)
 
 
 enamldef EpochCounterManifest(PSIManifest): manifest:
+
+    Extension:
+        id = 'actions'
+        point = 'psi.controller.actions'
+        rank = 200
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'psi.data.attach_source'
+            kwargs = {'contribution': manifest.contribution}
 
     Extension:
         id = 'workspace'
@@ -48,21 +68,67 @@ enamldef EpochCounterManifest(PSIManifest): manifest:
             title << manifest.contribution.label
             Form:
                 Label:
-                    text = 'Max epochs acquired'
-                Label:
-                    text << str(manifest.contribution.max_n)
-                Label:
-                    text = 'Min epochs acquired'
-                Label:
-                    text << str(manifest.contribution.min_n)
-                Label:
-                    text = 'Total epochs acquired'
+                    text = 'Epochs acquired'
                 Label:
                     text << str(manifest.contribution.total_n)
+
+
+def group_label_format(grouping):
+    if not grouping:
+        return 'No groups specified'
+    t = 'Grouped by {}'
+    groups = ', '.join(g.compact_label for g in grouping)
+    return t.format(groups.lower())
+
+
+enamldef GroupedEpochCounterManifest(PSIManifest): manifest:
+
+    Extension:
+        id = 'actions'
+        point = 'psi.controller.actions'
+        rank = 200
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'psi.data.attach_source'
+            kwargs = {'contribution': manifest.contribution}
+
+    Extension:
+        id = 'workspace'
+        point = 'psi.experiment.workspace'
+        DockItem: di:
+            name << manifest.contribution.name
+            title << manifest.contribution.label
+            VGroup:
+                Label:
+                    # We need to pull this from meta.values, not
+                    # manifest.contribution.grouping. For some reason, if we
+                    # don't pull from meta.values, then the change notification
+                    # doesn't get triggered when the GUI loads. Probably a
+                    # latent bug somewhere.
+                    text << group_label_format(meta.values)
+                Form:
+                    Label:
+                        text = 'Max epochs acquired'
+                    Label:
+                        text << str(manifest.contribution.max_n)
+                    Label:
+                        text = 'Min epochs acquired'
+                    Label:
+                        text << str(manifest.contribution.min_n)
+                    Label:
+                        text = 'N groups'
+                    Label:
+                        text << str(manifest.contribution.groups_n)
+                    Label:
+                        text = 'Total epochs acquired'
+                    Label:
+                        text << str(manifest.contribution.total_n)
 
     Extension:
         id = 'items'
         point = 'psi.context.items'
-        UnorderedContextMeta:
+        UnorderedContextMeta: meta:
             name << manifest.contribution.name
             label << '{} grouping'.format(manifest.contribution.label)
+            values ::
+                manifest.contribution.grouping = list(values)

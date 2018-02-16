@@ -46,20 +46,7 @@ enamldef PlotContainerManifest(PSIManifest): manifest:
                     component << manifest.contribution.container
 
 
-
-def prepare_timeseries_plot(event, plot):
-    plugin = event.workbench.get_plugin('psi.data')
-    plot.source = plugin.find_source(plot.source_name)
-
-
 enamldef TimeseriesPlotManifest(PSIManifest): manifest:
-
-    Extension:
-        id = 'command'
-        point = 'enaml.workbench.core.commands'
-        Command:
-            id = manifest.contribution.name + '_prepare'
-            handler = partial(prepare_channel_plot, plot=manifest.contribution)
 
     Extension:
         id = 'actions'
@@ -67,36 +54,35 @@ enamldef TimeseriesPlotManifest(PSIManifest): manifest:
         rank = 200
         ExperimentAction:
             event = 'experiment_prepare'
-            command = manifest.contribution.name + '_prepare'
-
-
-def prepare_channel_plot(event, plot):
-    plugin = event.workbench.get_plugin('psi.data')
-    plot.source = plugin.find_source(plot.source_name)
+            command = 'psi.data.attach_source'
+            kwargs = {'contribution': manifest.contribution}
 
 
 enamldef ChannelPlotManifest(PSIManifest): manifest:
 
     Extension:
-        id = 'command'
-        point = 'enaml.workbench.core.commands'
-        Command:
-            id = manifest.contribution.name + '_prepare'
-            handler = partial(prepare_channel_plot, plot=manifest.contribution)
-
-    Extension:
         id = 'actions'
         point = 'psi.controller.actions'
         rank = 200
         ExperimentAction:
             event = 'experiment_prepare'
-            command = manifest.contribution.name + '_prepare'
+            command = 'psi.data.attach_source'
+            kwargs = {'contribution': manifest.contribution}
 
 
-enamldef EpochAveragePlotManifest(ChannelPlotManifest): manifest:
+from enaml.widgets.api import ObjectCombo
+
+enamldef ContextObjectCombo(ObjectCombo):
+
+    attr context_item_name
+
+    items << sorted(list(workbench.get_plugin('psi.context').unique_values(context_item_name)))
+
+
+enamldef EpochGroupMixin(ChannelPlotManifest): manifest:
 
     Extension:
-        id = 'workspace.epoch_average_plot'
+        id = 'workspace.epoch_average_plot.' + manifest.contribution.name
         point = 'psi.experiment.workspace'
 
         DockItem:
@@ -105,15 +91,26 @@ enamldef EpochAveragePlotManifest(ChannelPlotManifest): manifest:
 
             Container:
                 Form:
+                    Label:
+                        text = 'N epochs'
+                    Label:
+                        text << str(manifest.contribution.n_epochs)
+
                     Looper:
+                        # We need to pull this from meta.values, not
+                        # manifest.contribution.grouping. For some reason, if
+                        # we don't pull from meta.values, then the change
+                        # notification doesn't get triggered when the GUI
+                        # loads. Probably a latent bug somewhere.
                         iterable << meta.values[:]
                         Label:
-                            text << loop_item.name
-                        Field:
-                            text << str(manifest.contribution.filters[loop_item])
-                            text ::
-                                value = loop_item.coerce_to_type(text)
-                                manifest.contribution.filters[loop_item] = value
+                            text << loop_item.label
+                        ContextObjectCombo:
+                            context_item_name << loop_item.name
+                            selected ::
+                                value = loop_item.coerce_to_type(selected)
+                                manifest.contribution.filters[loop_item.name] = value
+                                manifest.contribution.update()
 
     Extension:
         id = 'items'
@@ -122,9 +119,12 @@ enamldef EpochAveragePlotManifest(ChannelPlotManifest): manifest:
             name << manifest.contribution.name
             label << manifest.contribution.label
             values::
-                old_filters = manifest.contribution.filters.copy()
-                new_filters = {v: v.default for v in values}
-                for k, v in old_filters.items():
-                    if k in new_filters:
-                        new_filters[k] = v
-                manifest.contribution.filters = new_filters
+                manifest.contribution.groups = values
+
+
+enamldef GroupedEpochAveragePlotManifest(EpochGroupMixin):
+    pass
+
+
+enamldef GroupedFFTEpochPlotManifest(EpochGroupMixin):
+    pass

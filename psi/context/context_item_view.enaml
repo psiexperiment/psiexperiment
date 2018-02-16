@@ -9,8 +9,6 @@ from .context_item import (Result, Parameter, EnumParameter, FileParameter,
                            BoolParameter, OrderedContextMeta,
                            UnorderedContextMeta)
 
-from enaml.widgets.api import ObjectCombo
-
 from .expression import ExpressionNamespace
 
 

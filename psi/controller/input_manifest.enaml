@@ -9,7 +9,6 @@ from .experiment_action import ExperimentEvent, ExperimentAction
 from psi.core.enaml.api import PSIManifest
 from psi.util import declarative_to_dict
 
-
 def get_metadata(contribution):
     return declarative_to_dict(contribution, 'metadata')
 

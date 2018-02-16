@@ -8,24 +8,68 @@ enamldef LauncherView(Window): main:
     Container:
 
         VGroup:
+            padding = 0
+            spacing = 0
+            HGroup:
+                Label:
+                    text = 'Acoustic system calibration'
+                PushButton:
+                    text = 'Save'
+                    enabled = False
+                PushButton:
+                    text = 'Quick check'
+                    enabled = False
 
-            PushButton:
-                text = 'Acoustic system calibration'
-                enabled = False
-            PushButton:
-                text = 'In-ear calibration'
-                enabled = False
-            PushButton:
-                text = 'ABR'
-                clicked ::
-                    launcher.launch_abr()
-                enabled << bool(launcher.note and \
-                                launcher.ear and \
-                                launcher.animal and \
-                                launcher.experimenter)
-            PushButton:
-                text = 'DPOAE'
-                enabled = False
+            HGroup:
+                Label:
+                    text = 'In-ear calibration'
+                PushButton:
+                    text = 'Save'
+                    enabled << bool(launcher.note and \
+                                    launcher.ear and \
+                                    launcher.animal and \
+                                    launcher.experimenter)
+                    clicked ::
+                        launcher.launch('calibration', save=True)
+                PushButton:
+                    text = 'Quick check'
+                    enabled = True
+                    clicked ::
+                        launcher.launch('calibration', save=False)
+
+            HGroup:
+                Label:
+                    text = 'ABR'
+                PushButton:
+                    text = 'Save'
+                    enabled << bool(launcher.note and \
+                                    launcher.ear and \
+                                    launcher.animal and \
+                                    launcher.experimenter)
+                    clicked ::
+                        launcher.launch('abr', save=True)
+                PushButton:
+                    text = 'Quick check'
+                    enabled = True
+                    clicked ::
+                        launcher.launch('abr', save=False)
+
+            HGroup:
+                Label:
+                    text = 'DPOAE'
+                PushButton:
+                    text = 'Save'
+                    enabled << bool(launcher.note and \
+                                    launcher.ear and \
+                                    launcher.animal and \
+                                    launcher.experimenter)
+                    clicked ::
+                        launcher.launch_abr(save=True)
+                PushButton:
+                    text = 'Quick check'
+                    enabled = True
+                    clicked ::
+                        launcher.launch_abr(save=False)
 
         Form:
             Label:
