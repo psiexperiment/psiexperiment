@@ -126,6 +126,35 @@ class AbstractSignalQueue(object):
     def _get_samples_generator(self, samples):
         return self._source.send({'samples': samples})
 
+    def next_trial(self, decrement=True):
+        '''
+        Setup the next trial
+
+        This has immediate effect. If you call this (from external code), the
+        current trial will not finish.
+        '''
+        key, data = self.pop_next(decrement=decrement)
+        if callable(data['source']):
+            # Be sure to start the factory (hmm... shouldn't this be
+            # started in advance?)
+            self._source = data['source']()
+            self._get_samples = self._get_samples_generator
+            next(self._source)
+        else:
+            self._source = data['source']
+            self._get_samples = self._get_samples_waveform
+
+        delay = next(data['delays'])
+        self._delay_samples = int(delay*self._fs)
+        if self._delay_samples < 0:
+            raise ValueError('Invalid option for delay samples')
+
+        t0 = self._samples/self._fs
+        duration = data['duration']
+        args = t0, duration, key, data['metadata']
+        for cb in self._notifiers:
+            cb(args)
+
     def pop_buffer(self, samples, decrement=True):
         '''
         Return the requested number of samples
@@ -135,6 +164,7 @@ class AbstractSignalQueue(object):
         returned, the remaining part will be returned on subsequent calls to
         this function.
         '''
+        # TODO: This is a bit complicated. Cleanup?
         waveforms = []
         queue_empty = False
 
@@ -158,28 +188,7 @@ class AbstractSignalQueue(object):
 
         if (self._source is None) and (self._delay_samples == 0):
             try:
-                key, data = self.pop_next(decrement=decrement)
-                if callable(data['source']):
-                    # Be sure to start the factory (hmm... shouldn't this be
-                    # started in advance?)
-                    self._source = data['source']()
-                    self._get_samples = self._get_samples_generator
-                    next(self._source)
-                else:
-                    self._source = data['source']
-                    self._get_samples = self._get_samples_waveform
-
-                delay = next(data['delays'])
-                self._delay_samples = int(delay*self._fs)
-                if self._delay_samples < 0:
-                    raise ValueError('Invalid option for delay samples')
-
-                t0 = self._samples/self._fs
-                duration = data['duration']
-                args = t0, duration, key, data['metadata']
-                for cb in self._notifiers:
-                    cb(args)
-
+                self.next_trial(decrement)
             except QueueEmptyError:
                 queue_empty = True
                 waveform = np.zeros(samples)

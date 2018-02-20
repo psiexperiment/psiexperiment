@@ -84,18 +84,3 @@ def test_queue_generation(tone_queue_1, tone_queue_2):
     # imprecise floating-point value that introduces the error.
     waveforms2, empty = tone_queue_2.pop_buffer(n)
     np.testing.assert_almost_equal(waveforms1, waveforms2, decimal=3)
-
-    #import pylab as pl
-    ##pl.plot(waveforms1, 'r-')
-    ##pl.show()
-
-    #offset = 0
-    #for w in waveforms:
-    #    i = np.arange(len(w)) + offset
-    #    pl.plot(i, w, '.-')
-    #    offset += len(w)
-
-    #pl.plot((waveforms1-waveforms2)*1e4, 'k.')
-    #pl.plot(waveforms2, 'k.')
-    #pl.axis(xmax=100000)
-    #pl.show()

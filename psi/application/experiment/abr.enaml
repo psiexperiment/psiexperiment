@@ -38,10 +38,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
             Tone:
                 pass
 
-        # Continuous noise (if desired for masking purposes)
-        BandlimitedNoise:
-            pass
-
     Extension:
         id = 'io'
         point = 'psi.controller.io'
@@ -115,10 +111,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
         point = 'psi.controller.actions'
         rank = 100
 
-        # The order of actions for experiment_prepare is important. We need to
-        # make sure that the calibration is run before the queue is prepared.
-        # Once the queue is prepared, the calibration has been set for those
-        # stimuli.
         ExperimentAction:
             weight = 15
             event = 'experiment_prepare'
