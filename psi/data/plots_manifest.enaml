@@ -51,11 +51,11 @@ enamldef TimeseriesPlotManifest(PSIManifest): manifest:
     Extension:
         id = 'actions'
         point = 'psi.controller.actions'
-        rank = 200
         ExperimentAction:
             event = 'experiment_prepare'
             command = 'psi.data.attach_source'
             kwargs = {'contribution': manifest.contribution}
+            weight = 100
 
 
 enamldef ChannelPlotManifest(PSIManifest): manifest:
@@ -63,11 +63,11 @@ enamldef ChannelPlotManifest(PSIManifest): manifest:
     Extension:
         id = 'actions'
         point = 'psi.controller.actions'
-        rank = 200
         ExperimentAction:
             event = 'experiment_prepare'
             command = 'psi.data.attach_source'
             kwargs = {'contribution': manifest.contribution}
+            weight = 100
 
 
 from enaml.widgets.api import ObjectCombo

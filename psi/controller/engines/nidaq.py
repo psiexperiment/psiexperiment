@@ -120,19 +120,18 @@ class SamplesAcquiredCallbackHelper(object):
 
     def __call__(self, task, event_type, callback_samples, callback_data):
         try:
-            while True:
-                mx.DAQmxGetReadAvailSampPerChan(task, self._uint32)
-                available_samples = self._uint32.value
-                blocks = (available_samples//callback_samples)
-                if blocks == 0:
-                    break
-                samples = blocks*callback_samples
-                data_shape = self._n_channels, samples
-                data = np.empty(data_shape, dtype=np.double)
-                mx.DAQmxReadAnalogF64(task, samples, 0,
-                                    mx.DAQmx_Val_GroupByChannel, data, data.size,
-                                    self._int32, None)
-                self._callback(data)
+            mx.DAQmxGetReadAvailSampPerChan(task, self._uint32)
+            available_samples = self._uint32.value
+            blocks = (available_samples//callback_samples)
+            if blocks == 0:
+                return 0
+            samples = blocks*callback_samples
+            data_shape = self._n_channels, samples
+            data = np.empty(data_shape, dtype=np.double)
+            mx.DAQmxReadAnalogF64(task, samples, 0,
+                                mx.DAQmx_Val_GroupByChannel, data, data.size,
+                                self._int32, None)
+            self._callback(data)
             return 0
         except Exception as e:
             log.exception(e)
@@ -861,21 +860,22 @@ class NIDAQEngine(Engine):
         return available
 
     def ao_sample_clock(self):
-        task = self._tasks['hw_ao']
-        mx.DAQmxGetWriteTotalSampPerChanGenerated(task, self._uint64)
-        log.trace('%d samples per channel generated', self._uint64.value)
-        return self._uint64.value
+        try:
+            task = self._tasks['hw_ao']
+            mx.DAQmxGetWriteTotalSampPerChanGenerated(task, self._uint64)
+            return self._uint64.value
+        except:
+            return 0
 
     def hw_ao_callback(self, samples):
         # Get the next set of samples to upload to the buffer
         with self.lock:
             log.trace('Hardware AO callback for {}'.format(self.name))
-            while True:
-                offset = self.get_offset()
-                available_samples = self.get_space_available(offset)
-                if available_samples < samples:
-                    log.trace('Not enough samples available for writing')
-                    break
+            offset = self.get_offset()
+            available_samples = self.get_space_available(offset)
+            if available_samples < samples:
+                log.trace('Not enough samples available for writing')
+            else:
                 data = self._get_hw_ao_samples(offset, samples)
                 self.write_hw_ao(data, timeout=0)
 

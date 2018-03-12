@@ -17,7 +17,7 @@ from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
 from enaml.layout.api import FloatItem
 from enaml.application import deferred_call
 
-from psi.controller.api import ExperimentAction
+from psi.controller.api import ExperimentAction, ExperimentEvent
 from psi.experiment.api import Preferences
 
 from .plugin import ContextPlugin
@@ -117,6 +117,10 @@ enamldef ContextManifest(PluginManifest): manifest:
     Extension:
         id = 'context_actions'
         point = 'psi.controller.actions'
+
+        ExperimentEvent:
+            name = 'context_changed'
+
         ExperimentAction:
             # Set this to a relatively low weight (default=100) so that we can
             # ensure this is called before most initialization actions since

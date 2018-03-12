@@ -49,11 +49,11 @@ class PSIContribution(Declarative):
     def load_manifest(self, workbench):
         try:
             manifest_class = self.find_manifest_class()
-            log.debug('Found {} for {}'.format(manifest_class, self.__class__))
+            log.trace('Found {} for {}'.format(manifest_class, self.__class__))
             manifest = manifest_class(contribution=self)
             workbench.register(manifest)
             m = 'Loaded manifest for contribution {}'
-            log.debug(m.format(self.name))
+            log.trace(m.format(self.name))
         except ImportError:
             m = 'No manifest defind for contribution {}'
-            log.info(m.format(self.name))
+            log.trace(m.format(self.name))

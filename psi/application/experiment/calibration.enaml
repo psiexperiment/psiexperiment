@@ -20,11 +20,11 @@ from psi.controller.base_manifest import (BaseManifest, get_hw_ao_choices,
 from psi.controller.queue import InterleavedFIFOSignalQueue
 
 
-from psi.data.plots import (TimeContainer, 
+from psi.data.plots import (TimeContainer,
                             ChannelPlot,
-                            GroupedEpochAveragePlot, 
+                            GroupedEpochAveragePlot,
                             ChannelPlot, ViewBox,
-                            FFTContainer, 
+                            FFTContainer,
                             GroupedFFTEpochPlot)
 
 from psi.data.sinks.epoch_counter import GroupedEpochCounter
@@ -82,7 +82,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
             ExtractEpochs: extract:
                 save = True
                 buffer_size = 50
-                epoch_size = 1/50.0
                 queue << hw_ao.queue
                 name = 'epoch'
 

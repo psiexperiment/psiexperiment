@@ -16,8 +16,7 @@ from ..output import QueuedEpochOutput
 from ..input import ExtractEpochs
 
 
-from psi.token.primitives import (tone_factory, silence_factory,
-                                  generate_waveform)
+from psi.token.primitives import ToneFactory, SilenceFactory
 
 
 thd_err_mesg = 'Total harmonic distortion for {}Hz is {}%'
@@ -96,10 +95,10 @@ def process_tone(fs, signal, frequency, min_snr=None, max_thd=None,
                              freq_snr[np.newaxis],
                              thd[np.newaxis]))
 
-    return pd.Series({'rms': freq_rms,
-                      'snr': freq_snr,
-                      'thd': thd,
-                      })
+    if result.ndim == 1:
+        return pd.Series({'rms': freq_rms, 'snr': freq_snr, 'thd': thd})
+    else:
+        return pd.DataFrame({'rms': freq_rms, 'snr': freq_snr, 'thd': thd})
 
 
 def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gain=0,
@@ -132,15 +131,17 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gain=0,
     ao_fs = ao_channel.fs
     ai_fs = ai_channels[0].fs
 
+    samples = int(ao_fs*duration)
+
     # Build the signal queue
     queue = FIFOSignalQueue(ao_fs)
     for frequency in frequencies:
-        factory = tone_factory(ao_fs, gain, frequency, 0, 1, calibration)
-        waveform = generate_waveform(factory, int(duration*ao_fs))
+        factory = ToneFactory(ao_fs, gain, frequency, 0, 1, calibration)
+        waveform = factory.next(samples)
         queue.append(waveform, repetitions, iti)
 
-    factory = silence_factory(ao_fs, calibration)
-    waveform = generate_waveform(factory, int(duration*ao_fs))
+    factory = SilenceFactory(ao_fs, calibration)
+    waveform = factory.next(samples)
     queue.append(waveform, repetitions, iti)
 
     # Add the queue to the output channel

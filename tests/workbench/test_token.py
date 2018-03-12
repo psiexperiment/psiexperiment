@@ -40,6 +40,7 @@ def tone_queue(tone_token, tone_context):
     iti = 0.1
     tone_context['target_tone_burst_rise_time'] = 0.25
     tone_context['target_tone_burst_duration'] = 1
+
     factory = tone_token.initialize_factory(tone_context)
     queue.append(factory, 1, iti)
 
@@ -51,20 +52,6 @@ def tone_queue(tone_token, tone_context):
 
 tone_queue_1 = pytest.fixture(tone_queue)
 tone_queue_2 = pytest.fixture(tone_queue)
-
-
-def test_token_generation(tone_token, tone_context):
-    # Request 2x as many samples as needed. Be sure it gets chopped down to the
-    # actual length.
-    fs = tone_context['fs']
-    frequency = tone_context['target_tone_frequency']
-
-    generator = tone_token.initialize_generator(tone_context)
-    waveform, complete = generator.send({'samples': int(fs)*2})
-    t = np.arange(fs, dtype=np.float32)/fs
-    expected = np.cos(2*np.pi*t*frequency)*np.sqrt(2)
-    np.testing.assert_array_equal(waveform, expected)
-    assert complete == True
 
 
 def test_queue_generation(tone_queue_1, tone_queue_2):
@@ -83,4 +70,5 @@ def test_queue_generation(tone_queue_1, tone_queue_2):
     # phase is calculated for the tone generation. Perhaps it's stopping on an
     # imprecise floating-point value that introduces the error.
     waveforms2, empty = tone_queue_2.pop_buffer(n)
+
     np.testing.assert_almost_equal(waveforms1, waveforms2, decimal=3)

@@ -67,4 +67,3 @@ log = logging.getLogger()
 for k, v in sorted(globals().items()):
     if k == k.upper():
         log.debug("CONFIG %s : %r", k, v)
-

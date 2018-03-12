@@ -54,11 +54,11 @@ enamldef EpochCounterManifest(PSIManifest): manifest:
     Extension:
         id = 'actions'
         point = 'psi.controller.actions'
-        rank = 200
         ExperimentAction:
             event = 'experiment_prepare'
             command = 'psi.data.attach_source'
             kwargs = {'contribution': manifest.contribution}
+            weight = 100
 
     Extension:
         id = 'workspace'
@@ -86,11 +86,11 @@ enamldef GroupedEpochCounterManifest(PSIManifest): manifest:
     Extension:
         id = 'actions'
         point = 'psi.controller.actions'
-        rank = 200
         ExperimentAction:
             event = 'experiment_prepare'
             command = 'psi.data.attach_source'
             kwargs = {'contribution': manifest.contribution}
+            weight = 100
 
     Extension:
         id = 'workspace'

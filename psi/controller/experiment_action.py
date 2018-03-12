@@ -60,7 +60,7 @@ class ExperimentAction(Declarative):
     # Defines order of invocation. Less than 100 invokes before default. Higher
     # than 100 invokes after default. Note that if concurrent is True, then
     # order of execution is not guaranteed.
-    weight = d_(Int(100))
+    weight = d_(Int(50))
 
     def match(self, context):
         return eval(self.event, context)

@@ -50,7 +50,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 N = 2
                 btype = 'highpass'
                 ftype = 'butter'
-                f_highpass = 100
+                f_highpass = 250
                 save = True
 
         QueuedEpochOutput: output:
@@ -88,14 +88,12 @@ enamldef ControllerManifest(BaseManifest): manifest:
                     ExtractEpochs: extract:
                         save = True
                         buffer_size = 50
-                        epoch_size = 8.5e-3
                         queue = output.queue
                         delay = 47.5/extract.fs
                         name = 'erp'
 
                         RejectEpochs:
                             save = True
-                            threshold = 2.5
                             name = 'valid_erp'
 
     Extension:

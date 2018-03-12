@@ -16,8 +16,17 @@ from ..util import coroutine
 from .queue import AbstractSignalQueue
 
 from psi.core.enaml.api import PSIContribution
+from psi.token.primitives import Waveform
 
 import time
+
+
+class Synchronized(PSIContribution):
+
+    outputs = Property()
+
+    def _get_outputs(self):
+        return self.children
 
 
 class Output(PSIContribution):
@@ -42,7 +51,8 @@ class Output(PSIContribution):
         self.target_name = event['value'].name
 
     def _get_target(self):
-        if isinstance(self.parent, Extension):
+        from .channel import OutputChannel
+        if not isinstance(self.parent, OutputChannel):
             return None
         return self.parent
 
@@ -74,7 +84,6 @@ class AnalogOutput(Output):
 
     _buffer = Typed(np.ndarray)
     _offset = Int(0)
-    _generator = Typed(GeneratorType)
 
     def _get_buffer_size(self):
         return self.channel.buffer_size
@@ -130,28 +139,26 @@ class AnalogOutput(Output):
 
 class EpochOutput(AnalogOutput):
 
-    generator = Typed(object)
+    factory = Typed(Waveform)
     active = Bool(False)
     duration = Float()
 
     def get_next_samples(self, samples):
         if self.active:
-            waveform, complete = self.generator.send({'samples': samples})
-            if complete:
+            waveform = self.factory.next(samples)
+            if self.factory.is_complete():
                 self.deactivate()
-                samples -= waveform.size
-                waveform = np.pad(waveform, (0, samples), 'constant')
         else:
             waveform = np.zeros(samples, dtype=np.double)
         return waveform
 
     def activate(self, offset):
-        self._offset = offset
         self.active = True
+        self._offset = offset
         self._buffer.fill(0)
 
     def deactivate(self):
-        self.generator = None
+        self.factory = None
         self.active = False
 
 
@@ -172,10 +179,10 @@ class QueuedEpochOutput(EpochOutput):
 
 class ContinuousOutput(AnalogOutput):
 
-    generator = Typed(object)
+    factory = Typed(Waveform)
 
     def get_next_samples(self, samples):
-        return self.generator.send({'samples': samples})
+        return self.factory.next(samples)
 
 
 class DigitalOutput(Output):

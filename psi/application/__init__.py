@@ -21,6 +21,7 @@ experiments = {
     'efr': 'psi.application.experiment.efr.ControllerManifest',
     'dual_efr': 'psi.application.experiment.dual_efr.ControllerManifest',
     'calibration': 'psi.application.experiment.calibration.ControllerManifest',
+    'dpoae': 'psi.application.experiment.dpoae.ControllerManifest',
 }
 
 
@@ -45,10 +46,9 @@ def configure_logging(filename=None):
         'loggers': {
             '__main__': {'level': 'DEBUG'},
             'psi': {'level': 'DEBUG'},
-            'daqengine': {'level': 'TRACE'},
             'psi.core.chaco': {'level': 'INFO'},
-            'psi.controller.engine': {'level': 'TRACE'},
-            'psi.controller.engines.nidaq': {'level': 'TRACE'},
+            'psi.controller.engine': {'level': 'DEBUG'},
+            'psi.controller.engines.nidaq': {'level': 'DEBUG'},
             },
         'root': {
             'handlers': ['console'],
@@ -62,7 +62,7 @@ def configure_logging(filename=None):
             'filename': filename,
             'mode': 'w',
             'encoding': 'UTF-8',
-            'level': 'TRACE',
+            'level': 'DEBUG',
         }
         logging_config['root']['handlers'].append('file')
     logging.config.dictConfig(logging_config)

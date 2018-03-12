@@ -184,7 +184,7 @@ enamldef ExperimentManifest(PluginManifest):
         MenuItem:
             path = '/configuration'
             label = 'Configuration'
-        
+
         MenuItem:
             path = '/configuration/layout'
             label = 'Layout'

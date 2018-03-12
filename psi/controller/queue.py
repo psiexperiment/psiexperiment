@@ -10,6 +10,10 @@ import numpy as np
 
 from enaml.core.api import Declarative
 
+import enaml
+with enaml.imports():
+    from psi.token.primitives import Waveform
+
 
 class QueueEmptyError(Exception):
     pass
@@ -39,6 +43,7 @@ class AbstractSignalQueue(object):
         self._samples = 0
         self._notifiers = []
         self._delay_samples = int(initial_delay * fs)
+        self.uploaded = []
         if self._delay_samples < 0:
             raise ValueError('Invalid option for initial delay')
 
@@ -49,6 +54,7 @@ class AbstractSignalQueue(object):
                 duration = source.shape[-1]/self._fs
             except AttributeError:
                 pass
+
         data = {
             'source': source,
             'trials': trials,
@@ -58,6 +64,14 @@ class AbstractSignalQueue(object):
         }
         self._data[key] = data
         return key
+
+    def get_max_duration(self):
+        def get_duration(source):
+            if isinstance(source, Waveform):
+                return source.get_duration()
+            else:
+                return source.shape[-1]/self.fs
+        return max(get_duration(d['source']) for d in self._data.values())
 
     def connect(self, callback):
         self._notifiers.append(callback)
@@ -82,6 +96,9 @@ class AbstractSignalQueue(object):
 
     def count_trials(self):
         return sum(v['trials'] for v in self._data.values())
+
+    def is_empty(self):
+        return self.count_trials() == 0
 
     def next_key(self):
         raise NotImplementedError
@@ -124,7 +141,10 @@ class AbstractSignalQueue(object):
         return waveform, complete
 
     def _get_samples_generator(self, samples):
-        return self._source.send({'samples': samples})
+        samples = min(self._source.get_remaining_samples(), samples)
+        waveform = self._source.next(samples)
+        complete = self._source.is_complete()
+        return waveform, complete
 
     def next_trial(self, decrement=True):
         '''
@@ -134,12 +154,11 @@ class AbstractSignalQueue(object):
         current trial will not finish.
         '''
         key, data = self.pop_next(decrement=decrement)
-        if callable(data['source']):
-            # Be sure to start the factory (hmm... shouldn't this be
-            # started in advance?)
-            self._source = data['source']()
+
+        if isinstance(data['source'], Waveform):
+            self._source = data['source']
+            self._source.reset()
             self._get_samples = self._get_samples_generator
-            next(self._source)
         else:
             self._source = data['source']
             self._get_samples = self._get_samples_waveform
@@ -149,11 +168,13 @@ class AbstractSignalQueue(object):
         if self._delay_samples < 0:
             raise ValueError('Invalid option for delay samples')
 
-        t0 = self._samples/self._fs
-        duration = data['duration']
-        args = t0, duration, key, data['metadata']
-        for cb in self._notifiers:
-            cb(args)
+        self.uploaded.append({
+            't0': self._samples/self._fs,
+            'duration': data['duration'],
+            'key': key,
+            'metadata': data['metadata'],
+        })
+        log.debug('Popped next trial off of queue')
 
     def pop_buffer(self, samples, decrement=True):
         '''
@@ -164,7 +185,8 @@ class AbstractSignalQueue(object):
         returned, the remaining part will be returned on subsequent calls to
         this function.
         '''
-        # TODO: This is a bit complicated. Cleanup?
+        # TODO: This is a bit complicated and I'm not happy with the structure.
+        # It should be simplified quite a bit.  Cleanup?
         waveforms = []
         queue_empty = False
 

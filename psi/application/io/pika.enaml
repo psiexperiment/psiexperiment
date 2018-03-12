@@ -43,6 +43,7 @@ enamldef IOManifest(PluginManifest): manifest:
                 dtype = 'float64'
                 terminal_mode = 'pseudodifferential'
                 terminal_coupling = 'AC'
+                unit = 'V'
 
         NIDAQEngine:
             name = 'NI_audio'

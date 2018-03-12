@@ -12,9 +12,9 @@ from enaml.application import timed_call
 from enaml.qt.QtCore import QTimer, QThreadPool
 from enaml.workbench.plugin import Plugin
 
-from .channel import Channel, AOChannel
+from .channel import Channel, OutputChannel, InputChannel
 from .engine import Engine
-from .output import Output
+from .output import Output, Synchronized
 from .input import Input
 from .device import Device
 
@@ -32,6 +32,101 @@ def get_inputs(input):
     for child in input.children:
         inputs.extend(get_inputs(child))
     inputs.append(input)
+    return inputs
+
+
+def get_outputs(output):
+    outputs = []
+    for child in output.children:
+        outputs.extend(get_outputs(child))
+    outputs.append(output)
+    return outputs
+
+
+def log_actions(plugin):
+    accumulator = {}
+    for action in plugin._actions:
+        a = accumulator.setdefault(action.event, [])
+        info = '{} (weight={})'.format(action.command, action.weight)
+        a.append(info)
+
+    for event, actions in accumulator.items():
+        log.info(event)
+        for action in actions:
+            log.info('\t{}'.format(action))
+
+
+def find_devices(point):
+    devices = {}
+    for extension in point.extensions:
+        for device in extension.get_children(Device):
+            log.debug('Found device {}'.format(device.name))
+            devices[device.name] = device
+            device.load_manifest(self.workbench)
+    return devices
+
+
+def find_engines(point):
+    master_engine = None
+    engines = {}
+    for extension in point.extensions:
+        for e in extension.get_children(Engine):
+            engines[e.name] = e
+            if e.master_clock:
+                if master_engine is not None:
+                    m = 'Only one engine can be defined as the master'
+                    raise ValueError(m)
+                master_engine = e
+    return engines, master_engine
+
+
+def find_channels(engines):
+    channels = {}
+    for e in engines.values():
+        for c in e.get_channels(has_children=False):
+            channels[c.name] = c
+    return channels
+
+
+def find_outputs(channels, point):
+    outputs = {}
+
+    # Find all the outputs already connected to a channel
+    for c in channels.values():
+        if isinstance(c, OutputChannel):
+            for o in c.outputs:
+                outputs[o.name] = o
+
+    # Find unconnected outputs and inputs (these are allowed so that we can
+    # split processing hierarchies across multiple manifests).
+    for extension in point.extensions:
+        for o in extension.get_children(Output):
+            outputs[o.name] = o
+
+        for synchronized in extension.get_children(Synchronized):
+            for o in synchronized.outputs:
+                outputs[o.name] = o
+
+    return outputs
+
+
+def find_inputs(channels, point):
+    inputs = {}
+
+    # Find all the outputs already connected to a channel
+    for c in channels.values():
+        if isinstance(c, InputChannel):
+            for i in c.inputs:
+                for ci in get_inputs(i):
+                    inputs[ci.name] = ci
+
+    for extension in point.extensions:
+        for i in extension.get_children(Input):
+            # Recurse through input tree. Currently we assume that
+            # inputs can be nested/hierarchial while outputs are not.
+            for ci in get_inputs(i):
+                inputs[ci.name] = ci
+
     return inputs
 
 
@@ -109,67 +204,25 @@ class BasePlugin(Plugin):
             .unobserve('extensions', self._refresh_actions)
 
     def _refresh_io(self, event=None):
-        log.debug('Loading IO')
-        channels = {}
-        engines = {}
-        outputs = {}
-        inputs = {}
-        devices = {}
-        master_engine = None
-
         # TODO: Allow disabling of devices.
+        log.debug('Loading IO')
         point = self.workbench.get_extension_point(IO_POINT)
-        for extension in point.extensions:
-            for device in extension.get_children(Device):
-                log.debug('Found device {}'.format(device.name))
-                devices[device.name] = device
-                device.load_manifest(self.workbench)
 
-            for engine in extension.get_children(Engine):
-                engines[engine.name] = engine
-                if engine.master_clock:
-                    if master_engine is not None:
-                        m = 'Only one engine can be defined as the master'
-                        raise ValueError(m)
-                    master_engine = engine
+        self._devices = find_devices(point)
+        self._engines, self._master_engine = find_engines(point)
+        self._channels = find_channels(self._engines)
+        self._outputs = find_outputs(self._channels, point)
+        self._inputs = find_inputs(self._channels, point)
 
-                for channel in engine.get_channels(has_children=False):
-                    channels[channel.name] = channel
-                    for output in getattr(channel, 'outputs', []):
-                        outputs[output.name] = output
-                    for i in getattr(channel, 'inputs', []):
-                        for ci in get_inputs(i):
-                            inputs[ci.name] = ci
+        for o in self._outputs.values():
+            if o.target is None and o.target_name:
+                self.connect_output(o.name, o.target_name)
+            o.load_manifest(self.workbench)
 
-        # Find unconnected outputs and inputs (these are allowed so that we can
-        # split processing hierarchies across multiple manifests).
-        for extension in point.extensions:
-            for output in extension.get_children(Output):
-                outputs[output.name] = output
-
-        for extension in point.extensions:
-            for i in extension.get_children(Input):
-                for ci in get_inputs(i):
-                    inputs[ci.name] = ci
-
-        # Need to save these to the instance before the next set of code as the
-        # `connect_output` and `connect_input` both require some of these.
-        self._master_engine = master_engine
-        self._channels = channels
-        self._engines = engines
-        self._outputs = outputs
-        self._inputs = inputs
-        self._devices = devices
-
-        for output in outputs.values():
-            if output.target is None and output.target_name:
-                self.connect_output(output.name, output.target_name)
-            output.load_manifest(self.workbench)
-
-        for input in inputs.values():
-            if input.source is None and input.source_name:
-                self.connect_input(input.name, input.source_name)
-            input.load_manifest(self.workbench)
+        for i in self._inputs.values():
+            if i.source is None and i.source_name:
+                self.connect_input(i.name, i.source_name)
+            i.load_manifest(self.workbench)
 
     def connect_output(self, output_name, target_name):
         # Link up outputs with channels if needed.  TODO: Can another output be
@@ -228,6 +281,7 @@ class BasePlugin(Plugin):
         self._states = states
         self._events = events
         self._actions = actions
+        log_actions(self)
 
     def configure_engines(self):
         log.debug('Configuring engines')
@@ -256,6 +310,9 @@ class BasePlugin(Plugin):
 
     def get_input(self, input_name):
         return self._inputs[input_name]
+
+    def set_input_attr(self, input_name, attr_name, value):
+        setattr(self._inputs[input_name], attr_name, value)
 
     def get_channel(self, channel_name):
         return self._channels[channel_name]

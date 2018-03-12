@@ -325,19 +325,21 @@ class FFTChannelPlot(ChannelPlot):
     time_span = d_(Float())
     _cached_frequency = Typed(np.ndarray)
 
-    def prepare(self, plugin):
-        self.source = plugin.find_source(self.source_name)
-        n = int(self.source.fs*self.time_span)
-        self._cached_frequency = np.log10(np.fft.rfftfreq(n, self.source.fs**-1))
+    def _observe_source(self, event):
+        if self.source is None:
+            return
         self.source.observe('added', self.update)
+
+        n_time = int(self.source.fs*self.time_span)
+        freq = np.fft.rfftfreq(n_time, self.source.fs**-1)
+        self._cached_frequency = np.log10(freq)
 
     def _update(self, event=None):
         ub = event['value']['ub']
-        if ub < self.time_span:
-            return
-        data = self.source.get_range(ub-self.time_span, ub)
-        psd = util.patodb(util.psd(data, self.source.fs))
-        self.plot.setData(self._cached_frequency, psd)
+        if ub >= self.time_span:
+            data = self.source.get_range(ub-self.time_span, ub)
+            psd = util.patodb(util.psd(data, self.source.fs))
+            self.plot.setData(self._cached_frequency, psd)
         self.update_pending = False
 
 
