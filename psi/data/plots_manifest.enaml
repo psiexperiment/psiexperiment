@@ -58,7 +58,7 @@ enamldef TimeseriesPlotManifest(PSIManifest): manifest:
             weight = 100
 
 
-enamldef ChannelPlotManifest(PSIManifest): manifest:
+enamldef BasePlotManifest(PSIManifest): manifest:
 
     Extension:
         id = 'actions'
@@ -70,43 +70,7 @@ enamldef ChannelPlotManifest(PSIManifest): manifest:
             weight = 100
 
 
-from enaml.widgets.api import ObjectCombo
-
-
-enamldef ContextObjectCombo(ObjectCombo):
-
-    attr context_item_name
-
-    items << sorted(list(workbench.get_plugin('psi.context').unique_values(context_item_name)))
-
-
-enamldef EpochGroupMixin(ChannelPlotManifest): manifest:
-
-    Extension:
-        id = 'workspace.epoch_average_plot.' + manifest.contribution.name
-        point = 'psi.experiment.workspace'
-
-        DockItem:
-            name << manifest.contribution.name + ' settings'
-            title << manifest.contribution.label + ' settings'
-
-            Container:
-                Form:
-                    Looper:
-                        # We need to pull this from meta.values, not
-                        # manifest.contribution.grouping. For some reason, if
-                        # we don't pull from meta.values, then the change
-                        # notification doesn't get triggered when the GUI
-                        # loads. Probably a latent bug somewhere.
-                        iterable << meta.values[:]
-                        Label:
-                            text << loop_item.label
-                        ContextObjectCombo:
-                            context_item_name << loop_item.name
-                            selected ::
-                                value = loop_item.coerce_to_type(selected)
-                                manifest.contribution.filters[loop_item.name] = value
-                                manifest.contribution.update()
+enamldef GroupMixin(BasePlotManifest): manifest:
 
     Extension:
         id = 'items'
@@ -114,13 +78,12 @@ enamldef EpochGroupMixin(ChannelPlotManifest): manifest:
         OrderedContextMeta: meta:
             name << manifest.contribution.name
             label << manifest.contribution.label
-            values::
-                manifest.contribution.groups = values
+            values >> manifest.contribution.groups
 
 
-enamldef GroupedEpochAveragePlotManifest(EpochGroupMixin):
+enamldef GroupedEpochAveragePlotManifest(GroupMixin):
     pass
 
 
-enamldef GroupedFFTEpochPlotManifest(EpochGroupMixin):
+enamldef GroupedEpochFFTPlotManifest(GroupMixin):
     pass

@@ -10,6 +10,7 @@ import numpy as np
 from atom.api import Enum, Bool, Typed
 from enaml.application import timed_call
 from enaml.qt.QtCore import QTimer, QThreadPool
+from enaml.workbench.api import Extension
 from enaml.workbench.plugin import Plugin
 
 from .channel import Channel, OutputChannel, InputChannel
@@ -60,9 +61,7 @@ def find_devices(point):
     devices = {}
     for extension in point.extensions:
         for device in extension.get_children(Device):
-            log.debug('Found device {}'.format(device.name))
             devices[device.name] = device
-            device.load_manifest(self.workbench)
     return devices
 
 
@@ -83,13 +82,14 @@ def find_engines(point):
 def find_channels(engines):
     channels = {}
     for e in engines.values():
-        for c in e.get_channels(has_children=False):
+        for c in e.get_channels(active=False):
             channels[c.name] = c
     return channels
 
 
 def find_outputs(channels, point):
     outputs = {}
+    supporting = {}
 
     # Find all the outputs already connected to a channel
     for c in channels.values():
@@ -102,12 +102,12 @@ def find_outputs(channels, point):
     for extension in point.extensions:
         for o in extension.get_children(Output):
             outputs[o.name] = o
-
-        for synchronized in extension.get_children(Synchronized):
-            for o in synchronized.outputs:
+        for s in extension.get_children(Synchronized):
+            supporting[s.name] = s
+            for o in s.outputs:
                 outputs[o.name] = o
 
-    return outputs
+    return outputs, supporting
 
 
 def find_inputs(channels, point):
@@ -162,6 +162,9 @@ class BasePlugin(Plugin):
     # Available outputs
     _outputs = Typed(dict, {})
 
+    # Available supporting classes for outputs (right now only Synchronized)
+    _supporting = Typed(dict, {})
+
     # Available inputs
     _inputs = Typed(dict, {})
 
@@ -211,17 +214,36 @@ class BasePlugin(Plugin):
         self._devices = find_devices(point)
         self._engines, self._master_engine = find_engines(point)
         self._channels = find_channels(self._engines)
-        self._outputs = find_outputs(self._channels, point)
+        self._outputs, self._supporting = find_outputs(self._channels, point)
         self._inputs = find_inputs(self._channels, point)
 
+        for d in self._devices.values():
+            d.load_manifest(self.workbench)
+
+        for s in self._supporting.values():
+            s.load_manifest(self.workbench)
+
         for o in self._outputs.values():
+            # First, make sure that the output is connected to a target. Check
+            # to see if the target is named. If not, then check to see if it
+            # has a parent one can use.
             if o.target is None and o.target_name:
                 self.connect_output(o.name, o.target_name)
+            elif o.target is None and not isinstance(o.parent, Extension):
+                o.parent.add_output(o)
+            elif o.target is None:
+                log.warn('Unconnected output %s', o.name)
             o.load_manifest(self.workbench)
 
         for i in self._inputs.values():
+            # First, make sure the input is connected to a source
             if i.source is None and i.source_name:
                 self.connect_input(i.name, i.source_name)
+            elif i.source is None and not isinstance(i.parent, Extension):
+                i.parent.add_input(i)
+            elif i.source is None:
+                log.warn('Unconnected input %s', i.name)
+
             i.load_manifest(self.workbench)
 
     def connect_output(self, output_name, target_name):
@@ -233,10 +255,11 @@ class BasePlugin(Plugin):
         else:
             m = "Unknown target {}".format(target_name)
             raise ValueError(m)
-        self._outputs[output_name].target = target
 
-        m = 'Connected output {} to target {}'
-        log.debug(m.format(output_name, target_name))
+        o = self._outputs[output_name]
+        target.add_output(o)
+        m = 'Connected output %s to target %s'
+        log.debug(m, output_name, target_name)
 
     def connect_input(self, input_name, source_name):
         if source_name in self._inputs:
@@ -246,10 +269,11 @@ class BasePlugin(Plugin):
         else:
             m = "Unknown source {}".format(source_name)
             raise ValueError(m)
-        self._inputs[input_name].source = source
 
-        m = 'Connected input {} to source {}'
-        log.debug(m.format(input_name, source_name))
+        i = self._inputs[input_name]
+        source.add_input(i)
+        m = 'Connected input %s to source %s'
+        log.debug(m, input_name, source_name)
 
     def _refresh_actions(self, event=None):
         actions = []
@@ -318,7 +342,7 @@ class BasePlugin(Plugin):
         return self._channels[channel_name]
 
     def get_channels(self, mode=None, direction=None, timing=None,
-                     has_children=True):
+                     active=True):
         '''
         Return channels matching criteria across all engines
 
@@ -331,13 +355,13 @@ class BasePlugin(Plugin):
         timing : {None, 'hardware', 'software'}
             Hardware or software-timed channel. Hardware-timed channels have a
             sampling frequency greater than 0.
-        has_children : bool
+        active : bool
             If True, return only channels that have configured inputs or
             outputs.
         '''
         channels = []
         for engine in self._engines.values():
-            ec = engine.get_channels(mode, direction, timing, has_children)
+            ec = engine.get_channels(mode, direction, timing, active)
             channels.extend(ec)
         return channels
 

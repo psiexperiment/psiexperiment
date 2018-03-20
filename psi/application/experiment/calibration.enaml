@@ -25,7 +25,7 @@ from psi.data.plots import (TimeContainer,
                             GroupedEpochAveragePlot,
                             ChannelPlot, ViewBox,
                             FFTContainer,
-                            GroupedFFTEpochPlot)
+                            GroupedEpochFFTPlot)
 
 from psi.data.sinks.epoch_counter import GroupedEpochCounter
 from psi.token.primitives import Chirp
@@ -170,14 +170,15 @@ enamldef ControllerManifest(BaseManifest): manifest:
             span = 1/50.0
 
             ViewBox:
-                y_min = -0.1
-                y_max = 0.1
+                y_min = -2.5
+                y_max = 2.5
                 label = 'Signal (V)'
 
-                GroupedEpochAveragePlot:
+                GroupedEpochAveragePlot: ea_plot:
                     name = 'epoch_average'
                     label = 'Epoch average plot'
                     source_name = 'epoch'
+                    pen_color_cycle = ['r', 'k']
 
         FFTContainer:
             name = 'epoch_fft_container'
@@ -186,11 +187,11 @@ enamldef ControllerManifest(BaseManifest): manifest:
             freq_ub = 50000
 
             ViewBox:
-                y_min = -160
+                y_min = -130
                 y_max = -20
 
-                GroupedFFTEpochPlot:
+                GroupedEpochFFTPlot:
                     name = 'epoch_fft_average'
                     label = 'FFT plot'
                     source_name = 'epoch'
-                    pen_color = (0, 0, 0)
+                    pen_color_cycle := ea_plot.pen_color_cycle

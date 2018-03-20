@@ -18,7 +18,10 @@ class UnorderedContextMeta(ContextMeta):
 
 class OrderedContextMeta(ContextMeta):
 
-    values = d_(Typed(list, ()))
+    values = d_(List())
+
+    def _default_values(self):
+        return []
 
     # TODO: move most of this stuff to the enaml interface
     def set_choice(self, choice, context_item):

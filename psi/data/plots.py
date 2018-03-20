@@ -1,6 +1,7 @@
 import logging
 log = logging.getLogger(__name__)
 
+import itertools
 from functools import partial
 
 import numpy as np
@@ -8,7 +9,7 @@ import pyqtgraph as pg
 
 from atom.api import (Unicode, Float, Tuple, Int, Typed, Property, Atom, Bool,
                       Enum, List, Dict)
-from enaml.core.api import Declarative, d_
+from enaml.core.api import Declarative, d_, d_func
 from enaml.application import deferred_call, timed_call
 
 from psi.core.enaml.api import PSIContribution
@@ -67,7 +68,7 @@ class PlotContainer(PSIContribution):
         container = pg.GraphicsLayout()
         container.setSpacing(10)
 
-        # Add the x and y axes to the layout
+        # Add the x and y axes to the layout, along with the viewbox.
         for i, child in enumerate(self.children):
             container.addItem(child.y_axis, i, 0)
             container.addItem(child.viewbox, i, 1)
@@ -98,7 +99,9 @@ class PlotContainer(PSIContribution):
 
 
 class TimeContainer(PlotContainer):
-
+    '''
+    Contains one or more viewboxes that share the same time-based X-axis
+    '''
     data_range = Typed(ChannelDataRange)
     span = d_(Float(1))
     delay = d_(Float(0.25))
@@ -135,13 +138,17 @@ def format_log_ticks(values, scale, spacing):
 
 
 class FFTContainer(PlotContainer):
-
+    '''
+    Contains one or more viewboxes that share the same frequency-based X-axis
+    '''
     freq_lb = d_(Float(5))
     freq_ub = d_(Float(50000))
 
     def _default_container(self):
         container = super()._default_container()
-        self.base_viewbox.setXRange(np.log10(self.freq_lb), np.log10(self.freq_ub), padding=0)
+        self.base_viewbox.setXRange(np.log10(self.freq_lb),
+                                    np.log10(self.freq_ub),
+                                    padding=0)
         return container
 
     def _default_x_axis(self):
@@ -153,7 +160,7 @@ class FFTContainer(PlotContainer):
 
 
 ################################################################################
-# Plots
+# ViewBox
 ################################################################################
 class CustomGraphicsViewBox(pg.ViewBox):
 
@@ -211,31 +218,27 @@ class ViewBox(PSIContribution):
         viewbox.disableAutoRange()
         viewbox.setYRange(self.y_min, self.y_max)
         for child in self.children:
-            viewbox.addItem(child.plot)
+            for plot in child.get_plots():
+                viewbox.addItem(plot)
         return viewbox
 
     def _update(self, event=None):
         for child in self.children:
             child._update()
 
+    def add_plot(self, plot):
+        self.viewbox.addItem(plot)
 
-class Plot(PSIContribution):
 
-    pen_color = d_(Typed(object))
-    pen_width = d_(Float(0))
-    antialias = d_(Bool(False))
-    label = d_(Unicode())
+################################################################################
+# Plots
+################################################################################
+class BasePlot(PSIContribution):
 
-    pen = Typed(object)
-    plot = Typed(object)
-
+    source_name = d_(Unicode())
+    source = Typed(object)
     update_pending = Bool(False)
-
-    def _default_pen_color(self):
-        return 'k'
-
-    def _default_pen(self):
-        return pg.mkPen(self.pen_color, width=self.pen_width)
+    label = d_(Unicode())
 
     def update(self, event=None):
         if not self.update_pending:
@@ -243,13 +246,29 @@ class Plot(PSIContribution):
             self.update_pending = True
 
     def _update(self, event=None):
-        self.update_pending = False
+        raise NotImplementedError
 
 
-class ChannelPlot(Plot):
+class SinglePlot(BasePlot):
 
-    source_name = d_(Unicode())
-    source = Typed(object)
+    pen_color = d_(Typed(object))
+    pen_width = d_(Float(0))
+    antialias = d_(Bool(False))
+
+    pen = Typed(object)
+    plot = Typed(object)
+
+    def get_plots(self):
+        return [self.plot]
+
+    def _default_pen_color(self):
+        return 'k'
+
+    def _default_pen(self):
+        return pg.mkPen(self.pen_color, width=self.pen_width)
+
+
+class ChannelPlot(SinglePlot):
 
     downsample = Int(0)
     _cached_time = Typed(np.ndarray)
@@ -343,7 +362,7 @@ class FFTChannelPlot(ChannelPlot):
         self.update_pending = False
 
 
-class TimeseriesPlot(Plot):
+class TimeseriesPlot(SinglePlot):
 
     source_name = d_(Unicode())
     rising_event = d_(Unicode())
@@ -439,27 +458,107 @@ class EpochAveragePlot(ChannelPlot):
         return self.source.get_epochs()
 
 
-class EpochGroupMixin(Atom):
+class GroupOverlayMixin(Declarative):
 
-    groups = List()
-    filters = Dict()
+    groups = d_(List())
+    pen_color_cycle = d_(List())
 
-    def _get_epochs(self):
-        return self.source.get_epochs(self.filters)
+    group_names = List()
+    plots = Dict()
+
+    _pen_color_cycle = Typed(object)
+
+    @d_func
+    def get_pen_color(self, key):
+        return next(self._pen_color_cycle)
+
+    def _reset_plots(self):
+        # Clear any existing plots
+        for plot in self.plots.items():
+            self.parent.viewbox.removeItem(plot)
+        self.plots = {}
+
+        # Set up the color cycle
+        self._pen_color_cycle = itertools.cycle(self.pen_color_cycle)
 
     def _observe_groups(self, event):
-        old_filters = self.filters.copy()
-        new_filters = {v.name: v.default for v in self.groups}
-        for k, v in old_filters.items():
-            if k in new_filters:
-                new_filters[k] = v
-        self.filters = new_filters
+        self._reset_plots()
+        self.group_names = [p.name for p in self.groups]
         if self.source is not None:
             self.update()
 
+    def _observe_pen_color_cycle(self, event):
+        self._reset_plots()
 
-class GroupedEpochAveragePlot(EpochGroupMixin, EpochAveragePlot):
-    pass
+    def get_plots(self):
+        return []
+
+    def get_plot(self, key):
+        if key not in self.plots:
+            log.info('Adding plot for key %r', key)
+            pen = pg.mkPen(self.get_pen_color(key))
+            plot = pg.PlotCurveItem(pen=pen)
+            self.parent.viewbox.addItem(plot)
+            self.plots[key] = plot
+        else:
+            plot = self.plots[key]
+        return plot
+
+
+
+class GroupedEpochAveragePlot(BasePlot, GroupOverlayMixin):
+
+    _cached_time = Typed(np.ndarray)
+
+    def _observe_source(self, event):
+        if self.source is None:
+            return
+        self._reset_plots()
+
+        # Set up the new time axis
+        n = int(self.parent.data_range.span*self.source.fs)
+        self._cached_time = np.arange(n)/self.source.fs
+
+        # Subscribe to notifications
+        self.source.observe('added', self.update)
+
+    def _update(self, event=None):
+        epochs = self.source.get_epoch_groups(self.group_names)
+        for key, epoch in epochs.items():
+            plot = self.get_plot(key)
+            y = epoch.mean(axis=0) if len(epoch) \
+                else np.full_like(self._cached_time, np.nan)
+            plot.setData(self._cached_time, y)
+        self.update_pending = False
+
+
+class GroupedEpochFFTPlot(BasePlot, GroupOverlayMixin):
+
+    _cached_frequency = Typed(np.ndarray)
+
+    def _observe_source(self, event):
+        if self.source is None:
+            return
+        self._reset_plots()
+
+        # Cache the frequency points. Must be in units of log for PyQtGraph.
+        # TODO: This could be a utility function stored in the parent?
+        n_time = int(self.source.fs * self.source.epoch_size)
+        freq = np.fft.rfftfreq(n_time, self.source.fs**-1)
+        self._cached_frequency = np.log10(freq)
+
+        # Subscribe to notifications
+        self.source.observe('added', self.update)
+
+    def _update(self, event=None):
+        epochs = self.source.get_epoch_groups(self.group_names)
+        for key, epoch in epochs.items():
+            plot = self.get_plot(key)
+            y = epoch.mean(axis=0) if len(epoch) \
+                else np.full_like(self._cached_frequency, np.nan)
+            psd = util.db(util.psd(y, self.source.fs))
+            plot.setData(self._cached_frequency, psd)
+        self.update_pending = False
 
 
 class FFTEpochPlot(ChannelPlot):
@@ -492,7 +591,3 @@ class FFTEpochPlot(ChannelPlot):
             psd = np.full_like(self._cached_frequency, np.nan)
         self.plot.setData(self._cached_frequency, psd)
         self.update_pending = False
-
-
-class GroupedFFTEpochPlot(EpochGroupMixin, FFTEpochPlot):
-    pass

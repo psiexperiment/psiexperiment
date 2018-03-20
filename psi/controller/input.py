@@ -8,8 +8,8 @@ import numpy as np
 from scipy import signal
 
 from atom.api import (Unicode, Float, Typed, Int, Property, Enum, Bool,
-                      Callable)
-from enaml.core.api import d_
+                      Callable, List)
+from enaml.core.api import Declarative, d_
 from enaml.workbench.api import Extension
 
 from ..util import coroutine
@@ -32,46 +32,51 @@ def broadcast(*targets):
 class Input(PSIContribution):
 
     name = d_(Unicode()).tag(metadata=True)
-    source_name = d_(Unicode())
-    save = d_(Bool(False)).tag(metadata=True)
+    label = d_(Unicode()).tag(metadata=True)
 
-    source = d_(Property().tag(metadata=True))
+    source_name = d_(Unicode())
+    source = Typed(Declarative).tag(metadata=True)
     channel = Property()
     engine = Property()
 
     fs = Property().tag(metadata=True)
     dtype = Property().tag(metadata=True)
-    label = Property().tag(metadata=True)
     unit = Property().tag(metadata=True)
+    save = d_(Bool(False)).tag(metadata=True)
 
-    def _get_source(self):
-        if isinstance(self.parent, Extension):
-            return None
-        return self.parent
+    inputs = List()
 
-    def _set_source(self, source):
-        self.set_parent(source)
-        self.source_name = source.name
+    def _default_label(self):
+        return self.name.replace('_', ' ')
+
+    def add_input(self, i):
+        if i in self.inputs:
+            return
+        self.inputs.append(i)
+        i.source = self
+
+    def remove_input(self, i):
+        if i not in self.inputs:
+            return
+        self.inputs.remove(i)
+        i.source = None
 
     def _get_fs(self):
-        return self.parent.fs
+        return self.source.fs
 
     def _get_dtype(self):
-        return self.parent.dtype
-
-    def _get_label(self):
-        return self.parent.label
+        return self.source.dtype
 
     def _get_unit(self):
-        return self.parent.unit
+        return self.source.unit
 
     def _get_channel(self):
-        parent = self.parent
+        source = self.source
         while True:
-            if isinstance(parent, Channel):
-                return parent
+            if isinstance(source, Channel):
+                return source
             else:
-                parent = parent.parent
+                source = source.source
 
     def _get_engine(self):
         return self.channel.engine
@@ -88,7 +93,7 @@ class Input(PSIContribution):
         Subclasses should be sure to invoke this via super().
         '''
         log.debug('Configuring callback for {}'.format(self.name))
-        targets = [c.configure_callback(plugin) for c in self.children]
+        targets = [c.configure_callback(plugin) for c in self.inputs]
 
         if plugin is not None:
             targets.append(self.get_plugin_callback(plugin))
@@ -103,7 +108,8 @@ class Input(PSIContribution):
         return lambda data: plugin.invoke_actions(action, data=data)
 
     def add_callback(self, cb):
-        callback = Callback(parent=self, function=cb)
+        callback = Callback(function=cb)
+        self.add_input(callback)
 
 
 class ContinuousInput(Input):
@@ -245,7 +251,9 @@ def blocked(block_size, target):
 
 
 class Blocked(ContinuousInput):
-
+    '''
+    Chunk data based on time
+    '''
     duration = d_(Float()).tag(metadata=True)
 
     def configure_callback(self, plugin):
@@ -267,13 +275,176 @@ def accumulate(n, axis, target):
 
 
 class Accumulate(ContinuousInput):
-
+    '''
+    Chunk data based on number of calls
+    '''
     n = d_(Int()).tag(metadata=True)
     axis = d_(Int(-1)).tag(metadata=True)
 
     def configure_callback(self, plugin):
         cb = super().configure_callback(plugin)
         return accumulate(self.n, self.axis, cb).send
+
+
+@coroutine
+def capture_epoch(epoch_t0, epoch_samples, info, callback):
+    '''
+    Coroutine to facilitate epoch acquisition
+    '''
+    # This coroutine will continue until it acquires all the samples it needs.
+    # It then provides the samples to the callback function and exits the while
+    # loop.
+    accumulated_data = []
+
+    while True:
+        tlb, data = (yield)
+        samples = data.shape[-1]
+
+        if epoch_t0 < tlb:
+            # We have missed the start of the epoch. Notify the callback of this
+            m = 'Missed samples for epoch of %d samples starting at %d'
+            log.warn(m, start, epoch_samples)
+            callback({'signal': None, 'info': info})
+            break
+
+        elif epoch_t0 <= (tlb + samples):
+            # The start of the epoch is somewhere inside `data`. Find the start
+            # `i` and determine how many samples `d` to extract from `data`.
+            # It's possible that data does not contain the entire epoch. In
+            # that case, we just pull out what we can and save it in
+            # `accumulated_data`. We then update start to point to the last
+            # acquired sample `i+d` and update duration to be the number of
+            # samples we still need to capture.
+            i = int(epoch_t0-tlb)
+            d = int(min(epoch_samples, samples-i))
+            accumulated_data.append(data[..., i:i+d])
+            epoch_t0 += d
+            epoch_samples -= d
+
+            # Check to see if we've finished acquiring the entire epoch. If so,
+            # send it to the callback. 
+            if epoch_samples == 0:
+                accumulated_data = np.concatenate(accumulated_data, axis=-1)
+                callback({'signal': accumulated_data, 'info': info})
+                break
+
+
+@coroutine
+def extract_epochs(fs, queue, epoch_size, buffer_size, epoch_name, target,
+                   empty_queue_cb=None):
+
+    # The variable `tlb` tracks the number of samples that have been acquired
+    # and reflects the lower bound of `data`. For example, if we have acquired
+    # 300,000 samples, then the next chunk of data received from (yield) will
+    # start at sample 300,000 (remember that Python is zero-based indexing, so
+    # the first sample has an index of 0).
+    tlb = 0
+    epoch_coroutines = []
+    prior_samples = []
+
+    # How much historical data to keep (for retroactively capturing epochs)
+    buffer_samples = int(buffer_size*fs)
+
+    trial_index = 0
+
+    # Since we may capture very short, rapidly occuring epochs (at, say, 80 per
+    # second), I find it best to accumulate as many epochs as possible before
+    # calling the next target. This list will maintain the accumulated set.
+    epochs = []
+
+    while True:
+        # Wait for new data to become available
+        data = (yield)
+
+        # Check to see if more epochs have been requested. Information will be
+        # provided in seconds, but we need to convert this to number of
+        # samples.
+        while trial_index < len(queue.uploaded):
+            info = queue.uploaded[trial_index]
+            trial_index += 1
+
+            # Figure out how many samples to capture for that epoch
+            t0 = int(info['t0'] * fs)
+            if epoch_size:
+                epoch_samples = int(epoch_size * fs)
+            else:
+                epoch_samples = int(info['duration'] * fs)
+
+            epoch_coroutine = capture_epoch(t0, epoch_samples, info,
+                                            epochs.append)
+
+            try:
+                # Go through the data we've been caching to facilitate
+                # historical acquisition of data. If this completes without a
+                # StopIteration, then we have not finished capturing the full
+                # epoch.
+                for prior_sample in prior_samples:
+                    epoch_coroutine.send(prior_sample)
+                epoch_coroutines.append(epoch_coroutine)
+            except StopIteration:
+                pass
+
+        # Send the data to each coroutine. If a StopIteration occurs, this means
+        # that the epoch has successfully been acquired and has been sent to the
+        # callback and we can remove it. Need to operate on a copy of list since
+        # it's bad form to modify a list in-place.
+        for epoch_coroutine in epoch_coroutines[:]:
+            try:
+                epoch_coroutine.send((tlb, data))
+            except StopIteration:
+                epoch_coroutines.remove(epoch_coroutine)
+
+        prior_samples.append((tlb, data))
+        tlb = tlb + data.shape[-1]
+
+        # Once the new segment of data has been processed, pass all complete
+        # epochs along to the next target.
+        if len(epochs) != 0:
+            target(epochs[:])
+            epochs[:] = []
+
+        # Check to see if any of the cached samples are older than the specified
+        # `buffer_samples` and discard them.
+        while True:
+            oldest_samples = prior_samples[0]
+            tub = oldest_samples[0] + oldest_samples[1].shape[-1]
+            if tub < (tlb-buffer_samples):
+                prior_samples.pop(0)
+            else:
+                break
+
+        # Check to see if any more epochs are pending
+        if queue.is_empty() and \
+                (len(epoch_coroutines) == 0) and \
+                (trial_index == len(queue.uploaded)) and \
+                empty_queue_cb is not None:
+            empty_queue_cb()
+
+
+#def capture(queue, target):
+#    t0 = 0
+#    next_offset = None
+#    active = True
+#
+#    while True:
+#        data = (yield)
+#        t0 += data.shape[-1]
+#
+#        if next_offset is None:
+#            next_offset = queue.popleft()
+#
+#        if next_offset is not None:
+#            if t0 >= next_offset:
+#                i = t0-next_offset
+#
+#
+#
+#        if t0 >= next_offset
+
+
+
+class Capture(ContinuousInput):
+    pass
 
 
 @coroutine
@@ -399,6 +570,29 @@ class Average(ContinuousInput):
         return average(self.n, cb).send
 
 
+@coroutine
+def delay(n, target):
+    data = np.full(n, np.nan)
+    while True:
+        target(data)
+        data = (yield)
+
+
+class Delay(ContinuousInput):
+
+    # This can be set to account for things such as the AO and AI filter delays
+    # on the 4461. For AO at 100 kHz, the output delay is ~0.48 msec. For the
+    # AI at 25e-3, the input delay is 63 samples (divide this by the
+    # acquisition rate).
+    delay = d_(Float(0)).tag(metadata=True)
+
+
+    def configure_callback(self, plugin):
+        cb = super().configure_callback(plugin)
+        n = int(self.delay * self.fs)
+        return delay(n, cb).send
+
+
 ################################################################################
 # Event input types
 ################################################################################
@@ -416,7 +610,7 @@ class Edges(EventInput):
 # Epoch input types
 ################################################################################
 @coroutine
-def extract_epochs(fs, queue, epoch_size, buffer_size, delay, epoch_name,
+def old_extract_epochs(fs, queue, epoch_size, buffer_size, delay, epoch_name,
                    target, empty_queue_cb=None):
     buffer_samples = int(buffer_size*fs)
     delay_samples = int(delay*fs)
@@ -432,6 +626,8 @@ def extract_epochs(fs, queue, epoch_size, buffer_size, delay, epoch_name,
     # subtract buffer_samples from t_end,
     t_end = -delay_samples
 
+    trial_index = 0
+
     while True:
         # Newest data is always stored at the end of the ring buffer. To make
         # room, we discard samples from the beginning of the buffer.
@@ -443,9 +639,12 @@ def extract_epochs(fs, queue, epoch_size, buffer_size, delay, epoch_name,
         # Loop until all epochs have been extracted from buffered data.
         epochs = []
         while True:
-            if (next_offset is None) and len(queue) > 0:
-                offset, signal_size, key, metadata = queue.popleft()
-                next_offset = int(offset*fs)
+            if next_offset is None and (len(queue.uploaded) > trial_index):
+                info = queue.uploaded[trial_index]
+                next_offset = int(info['t0']*fs)
+                signal_size = info['duration']
+                trial_index += 1
+
                 log.trace('Next offset %d, current t_end %d', next_offset, t_end)
                 if epoch_size > 0:
                     epoch_samples = int(epoch_size*fs)
@@ -465,18 +664,17 @@ def extract_epochs(fs, queue, epoch_size, buffer_size, delay, epoch_name,
                 # want to index from, say, -10 to -0. This will result in odd
                 # behavior.
                 i = next_offset-t_end+buffer_samples
-                if metadata is not None:
-                    md = metadata.copy()
+                if info['metadata'] is not None:
+                    md = info['metadata'].copy()
+                    md[epoch_name + '_start'] = info['t0']
                 else:
                     md = {}
 
-                md[epoch_name + '_start'] = offset
-
                 epoch = {
                     'signal': ring_buffer[..., i:i+epoch_samples].copy(),
-                    'key': key,
+                    'key': info['key'],
+                    'offset': info['t0'],
                     'metadata': md,
-                    'offset': offset,
                 }
                 epochs.append(epoch)
                 next_offset = None
@@ -484,26 +682,18 @@ def extract_epochs(fs, queue, epoch_size, buffer_size, delay, epoch_name,
         if len(epochs) != 0:
             target(epochs)
 
-        if (next_offset is None) and (len(queue) == 0):
+        data = (yield)
+
+        if queue.is_empty() and (trial_index == len(queue.uploaded)):
             if empty_queue_cb is not None:
                 empty_queue_cb()
-
-        data = (yield)
 
 
 class ExtractEpochs(EpochInput):
 
-    _cb_queue = Typed(object)
-
     queue = d_(Typed(AbstractSignalQueue))
     buffer_size = d_(Float(30)).tag(metadata=True)
-    epoch_size = d_(Float(8.5e-3)).tag(metadata=True)
-
-    # This can be set to account for things such as the AO and AI filter delays
-    # on the 4461. For AO at 100 kHz, the output delay is ~0.48 msec. For the
-    # AI at 25e-3, the input delay is 63 samples (divide this by the
-    # acquisition rate).
-    delay = d_(Float(0)).tag(metadata=True)
+    epoch_size = d_(Float(0)).tag(metadata=True)
 
     complete = Bool(False)
 
@@ -511,6 +701,13 @@ class ExtractEpochs(EpochInput):
         self.complete = True
 
     def configure_callback(self, plugin=None):
+        # If the epoch size is not set, set it to the maximum token duration
+        # found in the queue. Note that this will fail if 
+        if self.epoch_size <= 0:
+            self.epoch_size = self.queue.get_max_duration()
+        if not np.isfinite(self.epoch_size):
+                raise SystemError('Cannot have an infinite epoch size')
+
         if plugin is not None:
             def empty_queue_cb(plugin=plugin, input=self):
                 plugin.invoke_actions(input.name + '_queue_empty')
@@ -519,9 +716,8 @@ class ExtractEpochs(EpochInput):
             empty_queue_cb = self.mark_complete
 
         cb = super().configure_callback(plugin)
-        self._cb_queue = self.queue.create_connection()
-        return extract_epochs(self.fs, self._cb_queue, self.epoch_size,
-                              self.buffer_size, self.delay, self.name, cb,
+        return extract_epochs(self.fs, self.queue, self.epoch_size,
+                              self.buffer_size, self.name, cb,
                               empty_queue_cb).send
 
 

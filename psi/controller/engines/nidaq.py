@@ -568,6 +568,7 @@ class NIDAQEngine(Engine):
         # the analog output signal (i.e., when the analog output starts, the
         # analog input begins acquiring such that sample 0 of the input
         # corresponds with sample 0 of the output).
+
         # TODO: eventually we should be able to inspect the  'start_trigger'
         # property on the channel configuration to decide the order in which the
         # tasks are started.
@@ -896,6 +897,13 @@ class NIDAQEngine(Engine):
         log.trace('Updating hw ao at {} with {} samples'.format(offset, samples))
         data = self._get_hw_ao_samples(offset, samples)
         self.write_hw_ao(data, offset=offset, timeout=0)
+
+    def update_hw_ao_multiple(self, offsets, channel_names, method):
+        # This is really simple to implement since we have to update all
+        # channels at once. So, we just pick the minimum offset and let
+        # `update_hw_ao` do the work.
+        offset = min(offsets)
+        self.update_hw_ao(offset, None, method)
 
     def ao_write_position(self):
         task = self._tasks['hw_ao']

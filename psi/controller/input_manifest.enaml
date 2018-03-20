@@ -1,13 +1,20 @@
+from functools import partial
+
+import numpy as np
+
 from atom.api import Property
 from enaml.core.api import Conditional
 from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
 from enaml.widgets.api import DockItem, Container, Label, Form
 
 from .device_manifest import DeviceManifest
 from .experiment_action import ExperimentEvent, ExperimentAction
 
+from psi.context.api import Parameter, ContextGroup
 from psi.core.enaml.api import PSIManifest
 from psi.util import declarative_to_dict
+
 
 def get_metadata(contribution):
     return declarative_to_dict(contribution, 'metadata')
@@ -36,11 +43,27 @@ enamldef ContinuousInputManifest(InputManifest): manifest:
                 event = 'experiment_prepare'
                 command = 'psi.data.create_ai_continuous'
                 kwargs = get_metadata(manifest.contribution)
+                weight = 90
 
             ExperimentAction:
                 event = manifest.contribution.name + '_acquired'
                 command = 'psi.data.process_ai_continuous'
                 kwargs = {'name': manifest.contribution.name}
+
+
+def capture_start(contribution, event):
+    print('event here', event)
+
+
+enamldef CaptureManifest(ContinuousInputManifest): manifest:
+
+    Extension:
+        id = 'capture_commands.' + manifest.contribution.name
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = manifest.contribution.name + '.start'
+            handler = partial(capture_start, manifest.contribution)
 
 
 enamldef EventInputManifest(InputManifest): manifest:
@@ -57,6 +80,7 @@ enamldef EpochInputManifest(InputManifest): manifest:
             event = 'experiment_prepare'
             command = 'psi.data.create_ai_epochs'
             kwargs = get_metadata(manifest.contribution)
+            weight = 90
 
         ExperimentAction:
             event = manifest.contribution.name + '_acquired'

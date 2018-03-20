@@ -7,6 +7,8 @@ from collections import Counter
 from ..sink import Sink
 import numpy as np
 
+import pandas as pd
+
 from atom.api import Atom, Float, Property, Event, Typed, Bool
 
 
@@ -236,12 +238,29 @@ class EpochDataChannel(DataChannel):
         return threading.Lock()
 
     def append(self, data):
-        epochs = [d['signal'] for d in data]
-        metadata = [d['metadata'] for d in data]
+        epochs = []
+        metadata = []
+        for d in data:
+            epochs.append(d['signal'])
+            md = d['info']['metadata'].copy()
+            md['t0'] = d['info']['t0']
+            md['duration'] = d['info']['duration']
+            metadata.append(md)
+
         with self.lock:
             self.data.append(epochs)
             self.metadata.extend(metadata)
         self.added = data
+
+    def get_epoch_groups(self, groups):
+        if len(self.data) == 0:
+            return {}
+        metadata = pd.DataFrame(self.metadata)
+        epochs = {}
+        for keys, df in metadata.groupby(groups):
+            i = df.index.values.astype(np.int32)
+            epochs[keys] = self.data[i]
+        return epochs
 
     def get_epochs(self, filters=None):
         if len(self.data) == 0:

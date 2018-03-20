@@ -13,6 +13,18 @@ from ..util import copy_declarative
 from .channel import Channel, AIChannel, AOChannel, DIChannel, DOChannel
 
 
+def log_configuration(engine):
+    log.info('Engine {}'.format(engine.name))
+    for channel in engine.get_channels(direction='input', active=True):
+        log.info('\t channel {}'.format(channel.name))
+        for i in channel.inputs:
+            log.info('\t\t input {}'.format(i.name))
+    for channel in engine.get_channels(direction='output', active=True):
+        log.info('\t channel {}'.format(channel.name))
+        for o in channel.outputs:
+            log.info('\t\t output {}'.format(o.name))
+
+
 class Engine(Declarative):
 
     name = d_(Unicode()).tag(metadata=True)
@@ -23,7 +35,7 @@ class Engine(Declarative):
         return threading.Lock()
 
     def get_channels(self, mode=None, direction=None, timing=None,
-                     has_children=True):
+                     active=True):
         '''
         Return channels matching criteria
 
@@ -36,14 +48,14 @@ class Engine(Declarative):
         timing : {None, 'hardware', 'software'}
             Hardware or software-timed channel. Hardware-timed channels have a
             sampling frequency greater than 0.
-        has_children : bool
+        active : bool
             If True, return only channels that have configured inputs or
             outputs.
         '''
         channels = [c for c in self.children if isinstance(c, Channel)]
 
-        if has_children:
-            channels = [c for c in channels if len(c.children)]
+        if active:
+            channels = [c for c in channels if c.active]
 
         if timing is not None:
             if timing in ('hardware', 'hw'):
@@ -74,7 +86,7 @@ class Engine(Declarative):
         return tuple(channels)
 
     def get_channel(self, channel_name):
-        channels = self.get_channels(has_children=False)
+        channels = self.get_channels(active=False)
         for channel in channels:
             if channel.name == channel_name:
                 return channel
@@ -85,6 +97,7 @@ class Engine(Declarative):
         channel.set_parent(None)
 
     def configure(self, plugin=None):
+        log_configuration(self)
         for channel in self.get_channels():
             log.debug('Configuring channel {}'.format(channel.name))
             channel.configure(plugin)

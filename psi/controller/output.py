@@ -6,7 +6,7 @@ from functools import partial
 
 import numpy as np
 
-from atom.api import (Unicode, Enum, Typed, Property, Float, Int, Bool)
+from atom.api import (Unicode, Enum, Typed, Property, Float, Int, Bool, List)
 
 from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
@@ -31,45 +31,35 @@ class Synchronized(PSIContribution):
 
 class Output(PSIContribution):
 
-    target_name = d_(Unicode())
+    name = d_(Unicode()).tag(metadata=True)
+    label = d_(Unicode()).tag(metadata=True)
 
+    target_name = d_(Unicode())
+    target = Typed(Declarative).tag(metadata=True)
     channel = Property()
-    target = Property()
     engine = Property()
 
     # These two are defined as properties because it's theoretically possible
     # for the output to transform these (e.g., an output could upsample
     # children or "equalize" something before passing it along).
-    fs = Property()
-    calibration = Property()
+    fs = Property().tag(metadata=True)
+    calibration = Property().tag(metadata=True)
 
     # TODO: clean this up. it's sort of hackish.
     token_name = d_(Unicode())
     token = Typed(Declarative)
 
-    def _observe_parent(self, event):
-        self.target_name = event['value'].name
-
-    def _get_target(self):
-        from .channel import OutputChannel
-        if not isinstance(self.parent, OutputChannel):
-            return None
-        return self.parent
-
-    def _set_target(self, target):
-        self.set_parent(target)
-
     def _get_engine(self):
-        return self.channel.parent
+        return self.channel.engine
 
     def _get_channel(self):
         from .channel import Channel
-        parent = self.parent
+        target = self.target
         while True:
-            if isinstance(parent, Channel):
-                return parent
+            if isinstance(target, Channel):
+                return target
             else:
-                parent = parent.parent
+                target = target.target
 
     def _get_fs(self):
         return self.channel.fs
@@ -97,8 +87,8 @@ class AnalogOutput(Output):
         # token generation)? I need to think about this because one caveat is
         # that we need to deal with stuff like QueuedEpochutput. This seems
         # like a reasonably sensible place to handle caching for now.
-        log.debug('Requested {} samples at {} for {}' \
-                  .format(samples, offset, self.name))
+        log.trace('Requested %d samples at %d for %s', samples, offset,
+                  self.name)
         if out is None:
             out = np.empty(samples, dtype=np.double)
         buffer_size = self._buffer.size

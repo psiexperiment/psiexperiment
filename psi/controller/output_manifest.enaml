@@ -97,13 +97,15 @@ def set_output_queue(event, output):
     output.queue = queue_class(output.fs)
 
 
-def prepare_synchronized_outputs(event, outputs):
-    for output in outputs:
+def prepare_synchronized(synchronized, event):
+    log.debug('Preparing synchronized %s', synchronized.name)
+    for output in synchronized.outputs:
         prepare_output(event, output)
 
 
-def start_synchronized_outputs(event, outputs):
-    for output in outputs:
+def start_synchronized(synchronized, event):
+    log.debug('Starting synchronized %s', synchronized.name)
+    for output in synchronized.outputs:
         if output.factory is None:
             log.warn('Output %s was not prepared', output.name)
             prepare_output(event, output)
@@ -114,27 +116,27 @@ def start_synchronized_outputs(event, outputs):
 
     # For each engine involved in this synchronized output, store a list of the
     # offsets and channel names that need to be updated.
-    engines = set(output.engine for output in outputs)
-    update_settings = {e: {'offsets': [], 'delays': []} for e in engines}
+    engines = set(output.engine for output in synchronized.outputs)
+    settings = {e: {'offsets': [], 'channel_names': []} for e in engines}
 
     # First, lock all engines involved to avoid race conditions
+    log.debug('Locking all engines')
     for engine in engines:
         engine.lock.acquire()
 
     # Activate the outputs
-    for output in outputs:
+    for output in synchronized.outputs:
         offset = int((start+delay)*output.channel.fs)
-        log.debug('Starting output {}'.format(output))
+        log.debug('Starting output %s', output.name)
         output.activate(offset)
 
-        setting = update_settings[output.engine]
+        setting = settings[output.engine]
         setting['offsets'].append(offset)
         setting['channel_names'].append(output.channel.name)
 
     # Tell the engines to update the waveform
-    for engine, setting in update_settings.items():
-        #engine.update_hw_ao_multiple(**setting, method='write_position')
-        pass
+    for engine, setting in settings.items():
+        engine.update_hw_ao_multiple(method='write_position', **setting)
 
     # Finally, release the lock.
     for engine in engines:
@@ -161,8 +163,6 @@ def start_output(event, output):
 
     controller = event.workbench.get_plugin('psi.controller')
     controller.invoke_actions('{}_start'.format(output.name), start+delay)
-    print(output.duration)
-    print(output.get_duration())
     if output.duration is not np.inf:
         controller.invoke_actions('{}_end'.format(output.name),
                                   start+delay+output.duration, delayed=True)
@@ -200,19 +200,17 @@ def decrement_key(event, output):
 
 
 
-enamldef SynchronizedOutputsManifest(PSIManifest): manifest:
+enamldef SynchronizedManifest(PSIManifest): manifest:
 
     Extension:
         id = 'output_commands'
         point = 'enaml.workbench.core.commands'
         Command:
             id = manifest.contribution.name + '.prepare'
-            handler = partial(prepare_synchronized_outputs,
-                              output=manifest.contribution)
+            handler = partial(prepare_synchronized, manifest.contribution)
         Command:
             id = manifest.contribution.name + '.start'
-            handler = partial(start_synchronized_outputs,
-                              output=manifest.contribution)
+            handler = partial(start_synchronized, manifest.contribution)
 
 
 enamldef AnalogOutputManifest(PSIManifest): manifest:

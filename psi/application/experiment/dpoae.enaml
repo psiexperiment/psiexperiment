@@ -117,7 +117,7 @@ class DPOAEController(BasePlugin):
 
         self.core.invoke_command('dpoae.prepare')
 
-        parameters = {'timestamp': self.get_ts(), 'delay': 0.5}
+        parameters = {'timestamp': self.get_ts(), 'delay': 1.0}
         self.core.invoke_command('dpoae.start', parameters=parameters)
 
     def segment_acquired(self, segment):

@@ -15,10 +15,16 @@ def rpc(plugin_name, method_name):
     return wrapper
 
 
-def get_tagged_values(obj, tag_name, tag_value=True):
+def get_tagged_values(obj, tag_name, tag_value=True, exclude_properties=False):
     result = {}
+    if exclude_properties:
+        match = lambda m: m.metadata and m.metadata.get(tag_name) == tag_value \
+            and not hasattr(member, 'getattr')
+    else:
+        match = lambda m: m.metadata and m.metadata.get(tag_name) == tag_value
+
     for name, member in obj.members().items():
-        if member.metadata and member.metadata.get(tag_name) == tag_value:
+        if match(member):
             value = getattr(obj, name)
             result[name] = value
     return result
@@ -53,7 +59,7 @@ def coroutine(func):
 
 
 def copy_declarative(old, **kw):
-    attributes = get_tagged_values(old, 'metadata')
+    attributes = get_tagged_values(old, 'metadata', exclude_properties=True)
     attributes.update(kw)
     new = old.__class__(**attributes)
     return new
