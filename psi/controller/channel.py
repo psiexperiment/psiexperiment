@@ -128,6 +128,8 @@ class AOChannel(OutputChannel):
 
 
 class NIDAQAOChannel(AOChannel):
+    # TODO: Move this to the engines folder since this is specific to the NIDAQ
+    # engine.
 
     filter_delay = Property().tag(metadata=True)
 
@@ -149,7 +151,6 @@ class NIDAQAOChannel(AOChannel):
     ])
 
     def _get_filter_delay(self):
-        print('getting filter delay')
         i = np.flatnonzero(self.fs > self.FILTER_DELAY[:, 0])[-1]
         return self.FILTER_DELAY[i, 1]
 

@@ -158,13 +158,19 @@ class QueuedEpochOutput(EpochOutput):
     queue = d_(Typed(AbstractSignalQueue))
     auto_decrement = d_(Bool(False))
     complete_cb = Typed(object)
+    active = d_(Bool(True))
 
     def get_next_samples(self, samples):
-        log.debug('Getting samples from queue')
-        samples, empty = self.queue.pop_buffer(samples, self.auto_decrement)
-        if empty and self.complete_cb is not None:
-            deferred_call(self.complete_cb)
-        return samples
+        if self.active:
+            waveform, empty = self.queue.pop_buffer(samples, self.auto_decrement)
+            if empty and self.complete_cb is not None:
+                print(self.complete_cb)
+                log.debug('Queue empty. Calling complete callback.')
+                deferred_call(self.complete_cb)
+                self.active = False
+        else:
+            waveform = np.zeros(samples, dtype=np.double)
+        return waveform
 
 
 class ContinuousOutput(AnalogOutput):

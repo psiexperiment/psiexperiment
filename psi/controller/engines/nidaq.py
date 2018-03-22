@@ -997,6 +997,8 @@ class NIDAQEngine(Engine):
         # without having to restart; however, this will require some thought as
         # to the optimal way to do this. For now, we just clear everything.
         # Configuration is generally fairly quick.
+        if not self._configured:
+            return
         log.debug('Stopping engine')
         for task in self._tasks.values():
             mx.DAQmxClearTask(task)

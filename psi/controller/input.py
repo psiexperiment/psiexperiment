@@ -688,7 +688,13 @@ def old_extract_epochs(fs, queue, epoch_size, buffer_size, delay, epoch_name,
 
         if queue.is_empty() and (trial_index == len(queue.uploaded)):
             if empty_queue_cb is not None:
+                # TODO: What if queue becomes reactivated? This is an edge-case
+                # we need not worry about for now.
+                # Invoke callback and then set it to none (so we don't keep
+                # retriggering it each time data is pushed through the input
+                # pipeline).
                 empty_queue_cb()
+                empty_queue_cb = None
 
 
 class ExtractEpochs(EpochInput):
