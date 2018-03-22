@@ -9,23 +9,36 @@ from enaml.workbench.api import Extension
 from psi.context.api import ContextGroup, Parameter
 from psi.context.selector import CartesianProduct
 from psi.controller.api import ExperimentAction
+from psi.controller.base_plugin import BasePlugin
 from psi.controller.base_manifest import BaseManifest
 from psi.controller.input import (ContinuousInput, ExtractEpochs, Input,
                                   Blocked, Accumulate, RejectEpochs, IIRFilter,
-                                  Decimate)
+                                  Decimate, RMS)
 from psi.controller.output import QueuedEpochOutput, EpochOutput
 from psi.controller.queue import InterleavedFIFOSignalQueue
 
 from psi.util import copy_declarative
 
 from psi.data.plots import (TimeContainer, ChannelPlot,
-                            GroupedEpochAveragePlot, ChannelPlot, ViewBox)
+                            StackedEpochAveragePlot, ChannelPlot, ViewBox)
+
 from psi.data.sinks.epoch_counter import GroupedEpochCounter
 
 from psi.token.primitives import Cos2Envelope, Tone, BandlimitedNoise
 
 
+class ABRController(BasePlugin):
+
+    def start_experiment(self):
+        super().start_experiment()
+        self.context.next_setting(save_prior=False)
+        threshold = self.context.get_value('reject_threshold')
+        self.set_input_attr('valid_erp', 'threshold', threshold)
+
+
 enamldef ControllerManifest(BaseManifest): manifest:
+
+    factory = ABRController
 
     Extension:
         id = 'tokens'
@@ -45,13 +58,19 @@ enamldef ControllerManifest(BaseManifest): manifest:
         ContinuousInput:
             name = 'microphone'
             source_name = 'microphone_channel'
-            IIRFilter:
-                name = 'microphone_filtered'
-                N = 2
-                btype = 'highpass'
-                ftype = 'butter'
-                f_highpass = 250
-                save = True
+            save = True
+
+            #IIRFilter:
+            #    N = 2
+            #    name = 'microphone_filtered'
+            #    btype = 'highpass'
+            #    ftype = 'butter'
+            #    f_highpass = 250
+
+            #    RMS:
+            #        name = 'microphone_rms'
+            #        duration = 5e-3
+            #        save = True
 
         QueuedEpochOutput: output:
             name = 'target'
@@ -71,7 +90,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
             duration = 0.1
             name = 'eeg'
             save = True
-            source_name = 'eeg_channel'
+            source_name = 'microphone_channel'
 
             Accumulate:
                 name = 'eeg_buffered'
@@ -89,12 +108,28 @@ enamldef ControllerManifest(BaseManifest): manifest:
                         save = True
                         buffer_size = 50
                         queue = output.queue
-                        delay = 47.5/extract.fs
+                        epoch_size = 8.5e-3
                         name = 'erp'
 
                         RejectEpochs:
                             save = True
                             name = 'valid_erp'
+                            threshold = 2.5
+
+    Extension:
+        id = 'context'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'abr'
+            label = 'ABR settings'
+
+            Parameter:
+                name = 'reject_threshold'
+                label = 'Reject threshold'
+                compact_label = 'Th'
+                default = 2.5
+                scope = 'experiment'
 
     Extension:
         id = 'selectors'
@@ -121,10 +156,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 'max_thd': 2,
                 'min_snr': 6,
             }
-
-        ExperimentAction:
-            event = 'erp_acquired'
-            command = 'psi.controller.save_epoch_as_trial'
 
         ExperimentAction:
             event = 'valid_erp_acquired'
@@ -157,7 +188,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 y_max = 0.1
                 label = 'Signal (V)'
 
-                GroupedEpochAveragePlot:
+                StackedEpochAveragePlot:
                     name = 'erp_average'
                     label = 'ERP average plot'
                     source_name = 'valid_erp'
@@ -166,6 +197,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
             name = 'trial_plot_container'
             label = 'Trial timing'
             span = 2
+            delay = 1
 
             ViewBox:
                 name = 'ecg_view'
@@ -176,11 +208,12 @@ enamldef ControllerManifest(BaseManifest): manifest:
                     pen_color = 'k'
                     source_name = 'ecg'
 
-            ViewBox:
-                name = 'microphone_view'
-                y_min = -0.1
-                y_max = 0.1
+            #ViewBox:
+            #    name = 'microphone_view'
+            #    y_min = 0
+            #    y_max = 0.1
+            #    y_mode = 'upper'
 
-                ChannelPlot:
-                    pen_color = 'r'
-                    source_name = 'microphone_filtered'
+            #    ChannelPlot:
+            #        pen_color = 'k'
+            #        source_name = 'microphone_rms'

@@ -111,20 +111,6 @@ def tone_calibrate_channel(event):
     data.create_table(name, result)
 
 
-def save_epoch_as_trial(event):
-    '''
-    Saves captured epochs as a trial
-    '''
-    # TODO: This is a bit brittle. Each epoch should have their own trial log.
-    core = event.workbench.get_plugin('enaml.workbench.core')
-    metadata = []
-    for epoch in event.parameters['data']:
-        m = epoch['metadata'].copy()
-        metadata.append(m)
-    parameters = {'results': metadata}
-    core.invoke_command('psi.data.process_trials', parameters)
-
-
 enamldef BaseManifest(PluginManifest): manifest:
     '''
     Defines the core functionality that most controller plugins will share
@@ -181,9 +167,6 @@ enamldef BaseManifest(PluginManifest): manifest:
         Command:
             id = 'psi.controller.tone_calibrate_channel'
             handler = tone_calibrate_channel
-        Command:
-            id = 'psi.controller.save_epoch_as_trial'
-            handler = save_epoch_as_trial
 
     # Uses unicode symbols as icons for sake of simplicity.
     Extension:
