@@ -87,3 +87,7 @@ enamldef GroupedEpochAveragePlotManifest(GroupMixin):
 
 enamldef GroupedEpochFFTPlotManifest(GroupMixin):
     pass
+
+
+enamldef StackedEpochAveragePlotManifest(GroupMixin):
+    pass

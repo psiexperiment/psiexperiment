@@ -3,6 +3,7 @@ log = logging.getLogger(__name__)
 
 import itertools
 from functools import partial
+import threading
 
 import numpy as np
 import pyqtgraph as pg
@@ -164,19 +165,37 @@ class FFTContainer(PlotContainer):
 ################################################################################
 class CustomGraphicsViewBox(pg.ViewBox):
 
-    def __init__(self, data_range, *args, **kwargs):
+    def __init__(self, data_range, y_min, y_max, y_mode, allow_zoom_x,
+                 allow_zoom_y, *args, **kwargs):
         self.data_range = data_range
+        self.y_min = y_min
+        self.y_max = y_max
+        self.y_mode = y_mode
+        self.allow_zoom_x = allow_zoom_x
+        self.allow_zoom_y = allow_zoom_y
         super().__init__(*args, **kwargs)
+        self.setYRange(self.y_min, self.y_max)
 
     def wheelEvent(self, ev, axis=None):
+        if axis == 0 and not self.allow_zoom_x:
+            return
+        if axis == 1 and not self.allow_zoom_y:
+            return
+
         s = 1.02**(ev.delta() * self.state['wheelScaleFactor'])
+
         if axis == 0:
             self.data_range.span *= s
         elif axis == 1:
             vr = self.targetRect()
-            y_max = vr.topLeft().y() * s
-            y_min = vr.bottomRight().y() * s
-            self.setYRange(y_min, y_max)
+            if self.y_mode == 'symmetric':
+                self.y_min *= s
+                self.y_max *= s
+            elif self.y_mode == 'upper':
+                self.y_max *= s
+            self.setYRange(self.y_min, self.y_max)
+
+        self.sigRangeChangedManually.emit(self.state['mouseEnabled'])
         ev.accept()
 
     def mouseDragEvent(self, ev, axis=None):
@@ -194,8 +213,13 @@ class ViewBox(PSIContribution):
 
     viewbox = Typed(pg.ViewBox)
     y_axis = Typed(pg.AxisItem)
+
+    y_mode = d_(Enum('symmetric', 'upper'))
     y_min = d_(Float())
     y_max = d_(Float())
+
+    allow_zoom_y = d_(Bool(True))
+    allow_zoom_x = d_(Bool(False))
 
     data_range = Property()
 
@@ -211,12 +235,16 @@ class ViewBox(PSIContribution):
     def _default_viewbox(self):
         try:
             viewbox = CustomGraphicsViewBox(self.parent.data_range,
+                                            self.y_min,
+                                            self.y_max,
+                                            self.y_mode,
+                                            self.allow_zoom_x,
+                                            self.allow_zoom_y,
                                             enableMenu=False)
         except:
             viewbox = pg.ViewBox(enableMenu=False)
         viewbox.setBackgroundColor('w')
         viewbox.disableAutoRange()
-        viewbox.setYRange(self.y_min, self.y_max)
         for child in self.children:
             for plot in child.get_plots():
                 viewbox.addItem(plot)
@@ -235,6 +263,9 @@ class ViewBox(PSIContribution):
 ################################################################################
 class BasePlot(PSIContribution):
 
+    # Make this weak-referenceable so we can bind methods to Qt slots.
+    __slots__ = '__weakref__'
+
     source_name = d_(Unicode())
     source = Typed(object)
     update_pending = Bool(False)
@@ -249,6 +280,9 @@ class BasePlot(PSIContribution):
         raise NotImplementedError
 
 
+################################################################################
+# Single plots
+################################################################################
 class SinglePlot(BasePlot):
 
     pen_color = d_(Typed(object))
@@ -268,29 +302,65 @@ class SinglePlot(BasePlot):
         return pg.mkPen(self.pen_color, width=self.pen_width)
 
 
+class SignalBuffer:
+
+    def __init__(self, fs, size):
+        self._lock = threading.RLock()
+        self._buffer_fs = fs
+        self._buffer_size = size
+        self._buffer_samples = int(fs*size)
+        self._buffer = np.full(self._buffer_samples, np.nan)
+        self._offset = -self._buffer_samples
+
+    def append_data(self, data):
+        with self._lock:
+            samples = data.shape[-1]
+            if samples > self._buffer_samples:
+                self._buffer[:] = data[-self.buffer_samples:]
+            else:
+                self._buffer[:-samples] = self._buffer[samples:]
+                self._buffer[-samples:] = data
+            self._offset += samples
+
+    def get_range(self, lb, ub):
+        with self._lock:
+            ilb = int(lb*self._buffer_fs) - self._offset
+            iub = int(ub*self._buffer_fs) - self._offset
+            if ilb < 0:
+                raise ValueError
+            return self._buffer[ilb:iub]
+
+
 class ChannelPlot(SinglePlot):
 
     downsample = Int(0)
     _cached_time = Typed(np.ndarray)
+    _buffer = Typed(SignalBuffer)
 
     def _default_plot(self):
         return pg.PlotCurveItem(pen=self.pen, antialias=self.antialias)
 
     def _observe_source(self, event):
         self.parent.data_range.add_source(self.source, self)
-        self.parent.data_range.observe('span', self.update_time)
-        self.parent.viewbox.sigResized.connect(lambda vb: self.update_decimation())
-        self.update_time(None)
-        self.update_decimation(self.parent.viewbox)
+        self.parent.data_range.observe('span', self._update_time)
+        self.source.observe('added', self._append_data)
+        self.parent.viewbox.sigResized.connect(self._update_decimation)
+        self._update_time(None)
+        self._update_decimation(self.parent.viewbox)
 
-    def update_time(self, event):
+    def _update_time(self, event):
         # Precompute the time array since this can be the "slow" point
         # sometimes in computations
         n = int(self.parent.data_range.span*self.source.fs)
         self._cached_time = np.arange(n)/self.source.fs
-        self.update_decimation()
+        self._update_decimation()
+        self._update_buffer()
 
-    def update_decimation(self, event=None):
+    def _update_buffer(self, event=None):
+        self._buffer = SignalBuffer(self.source.fs,
+                                    self.parent.data_range.span*5)
+
+    def _update_decimation(self, viewbox=None):
         try:
             width, _ = self.parent.viewbox.viewPixelSize()
             dt = self.source.fs**-1
@@ -298,8 +368,12 @@ class ChannelPlot(SinglePlot):
         except Exception as e:
             pass
 
+    def _append_data(self, event):
+        self._buffer.append_data(event['value']['data'])
+
     def _update(self, event=None):
         low, high = self.parent.data_range.current_range
+        #data = self._buffer.get_range(low, high)
         data = self.source.get_range(low, high)
         t = self._cached_time[:len(data)] + low
         if self.downsample > 1:
@@ -432,6 +506,8 @@ class TimeseriesPlot(SinglePlot):
         self.update_pending = False
 
 
+# TODO: Can we eliminate these in favor of the Grouped plots as they're a
+# special case of a grouped plot?
 class EpochAveragePlot(ChannelPlot):
 
     n_epochs = Int()
@@ -458,6 +534,41 @@ class EpochAveragePlot(ChannelPlot):
         return self.source.get_epochs()
 
 
+class FFTEpochPlot(ChannelPlot):
+
+    n_time = Int(0)
+    n_epochs = Int()
+    _cached_frequency = Typed(np.ndarray)
+
+    def _observe_source(self, event):
+        if self.source is None:
+            return
+        self.source.observe('added', self.update)
+
+        # Cache the frequency points. Must be in units of log for PyQtGraph.
+        n_time = int(self.source.fs * self.source.epoch_size)
+        freq = np.fft.rfftfreq(n_time, self.source.fs**-1)
+        self._cached_frequency = np.log10(freq)
+
+    def _get_epochs(self):
+        return self.source.get_epochs()
+
+    def _update(self, event=None):
+        if self.source is None:
+            return
+        epoch = self._get_epochs()
+        if len(epoch):
+            y = epoch.mean(axis=0)
+            psd = util.db(util.psd(y, self.source.fs))
+        else:
+            psd = np.full_like(self._cached_frequency, np.nan)
+        self.plot.setData(self._cached_frequency, psd)
+        self.update_pending = False
+
+
+################################################################################
+# Group plots
+################################################################################
 class GroupOverlayMixin(Declarative):
 
     groups = d_(List())
@@ -467,6 +578,9 @@ class GroupOverlayMixin(Declarative):
     plots = Dict()
 
     _pen_color_cycle = Typed(object)
+
+    def _default_pen_color_cycle(self):
+        return ['k']
 
     @d_func
     def get_pen_color(self, key):
@@ -493,17 +607,17 @@ class GroupOverlayMixin(Declarative):
     def get_plots(self):
         return []
 
+    def _make_new_plot(self, key):
+        log.info('Adding plot for key %r', key)
+        pen = pg.mkPen(self.get_pen_color(key))
+        plot = pg.PlotCurveItem(pen=pen)
+        self.parent.viewbox.addItem(plot)
+        self.plots[key] = plot
+
     def get_plot(self, key):
         if key not in self.plots:
-            log.info('Adding plot for key %r', key)
-            pen = pg.mkPen(self.get_pen_color(key))
-            plot = pg.PlotCurveItem(pen=pen)
-            self.parent.viewbox.addItem(plot)
-            self.plots[key] = plot
-        else:
-            plot = self.plots[key]
-        return plot
-
+            self._make_new_plot(key)
+        return self.plots[key]
 
 
 class GroupedEpochAveragePlot(BasePlot, GroupOverlayMixin):
@@ -561,33 +675,49 @@ class GroupedEpochFFTPlot(BasePlot, GroupOverlayMixin):
         self.update_pending = False
 
 
-class FFTEpochPlot(ChannelPlot):
+class StackedEpochAveragePlot(BasePlot, GroupOverlayMixin):
 
-    n_time = Int(0)
-    n_epochs = Int()
-    _cached_frequency = Typed(np.ndarray)
+    _cached_time = Typed(np.ndarray)
+
+    def _make_new_plot(self, key):
+        super()._make_new_plot(key)
+        self._update_offsets()
 
     def _observe_source(self, event):
         if self.source is None:
             return
+        self._reset_plots()
+
+        # Set up the new time axis
+        n = int(self.parent.data_range.span*self.source.fs)
+        self._cached_time = np.arange(n)/self.source.fs
+
+        # Subscribe to notifications
         self.source.observe('added', self.update)
 
-        # Cache the frequency points. Must be in units of log for PyQtGraph.
-        n_time = int(self.source.fs * self.source.epoch_size)
-        freq = np.fft.rfftfreq(n_time, self.source.fs**-1)
-        self._cached_frequency = np.log10(freq)
+    def _update_offsets(self, vb=None):
+        vb = self.parent.viewbox
+        height = vb.height()
+        n = len(self.plots)
+        for i, (_, plot) in enumerate(sorted(self.plots.items())):
+            offset = (i+1) * height / (n+1)
+            point = vb.mapToView(pg.Point(0, offset))
+            plot.setPos(0, point.y())
 
-    def _get_epochs(self):
-        return self.source.get_epochs()
+    def _reset_plots(self):
+        super()._reset_plots()
+        self.parent.viewbox \
+            .sigRangeChanged.connect(self._update_offsets)
+        self.parent.viewbox \
+            .sigRangeChangedManually.connect(self._update_offsets)
 
     def _update(self, event=None):
         if self.source is None:
             return
-        epoch = self._get_epochs()
-        if len(epoch):
-            y = epoch.mean(axis=0)
-            psd = util.db(util.psd(y, self.source.fs))
-        else:
-            psd = np.full_like(self._cached_frequency, np.nan)
-        self.plot.setData(self._cached_frequency, psd)
+        epochs = self.source.get_epoch_groups(self.group_names)
+        for key, epoch in epochs.items():
+            plot = self.get_plot(key)
+            y = epoch.mean(axis=0) if len(epoch) \
+                else np.full_like(self._cached_time, np.nan)
+            plot.setData(self._cached_time, y)
         self.update_pending = False
