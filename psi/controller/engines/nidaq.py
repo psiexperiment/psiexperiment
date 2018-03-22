@@ -112,30 +112,51 @@ class SamplesGeneratedCallbackHelper(object):
 
 class SamplesAcquiredCallbackHelper(object):
 
-    def __init__(self, callback, n_channels):
+    def __init__(self, callback, n_channels, discard_first=0):
         self._callback = callback
         self._n_channels = n_channels
         self._int32 = ctypes.c_int32()
         self._uint32 = ctypes.c_uint32()
+        self._discard_first = discard_first
+        self._discarded = self._discard_first == 0
 
-    def __call__(self, task, event_type, callback_samples, callback_data):
+    def __call__(self, *args):
         try:
-            mx.DAQmxGetReadAvailSampPerChan(task, self._uint32)
-            available_samples = self._uint32.value
-            blocks = (available_samples//callback_samples)
-            if blocks == 0:
-                return 0
-            samples = blocks*callback_samples
-            data_shape = self._n_channels, samples
-            data = np.empty(data_shape, dtype=np.double)
-            mx.DAQmxReadAnalogF64(task, samples, 0,
-                                mx.DAQmx_Val_GroupByChannel, data, data.size,
-                                self._int32, None)
-            self._callback(data)
-            return 0
+            if self._discarded:
+                return self._call_ongoing(*args)
+            else:
+                return self._call_first(*args)
         except Exception as e:
             log.exception(e)
             return -1
+
+    def _call_first(self, task, event_type, cb_samples, cb_data):
+        mx.DAQmxGetReadAvailSampPerChan(task, self._uint32)
+        available_samples = self._uint32.value
+        if available_samples >= self._discard_first:
+            log.debug('Discarding first %s samples', self._discard_first)
+            data_shape = self._n_channels, self._discard_first
+            data = np.empty(data_shape, dtype=np.double)
+            mx.DAQmxReadAnalogF64(task, self._discard_first, 0,
+                                mx.DAQmx_Val_GroupByChannel, data, data.size,
+                                self._int32, None)
+            self._discarded = True
+            return self._call_ongoing(task, event_type, cb_samples, cb_data)
+
+    def _call_ongoing(self, task, event_type, cb_samples, cb_data):
+        mx.DAQmxGetReadAvailSampPerChan(task, self._uint32)
+        available_samples = self._uint32.value
+        blocks = (available_samples//cb_samples)
+        if blocks == 0:
+            return 0
+        samples = blocks*cb_samples
+        data_shape = self._n_channels, samples
+        data = np.empty(data_shape, dtype=np.double)
+        mx.DAQmxReadAnalogF64(task, samples, 0,
+                            mx.DAQmx_Val_GroupByChannel, data, data.size,
+                            self._int32, None)
+        self._callback(data)
+        return 0
 
 
 class DigitalSamplesAcquiredCallbackHelper(object):
@@ -269,6 +290,8 @@ def setup_hw_ao(fs, lines, expected_range, callback, callback_samples,
     #mx.DAQmxGetAOMemMapEnable(task, lines, result)
     #log.debug('Memory mapping enabled %d', result.value)
 
+    #mx.DAQmxGetAIFilterDelayUnits(task, lines, result)
+    #log.debug('AI filter delay unit %d', result.value)
 
     #result = ctypes.c_int32()
     #mx.DAQmxGetAODataXferMech(task, result)
@@ -323,22 +346,29 @@ def setup_hw_ai(fs, lines, expected_range, callback, callback_samples,
     buffer_size = result.value
     log.debug('Buffer size for %s set to %d samples', lines, buffer_size)
 
-    callback_helper = SamplesAcquiredCallbackHelper(callback, n_channels)
-    cb_ptr = mx.DAQmxEveryNSamplesEventCallbackPtr(callback_helper)
-    mx.DAQmxRegisterEveryNSamplesEvent(task, mx.DAQmx_Val_Acquired_Into_Buffer,
-                                       int(callback_samples), 0, cb_ptr, None)
-
     info = ctypes.c_double()
     mx.DAQmxGetSampClkRate(task, info)
     log.debug('AI sample rate'.format(info.value))
     mx.DAQmxGetSampClkTimebaseRate(task, info)
     log.debug('AI timebase {}'.format(info.value))
     try:
+        info = ctypes.c_int32()
+        mx.DAQmxSetAIFilterDelayUnits(task, lines,
+                                      mx.DAQmx_Val_SampleClkPeriods)
+        info = ctypes.c_double()
         mx.DAQmxGetAIFilterDelay(task, lines, info)
-        log.debug('AI filter delay {}'.format(info.value))
+        log.debug('AI filter delay {} samples'.format(info.value))
+        filter_delay = int(info.value)
     except mx.DAQError:
-        # Not a supported property
-        pass
+        # Not a supported property. Set filter delay to 0 by default.
+        filter_delay = 0
+
+    callback_helper = SamplesAcquiredCallbackHelper(callback, n_channels,
+                                                    discard_first=filter_delay)
+    cb_ptr = mx.DAQmxEveryNSamplesEventCallbackPtr(callback_helper)
+    mx.DAQmxRegisterEveryNSamplesEvent(task, mx.DAQmx_Val_Acquired_Into_Buffer,
+                                       int(callback_samples), 0, cb_ptr, None)
+
     task._cb_ptr = cb_ptr
     task._cb_helper = callback_helper
 

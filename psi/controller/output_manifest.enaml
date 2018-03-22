@@ -64,15 +64,18 @@ def prepare_output(event, output):
 
 
 def prepare_output_queue(event, output):
-    log.debug('Setting up queue for {}'.format(output.name))
+    log.info('Setting up queue for {}'.format(output.name))
 
     controller = event.workbench.get_plugin('psi.controller')
     context = event.workbench.get_plugin('psi.context')
 
     action_name = output.name + '_end'
     output.complete_cb = partial(controller.invoke_actions, action_name)
-
     durations = []
+
+    # Set the filter delay on the output queue. TODO Probably better way to do this
+    # (via the declarative interface).
+    output.queue._filter_delay = round(output.channel.filter_delay)
 
     for setting in context.iter_settings(output.selector_name, 1):
         averages = setting['{}_averages'.format(output.name)]
@@ -87,9 +90,6 @@ def prepare_output_queue(event, output):
         duration = factory.get_duration()
         durations.append(duration)
         output.queue.append(factory, averages, iti_duration, duration, setting)
-
-    max_duration = max(durations)
-    controller.invoke_actions(output.name + '_start')
 
 
 def set_output_queue(event, output):
@@ -148,10 +148,14 @@ def start_output(event, output):
         log.warn('Output %s was not prepared', output.name)
         prepare_output(event, output)
 
+    # Compensate for filter delay by shifting start time of output *earlier* in
+    # time.
+    filter_delay = output.channel.filter_delay
+    print('Starting output', filter_delay)
     ts = event.parameters['timestamp']
     start = event.parameters.get('start', ts)
     delay = event.parameters.get('delay', 0)
-    offset = int((start+delay)*output.channel.fs)
+    offset = round((start+delay-filter_delay)*output.channel.fs)
 
     with output.engine.lock:
         # Important to lock the engine when activating the output to prevent
@@ -193,11 +197,10 @@ def decrement_key(event, output):
     with output.engine.lock:
         for epoch in event.parameters['data']:
             try:
-                output.queue.decrement_key(epoch['key'])
+                output.queue.decrement_key(epoch['info']['key'])
             except KeyError:
                 m = 'Acquired extra epoch for {}'
-                log.debug(m.format(epoch['key']))
-
+                log.debug(m.format(epoch['info']['key']))
 
 
 enamldef SynchronizedManifest(PSIManifest): manifest:

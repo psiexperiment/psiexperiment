@@ -5,7 +5,7 @@ from enaml.workbench.api import PluginManifest, Extension
 from psi import get_config
 
 from psi.controller.engines.nidaq import NIDAQEngine
-from psi.controller.channel import AIChannel, AOChannel
+from psi.controller.channel import AIChannel, NIDAQAOChannel
 from psi.controller.input import ContinuousInput, IIRFilter, Decimate
 from psi.data.sinks.bcolz_store import BColzStore
 from psi.controller.calibration import InterpCalibration, FlatCalibration
@@ -31,7 +31,7 @@ enamldef IOManifest(PluginManifest): manifest:
 
         NIDAQEngine:
             name = 'NI_EEG'
-            hw_ai_monitor_period = 0.1
+            hw_ai_monitor_period = 0.25
 
             AIChannel:
                 label = 'EEG'
@@ -52,7 +52,7 @@ enamldef IOManifest(PluginManifest): manifest:
             hw_ai_monitor_period = 0.25
             hw_ao_monitor_period = 1
 
-            AOChannel:
+            NIDAQAOChannel:
                 label = 'primary'
                 name = 'speaker_0'
                 channel = 'PXI1Slot8/ao0'
@@ -61,7 +61,7 @@ enamldef IOManifest(PluginManifest): manifest:
                 dtype = 'float64'
                 terminal_mode = 'pseudodifferential'
 
-            AOChannel:
+            NIDAQAOChannel:
                 label = 'secondary'
                 name = 'speaker_1'
                 channel = 'PXI1Slot8/ao1'

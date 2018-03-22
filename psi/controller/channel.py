@@ -3,7 +3,7 @@ log = logging.getLogger(__name__)
 
 import numpy as np
 
-from atom.api import Unicode, Enum, Typed, Tuple, Property, List
+from atom.api import Unicode, Enum, Typed, Tuple, Property, List, Float
 from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
 
@@ -115,6 +115,7 @@ class AOChannel(OutputChannel):
     TERMINAL_MODES = 'pseudodifferential', 'differential', 'RSE'
     expected_range = d_(Tuple()).tag(metadata=True)
     terminal_mode = d_(Enum(*TERMINAL_MODES)).tag(metadata=True)
+    #filter_delay = d_(Float(0)).tag(metadata=True)
 
     def get_samples(self, offset, samples, out=None):
         if out is None:
@@ -124,6 +125,33 @@ class AOChannel(OutputChannel):
         for output, waveform in zip(self.outputs, waveforms):
             output.get_samples(offset, samples, out=waveform)
         return np.sum(waveforms, axis=0, out=out)
+
+
+class NIDAQAOChannel(AOChannel):
+
+    filter_delay = Property().tag(metadata=True)
+
+    # Filter delay lookup table for different sampling rates. The first column
+    # is the lower bound (exclusive) of the sampling rate (in samples/sec) for
+    # the filter delay (second column, in samples). The upper bound of the
+    # range (inclusive) for the sampling rate is denoted by the next row.
+    # e.g., if FILTER_DELAY[i, 0] < fs <= FILTER_DELAY[i+1, 0] is True, then
+    # the filter delay is FILTER_DELAY[i, 1].
+    FILTER_DELAY = np.array([
+        (  1.0e3, 36.6),
+        (  1.6e3, 36.8),
+        (  3.2e3, 37.4),
+        (  6.4e3, 38.5),
+        ( 12.8e3, 40.8),
+        ( 25.6e3, 43.2),
+        ( 51.2e3, 48.0),
+        (102.4e3, 32.0),
+    ])
+
+    def _get_filter_delay(self):
+        print('getting filter delay')
+        i = np.flatnonzero(self.fs > self.FILTER_DELAY[:, 0])[-1]
+        return self.FILTER_DELAY[i, 1]
 
 
 class DIChannel(InputChannel):

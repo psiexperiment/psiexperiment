@@ -41,6 +41,7 @@ class AbstractSignalQueue(object):
         self._ordering = [] # order of items added to queue
         self._source = None
         self._samples = 0
+        self._filter_delay = 0
         self._notifiers = []
         self._delay_samples = int(initial_delay * fs)
         self.uploaded = []
@@ -169,12 +170,11 @@ class AbstractSignalQueue(object):
             raise ValueError('Invalid option for delay samples')
 
         self.uploaded.append({
-            't0': self._samples/self._fs,
+            't0': (self._samples+self._filter_delay)/self._fs,
             'duration': data['duration'],
             'key': key,
             'metadata': data['metadata'],
         })
-        log.debug('Popped next trial off of queue')
 
     def pop_buffer(self, samples, decrement=True):
         '''

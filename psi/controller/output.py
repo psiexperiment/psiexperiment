@@ -116,7 +116,7 @@ class AnalogOutput(Output):
             if samples > buffer_size:
                 self._buffer[:] = data[-buffer_size:]
             else:
-                self._buffer = np.roll(self._buffer, -samples)
+                self._buffer[:-samples] = self._buffer[samples:]
                 self._buffer[-samples:] = data
             self._offset += samples
             out[-samples:] = data

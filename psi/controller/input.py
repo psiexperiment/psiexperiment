@@ -125,7 +125,7 @@ class EpochInput(Input):
     epoch_size = Property().tag(metadata=True)
 
     def _get_epoch_size(self):
-        return self.parent.epoch_size
+        return self.source.epoch_size
 
 
 class Callback(Input):
@@ -174,11 +174,11 @@ class RMS(ContinuousInput):
     duration = d_(Float()).tag(metadata=True)
 
     def _get_fs(self):
-        n = int(self.duration*self.parent.fs)
-        return self.parent.fs/n
+        n = round(self.duration*self.source.fs)
+        return self.source.fs/n
 
     def configure_callback(self, plugin):
-        n = int(self.duration*self.parent.fs)
+        n = round(self.duration*self.source.fs)
         cb = super().configure_callback(plugin)
         return rms(n, cb).send
 
@@ -258,7 +258,7 @@ class Blocked(ContinuousInput):
 
     def configure_callback(self, plugin):
         cb = super().configure_callback(plugin)
-        block_size = int(self.duration*self.fs)
+        block_size = round(self.duration*self.fs)
         return blocked(block_size, cb).send
 
 
@@ -364,11 +364,11 @@ def extract_epochs(fs, queue, epoch_size, buffer_size, epoch_name, target,
             trial_index += 1
 
             # Figure out how many samples to capture for that epoch
-            t0 = int(info['t0'] * fs)
+            t0 = round(info['t0'] * fs)
             if epoch_size:
-                epoch_samples = int(epoch_size * fs)
+                epoch_samples = round(epoch_size * fs)
             else:
-                epoch_samples = int(info['duration'] * fs)
+                epoch_samples = round(info['duration'] * fs)
 
             epoch_coroutine = capture_epoch(t0, epoch_samples, info,
                                             epochs.append)
@@ -465,7 +465,7 @@ class Downsample(ContinuousInput):
     q = d_(Int()).tag(metadata=True)
 
     def _get_fs(self):
-        return self.parent.fs/self.q
+        return self.source.fs/self.q
 
     def configure_callback(self, plugin):
         cb = super().configure_callback(plugin)
@@ -487,7 +487,9 @@ def decimate(q, target):
         else:
             y_remainder = np.array([])
         y, zf = signal.lfilter(b, a, y, zi=zf)
-        target(y[::q])
+        result = y[::q]
+        if len(result):
+            target(result)
 
 
 class Decimate(ContinuousInput):
@@ -495,7 +497,7 @@ class Decimate(ContinuousInput):
     q = d_(Int()).tag(metadata=True)
 
     def _get_fs(self):
-        return self.parent.fs/self.q
+        return self.source.fs/self.q
 
     def configure_callback(self, plugin):
         cb = super().configure_callback(plugin)
@@ -726,14 +728,18 @@ def reject_epochs(reject_threshold, status, valid_target):
     while True:
         epochs = (yield)
         valid = []
-        invalid = []
+
+        # Find valid epochs
         for epoch in epochs:
-            # This is not an optimal approach. Normally I like to process all
-            # epochs then send a bulk update. However, this ensures that we
-            # preserve the correct ordering (in case that's important).
+            s = epoch['signal']
             if np.max(np.abs(epoch['signal'])) < reject_threshold:
                 valid.append(epoch)
-        valid_target(valid)
+
+        # Send valid epochs if there are some
+        if len(valid):
+            valid_target(valid)
+
+        # Update the status
         status.total += len(epochs)
         status.rejects += len(epochs)-len(valid)
         status.reject_ratio = status.rejects / status.total
