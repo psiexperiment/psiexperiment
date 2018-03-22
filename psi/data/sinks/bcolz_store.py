@@ -60,7 +60,7 @@ class BColzStore(AbstractStore):
 
     def _create_trial_log(self, context_info):
         '''
-        Create a table to hold the event log.
+        Create a table to hold the trial log.
         '''
         filename = self._get_filename('trial_log')
         dtype = [(str(n), i.dtype) for n, i in context_info.items()]
@@ -89,7 +89,9 @@ class BColzStore(AbstractStore):
         self._stores[name] = ContinuousDataChannel(data=carray, fs=fs)
         atexit.register(carray.flush)
 
-    def create_ai_epochs(self, name, fs, epoch_size, dtype, save, **metadata):
+    def create_ai_epochs(self, name, fs, epoch_size, dtype, save,
+                         context_items, **metadata):
+        # Create signal data store
         filename = self._get_filename(name, save)
         epoch_samples = int(fs*epoch_size)
         base = np.empty((0, epoch_samples))
@@ -97,9 +99,17 @@ class BColzStore(AbstractStore):
         carray.attrs['fs'] = fs
         for key, value in metadata.items():
             carray.attrs[key] = value
-        self._stores[name] = EpochDataChannel(data=carray, fs=fs,
-                                              epoch_size=epoch_size)
+
+        # Create metadata store
+        filename = self._get_filename(name + '_metadata', save)
+        dtype = [(str(n), i.dtype) for n, i in context_items.items()]
+        dtype += [('t0', 'float64'), ('duration', 'float64')]
+        ctable = bcolz.zeros(0, rootdir=filename, mode='w', dtype=dtype)
+
+        self._stores[name] = EpochDataChannel(data=carray, metadata=ctable,
+                                              fs=fs, epoch_size=epoch_size)
         atexit.register(carray.flush)
+        atexit.register(ctable.flush)
 
     def finalize(self, workbench):
         if self.base_path != '<memory>':

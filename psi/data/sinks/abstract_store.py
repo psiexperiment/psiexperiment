@@ -234,7 +234,7 @@ class ContinuousDataChannel(DataChannel):
 
 class EpochDataChannel(DataChannel):
 
-    metadata = Typed(list, [])
+    metadata = Typed(object)
     lock = Typed(object)
     epoch_size = Typed(float)
 
@@ -249,21 +249,24 @@ class EpochDataChannel(DataChannel):
             md = d['info']['metadata'].copy()
             md['t0'] = d['info']['t0']
             md['duration'] = d['info']['duration']
+            del md['calibration']
             metadata.append(md)
 
+        md_records = pd.DataFrame(metadata).to_records()
         with self.lock:
             self.data.append(epochs)
-            self.metadata.extend(metadata)
+            self.metadata.append(md_records)
         self.added = data
 
     def get_epoch_groups(self, groups):
         if len(self.data) == 0:
             return {}
-        metadata = pd.DataFrame(self.metadata)
         epochs = {}
-        for keys, df in metadata.groupby(groups):
-            i = df.index.values.astype(np.int32)
-            epochs[keys] = self.data[i]
+        with self.lock:
+            df = self.metadata.todataframe()
+            for keys, g_df in df.groupby(groups):
+                i = g_df.index.values.astype(np.int32)
+                epochs[keys] = self.data[i]
         return epochs
 
     def get_epochs(self, filters=None):
@@ -285,7 +288,8 @@ class EpochDataChannel(DataChannel):
             return self.data[:][mask]
 
     def count_groups(self, grouping):
-        groups = [tuple(m[g] for g in grouping) for m in self.metadata]
+        groups = [tuple(getattr(m, g) for g in grouping) \
+                  for m in self.metadata]
         return Counter(groups)
 
     @property

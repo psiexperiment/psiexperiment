@@ -39,8 +39,10 @@ def create_ai_continuous(event):
 
 
 def create_ai_epochs(event):
-    plugin = event.workbench.get_plugin(PLUGIN_ID)
-    return plugin.create_ai_epochs(**event.parameters)
+    data_plugin = event.workbench.get_plugin(PLUGIN_ID)
+    context_plugin = event.workbench.get_plugin('psi.context')
+    ci = context_plugin.context_items.copy()
+    return data_plugin.create_ai_epochs(context_items=ci, **event.parameters)
 
 
 def prepare(event):
