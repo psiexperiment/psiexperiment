@@ -93,7 +93,7 @@ class BColzStore(AbstractStore):
                          context_items, **metadata):
         # Create signal data store
         filename = self._get_filename(name, save)
-        epoch_samples = int(fs*epoch_size)
+        epoch_samples = round(fs*epoch_size)
         base = np.empty((0, epoch_samples))
         carray = bcolz.carray(base, rootdir=filename, mode='w', dtype=dtype)
         carray.attrs['fs'] = fs

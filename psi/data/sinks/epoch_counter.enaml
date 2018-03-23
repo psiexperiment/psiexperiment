@@ -1,7 +1,9 @@
 import logging
 log = logging.getLogger(__name__)
 
-from atom.api import Typed, Event, Unicode, Int, List
+import operator
+
+from atom.api import Typed, Event, Unicode, Int, List, Dict
 from enaml.core.api import d_
 from enaml.workbench.api import Extension
 from enaml.widgets.api import Container, DockItem, Form, Label, VGroup
@@ -33,19 +35,25 @@ class GroupedEpochCounter(EpochCounter):
     min_n = Int()
     max_n = Int()
     groups_n = Int()
-    grouping = d_(List())
-    grouping_names = List()
+    grouping = List()
+    counts = Dict()
+    get_key = Typed(object)
 
     def _observe_grouping(self, event):
-        self.grouping_names = [v.name for v in self.grouping]
+        self.get_key = operator.itemgetter(*[v.name for v in self.grouping])
+        self.counts = {}
 
     def update(self, event):
-        if self.source is None:
-            return
-        counts = self.source.count_groups(self.grouping_names)
-        self.min_n = min(counts.values())
-        self.max_n = max(counts.values())
-        self.total_n = self.source.n_epochs
+        for data in event['value']:
+            md = data['info']['metadata']
+            key = self.get_key(md)
+            c = self.counts.setdefault(key, 0)
+            self.counts[key] = c + 1
+
+        counts = self.counts.values()
+        self.min_n = min(counts)
+        self.max_n = max(counts)
+        self.total_n = sum(counts)
         self.groups_n = len(counts)
 
 
@@ -107,6 +115,7 @@ enamldef GroupedEpochCounterManifest(PSIManifest): manifest:
                     # latent bug somewhere.
                     text << group_label_format(meta.values)
                 Form:
+                    padding = 0
                     Label:
                         text = 'Max epochs acquired'
                     Label:

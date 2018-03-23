@@ -117,7 +117,8 @@ class TimeContainer(PlotContainer):
         return container
 
     def _default_data_range(self):
-        return ChannelDataRange(container=self, span=self.span)
+        return ChannelDataRange(container=self, span=self.span,
+                                delay=self.delay)
 
     def _default_x_axis(self):
         x_axis = super()._default_x_axis()
@@ -174,7 +175,6 @@ class CustomGraphicsViewBox(pg.ViewBox):
         self.allow_zoom_x = allow_zoom_x
         self.allow_zoom_y = allow_zoom_y
         super().__init__(*args, **kwargs)
-        self.setYRange(self.y_min, self.y_max)
 
     def wheelEvent(self, ev, axis=None):
         if axis == 0 and not self.allow_zoom_x:
@@ -243,6 +243,7 @@ class ViewBox(PSIContribution):
                                             enableMenu=False)
         except:
             viewbox = pg.ViewBox(enableMenu=False)
+        viewbox.setYRange(self.y_min, self.y_max)
         viewbox.setBackgroundColor('w')
         viewbox.disableAutoRange()
         for child in self.children:
@@ -308,7 +309,7 @@ class SignalBuffer:
         self._lock = threading.RLock()
         self._buffer_fs = fs
         self._buffer_size = size
-        self._buffer_samples = int(fs*size)
+        self._buffer_samples = round(fs*size)
         self._buffer = np.full(self._buffer_samples, np.nan)
         self._offset = -self._buffer_samples
 
@@ -324,8 +325,8 @@ class SignalBuffer:
 
     def get_range(self, lb, ub):
         with self._lock:
-            ilb = int(lb*self._buffer_fs) - self._offset
-            iub = int(ub*self._buffer_fs) - self._offset
+            ilb = round(lb*self._buffer_fs) - self._offset
+            iub = round(ub*self._buffer_fs) - self._offset
             if ilb < 0:
                 raise ValueError
             return self._buffer[ilb:iub]
@@ -351,7 +352,7 @@ class ChannelPlot(SinglePlot):
     def _update_time(self, event):
         # Precompute the time array since this can be the "slow" point
         # sometimes in computations
-        n = int(self.parent.data_range.span*self.source.fs)
+        n = round(self.parent.data_range.span*self.source.fs)
         self._cached_time = np.arange(n)/self.source.fs
         self._update_decimation()
         self._update_buffer()
@@ -364,7 +365,7 @@ class ChannelPlot(SinglePlot):
         try:
             width, _ = self.parent.viewbox.viewPixelSize()
             dt = self.source.fs**-1
-            self.downsample = int(width/dt/5)
+            self.downsample = round(width/dt/5)
         except Exception as e:
             pass
 
@@ -373,8 +374,7 @@ class ChannelPlot(SinglePlot):
 
     def _update(self, event=None):
         low, high = self.parent.data_range.current_range
-        #data = self._buffer.get_range(low, high)
-        data = self.source.get_range(low, high)
+        data = self._buffer.get_range(low, high)
         t = self._cached_time[:len(data)] + low
         if self.downsample > 1:
             t = t[::self.downsample]
@@ -423,7 +423,7 @@ class FFTChannelPlot(ChannelPlot):
             return
         self.source.observe('added', self.update)
 
-        n_time = int(self.source.fs*self.time_span)
+        n_time = round(self.source.fs*self.time_span)
         freq = np.fft.rfftfreq(n_time, self.source.fs**-1)
         self._cached_frequency = np.log10(freq)
 
@@ -515,7 +515,7 @@ class EpochAveragePlot(ChannelPlot):
     def _observe_source(self, event):
         if self.source is None:
             return
-        n = int(self.parent.data_range.span*self.source.fs)
+        n = round(self.parent.data_range.span*self.source.fs)
         self._cached_time = np.arange(n)/self.source.fs
         self.update_decimation(self.parent.viewbox)
         self.source.observe('added', self.update)
@@ -546,7 +546,7 @@ class FFTEpochPlot(ChannelPlot):
         self.source.observe('added', self.update)
 
         # Cache the frequency points. Must be in units of log for PyQtGraph.
-        n_time = int(self.source.fs * self.source.epoch_size)
+        n_time = round(self.source.fs * self.source.epoch_size)
         freq = np.fft.rfftfreq(n_time, self.source.fs**-1)
         self._cached_frequency = np.log10(freq)
 
@@ -569,15 +569,26 @@ class FFTEpochPlot(ChannelPlot):
 ################################################################################
 # Group plots
 ################################################################################
-class GroupOverlayMixin(Declarative):
+class GroupMixin(Declarative):
 
+    source = Typed(object)
     groups = d_(List())
     pen_color_cycle = d_(List())
 
     group_names = List()
     plots = Dict()
 
+    _epoch_cache = Dict()
     _pen_color_cycle = Typed(object)
+    _x = Typed(np.ndarray)
+
+    def _epochs_acquired(self, event):
+        for d in event['value']:
+            md = d['info']['metadata']
+            signal = d['signal']
+            key = tuple(md[n] for n in self.group_names)
+            self._epoch_cache.setdefault(key, []).append(signal)
+        self.update()
 
     def _default_pen_color_cycle(self):
         return ['k']
@@ -587,12 +598,11 @@ class GroupOverlayMixin(Declarative):
         return next(self._pen_color_cycle)
 
     def _reset_plots(self):
-        # Clear any existing plots
+        # Clear any existing plots and reset color cycle
         for plot in self.plots.items():
             self.parent.viewbox.removeItem(plot)
         self.plots = {}
-
-        # Set up the color cycle
+        self._epoch_cache = {}
         self._pen_color_cycle = itertools.cycle(self.pen_color_cycle)
 
     def _observe_groups(self, event):
@@ -619,81 +629,54 @@ class GroupOverlayMixin(Declarative):
             self._make_new_plot(key)
         return self.plots[key]
 
-
-class GroupedEpochAveragePlot(BasePlot, GroupOverlayMixin):
-
-    _cached_time = Typed(np.ndarray)
-
-    def _observe_source(self, event):
-        if self.source is None:
-            return
-        self._reset_plots()
-
-        # Set up the new time axis
-        n = int(self.parent.data_range.span*self.source.fs)
-        self._cached_time = np.arange(n)/self.source.fs
-
-        # Subscribe to notifications
-        self.source.observe('added', self.update)
+    def _y(self, epoch):
+        return np.mean(epoch, axis=0) if len(epoch) \
+            else np.full_like(self._x, np.nan)
 
     def _update(self, event=None):
-        epochs = self.source.get_epoch_groups(self.group_names)
-        for key, epoch in epochs.items():
+        for key, epoch in self._epoch_cache.items():
             plot = self.get_plot(key)
-            y = epoch.mean(axis=0) if len(epoch) \
-                else np.full_like(self._cached_time, np.nan)
-            plot.setData(self._cached_time, y)
+            y = self._y(epoch)
+            plot.setData(self._x, y)
         self.update_pending = False
-
-
-class GroupedEpochFFTPlot(BasePlot, GroupOverlayMixin):
-
-    _cached_frequency = Typed(np.ndarray)
 
     def _observe_source(self, event):
         if self.source is None:
             return
         self._reset_plots()
+        self._cache_x()
+        # Subscribe to notifications
+        self.source.observe('added', self._epochs_acquired)
 
+    def _cache_x(self):
+        # Set up the new time axis
+        n = round(self.parent.data_range.span*self.source.fs)
+        self._x = np.arange(n)/self.source.fs
+
+
+class GroupedEpochAveragePlot(GroupMixin, BasePlot):
+    pass
+
+
+class GroupedEpochFFTPlot(GroupMixin, BasePlot):
+
+    def _cache_x(self):
         # Cache the frequency points. Must be in units of log for PyQtGraph.
         # TODO: This could be a utility function stored in the parent?
         n_time = int(self.source.fs * self.source.epoch_size)
         freq = np.fft.rfftfreq(n_time, self.source.fs**-1)
-        self._cached_frequency = np.log10(freq)
+        self._x = np.log10(freq)
 
-        # Subscribe to notifications
-        self.source.observe('added', self.update)
-
-    def _update(self, event=None):
-        epochs = self.source.get_epoch_groups(self.group_names)
-        for key, epoch in epochs.items():
-            plot = self.get_plot(key)
-            y = epoch.mean(axis=0) if len(epoch) \
-                else np.full_like(self._cached_frequency, np.nan)
-            psd = util.db(util.psd(y, self.source.fs))
-            plot.setData(self._cached_frequency, psd)
-        self.update_pending = False
+    def _y(self, epoch):
+        y = np.mean(epoch, axis=0) if epoch else np.full_like(self._x, np.nan)
+        return util.db(util.psd(y, self.source.fs))
 
 
-class StackedEpochAveragePlot(BasePlot, GroupOverlayMixin):
-
-    _cached_time = Typed(np.ndarray)
+class StackedEpochAveragePlot(GroupMixin, BasePlot):
 
     def _make_new_plot(self, key):
         super()._make_new_plot(key)
         self._update_offsets()
-
-    def _observe_source(self, event):
-        if self.source is None:
-            return
-        self._reset_plots()
-
-        # Set up the new time axis
-        n = int(self.parent.data_range.span*self.source.fs)
-        self._cached_time = np.arange(n)/self.source.fs
-
-        # Subscribe to notifications
-        self.source.observe('added', self.update)
 
     def _update_offsets(self, vb=None):
         vb = self.parent.viewbox
@@ -710,14 +693,3 @@ class StackedEpochAveragePlot(BasePlot, GroupOverlayMixin):
             .sigRangeChanged.connect(self._update_offsets)
         self.parent.viewbox \
             .sigRangeChangedManually.connect(self._update_offsets)
-
-    def _update(self, event=None):
-        if self.source is None:
-            return
-        epochs = self.source.get_epoch_groups(self.group_names)
-        for key, epoch in epochs.items():
-            plot = self.get_plot(key)
-            y = epoch.mean(axis=0) if len(epoch) \
-                else np.full_like(self._cached_time, np.nan)
-            plot.setData(self._cached_time, y)
-        self.update_pending = False
