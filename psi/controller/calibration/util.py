@@ -54,13 +54,6 @@ def patodb(pa):
     return db(pa, 20e-6)
 
 
-def rms(waveform):
-    '''
-    Compute root mean square power of waveform
-    '''
-    return (waveform**2).mean()**0.5
-
-
 def normalize_rms(waveform, out=None):
     '''
     Normalize RMS power to 1 (typically used when generating a noise waveform
