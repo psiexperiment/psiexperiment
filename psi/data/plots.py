@@ -417,6 +417,7 @@ class FFTChannelPlot(ChannelPlot):
 
     time_span = d_(Float())
     _cached_frequency = Typed(np.ndarray)
+    window = d_(Enum('hamming', 'flattop'))
 
     def _observe_source(self, event):
         if self.source is None:
@@ -431,7 +432,7 @@ class FFTChannelPlot(ChannelPlot):
         ub = event['value']['ub']
         if ub >= self.time_span:
             data = self.source.get_range(ub-self.time_span, ub)
-            psd = util.patodb(util.psd(data, self.source.fs))
+            psd = util.patodb(util.psd(data, self.source.fs, self.window))
             self.plot.setData(self._cached_frequency, psd)
         self.update_pending = False
 
