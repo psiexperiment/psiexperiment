@@ -141,6 +141,10 @@ class DataPlugin(Plugin):
         for sink in self._sinks:
             sink.create_table(name, dataframe)
 
+    def create_mapping(self, name, mapping):
+        for sink in self._sinks:
+            sink.create_mapping(name, mapping)
+
     def set_current_time(self, name, timestamp):
         for sink in self._sinks:
             sink.set_current_time(name, timestamp)

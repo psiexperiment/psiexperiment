@@ -5,6 +5,7 @@ import os.path
 import atexit
 import tempfile
 import shutil
+import json
 
 from atom.api import Unicode, Typed, List
 
@@ -125,6 +126,13 @@ class BColzStore(AbstractStore):
         if os.path.exists(filename):
             raise IOError('{} already exists'.format(filename))
         dataframe.to_csv(filename)
+
+    def create_mapping(self, name, mapping):
+        filename = self._get_filename(name + '.json')
+        if os.path.exists(filename):
+            raise IOError('{} already exists'.format(filename))
+        with open(filename, 'w') as fh:
+            json.dump(mapping, fh, sort_keys=True, indent=4)
 
     def set_base_path(self, base_path):
         self.base_path = base_path
