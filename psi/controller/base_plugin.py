@@ -223,6 +223,9 @@ class BasePlugin(Plugin):
         for s in self._supporting.values():
             s.load_manifest(self.workbench)
 
+        for e in self._engines.values():
+            e.load_manifest(self.workbench)
+
         for o in self._outputs.values():
             # First, make sure that the output is connected to a target. Check
             # to see if the target is named. If not, then check to see if it
@@ -310,7 +313,11 @@ class BasePlugin(Plugin):
     def configure_engines(self):
         log.debug('Configuring engines')
         for engine in self._engines.values():
-            engine.configure(self)
+            # Check to see if engine is being used
+            if engine.get_channels():
+                engine.configure(self)
+                cb = partial(self.invoke_actions, '{}_end'.format(engine.name))
+                engine.register_done_callback(cb)
 
     def start_engines(self):
         log.debug('Starting engines')
