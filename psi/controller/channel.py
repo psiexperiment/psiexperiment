@@ -3,7 +3,7 @@ log = logging.getLogger(__name__)
 
 import numpy as np
 
-from atom.api import Unicode, Enum, Typed, Tuple, Property, List, Float
+from atom.api import Unicode, Enum, Typed, Tuple, Property, List, Float, Int
 from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
 
@@ -23,6 +23,10 @@ class Channel(Declarative):
 
     # For software-timed channels, set sampling frequency to 0.
     fs = d_(Typed(object)).tag(metadata=True)
+
+    # Number of samples to acquire before task ends. Typically will be set to
+    # -1 unless you know better.
+    samples = d_(Int(-1)).tag(metadata=True)
 
     # Can be blank for no start trigger (i.e., acquisition begins as soon as
     # task begins)

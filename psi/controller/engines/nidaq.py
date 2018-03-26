@@ -25,7 +25,7 @@ from threading import Timer
 
 import numpy as np
 import PyDAQmx as mx
-from atom.api import Float, Typed, Unicode, Int, Bool
+from atom.api import Float, Typed, Unicode, Int, Bool, Callable
 from enaml.core.api import Declarative, d_
 
 from ..engine import Engine
@@ -158,6 +158,17 @@ class SamplesAcquiredCallbackHelper(object):
         self._callback(data)
         return 0
 
+    def _call_final(self, task):
+        mx.DAQmxGetReadAvailSampPerChan(task, self._uint32)
+        samples = self._uint32.value
+        data_shape = self._n_channels, samples
+        data = np.empty(data_shape, dtype=np.double)
+        mx.DAQmxReadAnalogF64(task, samples, 0,
+                            mx.DAQmx_Val_GroupByChannel, data, data.size,
+                            self._int32, None)
+        self._callback(data)
+        return 0
+
 
 class DigitalSamplesAcquiredCallbackHelper(object):
 
@@ -178,7 +189,7 @@ class DigitalSamplesAcquiredCallbackHelper(object):
 ################################################################################
 # Configuration functions
 ################################################################################
-def setup_timing(task, fs, samples=np.inf, start_trigger=None):
+def setup_timing(task, fs, samples=-1, start_trigger=None):
     '''
     Configures timing for task
 
@@ -190,9 +201,9 @@ def setup_timing(task, fs, samples=np.inf, start_trigger=None):
         If string, must be the name of a sample clock (e.g. ao/SampleClock) that
         the acquistion will be tied to. If float, the internal sample clock for
         that task will be used and the sample rate will be set to fs.
-    samples :  float
-        If infinite, the task will be set to continuous acquistion. If finite,
-        the task will be set to acquire the specified number of samples.
+    samples : int
+        If -1, the task will be set to continuous acquistion. If finite, the
+        task will be set to acquire the specified number of samples.
     start_trigger : string
         Name of digtial line to start acquisition on. Can be set to any PFI line
         or to one of the analog sources (e.g., ao/StartTrigger or
@@ -205,7 +216,7 @@ def setup_timing(task, fs, samples=np.inf, start_trigger=None):
         fs = 200e3
     else:
         sample_clock = ''
-    if samples is np.inf:
+    if samples == -1:
         sample_mode = mx.DAQmx_Val_ContSamps
         samples = int(fs)
     else:
@@ -245,7 +256,7 @@ def setup_hw_ao(fs, lines, expected_range, callback, callback_samples,
     task = create_task(task_name)
     lb, ub = expected_range
     mx.DAQmxCreateAOVoltageChan(task, lines, '', lb, ub, mx.DAQmx_Val_Volts, '')
-    setup_timing(task, fs, np.inf, start_trigger)
+    setup_timing(task, fs, -1, start_trigger)
 
     if terminal_mode is not None:
         mx.DAQmxSetAOTermCfg(task, lines, terminal_mode)
@@ -311,21 +322,15 @@ def setup_hw_ao(fs, lines, expected_range, callback, callback_samples,
 
 def setup_hw_ai(fs, lines, expected_range, callback, callback_samples,
                 start_trigger, terminal_mode, terminal_coupling,
-                task_name='hw_ai'):
+                samples=-1, task_name='hw_ai'):
 
     task = create_task(task_name)
     lb, ub = expected_range
     mx.DAQmxCreateAIVoltageChan(task, lines, '', terminal_mode, lb, ub,
                                 mx.DAQmx_Val_Volts, '')
-
+    setup_timing(task, fs, samples, start_trigger)
     if terminal_coupling is not None:
         mx.DAQmxSetAICoupling(task, lines, terminal_coupling)
-
-    if start_trigger:
-        mx.DAQmxCfgDigEdgeStartTrig(task, start_trigger, mx.DAQmx_Val_Rising)
-
-    mx.DAQmxCfgSampClkTiming(task, '', fs, mx.DAQmx_Val_Rising,
-                             mx.DAQmx_Val_ContSamps, int(fs))
 
     result = ctypes.c_uint32()
     #mx.DAQmxGetBufInputBufSize(task, result)
@@ -359,18 +364,22 @@ def setup_hw_ai(fs, lines, expected_range, callback, callback_samples,
         mx.DAQmxGetAIFilterDelay(task, lines, info)
         log.debug('AI filter delay {} samples'.format(info.value))
         filter_delay = int(info.value)
+
+        # Ensure timing is compensated for the planned filter delay since these
+        # samples will be discarded.
+        if samples > 0:
+            setup_timing(task, fs, samples + filter_delay, start_trigger)
+
     except mx.DAQError:
         # Not a supported property. Set filter delay to 0 by default.
         filter_delay = 0
 
-    callback_helper = SamplesAcquiredCallbackHelper(callback, n_channels,
-                                                    discard_first=filter_delay)
-    cb_ptr = mx.DAQmxEveryNSamplesEventCallbackPtr(callback_helper)
+    task._cb = SamplesAcquiredCallbackHelper(callback, n_channels,
+                                       discard_first=filter_delay)
+    task._cb_ptr = mx.DAQmxEveryNSamplesEventCallbackPtr(task._cb)
     mx.DAQmxRegisterEveryNSamplesEvent(task, mx.DAQmx_Val_Acquired_Into_Buffer,
-                                       int(callback_samples), 0, cb_ptr, None)
-
-    task._cb_ptr = cb_ptr
-    task._cb_helper = callback_helper
+                                       int(callback_samples), 0, task._cb_ptr,
+                                       None)
 
     mx.DAQmxTaskControl(task, mx.DAQmx_Val_Task_Verify)
     return task
@@ -404,9 +413,9 @@ def setup_hw_di(fs, lines, callback, callback_samples, start_trigger=None,
         if start_trigger:
             mx.DAQmxCfgDigEdgeStartTrig(clock_task, start_trigger,
                                         mx.DAQmx_Val_Rising)
-        setup_timing(task, clock, np.inf, None)
+        setup_timing(task, clock, -1, None)
     else:
-        setup_timing(task, fs, np.inf, start_trigger)
+        setup_timing(task, fs, -1, start_trigger)
 
     callback_helper = DigitalSamplesAcquiredCallbackHelper(callback)
     cb_ptr = mx.DAQmxEveryNSamplesEventCallbackPtr(callback_helper)
@@ -501,6 +510,7 @@ class NIDAQEngine(Engine):
     hw_ao_min_writeahead = d_(Int(8191 + 1000)).tag(metadata=True)
 
     _tasks = Typed(dict)
+    _task_done = Typed(dict)
     _callbacks = Typed(dict)
     _timers = Typed(dict)
     _uint32 = Typed(ctypes.c_uint32)
@@ -508,6 +518,7 @@ class NIDAQEngine(Engine):
     _int32 = Typed(ctypes.c_int32)
 
     ao_fs = Typed(float).tag(metadata=True)
+    ai_fs = Typed(float).tag(metadata=True)
 
     terminal_mode_map = {
         'differential': mx.DAQmx_Val_Diff,
@@ -523,6 +534,8 @@ class NIDAQEngine(Engine):
         'DC': mx.DAQmx_Val_DC,
         'ground': mx.DAQmx_Val_GND,
     }
+
+    sample_time = Callable()
 
     def __init__(self, *args, **kw):
         super().__init__(*args, **kw)
@@ -555,42 +568,46 @@ class NIDAQEngine(Engine):
     def configure(self, plugin=None):
         log.debug('Configuring {} engine'.format(self.name))
 
-        channels = self.get_channels('digital', 'output', 'software')
-        if channels:
+        sw_do_channels = self.get_channels('digital', 'output', 'software')
+        hw_ai_channels = self.get_channels('analog', 'input', 'hardware')
+        hw_di_channels = self.get_channels('digital', 'input', 'hardware')
+        hw_ao_channels = self.get_channels('analog', 'output', 'hardware')
+
+        if sw_do_channels:
             log.debug('Configuring SW DO channels')
-            lines = ','.join(get_channel_property(channels, 'channel', True))
-            names = get_channel_property(channels, 'name', True)
+            lines = ','.join(get_channel_property(sw_do_channels, 'channel', True))
+            names = get_channel_property(sw_do_channels, 'name', True)
             self.configure_sw_do(lines, names)
 
-        channels = self.get_channels('analog', 'input', 'hardware')
-        if channels:
+        if hw_ai_channels:
             log.debug('Configuring HW AI channels')
-            lines = ','.join(get_channel_property(channels, 'channel', True))
-            names = get_channel_property(channels, 'name', True)
-            fs = get_channel_property(channels, 'fs')
-            start_trigger = get_channel_property(channels, 'start_trigger')
-            expected_range = get_channel_property(channels, 'expected_range')
+            lines = ','.join(get_channel_property(hw_ai_channels, 'channel', True))
+            names = get_channel_property(hw_ai_channels, 'name', True)
+            fs = get_channel_property(hw_ai_channels, 'fs')
+            start_trigger = get_channel_property(hw_ai_channels, 'start_trigger')
+            expected_range = get_channel_property(hw_ai_channels, 'expected_range')
+            samples = get_channel_property(hw_ai_channels, 'samples')
 
-            tmode = get_channel_property(channels, 'terminal_mode')
-            tcoupling = get_channel_property(channels, 'terminal_coupling')
+            tmode = get_channel_property(hw_ai_channels, 'terminal_mode')
+            tcoupling = get_channel_property(hw_ai_channels, 'terminal_coupling')
             terminal_mode = self.terminal_mode_map[tmode]
             terminal_coupling = self.terminal_coupling_map[tcoupling]
 
             self.configure_hw_ai(fs, lines, expected_range, names,
                                  start_trigger, terminal_mode,
-                                 terminal_coupling)
+                                 terminal_coupling, samples)
+            self.ai_fs = fs
 
-        channels = self.get_channels('digital', 'input', 'hardware')
-        if channels:
+        if hw_di_channels:
             log.debug('Configuring HW DI channels')
-            lines = ','.join(get_channel_property(channels, 'channel', True))
-            names = get_channel_property(channels, 'name', True)
-            fs = get_channel_property(channels, 'fs')
-            start_trigger = get_channel_property(channels, 'start_trigger')
+            lines = ','.join(get_channel_property(hw_di_channels, 'channel', True))
+            names = get_channel_property(hw_di_channels, 'name', True)
+            fs = get_channel_property(hw_di_channels, 'fs')
+            start_trigger = get_channel_property(hw_di_channels, 'start_trigger')
             # Required for M-series to enable hardware-timed digital
             # acquisition. TODO: Make this a setting that can be configured
             # since X-series doesn't need this hack.
-            device = channels[0].channel.strip('/').split('/')[0]
+            device = hw_di_channels[0].channel.strip('/').split('/')[0]
             clock = '/{}/Ctr0'.format(device)
             self.configure_hw_di(fs, lines, names, start_trigger, clock)
 
@@ -602,19 +619,35 @@ class NIDAQEngine(Engine):
         # TODO: eventually we should be able to inspect the  'start_trigger'
         # property on the channel configuration to decide the order in which the
         # tasks are started.
-        channels = self.get_channels('analog', 'output', 'hardware')
-        if channels:
+        if hw_ao_channels:
             log.debug('Configuring HW AO channels')
-            lines = ','.join(get_channel_property(channels, 'channel', True))
-            names = get_channel_property(channels, 'name', True)
-            fs = get_channel_property(channels, 'fs')
-            start_trigger = get_channel_property(channels, 'start_trigger')
-            expected_range = get_channel_property(channels, 'expected_range')
-            tmode = get_channel_property(channels, 'terminal_mode')
+            lines = ','.join(get_channel_property(hw_ao_channels, 'channel', True))
+            names = get_channel_property(hw_ao_channels, 'name', True)
+            fs = get_channel_property(hw_ao_channels, 'fs')
+            start_trigger = get_channel_property(hw_ao_channels, 'start_trigger')
+            expected_range = get_channel_property(hw_ao_channels, 'expected_range')
+            tmode = get_channel_property(hw_ao_channels, 'terminal_mode')
             terminal_mode = self.terminal_mode_map[tmode]
             self.configure_hw_ao(fs, lines, expected_range, names,
                                  start_trigger, terminal_mode)
             self.ao_fs = fs
+
+        # Choose sample clock based on what channels have been configured.
+        if hw_ao_channels:
+            self.sample_time = self.ao_sample_time
+        elif hw_ai_channels:
+            self.sample_time = self.ai_sample_time
+
+        self._task_done = {}
+        for name, task in self._tasks.items():
+            def cb(t, s, cb_data):
+                nonlocal name
+                self.task_complete(name)
+                return 0
+            cb_ptr = mx.DAQmxDoneEventCallbackPtr(cb)
+            mx.DAQmxRegisterDoneEvent(task, 0, cb_ptr, None)
+            task._done_cb_ptr_engine = cb_ptr
+            self._task_done[name] = False
 
         super().configure(plugin)
 
@@ -623,6 +656,14 @@ class NIDAQEngine(Engine):
         # been called yet.
         self._configured = True
         log.debug('Completed engine configuration')
+
+    def task_complete(self, task_name):
+        self._task_done[task_name] = True
+        task = self._tasks[task_name]
+        task._cb._call_final(task)
+        if all(self._task_done.values()):
+            for cb in self._callbacks.get('done', []):
+                cb()
 
     def configure_hw_ao(self, fs, lines, expected_range, names=None,
                         start_trigger=None, terminal_mode=None):
@@ -658,14 +699,14 @@ class NIDAQEngine(Engine):
 
     def configure_hw_ai(self, fs, lines, expected_range, names=None,
                         start_trigger=None, terminal_mode=None,
-                        terminal_coupling=None):
+                        terminal_coupling=None, samples=-1):
 
         log.debug('Configuring lines {}'.format(lines))
         task_name = '{}_hw_ai'.format(self.name)
         callback_samples = int(self.hw_ai_monitor_period*fs)
         task = setup_hw_ai(fs, lines, expected_range, self._hw_ai_callback,
                            callback_samples, start_trigger, terminal_mode,
-                           terminal_coupling, task_name)
+                           terminal_coupling, samples, task_name)
         task._fs = fs
         task._names = verify_channel_names(task, names)
         task._devices = device_list(task)
@@ -765,6 +806,9 @@ class NIDAQEngine(Engine):
         else:
             return self._tasks[task_name]._names.index(channel_names)
 
+    def register_done_callback(self, callback):
+        self._callbacks.setdefault('done', []).append(callback)
+
     def register_ao_callback(self, callback, channel_name=None):
         s = self._get_channel_slice('hw_ao', channel_name)
         self._callbacks.setdefault('ao', []).append((channel_name, s, callback))
@@ -780,6 +824,12 @@ class NIDAQEngine(Engine):
     def register_et_callback(self, callback, channel_name=None):
         s = self._get_channel_slice('cd_task', channel_name)
         self._callbacks.setdefault('et', []).append((channel_name, s, callback))
+
+    def unregister_done_callback(self, callback):
+        try:
+            self._callbacks['done'].remove(callback)
+        except KeyError:
+            log.warning('Callback no longer exists.')
 
     def unregister_ao_callback(self, callback, channel_name):
         try:
@@ -890,14 +940,6 @@ class NIDAQEngine(Engine):
             available -= relative_offset
         return available
 
-    def ao_sample_clock(self):
-        try:
-            task = self._tasks['hw_ao']
-            mx.DAQmxGetWriteTotalSampPerChanGenerated(task, self._uint64)
-            return self._uint64.value
-        except:
-            return 0
-
     def hw_ao_callback(self, samples):
         # Get the next set of samples to upload to the buffer
         with self.lock:
@@ -971,7 +1013,7 @@ class NIDAQEngine(Engine):
 
     def get_ts(self):
         with self.lock:
-            return self.ao_sample_clock()/self.ao_fs
+            return self.sample_time()
 
     def start(self):
         if not self._configured:
@@ -1010,6 +1052,20 @@ class NIDAQEngine(Engine):
         mx.DAQmxGetReadTotalSampPerChanAcquired(task, self._uint64)
         log.trace('%d samples per channel acquired', self._uint64.value)
         return self._uint64.value
+
+    def ai_sample_time(self):
+        return self.ai_sample_clock()/self.ai_fs
+
+    def ao_sample_clock(self):
+        try:
+            task = self._tasks['hw_ao']
+            mx.DAQmxGetWriteTotalSampPerChanGenerated(task, self._uint64)
+            return self._uint64.value
+        except:
+            return 0
+
+    def ao_sample_time(self):
+        return self.ao_sample_clock()/self.ao_fs
 
     def get_buffer_size(self, channel_name):
         return self.hw_ao_buffer_size

@@ -9,6 +9,7 @@ from atom.api import (Unicode, Float, Bool, observe, Property, Int, Typed,
                       Long, Value)
 from enaml.core.api import Declarative, d_
 
+from psi.core.enaml.api import PSIContribution
 from ..util import copy_declarative
 from .channel import Channel, AIChannel, AOChannel, DIChannel, DOChannel
 
@@ -25,7 +26,7 @@ def log_configuration(engine):
             log.info('\t\t output {}'.format(o.name))
 
 
-class Engine(Declarative):
+class Engine(PSIContribution):
 
     name = d_(Unicode()).tag(metadata=True)
     master_clock = d_(Bool(False)).tag(metadata=True)
@@ -112,6 +113,9 @@ class Engine(Declarative):
         raise NotImplementedError
 
     def unregister_et_callback(self, callback, channel_name=None):
+        raise NotImplementedError
+
+    def register_done_callback(self, callback):
         raise NotImplementedError
 
     def start(self):
