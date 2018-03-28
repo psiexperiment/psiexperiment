@@ -249,7 +249,8 @@ class EpochDataChannel(DataChannel):
             md = d['info']['metadata'].copy()
             md['t0'] = d['info']['t0']
             md['duration'] = d['info']['duration']
-            del md['calibration']
+            if 'calibration' in md:
+                del md['calibration']
             metadata.append(md)
 
         md_records = pd.DataFrame(metadata).to_records()
