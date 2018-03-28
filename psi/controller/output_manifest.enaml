@@ -5,7 +5,7 @@ from functools import partial
 
 import numpy as np
 
-from enaml.core.api import Looper, Include
+from enaml.core.api import Looper, Include, Conditional
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
@@ -38,6 +38,8 @@ def toggle(event, output):
 
 
 def set_token(event, output, output_type):
+    if not event.parameters['token_name']:
+        return
     token_plugin = event.workbench.get_plugin('psi.token')
     factory = getattr(token_plugin, 'generate_{}_token'.format(output_type))
     token = factory(event.parameters['token_name'], output.name, output.label)
@@ -60,7 +62,20 @@ def prepare_output(event, output):
     context['fs'] = output.fs
     context['calibration'] = output.calibration
     output.factory = output.token.initialize_factory(context)
-    output.duration = output.factory.get_duration()
+
+
+def add_setting_to_epoch_output(setting, output):
+    averages = setting['{}_averages'.format(output.name)]
+    iti_duration = setting['{}_iti_duration'.format(output.name)]
+
+    # Somewhat surprisingly it appears to be faster to use factories in
+    # the queue rather than creating the waveforms for ABR tone pips,
+    # even for very short signal durations.
+    setting['fs'] = output.fs
+    setting['calibration'] = output.calibration
+    factory = output.token.initialize_factory(setting)
+    duration = factory.get_duration()
+    output.queue.append(factory, averages, iti_duration, duration, setting)
 
 
 def prepare_output_queue(event, output):
@@ -71,25 +86,9 @@ def prepare_output_queue(event, output):
 
     action_name = output.name + '_end'
     output.complete_cb = partial(controller.invoke_actions, action_name)
-    durations = []
-
-    # Set the filter delay on the output queue. TODO Probably better way to do this
-    # (via the declarative interface).
-    output.queue._filter_delay = round(output.channel.filter_delay)
 
     for setting in context.iter_settings(output.selector_name, 1):
-        averages = setting['{}_averages'.format(output.name)]
-        iti_duration = setting['{}_iti_duration'.format(output.name)]
-
-        # Somewhat surprisingly it appears to be faster to use factories in
-        # the queue rather than creating the waveforms for ABR tone pips,
-        # even for very short signal durations.
-        setting['fs'] = output.fs
-        setting['calibration'] = output.calibration
-        factory = output.token.initialize_factory(setting)
-        duration = factory.get_duration()
-        durations.append(duration)
-        output.queue.append(factory, averages, iti_duration, duration, setting)
+        add_setting_to_epoch_output(setting, output)
 
 
 def set_output_queue(event, output):
@@ -151,7 +150,6 @@ def start_output(event, output):
     # Compensate for filter delay by shifting start time of output *earlier* in
     # time.
     filter_delay = output.channel.filter_delay
-    print('Starting output', filter_delay)
     ts = event.parameters['timestamp']
     start = event.parameters.get('start', ts)
     delay = event.parameters.get('delay', 0)
@@ -167,9 +165,10 @@ def start_output(event, output):
 
     controller = event.workbench.get_plugin('psi.controller')
     controller.invoke_actions('{}_start'.format(output.name), start+delay)
-    if output.duration is not np.inf:
+    duration = output.factory.get_duration()
+    if duration is not np.inf:
         controller.invoke_actions('{}_end'.format(output.name),
-                                  start+delay+output.duration, delayed=True)
+                                  start+delay+duration, delayed=True)
 
 
 def clear_output(event, output):
@@ -326,28 +325,6 @@ enamldef QueuedEpochOutputManifest(EpochOutputManifest): manifest:
             handler = partial(decrement_key, output=manifest.contribution)
 
     Extension:
-        id = 'items'
-        point = 'psi.context.items'
-
-        ContextGroup:
-            name = manifest.contribution.name + '_sequence'
-            label = manifest.contribution.label + ' epoch settings'
-
-            Parameter:
-                name = manifest.contribution.name + '_iti_duration'
-                label = manifest.contribution.label + ' intertrial interval (s)'
-                compact_label = manifest.contribution.label + ' ITI'
-                default = 0.1
-                scope = 'experiment'
-
-            Parameter:
-                name = manifest.contribution.name + '_averages'
-                label = manifest.contribution.label + ' averages'
-                compact_label = manifest.contribution.label + ' N'
-                default = 1
-                scope = 'experiment'
-
-    Extension:
         id = 'epoch_output_menu.' + manifest.contribution.name
         point = 'enaml.workbench.ui.actions'
         MenuItem:
@@ -371,6 +348,31 @@ enamldef QueuedEpochOutputManifest(EpochOutputManifest): manifest:
                 enabled << workbench.get_plugin('psi.controller').experiment_state \
                     in ('initialized', 'stopped')
 
+
+enamldef SelectorQueuedEpochOutputManifest(QueuedEpochOutputManifest): manifest:
+
+    Extension:
+        id = 'items'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            name = manifest.contribution.name + '_sequence'
+            label = manifest.contribution.label + ' epoch settings'
+
+            Parameter:
+                name = manifest.contribution.name + '_iti_duration'
+                label = manifest.contribution.label + ' intertrial interval (s)'
+                compact_label = manifest.contribution.label + ' ITI'
+                default = 0.1
+                scope = 'experiment'
+
+            Parameter:
+                name = manifest.contribution.name + '_averages'
+                label = manifest.contribution.label + ' averages'
+                compact_label = manifest.contribution.label + ' N'
+                default = 1
+                scope = 'experiment'
+
     Extension:
         id = 'epoch_output_actions'
         point = 'psi.controller.actions'
@@ -378,7 +380,6 @@ enamldef QueuedEpochOutputManifest(EpochOutputManifest): manifest:
         ExperimentAction:
             event = 'experiment_prepare'
             command = manifest.contribution.name + '.prepare_queue'
-
 
 
 enamldef ContinuousOutputManifest(AnalogOutputManifest): manifest:

@@ -10,7 +10,7 @@ class ExperimentState(Declarative):
     '''
     Allows for indication of a state (e.g., `experiment_active`, `iti_active`).
     Automatically contributes the start/end events associataed with the state
-    (e.g., `experiment_start`, `experiment_stop`).
+    (e.g., `experiment_start`, `experiment_end`).
     '''
     name = d_(Unicode())
     active = Bool(False)

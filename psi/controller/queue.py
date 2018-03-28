@@ -35,13 +35,25 @@ def as_iterator(x):
 
 class AbstractSignalQueue(object):
 
-    def __init__(self, fs, initial_delay=0):
+    def __init__(self, fs, initial_delay=0, filter_delay=0):
+        '''
+        Parameters
+        ----------
+        fs : float
+            Sampling rate of output that will be using this queue
+        initial_delay : float
+            Delay, in seconds, before starting playout of queue
+        filter_delay : float
+            Filter delay, in seconds, of the output. The starting timestamp of
+            each trial will be adjusted by the filter delay to reflect the true
+            time at which the trial reaches the output of the DAC.
+        '''
         self._fs = fs
         self._data = {} # list of generators
         self._ordering = [] # order of items added to queue
         self._source = None
         self._samples = 0
-        self._filter_delay = 0
+        self._filter_delay = filter_delay
         self._notifiers = []
         self._delay_samples = int(initial_delay * fs)
         self.uploaded = []
@@ -71,7 +83,7 @@ class AbstractSignalQueue(object):
             if isinstance(source, Waveform):
                 return source.get_duration()
             else:
-                return source.shape[-1]/self.fs
+                return source.shape[-1]/self._fs
         return max(get_duration(d['source']) for d in self._data.values())
 
     def connect(self, callback):

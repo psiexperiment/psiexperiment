@@ -165,3 +165,18 @@ class DataPlugin(Plugin):
             except AttributeError:
                 pass
         raise AttributeError('Source {} not available'.format(source_name))
+
+    def find_plot_container(self, plot_container_name):
+        for plot in self._plots:
+            if plot.name == plot_container_name:
+                return plot
+        m = 'Plot container {} not available'
+        raise AttributeError(m.format(plot_container_name))
+
+    def find_viewbox(self, viewbox_name):
+        for plot in self._plots:
+            for viewbox in plot.children:
+                if viewbox.name == viewbox_name:
+                    return viewbox
+        m = 'Viewbox {} not available'
+        raise AttributeError(m.format(viewbox_name))

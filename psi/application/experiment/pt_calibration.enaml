@@ -1,0 +1,425 @@
+import logging
+log = logging.getLogger(__name__)
+
+from atom.api import Typed
+import numpy as np
+from scipy import signal
+
+from enaml.application import deferred_call
+from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
+
+from psi.context.api import ContextGroup, Parameter, EnumParameter
+from psi.context.selector import SequenceSelector
+from psi.controller.api import ExperimentAction
+from psi.controller.calibration.util import golay_pair, golay_tf, db, dbi
+
+from psi.controller.output import QueuedEpochOutput, EpochOutput
+from psi.controller.input import ExtractEpochs, Input, Blocked, Accumulate, IIRFilter, Decimate
+
+from psi.controller.base_manifest import (BaseManifest, get_hw_ao_choices,
+                                          get_hw_ai_choices)
+
+from psi.controller.queue import FIFOSignalQueue
+
+
+from psi.data.plots import (TimeContainer,
+                            ChannelPlot,
+                            GroupedEpochAveragePlot,
+                            ChannelPlot, ViewBox,
+                            FFTContainer,
+                            GroupedEpochFFTPlot)
+
+
+from psi.controller.calibration import FlatCalibration
+
+
+def configure_hardware(event):
+    '''
+    Set the HW AO calibration to attenuation
+    '''
+    context = event.workbench.get_plugin('psi.context')
+    controller = event.workbench.get_plugin('psi.controller')
+
+    # Link up the desired inputs and outputs for the calibration
+    values = context.get_values()
+    controller.connect_output('hw_ao', values['output_channel'])
+    controller.connect_input('pt_hw_ai', values['pt_channel'])
+    controller.connect_input('cal_hw_ai', values['cal_channel'])
+
+    # Set up the calibration. By setting fixed_gain to the attenuation, this
+    # will ensure that the waveform is scaled down to the desired attenuation.
+    output_channel = controller.get_channel(values['output_channel'])
+    output_channel.calibration = FlatCalibration.as_attenuation()
+
+    # Set up the queue now that we know what the channel is
+    output = controller.get_output('hw_ao')
+    output.queue = FIFOSignalQueue(output.fs, initial_delay=1,
+                                   filter_delay=output.channel.filter_delay)
+
+    for setting in context.iter_settings('default', 1):
+        n = setting['n_bits']
+        gain = setting['output_gain']
+
+        n_fft = setting['fft_averages']
+        n_waveform = setting['waveform_averages']
+        n_discard = setting['discard']
+        n_trials = n_fft*n_waveform + n_discard
+
+        iti = setting['iti']
+        ab_delay = setting['ab_delay']
+        delays = [iti] * n_trials
+        delays[-1] = ab_delay
+
+        sf = output_channel.calibration.get_sf(None, gain)
+        a, b = golay_pair(n)
+        a *= sf
+        b *= sf
+        output.queue.append(a, n_trials, delays, metadata=setting)
+        output.queue.append(b, n_trials, delays, metadata=setting)
+
+
+def calculate_sens(event):
+    context = event.workbench.get_plugin('psi.context')
+    data = event.workbench.get_plugin('psi.data')
+
+    pt_source = data.find_source('pt_epoch')
+    cal_source = data.find_source('cal_epoch')
+    pt_groups = pt_source.get_epoch_groups(['n_bits', 'output_gain'])
+    cal_groups = cal_source.get_epoch_groups(['n_bits', 'output_gain'])
+
+    from palettable.colorbrewer import qualitative
+    import itertools
+    n = max(len(cal_groups), 3)
+    cmap_name = 'Dark2_{}'.format(n)
+    cmap = getattr(qualitative, cmap_name)
+    colors = itertools.cycle(cmap.colors)
+
+    for key, color in zip(pt_groups.keys(), colors):
+        name = '{}'.format(key)
+        calculate_group_sens(pt_source.fs, key, pt_groups, cal_groups, color,
+                             context, data, name)
+
+
+def calculate_group_sens(fs, key, pt_groups, cal_groups, color, context, data,
+                         name):
+    n_bits = context.get_value('n_bits')
+    n_fft = context.get_value('fft_averages')
+    n_waveforms = context.get_value('waveform_averages')
+    n_discard = context.get_value('discard')
+    cal_mic_sens = context.get_value('cal_mic_sens_mv') * 1e-3
+    smoothing_window = context.get_value('smoothing_window')
+    cal_input_gain = context.get_value('cal_input_gain')
+    pt_input_gain = context.get_value('pt_input_gain')
+
+    a, b = golay_pair(n_bits)
+    pt_waveform = pt_groups[key] / dbi(pt_input_gain)
+    cal_waveform = cal_groups[key] / dbi(cal_input_gain)
+
+    n = n_waveforms * n_fft + n_discard
+
+    pt_a, pt_b = pt_waveform[n_discard:n], pt_waveform[n+n_discard:]
+    pt_summary = summarize_golay(fs, a, b, pt_a, pt_b, n_waveforms)
+
+    cal_a, cal_b = cal_waveform[n_discard:n], cal_waveform[n+n_discard:]
+    cal_summary = summarize_golay(fs, a, b, cal_a, cal_b, n_waveforms)
+
+    pt_psd = pt_summary['psd']
+    cal_psd = cal_summary['psd']
+    pt_phase = pt_summary['phase']
+    cal_phase = cal_summary['phase']
+
+    sens = db(pt_psd) + db(cal_mic_sens) - db(cal_psd)
+    phase = pt_phase - cal_phase
+
+    if smoothing_window > 0:
+        w = signal.hamming(smoothing_window)
+        w /= w.sum()
+        sens = np.convolve(sens, w, mode='same')
+        phase = np.convolve(phase, w, mode='same')
+
+    sens_summary = {
+        'frequency': pt_summary['frequency'],
+        'sens': sens,
+        'phase': phase,
+    }
+
+    def plot_data(data=data, pt_summary=pt_summary, cal_summary=cal_summary,
+                  sens_summary=sens_summary, color=color, name=name):
+        import pyqtgraph as pg
+
+        vb = data.find_viewbox('pt_fft')
+        x = np.log10(pt_summary['frequency'])
+        y = db(pt_summary['psd'])
+        item = pg.PlotCurveItem(pen=pg.mkPen(color))
+        item.setData(x, y)
+        vb.add_plot(item)
+
+        vb = data.find_viewbox('cal_fft')
+        x = np.log10(cal_summary['frequency'])
+        y = db(cal_summary['psd'])
+        item = pg.PlotCurveItem(pen=pg.mkPen(color))
+        item.setData(x, y)
+        vb.add_plot(item)
+
+        vb = data.find_viewbox('sens')
+        x = np.log10(sens_summary['frequency'])
+        y = sens_summary['sens']
+        item = pg.PlotCurveItem(pen=pg.mkPen(color))
+        item.setData(x, y)
+        vb.add_plot(item)
+
+        vb.parent.legend.addItem(item, name)
+
+
+    deferred_call(plot_data)
+
+
+def summarize_golay(fs, a, b, a_response, b_response, waveform_averages=None):
+
+    if waveform_averages is not None:
+        n_epochs, n_time = a_response.shape
+        new_shape = (waveform_averages, -1, n_time)
+        a_response = a_response.reshape(new_shape).mean(axis=0)
+        b_response = b_response.reshape(new_shape).mean(axis=0)
+
+    time = np.arange(a_response.shape[-1])/fs
+    freq, tf_psd, tf_phase = golay_tf(a, b, a_response, b_response, fs)
+    tf_psd = tf_psd.mean(axis=0)
+    tf_phase = tf_phase.mean(axis=0)
+
+    return {
+        'psd': tf_psd,
+        'phase': tf_phase,
+        'frequency': freq,
+    }
+
+
+enamldef ControllerManifest(BaseManifest): manifest:
+
+    Extension:
+        id = 'tokens'
+        point = 'psi.token.tokens'
+
+    Extension:
+        id = 'io'
+        point = 'psi.controller.io'
+
+        QueuedEpochOutput: hw_ao:
+            name = 'hw_ao'
+            auto_decrement = True
+
+        # TODO: Come up with a synchronized approach for this?
+        Blocked: hw_ai:
+            duration = 0.1
+            name = 'pt_hw_ai'
+            save = True
+
+            ExtractEpochs: extract:
+                save = True
+                queue << hw_ao.queue
+                name = 'pt_epoch'
+
+        Blocked: hw_ai:
+            duration = 0.1
+            name = 'cal_hw_ai'
+            save = True
+
+            ExtractEpochs: extract:
+                save = True
+                queue << hw_ao.queue
+                name = 'cal_epoch'
+
+    Extension:
+        id = 'context'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'golay'
+            label = 'Golay'
+
+            Parameter:
+                name = 'n_bits'
+                label = 'Number of bits for Golay'
+                default = 14
+                scope = 'trial'
+
+            Parameter:
+                name = 'fft_averages'
+                label = 'FFT averages'
+                default = 4
+                scope = 'experiment'
+
+            Parameter:
+                name = 'waveform_averages'
+                label = 'Waveform averages'
+                default = 2
+                scope = 'experiment'
+
+            Parameter:
+                name = 'discard'
+                label = 'Repetitions to discard'
+                default = 2
+                scope = 'experiment'
+
+            Parameter:
+                name = 'iti'
+                label = 'Delay between repetitions (sec)'
+                default = 1e-5
+                scope = 'experiment'
+
+            Parameter:
+                name = 'ab_delay'
+                label = 'Delay between A and B code (sec)'
+                default = 2
+                scope = 'experiment'
+
+            Parameter:
+                name = 'output_gain'
+                label = 'Output gain'
+                default = -20
+                scope = 'trial'
+
+        ContextGroup:
+            name = 'calibration'
+            label = 'Calibration'
+
+            EnumParameter:
+                name = 'output_channel'
+                label = 'Output channel'
+                compact_label = 'ao'
+                choices << get_hw_ao_choices(workbench)
+                scope = 'experiment'
+
+            EnumParameter:
+                name = 'pt_channel'
+                label = 'Probe tube mic. channel'
+                choices << get_hw_ai_choices(workbench)
+                scope = 'experiment'
+
+            Parameter:
+                name = 'pt_input_gain'
+                label = 'Probe tube input gain (dB)'
+                dtype = 'float64'
+                default = 20
+                scope = 'experiment'
+
+            EnumParameter:
+                name = 'cal_channel'
+                label = 'Calibration mic. channel'
+                choices << get_hw_ai_choices(workbench)
+                scope = 'experiment'
+
+            Parameter:
+                name = 'cal_input_gain'
+                label = 'Calibration input gain (dB)'
+                default = 0.0
+                scope = 'experiment'
+
+            Parameter:
+                name = 'cal_mic_sens_mv'
+                label = 'Calibration microphone sensitivity (mV/Pa)'
+                default = 0.0
+                scope = 'experiment'
+
+            Parameter:
+                name = 'smoothing_window'
+                label = 'Frequency smoothing window size (bins)'
+                default = 25
+                scope = 'experiment'
+
+            Parameter:
+                name = 'input_range'
+                label = 'Expected input range (Vpp)'
+                compact_label = 'ai_range'
+                dtype = 'float64'
+                default = 10
+                scope = 'experiment'
+
+    Extension:
+        id = 'selectors'
+        point = 'psi.context.selectors'
+
+        SequenceSelector:
+            name = 'default'
+            label = 'Sequence'
+
+
+    Extension:
+        id = 'calibration_commands'
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = 'psi.controller.configure_hardware'
+            handler = configure_hardware
+
+        Command:
+            id = 'psi.controller.calculate_sens'
+            handler = calculate_sens
+
+    Extension:
+        id = 'actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'psi.controller.configure_hardware'
+            weight = 15
+
+        ExperimentAction:
+            event = 'experiment_end'
+            command = 'psi.controller.calculate_sens'
+            weight = 100
+
+        ExperimentAction:
+            event = 'cal_epoch_queue_end'
+            command = 'psi.controller.stop'
+
+    Extension:
+        id = 'plots'
+        point = 'psi.data.plots'
+
+        TimeContainer:
+            name = 'epoch_container'
+            label = 'Epoch average'
+            span = 0.01
+
+            ViewBox:
+                y_min = -2.5
+                y_max = 2.5
+                label = 'Signal (V)'
+
+                GroupedEpochAveragePlot:
+                    name = 'pt_epoch_average'
+                    label = 'PT epoch average plot'
+                    source_name = 'pt_epoch'
+                    pen_color_cycle = ['k', 'r']
+
+            ViewBox:
+                y_min = -0.25
+                y_max = 0.25
+                label = 'Signal (V)'
+
+                GroupedEpochAveragePlot:
+                    name = 'cal_epoch_average'
+                    label = 'Cal. epoch average plot'
+                    source_name = 'cal_epoch'
+                    pen_color_cycle = ['k', 'r']
+
+        FFTContainer:
+            name = 'calibration_result'
+            label = 'Calibration result'
+            freq_lb = 50.0
+            freq_ub = 50000
+
+            ViewBox:
+                name = 'pt_fft'
+                label = 'Probe tube PSD (dB re 1V)'
+
+            ViewBox:
+                name = 'cal_fft'
+                label = 'Calibration mic. PSD (dB re 1V)'
+
+            ViewBox:
+                name = 'sens'
+                label = 'Probe tube sens (V/Pa)'

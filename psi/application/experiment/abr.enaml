@@ -81,7 +81,9 @@ enamldef ControllerManifest(BaseManifest): manifest:
             label = 'Target'
             target_name = 'speaker_0'
             selector_name = 'default'
-            queue = InterleavedFIFOSignalQueue(fs=output.fs, initial_delay=1)
+            queue = InterleavedFIFOSignalQueue(fs=output.fs,
+                                               filter_delay=output.channel.filter_delay,
+                                               initial_delay=1)
             auto_decrement = False
 
         Blocked:

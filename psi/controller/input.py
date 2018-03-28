@@ -419,6 +419,7 @@ def extract_epochs(fs, queue, epoch_size, buffer_size, epoch_name, target,
                 (trial_index == len(queue.uploaded)) and \
                 empty_queue_cb is not None:
             empty_queue_cb()
+            empty_queue_cb = None
 
 
 #def capture(queue, target):
@@ -611,92 +612,6 @@ class Edges(EventInput):
 ################################################################################
 # Epoch input types
 ################################################################################
-@coroutine
-def old_extract_epochs(fs, queue, epoch_size, buffer_size, delay, epoch_name,
-                   target, empty_queue_cb=None):
-    buffer_samples = int(buffer_size*fs)
-    delay_samples = int(delay*fs)
-
-    data = (yield)
-    buffer_shape = list(data.shape)
-    buffer_shape[-1] = buffer_samples
-    ring_buffer = np.empty(buffer_shape, dtype=data.dtype)
-    next_offset = None
-
-    # This is the timestamp of the sample at the end of the buffer. To
-    # calculate the timestamp of samples at the beginning of the buffer,
-    # subtract buffer_samples from t_end,
-    t_end = -delay_samples
-
-    trial_index = 0
-
-    while True:
-        # Newest data is always stored at the end of the ring buffer. To make
-        # room, we discard samples from the beginning of the buffer.
-        samples = data.shape[-1]
-        ring_buffer[..., :-samples] = ring_buffer[..., samples:]
-        ring_buffer[..., -samples:] = data
-        t_end += samples
-
-        # Loop until all epochs have been extracted from buffered data.
-        epochs = []
-        while True:
-            if next_offset is None and (len(queue.uploaded) > trial_index):
-                info = queue.uploaded[trial_index]
-                next_offset = int(info['t0']*fs)
-                signal_size = info['duration']
-                trial_index += 1
-
-                log.trace('Next offset %d, current t_end %d', next_offset, t_end)
-                if epoch_size > 0:
-                    epoch_samples = int(epoch_size*fs)
-                else:
-                    epoch_samples = int(signal_size*fs)
-
-            if next_offset is None:
-                break
-            elif next_offset < (t_end - buffer_samples):
-                raise SystemError('Epoch lost')
-            elif (next_offset+epoch_samples) > (t_end):
-                break
-            else:
-                # Add buffer_samples to ensure that i is indexed from the
-                # beginning of the array. This ensures that we do not run into
-                # the edge-case where we are using a negative indexing and we
-                # want to index from, say, -10 to -0. This will result in odd
-                # behavior.
-                i = next_offset-t_end+buffer_samples
-                if info['metadata'] is not None:
-                    md = info['metadata'].copy()
-                    md[epoch_name + '_start'] = info['t0']
-                else:
-                    md = {}
-
-                epoch = {
-                    'signal': ring_buffer[..., i:i+epoch_samples].copy(),
-                    'key': info['key'],
-                    'offset': info['t0'],
-                    'metadata': md,
-                }
-                epochs.append(epoch)
-                next_offset = None
-
-        if len(epochs) != 0:
-            target(epochs)
-
-        data = (yield)
-
-        if queue.is_empty() and (trial_index == len(queue.uploaded)):
-            if empty_queue_cb is not None:
-                # TODO: What if queue becomes reactivated? This is an edge-case
-                # we need not worry about for now.
-                # Invoke callback and then set it to none (so we don't keep
-                # retriggering it each time data is pushed through the input
-                # pipeline).
-                empty_queue_cb()
-                empty_queue_cb = None
-
-
 class ExtractEpochs(EpochInput):
 
     queue = d_(Typed(AbstractSignalQueue))
@@ -717,8 +632,11 @@ class ExtractEpochs(EpochInput):
                 raise SystemError('Cannot have an infinite epoch size')
 
         if plugin is not None:
+            # TODO: This is a hack to mark the output as active. All of this
+            # shoudl be moved to the input_manifest eventually.
+            plugin.invoke_actions(self.name + 'queue_start')
             def empty_queue_cb(plugin=plugin, input=self):
-                plugin.invoke_actions(input.name + '_queue_empty')
+                plugin.invoke_actions(input.name + '_queue_end')
                 input.mark_complete()
         else:
             empty_queue_cb = self.mark_complete

@@ -131,7 +131,6 @@ class EpochOutput(AnalogOutput):
 
     factory = Typed(Waveform)
     active = Bool(False)
-    duration = Float()
 
     def get_next_samples(self, samples):
         if self.active:
@@ -154,7 +153,6 @@ class EpochOutput(AnalogOutput):
 
 class QueuedEpochOutput(EpochOutput):
 
-    selector_name = d_(Unicode())
     queue = d_(Typed(AbstractSignalQueue))
     auto_decrement = d_(Bool(False))
     complete_cb = Typed(object)
@@ -171,6 +169,11 @@ class QueuedEpochOutput(EpochOutput):
         else:
             waveform = np.zeros(samples, dtype=np.double)
         return waveform
+
+
+class SelectorQueuedEpochOutput(QueuedEpochOutput):
+
+    selector_name = d_(Unicode())
 
 
 class ContinuousOutput(AnalogOutput):

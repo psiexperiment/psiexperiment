@@ -43,6 +43,7 @@ enamldef PlotContainerManifest(PSIManifest): manifest:
 
             Container:
                 PGCanvas: canvas:
+                    name << manifest.contribution.name + '_canvas'
                     component << manifest.contribution.container
 
 

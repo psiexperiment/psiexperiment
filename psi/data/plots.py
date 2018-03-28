@@ -64,6 +64,7 @@ class PlotContainer(PSIContribution):
     x_axis = Typed(pg.AxisItem)
     base_viewbox = Property()
     update_pending = Bool(False)
+    legend = Typed(pg.LegendItem)
 
     def _default_container(self):
         container = pg.GraphicsLayout()
@@ -81,6 +82,11 @@ class PlotContainer(PSIContribution):
 
         return container
 
+    def _default_legend(self):
+        legend = pg.LegendItem()
+        legend.setParentItem(self.container)
+        return legend
+
     def _get_base_viewbox(self):
         return self.children[0].viewbox
 
@@ -97,6 +103,11 @@ class PlotContainer(PSIContribution):
 
     def _update(self, event=None):
         self.update_pending = False
+
+    def find(self, name):
+        for child in self.children:
+            if child.name == name:
+                return child
 
 
 class TimeContainer(PlotContainer):
@@ -155,7 +166,7 @@ class FFTContainer(PlotContainer):
 
     def _default_x_axis(self):
         x_axis = super()._default_x_axis()
-        x_axis.setLabel('Frequency', unitPrefix='Hz')
+        x_axis.setLabel('Frequency (Hz)')
         x_axis.logTickStrings = format_log_ticks
         x_axis.setLogMode(True)
         return x_axis
@@ -228,6 +239,7 @@ class ViewBox(PSIContribution):
 
     def _default_y_axis(self):
         y_axis = pg.AxisItem('left')
+        y_axis.setLabel(self.label)
         y_axis.linkToView(self.viewbox)
         y_axis.setGrid(64)
         return y_axis
@@ -243,9 +255,12 @@ class ViewBox(PSIContribution):
                                             enableMenu=False)
         except:
             viewbox = pg.ViewBox(enableMenu=False)
-        viewbox.setYRange(self.y_min, self.y_max)
         viewbox.setBackgroundColor('w')
-        viewbox.disableAutoRange()
+
+        if (self.y_min != 0) or (self.y_max != 0):
+            viewbox.disableAutoRange()
+            viewbox.setYRange(self.y_min, self.y_max)
+
         for child in self.children:
             for plot in child.get_plots():
                 viewbox.addItem(plot)
@@ -651,8 +666,8 @@ class GroupMixin(Declarative):
 
     def _cache_x(self):
         # Set up the new time axis
-        n = round(self.parent.data_range.span*self.source.fs)
-        self._x = np.arange(n)/self.source.fs
+        n_time = int(self.source.fs * self.source.epoch_size)
+        self._x = np.arange(n_time)/self.source.fs
 
 
 class GroupedEpochAveragePlot(GroupMixin, BasePlot):
