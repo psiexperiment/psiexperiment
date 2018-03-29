@@ -31,16 +31,13 @@ class ExperimentEvent(Declarative):
     active = Bool(False)
     associated_state = Typed(ExperimentState)
 
-    def __enter__(self):
+    def update_associated_state(self):
         if self.associated_state is not None:
+            # Be sure to configure the associated state.
             if self.name.endswith('start'):
                 self.associated_state.active = True
             elif self.name.endswith('end'):
                 self.associated_state.active = False
-        self.active = True
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.active = False
 
 
 class ExperimentAction(Declarative):
