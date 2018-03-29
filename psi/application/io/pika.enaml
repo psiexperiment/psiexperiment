@@ -51,7 +51,7 @@ enamldef IOManifest(PluginManifest): manifest:
 
             hw_ai_monitor_period = 0.25
             hw_ao_monitor_period = 0.25
-            hw_ao_buffer_size = 2
+            hw_ao_buffer_size = 5
 
             NIDAQAOChannel:
                 label = 'primary'

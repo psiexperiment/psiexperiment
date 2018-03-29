@@ -282,10 +282,13 @@ class InterleavedFIFOSignalQueue(AbstractSignalQueue):
         if key not in self._ordering:
             raise KeyError('{} not in queue'.format(key))
         self._data[key]['trials'] -= n
-        for data in self._data.values():
+        for key, data in self._data.items():
             if data['trials'] > 0:
                 return
         self._complete = True
+
+    def count_trials(self):
+        return sum(max(v['trials'], 0) for v in self._data.values())
 
 
 class RandomSignalQueue(AbstractSignalQueue):

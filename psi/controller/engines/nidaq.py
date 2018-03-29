@@ -902,11 +902,7 @@ class NIDAQEngine(Engine):
 
     def _hw_ai_callback(self, samples):
         for channel_name, s, cb in self._callbacks.get('ai', []):
-            try:
-                cb(samples[s])
-            except StopIteration:
-                log.warning('Callback no longer works. Removing.')
-                self.unregister_ai_callback(cb, channel_name)
+            cb(samples[s])
 
     def _hw_di_callback(self, samples):
         for i, cb in self._callbacks.get('di', []):

@@ -62,19 +62,18 @@ enamldef ControllerManifest(BaseManifest): manifest:
         ContinuousInput:
             name = 'microphone'
             source_name = 'microphone_channel'
-            save = True
 
-            #IIRFilter:
-            #    N = 2
-            #    name = 'microphone_filtered'
-            #    btype = 'highpass'
-            #    ftype = 'butter'
-            #    f_highpass = 250
+        #    #IIRFilter:
+        #    #    N = 2
+        #    #    name = 'microphone_filtered'
+        #    #    btype = 'highpass'
+        #    #    ftype = 'butter'
+        #    #    f_highpass = 250
 
-            #    RMS:
-            #        name = 'microphone_rms'
-            #        duration = 5e-3
-            #        save = True
+        #    #    RMS:
+        #    #        name = 'microphone_rms'
+        #    #        duration = 5e-3
+        #    #        save = True
 
         SelectorQueuedEpochOutput: output:
             name = 'target'
@@ -87,7 +86,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
             auto_decrement = False
 
         Blocked:
-
             duration = 0.25
             name = 'eeg'
             save = True
@@ -100,14 +98,10 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 ftype = 'butter'
                 f_highpass = 300
                 f_lowpass = 3000
-
-                Decimate:
-                    q = 5
-                    name = 'ecg'
-                    save = True
+                save = True
 
                 Accumulate:
-                    name = 'eeg_buffered'
+                    name = 'accumulate'
                     n = 10
 
                     ExtractEpochs: extract:
@@ -168,7 +162,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
             command = 'target.decrement_key'
 
         ExperimentAction:
-            event = 'target_end'
+            event = 'erp_queue_end'
             command = 'psi.controller.stop'
 
     Extension:
@@ -213,7 +207,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
                 ChannelPlot:
                     pen_color = 'k'
-                    source_name = 'ecg'
+                    source_name = 'eeg_filtered'
 
             #ViewBox:
             #    name = 'microphone_view'

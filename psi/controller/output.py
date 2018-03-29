@@ -162,7 +162,6 @@ class QueuedEpochOutput(EpochOutput):
         if self.active:
             waveform, empty = self.queue.pop_buffer(samples, self.auto_decrement)
             if empty and self.complete_cb is not None:
-                print(self.complete_cb)
                 log.debug('Queue empty. Calling complete callback.')
                 deferred_call(self.complete_cb)
                 self.active = False
