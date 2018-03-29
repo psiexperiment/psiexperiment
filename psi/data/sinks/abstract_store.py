@@ -222,14 +222,7 @@ class DataChannel(DataSource):
 class ContinuousDataChannel(DataChannel):
 
     def append(self, data):
-        lb = self.get_size()/self.fs
         self.data.append(data)
-        ub = self.get_size()/self.fs
-        self.added = {
-            'lb': lb,
-            'ub': ub,
-            'data': data
-        }
 
 
 class EpochDataChannel(DataChannel):

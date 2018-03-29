@@ -28,6 +28,7 @@ class ChannelDataRange(Atom):
     delay = Float(0)
     current_time = Float(0)
     current_range = Tuple(Float(), Float())
+    current_times = Dict()
 
     def _default_current_range(self):
         return 0, self.span
@@ -47,11 +48,12 @@ class ChannelDataRange(Atom):
         self.current_range = low_value, high_value
 
     def add_source(self, source, plot):
-        source.observe('added', partial(self.source_added, plot=plot))
+        source.add_callback(partial(self.source_added, plot=plot))
 
-    def source_added(self, event, plot):
-        self.current_time = max(self.current_time, event['value']['ub'])
-        plot.update()
+    def source_added(self, data, plot):
+        samples = self.current_time.setdefault(plot, 0)
+        self.current_times[plot] = samples + data.shape[-1]
+        self.current_time = max(self.current_time.values())
 
 
 ################################################################################
@@ -360,7 +362,7 @@ class ChannelPlot(SinglePlot):
     def _observe_source(self, event):
         self.parent.data_range.add_source(self.source, self)
         self.parent.data_range.observe('span', self._update_time)
-        self.source.observe('added', self._append_data)
+        self.source.add_callback(self._append_data)
         self.parent.viewbox.sigResized.connect(self._update_decimation)
         self._update_time(None)
         self._update_decimation(self.parent.viewbox)
@@ -436,9 +438,10 @@ class FFTChannelPlot(ChannelPlot):
     window = d_(Enum('hamming', 'flattop'))
 
     def _observe_source(self, event):
+        raise NotImplementedError
         if self.source is None:
             return
-        self.source.observe('added', self.update)
+        self.source.add_callback(self.update)
 
         n_time = round(self.source.fs*self.time_span)
         freq = np.fft.rfftfreq(n_time, self.source.fs**-1)
@@ -674,12 +677,9 @@ class GroupMixin(Declarative):
         self.update_pending = False
 
     def _observe_source(self, event):
-        if self.source is None:
-            return
+        self.source.add_callback(self._epochs_acquird)
         self._reset_plots()
         self._cache_x()
-        # Subscribe to notifications
-        self.source.observe('added', self._epochs_acquired)
 
     def _cache_x(self):
         # Set up the new time axis
