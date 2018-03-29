@@ -198,6 +198,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
                     name = 'erp_average'
                     label = 'ERP average plot'
                     source_name = 'valid_erp'
+                    n_update = 32
 
         TimeContainer:
             name = 'trial_plot_container'
