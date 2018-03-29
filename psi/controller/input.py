@@ -10,8 +10,6 @@ from scipy import signal
 from atom.api import (Unicode, Float, Typed, Int, Property, Enum, Bool,
                       Callable, List)
 from enaml.core.api import Declarative, d_
-from enaml.workbench.api import Extension
-
 from ..util import coroutine
 from .channel import Channel
 from .calibration.util import db, dbi, patodb
@@ -45,6 +43,9 @@ class Input(PSIContribution):
     save = d_(Bool(False)).tag(metadata=True)
 
     inputs = List()
+
+    def _default_name(self):
+        return self.parent.name + '_' + self.__class__.__name__.lower()
 
     def _default_label(self):
         return self.name.replace('_', ' ')
@@ -322,7 +323,7 @@ def capture_epoch(epoch_t0, epoch_samples, info, callback):
             epoch_samples -= d
 
             # Check to see if we've finished acquiring the entire epoch. If so,
-            # send it to the callback. 
+            # send it to the callback.
             if epoch_samples == 0:
                 accumulated_data = np.concatenate(accumulated_data, axis=-1)
                 callback({'signal': accumulated_data, 'info': info})
@@ -625,7 +626,7 @@ class ExtractEpochs(EpochInput):
 
     def configure_callback(self, plugin=None):
         # If the epoch size is not set, set it to the maximum token duration
-        # found in the queue. Note that this will fail if 
+        # found in the queue. Note that this will fail if
         if self.epoch_size <= 0:
             self.epoch_size = self.queue.get_max_duration()
         if not np.isfinite(self.epoch_size):
