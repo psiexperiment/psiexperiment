@@ -666,7 +666,7 @@ class GroupMixin(Declarative):
 
     def _cache_x(self):
         # Set up the new time axis
-        n_time = int(self.source.fs * self.source.epoch_size)
+        n_time = round(self.source.fs * self.source.epoch_size)
         self._x = np.arange(n_time)/self.source.fs
 
 

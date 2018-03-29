@@ -4,6 +4,9 @@ log = logging.getLogger(__name__)
 from atom.api import Typed
 import numpy as np
 from scipy import signal
+from palettable.colorbrewer import qualitative
+import itertools
+import pyqtgraph as pg
 
 from enaml.application import deferred_call
 from enaml.workbench.api import Extension
@@ -88,8 +91,6 @@ def calculate_sens(event):
     pt_groups = pt_source.get_epoch_groups(['n_bits', 'output_gain'])
     cal_groups = cal_source.get_epoch_groups(['n_bits', 'output_gain'])
 
-    from palettable.colorbrewer import qualitative
-    import itertools
     n = max(len(cal_groups), 3)
     cmap_name = 'Dark2_{}'.format(n)
     cmap = getattr(qualitative, cmap_name)
@@ -146,7 +147,6 @@ def calculate_group_sens(fs, key, pt_groups, cal_groups, color, context, data,
 
     def plot_data(data=data, pt_summary=pt_summary, cal_summary=cal_summary,
                   sens_summary=sens_summary, color=color, name=name):
-        import pyqtgraph as pg
 
         vb = data.find_viewbox('pt_fft')
         x = np.log10(pt_summary['frequency'])
@@ -170,7 +170,6 @@ def calculate_group_sens(fs, key, pt_groups, cal_groups, color, context, data,
         vb.add_plot(item)
 
         vb.parent.legend.addItem(item, name)
-
 
     deferred_call(plot_data)
 

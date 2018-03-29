@@ -11,7 +11,7 @@ from psi.context.api import ContextGroup, Parameter, EnumParameter
 from psi.context.selector import SequenceSelector
 from psi.controller.api import ExperimentAction
 
-from psi.controller.output import QueuedEpochOutput, EpochOutput
+from psi.controller.output import SelectorQueuedEpochOutput, EpochOutput
 from psi.controller.input import ExtractEpochs, Input, Blocked, Accumulate, RejectEpochs, IIRFilter, Decimate
 
 from psi.controller.base_manifest import (BaseManifest, get_hw_ao_choices,
@@ -69,7 +69,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
         id = 'io'
         point = 'psi.controller.io'
 
-        QueuedEpochOutput: hw_ao:
+        SelectorQueuedEpochOutput: hw_ao:
             name = 'hw_ao'
             auto_decrement = True
             selector_name = 'default'
@@ -148,7 +148,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
             weight = 15
 
         ExperimentAction:
-            event = 'epoch_queue_empty and not hw_ao_active'
+            event = 'epoch_queue_end and not hw_ao_active'
             command = 'psi.controller.stop'
 
     Extension:

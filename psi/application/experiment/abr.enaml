@@ -15,7 +15,7 @@ from psi.controller.base_manifest import BaseManifest
 from psi.controller.input import (ContinuousInput, ExtractEpochs, Input,
                                   Blocked, Accumulate, RejectEpochs, IIRFilter,
                                   Decimate, RMS)
-from psi.controller.output import QueuedEpochOutput, EpochOutput
+from psi.controller.output import SelectorQueuedEpochOutput, EpochOutput
 from psi.controller.queue import InterleavedFIFOSignalQueue
 
 from psi.util import copy_declarative
@@ -76,7 +76,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
             #        duration = 5e-3
             #        save = True
 
-        QueuedEpochOutput: output:
+        SelectorQueuedEpochOutput: output:
             name = 'target'
             label = 'Target'
             target_name = 'speaker_0'
