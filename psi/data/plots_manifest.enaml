@@ -56,7 +56,7 @@ enamldef TimeseriesPlotManifest(PSIManifest): manifest:
             event = 'experiment_prepare'
             command = 'psi.data.attach_source'
             kwargs = {'contribution': manifest.contribution}
-            weight = 100
+            weight = 15
 
 
 enamldef BasePlotManifest(PSIManifest): manifest:
@@ -68,7 +68,7 @@ enamldef BasePlotManifest(PSIManifest): manifest:
             event = 'experiment_prepare'
             command = 'psi.data.attach_source'
             kwargs = {'contribution': manifest.contribution}
-            weight = 100
+            weight = 15
 
 
 enamldef GroupMixin(BasePlotManifest): manifest:

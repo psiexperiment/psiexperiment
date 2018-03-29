@@ -63,18 +63,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
             name = 'microphone'
             source_name = 'microphone_channel'
 
-        #    #IIRFilter:
-        #    #    N = 2
-        #    #    name = 'microphone_filtered'
-        #    #    btype = 'highpass'
-        #    #    ftype = 'butter'
-        #    #    f_highpass = 250
-
-        #    #    RMS:
-        #    #        name = 'microphone_rms'
-        #    #        duration = 5e-3
-        #    #        save = True
-
         SelectorQueuedEpochOutput: output:
             name = 'target'
             label = 'Target'
@@ -98,23 +86,16 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 ftype = 'butter'
                 f_highpass = 300
                 f_lowpass = 3000
-                save = True
 
-                Accumulate:
-                    name = 'accumulate'
-                    n = 10
+                ExtractEpochs: extract:
+                    name = 'erp'
+                    queue = output.queue
+                    epoch_size = 8.5e-3
+                    save = True
 
-                    ExtractEpochs: extract:
-                        save = True
-                        buffer_size = 50
-                        queue = output.queue
-                        epoch_size = 8.5e-3
-                        name = 'erp'
-
-                        RejectEpochs:
-                            save = True
-                            name = 'valid_erp'
-                            threshold = 2.5
+                    RejectEpochs:
+                        name = 'valid_erp'
+                        threshold = 2.5
 
     Extension:
         id = 'context'

@@ -28,7 +28,9 @@ class ChannelDataRange(Atom):
     delay = Float(0)
     current_time = Float(0)
     current_range = Tuple(Float(), Float())
-    current_times = Dict()
+
+    current_samples = Typed(defaultdict, (int,))
+    current_times = Typed(defaultdict, (float,))
 
     def _default_current_range(self):
         return 0, self.span
@@ -48,12 +50,13 @@ class ChannelDataRange(Atom):
         self.current_range = low_value, high_value
 
     def add_source(self, source, plot):
-        source.add_callback(partial(self.source_added, plot=plot))
+        cb = partial(self.source_added, plot=plot, fs=source.fs)
+        source.add_callback(cb)
 
-    def source_added(self, data, plot):
-        samples = self.current_time.setdefault(plot, 0)
-        self.current_times[plot] = samples + data.shape[-1]
-        self.current_time = max(self.current_time.values())
+    def source_added(self, data, plot, fs):
+        self.current_samples[plot] += data.shape[-1]
+        self.current_times[plot] = self.current_samples[plot]/fs
+        self.current_time = max(self.current_times.values())
 
 
 ################################################################################
@@ -360,12 +363,13 @@ class ChannelPlot(SinglePlot):
         return pg.PlotCurveItem(pen=self.pen, antialias=self.antialias)
 
     def _observe_source(self, event):
-        self.parent.data_range.add_source(self.source, self)
-        self.parent.data_range.observe('span', self._update_time)
-        self.source.add_callback(self._append_data)
-        self.parent.viewbox.sigResized.connect(self._update_decimation)
-        self._update_time(None)
-        self._update_decimation(self.parent.viewbox)
+        if self.source is not None:
+            self.parent.data_range.add_source(self.source, self)
+            self.parent.data_range.observe('span', self._update_time)
+            self.source.add_callback(self._append_data)
+            self.parent.viewbox.sigResized.connect(self._update_decimation)
+            self._update_time(None)
+            self._update_decimation(self.parent.viewbox)
 
     def _update_time(self, event):
         # Precompute the time array since this can be the "slow" point
@@ -376,8 +380,7 @@ class ChannelPlot(SinglePlot):
         self._update_buffer()
 
     def _update_buffer(self, event=None):
-        self._buffer = SignalBuffer(self.source.fs,
-                                    self.parent.data_range.span*5)
+        self._buffer = SignalBuffer(self.source.fs, self.parent.data_range.span*2)
 
     def _update_decimation(self, viewbox=None):
         try:
@@ -387,8 +390,9 @@ class ChannelPlot(SinglePlot):
         except Exception as e:
             pass
 
-    def _append_data(self, event):
-        self._buffer.append_data(event['value']['data'])
+    def _append_data(self, data):
+        self._buffer.append_data(data)
+        self.update()
 
     def _update(self, event=None):
         low, high = self.parent.data_range.current_range
@@ -606,8 +610,8 @@ class GroupMixin(Declarative):
 
     n_update = d_(Int(1))
 
-    def _epochs_acquired(self, event):
-        for d in event['value']:
+    def _epochs_acquired(self, epochs):
+        for d in epochs:
             md = d['info']['metadata']
             signal = d['signal']
             key = tuple(md[n] for n in self.group_names)
@@ -677,9 +681,10 @@ class GroupMixin(Declarative):
         self.update_pending = False
 
     def _observe_source(self, event):
-        self.source.add_callback(self._epochs_acquird)
-        self._reset_plots()
-        self._cache_x()
+        if self.source is not None:
+            self.source.add_callback(self._epochs_acquired)
+            self._reset_plots()
+            self._cache_x()
 
     def _cache_x(self):
         # Set up the new time axis

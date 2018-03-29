@@ -45,7 +45,11 @@ class Input(PSIContribution):
     inputs = List()
 
     def _default_name(self):
-        return self.parent.name + '_' + self.__class__.__name__.lower()
+        if self.source is not None:
+            base_name = self.source.name
+        else:
+            base_name = self.parent.name
+        return base_name + '_' + self.__class__.__name__.lower()
 
     def _default_label(self):
         return self.name.replace('_', ' ')
@@ -108,8 +112,8 @@ class Input(PSIContribution):
         action = self.name + '_acquired'
         return lambda data: plugin.invoke_actions(action, data=data)
 
-    def add_callback(self, cb):
-        callback = Callback(function=cb)
+    def add_callback(self, cb, name=''):
+        callback = Callback(function=cb, name=name)
         self.add_input(callback)
 
 
@@ -616,7 +620,7 @@ class Edges(EventInput):
 class ExtractEpochs(EpochInput):
 
     queue = d_(Typed(AbstractSignalQueue))
-    buffer_size = d_(Float(30)).tag(metadata=True)
+    buffer_size = d_(Float(0)).tag(metadata=True)
     epoch_size = d_(Float(0)).tag(metadata=True)
 
     complete = Bool(False)
@@ -635,7 +639,7 @@ class ExtractEpochs(EpochInput):
         if plugin is not None:
             # TODO: This is a hack to mark the output as active. All of this
             # shoudl be moved to the input_manifest eventually.
-            plugin.invoke_actions(self.name + 'queue_start')
+            plugin.invoke_actions(self.name + '_queue_start')
             def empty_queue_cb(plugin=plugin, input=self):
                 plugin.invoke_actions(input.name + '_queue_end')
                 input.mark_complete()

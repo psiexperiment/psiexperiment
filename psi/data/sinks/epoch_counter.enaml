@@ -2,6 +2,7 @@ import logging
 log = logging.getLogger(__name__)
 
 import operator
+from collections import defaultdict
 
 from atom.api import Typed, Event, Unicode, Int, List, Dict
 from enaml.core.api import d_
@@ -22,12 +23,11 @@ class EpochCounter(Sink):
     source = Typed(object)
 
     def _observe_source(self, event):
-        if self.source is None:
-            return
-        self.source.observe('added', self.update)
+        if self.source is not None:
+            self.source.add_callback(self.added)
 
-    def update(self, event):
-        self.total_n = self.source.n_epochs
+    def added(self, epochs):
+        self.total_n += len(epochs)
 
 
 class GroupedEpochCounter(EpochCounter):
@@ -36,20 +36,17 @@ class GroupedEpochCounter(EpochCounter):
     max_n = Int()
     groups_n = Int()
     grouping = List()
-    counts = Dict()
+    counts = Typed(defaultdict, (int,))
     get_key = Typed(object)
 
     def _observe_grouping(self, event):
         self.get_key = operator.itemgetter(*[v.name for v in self.grouping])
-        self.counts = {}
 
-    def update(self, event):
-        for data in event['value']:
-            md = data['info']['metadata']
+    def added(self, epochs):
+        for e in epochs:
+            md = e['info']['metadata']
             key = self.get_key(md)
-            c = self.counts.setdefault(key, 0)
-            self.counts[key] = c + 1
-
+            self.counts[key] += 1
         counts = self.counts.values()
         self.min_n = min(counts)
         self.max_n = max(counts)
@@ -66,7 +63,7 @@ enamldef EpochCounterManifest(PSIManifest): manifest:
             event = 'experiment_prepare'
             command = 'psi.data.attach_source'
             kwargs = {'contribution': manifest.contribution}
-            weight = 100
+            weight = 15
 
     Extension:
         id = 'workspace'
@@ -98,7 +95,7 @@ enamldef GroupedEpochCounterManifest(PSIManifest): manifest:
             event = 'experiment_prepare'
             command = 'psi.data.attach_source'
             kwargs = {'contribution': manifest.contribution}
-            weight = 100
+            weight = 15
 
     Extension:
         id = 'workspace'
