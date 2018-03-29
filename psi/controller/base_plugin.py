@@ -116,7 +116,7 @@ def find_inputs(channels, point):
     # Find all the outputs already connected to a channel
     for c in channels.values():
         if isinstance(c, InputChannel):
-            for i in c.inputs:
+            for i in c.children:
                 for ci in get_inputs(i):
                     inputs[ci.name] = ci
 
@@ -401,6 +401,7 @@ class BasePlugin(Plugin):
         # Load the state of all events so that we can determine which actions
         # should be performed.
         log.trace('Triggering event {}'.format(event_name))
+        self._events[event_name].update_associated_state()
         context = self._get_action_context()
         context[event_name] = True
 

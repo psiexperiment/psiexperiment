@@ -31,9 +31,8 @@ def test_default_name(controller):
     assert i.source.name == 'microphone_blocked_downsample'
 
 
-def test_input_metadata(workbench):
+def test_input_metadata(controller):
     from psi.util import declarative_to_dict
-    controller = workbench.get_plugin('psi.controller')
     mic = controller.get_input('microphone_filtered')
     result = declarative_to_dict(mic, 'metadata')
     assert result['btype'] == 'bandpass'
