@@ -3,6 +3,7 @@ log = logging.getLogger(__name__)
 
 import itertools
 from functools import partial
+from collections import defaultdict
 import threading
 
 import numpy as np
@@ -594,17 +595,27 @@ class GroupMixin(Declarative):
     group_names = List()
     plots = Dict()
 
-    _epoch_cache = Dict()
+    _epoch_cache = Typed(object)
+    _epoch_count = Typed(object)
+    _epoch_updated = Typed(object)
     _pen_color_cycle = Typed(object)
     _x = Typed(np.ndarray)
+
+    n_update = d_(Int(1))
 
     def _epochs_acquired(self, event):
         for d in event['value']:
             md = d['info']['metadata']
             signal = d['signal']
             key = tuple(md[n] for n in self.group_names)
-            self._epoch_cache.setdefault(key, []).append(signal)
-        self.update()
+            self._epoch_cache[key].append(signal)
+            self._epoch_count[key] += 1
+
+        # Does at least one epoch need to be updated?
+        for key, count in self._epoch_count.items():
+            if count >= self._epoch_updated[key] + self.n_update:
+                self.update()
+                break
 
     def _default_pen_color_cycle(self):
         return ['k']
@@ -618,7 +629,9 @@ class GroupMixin(Declarative):
         for plot in self.plots.items():
             self.parent.viewbox.removeItem(plot)
         self.plots = {}
-        self._epoch_cache = {}
+        self._epoch_cache = defaultdict(list)
+        self._epoch_count = defaultdict(int)
+        self._epoch_updated = defaultdict(int)
         self._pen_color_cycle = itertools.cycle(self.pen_color_cycle)
 
     def _observe_groups(self, event):
@@ -650,10 +663,14 @@ class GroupMixin(Declarative):
             else np.full_like(self._x, np.nan)
 
     def _update(self, event=None):
-        for key, epoch in self._epoch_cache.items():
-            plot = self.get_plot(key)
-            y = self._y(epoch)
-            plot.setData(self._x, y)
+        # Update epochs that need updating
+        for key, count in self._epoch_count.items():
+            if count >= self._epoch_updated[key] + self.n_update:
+                epoch = self._epoch_cache[key]
+                plot = self.get_plot(key)
+                y = self._y(epoch)
+                plot.setData(self._x, y)
+                self._epoch_updated[key] = len(epoch)
         self.update_pending = False
 
     def _observe_source(self, event):
