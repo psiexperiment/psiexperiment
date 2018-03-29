@@ -67,8 +67,8 @@ def set_base_path(event):
 
 def attach_source(event):
     contribution = event.parameters['contribution']
-    plugin = event.workbench.get_plugin('psi.data')
-    contribution.source = plugin.find_source(contribution.source_name)
+    controller = event.workbench.get_plugin('psi.controller')
+    contribution.source = controller.get_input(contribution.source_name)
 
 
 enamldef DataManifest(PluginManifest): manifest:
