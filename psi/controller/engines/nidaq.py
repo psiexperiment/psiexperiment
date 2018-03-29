@@ -346,7 +346,7 @@ def setup_hw_ai(fs, lines, expected_range, callback, callback_samples,
     #mx.DAQmxSetBufInputBufSize(task, int(new_buffer_size))
     #n_channels = 1
 
-    mx.DAQmxSetBufInputBufSize(task, callback_samples*100)
+    mx.DAQmxSetBufInputBufSize(task, callback_samples*10)
     mx.DAQmxGetBufInputBufSize(task, result)
     buffer_size = result.value
     log.debug('Buffer size for %s set to %d samples', lines, buffer_size)
@@ -535,6 +535,7 @@ class NIDAQEngine(Engine):
         'ground': mx.DAQmx_Val_GND,
     }
 
+    # This defines the function for the clock that synchronizes the tasks.
     sample_time = Callable()
 
     def __init__(self, *args, **kw):
@@ -638,6 +639,8 @@ class NIDAQEngine(Engine):
         elif hw_ai_channels:
             self.sample_time = self.ai_sample_time
 
+        # Configure task done events so that we can fire a callback if
+        # acquisition is done. 
         self._task_done = {}
         for name, task in self._tasks.items():
             def cb(t, s, cb_data):
