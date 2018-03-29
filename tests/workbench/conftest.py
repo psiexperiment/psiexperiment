@@ -10,6 +10,7 @@ with enaml.imports():
     from psi.context.manifest import ContextManifest
     from psi.data.manifest import DataManifest
     from psi.token.manifest import TokenManifest
+    from psi.experiment.manifest import ExperimentManifest
     from .helper_manifest import HelperManifest
 
 
@@ -25,6 +26,7 @@ def workbench(app):
     workbench.register(ContextManifest())
     workbench.register(DataManifest())
     workbench.register(TokenManifest())
+    workbench.register(ExperimentManifest())
     workbench.register(HelperManifest())
 
     context = workbench.get_plugin('psi.context')
@@ -33,3 +35,8 @@ def workbench(app):
     for r in (20, 15, 10, 2):
         context.selectors['default'].add_setting({'repetitions': r})
     return workbench
+
+
+@pytest.fixture
+def controller(workbench):
+    return workbench.get_plugin('psi.controller')

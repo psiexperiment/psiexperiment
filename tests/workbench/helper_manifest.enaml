@@ -9,7 +9,7 @@ from psi.controller.experiment_action import (ExperimentState, ExperimentEvent,
                                               ExperimentAction)
 from psi.controller.engines.null import NullEngine
 from psi.controller.channel import AIChannel
-from psi.controller.input import Downsample, IIRFilter
+from psi.controller.input import Downsample, IIRFilter, Blocked
 from psi.controller.calibration import PointCalibration
 from psi.token.primitives import Cos2Envelope, Tone
 
@@ -31,21 +31,25 @@ enamldef HelperManifest(BaseManifest): manifest:
         point = 'psi.controller.io'
 
         NullEngine:
+
             AIChannel:
                 name = 'microphone'
                 fs = 200e3
                 calibration = PointCalibration([1000, 2000], [1, 1])
                 expected_range = (-5, 5)
                 dtype = 'float32'
-                Downsample:
-                    name = 'downsample'
-                    q = 2
-                    IIRFilter:
-                        name = 'microphone_filtered'
-                        N = 4
-                        f_lowpass = 40000
-                        f_highpass = 400
 
+                Blocked:
+                    duration = 0.25
+
+                    Downsample:
+                        q = 2
+
+                        IIRFilter:
+                            name = 'microphone_filtered'
+                            N = 4
+                            f_lowpass = 40000
+                            f_highpass = 400
 
     Extension:
         id = 'helper_items'
