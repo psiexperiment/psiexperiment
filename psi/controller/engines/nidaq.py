@@ -17,6 +17,8 @@ different vendors (including Measurement Computing and OpenElec).
 
 import logging
 log = logging.getLogger(__name__)
+log_ai = logging.getLogger(__name__ + '.ai')
+log_ao = logging.getLogger(__name__ + '.ao')
 
 import types
 import ctypes
@@ -106,7 +108,7 @@ class SamplesGeneratedCallbackHelper(object):
             self._callback(callback_samples)
             return 0
         except Exception as e:
-            log.exception(e)
+            log_ao.exception(e)
             return -1
 
 
@@ -124,17 +126,16 @@ class SamplesAcquiredCallbackHelper(object):
         try:
             if self._discarded:
                 return self._call_ongoing(*args)
-            else:
-                return self._call_first(*args)
+            return self._call_first(*args)
         except Exception as e:
-            log.exception(e)
+            log_ai.exception(e)
             return -1
 
     def _call_first(self, task, event_type, cb_samples, cb_data):
         mx.DAQmxGetReadAvailSampPerChan(task, self._uint32)
         available_samples = self._uint32.value
         if available_samples >= self._discard_first:
-            log.debug('Discarding first %s samples', self._discard_first)
+            log_ai.debug('Discarding first %s samples', self._discard_first)
             data_shape = self._n_channels, self._discard_first
             data = np.empty(data_shape, dtype=np.double)
             mx.DAQmxReadAnalogF64(task, self._discard_first, 0,
@@ -155,7 +156,9 @@ class SamplesAcquiredCallbackHelper(object):
         mx.DAQmxReadAnalogF64(task, samples, 0,
                             mx.DAQmx_Val_GroupByChannel, data, data.size,
                             self._int32, None)
+        log_ai.trace('Read %d samples', samples)
         self._callback(data)
+        log_ai.trace('Sent samples')
         return 0
 
     def _call_final(self, task):
@@ -270,14 +273,14 @@ def setup_hw_ao(fs, lines, expected_range, callback, callback_samples,
 
     if buffer_samples is None:
         buffer_samples = int(callback_samples*10)
-    log.debug('Setting output buffer size to %d samples', buffer_samples)
+    log_ao.debug('Setting output buffer size to %d samples', buffer_samples)
     mx.DAQmxSetBufOutputBufSize(task, buffer_samples)
     task._buffer_samples = buffer_samples
 
     result = ctypes.c_uint32()
     mx.DAQmxGetTaskNumChans(task, result)
     task._n_channels = result.value
-    log.debug('%d channels in task', task._n_channels)
+    log_ao.debug('%d channels in task', task._n_channels)
 
     #mx.DAQmxSetAOMemMapEnable(task, lines, True)
     #mx.DAQmxSetAODataXferReqCond(task, lines, mx.DAQmx_Val_OnBrdMemHalfFullOrLess)
@@ -288,27 +291,27 @@ def setup_hw_ao(fs, lines, expected_range, callback, callback_samples,
     # samples. Haven't really been able to do much about this.
     mx.DAQmxGetBufOutputOnbrdBufSize(task, result)
     task._onboard_buffer_size = result.value
-    log.debug('Onboard buffer size %d', task._onboard_buffer_size)
+    log_ao.debug('Onboard buffer size %d', task._onboard_buffer_size)
 
     result = ctypes.c_int32()
     mx.DAQmxGetAODataXferMech(task, lines, result)
-    log.debug('Data transfer mechanism %d', result.value)
+    log_ao.debug('Data transfer mechanism %d', result.value)
     mx.DAQmxGetAODataXferReqCond(task, lines, result)
-    log.debug('Data transfer condition %d', result.value)
+    log_ao.debug('Data transfer condition %d', result.value)
     #result = ctypes.c_uint32()
     #mx.DAQmxGetAOUseOnlyOnBrdMem(task, lines, result)
-    #log.debug('Use only onboard memory %d', result.value)
+    #log_ao.debug('Use only onboard memory %d', result.value)
     #mx.DAQmxGetAOMemMapEnable(task, lines, result)
-    #log.debug('Memory mapping enabled %d', result.value)
+    #log_ao.debug('Memory mapping enabled %d', result.value)
 
     #mx.DAQmxGetAIFilterDelayUnits(task, lines, result)
-    #log.debug('AI filter delay unit %d', result.value)
+    #log_ao.debug('AI filter delay unit %d', result.value)
 
     #result = ctypes.c_int32()
     #mx.DAQmxGetAODataXferMech(task, result)
-    #log.debug('DMA transfer mechanism %d', result.value)
+    #log_ao.debug('DMA transfer mechanism %d', result.value)
 
-    log.debug('Creating callback after every %d samples', callback_samples)
+    log_ao.debug('Creating callback after every %d samples', callback_samples)
     callback_helper = SamplesGeneratedCallbackHelper(callback)
     cb_ptr = mx.DAQmxEveryNSamplesEventCallbackPtr(callback_helper)
     mx.DAQmxRegisterEveryNSamplesEvent(task,
@@ -338,9 +341,9 @@ def setup_hw_ai(fs, lines, expected_range, callback, callback_samples,
     mx.DAQmxGetTaskNumChans(task, result)
     n_channels = result.value
 
-    #log.debug('Buffer size for %s automatically allocated as %d samples',
+    #log_ai.debug('Buffer size for %s automatically allocated as %d samples',
     #          lines, buffer_size)
-    #log.debug('%d channels in task', n_channels)
+    #log_ai.debug('%d channels in task', n_channels)
 
     #new_buffer_size = np.ceil(buffer_size/callback_samples)*callback_samples
     #mx.DAQmxSetBufInputBufSize(task, int(new_buffer_size))
@@ -349,20 +352,20 @@ def setup_hw_ai(fs, lines, expected_range, callback, callback_samples,
     mx.DAQmxSetBufInputBufSize(task, callback_samples*10)
     mx.DAQmxGetBufInputBufSize(task, result)
     buffer_size = result.value
-    log.debug('Buffer size for %s set to %d samples', lines, buffer_size)
+    log_ai.debug('Buffer size for %s set to %d samples', lines, buffer_size)
 
     info = ctypes.c_double()
     mx.DAQmxGetSampClkRate(task, info)
-    log.debug('AI sample rate'.format(info.value))
+    log_ai.debug('AI sample rate'.format(info.value))
     mx.DAQmxGetSampClkTimebaseRate(task, info)
-    log.debug('AI timebase {}'.format(info.value))
+    log_ai.debug('AI timebase {}'.format(info.value))
     try:
         info = ctypes.c_int32()
         mx.DAQmxSetAIFilterDelayUnits(task, lines,
                                       mx.DAQmx_Val_SampleClkPeriods)
         info = ctypes.c_double()
         mx.DAQmxGetAIFilterDelay(task, lines, info)
-        log.debug('AI filter delay {} samples'.format(info.value))
+        log_ai.debug('AI filter delay {} samples'.format(info.value))
         filter_delay = int(info.value)
 
         # Ensure timing is compensated for the planned filter delay since these
@@ -929,24 +932,24 @@ class NIDAQEngine(Engine):
         task = self._tasks['hw_ao']
         mx.DAQmxGetWriteSpaceAvail(task, self._uint32)
         available = self._uint32.value
-        log.trace('Current write space available %d', available)
+        log_ao.trace('Current write space available %d', available)
 
         # Compensate for offset if specified.
         if offset is not None:
             write_position = self.ao_write_position()
             relative_offset = offset-write_position
-            log.trace('Compensating write space for requested offset %d', offset)
+            log_ao.trace('Compensating write space for requested offset %d', offset)
             available -= relative_offset
         return available
 
     def hw_ao_callback(self, samples):
         # Get the next set of samples to upload to the buffer
         with self.lock:
-            log.trace('Hardware AO callback for {}'.format(self.name))
+            log_ao.trace('Hardware AO callback for %s', self.name)
             offset = self.get_offset()
             available_samples = self.get_space_available(offset)
             if available_samples < samples:
-                log.trace('Not enough samples available for writing')
+                log_ao.trace('Not enough samples available for writing')
             else:
                 data = self._get_hw_ao_samples(offset, samples)
                 self.write_hw_ao(data, timeout=0)
@@ -963,9 +966,9 @@ class NIDAQEngine(Engine):
             raise ValueError('Unsupported update method')
 
         if samples <= 0:
-            log.trace('No update of hw ao required')
+            log_ao.trace('No update of hw ao required')
             return
-        log.trace('Updating hw ao at {} with {} samples'.format(offset, samples))
+        log_ao.trace('Updating hw ao at %d with %d samples', offset, samples)
         data = self._get_hw_ao_samples(offset, samples)
         self.write_hw_ao(data, offset=offset, timeout=0)
 
@@ -979,7 +982,7 @@ class NIDAQEngine(Engine):
     def ao_write_position(self):
         task = self._tasks['hw_ao']
         mx.DAQmxGetWriteCurrWritePos(task, self._uint64)
-        log.trace('Current write position %d', self._uint64.value)
+        log_ao.trace('Current write position %d', self._uint64.value)
         return self._uint64.value
 
     def write_hw_ao(self, data, offset=None, timeout=1):
@@ -988,7 +991,7 @@ class NIDAQEngine(Engine):
         # overflow if we attempt to set the offset relative to the first sample
         # written. Therefore, we compute the write offset relative to the last
         # sample written (for requested offsets it should be negative).
-        log.trace('Writing {} samples at {}'.format(data.shape, offset))
+        log_ao.trace('Writing %d samples at %d', data.shape, offset)
         task = self._tasks['hw_ao']
 
         if offset is not None:
@@ -996,8 +999,8 @@ class NIDAQEngine(Engine):
             relative_offset = offset-write_position
             mx.DAQmxSetWriteOffset(task, relative_offset)
             m = 'Write position %d, requested offset %d, relative offset %d'
-            log.trace(m, write_position, offset, relative_offset)
-            log.trace('AO samples generated %d', self.ao_sample_clock())
+            log_ao.trace(m, write_position, offset, relative_offset)
+            log_ao.trace('AO samples generated %d', self.ao_sample_clock())
 
         mx.DAQmxWriteAnalogF64(task, data.shape[-1], False, timeout,
                                mx.DAQmx_Val_GroupByChannel,
@@ -1005,10 +1008,10 @@ class NIDAQEngine(Engine):
 
         # Now, reset it back to 0
         if offset is not None:
-            log.trace('Resetting write offset')
+            log_ao.trace('Resetting write offset')
             mx.DAQmxSetWriteOffset(task, 0)
 
-        log.trace('Write complete')
+        log_ao.trace('Write complete')
 
     def get_ts(self):
         with self.lock:

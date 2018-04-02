@@ -15,15 +15,17 @@ from .channel import Channel, AIChannel, AOChannel, DIChannel, DOChannel
 
 
 def log_configuration(engine):
-    log.info('Engine {}'.format(engine.name))
+    info = ['Engine configuration']
+    info.append('Engine {}'.format(engine.name))
     for channel in engine.get_channels(direction='input', active=True):
-        log.info('\t channel {}'.format(channel.name))
+        info.append('\t channel {}'.format(channel.name))
         for i in channel.inputs:
-            log.info('\t\t input {}'.format(i.name))
+            info.append('\t\t input {}'.format(i.name))
     for channel in engine.get_channels(direction='output', active=True):
-        log.info('\t channel {}'.format(channel.name))
+        info.append('\t channel {}'.format(channel.name))
         for o in channel.outputs:
-            log.info('\t\t output {}'.format(o.name))
+            info.append('\t\t output {}'.format(o.name))
+    log.info('\n'.join(info))
 
 
 class Engine(PSIContribution):

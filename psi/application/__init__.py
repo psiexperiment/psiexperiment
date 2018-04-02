@@ -42,15 +42,16 @@ def configure_logging(filename=None):
             'console': {
                 'class': 'psi.core.logging.colorstreamhandler.ColorStreamHandler',
                 'formatter': 'simple',
-                'level': 'DEBUG',
+                'level': 'TRACE',
                 },
             },
         'loggers': {
             '__main__': {'level': 'DEBUG'},
             'psi': {'level': 'DEBUG'},
-            'psi.core.chaco': {'level': 'INFO'},
             'psi.controller.engine': {'level': 'DEBUG'},
-            'psi.controller.engines.nidaq': {'level': 'DEBUG'},
+            'psi.controller.engines.nidaq': {'level': 'TRACE'},
+            'psi.controller.engines.nidaq.ai': {'level': 'TRACE'},
+            'psi.controller.engines.nidaq.ao': {'level': 'DEBUG'},
             },
         'root': {
             'handlers': ['console'],
