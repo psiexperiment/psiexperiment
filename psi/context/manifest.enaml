@@ -127,7 +127,7 @@ enamldef ContextManifest(PluginManifest): manifest:
             # many plugins will likely depend on this.
             event = 'experiment_prepare'
             command = 'psi.context.apply_changes'
-            weight = 10
+            weight = 5
 
     Extension:
         id = 'preferences'

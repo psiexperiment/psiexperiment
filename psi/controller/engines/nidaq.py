@@ -569,7 +569,7 @@ class NIDAQEngine(Engine):
         self._uint64 = ctypes.c_uint64()
         self._int32 = ctypes.c_int32()
 
-    def configure(self, plugin=None):
+    def configure(self):
         log.debug('Configuring {} engine'.format(self.name))
 
         sw_do_channels = self.get_channels('digital', 'output', 'software')
@@ -655,7 +655,7 @@ class NIDAQEngine(Engine):
             task._done_cb_ptr_engine = cb_ptr
             self._task_done[name] = False
 
-        super().configure(plugin)
+        super().configure()
 
         # Required by start. This allows us to do the configuration
         # on the fly when starting the engines if the configure method hasn't

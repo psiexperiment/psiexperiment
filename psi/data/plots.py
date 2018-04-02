@@ -671,7 +671,7 @@ class GroupMixin(Declarative):
 
     def _update(self, event=None):
         # Update epochs that need updating
-        for key, count in self._epoch_count.items():
+        for key, count in list(self._epoch_count.items()):
             if count >= self._epoch_updated[key] + self.n_update:
                 epoch = self._epoch_cache[key]
                 plot = self.get_plot(key)
@@ -683,13 +683,15 @@ class GroupMixin(Declarative):
     def _observe_source(self, event):
         if self.source is not None:
             self.source.add_callback(self._epochs_acquired)
+            self.source.observe('fs', self._cache_x)
+            self.source.observe('epoch_size', self._cache_x)
             self._reset_plots()
-            self._cache_x()
 
-    def _cache_x(self):
+    def _cache_x(self, event):
         # Set up the new time axis
-        n_time = round(self.source.fs * self.source.epoch_size)
-        self._x = np.arange(n_time)/self.source.fs
+        if self.source.fs and self.source.epoch_size:
+            n_time = round(self.source.fs * self.source.epoch_size)
+            self._x = np.arange(n_time)/self.source.fs
 
 
 class GroupedEpochAveragePlot(GroupMixin, BasePlot):
@@ -698,12 +700,13 @@ class GroupedEpochAveragePlot(GroupMixin, BasePlot):
 
 class GroupedEpochFFTPlot(GroupMixin, BasePlot):
 
-    def _cache_x(self):
+    def _cache_x(self, event):
         # Cache the frequency points. Must be in units of log for PyQtGraph.
         # TODO: This could be a utility function stored in the parent?
-        n_time = int(self.source.fs * self.source.epoch_size)
-        freq = np.fft.rfftfreq(n_time, self.source.fs**-1)
-        self._x = np.log10(freq)
+        if self.source.fs and self.source.epoch_size:
+            n_time = int(self.source.fs * self.source.epoch_size)
+            freq = np.fft.rfftfreq(n_time, self.source.fs**-1)
+            self._x = np.log10(freq)
 
     def _y(self, epoch):
         y = np.mean(epoch, axis=0) if epoch else np.full_like(self._x, np.nan)

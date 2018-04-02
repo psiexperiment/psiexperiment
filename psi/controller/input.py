@@ -40,7 +40,7 @@ class Input(PSIContribution):
     fs = Property().tag(metadata=True)
     dtype = Property().tag(metadata=True)
     unit = Property().tag(metadata=True)
-    save = d_(Bool(False)).tag(metadata=True)
+    active = Property()
 
     inputs = List()
 
@@ -86,35 +86,24 @@ class Input(PSIContribution):
     def _get_engine(self):
         return self.channel.engine
 
-    def configure(self, plugin):
-        cb = self.configure_callback(plugin)
+    def configure(self):
+        cb = self.configure_callback()
         self.engine.register_ai_callback(cb, self.channel.name)
 
-    def configure_callback(self, plugin):
-        '''
-        Configure callback for named inputs to ensure that they are saved to
-        the data store.
-
-        Subclasses should be sure to invoke this via super().
-        '''
-        log.debug('Configuring callback for {}'.format(self.name))
-        targets = [c.configure_callback(plugin) for c in self.inputs]
-
-        if plugin is not None:
-            targets.append(self.get_plugin_callback(plugin))
-
-        # If we have only one target, no need to add another function layer
+    def configure_callback(self):
+        targets = [i.configure_callback() for i in self.inputs if i.active]
+        log.debug('Configured callback for %s with %d targets', self.name, len(targets))
         if len(targets) == 1:
             return targets[0]
+        # If we have more than one target, need to add a broadcaster
         return broadcast(*targets).send
 
-    def get_plugin_callback(self, plugin):
-        action = self.name + '_acquired'
-        return lambda data: plugin.invoke_actions(action, data=data)
-
-    def add_callback(self, cb, name=''):
-        callback = Callback(function=cb, name=name)
+    def add_callback(self, cb):
+        callback = Callback(function=cb)
         self.add_input(callback)
+
+    def _get_active(self):
+        return any(i.active for i in self.inputs)
 
 
 class ContinuousInput(Input):
@@ -137,9 +126,12 @@ class Callback(Input):
 
     function = Callable()
 
-    def configure_callback(self, plugin):
+    def configure_callback(self):
         log.debug('Configuring callback for {}'.format(self.name))
         return self.function
+
+    def _get_active(self):
+        return True
 
 
 ################################################################################
@@ -155,8 +147,8 @@ def calibrate(calibration, target):
 
 class CalibratedInput(ContinuousInput):
 
-    def configure_callback(self, plugin):
-        cb = super().configure_callback(plugin)
+    def configure_callback(self):
+        cb = super().configure_callback()
         return calibrate(self.channel.calibration, cb).send
 
 
@@ -182,9 +174,9 @@ class RMS(ContinuousInput):
         n = round(self.duration*self.source.fs)
         return self.source.fs/n
 
-    def configure_callback(self, plugin):
+    def configure_callback(self):
         n = round(self.duration*self.source.fs)
-        cb = super().configure_callback(plugin)
+        cb = super().configure_callback()
         return rms(n, cb).send
 
 
@@ -197,8 +189,8 @@ def spl(target):
 
 class SPL(ContinuousInput):
 
-    def configure_callback(self, plugin):
-        cb = super().configure_callback(plugin)
+    def configure_callback(self):
+        cb = super().configure_callback()
         return spl(cb).send
 
 
@@ -232,8 +224,8 @@ class IIRFilter(ContinuousInput):
             return (self.f_highpass/(0.5*self.fs),
                     self.f_lowpass/(0.5*self.fs))
 
-    def configure_callback(self, plugin):
-        cb = super().configure_callback(plugin)
+    def configure_callback(self):
+        cb = super().configure_callback()
         return iirfilter(self.N, self.wn, None, None, self.btype,
                          self.ftype, cb).send
 
@@ -261,8 +253,8 @@ class Blocked(ContinuousInput):
     '''
     duration = d_(Float()).tag(metadata=True)
 
-    def configure_callback(self, plugin):
-        cb = super().configure_callback(plugin)
+    def configure_callback(self):
+        cb = super().configure_callback()
         block_size = round(self.duration*self.fs)
         return blocked(block_size, cb).send
 
@@ -286,8 +278,8 @@ class Accumulate(ContinuousInput):
     n = d_(Int()).tag(metadata=True)
     axis = d_(Int(-1)).tag(metadata=True)
 
-    def configure_callback(self, plugin):
-        cb = super().configure_callback(plugin)
+    def configure_callback(self):
+        cb = super().configure_callback()
         return accumulate(self.n, self.axis, cb).send
 
 
@@ -473,8 +465,8 @@ class Downsample(ContinuousInput):
     def _get_fs(self):
         return self.source.fs/self.q
 
-    def configure_callback(self, plugin):
-        cb = super().configure_callback(plugin)
+    def configure_callback(self):
+        cb = super().configure_callback()
         return downsample(self.q, cb).send
 
 
@@ -505,8 +497,8 @@ class Decimate(ContinuousInput):
     def _get_fs(self):
         return self.source.fs/self.q
 
-    def configure_callback(self, plugin):
-        cb = super().configure_callback(plugin)
+    def configure_callback(self):
+        cb = super().configure_callback()
         return decimate(self.q, cb).send
 
 
@@ -521,8 +513,8 @@ class Threshold(ContinuousInput):
 
     threshold = d_(Float(0)).tag(metadata=True)
 
-    def configure_callback(self, plugin):
-        cb = super().configure_callback(plugin)
+    def configure_callback(self):
+        cb = super().configure_callback()
         return threshold(self.threshold, cb).send
 
 
@@ -573,8 +565,8 @@ class Average(ContinuousInput):
 
     n = d_(Float()).tag(metadata=True)
 
-    def configure_callback(self, plugin):
-        cb = super().configure_callback(plugin)
+    def configure_callback(self):
+        cb = super().configure_callback()
         return average(self.n, cb).send
 
 
@@ -595,8 +587,8 @@ class Delay(ContinuousInput):
     delay = d_(Float(0)).tag(metadata=True)
 
 
-    def configure_callback(self, plugin):
-        cb = super().configure_callback(plugin)
+    def configure_callback(self):
+        cb = super().configure_callback()
         n = int(self.delay * self.fs)
         return delay(n, cb).send
 
@@ -609,8 +601,8 @@ class Edges(EventInput):
     initial_state = d_(Int(0)).tag(metadata=True)
     debounce = d_(Int()).tag(metadata=True)
 
-    def configure_callback(self, plugin):
-        cb = super().configure_callback(plugin)
+    def configure_callback(self):
+        cb = super().configure_callback()
         return edges(self.initial_state, self.debounce, self.fs, cb).send
 
 
@@ -622,34 +614,22 @@ class ExtractEpochs(EpochInput):
     queue = d_(Typed(AbstractSignalQueue))
     buffer_size = d_(Float(0)).tag(metadata=True)
     epoch_size = d_(Float(0)).tag(metadata=True)
-
     complete = Bool(False)
 
     def mark_complete(self):
         self.complete = True
 
-    def configure_callback(self, plugin=None):
+    def configure_callback(self):
         # If the epoch size is not set, set it to the maximum token duration
         # found in the queue. Note that this will fail if
         if self.epoch_size <= 0:
             self.epoch_size = self.queue.get_max_duration()
         if not np.isfinite(self.epoch_size):
                 raise SystemError('Cannot have an infinite epoch size')
-
-        if plugin is not None:
-            # TODO: This is a hack to mark the output as active. All of this
-            # shoudl be moved to the input_manifest eventually.
-            plugin.invoke_actions(self.name + '_queue_start')
-            def empty_queue_cb(plugin=plugin, input=self):
-                plugin.invoke_actions(input.name + '_queue_end')
-                input.mark_complete()
-        else:
-            empty_queue_cb = self.mark_complete
-
-        cb = super().configure_callback(plugin)
+        cb = super().configure_callback()
         return extract_epochs(self.fs, self.queue, self.epoch_size,
                               self.buffer_size, self.name, cb,
-                              empty_queue_cb).send
+                              self.mark_complete).send
 
 
 @coroutine
@@ -683,6 +663,6 @@ class RejectEpochs(EpochInput):
     rejects = Int()
     reject_ratio = Float()
 
-    def configure_callback(self, plugin):
-        valid_cb = super().configure_callback(plugin)
+    def configure_callback(self):
+        valid_cb = super().configure_callback()
         return reject_epochs(self.threshold, self, valid_cb).send

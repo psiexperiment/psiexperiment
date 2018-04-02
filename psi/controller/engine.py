@@ -99,11 +99,11 @@ class Engine(PSIContribution):
     def remove_channel(self, channel):
         channel.set_parent(None)
 
-    def configure(self, plugin=None):
+    def configure(self):
         log_configuration(self)
         for channel in self.get_channels():
             log.debug('Configuring channel {}'.format(channel.name))
-            channel.configure(plugin)
+            channel.configure()
 
     def register_ai_callback(self, callback, channel_name=None):
         raise NotImplementedError

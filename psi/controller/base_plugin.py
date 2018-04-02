@@ -315,7 +315,7 @@ class BasePlugin(Plugin):
         for engine in self._engines.values():
             # Check to see if engine is being used
             if engine.get_channels():
-                engine.configure(self)
+                engine.configure()
                 cb = partial(self.invoke_actions, '{}_end'.format(engine.name))
                 engine.register_done_callback(cb)
 

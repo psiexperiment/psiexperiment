@@ -21,6 +21,16 @@ def get_metadata(contribution):
     return declarative_to_dict(contribution, 'metadata')
 
 
+def configure_epoch_input(input, event):
+    plugin = event.workbench.get_plugin('psi.controller')
+    plugin.invoke_actions(input.name + '_queue_start')
+    def empty_queue_cb(event):
+        nonlocal plugin
+        nonlocal input
+        plugin.invoke_actions(input.name + '_queue_end')
+    input.observe('complete', empty_queue_cb)
+
+
 enamldef InputManifest(PSIManifest): manifest:
 
     Extension:
@@ -31,32 +41,12 @@ enamldef InputManifest(PSIManifest): manifest:
             name = manifest.contribution.name + '_acquired'
 
 
-enamldef ContinuousInputManifest(InputManifest): manifest:
-
-    Extension:
-        id = 'continuous_actions.' + manifest.contribution.name
-        point = 'psi.controller.actions'
-
-        Conditional:
-            condition << manifest.contribution.save
-
-            ExperimentAction:
-                event = 'experiment_prepare'
-                command = 'psi.data.create_ai_continuous'
-                kwargs = get_metadata(manifest.contribution)
-                weight = 90
-
-            ExperimentAction:
-                event = manifest.contribution.name + '_acquired'
-                command = 'psi.data.process_ai_continuous'
-                kwargs = {'name': manifest.contribution.name}
-
-
 def capture_start(contribution, event):
+    # TODO
     print('event here', event)
 
 
-enamldef CaptureManifest(ContinuousInputManifest): manifest:
+enamldef CaptureManifest(InputManifest): manifest:
 
     Extension:
         id = 'capture_commands.' + manifest.contribution.name
@@ -67,29 +57,15 @@ enamldef CaptureManifest(ContinuousInputManifest): manifest:
             handler = partial(capture_start, manifest.contribution)
 
 
-enamldef EventInputManifest(InputManifest): manifest:
-    pass
-
-
-enamldef EpochInputManifest(InputManifest): manifest:
+enamldef ExtractEpochsManifest(InputManifest): manifest:
 
     Extension:
-        id = 'epoch_actions.' + manifest.contribution.name
-        point = 'psi.controller.actions'
+        id = manifest.contribution.name + 'extract_epochs_manifest.commands'
+        point = 'enaml.workbench.core.commands'
 
-        ExperimentAction:
-            event = 'experiment_prepare'
-            command = 'psi.data.create_ai_epochs'
-            kwargs = get_metadata(manifest.contribution)
-            weight = 90
-
-        ExperimentAction:
-            event = manifest.contribution.name + '_acquired'
-            command = 'psi.data.process_ai_epochs'
-            kwargs = {'name': manifest.contribution.name}
-
-
-enamldef ExtractEpochsManifest(EpochInputManifest): manifest:
+        Command:
+            id = manifest.contribution.name + '.prepare'
+            handler = partial(configure_epoch_input, manifest.contribution)
 
     Extension:
         id = 'extract_epochs_actions.' + manifest.contribution.name
@@ -98,8 +74,12 @@ enamldef ExtractEpochsManifest(EpochInputManifest): manifest:
         ExperimentState:
             name = manifest.contribution.name + '_queue'
 
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = manifest.contribution.name + '.prepare'
 
-enamldef RejectEpochsManifest(EpochInputManifest): manifest:
+
+enamldef RejectEpochsManifest(InputManifest): manifest:
 
     Extension:
         id = 'reject_epochs_workspace.' + manifest.contribution.name

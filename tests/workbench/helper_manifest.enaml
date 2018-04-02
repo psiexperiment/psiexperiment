@@ -51,6 +51,11 @@ enamldef HelperManifest(BaseManifest): manifest:
                             f_lowpass = 40000
                             f_highpass = 400
 
+                        IIRFilter:
+                            name = 'microphone_dc'
+                            N = 4
+                            f_lowpass = 100
+
     Extension:
         id = 'helper_items'
         point = 'psi.context.items'

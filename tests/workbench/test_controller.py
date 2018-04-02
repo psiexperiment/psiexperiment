@@ -33,9 +33,23 @@ def test_default_name(controller):
 
 def test_input_metadata(controller):
     from psi.util import declarative_to_dict
-    mic = controller.get_input('microphone_filtered')
-    result = declarative_to_dict(mic, 'metadata')
+    i = controller.get_input('microphone_filtered')
+    result = declarative_to_dict(i, 'metadata')
     assert result['btype'] == 'bandpass'
     assert result['source']['fs'] == 100e3
     channel = result['source']['source']['source']
     assert channel['calibration']['frequency'] == [1000, 2000]
+
+
+def test_input_active(controller):
+    mic = controller.get_input('microphone_filtered')
+    assert mic.active == False
+    blocked = controller.get_input('microphone_blocked')
+    assert blocked.active == False
+    dc = controller.get_input('microphone_dc')
+    assert blocked.active == False
+
+    mic.add_callback(lambda x: x)
+    assert mic.active == True
+    assert blocked.active == True
+    assert dc.active == False

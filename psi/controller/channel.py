@@ -47,7 +47,7 @@ class Channel(Declarative):
     def _get_active(self):
         raise NotImplementedError
 
-    def configure(self, plugin):
+    def configure(self):
         pass
 
 
@@ -56,7 +56,8 @@ class InputChannel(Channel):
     inputs = List()
 
     def _get_active(self):
-        return len(self.inputs) > 0
+        active = [i.active for i in self.inputs]
+        return any(active)
 
     def add_input(self, i):
         if i in self.inputs:
@@ -70,10 +71,10 @@ class InputChannel(Channel):
         self.inputs.remove(i)
         i.source = None
 
-    def configure(self, plugin):
+    def configure(self):
         for input in self.inputs:
             log.debug('Configuring input {}'.format(input.name))
-            input.configure(plugin)
+            input.configure()
 
 
 class OutputChannel(Channel):
