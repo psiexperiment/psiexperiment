@@ -246,6 +246,8 @@ enamldef BaseManifest(PluginManifest): manifest:
 
         ExperimentState:
             name = 'experiment'
+        ExperimentEvent:
+            name = 'engines_configured'
 
         ExperimentAction:
             event = 'experiment_prepare'

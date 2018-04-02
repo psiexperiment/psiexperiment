@@ -19,6 +19,8 @@ from psi.controller.base_manifest import (BaseManifest, get_hw_ao_choices,
 
 from psi.controller.queue import InterleavedFIFOSignalQueue
 
+from psi.data.sinks.bcolz_store import BColzStore
+
 
 from psi.data.plots import (TimeContainer,
                             ChannelPlot,
@@ -59,6 +61,14 @@ def configure_hardware(event):
 enamldef ControllerManifest(BaseManifest): manifest:
 
     Extension:
+        id = 'data'
+        point = 'psi.data.sinks'
+
+        BColzStore:
+            epoch_inputs = ['epoch']
+            continuous_inputs = ['hw_ai']
+
+    Extension:
         id = 'tokens'
         point = 'psi.token.tokens'
 
@@ -77,11 +87,8 @@ enamldef ControllerManifest(BaseManifest): manifest:
         Blocked: hw_ai:
             duration = 0.1
             name = 'hw_ai'
-            save = True
 
             ExtractEpochs: extract:
-                save = True
-                buffer_size = 50
                 queue << hw_ao.queue
                 name = 'epoch'
 
@@ -145,7 +152,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
         ExperimentAction:
             event = 'experiment_prepare'
             command = 'psi.controller.configure_hardware'
-            weight = 15
+            weight = 10
 
         ExperimentAction:
             event = 'epoch_queue_end and not hw_ao_active'

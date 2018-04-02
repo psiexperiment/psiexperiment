@@ -620,8 +620,6 @@ class ExtractEpochs(EpochInput):
         self.complete = True
 
     def configure_callback(self):
-        # If the epoch size is not set, set it to the maximum token duration
-        # found in the queue. Note that this will fail if
         if self.epoch_size <= 0:
             self.epoch_size = self.queue.get_max_duration()
         if not np.isfinite(self.epoch_size):

@@ -12,8 +12,10 @@ from atom.api import Unicode, Typed, List
 import numpy as np
 import bcolz
 
-from .abstract_store import (AbstractStore, ContinuousDataChannel,
-                             EpochDataChannel)
+import enaml
+with enaml.imports():
+    from .abstract_store import (AbstractStore, ContinuousDataChannel,
+                                 EpochDataChannel)
 
 
 class BColzStore(AbstractStore):
@@ -21,6 +23,8 @@ class BColzStore(AbstractStore):
     Simple class for storing acquired trial data in a HDF5 file. No analysis or
     further processing is done.
     '''
+    name = 'bcolz_store'
+
     base_path = Unicode()
     temp_base_path = Unicode()
     trial_log = Typed(object)
@@ -49,10 +53,10 @@ class BColzStore(AbstractStore):
     def process_ai_epochs(self, name, data):
         self._stores[name].append(data)
 
-    def _get_filename(self, name, save=True):
+    def _get_filename(self, name):
         # Even if we use a memory store, we need to ensure that it has access
         # to the disk (to avoid running out of memory)
-        if save and (self.base_path != '<memory>'):
+        if self.base_path != '<memory>':
             filename = os.path.join(self.base_path, name)
         else:
             filename = os.path.join(self.temp_base_path, name)
@@ -79,9 +83,9 @@ class BColzStore(AbstractStore):
         atexit.register(carray.flush)
         return carray
 
-    def create_ai_continuous(self, name, fs, dtype, save, **metadata):
+    def create_ai_continuous(self, name, fs, dtype, **metadata):
         n = int(fs*60*60)
-        filename = self._get_filename(name, save)
+        filename = self._get_filename(name)
         carray = bcolz.carray([], rootdir=filename, mode='w', dtype=dtype,
                               expectedlen=n)
         carray.attrs['fs'] = fs
@@ -90,19 +94,19 @@ class BColzStore(AbstractStore):
         self._stores[name] = ContinuousDataChannel(data=carray, fs=fs)
         atexit.register(carray.flush)
 
-    def create_ai_epochs(self, name, fs, epoch_size, dtype, save,
-                         context_items, **metadata):
+    def create_ai_epochs(self, name, fs, epoch_size, dtype, context_items,
+                         **metadata):
         # Create signal data store
-        filename = self._get_filename(name, save)
-        epoch_samples = round(fs*epoch_size)
-        base = np.empty((0, epoch_samples))
-        carray = bcolz.carray(base, rootdir=filename, mode='w', dtype=dtype)
+        n = int(fs*60*60)
+        base = self._get_filename(name)
+        carray = bcolz.carray([], rootdir=base, mode='w', dtype=dtype,
+                              expectedlen=n)
         carray.attrs['fs'] = fs
         for key, value in metadata.items():
             carray.attrs[key] = value
 
         # Create metadata store
-        filename = self._get_filename(name + '_metadata', save)
+        filename = self._get_filename(name + '_metadata')
         dtype = [(str(n), i.dtype) for n, i in context_items.items()]
         dtype += [('t0', 'float64'), ('duration', 'float64')]
         ctable = bcolz.zeros(0, rootdir=filename, mode='w', dtype=dtype)

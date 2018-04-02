@@ -3,22 +3,16 @@ from psi.core.enaml.api import PSIContribution
 
 class Sink(PSIContribution):
 
+    def prepare(self, plugin):
+        pass
+
+    def finalize(self, plugin):
+        pass
+
     def process_trials(self, results):
         pass
 
     def process_event(self, event, timestamp):
-        pass
-
-    def process_ai_continuous(self, name, data):
-        pass
-
-    def process_ai_epochs(self, name, data):
-        pass
-
-    def create_ai_continuous(self, *args, **kwargs):
-        pass
-
-    def create_ai_epochs(self, *args, **kwargs):
         pass
 
     def create_table(self, name, dataframe):
@@ -31,15 +25,6 @@ class Sink(PSIContribution):
         pass
 
     def context_info_updated(self, context_info):
-        pass
-
-    def prepare(self, plugin):
-        pass
-
-    def finalize(self, workbench):
-        pass
-
-    def set_current_time(self, name, timestamp):
         pass
 
     def set_base_path(self, base_path):

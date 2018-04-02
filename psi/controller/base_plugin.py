@@ -318,6 +318,7 @@ class BasePlugin(Plugin):
                 engine.configure()
                 cb = partial(self.invoke_actions, '{}_end'.format(engine.name))
                 engine.register_done_callback(cb)
+        self.invoke_actions('engines_configured')
 
     def start_engines(self):
         log.debug('Starting engines')

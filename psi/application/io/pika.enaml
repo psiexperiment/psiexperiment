@@ -7,7 +7,6 @@ from psi import get_config
 from psi.controller.engines.nidaq import NIDAQEngine
 from psi.controller.channel import AIChannel, NIDAQAOChannel
 from psi.controller.input import ContinuousInput, IIRFilter, Decimate
-from psi.data.sinks.bcolz_store import BColzStore
 from psi.controller.calibration import InterpCalibration, FlatCalibration
 
 
@@ -17,13 +16,6 @@ mic_cal = InterpCalibration.from_mic_file(mic_cal_filename, fixed_gain=-40)
 
 
 enamldef IOManifest(PluginManifest): manifest:
-
-    Extension:
-        id = 'data'
-        point = 'psi.data.sinks'
-
-        BColzStore:
-            pass
 
     Extension:
         id = 'backend'
