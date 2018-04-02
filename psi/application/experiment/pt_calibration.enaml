@@ -25,6 +25,7 @@ from psi.controller.base_manifest import (BaseManifest, get_hw_ao_choices,
 
 from psi.controller.queue import FIFOSignalQueue
 
+from psi.data.sinks.bcolz_store import BColzStore
 
 from psi.data.plots import (TimeContainer,
                             ChannelPlot,
@@ -197,8 +198,12 @@ def summarize_golay(fs, a, b, a_response, b_response, waveform_averages=None):
 enamldef ControllerManifest(BaseManifest): manifest:
 
     Extension:
-        id = 'tokens'
-        point = 'psi.token.tokens'
+        id = 'data'
+        point = 'psi.data.sinks'
+
+        BColzStore:
+            continuous_inputs = ['pt_hw_ai', 'cal_hw_ai']
+            epoch_inputs = ['pt_epoch', 'cal_epoch']
 
     Extension:
         id = 'io'
@@ -212,20 +217,16 @@ enamldef ControllerManifest(BaseManifest): manifest:
         Blocked: hw_ai:
             duration = 0.1
             name = 'pt_hw_ai'
-            save = True
 
             ExtractEpochs: extract:
-                save = True
                 queue << hw_ao.queue
                 name = 'pt_epoch'
 
         Blocked: hw_ai:
             duration = 0.1
             name = 'cal_hw_ai'
-            save = True
 
             ExtractEpochs: extract:
-                save = True
                 queue << hw_ao.queue
                 name = 'cal_epoch'
 
@@ -363,7 +364,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
         ExperimentAction:
             event = 'experiment_prepare'
             command = 'psi.controller.configure_hardware'
-            weight = 15
+            weight = 10
 
         ExperimentAction:
             event = 'experiment_end'

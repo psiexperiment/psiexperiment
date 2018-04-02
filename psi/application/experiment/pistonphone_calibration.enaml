@@ -16,6 +16,12 @@ from psi.controller.calibration import util
 from psi.data.plots import (TimeContainer, ChannelPlot, ViewBox, FFTContainer,
                             FFTChannelPlot)
 
+from psi.data.sinks.bcolz_store import BColzStore
+
+from enaml.application import deferred_call
+
+import pyqtgraph as pg
+
 
 def configure_hardware(event):
     '''
@@ -79,8 +85,39 @@ def calculate_sens(event):
     dock_item.results = results
     data.create_mapping('microphone_sensitivity', results)
 
+    summary = {
+        'frequency': frequencies,
+        'psd_hanning': psd_hanning,
+        'psd_flattop': psd_flattop,
+    }
+
+    def plot_data(data=data, summary=summary):
+        vb = data.find_viewbox('fft')
+        x = np.log10(summary['frequency'])
+
+        y = util.db(summary['psd_hanning'])
+        item = pg.PlotCurveItem(pen='k')
+        item.setData(x, y)
+        vb.add_plot(item)
+        vb.parent.legend.addItem(item, 'hanning window')
+
+        y = util.db(summary['psd_flattop'])
+        item = pg.PlotCurveItem(pen='r')
+        item.setData(x, y)
+        vb.add_plot(item)
+        vb.parent.legend.addItem(item, 'flattop window')
+
+    deferred_call(plot_data)
+
 
 enamldef ControllerManifest(BaseManifest): manifest:
+
+    Extension:
+        id = 'data'
+        point = 'psi.data.sinks'
+
+        BColzStore:
+            continuous_inputs = ['hw_ai']
 
     Extension:
         id = 'io'
@@ -89,7 +126,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
         Blocked: hw_ai:
             duration = 0.1
             name = 'hw_ai'
-            save = True
 
     Extension:
         id = 'context'
@@ -169,7 +205,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
         ExperimentAction:
             event = 'experiment_prepare'
             command = 'psi.controller.configure_hardware'
-            weight = 15
+            weight = 10
 
         ExperimentAction:
             event = 'NI_audio_end'
@@ -182,7 +218,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
     Extension:
         id = 'result_view'
         point = 'psi.experiment.workspace'
-        DockItem:
+        DockItem: di:
             name = 'result'
             title = 'Result'
             attr results = {}
@@ -190,27 +226,27 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 Label:
                     text = 'Peak frequency (Hz)'
                 Label:
-                    text << str(results.get('peak_frequency', ''))
+                    text << str(results.get('peak frequency (Hz)', ''))
 
                 Label:
                     text = 'Overall RMS (V)'
                 Label:
-                    text << str(results.get('rms_overall', ''))
+                    text << str(results.get('rms overall (V)', ''))
 
                 Label:
                     text = 'RMS at nominal frequency (V)'
                 Label:
-                    text << str(results.get('rms_nominal', ''))
+                    text << str(results.get('rms nominal (V)', ''))
 
                 Label:
                     text = 'RMS at peak frequency (V)'
                 Label:
-                    text << str(results.get('rms_peak', ''))
+                    text << str(results.get('rms peak (V)', ''))
 
                 Label:
                     text = 'Mic. sens. (mV/Pa)'
                 Label:
-                    text << str(results.get('mic_sens_peak', ''))
+                    text << str(results.get('mic sens peak (mV/Pa)', ''))
 
     Extension:
         id = 'plots'
@@ -219,7 +255,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
         TimeContainer:
             name = 'time_container'
             label = 'Signal'
-            span = 2
+            span = 4
             delay = 0
 
             ViewBox:
@@ -233,26 +269,10 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
         FFTContainer:
             name = 'fft_container'
-            label = 'Epoch FFT'
+            label = 'FFT'
             freq_lb = 950.0
             freq_ub = 1050.0
 
             ViewBox:
-                y_min = -80
-                y_max = 10
-
-                FFTChannelPlot:
-                    source_name = 'hw_ai'
-                    pen_color = 'k'
-                    name = 'fft_plot'
-                    label = 'FFT plot'
-                    time_span = 2
-                    window = 'hamming'
-
-                FFTChannelPlot:
-                    source_name = 'hw_ai'
-                    pen_color = 'r'
-                    name = 'flattop_fft_plot'
-                    label = 'Flattop FFT plot'
-                    time_span = 2
-                    window = 'flattop'
+                name = 'fft'
+                label = 'PSD (dB re 1V)'

@@ -262,9 +262,16 @@ class EpochDataChannel(DataChannel):
         epochs = {}
         with self.lock:
             df = self.metadata.todataframe()
+            df['samples'] = np.round(df['duration']*self.fs).astype('i')
+            df['offset'] = df['samples'].cumsum() - df.iloc[0]['samples']
             for keys, g_df in df.groupby(groups):
-                i = g_df.index.values.astype(np.int32)
-                epochs[keys] = self.data[i]
+                data = []
+                for _, row in g_df.iterrows():
+                    o = row['offset']
+                    s = row['samples']
+                    d = self.data[o:o+s][np.newaxis]
+                    data.append(d)
+                epochs[keys] = np.concatenate(data, axis=0)
         return epochs
 
     def get_epochs(self, filters=None):

@@ -352,6 +352,10 @@ class SignalBuffer:
                 raise ValueError
             return self._buffer[ilb:iub]
 
+    def get_valid_data(self):
+        with self._lock:
+            return self._buffer[:]
+
 
 class ChannelPlot(SinglePlot):
 
@@ -406,6 +410,7 @@ class ChannelPlot(SinglePlot):
             y = np.c_[d_min, d_max].ravel()
             self.plot.setData(x, y, connect='pairs')
         else:
+            t = t[:len(data)]
             self.plot.setData(t, data)
         self.update_pending = False
 
@@ -438,25 +443,35 @@ def decimate_extremes(data, downsample):
 class FFTChannelPlot(ChannelPlot):
 
     time_span = d_(Float())
-    _cached_frequency = Typed(np.ndarray)
     window = d_(Enum('hamming', 'flattop'))
+    _x = Typed(np.ndarray)
+    _buffer = Typed(SignalBuffer)
 
     def _observe_source(self, event):
-        raise NotImplementedError
-        if self.source is None:
-            return
-        self.source.add_callback(self.update)
+        if self.source is not None:
+            self.source.add_callback(self._append_data)
+            self.source.observe('fs', self._cache_x)
+            self.source.observe('epoch_size', self._cache_x)
+            self._update_buffer()
 
-        n_time = round(self.source.fs*self.time_span)
-        freq = np.fft.rfftfreq(n_time, self.source.fs**-1)
-        self._cached_frequency = np.log10(freq)
+    def _update_buffer(self, event=None):
+        self._buffer = SignalBuffer(self.source.fs, self.time_span)
+
+    def _append_data(self, data):
+        self._buffer.append_data(data)
+        self.update()
+
+    def _cache_x(self, event):
+        # Set up the new time axis
+        if self.source.fs and self.source.epoch_size:
+            n_time = round(self.source.fs * self.source.epoch_size)
+            self._x = np.arange(n_time)/self.source.fs
 
     def _update(self, event=None):
-        ub = event['value']['ub']
-        if ub >= self.time_span:
-            data = self.source.get_range(ub-self.time_span, ub)
-            psd = util.patodb(util.psd(data, self.source.fs, self.window))
-            self.plot.setData(self._cached_frequency, psd)
+        data = self._buffer.get_valid_data()
+        data = data[~np.isnan(data)]
+        psd = util.patodb(util.psd(data, self.source.fs, self.window))
+        self.plot.setData(self._x, psd)
         self.update_pending = False
 
 
@@ -527,66 +542,6 @@ class TimeseriesPlot(SinglePlot):
             r = pg.QtCore.QRectF(x_start, y_start, x_width, self.rect_height)
             path.addRect(r)
         self.plot.setPath(path)
-        self.update_pending = False
-
-
-# TODO: Can we eliminate these in favor of the Grouped plots as they're a
-# special case of a grouped plot?
-class EpochAveragePlot(ChannelPlot):
-
-    n_epochs = Int()
-
-    def _observe_source(self, event):
-        if self.source is None:
-            return
-        n = round(self.parent.data_range.span*self.source.fs)
-        self._cached_time = np.arange(n)/self.source.fs
-        self.update_decimation(self.parent.viewbox)
-        self.source.observe('added', self.update)
-
-    def _update(self, event=None):
-        if self.source is None:
-            return
-        result = self._get_epochs()
-        y = result.mean(axis=0) if len(result) \
-            else np.zeros_like(self._cached_time)
-        self.plot.setData(self._cached_time, y)
-        self.n_epochs = len(result)
-        self.update_pending = False
-
-    def _get_epochs(self):
-        return self.source.get_epochs()
-
-
-class FFTEpochPlot(ChannelPlot):
-
-    n_time = Int(0)
-    n_epochs = Int()
-    _cached_frequency = Typed(np.ndarray)
-
-    def _observe_source(self, event):
-        if self.source is None:
-            return
-        self.source.observe('added', self.update)
-
-        # Cache the frequency points. Must be in units of log for PyQtGraph.
-        n_time = round(self.source.fs * self.source.epoch_size)
-        freq = np.fft.rfftfreq(n_time, self.source.fs**-1)
-        self._cached_frequency = np.log10(freq)
-
-    def _get_epochs(self):
-        return self.source.get_epochs()
-
-    def _update(self, event=None):
-        if self.source is None:
-            return
-        epoch = self._get_epochs()
-        if len(epoch):
-            y = epoch.mean(axis=0)
-            psd = util.db(util.psd(y, self.source.fs))
-        else:
-            psd = np.full_like(self._cached_frequency, np.nan)
-        self.plot.setData(self._cached_frequency, psd)
         self.update_pending = False
 
 

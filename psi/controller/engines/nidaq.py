@@ -158,12 +158,13 @@ class SamplesAcquiredCallbackHelper(object):
                             self._int32, None)
         log_ai.trace('Read %d samples', samples)
         self._callback(data)
-        log_ai.trace('Sent samples')
         return 0
 
     def _call_final(self, task):
         mx.DAQmxGetReadAvailSampPerChan(task, self._uint32)
         samples = self._uint32.value
+        if samples == 0:
+            return 0
         data_shape = self._n_channels, samples
         data = np.empty(data_shape, dtype=np.double)
         mx.DAQmxReadAnalogF64(task, samples, 0,
