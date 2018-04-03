@@ -14,11 +14,26 @@ from .experiment_action import (ExperimentEvent, ExperimentState,
 
 from psi.context.api import Parameter, ContextGroup
 from psi.core.enaml.api import PSIManifest
-from psi.util import declarative_to_dict
+from psi.util import declarative_to_dict, get_dependencies
 
 
 def get_metadata(contribution):
     return declarative_to_dict(contribution, 'metadata')
+
+
+def prepare_event_callback(input, event):
+    # Check to see if we need to configure this callback. Don't configure
+    # unecessary callbacks.
+    controller = event.workbench.get_plugin('psi.controller')
+    event_name = input.name + '_acquired'
+    if controller.event_used(event_name):
+
+        def cb(data):
+            nonlocal controller
+            nonlocal event_name
+            controller.invoke_actions(event_name, data=data)
+
+        input.add_callback(cb)
 
 
 def configure_epoch_input(input, event):
@@ -34,11 +49,23 @@ def configure_epoch_input(input, event):
 enamldef InputManifest(PSIManifest): manifest:
 
     Extension:
+        id = 'input_commands.' + manifest.contribution.name
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = manifest.contribution.name + '.prepare_event_callback'
+            handler = partial(prepare_event_callback, manifest.contribution)
+
+    Extension:
         id = 'actions.' + manifest.contribution.name
         point = 'psi.controller.actions'
 
         ExperimentEvent:
             name = manifest.contribution.name + '_acquired'
+
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = manifest.contribution.name + '.prepare_event_callback'
 
 
 def capture_start(contribution, event):

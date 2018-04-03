@@ -1,4 +1,5 @@
 import inspect
+import ast
 
 from atom.api import Property
 
@@ -62,7 +63,32 @@ def coroutine(func):
 
 def copy_declarative(old, **kw):
     attributes = get_tagged_values(old, 'metadata', exclude_properties=True)
-    print(old, attributes.keys())
     attributes.update(kw)
     new = old.__class__(**attributes)
     return new
+
+
+class _FullNameGetter(ast.NodeVisitor):
+
+    def __init__(self, *args, **kwargs):
+        self.names = []
+        super(_FullNameGetter, self).__init__(*args, **kwargs)
+
+    def visit_Name(self, node):
+        self.names.append(node.id)
+
+    def visit_Attribute(self, node):
+        names = []
+        while isinstance(node, ast.Attribute):
+            names.append(node.attr)
+            node = node.value
+        names.append(node.id)
+        name = '.'.join(names[::-1])
+        self.names.append(name)
+
+
+def get_dependencies(expression):
+    tree = ast.parse(expression)
+    ng = _FullNameGetter()
+    ng.visit(tree)
+    return ng.names

@@ -1,28 +1,8 @@
 import logging
 log = logging.getLogger(__name__)
 
-import ast
-
 from atom.api import Atom, Typed
-
-
-class _FullNameGetter(ast.NodeVisitor):
-
-    def __init__(self, *args, **kwargs):
-        self.names = []
-        super(_FullNameGetter, self).__init__(*args, **kwargs)
-
-    def visit_Name(self, node):
-        self.names.append(node.id)
-
-    def visit_Attribute(self, node):
-        names = []
-        while isinstance(node, ast.Attribute):
-            names.append(node.attr)
-            node = node.value
-        names.append(node.id)
-        name = '.'.join(names[::-1])
-        self.names.append(name)
+from psi.util import get_dependencies
 
 
 class Expr(object):
@@ -34,17 +14,10 @@ class Expr(object):
             raise ValueError('No value provided for expression')
         self._expression = expression
         self._code = compile(expression, 'dynamic', 'eval')
-        self._dependencies = Expr.get_dependencies(expression)
+        self._dependencies = get_dependencies(expression)
 
     def evaluate(self, context):
         return eval(self._expression, context)
-
-    @staticmethod
-    def get_dependencies(expression):
-        tree = ast.parse(expression)
-        ng = _FullNameGetter()
-        ng.visit(tree)
-        return ng.names
 
 
 class ExpressionNamespace(Atom):

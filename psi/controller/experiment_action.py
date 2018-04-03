@@ -1,9 +1,10 @@
 import logging
 log = logging.getLogger(__name__)
 
-from atom.api import Unicode, Int, Dict, Bool, Typed
+from atom.api import Unicode, Int, Dict, Bool, Typed, Callable
 from enaml.core.api import Declarative, d_
-from enaml.qt.QtCore import QRunnable
+
+from psi.util import get_dependencies
 
 
 class ExperimentState(Declarative):
@@ -13,7 +14,6 @@ class ExperimentState(Declarative):
     (e.g., `experiment_start`, `experiment_end`).
     '''
     name = d_(Unicode())
-    active = Bool(False)
     events = ['prepare', 'start', 'end']
 
     def _generate_events(self):
@@ -28,16 +28,7 @@ class ExperimentState(Declarative):
 class ExperimentEvent(Declarative):
 
     name = d_(Unicode())
-    active = Bool(False)
     associated_state = Typed(ExperimentState)
-
-    def update_associated_state(self):
-        if self.associated_state is not None:
-            # Be sure to configure the associated state.
-            if self.name.endswith('start'):
-                self.associated_state.active = True
-            elif self.name.endswith('end'):
-                self.associated_state.active = False
 
 
 class ExperimentAction(Declarative):
@@ -45,30 +36,34 @@ class ExperimentAction(Declarative):
     # Name of event that triggers command
     event = d_(Unicode())
 
+    match = Callable()
+
+    _code = Typed(object)
+    _dependencies = Typed(object)
+    _key = Typed(object)
+
     # Command to invoke
     command = d_(Unicode())
 
     # Arguments to pass to command by keywod
     kwargs = d_(Dict())
 
-    # Should the action be invoked in its own thread?
-    concurrent = d_(Bool(False))
-
     # Defines order of invocation. Less than 100 invokes before default. Higher
     # than 100 invokes after default. Note that if concurrent is True, then
     # order of execution is not guaranteed.
     weight = d_(Int(50))
 
-    def match(self, context):
-        return eval(self.event, context)
+    def _observe_event(self, event):
+        self._code = compile(self.event, 'dynamic', 'eval')
+        self._dependencies = get_dependencies(self.event)
+        if len(self._dependencies) == 1:
+            self.match = self._match_simple
+            self._key = self._dependencies[0]
+        else:
+            self.match = self._match_eval
 
+    def _match_eval(self, context):
+        return eval(self._code, context)
 
-class QExperimentActionTask(QRunnable):
-
-    def __init__(self, method):
-        super(QExperimentActionTask, self).__init__()
-        self.method = method
-
-    def run(self):
-        log.debug('Running action in remote thread')
-        self.method()
+    def _match_simple(self, context):
+        return context[self._key]

@@ -195,10 +195,10 @@ def clear_output(event, output):
 
 def decrement_key(event, output):
     counts = defaultdict(int)
+    for epoch in event.parameters['data']:
+        key = epoch['info']['key']
+        counts[key] += 1
     with output.engine.lock:
-        for epoch in event.parameters['data']:
-            key = epoch['info']['key']
-            counts[key] += 1
         for key, count in counts.items():
             output.queue.decrement_key(key, count)
 

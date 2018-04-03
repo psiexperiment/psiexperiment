@@ -3,7 +3,12 @@ with enaml.imports():
     from .helper_manifest import EVENT_RESULTS
 
 
+def test_invoke_action(benchmark, controller):
+    result = benchmark(controller.invoke_actions, 'dispense')
+
+
 def test_actions(controller):
+    EVENT_RESULTS[:] = []
     controller.invoke_actions('dispense')
     controller.invoke_actions('trial_start')
     controller.invoke_actions('dispense')
@@ -14,14 +19,15 @@ def test_actions(controller):
         'not trial_active and dispense',
 
         'trial_start',
+
         'dispense',
         'trial_active and dispense',
 
         'trial_end',
+
         'dispense',
         'not trial_active and dispense',
     ]
-    print(EVENT_RESULTS)
     assert expected == EVENT_RESULTS
 
 

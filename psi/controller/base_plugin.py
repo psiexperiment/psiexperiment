@@ -9,7 +9,7 @@ import numpy as np
 
 from atom.api import Enum, Bool, Typed
 from enaml.application import timed_call
-from enaml.qt.QtCore import QTimer, QThreadPool
+from enaml.qt.QtCore import QTimer
 from enaml.workbench.api import Extension
 from enaml.workbench.plugin import Plugin
 
@@ -20,7 +20,7 @@ from .input import Input
 from .device import Device
 
 from .experiment_action import (ExperimentAction, ExperimentEvent,
-                                ExperimentState, QExperimentActionTask)
+                                ExperimentState)
 from .output import ContinuousOutput, EpochOutput
 
 
@@ -178,15 +178,14 @@ class BasePlugin(Plugin):
     _events = Typed(dict, {})
     _states = Typed(dict, {})
     _actions = Typed(list, {})
+    _action_context = Typed(dict, {})
     _timers = Typed(dict, {})
-    _pool = Typed(object)
 
     def start(self):
         log.debug('Starting controller plugin')
         self._refresh_io()
         self._refresh_actions()
         self._bind_observers()
-        self._pool = QThreadPool.globalInstance()
         self.core = self.workbench.get_plugin('enaml.workbench.core')
         self.context = self.workbench.get_plugin('psi.context')
         self.data = self.workbench.get_plugin('psi.data')
@@ -304,10 +303,18 @@ class BasePlugin(Plugin):
 
             actions.extend(found_actions)
 
+        context = {}
+        for state_name in states:
+            context[state_name + '_active'] = False
+        for event_name in events:
+            context[event_name] = False
+
         actions.sort(key=lambda a: a.weight)
         self._states = states
         self._events = events
         self._actions = actions
+        self._action_context = context
+
         log_actions(self)
 
     def configure_engines(self):
@@ -373,14 +380,6 @@ class BasePlugin(Plugin):
             channels.extend(ec)
         return channels
 
-    def _get_action_context(self):
-        context = {}
-        for state in self._states.values():
-            context[state.name + '_active'] = state.active
-        for event in self._events.values():
-            context[event.name] = event.active
-        return context
-
     def invoke_actions(self, event_name, timestamp=None, delayed=False,
                        cancel_existing=True, **kw):
         if cancel_existing:
@@ -393,22 +392,34 @@ class BasePlugin(Plugin):
                 return
         self._invoke_actions(event_name, timestamp, **kw)
 
+    def event_used(self, event_name):
+        for action in self._actions:
+            if event_name in action._dependencies:
+                return True
+        return False
+
     def _invoke_actions(self, event_name, timestamp=None, **kw):
+        log.debug('Triggering event {}'.format(event_name))
+
         if timestamp is not None:
             # The event is logged only if the timestamp is provided
             params = {'event': event_name, 'timestamp': timestamp}
             self.core.invoke_command('psi.data.process_event', params)
 
-        # Load the state of all events so that we can determine which actions
-        # should be performed.
-        log.trace('Triggering event {}'.format(event_name))
-        self._events[event_name].update_associated_state()
-        context = self._get_action_context()
+        # If this is a stateful event, update the associated state.
+        if event_name.endswith('_start'):
+            key = event_name[:-6]
+            self._action_context[key + '_active'] = True
+        elif event_name.endswith('_end'):
+            key = event_name[:-4]
+            self._action_context[key + '_active'] = False
+
+        # Make a copy of the context and set the event to True. We don't want
+        # to set the state on the main context since it may affect recursive
+        # notifications.
+        context = self._action_context.copy()
         context[event_name] = True
 
-        # TODO: We cannot invoke this inside the with block because it may
-        # result in infinite loops if one of the commands calls invoke_actions
-        # again. Should we wrap it in a deferred call?
         for action in self._actions:
             if action.match(context):
                 self._invoke_action(action, event_name, timestamp, **kw)
@@ -420,24 +431,7 @@ class BasePlugin(Plugin):
         kwargs.update(kw)
         kwargs['timestamp'] = timestamp
         kwargs['event'] = event_name
-        try:
-            if action.concurrent:
-                m = 'Invoking command {} in new thread'
-                log.trace(m.format(action.command))
-                self._invoke_action_concurrent(action, kwargs)
-            else:
-                m = 'Invoking command {} in current thread'
-                log.trace(m.format(action.command))
-                self.core.invoke_command(action.command, parameters=kwargs)
-        except ValueError as e:
-            raise
-            log.warn(e)
-
-    def _invoke_action_concurrent(self, action, kwargs):
-        method = partial(self.core.invoke_command, action.command,
-                         parameters=kwargs)
-        task = QExperimentActionTask(method)
-        self._pool.start(task)
+        self.core.invoke_command(action.command, parameters=kwargs)
 
     def request_apply(self):
         if not self.apply_changes():
