@@ -3,6 +3,7 @@ log = logging.getLogger(__name__)
 
 from functools import partial
 from copy import copy
+from queue import Empty, Queue
 
 import numpy as np
 from scipy import signal
@@ -40,6 +41,7 @@ class Input(PSIContribution):
     fs = Property().tag(metadata=True)
     dtype = Property().tag(metadata=True)
     unit = Property().tag(metadata=True)
+    calibration = Property()
     active = Property()
 
     inputs = List()
@@ -71,6 +73,9 @@ class Input(PSIContribution):
 
     def _get_dtype(self):
         return self.source.dtype
+
+    def _get_calibration(self):
+        return self.source.calibration
 
     def _get_unit(self):
         return self.source.unit
@@ -124,7 +129,7 @@ class EpochInput(Input):
 
 class Callback(Input):
 
-    function = Callable()
+    function = d_(Callable())
 
     def configure_callback(self):
         log.debug('Configuring callback for {}'.format(self.name))
@@ -254,17 +259,23 @@ class Blocked(ContinuousInput):
     duration = d_(Float()).tag(metadata=True)
 
     def configure_callback(self):
+        if self.duration <= 0:
+            m = 'Duration for {} must be > 0'.format(self.name)
+            raise ValueError(m)
         cb = super().configure_callback()
         block_size = round(self.duration*self.fs)
         return blocked(block_size, cb).send
 
 
 @coroutine
-def accumulate(n, axis, target):
+def accumulate(n, axis, newaxis, target):
     data = []
     while True:
         d = (yield)
-        data.append(d)
+        if newaxis:
+            data.append(d[np.newaxis])
+        else:
+            data.append(d)
         if len(data) == n:
             data = np.concatenate(data, axis=axis)
             target(data)
@@ -277,10 +288,11 @@ class Accumulate(ContinuousInput):
     '''
     n = d_(Int()).tag(metadata=True)
     axis = d_(Int(-1)).tag(metadata=True)
+    newaxis = d_(Bool(False)).tag(metadata=True)
 
     def configure_callback(self):
         cb = super().configure_callback()
-        return accumulate(self.n, self.axis, cb).send
+        return accumulate(self.n, self.axis, self.newaxis, cb).send
 
 
 @coroutine
@@ -327,7 +339,7 @@ def capture_epoch(epoch_t0, epoch_samples, info, callback):
 
 
 @coroutine
-def extract_epochs(fs, queue, epoch_size, buffer_size, epoch_name, target,
+def extract_epochs(fs, queue, epoch_size, buffer_size, target,
                    empty_queue_cb=None):
 
     # The variable `tlb` tracks the number of samples that have been acquired
@@ -419,30 +431,48 @@ def extract_epochs(fs, queue, epoch_size, buffer_size, epoch_name, target,
             empty_queue_cb = None
 
 
-#def capture(queue, target):
-#    t0 = 0
-#    next_offset = None
-#    active = True
-#
-#    while True:
-#        data = (yield)
-#        t0 += data.shape[-1]
-#
-#        if next_offset is None:
-#            next_offset = queue.popleft()
-#
-#        if next_offset is not None:
-#            if t0 >= next_offset:
-#                i = t0-next_offset
-#
-#
-#
-#        if t0 >= next_offset
+@coroutine
+def capture(fs, queue, target):
+    t0 = 0
+    t_next = None
+    active = False
 
+    while True:
+        # Wait for new data to come in
+        data = (yield)
+
+        try:
+            # We've recieved a new command. The command will either be None
+            # (i.e., no more acquisition for a bit) or a floating-point value
+            # (indicating when next acquisition should begin).
+            t_next = queue.get(block=False)
+            if t_next is not None:
+                t_next = round(t_next*fs)
+        except Empty:
+            pass
+
+        if t_next is None:
+            pass
+        elif t_next < t0:
+            raise SystemError('Data lost')
+        elif t_next >= t0:
+            i = t_next-t0
+            if i < data.shape[-1]:
+                d = data[i:]
+                target(d)
+                t_next += d.shape[-1]
+
+        t0 += data.shape[-1]
 
 
 class Capture(ContinuousInput):
-    pass
+
+    queue = Typed(Queue)
+
+    def configure_callback(self):
+        self.queue = Queue()
+        cb = super().configure_callback()
+        return capture(self.fs, self.queue, cb).send
 
 
 @coroutine
@@ -501,6 +531,29 @@ class Decimate(ContinuousInput):
         cb = super().configure_callback()
         return decimate(self.q, cb).send
 
+
+@coroutine
+def discard(discard_samples, cb):
+    while True:
+        samples = (yield)
+        if discard_samples == 0:
+            cb(samples)
+        elif samples.shape[-1] <= discard_samples:
+            discard_samples -= samples.shape[-1]
+        elif samples.shape[-1] > discard_samples:
+            s = samples[..., discard_samples:]
+            discard_samples -= s.shape[-1]
+            cb(s)
+
+
+class Discard(ContinuousInput):
+
+    duration = d_(Float()).tag(metadata=True)
+
+    def configure_callback(self):
+        cb = super().configure_callback()
+        samples = round(self.duration*self.fs)
+        return discard(samples, cb).send
 
 @coroutine
 def threshold(threshold, target):
@@ -626,8 +679,7 @@ class ExtractEpochs(EpochInput):
                 raise SystemError('Cannot have an infinite epoch size')
         cb = super().configure_callback()
         return extract_epochs(self.fs, self.queue, self.epoch_size,
-                              self.buffer_size, self.name, cb,
-                              self.mark_complete).send
+                              self.buffer_size, cb, self.mark_complete).send
 
 
 @coroutine
@@ -635,6 +687,7 @@ def reject_epochs(reject_threshold, status, valid_target):
     while True:
         epochs = (yield)
         valid = []
+        print(reject_threshold)
 
         # Find valid epochs
         for epoch in epochs:

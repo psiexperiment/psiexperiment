@@ -19,6 +19,15 @@ from psi.controller.calibration import util
 
 
 ################################################################################
+# Utility functions
+################################################################################
+def get_x_fft(fs, duration):
+    n_time = int(fs * duration)
+    freq = np.fft.rfftfreq(n_time, fs**-1)
+    return np.log10(freq)
+
+
+################################################################################
 # Supporting classes
 ################################################################################
 class ChannelDataRange(Atom):
@@ -352,6 +361,19 @@ class SignalBuffer:
                 raise ValueError
             return self._buffer[ilb:iub]
 
+    def get_latest(self, lb, ub=0):
+        with self._lock:
+            lb = lb + self.get_time_ub()
+            ub = ub + self.get_time_ub()
+            return self.get_range(lb, ub)
+
+
+    def get_time_ub(self):
+        return (self._offset + self._buffer_samples) / self._buffer_fs
+
+    def get_time_lb(self):
+        return max(self._offset, 0) / self._buffer_fs
+
     def get_valid_data(self):
         with self._lock:
             return self._buffer[:]
@@ -451,8 +473,8 @@ class FFTChannelPlot(ChannelPlot):
         if self.source is not None:
             self.source.add_callback(self._append_data)
             self.source.observe('fs', self._cache_x)
-            self.source.observe('epoch_size', self._cache_x)
             self._update_buffer()
+            self._cache_x()
 
     def _update_buffer(self, event=None):
         self._buffer = SignalBuffer(self.source.fs, self.time_span)
@@ -461,17 +483,15 @@ class FFTChannelPlot(ChannelPlot):
         self._buffer.append_data(data)
         self.update()
 
-    def _cache_x(self, event):
-        # Set up the new time axis
-        if self.source.fs and self.source.epoch_size:
-            n_time = round(self.source.fs * self.source.epoch_size)
-            self._x = np.arange(n_time)/self.source.fs
+    def _cache_x(self, event=None):
+        if self.source.fs:
+            self._x = get_x_fft(self.source.fs, self.time_span)
 
     def _update(self, event=None):
-        data = self._buffer.get_valid_data()
-        data = data[~np.isnan(data)]
-        psd = util.patodb(util.psd(data, self.source.fs, self.window))
-        self.plot.setData(self._x, psd)
+        if self._buffer.get_time_ub() >= self.time_span:
+            data = self._buffer.get_latest(-self.time_span, 0)
+            psd = util.patodb(util.psd(data, self.source.fs, self.window))
+            self.plot.setData(self._x, psd)
         self.update_pending = False
 
 
@@ -659,9 +679,7 @@ class GroupedEpochFFTPlot(GroupMixin, BasePlot):
         # Cache the frequency points. Must be in units of log for PyQtGraph.
         # TODO: This could be a utility function stored in the parent?
         if self.source.fs and self.source.epoch_size:
-            n_time = int(self.source.fs * self.source.epoch_size)
-            freq = np.fft.rfftfreq(n_time, self.source.fs**-1)
-            self._x = np.log10(freq)
+            self._x = get_x_fft(self.source.fs, self.source.epoch_size)
 
     def _y(self, epoch):
         y = np.mean(epoch, axis=0) if epoch else np.full_like(self._x, np.nan)

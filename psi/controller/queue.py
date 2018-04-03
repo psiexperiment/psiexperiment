@@ -181,12 +181,12 @@ class AbstractSignalQueue(object):
         if self._delay_samples < 0:
             raise ValueError('Invalid option for delay samples')
 
-        self.uploaded.append({
+        return {
             't0': (self._samples+self._filter_delay)/self._fs,
             'duration': data['duration'],
             'key': key,
             'metadata': data['metadata'],
-        })
+        }
 
     def pop_buffer(self, samples, decrement=True):
         '''
@@ -200,8 +200,10 @@ class AbstractSignalQueue(object):
         # TODO: This is a bit complicated and I'm not happy with the structure.
         # It should be simplified quite a bit.  Cleanup?
         waveforms = []
+        uploaded = []
         queue_empty = False
 
+        # Load samples from current source
         if samples > 0 and self._source is not None:
             # That this is a dynamic function that is set when the next
             # source is loaded (see below in this method).
@@ -212,6 +214,7 @@ class AbstractSignalQueue(object):
             if complete:
                 self._source = None
 
+        # Insert intertrial interval delay 
         if samples > 0 and self._delay_samples > 0:
             n_padding = min(self._delay_samples, samples)
             waveform = np.zeros(n_padding)
@@ -220,9 +223,10 @@ class AbstractSignalQueue(object):
             self._delay_samples -= n_padding
             waveforms.append(waveform)
 
+        # Get next source
         if (self._source is None) and (self._delay_samples == 0):
             try:
-                self.next_trial(decrement)
+                uploaded.append(self.next_trial(decrement))
             except QueueEmptyError:
                 queue_empty = True
                 waveform = np.zeros(samples)
@@ -235,6 +239,11 @@ class AbstractSignalQueue(object):
             samples -= len(waveform)
 
         waveform = np.concatenate(waveforms, axis=-1)
+        self.uploaded.extend(uploaded)
+
+        for notifier in self._notifiers:
+            notifier(uploaded)
+
         return waveform, queue_empty
 
 
