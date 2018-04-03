@@ -44,7 +44,8 @@ enamldef LauncherView(Window): main:
             Label:
                 text = 'Animal'
             ObjectCombo:
-                items = ['170704.0 1', '170704.0 2', '170704.0 3', '170704.0 4']
+                items = ['170704.0 1', '170704.0 2', '170704.0 3', '170704.0 4',
+                         '171012.0 1', '171012.0 2']
                 selected := launcher.animal
 
             Label:
