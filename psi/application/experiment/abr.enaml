@@ -24,6 +24,7 @@ from psi.data.plots import (TimeContainer, ChannelPlot,
                             StackedEpochAveragePlot, ChannelPlot, ViewBox)
 
 from psi.data.sinks.epoch_counter import GroupedEpochCounter
+from psi.data.sinks.bcolz_store import BColzStore
 
 from psi.token.primitives import Cos2Envelope, Tone, BandlimitedNoise
 
@@ -43,6 +44,13 @@ class ABRController(BasePlugin):
 enamldef ControllerManifest(BaseManifest): manifest:
 
     factory = ABRController
+
+    Extension:
+        id = 'data'
+        point = 'psi.data.sinks'
+
+        BColzStore:
+            epoch_inputs = ['erp']
 
     Extension:
         id = 'tokens'
@@ -73,29 +81,23 @@ enamldef ControllerManifest(BaseManifest): manifest:
                                                initial_delay=1)
             auto_decrement = False
 
-        Blocked:
-            duration = 0.25
-            name = 'eeg'
-            save = True
+        IIRFilter:
+            name = 'eeg_filtered'
+            N = 2
+            btype = 'bandpass'
+            ftype = 'butter'
+            f_highpass = 300
+            f_lowpass = 3000
             source_name = 'eeg_channel'
 
-            IIRFilter:
-                name = 'eeg_filtered'
-                N = 2
-                btype = 'bandpass'
-                ftype = 'butter'
-                f_highpass = 300
-                f_lowpass = 3000
+            ExtractEpochs: extract:
+                name = 'erp'
+                queue = output.queue
+                epoch_size = 8.5e-3
 
-                ExtractEpochs: extract:
-                    name = 'erp'
-                    queue = output.queue
-                    epoch_size = 8.5e-3
-                    save = True
-
-                    RejectEpochs:
-                        name = 'valid_erp'
-                        threshold = 2.5
+                RejectEpochs:
+                    name = 'valid_erp'
+                    threshold = 2.5
 
     Extension:
         id = 'context'
@@ -143,7 +145,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
             command = 'target.decrement_key'
 
         ExperimentAction:
-            event = 'erp_queue_end'
+            event = 'target_end'
             command = 'psi.controller.stop'
 
     Extension:
@@ -189,13 +191,3 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 ChannelPlot:
                     pen_color = 'k'
                     source_name = 'eeg_filtered'
-
-            #ViewBox:
-            #    name = 'microphone_view'
-            #    y_min = 0
-            #    y_max = 0.1
-            #    y_mode = 'upper'
-
-            #    ChannelPlot:
-            #        pen_color = 'k'
-            #        source_name = 'microphone_rms'
