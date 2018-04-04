@@ -20,9 +20,11 @@ log = logging.getLogger(__name__)
 log_ai = logging.getLogger(__name__ + '.ai')
 log_ao = logging.getLogger(__name__ + '.ao')
 
+
 import types
 import ctypes
 from collections import OrderedDict
+from functools import partial
 from threading import Timer
 
 import numpy as np
@@ -62,6 +64,24 @@ def read_digital_lines(task, size=1):
     return data.T
 
 
+def read_hw_ai(task, available_samples=None, channels=1, block_size=1):
+    if available_samples is None:
+        uint32 = ctypes.c_uint32()
+        mx.DAQmxGetReadAvailSampPerChan(task, uint32)
+        available_samples = uint32.value
+
+    blocks = (available_samples//block_size)
+    if blocks == 0:
+        return
+    samples = blocks*block_size
+    data = np.empty((channels, samples), dtype=np.double)
+    int32 = ctypes.c_int32()
+    mx.DAQmxReadAnalogF64(task, samples, 0, mx.DAQmx_Val_GroupByChannel, data,
+                          data.size, int32, None)
+    log_ai.trace('Read %d samples', samples)
+    return data
+
+
 def constant_lookup(value):
     for name in dir(mx.DAQmxConstants):
         if name in mx.DAQmxConstants.constant_list:
@@ -97,97 +117,40 @@ def device_list(task):
 ################################################################################
 # callback
 ################################################################################
-class SamplesGeneratedCallbackHelper(object):
-
-    def __init__(self, callback):
-        self._callback = callback
-        self._uint32 = ctypes.c_uint32()
-
-    def __call__(self, task, event_type, callback_samples, callback_data):
-        try:
-            self._callback(callback_samples)
-            return 0
-        except Exception as e:
-            log_ao.exception(e)
-            return -1
+def hw_ao_helper(cb, task, event_type, cb_samples, cb_data):
+    cb(cb_samples)
+    return 0
 
 
-class SamplesAcquiredCallbackHelper(object):
-
-    def __init__(self, callback, n_channels, discard_first=0):
-        self._callback = callback
-        self._n_channels = n_channels
-        self._int32 = ctypes.c_int32()
-        self._uint32 = ctypes.c_uint32()
-        self._discard_first = discard_first
-        self._discarded = self._discard_first == 0
-
-    def __call__(self, *args):
-        try:
-            if self._discarded:
-                return self._call_ongoing(*args)
-            return self._call_first(*args)
-        except Exception as e:
-            log_ai.exception(e)
-            return -1
-
-    def _call_first(self, task, event_type, cb_samples, cb_data):
-        mx.DAQmxGetReadAvailSampPerChan(task, self._uint32)
-        available_samples = self._uint32.value
-        if available_samples >= self._discard_first:
-            log_ai.debug('Discarding first %s samples', self._discard_first)
-            data_shape = self._n_channels, self._discard_first
-            data = np.empty(data_shape, dtype=np.double)
-            mx.DAQmxReadAnalogF64(task, self._discard_first, 0,
-                                mx.DAQmx_Val_GroupByChannel, data, data.size,
-                                self._int32, None)
-            self._discarded = True
-            return self._call_ongoing(task, event_type, cb_samples, cb_data)
-
-    def _call_ongoing(self, task, event_type, cb_samples, cb_data):
-        mx.DAQmxGetReadAvailSampPerChan(task, self._uint32)
-        available_samples = self._uint32.value
-        blocks = (available_samples//cb_samples)
-        if blocks == 0:
-            return 0
-        samples = blocks*cb_samples
-        data_shape = self._n_channels, samples
-        data = np.empty(data_shape, dtype=np.double)
-        mx.DAQmxReadAnalogF64(task, samples, 0,
-                            mx.DAQmx_Val_GroupByChannel, data, data.size,
-                            self._int32, None)
-        log_ai.trace('Read %d samples', samples)
-        self._callback(data)
+def hw_ai_helper(cb, channels, discard, task, event_type, cb_samples, cb_data):
+    discard = 64
+    uint32 = ctypes.c_uint32()
+    mx.DAQmxGetReadAvailSampPerChan(task, uint32)
+    available_samples = uint32.value
+    if available_samples == 0:
         return 0
 
-    def _call_final(self, task):
-        mx.DAQmxGetReadAvailSampPerChan(task, self._uint32)
-        samples = self._uint32.value
-        if samples == 0:
-            return 0
-        data_shape = self._n_channels, samples
-        data = np.empty(data_shape, dtype=np.double)
-        mx.DAQmxReadAnalogF64(task, samples, 0,
-                            mx.DAQmx_Val_GroupByChannel, data, data.size,
-                            self._int32, None)
-        self._callback(data)
+    uint64 = ctypes.c_uint64()
+    mx.DAQmxGetReadCurrReadPos(task, uint64)
+    read_position = uint64.value
+
+    log_ai.debug('Current read position %d, available samples %d',
+                 read_position, available_samples)
+
+    if read_position < discard:
+        samples = min(discard-read_position, available_samples)
+        read_hw_ai(task, samples, channels)
+        available_samples -= samples
+        log_ai.debug('Discarded %d samples from beginning, %d available',
+                     samples, available_samples)
+
+    if available_samples == 0:
         return 0
-
-
-class DigitalSamplesAcquiredCallbackHelper(object):
-
-    def __init__(self, callback):
-        self._callback = callback
-
-    def __call__(self, task, event_type, callback_samples, callback_data):
-        try:
-            data = read_digital_lines(task, callback_samples)
-            self._callback(data)
-            return 0
-        except Exception as e:
-            raise
-            log.exception(e)
-            return -1
+    
+    data = read_hw_ai(task, available_samples, channels, cb_samples)
+    if data is not None:
+        cb(data)
+    return 0
 
 
 ################################################################################
@@ -313,14 +276,13 @@ def setup_hw_ao(fs, lines, expected_range, callback, callback_samples,
     #log_ao.debug('DMA transfer mechanism %d', result.value)
 
     log_ao.debug('Creating callback after every %d samples', callback_samples)
-    callback_helper = SamplesGeneratedCallbackHelper(callback)
-    cb_ptr = mx.DAQmxEveryNSamplesEventCallbackPtr(callback_helper)
-    mx.DAQmxRegisterEveryNSamplesEvent(task,
-                                       mx.DAQmx_Val_Transferred_From_Buffer,
-                                       int(callback_samples), 0, cb_ptr, None)
-    task._cb_ptr = cb_ptr
-    mx.DAQmxTaskControl(task, mx.DAQmx_Val_Task_Verify)
+    task._cb = partial(hw_ao_helper, callback)
+    task._cb_ptr = mx.DAQmxEveryNSamplesEventCallbackPtr(task._cb)
+    mx.DAQmxRegisterEveryNSamplesEvent(
+        task, mx.DAQmx_Val_Transferred_From_Buffer, int(callback_samples), 0,
+        task._cb_ptr, None)
 
+    mx.DAQmxTaskControl(task, mx.DAQmx_Val_Task_Verify)
     return task
 
 
@@ -378,12 +340,11 @@ def setup_hw_ai(fs, lines, expected_range, callback, callback_samples,
         # Not a supported property. Set filter delay to 0 by default.
         filter_delay = 0
 
-    task._cb = SamplesAcquiredCallbackHelper(callback, n_channels,
-                                       discard_first=filter_delay)
+    task._cb = partial(hw_ai_helper, callback, n_channels, filter_delay)
     task._cb_ptr = mx.DAQmxEveryNSamplesEventCallbackPtr(task._cb)
-    mx.DAQmxRegisterEveryNSamplesEvent(task, mx.DAQmx_Val_Acquired_Into_Buffer,
-                                       int(callback_samples), 0, task._cb_ptr,
-                                       None)
+    mx.DAQmxRegisterEveryNSamplesEvent(
+        task, mx.DAQmx_Val_Acquired_Into_Buffer, int(callback_samples), 0,
+        task._cb_ptr, None)
 
     mx.DAQmxTaskControl(task, mx.DAQmx_Val_Task_Verify)
     return task
@@ -421,12 +382,13 @@ def setup_hw_di(fs, lines, callback, callback_samples, start_trigger=None,
     else:
         setup_timing(task, fs, -1, start_trigger)
 
-    callback_helper = DigitalSamplesAcquiredCallbackHelper(callback)
-    cb_ptr = mx.DAQmxEveryNSamplesEventCallbackPtr(callback_helper)
+    cb_helper = DigitalSamplesAcquiredCallbackHelper(callback)
+    cb_ptr = mx.DAQmxEveryNSamplesEventCallbackPtr(cb_helper)
     mx.DAQmxRegisterEveryNSamplesEvent(task, mx.DAQmx_Val_Acquired_Into_Buffer,
                                        int(callback_samples), 0, cb_ptr, None)
 
     task._cb_ptr = cb_ptr
+    task._cb_helper = cb_helper
     task._initial_state = initial_state
 
     #mx.DAQmxTaskControl(task, mx.DAQmx_Val_Task_Commit)
