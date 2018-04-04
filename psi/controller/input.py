@@ -687,7 +687,6 @@ def reject_epochs(reject_threshold, status, valid_target):
     while True:
         epochs = (yield)
         valid = []
-        print(reject_threshold)
 
         # Find valid epochs
         for epoch in epochs:

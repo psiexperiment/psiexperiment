@@ -67,6 +67,10 @@ def tone_calibrate_channel(event):
     min_snr : {None, float}
         Minimum test level (re. noise floor). If the test tone is too close to
         the noise floor, this raises a calibration error.
+    widget_name : {None, string}
+        Name of widget containing results set to update (for viewing).
+    attr_name : {None, string}
+        Name of attribute on widget to set.
     '''
     p = event.parameters
     controller = event.workbench.get_plugin('psi.controller')
@@ -109,6 +113,12 @@ def tone_calibrate_channel(event):
     data = event.workbench.get_plugin('psi.data')
     name = '{}_{}_calibration'.format(ao.name, ai.name)
     data.create_table(name, result)
+
+    if p.get('widget_name') is not None:
+        ui = event.workbench.get_plugin('enaml.workbench.ui')
+        widget = ui.window.find(p['widget_name'])
+        attr_name = p.get('attr_name')
+        setattr(widget, attr_name, result)
 
 
 enamldef BaseManifest(PluginManifest): manifest:

@@ -166,13 +166,22 @@ class EditableTable(RawWidget):
     updated = d_(Event())
     autoscroll = d_(Bool(False))
 
+    # Can include label, compact_label, default value (for adding
+    # rows), coerce function (for editing data).
     column_info = d_(Dict(Unicode(), Typed(object), {}))
     column_widths = Property()
 
     data = d_(Typed(object))
 
-    def get_column_attribute(self, column_name, attribute, default):
+    def get_column_attribute(self, column_name, attribute, default,
+                             raise_error=False):
+
         column = self.column_info.get(column_name, {})
+
+        if raise_error:
+            if (attribute not in column) and not hasattr(column, attribute):
+                raise AttributeError
+
         try:
             return column.get(attribute, default)
         except AttributeError:
@@ -192,7 +201,8 @@ class EditableTable(RawWidget):
     def get_column_label(self, column_index):
         column = self.get_columns()[column_index]
         try:
-            return self.get_column_attribute(column, 'compact_label', column)
+            return self.get_column_attribute(column, 'compact_label', column,
+                                             raise_error=True)
         except AttributeError:
             return self.get_column_attribute(column, 'label', column)
 
