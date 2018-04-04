@@ -199,6 +199,10 @@ def start_output(event, output):
     delay = event.parameters.get('delay', 0)
     offset = round((start+delay-filter_delay)*output.channel.fs)
 
+    # This needs to be done before we update the engine since it gets set to
+    # None once all samples have been generated.
+    duration = output.factory.get_duration()
+
     with output.engine.lock:
         # Important to lock the engine when activating the output to prevent
         # race conditions
@@ -209,7 +213,6 @@ def start_output(event, output):
 
     controller = event.workbench.get_plugin('psi.controller')
     controller.invoke_actions('{}_start'.format(output.name), start+delay)
-    duration = output.factory.get_duration()
     if duration is not np.inf:
         controller.invoke_actions('{}_end'.format(output.name),
                                   start+delay+duration, delayed=True)
@@ -218,13 +221,14 @@ def start_output(event, output):
 def clear_output(event, output):
     end = event.parameters['timestamp']
     delay = event.parameters.get('delay', 0)
-
     with output.engine.lock:
         log.debug('Clearing output {}'.format(output.name))
         # First, deactivate the output if it's still running
-        if output.active:
-            log.debug('Deactivating output {}'.format(output.name))
-            output.deactivate()
+        if not output.active:
+            return
+
+        log.debug('Deactivating output {}'.format(output.name))
+        output.deactivate()
         # Now, update the channel once the output has been deactivated. This
         # will overwrite any data that contains a fragment of the output
         # waveform.

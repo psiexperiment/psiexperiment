@@ -225,7 +225,7 @@ def sam_envelope(offset, samples, fs, depth, fm, delay, eq_phase, eq_power):
 class SAMEnvelopeFactory(Modulator):
 
     def __init__(self, fs, depth, fm, delay, direction, calibration,
-                 input_waveform):
+                 input_factory):
         vars(self).update(locals())
         self.eq_phase = sam_eq_phase(delay, depth, direction)
         self.eq_power = sam_eq_power(depth)
@@ -233,12 +233,12 @@ class SAMEnvelopeFactory(Modulator):
 
     def reset(self):
         self.offset = 0
-        self.input_waveform.reset()
+        self.input_factory.reset()
 
     def next(self, samples):
         env = sam_envelope(self.offset, samples, self.fs, self.depth, self.fm,
                            self.delay, self.eq_phase, self.eq_power)
-        token = self.input_waveform.next(samples)
+        token = self.input_factory.next(samples)
         waveform = env*token
         self.offset += len(waveform)
         return waveform
@@ -339,6 +339,8 @@ class BandlimitedNoiseFactory(Carrier):
             iir, iir_zi = _calculate_bandlimited_noise_iir(fs, calibration, fl, fh)
             self.iir = iir
             self.initial_iir_zi = iir_zi
+        else:
+            self.initial_iir_zi = None
 
         self.reset()
 

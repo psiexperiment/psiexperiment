@@ -59,3 +59,10 @@ def test_input_active(controller):
     assert mic.active == True
     assert blocked.active == True
     assert dc.active == False
+
+
+def test_filter_delay(controller):
+    channel = controller.get_channel('speaker_0')
+    assert channel.filter_delay == 0
+    channel = controller.get_channel('speaker_1')
+    assert channel.filter_delay == 32.0

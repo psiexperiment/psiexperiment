@@ -29,7 +29,7 @@ def get_status(trial, trial_type, experiment_state):
 
     # Experiment running
     if '_' in trial_type:
-        general, specific = trial_type.split('_') 
+        general, specific = trial_type.split('_')
         label = '{} ({})'.format(general, specific)
     else:
         label = trial_type
@@ -134,7 +134,7 @@ enamldef AppetitiveManifest(BaseManifest): manifest:
                 scope = 'arbitrary'
                 default = 'testing'
                 choices = {'training': True, 'testing': False}
-                
+
         ContextGroup:
             name = 'selector'
             label = 'Next value'
@@ -206,7 +206,7 @@ enamldef AppetitiveManifest(BaseManifest): manifest:
                 name = 'response_time'
                 compact_label = 'Resp. time'
                 dtype = 'float64'
-            
+
     # Sequences used by the appetitive Go-Nogo controller.
     Extension:
         id = 'selectors'
@@ -272,9 +272,6 @@ enamldef AppetitiveManifest(BaseManifest): manifest:
             name = 'to_duration_elapsed'
         ExperimentEvent:
             name = 'deliver_reward'
-        ExperimentEvent:
-            # TODO: Move this to the base plugin?
-            name = 'context_changed'
 
         ExperimentAction:
             event = 'experiment_start'

@@ -1,4 +1,5 @@
 import logging
+
 log = logging.getLogger(__name__)
 
 import itertools
@@ -25,6 +26,51 @@ def get_x_fft(fs, duration):
     n_time = int(fs * duration)
     freq = np.fft.rfftfreq(n_time, fs**-1)
     return np.log10(freq)
+
+
+class SignalBuffer:
+
+    def __init__(self, fs, size):
+        self._lock = threading.RLock()
+        self._buffer_fs = fs
+        self._buffer_size = size
+        self._buffer_samples = round(fs*size)
+        self._buffer = np.full(self._buffer_samples, np.nan)
+        self._offset = -self._buffer_samples
+
+    def append_data(self, data):
+        with self._lock:
+            samples = data.shape[-1]
+            if samples > self._buffer_samples:
+                self._buffer[:] = data[-self.buffer_samples:]
+            else:
+                self._buffer[:-samples] = self._buffer[samples:]
+                self._buffer[-samples:] = data
+            self._offset += samples
+
+    def get_range(self, lb, ub):
+        with self._lock:
+            ilb = round(lb*self._buffer_fs) - self._offset
+            iub = round(ub*self._buffer_fs) - self._offset
+            if ilb < 0:
+                raise ValueError
+            return self._buffer[ilb:iub]
+
+    def get_latest(self, lb, ub=0):
+        with self._lock:
+            lb = lb + self.get_time_ub()
+            ub = ub + self.get_time_ub()
+            return self.get_range(lb, ub)
+
+    def get_time_ub(self):
+        return (self._offset + self._buffer_samples) / self._buffer_fs
+
+    def get_time_lb(self):
+        return max(self._offset, 0) / self._buffer_fs
+
+    def get_valid_data(self):
+        with self._lock:
+            return self._buffer[:]
 
 
 ################################################################################
@@ -62,9 +108,17 @@ class ChannelDataRange(Atom):
         cb = partial(self.source_added, plot=plot, fs=source.fs)
         source.add_callback(cb)
 
+    def add_event_source(self, source, plot):
+        cb = partial(self.event_source_added, plot=plot, fs=source.fs)
+        source.add_callback(cb)
+
     def source_added(self, data, plot, fs):
         self.current_samples[plot] += data.shape[-1]
         self.current_times[plot] = self.current_samples[plot]/fs
+        self.current_time = max(self.current_times.values())
+
+    def event_source_added(self, data, plot, fs):
+        self.current_times[plot] = data[-1][1]
         self.current_time = max(self.current_times.values())
 
 
@@ -333,52 +387,6 @@ class SinglePlot(BasePlot):
         return pg.mkPen(self.pen_color, width=self.pen_width)
 
 
-class SignalBuffer:
-
-    def __init__(self, fs, size):
-        self._lock = threading.RLock()
-        self._buffer_fs = fs
-        self._buffer_size = size
-        self._buffer_samples = round(fs*size)
-        self._buffer = np.full(self._buffer_samples, np.nan)
-        self._offset = -self._buffer_samples
-
-    def append_data(self, data):
-        with self._lock:
-            samples = data.shape[-1]
-            if samples > self._buffer_samples:
-                self._buffer[:] = data[-self.buffer_samples:]
-            else:
-                self._buffer[:-samples] = self._buffer[samples:]
-                self._buffer[-samples:] = data
-            self._offset += samples
-
-    def get_range(self, lb, ub):
-        with self._lock:
-            ilb = round(lb*self._buffer_fs) - self._offset
-            iub = round(ub*self._buffer_fs) - self._offset
-            if ilb < 0:
-                raise ValueError
-            return self._buffer[ilb:iub]
-
-    def get_latest(self, lb, ub=0):
-        with self._lock:
-            lb = lb + self.get_time_ub()
-            ub = ub + self.get_time_ub()
-            return self.get_range(lb, ub)
-
-
-    def get_time_ub(self):
-        return (self._offset + self._buffer_samples) / self._buffer_fs
-
-    def get_time_lb(self):
-        return max(self._offset, 0) / self._buffer_fs
-
-    def get_valid_data(self):
-        with self._lock:
-            return self._buffer[:]
-
-
 class ChannelPlot(SinglePlot):
 
     downsample = Int(0)
@@ -495,24 +503,14 @@ class FFTChannelPlot(ChannelPlot):
         self.update_pending = False
 
 
-class TimeseriesPlot(SinglePlot):
+class BaseTimeseriesPlot(SinglePlot):
 
-    source_name = d_(Unicode())
-    rising_event = d_(Unicode())
-    falling_event = d_(Unicode())
     rect_center = d_(Float(0.5))
     rect_height = d_(Float(1))
-
     fill_color = d_(Typed(object))
-
     brush = Typed(object)
-    source = Typed(object)
-
     _rising = Typed(list, ())
     _falling = Typed(list, ())
-
-    def _default_name(self):
-        return self.source_name + self.rising_event + '_timeseries'
 
     def _default_brush(self):
         return pg.mkBrush(self.fill_color)
@@ -522,18 +520,6 @@ class TimeseriesPlot(SinglePlot):
         plot.setPen(self.pen)
         plot.setBrush(self.brush)
         return plot
-
-    def _observe_source(self, event):
-        self.parent.data_range.add_source(self.source, self)
-        self.parent.data_range.observe('current_time', self.update)
-        self.source.observe('added', self.added)
-
-    def added(self, event):
-        value = event['value']
-        if value['event'] == self.rising_event:
-            self._rising.append(value['lb'])
-        elif value['event'] == self.falling_event:
-            self._falling.append(value['lb'])
 
     def _update(self, event=None):
         lb, ub = self.parent.data_range.current_range
@@ -551,9 +537,16 @@ class TimeseriesPlot(SinglePlot):
             if starts[-1] > ends[-1]:
                 ends = np.r_[ends, current_time]
 
-        epochs = np.c_[starts, ends]
-        m = ((epochs >= lb) & (epochs < ub)) | np.isnan(epochs)
-        epochs = epochs[m.any(axis=-1)]
+        try:
+            epochs = np.c_[starts, ends]
+            m = ((epochs >= lb) & (epochs < ub)) | np.isnan(epochs)
+            epochs = epochs[m.any(axis=-1)]
+        except:
+            print(self.event)
+            print(starts)
+            print(ends)
+            print(len(starts), len(ends))
+            return
 
         path = pg.QtGui.QPainterPath()
         y_start = self.rect_center - self.rect_height*0.5
@@ -564,6 +557,47 @@ class TimeseriesPlot(SinglePlot):
         self.plot.setPath(path)
         self.update_pending = False
 
+
+class EventPlot(BaseTimeseriesPlot):
+
+    event = d_(Unicode())
+
+    def _observe_event(self, event):
+        if self.event is not None:
+            self.parent.data_range.observe('current_time', self.update)
+
+    def _default_name(self):
+        return self.event + '_timeseries'
+
+    def _append_data(self, bound, timestamp):
+        if bound == 'start':
+            self._rising.append(timestamp)
+        elif bound == 'end':
+            self._falling.append(timestamp)
+        self.update()
+
+
+class TimeseriesPlot(BaseTimeseriesPlot):
+
+    source_name = d_(Unicode())
+    source = Typed(object)
+
+    def _default_name(self):
+        return self.source_name + '_timeseries'
+
+    def _observe_source(self, event):
+        if self.source is not None:
+            self.parent.data_range.add_event_source(self.source, self)
+            self.parent.data_range.observe('current_time', self.update)
+            self.source.add_callback(self._append_data)
+
+    def _append_data(self, data):
+        print(data)
+        #value = event['value']
+        #if value['event'] == self.rising_event:
+        #    self._rising.append(value['lb'])
+        #elif value['event'] == self.falling_event:
+        #    self._falling.append(value['lb'])
 
 ################################################################################
 # Group plots

@@ -77,9 +77,6 @@ class Event(enum.Enum):
     trial_start = 'trial start'
     trial_end = 'trial end'
 
-    target_start = 'target start'
-    target_end = 'target end'
-
 
 class AppetitivePlugin(BasePlugin):
     '''

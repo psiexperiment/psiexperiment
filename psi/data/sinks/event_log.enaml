@@ -1,7 +1,7 @@
 from enaml.widgets.api import DockItem, Container
 from enaml.workbench.api import Extension
 
-from psi.core.enaml.api import PSIManifest, DataframeTable
+from psi.core.enaml.api import PSIManifest, DataFrameTable
 from psi.experiment.preferences import ItemPreferences
 from ..sink import Sink
 
@@ -24,12 +24,12 @@ enamldef EventLogManifest(PSIManifest): manifest:
             title << manifest.contribution.title
 
             Container:
-                DataframeTable: event_log_table:
-                    dataframe << workbench.get_plugin('psi.data').event_log
+                DataFrameTable: event_log_table:
+                    data << workbench.get_plugin('psi.data').event_log
                     columns = ['timestamp', 'event']
                     column_info = { 
-                        'timestamp': 'Time (sec)',
-                        'event': 'Event',
+                        'timestamp': {'label': 'Time (sec)'},
+                        'event': {'label': 'Event'},
                     }
 
     Extension:

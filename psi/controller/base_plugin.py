@@ -486,3 +486,4 @@ class BasePlugin(Plugin):
             self._timers[name].timeout.disconnect()
             self._timers[name].stop()
             del self._timers[name]
+            log.debug('Disabled deferred event %s', name)
