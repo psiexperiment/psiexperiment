@@ -992,7 +992,7 @@ class NIDAQEngine(Engine):
         # overflow if we attempt to set the offset relative to the first sample
         # written. Therefore, we compute the write offset relative to the last
         # sample written (for requested offsets it should be negative).
-        log_ao.trace('Writing %d samples at %d', data.shape, offset)
+        log_ao.trace('Writing %r samples at %r', data.shape, offset)
         task = self._tasks['hw_ao']
 
         if offset is not None:

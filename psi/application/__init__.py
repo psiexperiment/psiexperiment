@@ -49,8 +49,8 @@ def configure_logging(filename=None):
             '__main__': {'level': 'DEBUG'},
             'psi': {'level': 'DEBUG'},
             'psi.controller.engine': {'level': 'DEBUG'},
-            'psi.controller.engines.nidaq': {'level': 'TRACE'},
-            'psi.controller.engines.nidaq.ai': {'level': 'TRACE'},
+            'psi.controller.engines.nidaq': {'level': 'DEBUG'},
+            'psi.controller.engines.nidaq.ai': {'level': 'DEBUG'},
             'psi.controller.engines.nidaq.ao': {'level': 'DEBUG'},
             },
         'root': {

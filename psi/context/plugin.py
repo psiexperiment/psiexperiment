@@ -245,7 +245,7 @@ class ContextPlugin(Plugin):
             self._prior_values = prior_values
         self._namespace.reset()
 
-        if selector is  None:
+        if selector is None:
             return
         try:
             log.debug('Configuring next setting from selector %s', selector)

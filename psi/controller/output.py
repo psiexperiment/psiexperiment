@@ -24,9 +24,13 @@ import time
 class Synchronized(PSIContribution):
 
     outputs = Property()
+    engines = Property()
 
     def _get_outputs(self):
         return self.children
+
+    def _get_engines(self):
+        return set(o.engine for o in self.outputs)
 
 
 class Output(PSIContribution):
@@ -149,6 +153,7 @@ class EpochOutput(AnalogOutput):
     def deactivate(self):
         self.factory = None
         self.active = False
+        self._buffer.fill(0)
 
 
 class QueuedEpochOutput(EpochOutput):

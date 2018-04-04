@@ -116,17 +116,17 @@ def start_synchronized(synchronized, event):
 
     # For each engine involved in this synchronized output, store a list of the
     # offsets and channel names that need to be updated.
-    engines = set(output.engine for output in synchronized.outputs)
-    settings = {e: {'offsets': [], 'channel_names': []} for e in engines}
+    settings = {e: {'offsets': [], 'channel_names': []} \
+                for e in synchronized.engines}
 
     # First, lock all engines involved to avoid race conditions
     log.debug('Locking all engines')
-    for engine in engines:
+    for engine in synchronized.engines:
         engine.lock.acquire()
 
     # Activate the outputs
     for output in synchronized.outputs:
-        offset = int((start+delay)*output.channel.fs)
+        offset = round((start+delay)*output.channel.fs)
         log.debug('Starting output %s', output.name)
         output.activate(offset)
 
@@ -139,8 +139,51 @@ def start_synchronized(synchronized, event):
         engine.update_hw_ao_multiple(method='write_position', **setting)
 
     # Finally, release the lock.
-    for engine in engines:
+    for engine in synchronized.engines:
         engine.lock.release()
+
+    controller = event.workbench.get_plugin('psi.controller')
+    controller.invoke_actions('{}_start'.format(synchronized.name),
+                              start+delay)
+
+
+def clear_synchronized(synchronized, event):
+    end = event.parameters['timestamp']
+    delay = event.parameters.get('delay', 0)
+    print(end, delay)
+
+    # For each engine involved in this synchronized output, store a list of the
+    # offsets and channel names that need to be updated.
+    settings = {e: {'offsets': [], 'channel_names': []} \
+                for e in synchronized.engines}
+
+    # First, lock all engines involved to avoid race conditions
+    log.debug('Locking all engines')
+    for engine in synchronized.engines:
+        engine.lock.acquire()
+
+    # Activate the outputs
+    for output in synchronized.outputs:
+        if output.active:
+            output.deactivate()
+            log.debug('Deactivating output %s', output.name)
+
+        offset = round((end+delay)*output.channel.fs)
+        setting = settings[output.engine]
+        setting['offsets'].append(offset)
+        setting['channel_names'].append(output.channel.name)
+
+    # Tell the engines to update the waveform
+    for engine, setting in settings.items():
+        engine.update_hw_ao_multiple(method='write_position', **setting)
+
+    # Finally, release the lock.
+    for engine in synchronized.engines:
+        engine.lock.release()
+
+    controller = event.workbench.get_plugin('psi.controller')
+    controller.invoke_actions('{}_end'.format(synchronized.name),
+                              end+delay)
 
 
 def start_output(event, output):
@@ -185,7 +228,7 @@ def clear_output(event, output):
         # Now, update the channel once the output has been deactivated. This
         # will overwrite any data that contains a fragment of the output
         # waveform.
-        offset = int((end+delay)*output.fs)
+        offset = round((end+delay)*output.fs)
         output.engine.update_hw_ao(offset, output.channel.name,
                                    method='write_position')
 
@@ -206,6 +249,12 @@ def decrement_key(event, output):
 enamldef SynchronizedManifest(PSIManifest): manifest:
 
     Extension:
+        id = 'actions.' + manifest.contribution.name
+        point = 'psi.controller.actions'
+        ExperimentState:
+            name = manifest.contribution.name
+
+    Extension:
         id = 'output_commands'
         point = 'enaml.workbench.core.commands'
         Command:
@@ -214,6 +263,9 @@ enamldef SynchronizedManifest(PSIManifest): manifest:
         Command:
             id = manifest.contribution.name + '.start'
             handler = partial(start_synchronized, manifest.contribution)
+        Command:
+            id = manifest.contribution.name + '.clear'
+            handler = partial(clear_synchronized, manifest.contribution)
 
 
 enamldef AnalogOutputManifest(PSIManifest): manifest:
