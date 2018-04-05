@@ -312,7 +312,7 @@ def capture_epoch(epoch_t0, epoch_samples, info, callback):
         if epoch_t0 < tlb:
             # We have missed the start of the epoch. Notify the callback of this
             m = 'Missed samples for epoch of %d samples starting at %d'
-            log.warn(m, start, epoch_samples)
+            log.warn(m, epoch_samples, epoch_t0)
             callback({'signal': None, 'info': info})
             break
 
@@ -364,19 +364,32 @@ def extract_epochs(fs, queue, epoch_size, buffer_size, target,
     while True:
         # Wait for new data to become available
         data = (yield)
+        prior_samples.append((tlb, data))
+
+        # Send the data to each coroutine. If a StopIteration occurs, this means
+        # that the epoch has successfully been acquired and has been sent to the
+        # callback and we can remove it. Need to operate on a copy of list since
+        # it's bad form to modify a list in-place.
+        for epoch_coroutine in epoch_coroutines[:]:
+            try:
+                epoch_coroutine.send((tlb, data))
+            except StopIteration:
+                epoch_coroutines.remove(epoch_coroutine)
 
         # Check to see if more epochs have been requested. Information will be
         # provided in seconds, but we need to convert this to number of
         # samples.
         while trial_index < len(queue.uploaded):
-            info = queue.uploaded[trial_index]
+            info = queue.uploaded[trial_index].copy()
             trial_index += 1
 
             # Figure out how many samples to capture for that epoch
             t0 = round(info['t0'] * fs)
             if epoch_size:
+                info['epoch_size'] = epoch_size
                 epoch_samples = round(epoch_size * fs)
             else:
+                info['epoch_size'] = info['duration']
                 epoch_samples = round(info['duration'] * fs)
 
             epoch_coroutine = capture_epoch(t0, epoch_samples, info,
@@ -393,17 +406,6 @@ def extract_epochs(fs, queue, epoch_size, buffer_size, target,
             except StopIteration:
                 pass
 
-        # Send the data to each coroutine. If a StopIteration occurs, this means
-        # that the epoch has successfully been acquired and has been sent to the
-        # callback and we can remove it. Need to operate on a copy of list since
-        # it's bad form to modify a list in-place.
-        for epoch_coroutine in epoch_coroutines[:]:
-            try:
-                epoch_coroutine.send((tlb, data))
-            except StopIteration:
-                epoch_coroutines.remove(epoch_coroutine)
-
-        prior_samples.append((tlb, data))
         tlb = tlb + data.shape[-1]
 
         # Once the new segment of data has been processed, pass all complete
