@@ -265,12 +265,12 @@ class InterleavedFIFOSignalQueue(AbstractSignalQueue):
     '''
 
     def __init__(self, *args, **kwargs):
-        super(InterleavedFIFOSignalQueue, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self._i = 0
         self._complete = False
 
     def decrement_key(self, key, n=1):
-        super(InterleavedFIFOSignalQueue, self).decrement_key(key, n)
+        super().decrement_key(key, n)
         if self._i >= len(self._ordering):
             self._i = 0
 
@@ -280,7 +280,7 @@ class InterleavedFIFOSignalQueue(AbstractSignalQueue):
         return self._ordering[self._i]
 
     def pop_next(self, decrement=True):
-        key, data = super(InterleavedFIFOSignalQueue, self).pop_next(decrement)
+        key, data = super().pop_next(decrement)
         # Advance i only if the current key is not removed.  If the current key
         # was removed from _ordering, then the current value of i already
         # points to the next key in the sequence.
