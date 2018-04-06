@@ -312,7 +312,8 @@ def setup_hw_ai(fs, lines, expected_range, callback, callback_samples,
     #mx.DAQmxSetBufInputBufSize(task, int(new_buffer_size))
     #n_channels = 1
 
-    mx.DAQmxSetBufInputBufSize(task, callback_samples*10)
+    mx.DAQmxSetReadOverWrite(task, mx.DAQmx_Val_DoNotOverwriteUnreadSamps)
+    mx.DAQmxSetBufInputBufSize(task, callback_samples*100)
     mx.DAQmxGetBufInputBufSize(task, result)
     buffer_size = result.value
     log_ai.debug('Buffer size for %s set to %d samples', lines, buffer_size)
