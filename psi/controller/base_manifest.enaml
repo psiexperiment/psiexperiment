@@ -67,6 +67,13 @@ def tone_calibrate_channel(event):
     min_snr : {None, float}
         Minimum test level (re. noise floor). If the test tone is too close to
         the noise floor, this raises a calibration error.
+    duration : float
+        Duration of test tone
+    iti : float
+        Intertrial interval between test tones
+    trim : float
+        Amount to trim off of start and end of test tone response before
+        analysis.
     widget_name : {None, string}
         Name of widget containing results set to update (for viewing).
     attr_name : {None, string}
@@ -99,7 +106,10 @@ def tone_calibrate_channel(event):
                        ao_channel_name=ao.channel.name,
                        ai_channel_names=[ai.channel.name],
                        max_thd=p['max_thd'],
-                       min_snr=p['min_snr'])
+                       min_snr=p['min_snr'],
+                       duration=p['duration'],
+                       iti=p['iti'],
+                       trim=p['trim'])
 
     log.info('Calibration for output %s using input %s', ao.name, ai.name)
     log.info('\n' + str(result))

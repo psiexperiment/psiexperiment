@@ -226,7 +226,7 @@ class AbstractSignalQueue(object):
         # Get next source
         if (self._source is None) and (self._delay_samples == 0):
             try:
-                uploaded.append(self.next_trial(decrement))
+                self.uploaded.append(self.next_trial(decrement))
             except QueueEmptyError:
                 queue_empty = True
                 waveform = np.zeros(samples)
@@ -239,7 +239,6 @@ class AbstractSignalQueue(object):
             samples -= len(waveform)
 
         waveform = np.concatenate(waveforms, axis=-1)
-        self.uploaded.extend(uploaded)
 
         for notifier in self._notifiers:
             notifier(uploaded)

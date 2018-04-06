@@ -117,7 +117,6 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gain=0,
         Dataframe will be indexed by output channel name and frequency. Columns
         will be rms (in V), snr (in DB) and thd (in percent).
     '''
-
     frequencies = np.asarray(frequencies)
     calibration = FlatCalibration.as_attenuation(vrms=vrms)
 
@@ -155,7 +154,7 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gain=0,
 
     for i, ai_channel in enumerate(ai_channels):
         cb = partial(accumulate, data[i])
-        epoch_input = ExtractEpochs(queue=queue, epoch_size=duration+iti)
+        epoch_input = ExtractEpochs(queue=queue, epoch_size=duration)
         epoch_input.add_callback(cb)
         ai_channel.add_input(epoch_input)
 
@@ -171,6 +170,10 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gain=0,
         signal = np.concatenate(epochs)
         signal.shape = [-1, repetitions] + list(signal.shape[1:])
 
+        if trim != 0:
+            trim_samples = round(channel.fs * trim)
+            signal = signal[..., trim_samples:-trim_samples]
+
         # Loop through each frequency (silence will always be the last one)
         silence = signal[-1]
         signal = signal[:-1]
@@ -179,6 +182,8 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gain=0,
             f_result = process_tone(channel.fs, s, f, min_snr, max_thd,
                                     thd_harmonics, silence)
             f_result['frequency'] = f
+            if debug:
+                f_result['waveform'] = s
             channel_result.append(f_result)
         df = pd.DataFrame(channel_result)
         df['channel_name'] = channel.name
