@@ -661,8 +661,9 @@ class GroupMixin(Declarative):
             self.source.observe('fs', self._cache_x)
             self.source.observe('epoch_size', self._cache_x)
             self._reset_plots()
+            self._cache_x()
 
-    def _cache_x(self, event):
+    def _cache_x(self, event=None):
         # Set up the new time axis
         if self.source.fs and self.source.epoch_size:
             n_time = round(self.source.fs * self.source.epoch_size)
@@ -675,7 +676,7 @@ class GroupedEpochAveragePlot(GroupMixin, BasePlot):
 
 class GroupedEpochFFTPlot(GroupMixin, BasePlot):
 
-    def _cache_x(self, event):
+    def _cache_x(self, event=None):
         # Cache the frequency points. Must be in units of log for PyQtGraph.
         # TODO: This could be a utility function stored in the parent?
         if self.source.fs and self.source.epoch_size:
