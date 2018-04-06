@@ -151,8 +151,11 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 'output_name': 'target',
                 'parameter_names': ['target_tone_frequency'],
                 'gain': -40,
-                'max_thd': None,
-                'min_snr': None,
+                'max_thd': 1,
+                'min_snr': 3,
+                'duration': 0.1,
+                'trim': 0.01,
+                'iti': 0,
                 'widget_name': 'calibration_result',
                 'attr_name': 'result',
             }
@@ -191,7 +194,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
                         'thd': {'label': 'THD (%)'},
                         'norm_spl': {'label': 'SPL @ 1 Vrms'},
                     }
-                    columns = ['frequency', 'snr', 'thd', 'norm_spl']
+                    columns = ['frequency', 'norm_spl', 'snr', 'thd']
                     data << result
 
 
@@ -205,21 +208,25 @@ enamldef ControllerManifest(BaseManifest): manifest:
             span = 8.5e-3
 
             ViewBox:
-                y_min = -0.1
-                y_max = 0.1
+                y_min = -5
+                y_max = 5
                 label = 'Signal (V)'
 
                 StackedEpochAveragePlot:
                     name = 'erp_average'
                     label = 'ERP average plot'
                     source_name = 'valid_erp'
-                    n_update = 32
+                    n_update = 8
+                    group_filter = lambda key: key['target_tone_level'] % 20 == 0
+                    group_color_key = lambda key: key['target_tone_frequency']
+                    pen_color_cycle = 'palettable.cartocolors.qualitative.Vivid_10'
+                    pen_width = 2
 
         TimeContainer:
             name = 'trial_plot_container'
             label = 'Trial timing'
             span = 2
-            delay = 0.5
+            delay = 0.125
 
             ViewBox:
                 name = 'ecg_view'
@@ -227,5 +234,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 y_max = 5
 
                 ChannelPlot:
+                    name = 'eeg_filtered_plot'
                     pen_color = 'k'
                     source_name = 'eeg_filtered'

@@ -103,7 +103,7 @@ def process_tone(fs, signal, frequency, min_snr=None, max_thd=None,
 
 def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gain=0,
                vrms=1, repetitions=2, min_snr=None, max_thd=None, thd_harmonics=3,
-               duration=0.1, trim=0.01, iti=0.01):
+               duration=0.1, trim=0.01, iti=0.01, debug=False):
     '''
     Given a single output, measure response in multiple input channels.
 

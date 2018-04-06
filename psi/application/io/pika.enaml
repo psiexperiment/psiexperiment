@@ -22,8 +22,21 @@ enamldef IOManifest(PluginManifest): manifest:
         point = 'psi.controller.io'
 
         NIDAQEngine:
+            name = 'NI_misc'
+
+            #AIChannel:
+            #    label = 'Tempreature'
+            #    name = 'temperature_channel'
+            #    channel = 'PXI1/Slot5/ai0'
+            #    start_trigger = '/PXI1Slot8/ao/StartTrigger'
+            #    fs = 10
+            #    expected_range = (0, 0.15)
+            #    dtype = 'float64'
+            #    terminal_mode = 'differential'
+
+        NIDAQEngine:
             name = 'NI_EEG'
-            hw_ai_monitor_period = 0.25
+            hw_ai_monitor_period = 0.125
 
             AIChannel:
                 label = 'EEG'
@@ -41,9 +54,9 @@ enamldef IOManifest(PluginManifest): manifest:
             name = 'NI_audio'
             master_clock = True
 
-            hw_ai_monitor_period = 0.25
-            hw_ao_monitor_period = 0.25
-            hw_ao_buffer_size = 5
+            hw_ai_monitor_period = 0.125
+            hw_ao_monitor_period = 0.125
+            hw_ao_buffer_size = 10
 
             NIDAQAOChannel:
                 label = 'primary'
