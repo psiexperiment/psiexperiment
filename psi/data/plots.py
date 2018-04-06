@@ -2,6 +2,7 @@ import logging
 log = logging.getLogger(__name__)
 
 import itertools
+import importlib
 from functools import partial
 from collections import defaultdict
 import threading
@@ -10,7 +11,7 @@ import numpy as np
 import pyqtgraph as pg
 
 from atom.api import (Unicode, Float, Tuple, Int, Typed, Property, Atom, Bool,
-                      Enum, List, Dict)
+                      Enum, List, Dict, Callable)
 from enaml.core.api import Declarative, d_, d_func
 from enaml.application import deferred_call, timed_call
 
@@ -25,6 +26,13 @@ def get_x_fft(fs, duration):
     n_time = int(fs * duration)
     freq = np.fft.rfftfreq(n_time, fs**-1)
     return np.log10(freq)
+
+
+def get_color_cycle(name):
+    module_name, cmap_name = name.rsplit('.', 1)
+    module = importlib.import_module(module_name)
+    cmap = getattr(module, cmap_name)
+    return itertools.cycle(cmap.colors)
 
 
 ################################################################################
@@ -572,26 +580,42 @@ class GroupMixin(Declarative):
 
     source = Typed(object)
     groups = d_(List())
-    pen_color_cycle = d_(List())
-
     group_names = List()
+
+    # Fucntion that takes the epoch metadata and decides whether to accept it
+    # for plotting.  Useful to reduce the number of plots shown on a graph.
+    group_filter = d_(Callable())
+
+    # Define the pen color cycle. Can be a list of colors or a string
+    # indicating the color palette to use in palettable.
+    pen_color_cycle = d_(Typed(object))
+    group_color_key = d_(Callable())
+
+    pen_width = d_(Int(0))
+    antialias = d_(Bool(False))
+
     plots = Dict()
 
     _epoch_cache = Typed(object)
     _epoch_count = Typed(object)
     _epoch_updated = Typed(object)
     _pen_color_cycle = Typed(object)
+    _plot_colors = Typed(object)
     _x = Typed(np.ndarray)
 
     n_update = d_(Int(1))
 
+    def _default_group_filter(self):
+        return lambda key: True
+
     def _epochs_acquired(self, epochs):
         for d in epochs:
             md = d['info']['metadata']
-            signal = d['signal']
-            key = tuple(md[n] for n in self.group_names)
-            self._epoch_cache[key].append(signal)
-            self._epoch_count[key] += 1
+            if self.group_filter(md):
+                signal = d['signal']
+                key = tuple(md[n] for n in self.group_names)
+                self._epoch_cache[key].append(signal)
+                self._epoch_count[key] += 1
 
         # Does at least one epoch need to be updated?
         for key, count in self._epoch_count.items():
@@ -602,9 +626,14 @@ class GroupMixin(Declarative):
     def _default_pen_color_cycle(self):
         return ['k']
 
+    def _default_group_color_key(self):
+        return lambda key: tuple(key[g] for g in self.group_names)
+
     @d_func
     def get_pen_color(self, key):
-        return next(self._pen_color_cycle)
+        kw_key = {n: k for n, k in zip(self.group_names, key)}
+        group_key = self.group_color_key(kw_key)
+        return self._plot_colors[group_key]
 
     def _reset_plots(self):
         # Clear any existing plots and reset color cycle
@@ -614,7 +643,12 @@ class GroupMixin(Declarative):
         self._epoch_cache = defaultdict(list)
         self._epoch_count = defaultdict(int)
         self._epoch_updated = defaultdict(int)
-        self._pen_color_cycle = itertools.cycle(self.pen_color_cycle)
+
+        if isinstance(self.pen_color_cycle, str):
+            self._pen_color_cycle = get_color_cycle(self.pen_color_cycle)
+        else:
+            self._pen_color_cycle = itertools.cycle(self.pen_color_cycle)
+        self._plot_colors = defaultdict(lambda: next(self._pen_color_cycle))
 
     def _observe_groups(self, event):
         self._reset_plots()
@@ -630,8 +664,10 @@ class GroupMixin(Declarative):
 
     def _make_new_plot(self, key):
         log.info('Adding plot for key %r', key)
-        pen = pg.mkPen(self.get_pen_color(key))
-        plot = pg.PlotCurveItem(pen=pen)
+        pen_color = self.get_pen_color(key)
+        pen = pg.mkPen(pen_color, width=self.pen_width)
+
+        plot = pg.PlotCurveItem(pen=pen, antialias=self.antialias)
         self.parent.viewbox.addItem(plot)
         self.plots[key] = plot
 
