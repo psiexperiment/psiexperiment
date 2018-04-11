@@ -5,7 +5,6 @@ import itertools
 import importlib
 from functools import partial
 from collections import defaultdict
-import threading
 
 import numpy as np
 import pyqtgraph as pg
@@ -15,6 +14,7 @@ from atom.api import (Unicode, Float, Tuple, Int, Typed, Property, Atom, Bool,
 from enaml.core.api import Declarative, d_, d_func
 from enaml.application import deferred_call, timed_call
 
+from psi.util import SignalBuffer
 from psi.core.enaml.api import PSIContribution
 from psi.controller.calibration import util
 
@@ -340,51 +340,8 @@ class SinglePlot(BasePlot):
     def _default_pen(self):
         return pg.mkPen(self.pen_color, width=self.pen_width)
 
-
-class SignalBuffer:
-
-    def __init__(self, fs, size):
-        self._lock = threading.RLock()
-        self._buffer_fs = fs
-        self._buffer_size = size
-        self._buffer_samples = round(fs*size)
-        self._buffer = np.full(self._buffer_samples, np.nan)
-        self._offset = -self._buffer_samples
-
-    def append_data(self, data):
-        with self._lock:
-            samples = data.shape[-1]
-            if samples > self._buffer_samples:
-                self._buffer[:] = data[-self.buffer_samples:]
-            else:
-                self._buffer[:-samples] = self._buffer[samples:]
-                self._buffer[-samples:] = data
-            self._offset += samples
-
-    def get_range(self, lb, ub):
-        with self._lock:
-            ilb = round(lb*self._buffer_fs) - self._offset
-            iub = round(ub*self._buffer_fs) - self._offset
-            if ilb < 0:
-                raise ValueError
-            return self._buffer[ilb:iub]
-
-    def get_latest(self, lb, ub=0):
-        with self._lock:
-            lb = lb + self.get_time_ub()
-            ub = ub + self.get_time_ub()
-            return self.get_range(lb, ub)
-
-
-    def get_time_ub(self):
-        return (self._offset + self._buffer_samples) / self._buffer_fs
-
-    def get_time_lb(self):
-        return max(self._offset, 0) / self._buffer_fs
-
-    def get_valid_data(self):
-        with self._lock:
-            return self._buffer[:]
+    def _default_name(self):
+        return self.source_name + '_plot'
 
 
 class ChannelPlot(SinglePlot):
@@ -392,6 +349,9 @@ class ChannelPlot(SinglePlot):
     downsample = Int(0)
     _cached_time = Typed(np.ndarray)
     _buffer = Typed(SignalBuffer)
+
+    def _default_name(self):
+        return self.source_name + '_channel_plot'
 
     def _default_plot(self):
         return pg.PlotCurveItem(pen=self.pen, antialias=self.antialias)
@@ -420,7 +380,7 @@ class ChannelPlot(SinglePlot):
         try:
             width, _ = self.parent.viewbox.viewPixelSize()
             dt = self.source.fs**-1
-            self.downsample = round(width/dt/5)
+            self.downsample = round(width/dt/2)
         except Exception as e:
             pass
 
@@ -430,7 +390,7 @@ class ChannelPlot(SinglePlot):
 
     def _update(self, event=None):
         low, high = self.parent.data_range.current_range
-        data = self._buffer.get_range(low, high)
+        data = self._buffer.get_range_filled(low, high, 0)
         t = self._cached_time[:len(data)] + low
         if self.downsample > 1:
             t = t[::self.downsample]
@@ -476,6 +436,9 @@ class FFTChannelPlot(ChannelPlot):
     window = d_(Enum('hamming', 'flattop'))
     _x = Typed(np.ndarray)
     _buffer = Typed(SignalBuffer)
+
+    def _default_name(self):
+        return self.source_name + '_fft_plot'
 
     def _observe_source(self, event):
         if self.source is not None:

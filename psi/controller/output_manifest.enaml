@@ -150,7 +150,6 @@ def start_synchronized(synchronized, event):
 def clear_synchronized(synchronized, event):
     end = event.parameters['timestamp']
     delay = event.parameters.get('delay', 0)
-    print(end, delay)
 
     # For each engine involved in this synchronized output, store a list of the
     # offsets and channel names that need to be updated.
@@ -164,11 +163,12 @@ def clear_synchronized(synchronized, event):
 
     # Activate the outputs
     for output in synchronized.outputs:
+        offset = round((end+delay)*output.channel.fs)
+
         if output.active:
-            output.deactivate()
+            output.deactivate(offset)
             log.debug('Deactivating output %s', output.name)
 
-        offset = round((end+delay)*output.channel.fs)
         setting = settings[output.engine]
         setting['offsets'].append(offset)
         setting['channel_names'].append(output.channel.name)
