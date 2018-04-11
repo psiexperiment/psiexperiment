@@ -16,7 +16,7 @@ from psi.controller.base_plugin import BasePlugin
 from psi.controller.base_manifest import BaseManifest
 from psi.controller.input import (ContinuousInput, ExtractEpochs, Input,
                                   Blocked, Accumulate, RejectEpochs, IIRFilter,
-                                  Decimate, RMS)
+                                  Decimate, RMS, Downsample)
 from psi.controller.output import SelectorQueuedEpochOutput, EpochOutput
 from psi.controller.queue import InterleavedFIFOSignalQueue
 
@@ -49,7 +49,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
         BColzStore:
             epoch_inputs = ['erp']
-            continuous_inputs = ['eeg']
+            continuous_inputs = ['eeg', 'temperature']
 
     Extension:
         id = 'tokens'
@@ -64,6 +64,17 @@ enamldef ControllerManifest(BaseManifest): manifest:
     Extension:
         id = 'io'
         point = 'psi.controller.io'
+
+        IIRFilter:
+            source_name = 'temperature'
+            f_lowpass = 0.1
+            btype = 'lowpass'
+            ftype = 'butter'
+            N = 1
+
+            Downsample:
+                name = 'temperature_decimated'
+                q = 50
 
         ContinuousInput:
             name = 'microphone'
@@ -201,6 +212,19 @@ enamldef ControllerManifest(BaseManifest): manifest:
     Extension:
         id = 'plots'
         point = 'psi.data.plots'
+
+        TimeContainer:
+            name = 'temp_container'
+            label = 'Temperature'
+            span = 10*60
+
+            ViewBox:
+                y_min = 35
+                y_max = 40
+                label = 'Temperature (Celsius)'
+
+                ChannelPlot:
+                    source_name = 'temperature_decimated'
 
         TimeContainer:
             name = 'erp_container'
