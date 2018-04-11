@@ -204,11 +204,17 @@ def iirfilter(N, Wn, rp, rs, btype, ftype, target):
     b, a = signal.iirfilter(N, Wn, rp, rs, btype, ftype=ftype)
     if np.any(np.abs(np.roots(a)) > 1):
         raise ValueError('Unstable filter coefficients')
-    zf = signal.lfilter_zi(b, a)
+
+    # Initialize the state of the filter and scale it by y[0] to avoid a
+    # transient.
+    zi = signal.lfilter_zi(b, a)
+    y = (yield)
+    zo = zi*y[0]
+
     while True:
-        y = (yield)
-        y, zf = signal.lfilter(b, a, y, zi=zf)
+        y, zo = signal.lfilter(b, a, y, zi=zo)
         target(y)
+        y = (yield)
 
 
 class IIRFilter(ContinuousInput):
@@ -487,7 +493,9 @@ def downsample(q, target):
             y, y_remainder = y[:-remainder], y[-remainder:]
         else:
             y_remainder = np.array([])
-        target(y[::q])
+        result = y[::q]
+        if len(result):
+            target(result)
 
 
 class Downsample(ContinuousInput):
@@ -641,11 +649,27 @@ class Delay(ContinuousInput):
     # acquisition rate).
     delay = d_(Float(0)).tag(metadata=True)
 
-
     def configure_callback(self):
         cb = super().configure_callback()
         n = int(self.delay * self.fs)
         return delay(n, cb).send
+
+
+@coroutine
+def transform(function, target):
+    while True:
+        data = (yield)
+        transformed_data = function(data)
+        target(transformed_data)
+
+
+class Transform(ContinuousInput):
+
+    function = d_(Callable())
+
+    def configure_callback(self):
+        cb = super().configure_callback()
+        return transform(self.function, cb).send
 
 
 ################################################################################
