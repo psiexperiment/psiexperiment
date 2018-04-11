@@ -47,13 +47,7 @@ class EventDataTable(DataTable):
         return threading.RLock()
 
     def append(self, row):
-        with self.lock:
-            super().append(row)
-        #self.added = {
-        #    'lb': row[0],
-        #    'ub': row[0],
-        #    'event': row[1],
-        #}
+        self.data.append(row)
 
     def get_epochs(self, start_event, end_event, lb, ub, current_time=np.nan):
         # We need to specify the string literal as a bytes object. This seems
@@ -353,6 +347,14 @@ def prepare(sink, event):
         i.add_callback(cb)
 
 
+def create_table(sink, event):
+    sink.create_table(event.parameters['name'], event.parameters['dataframe'])
+
+
+def create_mapping(sink, event):
+    sink.create_mapping(event.parameters['name'], event.parameters['mapping'])
+
+
 enamldef AbstractStoreManifest(PSIManifest): manifest:
 
     Extension:
@@ -361,6 +363,12 @@ enamldef AbstractStoreManifest(PSIManifest): manifest:
         Command:
             id = manifest.id + '.prepare'
             handler = partial(prepare, manifest.contribution)
+        Command:
+            id = manifest.id + '.create_table'
+            handler = partial(create_table, manifest.contribution)
+        Command:
+            id = manifest.id + '.create_mapping'
+            handler = partial(create_mapping, manifest.contribution)
 
     Extension:
         id = 'actions'
