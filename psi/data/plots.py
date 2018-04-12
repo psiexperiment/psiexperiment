@@ -537,16 +537,9 @@ class BaseTimeseriesPlot(SinglePlot):
             if starts[-1] > ends[-1]:
                 ends = np.r_[ends, current_time]
 
-        try:
-            epochs = np.c_[starts, ends]
-            m = ((epochs >= lb) & (epochs < ub)) | np.isnan(epochs)
-            epochs = epochs[m.any(axis=-1)]
-        except:
-            print(self.event)
-            print(starts)
-            print(ends)
-            print(len(starts), len(ends))
-            return
+        epochs = np.c_[starts, ends]
+        m = ((epochs >= lb) & (epochs < ub)) | np.isnan(epochs)
+        epochs = epochs[m.any(axis=-1)]
 
         path = pg.QtGui.QPainterPath()
         y_start = self.rect_center - self.rect_height*0.5

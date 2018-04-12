@@ -142,13 +142,12 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             ViewBox:
                 y_min = -120
                 y_max = 100
+                axis_label = 'Level (dB)'
 
                 FFTChannelPlot:
                     source_name = 'microphone'
                     pen_color = (0, 0, 0)
                     time_span = 1
-                    #axis_label = 'Level (dB SPL)'
-                    #reference = 20e-6
 
         TimeContainer:
             name = 'trial_plot_container'
@@ -171,17 +170,17 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                     rect_center = 2.5
                     rect_height = 1
 
-                #TimeseriesPlot:
-                #    source_name = 'np'
-                #    fill_color = (43, 138, 87, 68)
-                #    pen_color = (43, 138, 87, 113)
-                #    rect_center = 2.5
-                #    rect_height = 1
-
                 ChannelPlot:
                     name = 'plot2'
                     source_name = 'nose_poke_analog'
                     pen_color = 'r'
+
+                TimeseriesPlot:
+                    source_name = 'np'
+                    fill_color = (43, 138, 87, 68)
+                    pen_color = (43, 138, 87, 113)
+                    rect_center = 2.5
+                    rect_height = 1
 
                 EventPlot:
                     event = 'digital_np'
