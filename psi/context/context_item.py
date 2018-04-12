@@ -138,7 +138,8 @@ class EnumParameter(Parameter):
     default = d_(Unicode())
 
     def _default_dtype(self):
-        return np.array(self.choices.values()).dtype.str
+        values = list(self.choices.values())
+        return np.array(values).dtype.str
 
     def _get_expression(self):
         return self.choices.get(self.selected, None)

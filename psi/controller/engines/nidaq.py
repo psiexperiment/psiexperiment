@@ -122,7 +122,8 @@ def hw_ao_helper(cb, task, event_type, cb_samples, cb_data):
     return 0
 
 
-def hw_ai_helper(cb, channels, discard, task, event_type, cb_samples, cb_data):
+def hw_ai_helper(cb, channels, discard, task, event_type=None, cb_samples=None,
+                 cb_data=None):
     discard = 64
     uint32 = ctypes.c_uint32()
     mx.DAQmxGetReadAvailSampPerChan(task, uint32)
@@ -312,7 +313,8 @@ def setup_hw_ai(fs, lines, expected_range, callback, callback_samples,
     #mx.DAQmxSetBufInputBufSize(task, int(new_buffer_size))
     #n_channels = 1
 
-    mx.DAQmxSetBufInputBufSize(task, callback_samples*10)
+    mx.DAQmxSetReadOverWrite(task, mx.DAQmx_Val_DoNotOverwriteUnreadSamps)
+    mx.DAQmxSetBufInputBufSize(task, callback_samples*100)
     mx.DAQmxGetBufInputBufSize(task, result)
     buffer_size = result.value
     log_ai.debug('Buffer size for %s set to %d samples', lines, buffer_size)
@@ -629,7 +631,14 @@ class NIDAQEngine(Engine):
     def task_complete(self, task_name):
         self._task_done[task_name] = True
         task = self._tasks[task_name]
-        task._cb._call_final(task)
+        # We have frozen the first three arguments (cb, channels, discard)
+        # using functools.partial and need to provide task and cb_samples.
+        # Setting cb_samples to 1 means that we read all remaning samples,
+        # regardless of whether they fit evenly into a block of samples. The
+        # other two arguments (event_type and cb_data) are required of the
+        # function signature by NIDAQmx but are unused.
+        task._cb(task, None, 1)
+
         if all(self._task_done.values()):
             for cb in self._callbacks.get('done', []):
                 cb()

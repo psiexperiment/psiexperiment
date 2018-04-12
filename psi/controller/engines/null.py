@@ -1,7 +1,10 @@
+from atom.api import Float
 from ..engine import Engine
 
 
 class NullEngine(Engine):
+
+    buffer_size = Float()
 
     def register_ao_callback(self, callback, channel_name):
         pass
@@ -29,3 +32,6 @@ class NullEngine(Engine):
 
     def get_ts(self):
         pass
+
+    def get_buffer_size(self, channel):
+        return self.buffer_size

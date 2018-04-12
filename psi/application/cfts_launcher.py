@@ -30,6 +30,16 @@ class Launcher(Atom):
     def _observe_note(self, event):
         self._update_base_folder()
 
+    def launch_calibration(self, experiment, save):
+        args = ['psi', experiment]
+        if save:
+            cal_root = get_config('CAL_ROOT')
+            dt_string = dt.datetime.now().strftime('%Y%m%d-%H%M')
+            formatted = '{} {}'.format(dt_string, experiment)
+            base_folder = os.path.join(cal_root, formatted)
+            args.append(base_folder)
+        subprocess.check_output(args)
+
     def launch(self, experiment, save):
         args = ['psi', experiment]
         if save:

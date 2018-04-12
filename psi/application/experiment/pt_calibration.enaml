@@ -7,6 +7,7 @@ from scipy import signal
 from palettable.colorbrewer import qualitative
 import itertools
 import pyqtgraph as pg
+import pandas as pd
 
 from enaml.application import deferred_call
 from enaml.workbench.api import Extension
@@ -84,6 +85,7 @@ def configure_hardware(event):
 
 
 def calculate_sens(event):
+    core = event.workbench.get_plugin('enaml.workbench.core')
     context = event.workbench.get_plugin('psi.context')
     data = event.workbench.get_plugin('psi.data')
 
@@ -97,10 +99,21 @@ def calculate_sens(event):
     cmap = getattr(qualitative, cmap_name)
     colors = itertools.cycle(cmap.colors)
 
+    summaries = []
+    keys = []
     for key, color in zip(pt_groups.keys(), colors):
         name = '{}'.format(key)
-        calculate_group_sens(pt_source.fs, key, pt_groups, cal_groups, color,
-                             context, data, name)
+        sens_summary = calculate_group_sens(pt_source.fs, key, pt_groups,
+                                            cal_groups, color, context, data,
+                                            name)
+        sens_summary = pd.DataFrame(sens_summary)
+        sens_summary.set_index('frequency', inplace=True)
+        summaries.append(sens_summary)
+        keys.append(key)
+
+    result = pd.concat(summaries, keys=keys, names=['n_bits', 'output_gain'])
+    parameters = {'name': 'sensitivity', 'dataframe': result}
+    core.invoke_command('bcolz_store.create_table', parameters=parameters)
 
 
 def calculate_group_sens(fs, key, pt_groups, cal_groups, color, context, data,
@@ -173,6 +186,7 @@ def calculate_group_sens(fs, key, pt_groups, cal_groups, color, context, data,
         vb.parent.legend.addItem(item, name)
 
     deferred_call(plot_data)
+    return sens_summary
 
 
 def summarize_golay(fs, a, b, a_response, b_response, waveform_averages=None):
@@ -202,6 +216,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
         point = 'psi.data.sinks'
 
         BColzStore:
+            name = 'bcolz_store'
             continuous_inputs = ['pt_hw_ai', 'cal_hw_ai']
             epoch_inputs = ['pt_epoch', 'cal_epoch']
 

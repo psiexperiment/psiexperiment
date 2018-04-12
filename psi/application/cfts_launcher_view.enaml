@@ -10,9 +10,22 @@ enamldef LauncherView(Window): main:
         VGroup:
             padding = 0
             spacing = 0
+
+            HGroup:
+                PushButton:
+                    text = 'Measure pistonphone'
+                    enabled = True
+                    clicked ::
+                        launcher.launch_calibration('pistonphone_calibration', save=True)
+                PushButton:
+                    text = 'Acoustic system calibration'
+                    enabled = True
+                    clicked ::
+                        launcher.launch_calibration('pt_calibration', save=True)
+
             HGroup:
                 Label:
-                    text = 'Acoustic system calibration'
+                    text = 'In-ear calibration'
                 PushButton:
                     text = 'Save'
                     enabled = False

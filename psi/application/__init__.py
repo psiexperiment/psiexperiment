@@ -17,6 +17,7 @@ from psi import get_config, set_config
 experiments = {
     'appetitive_gonogo_food': 'psi.application.experiment.appetitive.ControllerManifest',
     'abr': 'psi.application.experiment.abr.ControllerManifest',
+    'abr-debug': 'psi.application.experiment.abr_debug.ControllerManifest',
     'noise_exposure': 'psi.application.experiment.noise_exposure.ControllerManifest',
     'efr': 'psi.application.experiment.efr.ControllerManifest',
     'dual_efr': 'psi.application.experiment.dual_efr.ControllerManifest',
@@ -46,12 +47,8 @@ def configure_logging(filename=None):
                 },
             },
         'loggers': {
-            '__main__': {'level': 'DEBUG'},
-            'psi': {'level': 'DEBUG'},
-            'psi.controller.engine': {'level': 'DEBUG'},
-            'psi.controller.engines.nidaq': {'level': 'DEBUG'},
-            'psi.controller.engines.nidaq.ai': {'level': 'DEBUG'},
-            'psi.controller.engines.nidaq.ao': {'level': 'DEBUG'},
+            '__main__': {'level': 'INFO'},
+            'psi': {'level': 'INFO'},
             },
         'root': {
             'handlers': ['console'],

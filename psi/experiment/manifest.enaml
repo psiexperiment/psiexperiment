@@ -125,6 +125,37 @@ def get_default_preferences(event):
         pass
 
 
+def open_shell(event):
+    from IPython.frontend.qt.console.rich_ipython_widget import RichIPythonWidget
+    from IPython.frontend.qt.inprocess import QtInProcessKernelManager
+    from IPython.lib import guisupport
+
+    kernel_manager = QtInProcessKernelManager()
+    kernel_manager.start_kernel()
+    kernel = kernel_manager.kernel
+    kernel.gui = 'qt'
+
+    kernel_client = kernel_manager.client()
+    kernel_client.start_channels()
+
+    def stop():
+        kernel_client.stop_channels()
+        kernel_manager.shutdown_kernel()
+        # here you should exit your application with a suitable call
+        sys.exit()
+
+    widget = RichIPythonWidget()
+    widget.kernel_manager = kernel_manager
+    widget.kernel_client = kernel_client
+    widget.exit_requested.connect(stop)
+    widget.setWindowTitle("IPython shell")
+
+    kernel.shell.push({'workbench': event.workbench})
+
+    ipython_widget = widget
+    ipython_widget.show()
+
+
 enamldef ExperimentManifest(PluginManifest):
     '''
     This plugin acts as the entry point for all other plugins in this example.
@@ -177,6 +208,9 @@ enamldef ExperimentManifest(PluginManifest):
         Command:
             id = 'psi.get_default_preferences'
             handler = get_default_preferences
+        Command:
+            id = 'psi.open_shell'
+            handler = open_shell
 
     Extension:
         id = 'actions'
@@ -242,6 +276,11 @@ enamldef ExperimentManifest(PluginManifest):
             label = 'Revert to default'
             command = 'psi.get_default_preferences'
             group = 'preferences_default'
+
+        ActionItem:
+            path = '/configuration/load_shell'
+            label = 'Open IPython shell'
+            command = 'psi.open_shell'
 
     ExtensionPoint:
         id = 'toolbar'

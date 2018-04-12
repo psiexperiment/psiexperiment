@@ -12,7 +12,7 @@ from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
 from enaml.workbench.api import Extension
 
-from ..util import coroutine
+from ..util import coroutine, SignalBuffer
 from .queue import AbstractSignalQueue
 
 from psi.core.enaml.api import PSIContribution
@@ -76,56 +76,44 @@ class AnalogOutput(Output):
 
     buffer_size = Property()
 
-    _buffer = Typed(np.ndarray)
+    _buffer = Typed(SignalBuffer)
     _offset = Int(0)
 
     def _get_buffer_size(self):
         return self.channel.buffer_size
 
     def _default__buffer(self):
-        buffer_samples = int(self.buffer_size*self.fs)
-        return np.zeros(buffer_samples, dtype=np.double)
+        return SignalBuffer(self.fs, self.buffer_size, 0)
 
-    def get_samples(self, offset, samples, out=None):
-        # TODO: eventually push this buffering down to the lowest layer (i.e.,
-        # token generation)? I need to think about this because one caveat is
-        # that we need to deal with stuff like QueuedEpochutput. This seems
-        # like a reasonably sensible place to handle caching for now.
-        log.trace('Requested %d samples at %d for %s', samples, offset,
-                  self.name)
-        if out is None:
-            out = np.empty(samples, dtype=np.double)
-        buffer_size = self._buffer.size
+    def get_samples(self, offset, samples, out):
+        lb = offset
+        ub = offset + samples
+        buffered_lb = self._buffer.get_samples_lb()
+        buffered_ub = self._buffer.get_samples_ub()
 
-        if offset > self._offset:
+        if lb > buffered_ub:
             # This breaks an implicit software contract.
             raise SystemError('Mismatch between offsets')
-
-        # Pull out buffered samples
-        if offset < self._offset:
-            lb = buffer_size+(offset-self._offset)
-            ub = min(lb + samples, buffer_size)
-            buffered_samples = ub-lb
-            out[:buffered_samples] = self._buffer[lb:ub]
-            log.debug('Pulled %d samples out of buffer for %s',
-                      buffered_samples, self.name)
-            samples -= buffered_samples
-
-        if samples < 0:
-            raise SystemError('Invalid request for samples')
+        elif lb == buffered_ub:
+            log.debug('Generating new data')
+            pass
+        elif lb >= buffered_lb and ub <= buffered_ub:
+            log.debug('Extracting from buffer')
+            out[:] = self._buffer.get_range_samples(lb, ub)
+            samples = 0
+        elif lb >= buffered_lb and ub > buffered_ub:
+            log.debug('Extracting from buffer and generating new data')
+            b = self._buffer.get_range_samples(lb)
+            s = b.shape[-1]
+            out[:s] = b
+            samples -= s
+            #log.debug('Pulled %d samples out of buffer for %s', s, self.name)
 
         # Generate new samples
         if samples > 0:
             data = self.get_next_samples(samples)
-            if samples > buffer_size:
-                self._buffer[:] = data[-buffer_size:]
-            else:
-                self._buffer[:-samples] = self._buffer[samples:]
-                self._buffer[-samples:] = data
-            self._offset += samples
+            self._buffer.append_data(data)
             out[-samples:] = data
-
-        return out
 
     def get_next_samples(self, samples):
         raise NotImplementedError
@@ -136,11 +124,28 @@ class EpochOutput(AnalogOutput):
     factory = Typed(Waveform)
     active = Bool(False)
 
+    def _observe_factory(self, event):
+        pass
+
     def get_next_samples(self, samples):
         if self.active:
-            waveform = self.factory.next(samples)
+            buffered_ub = self._buffer.get_samples_ub()
+
+            # Pad with zero
+            zero_padding = max(self._offset-buffered_ub, 0)
+            zero_padding = min(zero_padding, samples)
+            waveform_samples = samples - zero_padding
+
+            waveforms = []
+            if zero_padding:
+                w = np.zeros(zero_padding, dtype=np.double)
+                waveforms.append(w)
+            if waveform_samples:
+                w = self.factory.next(waveform_samples)
+                waveforms.append(w)
             if self.factory.is_complete():
-                self.deactivate()
+                self.deactivate(self._buffer.get_samples_ub())
+            waveform = np.concatenate(waveforms, axis=-1)
         else:
             waveform = np.zeros(samples, dtype=np.double)
         return waveform
@@ -148,12 +153,12 @@ class EpochOutput(AnalogOutput):
     def activate(self, offset):
         self.active = True
         self._offset = offset
-        self._buffer.fill(0)
+        self._buffer.invalidate_samples(offset)
 
-    def deactivate(self):
-        self.factory = None
+    def deactivate(self, offset):
         self.active = False
-        self._buffer.fill(0)
+        self.factory = None
+        self._buffer.invalidate_samples(offset)
 
 
 class QueuedEpochOutput(EpochOutput):

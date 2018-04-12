@@ -16,7 +16,7 @@ from psi.controller.base_plugin import BasePlugin
 from psi.controller.base_manifest import BaseManifest
 from psi.controller.input import (ContinuousInput, ExtractEpochs, Input,
                                   Blocked, Accumulate, RejectEpochs, IIRFilter,
-                                  Decimate, RMS, Downsample)
+                                  Decimate, RMS)
 from psi.controller.output import SelectorQueuedEpochOutput, EpochOutput
 from psi.controller.queue import InterleavedFIFOSignalQueue
 
@@ -40,6 +40,9 @@ def configure_hardware(event):
     threshold = context.get_value('reject_threshold')
     controller.set_input_attr('valid_erp', 'threshold', threshold)
 
+    channel = controller.get_channel('speaker_0')
+    channel.calibration = FlatCalibration.as_attenuation()
+
 
 enamldef ControllerManifest(BaseManifest): manifest:
 
@@ -49,7 +52,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
         BColzStore:
             epoch_inputs = ['erp']
-            continuous_inputs = ['eeg', 'temperature']
+            continuous_inputs = ['eeg']
 
     Extension:
         id = 'tokens'
@@ -65,21 +68,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
         id = 'io'
         point = 'psi.controller.io'
 
-        IIRFilter:
-            source_name = 'temperature'
-            f_lowpass = 0.1
-            btype = 'lowpass'
-            ftype = 'butter'
-            N = 1
-
-            Downsample:
-                name = 'temperature_decimated'
-                q = 50
-
-        ContinuousInput:
-            name = 'microphone'
-            source_name = 'microphone_channel'
-
         SelectorQueuedEpochOutput: output:
             name = 'target'
             label = 'Target'
@@ -93,15 +81,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
         ContinuousInput:
             name = 'eeg'
-            source_name = 'eeg_channel'
-
-        IIRFilter:
-            name = 'eeg_filtered'
-            N = 2
-            btype = 'bandpass'
-            ftype = 'butter'
-            f_highpass = 300
-            f_lowpass = 3000
             source_name = 'eeg_channel'
 
             ExtractEpochs: extract:
@@ -154,24 +133,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
             weight = 10
 
         ExperimentAction:
-            weight = 15
-            event = 'experiment_prepare'
-            command = 'psi.controller.tone_calibrate_channel'
-            kwargs = {
-                'input_name': 'microphone',
-                'output_name': 'target',
-                'parameter_names': ['target_tone_frequency'],
-                'gain': -40,
-                'max_thd': 1,
-                'min_snr': 3,
-                'duration': 0.1,
-                'trim': 0.01,
-                'iti': 0,
-                'widget_name': 'calibration_result',
-                'attr_name': 'result',
-            }
-
-        ExperimentAction:
             event = 'valid_erp_acquired'
             command = 'target.decrement_key'
 
@@ -205,26 +166,13 @@ enamldef ControllerManifest(BaseManifest): manifest:
                         'thd': {'label': 'THD (%)'},
                         'norm_spl': {'label': 'SPL @ 1 Vrms'},
                     }
-                    columns = ['frequency', 'norm_spl', 'snr', 'thd']
+                    columns = ['frequency', 'snr', 'thd', 'norm_spl']
                     data << result
 
 
     Extension:
         id = 'plots'
         point = 'psi.data.plots'
-
-        TimeContainer:
-            name = 'temp_container'
-            label = 'Temperature'
-            span = 10*60
-
-            ViewBox:
-                y_min = 35
-                y_max = 40
-                label = 'Temperature (Celsius)'
-
-                ChannelPlot:
-                    source_name = 'temperature_decimated'
 
         TimeContainer:
             name = 'erp_container'
@@ -240,17 +188,13 @@ enamldef ControllerManifest(BaseManifest): manifest:
                     name = 'erp_average'
                     label = 'ERP average plot'
                     source_name = 'valid_erp'
-                    n_update = 8
-                    group_filter = lambda key: key['target_tone_level'] % 20 == 0
-                    group_color_key = lambda key: key['target_tone_frequency']
-                    pen_color_cycle = 'palettable.cartocolors.qualitative.Vivid_10'
-                    pen_width = 2
+                    n_update = 32
 
         TimeContainer:
             name = 'trial_plot_container'
             label = 'Trial timing'
             span = 2
-            delay = 0.125
+            delay = 2
 
             ViewBox:
                 name = 'ecg_view'
@@ -258,6 +202,5 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 y_max = 5
 
                 ChannelPlot:
-                    name = 'eeg_filtered_plot'
                     pen_color = 'k'
-                    source_name = 'eeg_filtered'
+                    source_name = 'eeg'

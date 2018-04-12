@@ -3,18 +3,19 @@ import logging
 log = logging.getLogger(__name__)
 
 import itertools
+import importlib
 from functools import partial
 from collections import defaultdict
-import threading
 
 import numpy as np
 import pyqtgraph as pg
 
 from atom.api import (Unicode, Float, Tuple, Int, Typed, Property, Atom, Bool,
-                      Enum, List, Dict)
+                      Enum, List, Dict, Callable)
 from enaml.core.api import Declarative, d_, d_func
 from enaml.application import deferred_call, timed_call
 
+from psi.util import SignalBuffer
 from psi.core.enaml.api import PSIContribution
 from psi.controller.calibration import util
 
@@ -28,49 +29,11 @@ def get_x_fft(fs, duration):
     return np.log10(freq)
 
 
-class SignalBuffer:
-
-    def __init__(self, fs, size):
-        self._lock = threading.RLock()
-        self._buffer_fs = fs
-        self._buffer_size = size
-        self._buffer_samples = round(fs*size)
-        self._buffer = np.full(self._buffer_samples, np.nan)
-        self._offset = -self._buffer_samples
-
-    def append_data(self, data):
-        with self._lock:
-            samples = data.shape[-1]
-            if samples > self._buffer_samples:
-                self._buffer[:] = data[-self.buffer_samples:]
-            else:
-                self._buffer[:-samples] = self._buffer[samples:]
-                self._buffer[-samples:] = data
-            self._offset += samples
-
-    def get_range(self, lb, ub):
-        with self._lock:
-            ilb = round(lb*self._buffer_fs) - self._offset
-            iub = round(ub*self._buffer_fs) - self._offset
-            if ilb < 0:
-                raise ValueError
-            return self._buffer[ilb:iub]
-
-    def get_latest(self, lb, ub=0):
-        with self._lock:
-            lb = lb + self.get_time_ub()
-            ub = ub + self.get_time_ub()
-            return self.get_range(lb, ub)
-
-    def get_time_ub(self):
-        return (self._offset + self._buffer_samples) / self._buffer_fs
-
-    def get_time_lb(self):
-        return max(self._offset, 0) / self._buffer_fs
-
-    def get_valid_data(self):
-        with self._lock:
-            return self._buffer[:]
+def get_color_cycle(name):
+    module_name, cmap_name = name.rsplit('.', 1)
+    module = importlib.import_module(module_name)
+    cmap = getattr(module, cmap_name)
+    return itertools.cycle(cmap.colors)
 
 
 ################################################################################
@@ -386,12 +349,18 @@ class SinglePlot(BasePlot):
     def _default_pen(self):
         return pg.mkPen(self.pen_color, width=self.pen_width)
 
+    def _default_name(self):
+        return self.source_name + '_plot'
+
 
 class ChannelPlot(SinglePlot):
 
     downsample = Int(0)
     _cached_time = Typed(np.ndarray)
     _buffer = Typed(SignalBuffer)
+
+    def _default_name(self):
+        return self.source_name + '_channel_plot'
 
     def _default_plot(self):
         return pg.PlotCurveItem(pen=self.pen, antialias=self.antialias)
@@ -420,7 +389,7 @@ class ChannelPlot(SinglePlot):
         try:
             width, _ = self.parent.viewbox.viewPixelSize()
             dt = self.source.fs**-1
-            self.downsample = round(width/dt/5)
+            self.downsample = round(width/dt/2)
         except Exception as e:
             pass
 
@@ -430,7 +399,7 @@ class ChannelPlot(SinglePlot):
 
     def _update(self, event=None):
         low, high = self.parent.data_range.current_range
-        data = self._buffer.get_range(low, high)
+        data = self._buffer.get_range_filled(low, high, 0)
         t = self._cached_time[:len(data)] + low
         if self.downsample > 1:
             t = t[::self.downsample]
@@ -476,6 +445,9 @@ class FFTChannelPlot(ChannelPlot):
     window = d_(Enum('hamming', 'flattop'))
     _x = Typed(np.ndarray)
     _buffer = Typed(SignalBuffer)
+
+    def _default_name(self):
+        return self.source_name + '_fft_plot'
 
     def _observe_source(self, event):
         if self.source is not None:
@@ -599,26 +571,42 @@ class GroupMixin(Declarative):
 
     source = Typed(object)
     groups = d_(List())
-    pen_color_cycle = d_(List())
-
     group_names = List()
+
+    # Fucntion that takes the epoch metadata and decides whether to accept it
+    # for plotting.  Useful to reduce the number of plots shown on a graph.
+    group_filter = d_(Callable())
+
+    # Define the pen color cycle. Can be a list of colors or a string
+    # indicating the color palette to use in palettable.
+    pen_color_cycle = d_(Typed(object))
+    group_color_key = d_(Callable())
+
+    pen_width = d_(Int(0))
+    antialias = d_(Bool(False))
+
     plots = Dict()
 
     _epoch_cache = Typed(object)
     _epoch_count = Typed(object)
     _epoch_updated = Typed(object)
     _pen_color_cycle = Typed(object)
+    _plot_colors = Typed(object)
     _x = Typed(np.ndarray)
 
     n_update = d_(Int(1))
 
+    def _default_group_filter(self):
+        return lambda key: True
+
     def _epochs_acquired(self, epochs):
         for d in epochs:
             md = d['info']['metadata']
-            signal = d['signal']
-            key = tuple(md[n] for n in self.group_names)
-            self._epoch_cache[key].append(signal)
-            self._epoch_count[key] += 1
+            if self.group_filter(md):
+                signal = d['signal']
+                key = tuple(md[n] for n in self.group_names)
+                self._epoch_cache[key].append(signal)
+                self._epoch_count[key] += 1
 
         # Does at least one epoch need to be updated?
         for key, count in self._epoch_count.items():
@@ -629,9 +617,14 @@ class GroupMixin(Declarative):
     def _default_pen_color_cycle(self):
         return ['k']
 
+    def _default_group_color_key(self):
+        return lambda key: tuple(key[g] for g in self.group_names)
+
     @d_func
     def get_pen_color(self, key):
-        return next(self._pen_color_cycle)
+        kw_key = {n: k for n, k in zip(self.group_names, key)}
+        group_key = self.group_color_key(kw_key)
+        return self._plot_colors[group_key]
 
     def _reset_plots(self):
         # Clear any existing plots and reset color cycle
@@ -641,7 +634,12 @@ class GroupMixin(Declarative):
         self._epoch_cache = defaultdict(list)
         self._epoch_count = defaultdict(int)
         self._epoch_updated = defaultdict(int)
-        self._pen_color_cycle = itertools.cycle(self.pen_color_cycle)
+
+        if isinstance(self.pen_color_cycle, str):
+            self._pen_color_cycle = get_color_cycle(self.pen_color_cycle)
+        else:
+            self._pen_color_cycle = itertools.cycle(self.pen_color_cycle)
+        self._plot_colors = defaultdict(lambda: next(self._pen_color_cycle))
 
     def _observe_groups(self, event):
         self._reset_plots()
@@ -657,8 +655,10 @@ class GroupMixin(Declarative):
 
     def _make_new_plot(self, key):
         log.info('Adding plot for key %r', key)
-        pen = pg.mkPen(self.get_pen_color(key))
-        plot = pg.PlotCurveItem(pen=pen)
+        pen_color = self.get_pen_color(key)
+        pen = pg.mkPen(pen_color, width=self.pen_width)
+
+        plot = pg.PlotCurveItem(pen=pen, antialias=self.antialias)
         self.parent.viewbox.addItem(plot)
         self.plots[key] = plot
 
@@ -688,8 +688,9 @@ class GroupMixin(Declarative):
             self.source.observe('fs', self._cache_x)
             self.source.observe('epoch_size', self._cache_x)
             self._reset_plots()
+            self._cache_x()
 
-    def _cache_x(self, event):
+    def _cache_x(self, event=None):
         # Set up the new time axis
         if self.source.fs and self.source.epoch_size:
             n_time = round(self.source.fs * self.source.epoch_size)
@@ -702,7 +703,7 @@ class GroupedEpochAveragePlot(GroupMixin, BasePlot):
 
 class GroupedEpochFFTPlot(GroupMixin, BasePlot):
 
-    def _cache_x(self, event):
+    def _cache_x(self, event=None):
         # Cache the frequency points. Must be in units of log for PyQtGraph.
         # TODO: This could be a utility function stored in the parent?
         if self.source.fs and self.source.epoch_size:
