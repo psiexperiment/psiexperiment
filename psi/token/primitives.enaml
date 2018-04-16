@@ -5,16 +5,21 @@ log = logging.getLogger(__name__)
 
 import numpy as np
 from scipy import signal
-from joblib import Memory
 
 from psi import get_config
 from psi.context.api import Parameter, EnumParameter
 from .block import EpochBlock, ContinuousBlock
 
-# NOTE: For some functions, it's better not to cache as there is a "hit" from
-# checking whether to load the results from disk or not.
-cachedir = get_config('TEMP_ROOT')
-memory = Memory(cachedir=cachedir, mmap_mode='r')
+
+def fast_cache(f):
+    cache = {}
+    kwd_marker = object()
+    def wrapper(*args, **kw):
+        key = args + (kwd_marker,) + tuple(sorted(kw.items()))
+        if key not in cache:
+            cache[key] = f(*args, **kw)
+        return cache[key]
+    return wrapper
 
 
 ################################################################################
@@ -40,6 +45,11 @@ class Waveform:
 
 class FixedWaveform(Waveform):
 
+    def __init__(self, fs, waveform):
+        self.fs = fs
+        self.waveform = waveform
+        self.reset()
+
     def reset(self):
         self.offset = 0
         self.complete = False
@@ -47,6 +57,11 @@ class FixedWaveform(Waveform):
     def next(self, samples):
         samples = int(samples)
         waveform = self.waveform[self.offset:self.offset+samples]
+        waveform_samples = waveform.shape[-1]
+        if waveform_samples < samples:
+            padding = samples-waveform_samples
+            pad = np.zeros(padding)
+            waveform = np.concatenate((waveform, pad), axis=-1)
         self.offset += samples
         return waveform
 
@@ -90,18 +105,20 @@ class Modulator(Waveform):
         return self.input_factory.is_complete()
 
 
-
 ################################################################################
 # Cos2Envelope
 ################################################################################
+def cos2ramp(t, rise_time, phi=0):
+    return np.sin(2*np.pi*t*1.0/rise_time*0.25+phi)**2
+
+
+@fast_cache
 def cos2envelope(fs, offset, samples, start_time, rise_time, duration):
     '''
     Generates cosine-squared envelope. Can handle generating fragments.
     '''
-    def env_func(t, phi=0):
-        return np.sin(2*np.pi*t*1.0/rise_time*0.25+phi)**2
-
-    t = (np.arange(samples, dtype=np.float32) + offset)/fs
+    #t = np.linspace(0, samples*fs, samples, endpoint=False)
+    t = (np.arange(samples, dtype=np.double) + offset)/fs
 
     m_null_pre = (t < start_time)
     m_onset = (t >= start_time) & (t < rise_time)
@@ -125,8 +142,8 @@ def cos2envelope(fs, offset, samples, start_time, rise_time, duration):
     t_null_post = t[m_null_post]
 
     f_null_pre = np.zeros(len(t_null_pre))
-    f_lower = env_func(t_onset, 0)
-    f_upper = env_func(t_offset-(duration-rise_time), np.pi/2)
+    f_lower = cos2ramp(t_onset, rise_time, 0)
+    f_upper = cos2ramp(t_offset-(duration-rise_time), rise_time, np.pi/2)
     f_middle = np.ones(len(t_ss))
     f_null_post = np.zeros(len(t_null_post))
 
@@ -192,12 +209,12 @@ enamldef Cos2Envelope(EpochBlock): block:
 ################################################################################
 # SAM envelope
 ################################################################################
-@memory.cache
+@fast_cache
 def sam_eq_power(depth):
     return (3.0/8.0*depth**2.0-depth+1.0)**0.5
 
 
-@memory.cache
+@fast_cache
 def sam_eq_phase(delay, depth, direction):
     if depth == 0:
         return 0
@@ -206,6 +223,7 @@ def sam_eq_phase(delay, depth, direction):
     return 2.0*np.pi-phi if direction == 1 else phi
 
 
+@fast_cache
 def sam_envelope(offset, samples, fs, depth, fm, delay, eq_phase, eq_power):
     delay_n = np.clip(int(delay*fs)-offset, 0, samples)
     sam_n = samples-delay_n
@@ -279,7 +297,7 @@ enamldef SAMEnvelope(ContinuousBlock): block:
 ################################################################################
 # Bandlimited noise
 ################################################################################
-@memory.cache
+@fast_cache
 def _calculate_bandlimited_noise_filter(fs, fl, fh, fls, fhs,
                                         passband_attenuation,
                                         stopband_attenuation):
@@ -292,7 +310,7 @@ def _calculate_bandlimited_noise_filter(fs, fl, fh, fls, fhs,
     return b, a, zi
 
 
-@memory.cache
+@fast_cache
 def _calculate_bandlimited_noise_iir(fs, calibration, fl, fh):
     duration = 2.0/fl
     iir = calibration.get_iir(fs, fl, fh, duration)

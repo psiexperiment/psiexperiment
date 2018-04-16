@@ -13,6 +13,7 @@ from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
 
 from psi.context.api import ContextGroup, Parameter
 from psi.experiment.api import ItemPreferences
+from psi.token.primitives import FixedWaveform
 
 from psi.core.enaml.api import PSIManifest
 from .experiment_action import ExperimentState, ExperimentEvent, ExperimentAction
@@ -58,11 +59,20 @@ def prepare_output(event, output):
     factory to cache some potentially expensive computations in advance rather
     than just before we actually want the signal played.
     '''
+    log.debug('Preparing output %s', output.name)
     core = event.workbench.get_plugin('enaml.workbench.core')
     context = core.invoke_command('psi.context.get_values')
     context['fs'] = output.fs
     context['calibration'] = output.calibration
-    output.factory = output.token.initialize_factory(context)
+
+    factory = output.token.initialize_factory(context)
+    if event.parameters.get('cache', False):
+        log.debug('Pregenerating output %s', output.name)
+        duration = factory.get_duration()
+        samples = round(output.fs*duration)
+        waveform = factory.next(samples)
+        factory = FixedWaveform(output.fs, waveform)
+    output.factory = factory
 
 
 def add_setting_to_epoch_output(setting, output):
@@ -191,31 +201,47 @@ def start_output(event, output):
         log.warn('Output %s was not prepared', output.name)
         prepare_output(event, output)
 
-    # Compensate for filter delay by shifting start time of output *earlier* in
-    # time.
-    filter_delay = output.channel.filter_delay
     ts = event.parameters['timestamp']
     start = event.parameters.get('start', ts)
     delay = event.parameters.get('delay', 0)
-    offset = round((start+delay-filter_delay)*output.channel.fs)
+    offset = round((start+delay)*output.channel.fs)
 
     # This needs to be done before we update the engine since it gets set to
     # None once all samples have been generated.
     duration = output.factory.get_duration()
 
-    with output.engine.lock:
+    try:
+        output.engine.lock.acquire()
+        buffered_ub = output._buffer.get_samples_ub()
         # Important to lock the engine when activating the output to prevent
         # race conditions
-        log.debug('Starting output {}'.format(output))
+        log.debug('Starting output %s at %d', output.name, offset)
         output.activate(offset)
         output.engine.update_hw_ao(offset, output.channel.name,
                                    method='write_position')
+        output.engine.lock.release()
+    except SystemError as e:
+        # There wasn't enough time to write the data to the buffer. Need to
+        # reset the generator and deactivate the output. The invoking code can
+        # then decide what to do about the problem.
+        output.deactivate(offset)
+        zeros = np.zeros(buffered_ub-offset)
+        output._buffer.append_data(zeros)
 
-    controller = event.workbench.get_plugin('psi.controller')
-    controller.invoke_actions('{}_start'.format(output.name), start+delay)
-    if duration is not np.inf:
-        controller.invoke_actions('{}_end'.format(output.name),
-                                  start+delay+duration, delayed=True)
+        output.engine.lock.release()
+        log.exception(e)
+        log.debug('Invalidated buffer at %d', offset)
+        raise
+    else:
+        filter_delay = output.channel.filter_delay
+        log.debug('Compensating %s for filter delay %f', output.name,
+                  filter_delay)
+        controller = event.workbench.get_plugin('psi.controller')
+        controller.invoke_actions('{}_start'.format(output.name),
+                                  start+delay+filter_delay)
+        if duration is not np.inf:
+            controller.invoke_actions('{}_end'.format(output.name),
+                                      start+delay+duration, delayed=True)
 
 
 def clear_output(event, output):
@@ -341,6 +367,8 @@ enamldef AnalogOutputManifest(PSIManifest): manifest:
         point = 'psi.controller.actions'
         ExperimentState:
             name = manifest.contribution.name
+        ExperimentEvent:
+            name = manifest.contribution.name + '_failure'
 
     Extension:
         id = 'preferences.' +  manifest.contribution.name

@@ -162,6 +162,7 @@ class AppetitivePlugin(BasePlugin):
         # This is broken into a separate method to allow the toolbar to call
         # this method for training.
         ts = self.get_ts()
+        log.debug('Starting trial at %f', ts)
         self.invoke_actions(Event.trial_start.name, ts)
         self.invoke_actions(Event.hold_start.name, ts)
         self.trial_state = TrialState.waiting_for_hold_period
@@ -327,14 +328,19 @@ class AppetitivePlugin(BasePlugin):
                 del self.trial_info['np_start']
             elif event == Event.np_duration_elapsed:
                 log.debug('Animal initiated trial')
-                self.start_trial()
+                try:
+                    self.start_trial()
 
-                # We want to deliver the reward immediately when in training
-                # mode so the food is already in the hopper. Not sure how
-                # *critical* this is?
-                if self.context.get_value('training_mode'):
-                    if self.trial_type.startswith('go'):
-                        self.invoke_actions('deliver_reward', self.get_ts())
+                    # We want to deliver the reward immediately when in
+                    # training mode so the food is already in the hopper. Not
+                    # sure how *critical* this is?
+                    if self.context.get_value('training_mode'):
+                        if self.trial_type.startswith('go'):
+                            self.invoke_actions('deliver_reward', self.get_ts())
+                except SystemError as e:
+                    log.error('Unable to start trial!')
+                    self.trial_state = TrialState.waiting_for_np_start
+                    self.invoke_actions('trial_prepare')
 
         elif self.trial_state == TrialState.waiting_for_hold_period:
             # All animal-initiated events (poke/reward) are ignored during this

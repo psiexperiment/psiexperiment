@@ -557,12 +557,12 @@ class TimeseriesPlot(BaseTimeseriesPlot):
             self.source.add_callback(self._append_data)
 
     def _append_data(self, data):
-        print(data)
-        #value = event['value']
-        #if value['event'] == self.rising_event:
-        #    self._rising.append(value['lb'])
-        #elif value['event'] == self.falling_event:
-        #    self._falling.append(value['lb'])
+        for (etype, value) in data:
+            if etype == 'rising':
+                self._rising.append(value)
+            elif etype == 'falling':
+                self._falling.append(value)
+
 
 ################################################################################
 # Group plots

@@ -399,7 +399,7 @@ class BasePlugin(Plugin):
         return False
 
     def _invoke_actions(self, event_name, timestamp=None, **kw):
-        log.debug('Triggering event {}'.format(event_name))
+        log.trace('Triggering event {}'.format(event_name))
 
         if timestamp is not None:
             # The event is logged only if the timestamp is provided

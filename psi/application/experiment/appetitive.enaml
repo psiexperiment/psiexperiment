@@ -75,6 +75,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             # computation, prepare this in advance as soon as possible. 
             event = 'trial_prepare'
             command = 'target.prepare'
+            kwargs = {'cache': True}
 
         ExperimentAction:
             # The operations required to actually generate and upload the token
@@ -101,6 +102,9 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
         ExperimentAction:
             event = 'deliver_reward'
             command = 'food_dispenser.dispense_pellet'
+
+        ExperimentAction:
+            event = 'target_failure'
 
     Extension:
         id = 'io'
@@ -142,7 +146,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             ViewBox:
                 y_min = -120
                 y_max = 100
-                axis_label = 'Level (dB)'
+                label = 'Level (dB)'
 
                 FFTChannelPlot:
                     source_name = 'microphone'
@@ -176,7 +180,7 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                     pen_color = 'r'
 
                 TimeseriesPlot:
-                    source_name = 'np'
+                    source_name = 'nose_poke'
                     fill_color = (43, 138, 87, 68)
                     pen_color = (43, 138, 87, 113)
                     rect_center = 2.5
@@ -189,12 +193,12 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                     rect_center = 2.5
                     rect_height = 1
 
-                EventPlot:
-                    event = 'target'
-                    pen_color = (113, 113, 113, 113)
-                    fill_color = (113, 113, 113, 68)
-                    rect_center = 3.5
-                    rect_height = 1
+                #EventPlot:
+                #    event = 'target'
+                #    pen_color = (113, 113, 113, 113)
+                #    fill_color = (113, 113, 113, 68)
+                #    rect_center = 3.5
+                #    rect_height = 1
 
                 EventPlot:
                     event = 'hold'
