@@ -12,7 +12,7 @@ from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
 
 from psi.context.api import ContextGroup, Parameter
-from psi.experiment.api import ItemPreferences
+from psi.experiment.api import ItemPreferences, Preferences
 
 from psi.core.enaml.api import PSIManifest
 from .experiment_action import ExperimentState, ExperimentEvent, ExperimentAction
@@ -243,7 +243,12 @@ def decrement_key(event, output):
         counts[key] += 1
     with output.engine.lock:
         for key, count in counts.items():
-            output.queue.decrement_key(key, count)
+            try:
+                output.queue.decrement_key(key, count)
+            except KeyError:
+                # This can happen if we are playing epochs so rapidly we gather
+                # a few extra before the output queue knows to stop.
+                pass
 
 
 enamldef SynchronizedManifest(PSIManifest): manifest:
@@ -377,6 +382,9 @@ enamldef QueuedEpochOutputManifest(EpochOutputManifest): manifest:
             id = manifest.contribution.name + '.decrement_key'
             handler = partial(decrement_key, output=manifest.contribution)
 
+
+enamldef SelectorQueuedEpochOutputManifest(QueuedEpochOutputManifest): manifest:
+
     Extension:
         id = 'epoch_output_menu.' + manifest.contribution.name
         point = 'enaml.workbench.ui.actions'
@@ -400,9 +408,6 @@ enamldef QueuedEpochOutputManifest(EpochOutputManifest): manifest:
                 parameters = {'queue_class': loop_item[1]}
                 enabled << workbench.get_plugin('psi.controller').experiment_state \
                     in ('initialized', 'stopped')
-
-
-enamldef SelectorQueuedEpochOutputManifest(QueuedEpochOutputManifest): manifest:
 
     Extension:
         id = 'items'
@@ -433,6 +438,33 @@ enamldef SelectorQueuedEpochOutputManifest(QueuedEpochOutputManifest): manifest:
         ExperimentAction:
             event = 'experiment_prepare'
             command = manifest.contribution.name + '.prepare_queue'
+
+    Extension:
+        id = 'queued_epoch_output_preferences.' +  manifest.contribution.name
+        point = 'psi.experiment.preferences'
+        rank = 10
+        Preferences:
+            name = 'queued_epoch_output.' + manifest.contribution.name
+            get_preferences => (workbench):
+                queue = manifest.contribution.queue
+                for name, queue_class in queues.items():
+                    if isinstance(queue, queue_class):
+                        break
+                else:
+                    name = None
+                return {'queue_type': name}
+
+            set_preferences => (workbench, preferences):
+                output = manifest.contribution
+                default = 'first-in, first-out'
+                if preferences is None:
+                    queue_name = default
+                elif preferences.get('queue_type') is None:
+                    queue_name = default
+                else:
+                    queue_name = preferences.get('queue_type')
+                queue_class = queues[queue_name]
+                output.queue = queue_class()
 
 
 enamldef ContinuousOutputManifest(AnalogOutputManifest): manifest:

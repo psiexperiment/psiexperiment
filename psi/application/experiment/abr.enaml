@@ -85,10 +85,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
             label = 'Target'
             target_name = 'speaker_0'
             selector_name = 'default'
-            queue = InterleavedFIFOSignalQueue(
-                fs=output.fs,
-                filter_delay=output.channel.filter_delay,
-                initial_delay=1)
             auto_decrement = False
 
         ContinuousInput:
@@ -106,7 +102,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
             ExtractEpochs: extract:
                 name = 'erp'
-                queue = output.queue
+                queue << output.queue
                 epoch_size = 8.5e-3
 
                 RejectEpochs:

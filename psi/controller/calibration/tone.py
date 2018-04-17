@@ -133,7 +133,7 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gain=0,
     samples = int(ao_fs*duration)
 
     # Build the signal queue
-    queue = FIFOSignalQueue(ao_fs)
+    queue = FIFOSignalQueue()
     for frequency in frequencies:
         factory = ToneFactory(ao_fs, gain, frequency, 0, 1, calibration)
         waveform = factory.next(samples)

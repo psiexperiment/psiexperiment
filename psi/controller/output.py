@@ -48,6 +48,7 @@ class Output(PSIContribution):
     # children or "equalize" something before passing it along).
     fs = Property().tag(metadata=True)
     calibration = Property().tag(metadata=True)
+    filter_delay = Property().tag(metadata=True)
 
     # TODO: clean this up. it's sort of hackish.
     token_name = d_(Unicode())
@@ -67,6 +68,9 @@ class Output(PSIContribution):
 
     def _get_fs(self):
         return self.channel.fs
+
+    def _get_filter_delay(self):
+        return self.channel.filter_delay
 
     def _get_calibration(self):
         return self.channel.calibration
@@ -167,6 +171,17 @@ class QueuedEpochOutput(EpochOutput):
     auto_decrement = d_(Bool(False))
     complete_cb = Typed(object)
     active = d_(Bool(True))
+
+    def _observe_target(self, event):
+        self._update_queue()
+
+    def _observe_queue(self, event):
+        self._update_queue()
+
+    def _update_queue(self):
+        if self.queue is not None and self.target is not None:
+            self.queue.set_filter_delay(self.filter_delay)
+            self.queue.set_fs(self.fs)
 
     def get_next_samples(self, samples):
         if self.active:

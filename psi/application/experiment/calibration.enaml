@@ -50,7 +50,7 @@ def configure_hardware(event):
 
     # Set up the queue now that we know what the channel is
     output = controller.get_output('hw_ao')
-    output.queue = InterleavedFIFOSignalQueue(fs=output.fs, initial_delay=1)
+    output.queue = InterleavedFIFOSignalQueue(initial_delay=1)
 
     # Set up the calibration. By setting fixed_gain to the attenuation, this
     # will ensure that the waveform is scaled down to the desired attenuation.

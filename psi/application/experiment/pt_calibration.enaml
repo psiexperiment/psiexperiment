@@ -59,8 +59,7 @@ def configure_hardware(event):
 
     # Set up the queue now that we know what the channel is
     output = controller.get_output('hw_ao')
-    output.queue = FIFOSignalQueue(output.fs, initial_delay=1,
-                                   filter_delay=output.channel.filter_delay)
+    output.queue = FIFOSignalQueue()
 
     for setting in context.iter_settings('default', 1):
         n = setting['n_bits']
