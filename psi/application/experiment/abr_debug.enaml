@@ -38,7 +38,7 @@ def configure_hardware(event):
     context = event.workbench.get_plugin('psi.context')
     controller = event.workbench.get_plugin('psi.controller')
     threshold = context.get_value('reject_threshold')
-    controller.set_input_attr('valid_erp', 'threshold', threshold)
+    controller.set_input_attr('valid_erp', 'threshold', 100)
 
     channel = controller.get_channel('speaker_0')
     channel.calibration = FlatCalibration.as_attenuation()
@@ -73,10 +73,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
             label = 'Target'
             target_name = 'speaker_0'
             selector_name = 'default'
-            queue = InterleavedFIFOSignalQueue(
-                fs=output.fs,
-                filter_delay=output.channel.filter_delay,
-                initial_delay=1)
+            queue = InterleavedFIFOSignalQueue()
             auto_decrement = False
 
         ContinuousInput:
