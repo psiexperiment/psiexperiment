@@ -109,10 +109,18 @@ class OutputChannel(Channel):
 
 class AIChannel(InputChannel):
 
+    # Not all terminal modes may be supported
     TERMINAL_MODES = 'pseudodifferential', 'differential', 'RSE', 'NRSE'
-    expected_range = d_(Tuple()).tag(metadata=True)
     terminal_mode = d_(Enum(*TERMINAL_MODES)).tag(metadata=True)
+
     terminal_coupling = d_(Enum(None, 'AC', 'DC', 'ground')).tag(metadata=True)
+
+    # Gain in dB of channel (e.g., due to a microphone preamp). The signal will
+    # be scaled down before further processing.
+    gain = d_(Float()).tag(metadata=True)
+
+    # Expected input range (min/max)
+    expected_range = d_(Tuple()).tag(metadata=True)
 
 
 class AOChannel(OutputChannel):
@@ -120,7 +128,6 @@ class AOChannel(OutputChannel):
     TERMINAL_MODES = 'pseudodifferential', 'differential', 'RSE'
     expected_range = d_(Tuple()).tag(metadata=True)
     terminal_mode = d_(Enum(*TERMINAL_MODES)).tag(metadata=True)
-    #filter_delay = d_(Float(0)).tag(metadata=True)
 
     def get_samples(self, offset, samples, out=None):
         if out is None:

@@ -57,6 +57,9 @@ def configure_hardware(event):
     output_channel = controller.get_channel(values['output_channel'])
     output_channel.calibration = FlatCalibration.as_attenuation()
 
+    input_channel = controller.get_channel(values['input_channel'])
+    input_channel.gain = values['input_gain']
+
 
 enamldef ControllerManifest(BaseManifest): manifest:
 

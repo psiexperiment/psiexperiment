@@ -52,6 +52,12 @@ def configure_hardware(event):
     controller.connect_input('pt_hw_ai', values['pt_channel'])
     controller.connect_input('cal_hw_ai', values['cal_channel'])
 
+    # Set the input gains
+    pt_channel = controller.get_channel(values['pt_channel'])
+    pt_channel.gain = values['pt_input_gain']
+    cal_channel = controller.get_channel(values['cal_channel'])
+    cal_channel.gain = values['cal_input_gain']
+
     # Set up the calibration. By setting fixed_gain to the attenuation, this
     # will ensure that the waveform is scaled down to the desired attenuation.
     output_channel = controller.get_channel(values['output_channel'])
@@ -123,12 +129,10 @@ def calculate_group_sens(fs, key, pt_groups, cal_groups, color, context, data,
     n_discard = context.get_value('discard')
     cal_mic_sens = context.get_value('cal_mic_sens_mv') * 1e-3
     smoothing_window = context.get_value('smoothing_window')
-    cal_input_gain = context.get_value('cal_input_gain')
-    pt_input_gain = context.get_value('pt_input_gain')
 
     a, b = golay_pair(n_bits)
-    pt_waveform = pt_groups[key] / dbi(pt_input_gain)
-    cal_waveform = cal_groups[key] / dbi(cal_input_gain)
+    pt_waveform = pt_groups[key]
+    cal_waveform = cal_groups[key]
 
     n = n_waveforms * n_fft + n_discard
 

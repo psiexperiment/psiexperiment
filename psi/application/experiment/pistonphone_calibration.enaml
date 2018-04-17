@@ -30,6 +30,7 @@ def configure_hardware(event):
     context = event.workbench.get_plugin('psi.context')
     input_channel = context.get_value('input_channel')
     duration = context.get_value('sample_duration')
+    input_gain = context.get_value('input_gain')
 
     # Link up the desired inputs and outputs for the calibration
     controller = event.workbench.get_plugin('psi.controller')
@@ -41,6 +42,7 @@ def configure_hardware(event):
     input_channel = controller.get_channel(input_channel)
     input_channel.start_trigger = ''
     input_channel.samples = round(duration*input_channel.fs)
+    input_channel.gain = input_gain
 
 
 def calculate_sens(event):

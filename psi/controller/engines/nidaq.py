@@ -32,6 +32,7 @@ import PyDAQmx as mx
 from atom.api import Float, Typed, Unicode, Int, Bool, Callable
 from enaml.core.api import Declarative, d_
 
+from ..calibration.util import dbi
 from ..engine import Engine
 
 
@@ -147,7 +148,7 @@ def hw_ai_helper(cb, channels, discard, task, event_type=None, cb_samples=None,
 
     if available_samples == 0:
         return 0
-    
+
     data = read_hw_ai(task, available_samples, channels, cb_samples)
     if data is not None:
         cb(data)
@@ -289,7 +290,7 @@ def setup_hw_ao(fs, lines, expected_range, callback, callback_samples,
 
 def setup_hw_ai(fs, lines, expected_range, callback, callback_samples,
                 start_trigger, terminal_mode, terminal_coupling,
-                samples=-1, task_name='hw_ai'):
+                samples=-1, excitation=None, task_name='hw_ai'):
 
     task = create_task(task_name)
     lb, ub = expected_range
@@ -556,6 +557,7 @@ class NIDAQEngine(Engine):
             start_trigger = get_channel_property(hw_ai_channels, 'start_trigger')
             expected_range = get_channel_property(hw_ai_channels, 'expected_range')
             samples = get_channel_property(hw_ai_channels, 'samples')
+            gains = get_channel_property(hw_ai_channels, 'gain', True)
 
             tmode = get_channel_property(hw_ai_channels, 'terminal_mode')
             tcoupling = get_channel_property(hw_ai_channels, 'terminal_coupling')
@@ -564,7 +566,7 @@ class NIDAQEngine(Engine):
 
             self.configure_hw_ai(fs, lines, expected_range, names,
                                  start_trigger, terminal_mode,
-                                 terminal_coupling, samples)
+                                 terminal_coupling, samples, gains)
             self.ai_fs = fs
 
         if hw_di_channels:
@@ -629,8 +631,11 @@ class NIDAQEngine(Engine):
         log.debug('Completed engine configuration')
 
     def task_complete(self, task_name):
+        log.debug('Task %s complete', task_name)
         self._task_done[task_name] = True
         task = self._tasks[task_name]
+        #import time
+        #time.sleep(1)
         # We have frozen the first three arguments (cb, channels, discard)
         # using functools.partial and need to provide task and cb_samples.
         # Setting cb_samples to 1 means that we read all remaning samples,
@@ -677,17 +682,18 @@ class NIDAQEngine(Engine):
 
     def configure_hw_ai(self, fs, lines, expected_range, names=None,
                         start_trigger=None, terminal_mode=None,
-                        terminal_coupling=None, samples=-1):
+                        terminal_coupling=None, samples=-1, gains=None):
 
         log.debug('Configuring lines {}'.format(lines))
         task_name = '{}_hw_ai'.format(self.name)
         callback_samples = int(self.hw_ai_monitor_period*fs)
         task = setup_hw_ai(fs, lines, expected_range, self._hw_ai_callback,
                            callback_samples, start_trigger, terminal_mode,
-                           terminal_coupling, samples, task_name)
+                           terminal_coupling, samples, None, task_name)
         task._fs = fs
         task._names = verify_channel_names(task, names)
         task._devices = device_list(task)
+        task._sf = dbi(gains)[..., np.newaxis]
         self._tasks['hw_ai'] = task
 
     def configure_sw_ao(self, lines, expected_range, names=None,
@@ -876,6 +882,7 @@ class NIDAQEngine(Engine):
                 cb(change, event_time)
 
     def _hw_ai_callback(self, samples):
+        samples /= self._tasks['hw_ai']._sf
         for channel_name, s, cb in self._callbacks.get('ai', []):
             cb(samples[s])
 

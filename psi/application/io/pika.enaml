@@ -12,11 +12,8 @@ from psi.controller.calibration import InterpCalibration, FlatCalibration
 
 
 cal_root = get_config('CAL_ROOT')
-mic_cal_filename = os.path.join(cal_root, '161219 - Golay calibration with 377C01 AO1 LBHB dome tweeter and coupler.mic')
-mic_cal = InterpCalibration.from_cochlear(mic_cal_filename, fixed_gain=-40)
-
-#mic_cal_filename = os.path.join(cal_root, '20180409-1458 pt_calibration')
-#mic_cal = InterpCalibration.from_psi(mic_cal_filename, fixed_gain=-40)
+mic_cal_filename = os.path.join(cal_root, '20180417-0920 pt_calibration')
+mic_cal = InterpCalibration.from_psi(mic_cal_filename)
 
 
 def mv_to_C(mv):
@@ -104,6 +101,7 @@ enamldef IOManifest(PluginManifest): manifest:
                 terminal_mode = 'pseudodifferential'
                 terminal_coupling = 'AC'
                 calibration = mic_cal
+                gain = 40
 
             AIChannel:
                 label = 'Reference microphone'
@@ -116,3 +114,4 @@ enamldef IOManifest(PluginManifest): manifest:
                 terminal_mode = 'pseudodifferential'
                 terminal_coupling = 'AC'
                 calibration = FlatCalibration(1e-3)
+                gain = 40
