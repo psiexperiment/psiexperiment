@@ -1,7 +1,9 @@
 import logging
 log = logging.getLogger(__name__)
 
-from atom.api import Unicode, Int, Dict, Bool, Typed, Callable
+from functools import partial
+
+from atom.api import Unicode, Int, Dict, Bool, Typed, Callable, List
 from enaml.core.api import Declarative, d_
 
 from psi.util import get_dependencies
@@ -31,16 +33,18 @@ class ExperimentEvent(Declarative):
     associated_state = Typed(ExperimentState)
 
 
+def simple_match(key, context):
+    return context[key]
+
+
 class ExperimentAction(Declarative):
 
     # Name of event that triggers command
     event = d_(Unicode())
 
-    match = Callable()
+    dependencies = List()
 
-    _code = Typed(object)
-    _dependencies = Typed(object)
-    _key = Typed(object)
+    match = Callable()
 
     # Command to invoke
     command = d_(Unicode())
@@ -53,17 +57,12 @@ class ExperimentAction(Declarative):
     # order of execution is not guaranteed.
     weight = d_(Int(50))
 
-    def _observe_event(self, event):
-        self._code = compile(self.event, 'dynamic', 'eval')
-        self._dependencies = get_dependencies(self.event)
-        if len(self._dependencies) == 1:
-            self.match = self._match_simple
-            self._key = self._dependencies[0]
+    def _default_dependencies(self):
+        return get_dependencies(self.event)
+
+    def _default_match(self):
+        code = compile(self.event, 'dynamic', 'eval')
+        if len(self.dependencies) == 1:
+            return partial(simple_match, self.dependencies[0])
         else:
-            self.match = self._match_eval
-
-    def _match_eval(self, context):
-        return eval(self._code, context)
-
-    def _match_simple(self, context):
-        return context[self._key]
+            return partial(eval, code)
