@@ -30,7 +30,7 @@ experiments = {
 
 def configure_logging(filename=None):
     time_format = '[%(relativeCreated)d %(thread)d %(name)s - %(levelname)s] %(message)s'
-    simple_format = '%(asctime)s %(thread)d %(name)s - %(message)s'
+    simple_format = '%(relativeCreated)8d %(thread)d %(name)s - %(message)s'
 
     logging_config = {
         'version': 1,
