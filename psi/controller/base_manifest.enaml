@@ -25,6 +25,23 @@ from .experiment_action import (ExperimentState, ExperimentEvent,
 from .output_manifest import ToggleManifest, TriggerManifest
 
 
+def log_actions(event):
+    plugin = event.workbench.get_plugin('psi.controller')
+
+    accumulator = {}
+    for action in plugin._actions:
+        a = accumulator.setdefault(action.event, [])
+        info = '{} (weight={})'.format(action.command, action.weight)
+        a.append(info)
+
+    lines = ['Configured actions']
+    for event, actions in accumulator.items():
+        lines.append(event)
+        for action in actions:
+            lines.append('\t' + action)
+    log.info('\n'.join(lines))
+
+
 def start_experiment(event):
     controller = event.workbench.get_plugin('psi.controller')
     controller.prepare_experiment()
@@ -187,6 +204,9 @@ enamldef BaseManifest(PluginManifest): manifest:
         Command:
             id = 'psi.controller.tone_calibrate_channel'
             handler = tone_calibrate_channel
+        Command:
+            id = 'psi.controller.log_actions'
+            handler = log_actions
 
     # Uses unicode symbols as icons for sake of simplicity.
     Extension:
@@ -278,3 +298,6 @@ enamldef BaseManifest(PluginManifest): manifest:
         ExperimentAction:
             event = 'experiment_end'
             command = 'psi.controller.stop_engines'
+        ExperimentAction:
+            event = 'plugins_started'
+            command = 'psi.controller.log_actions'

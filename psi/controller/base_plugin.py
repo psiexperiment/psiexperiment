@@ -44,19 +44,6 @@ def get_outputs(output):
     return outputs
 
 
-def log_actions(plugin):
-    accumulator = {}
-    for action in plugin._actions:
-        a = accumulator.setdefault(action.event, [])
-        info = '{} (weight={})'.format(action.command, action.weight)
-        a.append(info)
-
-    for event, actions in accumulator.items():
-        log.info(event)
-        for action in actions:
-            log.info('\t{}'.format(action))
-
-
 def find_devices(point):
     devices = {}
     for extension in point.extensions:
@@ -315,8 +302,6 @@ class BasePlugin(Plugin):
         self._actions = actions
         self._action_context = context
 
-        log_actions(self)
-
     def configure_engines(self):
         log.debug('Configuring engines')
         for engine in self._engines.values():
@@ -394,7 +379,7 @@ class BasePlugin(Plugin):
 
     def event_used(self, event_name):
         for action in self._actions:
-            if event_name in action._dependencies:
+            if event_name in action.dependencies:
                 return True
         return False
 
