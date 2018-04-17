@@ -31,6 +31,15 @@ class PGCanvas(RawWidget):
         self.view.setCentralItem(event['value'])
 
 
+def attach_source(plot, event):
+    controller = event.workbench.get_plugin('psi.controller')
+    plot.source = controller.get_input(plot.source_name)
+
+
+def update_plot(plot, event):
+    plot.update()
+
+
 enamldef PlotContainerManifest(PSIManifest): manifest:
 
     Extension:
@@ -62,13 +71,33 @@ enamldef TimeseriesPlotManifest(PSIManifest): manifest:
 enamldef BasePlotManifest(PSIManifest): manifest:
 
     Extension:
+        id = 'commands'
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = manifest.contribution.name + '_update'
+            handler = partial(update_plot, manifest.contribution)
+
+        Command:
+            id = manifest.contribution.name + '_attach_source'
+            handler = partial(attach_source, manifest.contribution)
+
+
+    Extension:
         id = 'actions'
         point = 'psi.controller.actions'
+
         ExperimentAction:
             event = 'experiment_prepare'
-            command = 'psi.data.attach_source'
-            kwargs = {'contribution': manifest.contribution}
+            command = manifest.contribution.name + '_attach_source'
             weight = 15
+
+        ExperimentAction:
+            # This final update ensures that we always plot new data (otherwise
+            # sometimes the final segment doesn't get plotted due to thread
+            # race conditions).
+            event = 'experiment_end'
+            command = manifest.contribution.name + '_update'
 
 
 enamldef GroupMixin(BasePlotManifest): manifest:
@@ -92,3 +121,27 @@ enamldef GroupedEpochFFTPlotManifest(GroupMixin):
 
 enamldef StackedEpochAveragePlotManifest(GroupMixin):
     pass
+
+
+def set_data(manifest, event):
+    manifest.data = event.parameters['data']
+
+
+enamldef DataFramePlotManifest(PSIManifest): manifest:
+
+
+    Extension:
+        id = 'commands'
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = manifest.contribution.name + '.set_data'
+            handler = partial(set_data, manifest.contribution)
+
+    Extension:
+        id = 'items'
+        point = 'psi.context.items'
+        OrderedContextMeta: meta:
+            name << manifest.contribution.name
+            label << manifest.contribution.label
+            values >> manifest.contribution.groups

@@ -7,6 +7,7 @@ from functools import partial
 from collections import defaultdict
 
 import numpy as np
+import pandas as pd
 import pyqtgraph as pg
 
 from atom.api import (Unicode, Float, Tuple, Int, Typed, Property, Atom, Bool,
@@ -386,7 +387,9 @@ class ChannelPlot(SinglePlot):
 
     def _append_data(self, data):
         self._buffer.append_data(data)
+        log.debug('Requesting update')
         self.update()
+        log.debug('Done receiving data')
 
     def _update(self, event=None):
         low, high = self.parent.data_range.current_range
@@ -402,6 +405,7 @@ class ChannelPlot(SinglePlot):
         else:
             t = t[:len(data)]
             self.plot.setData(t, data)
+        log.debug('Done updating plot')
         self.update_pending = False
 
 
@@ -707,3 +711,29 @@ class StackedEpochAveragePlot(GroupMixin, BasePlot):
             .sigRangeChanged.connect(self._update_offsets)
         self.parent.viewbox \
             .sigRangeChangedManually.connect(self._update_offsets)
+
+
+################################################################################
+# Simple plotters
+################################################################################
+class DataFramePlot(GroupMixin, BasePlot):
+
+    data = d_(Typed(pd.DataFrame))
+    x_column = d_(Unicode())
+    y_column = d_(Unicode())
+
+    def _observe_data(self, event):
+        self.update()
+
+    def _update(self, event=None):
+        for key, group in self.data.groupby(self.group_names):
+            if len(self.group_names) == 1:
+                key = (key,)
+            print('key', key)
+            plot = self.get_plot(key)
+            x = group[self.x_column]
+            y = group[self.y_column]
+            x = np.array(x)
+            y = np.array(y)
+            plot.setData(x, y)
+        self.update_pending = False
