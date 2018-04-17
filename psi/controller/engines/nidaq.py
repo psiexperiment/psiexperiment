@@ -125,7 +125,6 @@ def hw_ao_helper(cb, task, event_type, cb_samples, cb_data):
 
 def hw_ai_helper(cb, channels, discard, task, event_type=None, cb_samples=None,
                  cb_data=None):
-    discard = 64
     uint32 = ctypes.c_uint32()
     mx.DAQmxGetReadAvailSampPerChan(task, uint32)
     available_samples = uint32.value
