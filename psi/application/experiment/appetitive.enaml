@@ -167,31 +167,31 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                     source_name = 'reward_contact_analog'
                     pen_color = 'b'
 
-                TimeseriesPlot:
-                    source_name = 'reward_contact'
-                    pen_color = (64, 105, 224, 113)
-                    fill_color = (64, 105, 224, 68)
-                    rect_center = 2.5
-                    rect_height = 1
+                #TimeseriesPlot:
+                #    source_name = 'reward_contact'
+                #    pen_color = (64, 105, 224, 113)
+                #    fill_color = (64, 105, 224, 68)
+                #    rect_center = 2.5
+                #    rect_height = 1
 
                 ChannelPlot:
                     name = 'plot2'
                     source_name = 'nose_poke_analog'
                     pen_color = 'r'
 
-                TimeseriesPlot:
-                    source_name = 'nose_poke'
-                    fill_color = (43, 138, 87, 68)
-                    pen_color = (43, 138, 87, 113)
-                    rect_center = 2.5
-                    rect_height = 1
+                #TimeseriesPlot:
+                #    source_name = 'nose_poke'
+                #    fill_color = (43, 138, 87, 68)
+                #    pen_color = (43, 138, 87, 113)
+                #    rect_center = 2.5
+                #    rect_height = 1
 
-                EventPlot:
-                    event = 'digital_np'
-                    fill_color = (43, 138, 87, 68)
-                    pen_color = (43, 138, 87, 113)
-                    rect_center = 2.5
-                    rect_height = 1
+                #EventPlot:
+                #    event = 'digital_np'
+                #    fill_color = (43, 138, 87, 68)
+                #    pen_color = (43, 138, 87, 113)
+                #    rect_center = 2.5
+                #    rect_height = 1
 
                 #EventPlot:
                 #    event = 'target'
