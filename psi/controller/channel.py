@@ -128,6 +128,7 @@ class AOChannel(OutputChannel):
     TERMINAL_MODES = 'pseudodifferential', 'differential', 'RSE'
     expected_range = d_(Tuple()).tag(metadata=True)
     terminal_mode = d_(Enum(*TERMINAL_MODES)).tag(metadata=True)
+    filter_delay = d_(Float(0)).tag(metadata=True)
 
     def get_samples(self, offset, samples, out=None):
         if out is None:
@@ -171,5 +172,5 @@ class DIChannel(InputChannel):
     pass
 
 
-class DOChannel(Channel):
+class DOChannel(OutputChannel):
     pass

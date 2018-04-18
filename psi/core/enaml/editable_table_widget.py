@@ -177,15 +177,16 @@ class EditableTable(RawWidget):
                              raise_error=False):
 
         column = self.column_info.get(column_name, {})
-
-        if raise_error:
-            if (attribute not in column) and not hasattr(column, attribute):
-                raise AttributeError
-
         try:
-            return column.get(attribute, default)
-        except AttributeError:
-            return getattr(column, attribute, default)
+            return column[attribute]
+        except (KeyError, TypeError):
+            try:
+                return getattr(column, attribute)
+            except AttributeError:
+                if raise_error:
+                    raise
+                else:
+                    return default
 
     @d_func
     def get_cell_color(self, row_index, column_index):

@@ -50,7 +50,7 @@ class TokenPlugin(Plugin):
 
     def _generate_token(self, token, output_name, output_label, scope):
         token = copy.copy(token)
-        token.configure_context_items(output_name, output_label, scope) 
+        token.configure_context_items(output_name, output_label, scope)
         return token
 
     def generate_epoch_token(self, token_name, output_name, output_label):

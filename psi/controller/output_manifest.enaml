@@ -50,19 +50,27 @@ def set_token(event, output, output_type):
     # TODO: This is a hack. Maybe?
     context_plugin = event.workbench.get_plugin('psi.context')
     context_plugin._refresh_items()
-
-
+    
 def prepare_output(event, output):
     '''
     Set up the factory in preparation for producing the signal. This allows the
     factory to cache some potentially expensive computations in advance rather
     than just before we actually want the signal played.
     '''
+    log.debug('Preparing output %s', output.name)
     core = event.workbench.get_plugin('enaml.workbench.core')
     context = core.invoke_command('psi.context.get_values')
     context['fs'] = output.fs
     context['calibration'] = output.calibration
-    output.factory = output.token.initialize_factory(context)
+
+    factory = output.token.initialize_factory(context)
+    if event.parameters.get('cache', False):
+        log.debug('Pregenerating output %s', output.name)
+        duration = factory.get_duration()
+        samples = round(output.fs*duration)
+        waveform = factory.next(samples)
+        factory = FixedWaveform(output.fs, waveform)
+    output.factory = factory
 
 
 def add_setting_to_epoch_output(setting, output):
@@ -191,40 +199,60 @@ def start_output(event, output):
         log.warn('Output %s was not prepared', output.name)
         prepare_output(event, output)
 
-    # Compensate for filter delay by shifting start time of output *earlier* in
-    # time.
-    filter_delay = output.channel.filter_delay
     ts = event.parameters['timestamp']
     start = event.parameters.get('start', ts)
     delay = event.parameters.get('delay', 0)
-    offset = round((start+delay-filter_delay)*output.channel.fs)
+    offset = round((start+delay)*output.channel.fs)
 
-    with output.engine.lock:
+    # This needs to be done before we update the engine since it gets set to
+    # None once all samples have been generated.
+    duration = output.factory.get_duration()
+
+    try:
+        output.engine.lock.acquire()
+        buffered_ub = output._buffer.get_samples_ub()
         # Important to lock the engine when activating the output to prevent
         # race conditions
-        log.debug('Starting output {}'.format(output))
+        log.debug('Starting output %s at %d', output.name, offset)
         output.activate(offset)
         output.engine.update_hw_ao(offset, output.channel.name,
                                    method='write_position')
+        output.engine.lock.release()
+    except SystemError as e:
+        # There wasn't enough time to write the data to the buffer. Need to
+        # reset the generator and deactivate the output. The invoking code can
+        # then decide what to do about the problem.
+        output.deactivate(offset)
+        zeros = np.zeros(buffered_ub-offset)
+        output._buffer.append_data(zeros)
 
-    controller = event.workbench.get_plugin('psi.controller')
-    controller.invoke_actions('{}_start'.format(output.name), start+delay)
-    duration = output.factory.get_duration()
-    if duration is not np.inf:
-        controller.invoke_actions('{}_end'.format(output.name),
-                                  start+delay+duration, delayed=True)
+        output.engine.lock.release()
+        log.exception(e)
+        log.debug('Invalidated buffer at %d', offset)
+        raise
+    else:
+        filter_delay = output.channel.filter_delay
+        log.debug('Compensating %s for filter delay %f', output.name,
+                  filter_delay)
+        controller = event.workbench.get_plugin('psi.controller')
+        controller.invoke_actions('{}_start'.format(output.name),
+                                  start+delay+filter_delay)
+        if duration is not np.inf:
+            controller.invoke_actions('{}_end'.format(output.name),
+                                      start+delay+duration, delayed=True)
 
 
 def clear_output(event, output):
     end = event.parameters['timestamp']
     delay = event.parameters.get('delay', 0)
-
     with output.engine.lock:
         log.debug('Clearing output {}'.format(output.name))
         # First, deactivate the output if it's still running
-        if output.active:
-            log.debug('Deactivating output {}'.format(output.name))
-            output.deactivate()
+        if not output.active:
+            return
+
+        log.debug('Deactivating output {}'.format(output.name))
+        output.deactivate()
         # Now, update the channel once the output has been deactivated. This
         # will overwrite any data that contains a fragment of the output
         # waveform.
@@ -273,6 +301,12 @@ enamldef SynchronizedManifest(PSIManifest): manifest:
             handler = partial(clear_synchronized, manifest.contribution)
 
 
+def load_items(output, token):
+    if token is None:
+        return []
+    return token.get_context_items()
+
+
 enamldef AnalogOutputManifest(PSIManifest): manifest:
 
     Extension:
@@ -319,29 +353,35 @@ enamldef AnalogOutputManifest(PSIManifest): manifest:
                 enabled << workbench.get_plugin('psi.controller').experiment_state \
                     in ('initialized', 'stopped')
 
-    Extension:
-        # For some reason this doesn't get loaded if it's lumped together with
-        # the following extension, so I've split them out. Not sure why. Some
-        # exception is getting swallowed silently.
-        id = 'groups.' + manifest.contribution.name
-        point = 'psi.context.items'
-        ContextGroup:
-            name = manifest.contribution.name
-            label = manifest.contribution.label
+    #Extension:
+    #    # For some reason this doesn't get loaded if it's lumped together with
+    #    # the following extension, so I've split them out. Not sure why. Some
+    #    # exception is getting swallowed silently.
+    #    id = 'groups.' + manifest.contribution.name
+    #    point = 'psi.context.items'
+    #    ContextGroup:
+    #        name = manifest.contribution.name
+    #        label = manifest.contribution.label
 
     Extension:
         id = 'items.' + manifest.contribution.name
         point = 'psi.context.items'
+
+        ContextGroup:
+            name = manifest.contribution.name
+            label = manifest.contribution.label
+
         Include:
             # list provides an empty list of context items if needed.
-            objects << getattr(manifest.contribution.token, 'get_context_items',
-                               list)()
+            objects << load_items(manifest.contribution, manifest.contribution.token)
 
     Extension:
         id = 'actions.' + manifest.contribution.name
         point = 'psi.controller.actions'
         ExperimentState:
             name = manifest.contribution.name
+        ExperimentEvent:
+            name = manifest.contribution.name + '_failure'
 
     Extension:
         id = 'preferences.' +  manifest.contribution.name
@@ -361,9 +401,20 @@ enamldef AnalogOutputManifest(PSIManifest): manifest:
                 core.invoke_command(command, parameters=preferences)
 
 
+def get_tokens(workbench, ttype):
+    try:
+        plugin = workbench.get_plugin('psi.token')
+        if ttype == 'epoch':
+            return plugin._epoch_tokens
+        elif ttype == 'continuous':
+            return plugin._continuous_tokens
+    except ValueError:
+        return {}
+
+
 enamldef EpochOutputManifest(AnalogOutputManifest): manifest:
 
-    attr tokens = workbench.get_plugin('psi.token')._epoch_tokens
+    attr tokens = get_tokens(workbench, 'epoch')
     attr output_type = 'epoch'
 
 
@@ -469,7 +520,7 @@ enamldef SelectorQueuedEpochOutputManifest(QueuedEpochOutputManifest): manifest:
 
 enamldef ContinuousOutputManifest(AnalogOutputManifest): manifest:
 
-    attr tokens = workbench.get_plugin('psi.token')._continuous_tokens
+    attr tokens = get_tokens(workbench, 'continuous')
     attr output_type = 'continuous'
 
 

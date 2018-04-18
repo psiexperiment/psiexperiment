@@ -76,6 +76,7 @@ class Output(PSIContribution):
         return self.channel.calibration
 
 
+
 class AnalogOutput(Output):
 
     buffer_size = Property()
@@ -164,6 +165,9 @@ class EpochOutput(AnalogOutput):
         self.factory = None
         self._buffer.invalidate_samples(offset)
 
+    def _observe_token(self, event):
+        if self.token is not None:
+            self.token.configure_context_items(self.name, self.label, 'trial')
 
 class QueuedEpochOutput(EpochOutput):
 
@@ -207,6 +211,9 @@ class ContinuousOutput(AnalogOutput):
     def get_next_samples(self, samples):
         return self.factory.next(samples)
 
+    def _observe_token(self, event):
+        if self.token is not None:
+            self.token.configure_context_items(self.name, self.label, 'experiment')
 
 class DigitalOutput(Output):
     pass

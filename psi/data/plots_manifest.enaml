@@ -68,6 +68,36 @@ enamldef TimeseriesPlotManifest(PSIManifest): manifest:
             weight = 15
 
 
+def process_event(plot, event):
+    p = event.parameters
+    plot._append_data(p['type'], p['timestamp'])
+
+
+enamldef EventPlotManifest(PSIManifest): manifest:
+
+    Extension:
+        id = 'commands'
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = manifest.contribution.name + '.process'
+            handler = partial(process_event, manifest.contribution)
+
+    Extension:
+        id = 'actions'
+        point = 'psi.controller.actions'
+        
+        ExperimentAction:
+            event << manifest.contribution.event + '_start'
+            command = manifest.contribution.name + '.process'
+            kwargs = {'type': 'start'}
+
+        ExperimentAction:
+            event << manifest.contribution.event + '_end'
+            command = manifest.contribution.name + '.process'
+            kwargs = {'type': 'end'}
+
+
 enamldef BasePlotManifest(PSIManifest): manifest:
 
     Extension:

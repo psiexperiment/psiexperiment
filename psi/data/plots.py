@@ -1,4 +1,5 @@
 import logging
+
 log = logging.getLogger(__name__)
 
 import itertools
@@ -71,9 +72,17 @@ class ChannelDataRange(Atom):
         cb = partial(self.source_added, plot=plot, fs=source.fs)
         source.add_callback(cb)
 
+    def add_event_source(self, source, plot):
+        cb = partial(self.event_source_added, plot=plot, fs=source.fs)
+        source.add_callback(cb)
+
     def source_added(self, data, plot, fs):
         self.current_samples[plot] += data.shape[-1]
         self.current_times[plot] = self.current_samples[plot]/fs
+        self.current_time = max(self.current_times.values())
+
+    def event_source_added(self, data, plot, fs):
+        self.current_times[plot] = data[-1][1]
         self.current_time = max(self.current_times.values())
 
 
@@ -470,24 +479,14 @@ class FFTChannelPlot(ChannelPlot):
         self.update_pending = False
 
 
-class TimeseriesPlot(SinglePlot):
+class BaseTimeseriesPlot(SinglePlot):
 
-    source_name = d_(Unicode())
-    rising_event = d_(Unicode())
-    falling_event = d_(Unicode())
     rect_center = d_(Float(0.5))
     rect_height = d_(Float(1))
-
     fill_color = d_(Typed(object))
-
     brush = Typed(object)
-    source = Typed(object)
-
     _rising = Typed(list, ())
     _falling = Typed(list, ())
-
-    def _default_name(self):
-        return self.source_name + self.rising_event + '_timeseries'
 
     def _default_brush(self):
         return pg.mkBrush(self.fill_color)
@@ -497,18 +496,6 @@ class TimeseriesPlot(SinglePlot):
         plot.setPen(self.pen)
         plot.setBrush(self.brush)
         return plot
-
-    def _observe_source(self, event):
-        self.parent.data_range.add_source(self.source, self)
-        self.parent.data_range.observe('current_time', self.update)
-        self.source.observe('added', self.added)
-
-    def added(self, event):
-        value = event['value']
-        if value['event'] == self.rising_event:
-            self._rising.append(value['lb'])
-        elif value['event'] == self.falling_event:
-            self._falling.append(value['lb'])
 
     def _update(self, event=None):
         lb, ub = self.parent.data_range.current_range
@@ -538,6 +525,47 @@ class TimeseriesPlot(SinglePlot):
             path.addRect(r)
         self.plot.setPath(path)
         self.update_pending = False
+
+
+class EventPlot(BaseTimeseriesPlot):
+
+    event = d_(Unicode())
+
+    def _observe_event(self, event):
+        if self.event is not None:
+            self.parent.data_range.observe('current_time', self.update)
+
+    def _default_name(self):
+        return self.event + '_timeseries'
+
+    def _append_data(self, bound, timestamp):
+        if bound == 'start':
+            self._rising.append(timestamp)
+        elif bound == 'end':
+            self._falling.append(timestamp)
+        self.update()
+
+
+class TimeseriesPlot(BaseTimeseriesPlot):
+
+    source_name = d_(Unicode())
+    source = Typed(object)
+
+    def _default_name(self):
+        return self.source_name + '_timeseries'
+
+    def _observe_source(self, event):
+        if self.source is not None:
+            self.parent.data_range.add_event_source(self.source, self)
+            self.parent.data_range.observe('current_time', self.update)
+            self.source.add_callback(self._append_data)
+
+    def _append_data(self, data):
+        for (etype, value) in data:
+            if etype == 'rising':
+                self._rising.append(value)
+            elif etype == 'falling':
+                self._falling.append(value)
 
 
 ################################################################################

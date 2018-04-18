@@ -1,0 +1,18 @@
+from psi.context.api import ContextGroup, Parameter
+
+from enaml.workbench.api import Extension, PluginManifest
+
+
+enamldef SimpleManifest(PluginManifest):
+
+    Extension:
+        id = 'items'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'demo'
+            label = 'Demo'
+
+            Parameter:
+                name = 'masker_bandwidth'
+                expression = 'masker_bandlimited_noise_fh - masker_bandlimited_noise_fl'

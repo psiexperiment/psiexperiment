@@ -35,7 +35,8 @@ enamldef IOManifest(PluginManifest): manifest:
         point = 'psi.data.sinks'
 
         BColzStore:
-            pass
+            continuous_inputs = ['nose_poke_analog', 'reward_contact_analog']
+            #event_inputs = ['nose_poke', 'reward_contact']
 
     Extension:
         id = 'backend'
@@ -109,7 +110,6 @@ enamldef IOManifest(PluginManifest): manifest:
 
                 CalibratedInput:
                     name = 'microphone'
-                    save = True
 
             AIChannel:
                 label = 'Nose poke IR'
@@ -130,13 +130,11 @@ enamldef IOManifest(PluginManifest): manifest:
                     Downsample:
                         # effective Fs is 100
                         name = 'nose_poke_analog'
-                        save = True
                         q = 1000
                         Threshold:
                             name = 'nose_poke_threshold'
                             threshold = 2.5
                             Edges:
-                                save = True
                                 debounce = 2
                                 name = 'nose_poke'
 
@@ -159,12 +157,10 @@ enamldef IOManifest(PluginManifest): manifest:
                     N = 1
                     Downsample:
                         name = 'reward_contact_analog'
-                        save = True
                         q = 1000
                         Threshold:
                             name = 'reward_contact_threshold'
                             threshold = 2.5
                             Edges:
-                                save = True
                                 debounce = 2
                                 name = 'reward_contact'

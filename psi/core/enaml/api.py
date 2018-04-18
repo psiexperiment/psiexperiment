@@ -1,6 +1,6 @@
-from .dataframe_table_widget import DataframeTable
 from .manifest import PSIManifest
 from .contribution import PSIContribution
+from .editable_table_widget import ListDictTable, DataFrameTable, EditableTable
 
 
 def load_manifests(objects, workbench):

@@ -135,7 +135,7 @@ def hw_ai_helper(cb, channels, discard, task, event_type=None, cb_samples=None,
     mx.DAQmxGetReadCurrReadPos(task, uint64)
     read_position = uint64.value
 
-    log_ai.debug('Current read position %d, available samples %d',
+    log_ai.trace('Current read position %d, available samples %d',
                  read_position, available_samples)
 
     if read_position < discard:
@@ -930,7 +930,7 @@ class NIDAQEngine(Engine):
                 log_ao.trace('Not enough samples available for writing')
             else:
                 data = self._get_hw_ao_samples(offset, samples)
-                self.write_hw_ao(data, timeout=0)
+                self.write_hw_ao(data, offset, timeout=0)
 
     def update_hw_ao(self, offset, channel_name=None,
                      method='space_available'):
@@ -963,7 +963,7 @@ class NIDAQEngine(Engine):
         log_ao.trace('Current write position %d', self._uint64.value)
         return self._uint64.value
 
-    def write_hw_ao(self, data, offset=None, timeout=1):
+    def write_hw_ao(self, data, offset, timeout=1):
         # Due to historical limitations in the DAQmx API, the write offset is a
         # signed 32-bit integer. For long-running applications, we will have an
         # overflow if we attempt to set the offset relative to the first sample
@@ -972,17 +972,21 @@ class NIDAQEngine(Engine):
         log_ao.trace('Writing %r samples at %r', data.shape, offset)
         task = self._tasks['hw_ao']
 
-        if offset is not None:
-            write_position = self.ao_write_position()
-            relative_offset = offset-write_position
-            mx.DAQmxSetWriteOffset(task, relative_offset)
-            m = 'Write position %d, requested offset %d, relative offset %d'
-            log_ao.trace(m, write_position, offset, relative_offset)
-            log_ao.trace('AO samples generated %d', self.ao_sample_clock())
+        write_position = self.ao_write_position()
+        relative_offset = offset-write_position
+        mx.DAQmxSetWriteOffset(task, relative_offset)
+        m = 'Write position %d, requested offset %d, relative offset %d'
+        log_ao.trace(m, write_position, offset, relative_offset)
+
+        generated = self.ao_sample_clock()
+        log_ao.trace('AO samples generated %d', generated)
+        if offset != 0 and (offset-generated) <= task._onboard_buffer_size*1.25:
+            log.debug('Samples generated %d, offset %d', generated, offset)
+            raise SystemError('Insufficient time to update output')
 
         mx.DAQmxWriteAnalogF64(task, data.shape[-1], False, timeout,
-                               mx.DAQmx_Val_GroupByChannel,
-                               data.astype(np.float64), self._int32, None)
+                            mx.DAQmx_Val_GroupByChannel,
+                            data.astype(np.float64), self._int32, None)
 
         # Now, reset it back to 0
         if offset is not None:

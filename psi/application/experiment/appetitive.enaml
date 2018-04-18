@@ -13,11 +13,13 @@ from psi.controller.api import (ExperimentState, ExperimentAction,
                                 ContinuousOutput, EpochOutput)
 
 from psi.context.api import ContextGroup, Parameter
-from psi.data.plots import (TimeContainer, FFTContainer, ChannelPlot, ViewBox, TimeseriesPlot, FFTChannelPlot)
+from psi.data.plots import (EventPlot, TimeContainer, FFTContainer, ChannelPlot, ViewBox, TimeseriesPlot, FFTChannelPlot)
 
 from psi.data.sinks.event_log import EventLog
 from psi.data.sinks.trial_log import TrialLog
 from psi.data.sinks.sdt_analysis import SDTAnalysis
+
+from psi.token.primitives import BandlimitedNoise, Cos2Envelope, SAMEnvelope, Silence
 
 
 enamldef ControllerManifest(AppetitiveManifest): manifest:
@@ -29,6 +31,25 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
         point = 'enaml.workbench.ui.branding'
         Branding:
             title = 'Appetitive Go-Nogo'
+
+    Extension:
+        id = 'tokens'
+        point = 'psi.token.tokens'
+
+        Silence:
+            name = 'silence'
+            label = 'Silence'
+
+        BandlimitedNoise:
+            name = 'continuous_bandlimited_noise'
+            label = 'Continuous bandlimited noise'
+
+        Cos2Envelope:
+            name = 'bandlimited_sam_noise'
+            label = 'Bandlimited SAM noise'
+            SAMEnvelope:
+                BandlimitedNoise:
+                    pass
 
     Extension:
         id = 'actions'
@@ -54,19 +75,20 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             # computation, prepare this in advance as soon as possible. 
             event = 'trial_prepare'
             command = 'target.prepare'
+            kwargs = {'cache': True}
 
         ExperimentAction:
             # The operations required to actually generate and upload the token
             # take some time, so we have to allow for a small delay.
             event = 'trial_start'
             command = 'target.start'
-            kwargs = {'delay': 0.5}
+            kwargs = {'delay': 0.25}
             weight = 0
 
         ExperimentAction:
             event = 'response_end'
             command = 'target.clear'
-            kwargs = {'delay': 0.5}
+            kwargs = {'delay': 0.25}
             weight = 0
 
         ExperimentAction:
@@ -81,6 +103,8 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             event = 'deliver_reward'
             command = 'food_dispenser.dispense_pellet'
 
+        ExperimentAction:
+            event = 'target_failure'
 
     Extension:
         id = 'io'
@@ -113,25 +137,24 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
         id = 'plots'
         point = 'psi.data.plots'
 
-        #FFTContainer:
-        #    name = 'fft_plot_container'
-        #    title = 'FFT'
-        #    freq_lb = 5
-        #    freq_ub = 50000
+        FFTContainer:
+            name = 'fft_plot_container'
+            label = 'FFT'
+            freq_lb = 5
+            freq_ub = 50000
 
-        #    ViewBox:
-        #        y_min = -120
-        #        y_max = 100
+            ViewBox:
+                y_min = -120
+                y_max = 100
+                label = 'Level (dB)'
 
-        #        FFTChannelPlot:
-        #            source_name = 'calibrated_microphone'
-        #            pen_color = (0, 0, 0)
-        #            time_span = 1
-        #            #axis_label = 'Level (dB SPL)'
-        #            #reference = 20e-6
+                FFTChannelPlot:
+                    source_name = 'microphone'
+                    pen_color = (0, 0, 0)
+                    time_span = 1
 
         TimeContainer:
-            name = 'trial_plot_container' 
+            name = 'trial_plot_container'
             label = 'Trial timing'
             span = 10
 
@@ -144,78 +167,62 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
                     source_name = 'reward_contact_analog'
                     pen_color = 'b'
 
-                TimeseriesPlot:
-                    source_name = 'event_log'
-                    rising_event = 'reward_start'
-                    falling_event = 'reward_end'
-                    pen_color = (64, 105, 224, 113)
-                    fill_color = (64, 105, 224, 68)
-                    rect_center = 2.5
-                    rect_height = 1
+                #TimeseriesPlot:
+                #    source_name = 'reward_contact'
+                #    pen_color = (64, 105, 224, 113)
+                #    fill_color = (64, 105, 224, 68)
+                #    rect_center = 2.5
+                #    rect_height = 1
 
                 ChannelPlot:
                     name = 'plot2'
                     source_name = 'nose_poke_analog'
                     pen_color = 'r'
 
-                TimeseriesPlot:
-                    source_name = 'event_log'
-                    rising_event = 'np_start'
-                    falling_event = 'np_end'
-                    fill_color = (43, 138, 87, 68)
-                    pen_color = (43, 138, 87, 113)
-                    rect_center = 2.5
-                    rect_height = 1
+                #TimeseriesPlot:
+                #    source_name = 'nose_poke'
+                #    fill_color = (43, 138, 87, 68)
+                #    pen_color = (43, 138, 87, 113)
+                #    rect_center = 2.5
+                #    rect_height = 1
 
-                TimeseriesPlot:
-                    source_name = 'event_log'
-                    rising_event = 'digital_np_start'
-                    falling_event = 'digital_np_end'
-                    fill_color = (43, 138, 87, 68)
-                    pen_color = (43, 138, 87, 113)
-                    rect_center = 2.5
-                    rect_height = 1
+                #EventPlot:
+                #    event = 'digital_np'
+                #    fill_color = (43, 138, 87, 68)
+                #    pen_color = (43, 138, 87, 113)
+                #    rect_center = 2.5
+                #    rect_height = 1
 
-                TimeseriesPlot:
-                    source_name = 'event_log'
-                    rising_event = 'token_start'
-                    falling_event = 'token_stop'
-                    pen_color = (113, 113, 113, 113)
-                    fill_color = (113, 113, 113, 68)
-                    rect_center = 3.5
-                    rect_height = 1
+                #EventPlot:
+                #    event = 'target'
+                #    pen_color = (113, 113, 113, 113)
+                #    fill_color = (113, 113, 113, 68)
+                #    rect_center = 3.5
+                #    rect_height = 1
 
-                TimeseriesPlot:
-                    source_name = 'event_log'
-                    rising_event = 'hold_start'
-                    falling_event = 'hold_end'
+                EventPlot:
+                    event = 'hold'
                     pen_color = (192, 192, 192, 113)
                     fill_color = (192, 192, 192, 68)
                     rect_center = 4.5
                     rect_height = 1
 
-                TimeseriesPlot:
-                    source_name = 'event_log'
-                    rising_event = 'response_start'
-                    falling_event = 'response_end'
+                EventPlot:
+                    event = 'response'
                     pen_color = (113, 113, 113, 113)
                     fill_color = (113, 113, 113, 68)
                     rect_center = 4.5
                     rect_height = 1
 
-                TimeseriesPlot:
-                    source_name = 'event_log'
-                    rising_event = 'to_start'
-                    falling_event = 'to_end'
+                EventPlot:
+                    event = 'to'
                     fill_color = (64, 64, 64, 68)
                     pen_color = (64, 64, 64, 113)
                     rect_center = 4.5
                     rect_height = 1
 
-                TimeseriesPlot:
-                    source_name = 'event_log'
-                    rising_event = 'iti_start'
-                    falling_event = 'iti_end'
+                EventPlot:
+                    event = 'iti'
                     fill_color = (0, 0, 0, 68)
                     pen_color = (0, 0, 0, 113)
                     rect_center = 4.5

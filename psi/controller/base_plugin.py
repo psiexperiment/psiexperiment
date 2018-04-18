@@ -384,7 +384,7 @@ class BasePlugin(Plugin):
         return False
 
     def _invoke_actions(self, event_name, timestamp=None, **kw):
-        log.debug('Triggering event {}'.format(event_name))
+        log.trace('Triggering event {}'.format(event_name))
 
         if timestamp is not None:
             # The event is logged only if the timestamp is provided
@@ -459,7 +459,7 @@ class BasePlugin(Plugin):
         self._pause_ok = value
 
     def start_timer(self, name, duration, callback):
-        log.debug('Starting timer {}'.format(name))
+        log.debug('Starting %f sec. timer %s', duration, name)
         timer = QTimer()
         timer.timeout.connect(callback)
         timer.setSingleShot(True)
@@ -471,3 +471,4 @@ class BasePlugin(Plugin):
             self._timers[name].timeout.disconnect()
             self._timers[name].stop()
             del self._timers[name]
+            log.debug('Disabled deferred event %s', name)

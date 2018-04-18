@@ -1,3 +1,7 @@
+import enaml
+with enaml.imports():
+    from .base_manifest import BaseManifest
+
 from .channel import (Channel, AOChannel, AIChannel, DOChannel, DIChannel)
 from .engine import Engine
 from .input import Input
