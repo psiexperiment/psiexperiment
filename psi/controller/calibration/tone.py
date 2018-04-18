@@ -8,7 +8,6 @@ import numpy as np
 import pandas as pd
 
 from .util import tone_power_conv, db
-from ..util import acquire
 from . import (FlatCalibration, PointCalibration, CalibrationTHDError,
                CalibrationNFError)
 from ..queue import FIFOSignalQueue
