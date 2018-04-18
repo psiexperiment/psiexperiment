@@ -444,11 +444,13 @@ class AppetitivePlugin(BasePlugin):
                 self.trial_info['np_start'] = timestamp
 
     def start_event_timer(self, duration, event):
+        # We call the timer `experiment_state` to ensure that it properly ends
+        # any existing event-based timers.
         if isinstance(duration, str):
             duration = self.context.get_value(duration)
         log.info('Timer for {} with duration {}'.format(event, duration))
         callback = partial(self.handle_event, event)
-        deferred_call(self.start_timer, 'event', duration, callback)
+        deferred_call(self.start_timer, 'experiment_state', duration, callback)
 
     def stop_event_timer(self):
         deferred_call(self.stop_timer, 'event')
