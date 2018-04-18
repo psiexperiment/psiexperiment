@@ -474,7 +474,7 @@ class BasePlugin(Plugin):
         self._pause_ok = value
 
     def start_timer(self, name, duration, callback):
-        log.debug('Starting timer {}'.format(name))
+        log.debug('Starting %f sec. timer %s', duration, name)
         timer = QTimer()
         timer.timeout.connect(callback)
         timer.setSingleShot(True)
