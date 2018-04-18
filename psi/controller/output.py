@@ -16,7 +16,6 @@ from ..util import coroutine, SignalBuffer
 from .queue import AbstractSignalQueue
 
 from psi.core.enaml.api import PSIContribution
-from psi.token.primitives import Waveform
 
 import time
 
@@ -126,7 +125,7 @@ class AnalogOutput(Output):
 
 class EpochOutput(AnalogOutput):
 
-    factory = Typed(Waveform)
+    factory = Typed(object)
     active = Bool(False)
 
     def _observe_factory(self, event):
@@ -206,7 +205,7 @@ class SelectorQueuedEpochOutput(QueuedEpochOutput):
 
 class ContinuousOutput(AnalogOutput):
 
-    factory = Typed(Waveform)
+    factory = Typed(object)
 
     def get_next_samples(self, samples):
         return self.factory.next(samples)

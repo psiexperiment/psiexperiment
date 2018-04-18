@@ -10,11 +10,6 @@ import numpy as np
 
 from enaml.core.api import Declarative
 
-import enaml
-with enaml.imports():
-    from psi.token.primitives import Waveform
-
-
 class QueueEmptyError(Exception):
     pass
 
@@ -85,9 +80,9 @@ class AbstractSignalQueue(object):
 
     def get_max_duration(self):
         def get_duration(source):
-            if isinstance(source, Waveform):
+            try:
                 return source.get_duration()
-            else:
+            except AttributeError:
                 return source.shape[-1]/self._fs
         return max(get_duration(d['source']) for d in self._data.values())
 
@@ -173,11 +168,11 @@ class AbstractSignalQueue(object):
         '''
         key, data = self.pop_next(decrement=decrement)
 
-        if isinstance(data['source'], Waveform):
-            self._source = data['source']
+        self._source = data['source']
+        try:
             self._source.reset()
             self._get_samples = self._get_samples_generator
-        else:
+        except AttributeError:
             self._source = data['source']
             self._get_samples = self._get_samples_waveform
 
@@ -219,7 +214,7 @@ class AbstractSignalQueue(object):
             if complete:
                 self._source = None
 
-        # Insert intertrial interval delay 
+        # Insert intertrial interval delay
         if samples > 0 and self._delay_samples > 0:
             n_padding = min(self._delay_samples, samples)
             waveform = np.zeros(n_padding)
