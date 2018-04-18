@@ -447,13 +447,6 @@ class NIDAQEngine(Engine):
     # for the buffer before starting acquisition. This is impotant because
     hw_ao_buffer_size = d_(Float(10)).tag(metadata=True)
 
-    # Poll period (in seconds). This defines how quickly acquired (analog input)
-    # data is downloaded from the buffers (and made available to listeners). If
-    # you want to see data as soon as possible, set the poll period to a small
-    # value. If your application is stalling or freezing, set this to a larger
-    # value.
-    hw_ai_monitor_period = d_(Float(0.1)).tag(metadata=True)
-
     # Even though data is written to the analog outputs, it is buffered in
     # computer memory until it's time to be transferred to the onboard buffer of
     # the NI acquisition card. NI-DAQmx handles this behind the scenes (i.e.,
@@ -609,7 +602,7 @@ class NIDAQEngine(Engine):
             self.sample_time = self.ai_sample_time
 
         # Configure task done events so that we can fire a callback if
-        # acquisition is done. 
+        # acquisition is done.
         self._task_done = {}
         for name, task in self._tasks.items():
             def cb(t, s, cb_data):

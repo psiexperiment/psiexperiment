@@ -34,6 +34,19 @@ class Engine(PSIContribution):
     master_clock = d_(Bool(False)).tag(metadata=True)
     lock = Value()
 
+    # Poll period (in seconds). This defines how quickly acquired (analog input)
+    # data is downloaded from the buffers (and made available to listeners). If
+    # you want to see data as soon as possible, set the poll period to a small
+    # value. If your application is stalling or freezing, set this to a larger
+    # value.
+    hw_ai_monitor_period = d_(Float(0.1)).tag(metadata=True)
+
+    # Poll period (in seconds). This defines how often callbacks for the analog
+    # outputs are notified (i.e., to generate additional samples for playout).
+    # If the poll period is too long, then the analog output may run out of
+    # samples.
+    hw_ao_monitor_period = d_(Float(1)).tag(metadata=True)
+
     def _default_lock(self):
         return threading.Lock()
 
