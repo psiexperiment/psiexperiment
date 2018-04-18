@@ -15,7 +15,6 @@ from psi.controller.input import (Downsample, IIRFilter, Threshold, Edges,
 
 from psi.controller.calibration import GolayCalibration, FlatCalibration
 from psi.controller.calibration.util import db
-from psi.controller.devices.opencv_camera import OpenCVCamera
 from psi.controller.devices.pellet_dispenser import PelletDispenser
 from psi.data.sinks.bcolz_store import BColzStore
 
