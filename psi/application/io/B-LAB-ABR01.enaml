@@ -1,0 +1,89 @@
+import os.path
+
+from enaml.workbench.api import PluginManifest, Extension
+
+from psi import get_config
+
+from psi.controller.engines.nidaq import NIDAQEngine
+from psi.controller.channel import AIChannel, NIDAQAOChannel
+from psi.controller.input import ContinuousInput, IIRFilter, Decimate
+from psi.controller.calibration import InterpCalibration, FlatCalibration
+
+
+cal_root = get_config('CAL_ROOT')
+cal_filename = '20180411-1313 pt_calibration'
+cal_path = os.path.join(cal_root, cal_filename)
+
+mic_cal = InterpCalibration.from_psi(cal_path, fixed_gain=-40)
+
+
+enamldef IOManifest(PluginManifest): manifest:
+
+    Extension:
+        id = 'backend'
+        point = 'psi.controller.io'
+
+        NIDAQEngine:
+            name = 'NI_EEG'
+            hw_ai_monitor_period = 0.125
+
+            AIChannel:
+                label = 'EEG'
+                name = 'eeg_channel'
+                channel = 'PXI1Slot2/ai0'
+                start_trigger = '/PXI1Slot4/ao/StartTrigger'
+                fs = 25e3
+                expected_range = (-10, 10)
+                dtype = 'float64'
+                terminal_mode = 'differential'
+                unit = 'V'
+
+        NIDAQEngine:
+            name = 'NI_audio'
+            master_clock = True
+
+            hw_ai_monitor_period = 0.125
+            hw_ao_monitor_period = 0.125
+            hw_ao_buffer_size = 10
+
+            NIDAQAOChannel:
+                label = 'primary'
+                name = 'speaker_0'
+                channel = 'PXI1Slot4/ao0'
+                fs = 100e3
+                expected_range = (-10, 10)
+                dtype = 'float64'
+                terminal_mode = 'pseudodifferential'
+
+            NIDAQAOChannel:
+                label = 'secondary'
+                name = 'speaker_1'
+                channel = 'PXI1Slot4/ao1'
+                fs = 100e3
+                expected_range = (-10, 10)
+                dtype = 'float64'
+                terminal_mode = 'pseudodifferential'
+
+            AIChannel:
+                label = 'Probe tube microphone'
+                name = 'microphone_channel'
+                channel = 'PXI1Slot4/ai0'
+                start_trigger = '/PXI1Slot4/ao/StartTrigger'
+                fs = 100e3
+                expected_range = (-10, 10)
+                dtype = 'float64'
+                terminal_mode = 'pseudodifferential'
+                terminal_coupling = 'AC'
+                calibration = mic_cal
+
+            AIChannel:
+                label = 'Reference microphone'
+                name = 'reference_microphone_channel'
+                channel = 'PXI1Slot4/ai1'
+                start_trigger = '/PXI1Slot4/ao/StartTrigger'
+                fs = 100e3
+                expected_range = (-10, 10)
+                dtype = 'float64'
+                terminal_mode = 'pseudodifferential'
+                terminal_coupling = 'AC'
+                calibration = FlatCalibration(1e-3)

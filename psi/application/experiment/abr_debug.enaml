@@ -210,6 +210,24 @@ enamldef ControllerManifest(BaseManifest): manifest:
             event = 'experiment_prepare'
             command = 'psi.controller.configure_hardware'
             weight = 15
+<<<<<<< HEAD:psi/application/experiment/abr_debug.enaml
+=======
+            event = 'experiment_prepare'
+            command = 'psi.controller.tone_calibrate_channel'
+            kwargs = {
+                'input_name': 'microphone',
+                'output_name': 'target',
+                'parameter_names': ['target_tone_frequency'],
+                'gain': -40,
+                'max_thd': None,
+                'min_snr': 3,
+                'duration': 0.1,
+                'trim': 0.01,
+                'iti': 0,
+                'widget_name': 'calibration_result',
+                'attr_name': 'result',
+            }
+>>>>>>> Revisions to work on Brigande computer:psi/application/experiment/abr.enaml
 
         ExperimentAction:
             event = 'valid_erp_acquired'
