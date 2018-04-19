@@ -15,4 +15,4 @@ enamldef SimpleManifest(PluginManifest):
 
             Parameter:
                 name = 'masker_bandwidth'
-                expression = 'masker_bandlimited_noise_fh - masker_bandlimited_noise_fl'
+                expression = 'masker_fl_fl - masker_fh_fh'
