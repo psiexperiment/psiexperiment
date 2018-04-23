@@ -4,8 +4,7 @@ from glob import glob
 from enaml.widgets.api import (Window, ObjectCombo, Label, Field, Container,
                                Form, HGroup, PushButton, VGroup)
 
-
-from psi import get_config
+from . import list_preferences
 
 
 enamldef LauncherView(Window): main:
@@ -22,11 +21,7 @@ enamldef LauncherView(Window): main:
                 to_string = lambda x: x.replace('_', ' ')
                 selected::
                     launcher.experiment = selected
-                    p_root = get_config('PREFERENCES_ROOT')
-                    p_wildcard = get_config('PREFERENCES_WILDCARD')
-                    p_glob = p_wildcard[:-1].split('(')[1]
-                    p_search = os.path.join(p_root, selected, p_glob)
-                    settings.items = glob(p_search)
+                    settings.items = list_preferences(selected)
 
             Label:
                 text = 'Experiment settings'
