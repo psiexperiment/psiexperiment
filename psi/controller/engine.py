@@ -11,7 +11,8 @@ from enaml.core.api import Declarative, d_
 
 from psi.core.enaml.api import PSIContribution
 from ..util import copy_declarative
-from .channel import Channel, AIChannel, AOChannel, DIChannel, DOChannel
+from .channel import (Channel, AnalogMixin, DigitalMixin, HardwareMixin,
+                      SoftwareMixin, OutputMixin, InputMixin)
 
 
 def log_configuration(engine):
@@ -75,29 +76,27 @@ class Engine(PSIContribution):
 
         if timing is not None:
             if timing in ('hardware', 'hw'):
-                channels = [c for c in channels if c.fs != 0]
+                channels = [c for c in channels if isinstance(c, HardwareMixin)]
             elif timing in ('software', 'sw'):
-                channels = [c for c in channels if c.fs == 0]
+                channels = [c for c in channels if isinstance(c, SoftwareMixin)]
             else:
                 raise ValueError('Unsupported timing')
 
         if direction is not None:
             if direction in ('input', 'in'):
-                matches = (AIChannel, DIChannel)
+                channels = [c for c in channels if isinstance(c, InputMixin)]
             elif direction in ('output', 'out'):
-                matches = (AOChannel, DOChannel)
+                channels = [c for c in channels if isinstance(c, OutputMixin)]
             else:
                 raise ValueError('Unsupported direction')
-            channels = [c for c in channels if isinstance(c, matches)]
 
         if mode is not None:
             if mode == 'analog':
-                matches = (AIChannel, AOChannel)
+                channels = [c for c in channels if isinstance(c, AnalogMixin)]
             elif mode == 'digital':
-                matches = (DIChannel, DOChannel)
+                channels = [c for c in channels if isinstance(c, DigitalMixin)]
             else:
                 raise ValueError('Unsupported mode')
-            channels = [c for c in channels if isinstance(c, matches)]
 
         return tuple(channels)
 

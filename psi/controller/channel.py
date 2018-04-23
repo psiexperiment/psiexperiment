@@ -3,7 +3,7 @@ log = logging.getLogger(__name__)
 
 import numpy as np
 
-from atom.api import Unicode, Enum, Typed, Tuple, Property, List, Float, Int
+from atom.api import Unicode, Typed, Tuple, Property, List, Float, Int
 from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
 
@@ -14,28 +14,29 @@ from ..util import coroutine
 
 class Channel(Declarative):
 
+    # Globally-unique name of channel used for identification
     name = d_(Unicode()).tag(metadata=True)
+
+    # Lable of channel used in GUI
     label = d_(Unicode()).tag(metadata=True)
+
+    # SI unit (e.g., V)
     unit = d_(Unicode()).tag(metadata=True)
 
-    # Device-specific channel identifier.
-    channel = d_(Unicode()).tag(metadata=True)
-
-    # For software-timed channels, set sampling frequency to 0.
-    fs = d_(Typed(object)).tag(metadata=True)
-
     # Number of samples to acquire before task ends. Typically will be set to
-    # -1 unless you know better.
-    samples = d_(Int(-1)).tag(metadata=True)
-
-    # Can be blank for no start trigger (i.e., acquisition begins as soon as
-    # task begins)
-    start_trigger = d_(Unicode()).tag(metadata=True)
+    # 0 to indicate continuous acquisition.
+    samples = d_(Int(0)).tag(metadata=True)
 
     # Used to properly configure data storage.
     dtype = d_(Unicode()).tag(metadata=True)
+
+    # Parent engine (automatically derived by Enaml hierarchy)
     engine = Property()
+
+    # Calibration of channel
     calibration = d_(Typed(Calibration)).tag(metadata=True)
+
+    # Is channel active during experiment?
     active = Property()
 
     def _get_engine(self):
@@ -51,7 +52,17 @@ class Channel(Declarative):
         pass
 
 
-class InputChannel(Channel):
+class HardwareMixin(Channel):
+
+    # For software-timed channels, set sampling frequency to 0.
+    fs = d_(Float()).tag(metadata=True)
+
+
+class SoftwareMixin(Channel):
+    pass
+
+
+class InputMixin(Declarative):
 
     inputs = List()
 
@@ -77,7 +88,15 @@ class InputChannel(Channel):
             input.configure()
 
 
-class OutputChannel(Channel):
+class AnalogMixin(Declarative):
+    pass
+
+
+class DigitalMixin(Declarative):
+    pass
+
+
+class OutputMixin(Declarative):
 
     outputs = List()
     buffer_size = Property()
@@ -107,28 +126,9 @@ class OutputChannel(Channel):
         return self.engine.get_buffer_size(self.name)
 
 
-class AIChannel(InputChannel):
+class HardwareAOChannel(AnalogMixin, OutputMixin, HardwareMixin, Channel):
 
-    # Not all terminal modes may be supported
-    TERMINAL_MODES = 'pseudodifferential', 'differential', 'RSE', 'NRSE'
-    terminal_mode = d_(Enum(*TERMINAL_MODES)).tag(metadata=True)
-
-    terminal_coupling = d_(Enum(None, 'AC', 'DC', 'ground')).tag(metadata=True)
-
-    # Gain in dB of channel (e.g., due to a microphone preamp). The signal will
-    # be scaled down before further processing.
-    gain = d_(Float()).tag(metadata=True)
-
-    # Expected input range (min/max)
     expected_range = d_(Tuple()).tag(metadata=True)
-
-
-class AOChannel(OutputChannel):
-
-    TERMINAL_MODES = 'pseudodifferential', 'differential', 'RSE'
-    expected_range = d_(Tuple()).tag(metadata=True)
-    terminal_mode = d_(Enum(*TERMINAL_MODES)).tag(metadata=True)
-    filter_delay = d_(Float(0)).tag(metadata=True)
 
     def get_samples(self, offset, samples, out=None):
         if out is None:
@@ -140,37 +140,11 @@ class AOChannel(OutputChannel):
         return np.sum(waveforms, axis=0, out=out)
 
 
-class NIDAQAOChannel(AOChannel):
-    # TODO: Move this to the engines folder since this is specific to the NIDAQ
-    # engine.
+class HardwareAIChannel(AnalogMixin, InputMixin, HardwareMixin, Channel):
 
-    filter_delay = Property().tag(metadata=True)
+    # Gain in dB of channel (e.g., due to a microphone preamp). The signal will
+    # be scaled down before further processing.
+    gain = d_(Float()).tag(metadata=True)
 
-    # Filter delay lookup table for different sampling rates. The first column
-    # is the lower bound (exclusive) of the sampling rate (in samples/sec) for
-    # the filter delay (second column, in samples). The upper bound of the
-    # range (inclusive) for the sampling rate is denoted by the next row.
-    # e.g., if FILTER_DELAY[i, 0] < fs <= FILTER_DELAY[i+1, 0] is True, then
-    # the filter delay is FILTER_DELAY[i, 1].
-    FILTER_DELAY = np.array([
-        (  1.0e3, 36.6),
-        (  1.6e3, 36.8),
-        (  3.2e3, 37.4),
-        (  6.4e3, 38.5),
-        ( 12.8e3, 40.8),
-        ( 25.6e3, 43.2),
-        ( 51.2e3, 48.0),
-        (102.4e3, 32.0),
-    ])
-
-    def _get_filter_delay(self):
-        i = np.flatnonzero(self.fs > self.FILTER_DELAY[:, 0])[-1]
-        return self.FILTER_DELAY[i, 1]
-
-
-class DIChannel(InputChannel):
-    pass
-
-
-class DOChannel(OutputChannel):
-    pass
+    # Expected input range (min/max)
+    expected_range = d_(Tuple()).tag(metadata=True)

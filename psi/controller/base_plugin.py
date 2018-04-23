@@ -13,7 +13,7 @@ from enaml.qt.QtCore import QTimer
 from enaml.workbench.api import Extension
 from enaml.workbench.plugin import Plugin
 
-from .channel import Channel, OutputChannel, InputChannel
+from .channel import Channel, OutputMixin, InputMixin
 from .engine import Engine
 from .output import Output, Synchronized
 from .input import Input
@@ -80,7 +80,7 @@ def find_outputs(channels, point):
 
     # Find all the outputs already connected to a channel
     for c in channels.values():
-        if isinstance(c, OutputChannel):
+        if isinstance(c, OutputMixin):
             for o in c.outputs:
                 outputs[o.name] = o
 
@@ -102,7 +102,7 @@ def find_inputs(channels, point):
 
     # Find all the outputs already connected to a channel
     for c in channels.values():
-        if isinstance(c, InputChannel):
+        if isinstance(c, InputMixin):
             for i in c.children:
                 for ci in get_inputs(i):
                     inputs[ci.name] = ci

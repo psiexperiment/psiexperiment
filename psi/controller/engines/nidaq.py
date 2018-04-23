@@ -20,7 +20,6 @@ log = logging.getLogger(__name__)
 log_ai = logging.getLogger(__name__ + '.ai')
 log_ao = logging.getLogger(__name__ + '.ao')
 
-
 import types
 import ctypes
 from collections import OrderedDict
@@ -29,11 +28,74 @@ from threading import Timer
 
 import numpy as np
 import PyDAQmx as mx
-from atom.api import Float, Typed, Unicode, Int, Bool, Callable
+from atom.api import (Float, Typed, Unicode, Int, Bool, Callable, Enum,
+                      Property, Unicode)
 from enaml.core.api import Declarative, d_
 
 from ..calibration.util import dbi
 from ..engine import Engine
+from ..channel import HardwareAIChannel, HardwareAOChannel
+
+
+################################################################################
+# Engine-specific channels
+################################################################################
+class NIDAQGeneralMixin(Declarative):
+
+    # Channel identifier (e.g., /Dev1/ai0)
+    channel = d_(Unicode()).tag(metadata=True)
+
+
+class NIDAQTimingMixin(Declarative):
+
+    # If specifying a sample clock, you still need to specify fs.
+    sample_clock = d_(Unicode().tag(metadata=True))
+    start_trigger = d_(Unicode().tag(metadata=True))
+
+    # A good value is 'PXI_Clk10'
+    reference_clock = d_(Unicode()).tag(metadata=True)
+
+
+class NIDAQHardwareAOChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
+                             HardwareAOChannel):
+
+    # Not all terminal modes may be supported by a particular device
+    TERMINAL_MODES = 'pseudodifferential', 'differential', 'RSE'
+    terminal_mode = d_(Enum(*TERMINAL_MODES)).tag(metadata=True)
+
+    filter_delay = Property().tag(metadata=True)
+
+    # Filter delay lookup table for different sampling rates. The first column
+    # is the lower bound (exclusive) of the sampling rate (in samples/sec) for
+    # the filter delay (second column, in samples). The upper bound of the
+    # range (inclusive) for the sampling rate is denoted by the next row.
+    # e.g., if FILTER_DELAY[i, 0] < fs <= FILTER_DELAY[i+1, 0] is True, then
+    # the filter delay is FILTER_DELAY[i, 1].
+    FILTER_DELAY = np.array([
+        (  1.0e3, 36.6),
+        (  1.6e3, 36.8),
+        (  3.2e3, 37.4),
+        (  6.4e3, 38.5),
+        ( 12.8e3, 40.8),
+        ( 25.6e3, 43.2),
+        ( 51.2e3, 48.0),
+        (102.4e3, 32.0),
+    ])
+
+    def _get_filter_delay(self):
+        i = np.flatnonzero(self.fs > self.FILTER_DELAY[:, 0])[-1]
+        return self.FILTER_DELAY[i, 1]
+
+
+class NIDAQHardwareAIChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
+                             HardwareAIChannel):
+
+    # Not all terminal modes may be supported by a particular device
+    TERMINAL_MODES = 'pseudodifferential', 'differential', 'RSE', 'NRSE'
+    terminal_mode = d_(Enum(*TERMINAL_MODES)).tag(metadata=True)
+
+    # Not all terminal couplings may be supported by a particular device.
+    terminal_coupling = d_(Enum(None, 'AC', 'DC', 'ground')).tag(metadata=True)
 
 
 ################################################################################
@@ -157,7 +219,7 @@ def hw_ai_helper(cb, channels, discard, task, event_type=None, cb_samples=None,
 ################################################################################
 # Configuration functions
 ################################################################################
-def setup_timing(task, fs, samples=-1, start_trigger=None):
+def setup_timing(task, channels, delay=0):
     '''
     Configures timing for task
 
@@ -165,30 +227,33 @@ def setup_timing(task, fs, samples=-1, start_trigger=None):
     ----------
     task : niDAQmx task handle
         Task to configure timing for
-    fs : string or float
-        If string, must be the name of a sample clock (e.g. ao/SampleClock) that
-        the acquistion will be tied to. If float, the internal sample clock for
-        that task will be used and the sample rate will be set to fs.
-    samples : int
-        If -1, the task will be set to continuous acquistion. If finite, the
-        task will be set to acquire the specified number of samples.
-    start_trigger : string
-        Name of digtial line to start acquisition on. Can be set to any PFI line
-        or to one of the analog sources (e.g., ao/StartTrigger or
-        ai/StartTrigger).
+    channels : list of channels
+        List of channels to configure
+
+    References
+    ----------
+    http://www.ni.com/white-paper/11369/en/
+    http://www.ni.com/pdf/manuals/371235h.pdf
     '''
+    fs = get_channel_property(channels, 'fs')
+    sample_clock = get_channel_property(channels, 'sample_clock')
+    start_trigger = get_channel_property(channels, 'start_trigger')
+    samples = get_channel_property(channels, 'samples')
+    reference_clock = get_channel_property(channels, 'reference_clock')
+
+    if reference_clock:
+        mx.DAQmxSetRefClkSrc(task, 'PXI_Clk10')
+
     if start_trigger:
         mx.DAQmxCfgDigEdgeStartTrig(task, start_trigger, mx.DAQmx_Val_Rising)
-    if isinstance(fs, str):
-        sample_clock = fs
-        fs = 200e3
-    else:
-        sample_clock = ''
-    if samples == -1:
+
+    if samples == 0:
         sample_mode = mx.DAQmx_Val_ContSamps
-        samples = int(fs)
+        samples = 2
     else:
         sample_mode = mx.DAQmx_Val_FiniteSamps
+        samples += delay
+
     mx.DAQmxCfgSampClkTiming(task, sample_clock, fs, mx.DAQmx_Val_Rising,
                              sample_mode, samples)
 
@@ -216,28 +281,44 @@ def create_task(name=None):
     return task
 
 
-def setup_hw_ao(fs, lines, expected_range, callback, callback_samples,
-                start_trigger=None, terminal_mode=None, buffer_samples=None,
+def setup_hw_ao(channels, buffer_duration, callback_interval, callback,
                 task_name='hw_ao'):
 
-    # TODO: DAQmxSetAOTermCfg
+    lines = get_channel_property(channels, 'channel', True)
+    names = get_channel_property(channels, 'name', True)
+    log.debug('Configuring lines {}'.format(lines))
+
+    start_trigger = get_channel_property(channels, 'start_trigger')
+    expected_range = get_channel_property(channels, 'expected_range')
+    terminal_mode = get_channel_property(channels, 'terminal_mode')
+
+
+    lines = ','.join(lines)
+    terminal_mode = NIDAQEngine.terminal_mode_map[terminal_mode]
+
     task = create_task(task_name)
-    lb, ub = expected_range
-    mx.DAQmxCreateAOVoltageChan(task, lines, '', lb, ub, mx.DAQmx_Val_Volts, '')
-    setup_timing(task, fs, -1, start_trigger)
+    mx.DAQmxCreateAOVoltageChan(task, lines, '', expected_range[0],
+                                expected_range[1], mx.DAQmx_Val_Volts, '')
+
+    setup_timing(task, channels)
+    properties = get_timing_config(task)
+    fs = properties['sample clock rate']
+    log_ao.info('AO timing properties: %r', properties)
 
     if terminal_mode is not None:
         mx.DAQmxSetAOTermCfg(task, lines, terminal_mode)
-
-    if start_trigger:
-        mx.DAQmxCfgDigEdgeStartTrig(task, start_trigger, mx.DAQmx_Val_Rising)
 
     # If the write reaches the end of the buffer and no new data has been
     # provided, do not loop around to the beginning and start over.
     mx.DAQmxSetWriteRegenMode(task, mx.DAQmx_Val_DoNotAllowRegen)
 
-    if buffer_samples is None:
-        buffer_samples = int(callback_samples*10)
+    callback_samples = round(fs*callback_interval)
+
+    if buffer_duration is None:
+        buffer_samples = round(callback_samples*10)
+    else:
+        buffer_samples = round(buffer_duration*fs)
+
     log_ao.debug('Setting output buffer size to %d samples', buffer_samples)
     mx.DAQmxSetBufOutputBufSize(task, buffer_samples)
     task._buffer_samples = buffer_samples
@@ -284,46 +365,79 @@ def setup_hw_ao(fs, lines, expected_range, callback, callback_samples,
         task._cb_ptr, None)
 
     mx.DAQmxTaskControl(task, mx.DAQmx_Val_Task_Verify)
+    task._names = verify_channel_names(task, names)
+    task._devices = device_list(task)
+    task._fs = fs
     return task
 
 
-def setup_hw_ai(fs, lines, expected_range, callback, callback_samples,
-                start_trigger, terminal_mode, terminal_coupling,
-                samples=-1, excitation=None, task_name='hw_ai'):
+def get_timing_config(task):
+    properties = {}
+    info = ctypes.c_double()
+    mx.DAQmxGetSampClkRate(task, info)
+    properties['sample clock rate'] = info.value
+    mx.DAQmxGetSampClkTimebaseRate(task, info)
+    properties['sample clock timebase rate'] = info.value
+    info = ctypes.c_buffer(256)
+    mx.DAQmxGetSampClkSrc(task, info, len(info))
+    properties['sample clock source'] = str(info.value)
+    mx.DAQmxGetSampClkTimebaseSrc(task, info, len(info))
+    properties['sample clock timebase source'] = str(info.value)
+    info = ctypes.c_uint32()
+    try:
+        mx.DAQmxGetSampClkTimebaseDiv(task, info)
+        properties['sample clock timebase divisor'] = info.value
+    except:
+        pass
+
+    return properties
+
+
+def setup_hw_ai(channels, callback_duration, callback, task_name='hw_ao'):
+    log.debug('Configuring HW AI channels')
+
+    # These properties can vary on a per-channel basis
+    lines = get_channel_property(channels, 'channel', True)
+    names = get_channel_property(channels, 'name', True)
+    gains = get_channel_property(channels, 'gain', True)
+
+    # These properties must be the same across all channels
+    expected_range = get_channel_property(channels, 'expected_range')
+    samples = get_channel_property(channels, 'samples')
+    terminal_mode = get_channel_property(channels, 'terminal_mode')
+    terminal_coupling = get_channel_property(channels, 'terminal_coupling')
+
+    # Convert to representation required by NI functions
+    lines = ','.join(lines)
+    log.debug('Configuring lines {}'.format(lines))
+
+    terminal_mode = NIDAQEngine.terminal_mode_map[terminal_mode]
+    terminal_coupling = NIDAQEngine.terminal_coupling_map[terminal_coupling]
 
     task = create_task(task_name)
-    lb, ub = expected_range
-    mx.DAQmxCreateAIVoltageChan(task, lines, '', terminal_mode, lb, ub,
+    mx.DAQmxCreateAIVoltageChan(task, lines, '', terminal_mode,
+                                expected_range[0], expected_range[1],
                                 mx.DAQmx_Val_Volts, '')
-    setup_timing(task, fs, samples, start_trigger)
+
     if terminal_coupling is not None:
         mx.DAQmxSetAICoupling(task, lines, terminal_coupling)
 
+    setup_timing(task, channels)
+    properties = get_timing_config(task)
+    log_ai.info('AI timing properties: %r', properties)
+
     result = ctypes.c_uint32()
-    #mx.DAQmxGetBufInputBufSize(task, result)
-    #buffer_size = result.value
     mx.DAQmxGetTaskNumChans(task, result)
     n_channels = result.value
 
-    #log_ai.debug('Buffer size for %s automatically allocated as %d samples',
-    #          lines, buffer_size)
-    #log_ai.debug('%d channels in task', n_channels)
-
-    #new_buffer_size = np.ceil(buffer_size/callback_samples)*callback_samples
-    #mx.DAQmxSetBufInputBufSize(task, int(new_buffer_size))
-    #n_channels = 1
-
+    fs = properties['sample clock rate']
+    callback_samples = round(callback_duration * fs)
     mx.DAQmxSetReadOverWrite(task, mx.DAQmx_Val_DoNotOverwriteUnreadSamps)
     mx.DAQmxSetBufInputBufSize(task, callback_samples*100)
     mx.DAQmxGetBufInputBufSize(task, result)
     buffer_size = result.value
     log_ai.debug('Buffer size for %s set to %d samples', lines, buffer_size)
 
-    info = ctypes.c_double()
-    mx.DAQmxGetSampClkRate(task, info)
-    log_ai.debug('AI sample rate'.format(info.value))
-    mx.DAQmxGetSampClkTimebaseRate(task, info)
-    log_ai.debug('AI timebase {}'.format(info.value))
     try:
         info = ctypes.c_int32()
         mx.DAQmxSetAIFilterDelayUnits(task, lines,
@@ -336,7 +450,7 @@ def setup_hw_ai(fs, lines, expected_range, callback, callback_samples,
         # Ensure timing is compensated for the planned filter delay since these
         # samples will be discarded.
         if samples > 0:
-            setup_timing(task, fs, samples + filter_delay, start_trigger)
+            setup_timing(task, channels, filter_delay)
 
     except mx.DAQError:
         # Not a supported property. Set filter delay to 0 by default.
@@ -349,6 +463,11 @@ def setup_hw_ai(fs, lines, expected_range, callback, callback_samples,
         task._cb_ptr, None)
 
     mx.DAQmxTaskControl(task, mx.DAQmx_Val_Task_Verify)
+
+    task._names = verify_channel_names(task, names)
+    task._devices = device_list(task)
+    task._sf = dbi(gains)[..., np.newaxis]
+    task._fs = properties['sample clock rate']
     return task
 
 
@@ -543,23 +662,7 @@ class NIDAQEngine(Engine):
 
         if hw_ai_channels:
             log.debug('Configuring HW AI channels')
-            lines = ','.join(get_channel_property(hw_ai_channels, 'channel', True))
-            names = get_channel_property(hw_ai_channels, 'name', True)
-            fs = get_channel_property(hw_ai_channels, 'fs')
-            start_trigger = get_channel_property(hw_ai_channels, 'start_trigger')
-            expected_range = get_channel_property(hw_ai_channels, 'expected_range')
-            samples = get_channel_property(hw_ai_channels, 'samples')
-            gains = get_channel_property(hw_ai_channels, 'gain', True)
-
-            tmode = get_channel_property(hw_ai_channels, 'terminal_mode')
-            tcoupling = get_channel_property(hw_ai_channels, 'terminal_coupling')
-            terminal_mode = self.terminal_mode_map[tmode]
-            terminal_coupling = self.terminal_coupling_map[tcoupling]
-
-            self.configure_hw_ai(fs, lines, expected_range, names,
-                                 start_trigger, terminal_mode,
-                                 terminal_coupling, samples, gains)
-            self.ai_fs = fs
+            self.configure_hw_ai(hw_ai_channels)
 
         if hw_di_channels:
             log.debug('Configuring HW DI channels')
@@ -584,16 +687,7 @@ class NIDAQEngine(Engine):
         # tasks are started.
         if hw_ao_channels:
             log.debug('Configuring HW AO channels')
-            lines = ','.join(get_channel_property(hw_ao_channels, 'channel', True))
-            names = get_channel_property(hw_ao_channels, 'name', True)
-            fs = get_channel_property(hw_ao_channels, 'fs')
-            start_trigger = get_channel_property(hw_ao_channels, 'start_trigger')
-            expected_range = get_channel_property(hw_ao_channels, 'expected_range')
-            tmode = get_channel_property(hw_ao_channels, 'terminal_mode')
-            terminal_mode = self.terminal_mode_map[tmode]
-            self.configure_hw_ao(fs, lines, expected_range, names,
-                                 start_trigger, terminal_mode)
-            self.ao_fs = fs
+            self.configure_hw_ao(hw_ao_channels)
 
         # Choose sample clock based on what channels have been configured.
         if hw_ao_channels:
@@ -640,8 +734,7 @@ class NIDAQEngine(Engine):
             for cb in self._callbacks.get('done', []):
                 cb()
 
-    def configure_hw_ao(self, fs, lines, expected_range, names=None,
-                        start_trigger=None, terminal_mode=None):
+    def configure_hw_ao(self, channels):
         '''
         Initialize hardware-timed analog output
 
@@ -658,35 +751,18 @@ class NIDAQEngine(Engine):
             newer ones) will optimize the output resolution based on the
             expected range of the signal.
         '''
-
-        log.debug('Configuring lines {}'.format(lines))
-        callback_samples = int(self.hw_ao_monitor_period*fs)
-        buffer_samples = int(self.hw_ao_buffer_size*fs)
-        task_name = '{}_hw_ao'.format(self.name)
-        task = setup_hw_ao(fs, lines, expected_range, self.hw_ao_callback,
-                           callback_samples, start_trigger, terminal_mode,
-                           buffer_samples, task_name)
-
-        task._names = verify_channel_names(task, names)
-        task._devices = device_list(task)
-
+        task = setup_hw_ao(channels, self.hw_ao_buffer_size,
+                           self.hw_ao_monitor_period, self.hw_ao_callback,
+                           '{}_hw_ao'.format(self.name))
         self._tasks['hw_ao'] = task
+        self.ao_fs = task._fs
 
-    def configure_hw_ai(self, fs, lines, expected_range, names=None,
-                        start_trigger=None, terminal_mode=None,
-                        terminal_coupling=None, samples=-1, gains=None):
-
-        log.debug('Configuring lines {}'.format(lines))
+    def configure_hw_ai(self, channels):
         task_name = '{}_hw_ai'.format(self.name)
-        callback_samples = int(self.hw_ai_monitor_period*fs)
-        task = setup_hw_ai(fs, lines, expected_range, self._hw_ai_callback,
-                           callback_samples, start_trigger, terminal_mode,
-                           terminal_coupling, samples, None, task_name)
-        task._fs = fs
-        task._names = verify_channel_names(task, names)
-        task._devices = device_list(task)
-        task._sf = dbi(gains)[..., np.newaxis]
+        task = setup_hw_ai(channels, self.hw_ai_monitor_period,
+                           self._hw_ai_callback, task_name)
         self._tasks['hw_ai'] = task
+        self.ai_fs = task._fs
 
     def configure_sw_ao(self, lines, expected_range, names=None,
                         initial_state=None):
