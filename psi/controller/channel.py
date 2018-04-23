@@ -39,26 +39,33 @@ class Channel(Declarative):
     # Is channel active during experiment?
     active = Property()
 
+    def __init__(self, *args, **kwargs):
+        # This is a hack due to the fact that name is defined as a Declarative
+        # member and each Mixin will overwrite whether or not the name is
+        # tagged.
+        super().__init__(*args, **kwargs)
+        self.members()['name'].tag(metadata=True)
+
     def _get_engine(self):
         return self.parent
 
     def _set_engine(self, engine):
         self.set_parent(engine)
 
-    def _get_active(self):
-        raise NotImplementedError
-
     def configure(self):
         pass
 
+    def _get_active(self):
+        raise NotImplementedError
 
-class HardwareMixin(Channel):
+
+class HardwareMixin(Declarative):
 
     # For software-timed channels, set sampling frequency to 0.
     fs = d_(Float()).tag(metadata=True)
 
 
-class SoftwareMixin(Channel):
+class SoftwareMixin(Declarative):
     pass
 
 
