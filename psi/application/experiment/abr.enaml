@@ -157,7 +157,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 'input_name': 'microphone',
                 'output_name': 'target',
                 'parameter_names': ['target_tone_frequency'],
-                'gain': -40,
+                'gain': -50,
                 'max_thd': None,
                 'min_snr': None,
                 'duration': 0.1,
