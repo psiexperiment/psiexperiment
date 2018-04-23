@@ -151,6 +151,14 @@ def _main(args):
     ui.start_application()
 
 
+def list_preferences(experiment):
+    p_root = get_config('PREFERENCES_ROOT')
+    p_wildcard = get_config('PREFERENCES_WILDCARD')
+    p_glob = p_wildcard[:-1].split('(')[1]
+    p_search = os.path.join(p_root, experiment, p_glob)
+    return glob(p_search)
+
+
 def launch_experiment(args):
     # Map to the actual controller module.
     args.controller = experiments[args.experiment]
