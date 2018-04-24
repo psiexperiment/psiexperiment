@@ -60,8 +60,6 @@ class Channel(Declarative):
 
 
 class HardwareMixin(Declarative):
-
-    # For software-timed channels, set sampling frequency to 0.
     fs = d_(Float()).tag(metadata=True)
 
 
@@ -96,11 +94,14 @@ class InputMixin(Declarative):
 
 
 class AnalogMixin(Declarative):
-    pass
+
+    # Expected input range (min/max)
+    expected_range = d_(Tuple()).tag(metadata=True)
 
 
 class DigitalMixin(Declarative):
-    pass
+
+    dtype = 'bool'
 
 
 class OutputMixin(Declarative):
@@ -135,8 +136,6 @@ class OutputMixin(Declarative):
 
 class HardwareAOChannel(AnalogMixin, OutputMixin, HardwareMixin, Channel):
 
-    expected_range = d_(Tuple()).tag(metadata=True)
-
     def get_samples(self, offset, samples, out=None):
         if out is None:
             out = np.empty(samples, dtype=np.double)
@@ -147,11 +146,35 @@ class HardwareAOChannel(AnalogMixin, OutputMixin, HardwareMixin, Channel):
         return np.sum(waveforms, axis=0, out=out)
 
 
+class SoftwareAOChannel(AnalogMixin, OutputMixin, SoftwareMixin, Channel):
+    pass
+
+
 class HardwareAIChannel(AnalogMixin, InputMixin, HardwareMixin, Channel):
 
     # Gain in dB of channel (e.g., due to a microphone preamp). The signal will
     # be scaled down before further processing.
     gain = d_(Float()).tag(metadata=True)
 
-    # Expected input range (min/max)
-    expected_range = d_(Tuple()).tag(metadata=True)
+
+class SoftwareAIChannel(AnalogMixin, InputMixin, SoftwareMixin, Channel):
+
+    # Gain in dB of channel (e.g., due to a microphone preamp). The signal will
+    # be scaled down before further processing.
+    gain = d_(Float()).tag(metadata=True)
+
+
+class HardwareDOChannel(DigitalMixin, OutputMixin, HardwareMixin, Channel):
+    pass
+
+
+class SoftwareDOChannel(DigitalMixin, OutputMixin, SoftwareMixin, Channel):
+    pass
+
+
+class HardwareDIChannel(DigitalMixin, InputMixin, HardwareMixin, Channel):
+    pass
+
+
+class SoftwareDIChannel(DigitalMixin, InputMixin, SoftwareMixin, Channel):
+    pass

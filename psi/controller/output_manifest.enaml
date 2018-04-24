@@ -14,6 +14,7 @@ from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
 
 from psi.context.api import ContextGroup, Parameter
 from psi.experiment.api import ItemPreferences, Preferences
+from psi.token.primitives import FixedWaveform
 
 from psi.core.enaml.api import PSIManifest
 from .experiment_action import ExperimentState, ExperimentEvent, ExperimentAction
@@ -304,7 +305,13 @@ enamldef SynchronizedManifest(PSIManifest): manifest:
             handler = partial(clear_synchronized, manifest.contribution)
 
 
-def load_items(output, block, scope='trial'):
+def load_items(output, block):
+    from .output import ContinuousOutput
+    if isinstance(output, ContinuousOutput):
+        scope = 'experiment'
+    else:
+        scope = 'trial'
+
     if block is None:
         return []
 
@@ -326,7 +333,7 @@ def load_items(output, block, scope='trial'):
     block.context_name_map = block_map
 
     for block in block.blocks:
-        block_parameters = load_items(output, block, scope)
+        block_parameters = load_items(output, block)
         parameters.extend(block_parameters)
 
     return parameters

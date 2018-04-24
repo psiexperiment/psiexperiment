@@ -34,7 +34,9 @@ from enaml.core.api import Declarative, d_
 
 from ..calibration.util import dbi
 from ..engine import Engine
-from ..channel import HardwareAIChannel, HardwareAOChannel
+from ..channel import (HardwareAIChannel, HardwareAOChannel, 
+                       HardwareDIChannel, HardwareDOChannel, 
+                       SoftwareDIChannel, SoftwareDOChannel)
 
 
 ################################################################################
@@ -96,6 +98,25 @@ class NIDAQHardwareAIChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
 
     # Not all terminal couplings may be supported by a particular device.
     terminal_coupling = d_(Enum(None, 'AC', 'DC', 'ground')).tag(metadata=True)
+
+
+class NIDAQHardwareDIChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
+                             HardwareDIChannel):
+    pass
+
+
+class NIDAQHardwareDOChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
+                             HardwareDOChannel):
+    pass
+
+
+class NIDAQSoftwareDIChannel(NIDAQGeneralMixin, SoftwareDIChannel):
+    pass
+
+
+class NIDAQSoftwareDOChannel(NIDAQGeneralMixin, SoftwareDOChannel):
+    pass
+
 
 
 ################################################################################
@@ -531,10 +552,20 @@ def setup_sw_ao(lines, expected_range, task_name='sw_ao'):
     return task
 
 
-def setup_sw_do(lines, task_name='sw_do'):
+def setup_sw_do(channels, task_name='sw_do'):
     task = create_task(task_name)
+
+    lines = get_channel_property(channels, 'channel', True)
+    names = get_channel_property(channels, 'name', True)
+
+    lines = ','.join(lines)
     mx.DAQmxCreateDOChan(task, lines, '', mx.DAQmx_Val_ChanForAllLines)
     mx.DAQmxTaskControl(task, mx.DAQmx_Val_Task_Verify)
+
+    #task._names = verify_channel_names(task, names)
+    task._names = names
+    task._devices = device_list(task)
+
     return task
 
 
@@ -658,24 +689,25 @@ class NIDAQEngine(Engine):
             log.debug('Configuring SW DO channels')
             lines = ','.join(get_channel_property(sw_do_channels, 'channel', True))
             names = get_channel_property(sw_do_channels, 'name', True)
-            self.configure_sw_do(lines, names)
+            self.configure_sw_do(sw_do_channels)
 
         if hw_ai_channels:
             log.debug('Configuring HW AI channels')
             self.configure_hw_ai(hw_ai_channels)
 
         if hw_di_channels:
-            log.debug('Configuring HW DI channels')
-            lines = ','.join(get_channel_property(hw_di_channels, 'channel', True))
-            names = get_channel_property(hw_di_channels, 'name', True)
-            fs = get_channel_property(hw_di_channels, 'fs')
-            start_trigger = get_channel_property(hw_di_channels, 'start_trigger')
-            # Required for M-series to enable hardware-timed digital
-            # acquisition. TODO: Make this a setting that can be configured
-            # since X-series doesn't need this hack.
-            device = hw_di_channels[0].channel.strip('/').split('/')[0]
-            clock = '/{}/Ctr0'.format(device)
-            self.configure_hw_di(fs, lines, names, start_trigger, clock)
+            raise NotImplementedError
+            #log.debug('Configuring HW DI channels')
+            #lines = ','.join(get_channel_property(hw_di_channels, 'channel', True))
+            #names = get_channel_property(hw_di_channels, 'name', True)
+            #fs = get_channel_property(hw_di_channels, 'fs')
+            #start_trigger = get_channel_property(hw_di_channels, 'start_trigger')
+            ## Required for M-series to enable hardware-timed digital
+            ## acquisition. TODO: Make this a setting that can be configured
+            ## since X-series doesn't need this hack.
+            #device = hw_di_channels[0].channel.strip('/').split('/')[0]
+            #clock = '/{}/Ctr0'.format(device)
+            #self.configure_hw_di(fs, lines, names, start_trigger, clock)
 
         # Configure the analog output last because acquisition is synced with
         # the analog output signal (i.e., when the analog output starts, the
@@ -766,6 +798,7 @@ class NIDAQEngine(Engine):
 
     def configure_sw_ao(self, lines, expected_range, names=None,
                         initial_state=None):
+        raise NotImplementedError
         if initial_state is None:
             initial_state = np.zeros(len(names), dtype=np.double)
         task_name = '{}_sw_ao'.format(self.name)
@@ -776,6 +809,7 @@ class NIDAQEngine(Engine):
         self.write_sw_ao(initial_state)
 
     def configure_hw_di(self, fs, lines, names=None, trigger=None, clock=None):
+        raise NotImplementedError
         callback_samples = int(self.hw_ai_monitor_period*fs)
         task_name = '{}_hw_di'.format(self.name)
         task, clock_task = setup_hw_di(fs, lines, self._hw_di_callback,
@@ -791,15 +825,11 @@ class NIDAQEngine(Engine):
     def configure_hw_do(self, fs, lines, names):
         raise NotImplementedError
 
-    def configure_sw_do(self, lines, names=None, initial_state=None):
-        if initial_state is None:
-            initial_state = np.zeros(len(names), dtype=np.uint8)
+    def configure_sw_do(self, channels):
         task_name = '{}_sw_do'.format(self.name)
-        task = setup_sw_do(lines, task_name)
-        #task._names = verify_channel_names(task, names)
-        task._names = names
-        task._devices = device_list(task)
+        task = setup_sw_do(channels, task_name)
         self._tasks['sw_do'] = task
+        initial_state = np.zeros(len(channels), dtype=np.uint8)
         self.write_sw_do(initial_state)
 
     def configure_et(self, lines, clock, names=None):
