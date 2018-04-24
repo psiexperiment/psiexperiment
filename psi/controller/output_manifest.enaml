@@ -1,6 +1,7 @@
 import logging
 log =  logging.getLogger(__name__)
 
+import copy
 from functools import partial
 from collections import defaultdict
 
@@ -50,7 +51,8 @@ def set_token(event, output, output_type):
     # TODO: This is a hack. Maybe?
     context_plugin = event.workbench.get_plugin('psi.context')
     context_plugin._refresh_items()
-    
+
+
 def prepare_output(event, output):
     '''
     Set up the factory in preparation for producing the signal. This allows the
@@ -60,6 +62,7 @@ def prepare_output(event, output):
     log.debug('Preparing output %s', output.name)
     core = event.workbench.get_plugin('enaml.workbench.core')
     context = core.invoke_command('psi.context.get_values')
+
     context['fs'] = output.fs
     context['calibration'] = output.calibration
 
@@ -77,9 +80,9 @@ def add_setting_to_epoch_output(setting, output):
     averages = setting['{}_averages'.format(output.name)]
     iti_duration = setting['{}_iti_duration'.format(output.name)]
 
-    # Somewhat surprisingly it appears to be faster to use factories in
-    # the queue rather than creating the waveforms for ABR tone pips,
-    # even for very short signal durations.
+    # Somewhat surprisingly it appears to be faster to use factories in the
+    # queue rather than creating the waveforms for ABR tone pips, even for very
+    # short signal durations.
     setting['fs'] = output.fs
     setting['calibration'] = output.calibration
     factory = output.token.initialize_factory(setting)
@@ -301,10 +304,32 @@ enamldef SynchronizedManifest(PSIManifest): manifest:
             handler = partial(clear_synchronized, manifest.contribution)
 
 
-def load_items(output, token):
-    if token is None:
+def load_items(output, block, scope='trial'):
+    if block is None:
         return []
-    return token.get_context_items()
+
+    block_map = {}
+    parameters = []
+    for parameter in block.parameters:
+        new_parameter = copy.copy(parameter)
+        new_parameter.name = '{}_{}_{}' \
+            .format(output.name, block.name, parameter.name)
+        new_parameter.label = '{} {}' \
+            .format(block.label, parameter.label)
+        new_parameter.compact_label = '{} {}' \
+            .format(block.label, parameter.compact_label)
+        new_parameter.group = output.name
+        new_parameter.scope = scope
+        parameters.append(new_parameter)
+        block_map[new_parameter.name] = parameter.name
+
+    block.context_name_map = block_map
+
+    for block in block.blocks:
+        block_parameters = load_items(output, block, scope)
+        parameters.extend(block_parameters)
+
+    return parameters
 
 
 enamldef AnalogOutputManifest(PSIManifest): manifest:
@@ -353,16 +378,6 @@ enamldef AnalogOutputManifest(PSIManifest): manifest:
                 enabled << workbench.get_plugin('psi.controller').experiment_state \
                     in ('initialized', 'stopped')
 
-    #Extension:
-    #    # For some reason this doesn't get loaded if it's lumped together with
-    #    # the following extension, so I've split them out. Not sure why. Some
-    #    # exception is getting swallowed silently.
-    #    id = 'groups.' + manifest.contribution.name
-    #    point = 'psi.context.items'
-    #    ContextGroup:
-    #        name = manifest.contribution.name
-    #        label = manifest.contribution.label
-
     Extension:
         id = 'items.' + manifest.contribution.name
         point = 'psi.context.items'
@@ -373,7 +388,8 @@ enamldef AnalogOutputManifest(PSIManifest): manifest:
 
         Include:
             # list provides an empty list of context items if needed.
-            objects << load_items(manifest.contribution, manifest.contribution.token)
+            objects << load_items(manifest.contribution,
+                                  manifest.contribution.token)
 
     Extension:
         id = 'actions.' + manifest.contribution.name

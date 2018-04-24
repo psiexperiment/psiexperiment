@@ -48,17 +48,10 @@ class TokenPlugin(Plugin):
         self.workbench.get_extension_point(TOKENS_POINT) \
             .unobserve('extensions', self._refresh_tokens)
 
-    def _generate_token(self, token, output_name, output_label, scope):
-        token = copy.copy(token)
-        token.configure_context_items(output_name, output_label, scope)
-        return token
-
     def generate_epoch_token(self, token_name, output_name, output_label):
         t = self._epoch_tokens[token_name]
-        return self._generate_token(t, output_name, output_label,
-                                    scope='trial')
+        return copy.copy(t)
 
     def generate_continuous_token(self, token_name, output_name, output_label):
         t = self._continuous_tokens[token_name]
-        return self._generate_token(t, output_name, output_label,
-                                    scope='experiment')
+        return copy.copy(t)

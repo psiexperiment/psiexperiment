@@ -28,30 +28,6 @@ class Block(Declarative):
     def _get_parameters(self):
         return self.get_children(Parameter)
 
-    def configure_context_items(self, output_name, output_label, scope):
-        self.context_name_map = {}
-        for item in self.parameters:
-            old_name = item.name
-            item.name = '{}_{}_{}'.format(output_name, self.name, item.name)
-            item.label = '{} {}'.format(self.label, item.label)
-            item.compact_label = '{} {} {}'.format(output_label, self.label,
-                                                   item.compact_label)
-            item.group = output_name
-            item.scope = scope
-            self.context_name_map[item.name] = old_name
-
-        for block in self.blocks:
-            block.configure_context_items(output_name, output_label, scope)
-
-    def get_context_items(self):
-        items = self.get_children(Parameter)
-        for block in self.get_children(Block):
-            items.extend(block.get_context_items())
-        return items
-
-    def get_context_names(self):
-        return [item.name for item in self.get_context_items()]
-
     def __copy__(self):
         cls = self.__class__
         result = cls.__new__(cls)
@@ -63,6 +39,7 @@ class Block(Declarative):
         return result
 
     def initialize_factory(self, context):
+        # TODO: Eventually move this out to the output manifest?
         input_factories = [b.initialize_factory(context) for b in self.blocks]
 
         # Pull out list of params accepted by factory class
@@ -81,6 +58,7 @@ class Block(Declarative):
             block_context['input_factory'] = input_factories[0]
         if 'input_factories' in params:
             block_context['input_factories'] = input_factories
+
         return self.factory(**block_context)
 
     def get_block_context(self, context):

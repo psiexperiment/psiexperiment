@@ -96,13 +96,13 @@ class Modulator(Waveform):
     Modulates an input waveform
     '''
     def get_duration(self):
-        return self.input_waveform.get_duration()
+        return self.input_factory.get_duration()
 
     def get_remaining_samples(self):
-        return self.input_waveform.get_remaining_samples()
+        return self.input_factory.get_remaining_samples()
 
     def is_complete(self):
-        return self.input_waveform.is_complete()
+        return self.input_factory.is_complete()
 
 
 ################################################################################
@@ -154,7 +154,7 @@ def cos2envelope(fs, offset, samples, start_time, rise_time, duration):
 class Cos2EnvelopeFactory(Modulator):
 
     def __init__(self, fs, start_time, rise_time, duration, calibration,
-                 input_waveform):
+                 input_factory):
         vars(self).update(locals())
         self.total_samples = (self.duration + self.start_time)*fs
         self.reset()
@@ -170,10 +170,10 @@ class Cos2EnvelopeFactory(Modulator):
 
     def reset(self):
         self.offset = 0
-        self.input_waveform.reset()
+        self.input_factory.reset()
 
     def next(self, samples):
-        token = self.input_waveform.next(samples)
+        token = self.input_factory.next(samples)
         envelope = cos2envelope(self.fs, self.offset, samples, self.start_time,
                                 self.rise_time, self.duration)
         waveform = envelope*token
