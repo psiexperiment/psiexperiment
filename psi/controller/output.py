@@ -207,9 +207,6 @@ class ContinuousOutput(AnalogOutput):
     def get_next_samples(self, samples):
         return self.factory.next(samples)
 
-    def _observe_token(self, event):
-        if self.token is not None:
-            self.token.configure_context_items(self.name, self.label, 'experiment')
 
 class DigitalOutput(Output):
     pass

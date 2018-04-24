@@ -5,9 +5,12 @@ import numpy as np
 from enaml.workbench.api import PluginManifest, Extension
 
 from psi import get_config
-from psi.controller.engines.nidaq import NIDAQEngine
-from psi.controller.api import (AIChannel, AOChannel, ExperimentAction,
-                                Trigger, Toggle, DOChannel, Input)
+from psi.controller.engines.nidaq import (NIDAQEngine, 
+                                          NIDAQHardwareAIChannel,
+                                          NIDAQHardwareAOChannel,
+                                          NIDAQSoftwareDOChannel)
+
+from psi.controller.api import (ExperimentAction, Trigger, Toggle, Input)
 
 from psi.controller.input import (Downsample, IIRFilter, Threshold, Edges,
                                   CalibratedInput, RMS, SPL,
@@ -73,7 +76,7 @@ enamldef IOManifest(PluginManifest): manifest:
             hw_ai_monitor_period = 0.025
             hw_ao_monitor_period = 1
 
-            AOChannel:
+            NIDAQHardwareAOChannel:
                 label = 'Speaker'
                 name = 'speaker'
                 channel = 'Dev1/ao0'
@@ -84,19 +87,15 @@ enamldef IOManifest(PluginManifest): manifest:
                 calibration = \
                     GolayCalibration.from_file(filename, fixed_gain=-21.5)
 
-            DOChannel:
+            NIDAQSoftwareDOChannel:
                 name = 'food_dispense'
                 channel = 'Dev1/port0/line0'
-                fs = 0
-                dtype = 'bool'
 
-            DOChannel:
+            NIDAQSoftwareDOChannel:
                 name = 'room_light'
                 channel = 'Dev1/port0/line1'
-                fs = 0
-                dtype = 'bool'
 
-            AIChannel: channel:
+            NIDAQHardwareAIChannel: channel:
                 label = 'Microphone'
                 name = 'microphone'
                 channel = 'Dev1/ai5'
@@ -110,7 +109,7 @@ enamldef IOManifest(PluginManifest): manifest:
                 CalibratedInput:
                     name = 'microphone'
 
-            AIChannel:
+            NIDAQHardwareAIChannel:
                 label = 'Nose poke IR'
                 name = 'nose_poke'
                 channel = 'Dev1/ai3'
@@ -137,7 +136,7 @@ enamldef IOManifest(PluginManifest): manifest:
                                 debounce = 2
                                 name = 'nose_poke'
 
-            AIChannel:
+            NIDAQHardwareAIChannel:
                 label = 'Reward IR'
                 unit = 'V'
                 name = 'reward_contact'
