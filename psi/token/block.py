@@ -17,8 +17,6 @@ class Block(Declarative):
     blocks = Property()
     parameters = Property()
 
-    _block_context = Typed(dict)
-
     def get_children(self, child_type):
         return [c for c in self.children if isinstance(c, child_type)]
 
