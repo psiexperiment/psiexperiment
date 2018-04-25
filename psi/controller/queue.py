@@ -28,7 +28,7 @@ def as_iterator(x):
     return x
 
 
-class AbstractSignalQueue(object):
+class AbstractSignalQueue:
 
     def __init__(self, initial_delay=1):
         '''
@@ -265,26 +265,14 @@ class InterleavedFIFOSignalQueue(AbstractSignalQueue):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._i = 0
+        self._i = -1
         self._complete = False
-
-    def decrement_key(self, key, n=1):
-        super().decrement_key(key, n)
-        if self._i >= len(self._ordering):
-            self._i = 0
 
     def next_key(self):
         if self._complete:
             raise QueueEmptyError
-        return self._ordering[self._i]
-
-    def pop_next(self, decrement=True):
-        key, data = super().pop_next(decrement)
-        # Advance i only if the current key is not removed.  If the current key
-        # was removed from _ordering, then the current value of i already
-        # points to the next key in the sequence.
         self._i = (self._i + 1) % len(self._ordering)
-        return key, data
+        return self._ordering[self._i]
 
     def decrement_key(self, key, n=1):
         if key not in self._ordering:
@@ -309,6 +297,35 @@ class RandomSignalQueue(AbstractSignalQueue):
             raise QueueEmptyError
         i = np.random.randint(0, self.count_waveforms())
         return self._ordering[i]
+
+
+class GroupedFIFOSignalQueue(FIFOSignalQueue):
+
+    def __init__(self, group_size, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._i = -1
+        self._group_size = group_size
+
+    def next_key(self):
+        if len(self._ordering) == 0:
+            raise QueueEmptyError
+        self._i = (self._i + 1) % self._group_size
+        return self._ordering[self._i]
+
+    def decrement_key(self, key, n=1):
+        if key not in self._ordering:
+            raise KeyError('{} not in queue'.format(key))
+        self._data[key]['trials'] -= n
+
+        # Check to see if the group is complete. Return from method if not
+        # complete.
+        for key in self._ordering[:self._group_size]:
+            if self._data[key]['trials'] > 0:
+                return
+
+        # If complete, remove the keys
+        for key in self._ordering[:self._group_size]:
+            self.remove_key(key)
 
 
 queues = {

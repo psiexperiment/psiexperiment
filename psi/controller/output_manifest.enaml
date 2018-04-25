@@ -77,9 +77,12 @@ def prepare_output(event, output):
     output.factory = factory
 
 
-def add_setting_to_epoch_output(setting, output):
-    averages = setting['{}_averages'.format(output.name)]
-    iti_duration = setting['{}_iti_duration'.format(output.name)]
+def add_setting_to_epoch_output(setting, output, averages=None,
+                                iti_duration=None):
+    if averages is None:
+        averages = setting['{}_averages'.format(output.name)]
+    if iti_duration is None:
+        iti_duration = setting['{}_iti_duration'.format(output.name)]
 
     # Somewhat surprisingly it appears to be faster to use factories in the
     # queue rather than creating the waveforms for ABR tone pips, even for very
@@ -106,7 +109,7 @@ def prepare_output_queue(event, output):
 
 def set_output_queue(event, output):
     queue_class = event.parameters['queue_class']
-    output.queue = queue_class(output.fs)
+    output.queue = queue_class()
 
 
 def prepare_synchronized(synchronized, event):

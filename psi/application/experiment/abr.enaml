@@ -9,15 +9,19 @@ from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 
 from psi.core.enaml.editable_table_widget import DataFrameTable
-from psi.context.api import ContextGroup, Parameter
+from psi.context.api import (ContextGroup, Parameter, BoolParameter,
+                             EnumParameter)
 from psi.context.selector import CartesianProduct
+
+from psi.controller import queue
 from psi.controller.api import ExperimentAction
 from psi.controller.base_plugin import BasePlugin
 from psi.controller.base_manifest import BaseManifest
 from psi.controller.input import (ContinuousInput, ExtractEpochs, Input,
                                   Blocked, Accumulate, RejectEpochs, IIRFilter,
-                                  Decimate, RMS, Downsample)
-from psi.controller.output import SelectorQueuedEpochOutput, EpochOutput
+                                  Decimate, Downsample)
+from psi.controller.output import QueuedEpochOutput, EpochOutput
+from psi.controller.output_manifest import add_setting_to_epoch_output
 from psi.controller.queue import InterleavedFIFOSignalQueue
 
 from psi.util import copy_declarative
@@ -37,8 +41,53 @@ from psi.controller.calibration import FlatCalibration
 def configure_hardware(event):
     context = event.workbench.get_plugin('psi.context')
     controller = event.workbench.get_plugin('psi.controller')
+
     threshold = context.get_value('reject_threshold')
+    ordering = context.get_value('ordering')
+    alternate_polarity = context.get_value('alternate_polarity')
+    tone_duration = context.get_value('target_tone_burst_duration')
+    rate = context.get_value('rate')
+    averages = context.get_value('averages')
+
+    if alternate_polarity and (averages % 2):
+        # Round to the nearest multiple of 2
+        averages = (int(averages/2) + 1) * 2
+
+    # Compensate for the tone duration. ITI is the time from tone offset to
+    # tone offset.
+    iti = 1/rate - tone_duration
+    if iti <= 0:
+        raise ValueError('Repetition rate is too fast')
+
     controller.set_input_attr('valid_erp', 'threshold', threshold)
+    target = controller.get_output('target')
+
+    # Configure the queues
+    if ordering == 'interleaved':
+        target.queue = queue.InterleavedFIFOSignalQueue()
+    elif ordering == 'sequential':
+        target.queue = queue.FIFOSignalQueue()
+    else:
+        raise ValueError('Unrecognized ordering {}'.format(ordering))
+
+    if not alternate_polarity:
+        for setting in context.iter_settings('default', 1):
+            add_setting_to_epoch_output(setting, target, averages, iti)
+    elif ordering == 'interleaved':
+        for setting in context.iter_settings('default', 1):
+            setting['output_tone_polarity'] = 1
+            add_setting_to_epoch_output(setting, target, averages, iti)
+        for setting in context.iter_settings('default', 1):
+            setting['output_tone_polarity'] = -1
+            add_setting_to_epoch_output(setting, target, averages, iti)
+    elif ordering == 'sequential':
+        for setting in context.iter_settings('default', 1):
+            setting['output_tone_polarity'] = 1
+            add_setting_to_epoch_output(setting, target, averages, iti)
+            setting['output_tone_polarity'] = -1
+            add_setting_to_epoch_output(setting, target, averages, iti)
+    else:
+        raise ValueError('Unrecognized ordering')
 
 
 enamldef ControllerManifest(BaseManifest): manifest:
@@ -80,11 +129,10 @@ enamldef ControllerManifest(BaseManifest): manifest:
             name = 'microphone'
             source_name = 'microphone_channel'
 
-        SelectorQueuedEpochOutput: output:
+        QueuedEpochOutput: output:
             name = 'target'
             label = 'Target'
             target_name = 'speaker_0'
-            selector_name = 'default'
             auto_decrement = False
 
         ContinuousInput:
@@ -124,6 +172,33 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 default = 2.5
                 scope = 'experiment'
 
+            Parameter:
+                name = 'averages'
+                label = 'Averages'
+                default = 512
+                scope = 'experiment'
+
+            Parameter:
+                name = 'rate'
+                label = 'Reps. per sec.'
+                default = 30
+                scope = 'experiment'
+
+            BoolParameter:
+                name = 'alternate_polarity'
+                label = 'Alternate polarity?'
+                default = True
+                scope = 'experiment'
+
+            EnumParameter:
+                name = 'ordering'
+                label = 'Stimulus ordering'
+                choices = {
+                    'interleaved': '"interleaved"',
+                    'sequential': '"sequential"',
+                }
+                scope = 'experiment'
+
     Extension:
         id = 'selectors'
         point = 'psi.context.selectors'
@@ -145,12 +220,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
         rank = 100
 
         ExperimentAction:
-            event = 'experiment_prepare'
-            command = 'psi.controller.configure_hardware'
             weight = 10
-
-        ExperimentAction:
-            weight = 15
             event = 'experiment_prepare'
             command = 'psi.controller.tone_calibrate_channel'
             kwargs = {
@@ -166,6 +236,13 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 'widget_name': 'calibration_result',
                 'attr_name': 'result',
             }
+
+        ExperimentAction:
+            # Since this creates the queue, we need to make sure that the queue
+            # gets configured after the calibration is performed.
+            event = 'experiment_prepare'
+            command = 'psi.controller.configure_hardware'
+            weight = 15
 
         ExperimentAction:
             event = 'valid_erp_acquired'
