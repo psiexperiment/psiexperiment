@@ -40,7 +40,7 @@ enamldef LauncherView(Window): main:
                 text = 'Experiment'
 
             ObjectCombo: experiment:
-                items = ['calibration', 'abr']
+                items = ['calibration', 'abr', 'abr_with_temperature']
 
             Label:
                 text = 'Experiment Settings'
