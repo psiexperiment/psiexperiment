@@ -7,6 +7,7 @@ import warnings
 import sys
 import os.path
 import datetime as dt
+from glob import glob
 
 import enaml
 from enaml.application import deferred_call

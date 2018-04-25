@@ -41,15 +41,12 @@ enamldef LauncherView(Window): main:
 
             ObjectCombo: experiment:
                 items = ['calibration', 'abr']
-                selected ::
-                    settings.items = list_preferences(selected)
-                    settings.selected = None
 
             Label:
                 text = 'Experiment Settings'
 
             ObjectCombo: settings:
-                items = []
+                items << list_preferences(experiment.selected)
                 to_string = lambda x: os.path.splitext(os.path.basename(x))[0]
 
             Label:
