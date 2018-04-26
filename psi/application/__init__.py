@@ -79,11 +79,7 @@ def warn_with_traceback(message, category, filename, lineno, file=None,
 
 
 def get_base_path(dirname, experiment):
-    if dirname == '<memory>':
-        m = 'All data will be destroyed at end of experiment'
-        log.warn(m)
-        base_path = '<memory>'
-    elif dirname.endswith('*'):
+    if dirname.endswith('*'):
         base_path = os.path.join(dirname, experiment)
         if not os.path.exists(base_path):
             os.makedirs(base_path)
@@ -139,8 +135,11 @@ def _main(args):
 
     # The base path must get set before the window is shown otherwise it will
     # be too late to configure the store path for the files.
-    base_path = get_base_path(args.pathname, args.experiment)
-    core.invoke_command('psi.data.set_base_path', {'base_path': base_path})
+    if args.pathname is not None:
+        base_path = get_base_path(args.pathname, args.experiment)
+        core.invoke_command('psi.data.set_base_path', {'base_path': base_path})
+    else:
+        log.warn('All data will be destroyed at end of experiment')
 
     ui.show_window()
 
@@ -177,8 +176,7 @@ def launch_experiment(args):
 
 
 def add_default_options(parser):
-    parser.add_argument('pathname', type=str, help='Filename', nargs='?',
-                        default='<memory>')
+    parser.add_argument('pathname', type=str, help='Filename', nargs='?')
     parser.add_argument('--io', type=str, default=get_config('SYSTEM'),
                         help='Hardware configuration')
     parser.add_argument('--debug', default=True, action='store_true',
