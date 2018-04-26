@@ -213,10 +213,13 @@ enamldef AppetitiveManifest(BaseManifest): manifest:
         point = 'psi.context.selectors'
         SequenceSelector:
             name = 'go'
+            label = 'Go sequence'
         SingleSetting:
             name = 'nogo'
+            label = 'Nogo sequence'
         SingleSetting:
             name = 'remind'
+            label = 'Remind sequence'
 
     Extension:
         id = 'workspace'
