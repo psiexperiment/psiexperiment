@@ -66,7 +66,7 @@ def set_default_layout(event):
     layout_root = get_config('LAYOUT_ROOT')
     file_name = os.path.join(layout_root, 'default.layout')
     _save_layout(event, file_name)
-    
+
 
 def get_default_layout(event):
     try:
