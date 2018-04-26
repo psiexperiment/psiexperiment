@@ -1,5 +1,4 @@
 import os.path
-from glob import glob
 
 from enaml.widgets.api import (Window, ObjectCombo, Label, Field, Container,
                                Form, HGroup, PushButton, VGroup)
