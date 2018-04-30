@@ -17,8 +17,7 @@ from psi import get_config, set_config
 
 experiments = {
     'appetitive_gonogo_food': 'psi.application.experiment.appetitive.ControllerManifest',
-    'abr': 'psi.application.experiment.abr_simple.ControllerManifest',
-    'abr_with_temperature': 'psi.application.experiment.abr_with_temperature.ControllerManifest',
+    'abr': 'psi.application.experiment.abr_with_temperature.ControllerManifest',
     'abr-debug': 'psi.application.experiment.abr_debug.ControllerManifest',
     'noise_exposure': 'psi.application.experiment.noise_exposure.ControllerManifest',
     'efr': 'psi.application.experiment.efr.ControllerManifest',
