@@ -71,8 +71,8 @@ class SDTAnalysis(Sink):
             return
 
         agg = ['sum', 'size', 'mean']
-        rename = {'sum': 'n_correct', 
-                  'size': 'n_trials', 
+        rename = {'sum': 'n_correct',
+                  'size': 'n_trials',
                   'mean': 'fraction_correct'}
 
         r = trial_log[m] \
