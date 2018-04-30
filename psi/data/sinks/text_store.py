@@ -7,6 +7,9 @@ import tempfile
 import shutil
 import json
 
+from atom.api import Unicode
+from enaml.core.api import d_
+
 from .base_store import BaseStore
 
 
@@ -14,7 +17,7 @@ class TextStore(BaseStore):
     '''
     Simple class for storing data in human-readable formats (CSV and text)
     '''
-    name = 'text_store'
+    name = d_(Unicode('text_store'))
 
     def create_table(self, name, dataframe):
         path = self.get_filename(name, '.csv')

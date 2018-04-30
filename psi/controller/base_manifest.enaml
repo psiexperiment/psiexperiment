@@ -95,6 +95,8 @@ def tone_calibrate_channel(event):
         Name of widget containing results set to update (for viewing).
     attr_name : {None, string}
         Name of attribute on widget to set.
+    store_name : {None, string}
+        Name of store to write data to.
     '''
     p = event.parameters
     controller = event.workbench.get_plugin('psi.controller')
@@ -137,9 +139,13 @@ def tone_calibrate_channel(event):
 
     for parameter in ('gain', 'max_thd', 'min_snr'):
         result[parameter] = p[parameter]
-    data = event.workbench.get_plugin('psi.data')
-    name = '{}_{}_calibration'.format(ao.name, ai.name)
-    data.create_table(name, result)
+
+    if p.get('store_name') is not None:
+        core = event.workbench.get_plugin('enaml.workbench.core')
+        command = '{}.create_table'.format(p['store_name'])
+        name = '{}_{}_calibration'.format(ao.name, ai.name)
+        parameters = {'name': name, 'dataframe': result}
+        core.invoke_command(command, parameters)
 
     if p.get('widget_name') is not None:
         ui = event.workbench.get_plugin('enaml.workbench.ui')

@@ -20,6 +20,7 @@ from psi.controller.output_manifest import add_setting_to_epoch_output
 from psi.controller.calibration.util import db
 from psi.data.plots import (TimeContainer, ChannelPlot, ViewBox)
 from psi.data.sinks.epoch_counter import GroupedEpochCounter
+from psi.data.sinks.text_store import TextStore
 from psi.token.primitives import Cos2Envelope, Tone
 
 
@@ -98,6 +99,13 @@ def configure_hardware(event):
 
 
 enamldef ControllerManifest(BaseManifest): manifest:
+
+    Extension:
+        id = 'abr_base_text_store'
+        point = 'psi.data.sinks'
+
+        TextStore:
+            name = 'calibration_data'
 
     Extension:
         id = 'tokens'
@@ -223,6 +231,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 'iti': 0,
                 'widget_name': 'calibration_result',
                 'attr_name': 'result',
+                'store_name': 'calibration_data',
             }
 
         ExperimentAction:
