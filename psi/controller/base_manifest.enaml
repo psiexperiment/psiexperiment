@@ -265,14 +265,14 @@ enamldef BaseManifest(PluginManifest): manifest:
                 triggered :: 
                     plugin = workbench.get_plugin('enaml.workbench.core')
                     plugin.invoke_command('psi.controller.request_apply')
-            Action:
-                text = 'Revert'
-                enabled << workbench.get_plugin('psi.context').changes_pending \
-                    and workbench.get_plugin('psi.controller').experiment_state \
-                    in ('running', 'paused')
-                triggered :: 
-                    plugin = workbench.get_plugin('enaml.workbench.core')
-                    plugin.invoke_command('psi.context.revert_changes')
+            #Action:
+            #    text = 'Revert'
+            #    enabled << workbench.get_plugin('psi.context').changes_pending \
+            #        and workbench.get_plugin('psi.controller').experiment_state \
+            #        in ('running', 'paused')
+            #    triggered :: 
+            #        plugin = workbench.get_plugin('enaml.workbench.core')
+            #        plugin.invoke_command('psi.context.revert_changes')
 
     Extension:
         id = 'base_menu'
