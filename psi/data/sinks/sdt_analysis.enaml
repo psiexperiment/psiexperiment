@@ -142,6 +142,7 @@ extra_column_info = {
     'z_score': {'compact_label': 'd\''},
 }
 
+
 def save(sdt, event):
     core = event.workbench.get_plugin('enaml.workbench.core')
 
@@ -150,12 +151,19 @@ def save(sdt, event):
     sdt.include_go_remind = False
 
     if sdt.results is not None:
-        cmd = '{}_store.update_mapping'.format(sdt.name)
+        cmd = '{}_store.create_table'.format(sdt.name)
         parameters = {'name': sdt.name, 'dataframe': sdt.results}
-        core.invoke_command('text_store.create_table', parameters)
+        core.invoke_command(cmd, parameters)
 
 
 enamldef SDTAnalysisManifest(PSIManifest): manifest:
+
+    Extension:
+        id = manifest.contribution.name + '.sinks'
+        point = 'psi.data.sinks'
+
+        TextStore:
+            name = manifest.contribution.name + '_store'
 
     Extension:
         id = 'items'
@@ -200,10 +208,3 @@ enamldef SDTAnalysisManifest(PSIManifest): manifest:
             item << di.find('sdt_table')
             name << manifest.contribution.name
             auto_save = ['column_widths']
-
-    Extension:
-        id = manifest.contribution.name + '.data'
-        point = 'psi.data.sinks'
-
-        TextStore:
-            name = manifest.contribution.name + '_store'

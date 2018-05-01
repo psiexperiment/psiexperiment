@@ -4,6 +4,7 @@ import logging
 log = logging.getLogger(__name__)
 
 from atom.api import ContainerList, Typed, Unicode
+from enaml.application import deferred_call
 from enaml.workbench.api import Plugin
 
 import numpy as np
@@ -54,7 +55,7 @@ class DataPlugin(Plugin):
         for extension in point.extensions:
             sinks.extend(extension.get_children(Sink))
         for sink in sinks:
-            sink.load_manifest(self.workbench)
+            deferred_call(sink.load_manifest, self.workbench)
         self._sinks = sinks
 
     def _refresh_plots(self, event=None):

@@ -71,6 +71,7 @@ class SingleSetting(BaseSelector):
         return self.setting[item.name]
 
     def set_value(self, item, value):
+        value = item.coerce_to_type(value)
         self.setting[item.name] = value
         self.updated = True
 
@@ -142,6 +143,7 @@ class SequenceSelector(BaseSelector):
         return selector(settings, cycles, key=key)
 
     def set_value(self, setting_index, item, value):
+        value = item.coerce_to_type(value)
         self.settings[setting_index][item.name] = value
         self.updated = True
 
