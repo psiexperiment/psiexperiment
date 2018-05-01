@@ -1,6 +1,6 @@
 from enaml.workbench.api import Extension
 
-from psi.controller.input import Decimate
+from psi.controller.input import IIRFilter, Downsample
 from psi.data.plots import TimeContainer, ViewBox, ChannelPlot, StackedEpochAveragePlot
 from psi.data.sinks.bcolz_store import BColzStore
 
@@ -21,10 +21,16 @@ enamldef ControllerManifest(ABRBaseManifest): manifest:
         id = 'io_temp'
         point = 'psi.controller.io'
 
-        Decimate:
-            q = 50
-            name = 'temperature_decimated'
+        IIRFilter:
             source_name = 'temperature'
+            f_lowpass = 0.5
+            btype = 'lowpass'
+            ftype = 'butter'
+            N = 1
+
+            Downsample:
+                name = 'temperature_decimated'
+                q = 50
 
     Extension:
         id = 'plots_extra'
