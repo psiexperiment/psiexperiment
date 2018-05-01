@@ -44,7 +44,8 @@ def dispense_pellet(device, event):
     mapping = {'pellets_dispensed': device.pellets_dispensed}
     cmd = '{}_store.update_mapping'.format(device.name)
     parameters = {'name': device.name, 'mapping': mapping}
-    core.invoke_command('text_store.update_mapping', parameters)
+    cmd = '{}_store.update_mapping'.format(device.name)
+    core.invoke_command(cmd, parameters)
 
 
 def prepare_output(device, event):
