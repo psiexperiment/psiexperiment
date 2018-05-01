@@ -324,9 +324,13 @@ def setup_hw_ao(channels, buffer_duration, callback_interval, callback,
     properties = get_timing_config(task)
 
     result = ctypes.c_double()
-    for line in lines:
-        mx.DAQmxGetAOGain(task, line, result)
-        properties['{} AO gain'.format(line)] = result.value
+    try:
+        for line in lines:
+            mx.DAQmxGetAOGain(task, line, result)
+            properties['{} AO gain'.format(line)] = result.value
+    except:
+        # This means that the gain is not settable
+        properties['{} AO gain'.format(line)] = 0
 
     fs = properties['sample clock rate']
     log_ao.info('AO properties: %r', properties)
