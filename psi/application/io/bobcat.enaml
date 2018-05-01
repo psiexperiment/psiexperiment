@@ -95,7 +95,8 @@ enamldef IOManifest(PluginManifest): manifest:
                 expected_range = (-10, 10)
                 dtype = 'float64'
                 terminal_mode = 'differential'
-                calibration = FlatCalibration(db(10))
+                calibration = FlatCalibration(-53)
+                gain = 20
 
                 CalibratedInput:
                     name = 'microphone'
