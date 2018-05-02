@@ -2,16 +2,17 @@ import os.path
 
 from psi.data.io import abr
 
+
 template = 'ABR {:.1f}ms to {:.1f}ms ' \
     'with {:.0f}Hz to {:.0f}Hz filter ' \
     '{{}}.csv'
 
-def main(args):
+
+def _main(args):
     columns = ['frequency', 'level', 'polarity']
     for filename in args.filenames:
         print('Processing {}'.format(filename))
         fh = abr.load(filename)
-        print(len(fh.trial_log))
         epochs = fh.get_epochs_filtered(offset=args.offset,
                                         duration=args.duration,
                                         filter_lb=args.filter_lb,
@@ -39,7 +40,7 @@ def main(args):
         epoch_mean.T.to_csv(file_template.format('average waveform'))
 
 
-if __name__ == '__main__':
+def main():
     import argparse
     parser = argparse.ArgumentParser('Summarize ABR data')
 
@@ -55,3 +56,7 @@ if __name__ == '__main__':
 
     args = parser.parse_args()
     main(args)
+
+
+if __name__ == '__main__':
+    main()

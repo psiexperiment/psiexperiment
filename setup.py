@@ -8,11 +8,12 @@ setup(
     packages=['psi',],
     license='LICENSE.txt',
     description='Module for running trial-based experiments.',
-	entry_points={
-		'console_scripts': [
-			'behavior=psi.application.base_launcher:main_animal',
-			'cfts=psi.application.base_launcher:main_ear',
-			'psi=psi.application.psi_launcher:main',
-		]
-	},
+    entry_points={
+        'console_scripts': [
+            'behavior=psi.application.base_launcher:main_animal',
+            'cfts=psi.application.base_launcher:main_ear',
+            'psi=psi.application.psi_launcher:main',
+            'summarize-abr=psi.data.io.summarize_abr:main',
+        ]
+    },
 )

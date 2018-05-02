@@ -115,9 +115,12 @@ class ABRFile:
             ub = lb + duration_samples
             lb -= padding_samples
             ub += padding_samples
+
             if lb < 0 or ub > max_samples:
-                print(i)
-                raise ValueError('Data missing')
+                mesg = 'Data missing for epochs {} through {}'
+                mesg = mesg.format(i+1, len(self.trial_log))
+                print(mesg)
+                break
 
             epoch = self._eeg[lb:ub]
             epochs.append(epoch[np.newaxis])
