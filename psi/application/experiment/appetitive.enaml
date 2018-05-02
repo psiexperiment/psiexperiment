@@ -13,8 +13,11 @@ from psi.controller.api import (ExperimentState, ExperimentAction,
                                 ContinuousOutput, EpochOutput)
 
 from psi.context.api import ContextGroup, Parameter
-from psi.data.plots import (EventPlot, TimeContainer, FFTContainer, ChannelPlot, ViewBox, TimeseriesPlot, FFTChannelPlot)
+from psi.data.plots import (EventPlot, TimeContainer, FFTContainer,
+                            ChannelPlot, ViewBox, TimeseriesPlot,
+                            FFTChannelPlot)
 
+from psi.data.sinks.bcolz_store import BColzStore
 from psi.data.sinks.event_log import EventLog
 from psi.data.sinks.trial_log import TrialLog
 from psi.data.sinks.sdt_analysis import SDTAnalysis
@@ -31,6 +34,13 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
         point = 'enaml.workbench.ui.branding'
         Branding:
             title = 'Appetitive Go-Nogo'
+
+    Extension:
+        id = 'data'
+        point = 'psi.data.sinks'
+
+        BColzStore:
+            continuous_inputs = ['nose_poke_analog', 'reward_contact_analog']
 
     Extension:
         id = 'tokens'

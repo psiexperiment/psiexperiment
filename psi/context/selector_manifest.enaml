@@ -11,19 +11,26 @@ from psi.core.enaml.list_view import ListView
 from psi.core.enaml.api import PSIManifest
 
 from . import selector as selector_classes
+from .context_item_view import ContextItemValidator
 
 
 enamldef BaseSelectorManifest(PSIManifest): manifest:
     pass
 
 
+enamldef SettingField(Field):
+    attr item
+    validator << ContextItemValidator(
+        plugin=workbench.get_plugin('psi.context'),
+        item=item)
+
+
 ################################################################################
 # SingleSetting
 ################################################################################
-enamldef SingleSettingField(Field):
+enamldef SingleSettingField(SettingField):
     attr selector
     attr setting
-    attr item
     text << str(selector.get_value(item))
     text ::
         selector.set_value(item, text)
@@ -80,10 +87,9 @@ enamldef SingleSettingManifest(BaseSelectorManifest): manifest:
 ################################################################################
 # SequenceSelector
 ################################################################################
-enamldef SequenceSettingField(Field):
+enamldef SequenceSettingField(SettingField):
     attr selector
     attr setting_index
-    attr item
     text << str(selector.get_value(setting_index, item))
     text ::
         selector.set_value(setting_index, item, text)

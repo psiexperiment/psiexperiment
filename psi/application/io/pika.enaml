@@ -64,7 +64,7 @@ enamldef IOManifest(PluginManifest): manifest:
                 expected_range = (-10, 10)
                 dtype = 'float64'
                 terminal_mode = 'pseudodifferential'
-                terminal_coupling = 'AC'
+                terminal_coupling = 'DC'
                 unit = 'V'
 
         NIDAQEngine:
@@ -81,7 +81,7 @@ enamldef IOManifest(PluginManifest): manifest:
                 channel = 'PXI1Slot8/ao0'
                 fs = 100e3
                 reference_clock = 'PXI_Clk10'
-                expected_range = (-10, 10)
+                expected_range = (-0.1, 0.1)
                 dtype = 'float64'
                 terminal_mode = 'pseudodifferential'
 
@@ -91,7 +91,7 @@ enamldef IOManifest(PluginManifest): manifest:
                 channel = 'PXI1Slot8/ao1'
                 fs = 100e3
                 reference_clock = 'PXI_Clk10'
-                expected_range = (-10, 10)
+                expected_range = (-0.1, 0.1)
                 dtype = 'float64'
                 terminal_mode = 'pseudodifferential'
 
@@ -105,7 +105,7 @@ enamldef IOManifest(PluginManifest): manifest:
                 expected_range = (-10, 10)
                 dtype = 'float64'
                 terminal_mode = 'pseudodifferential'
-                terminal_coupling = 'AC'
+                terminal_coupling = 'DC'
                 calibration = mic_cal
                 gain = 40
 
@@ -119,5 +119,5 @@ enamldef IOManifest(PluginManifest): manifest:
                 expected_range = (-10, 10)
                 dtype = 'float64'
                 terminal_mode = 'pseudodifferential'
-                terminal_coupling = 'AC'
+                terminal_coupling = 'DC'
                 gain = 40

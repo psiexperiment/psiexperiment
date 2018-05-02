@@ -30,6 +30,13 @@ class ContextItemValidator(Validator):
             return False
 
 
+enamldef ContextItemField(Field):
+    text := context_item.expression
+    validator << ContextItemValidator(
+        plugin=workbench.get_plugin('psi.context'),
+        item=context_item)
+
+
 ################################################################################
 # ContextMetaPopup
 # 
@@ -145,11 +152,8 @@ enamldef WidgetDynamicTemplate(DynamicTemplate):
 
 
 template WidgetTemplate(context_item, MemberType):
-    Field: widget:
-        text := context_item.expression
-        validator << ContextItemValidator(
-            plugin=workbench.get_plugin('psi.context'),
-            item=context_item)
+    ContextItemField: widget:
+        pass
 
 
 template WidgetTemplate(context_item, MemberType: EnumParameter):

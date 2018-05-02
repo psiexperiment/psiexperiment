@@ -17,8 +17,7 @@ from psi import get_config, set_config
 
 experiments = {
     'appetitive_gonogo_food': 'psi.application.experiment.appetitive.ControllerManifest',
-    'abr': 'psi.application.experiment.abr_simple.ControllerManifest',
-    'abr_with_temperature': 'psi.application.experiment.abr_with_temperature.ControllerManifest',
+    'abr': 'psi.application.experiment.abr_with_temperature.ControllerManifest',
     'abr-debug': 'psi.application.experiment.abr_debug.ControllerManifest',
     'noise_exposure': 'psi.application.experiment.noise_exposure.ControllerManifest',
     'efr': 'psi.application.experiment.efr.ControllerManifest',
@@ -79,11 +78,7 @@ def warn_with_traceback(message, category, filename, lineno, file=None,
 
 
 def get_base_path(dirname, experiment):
-    if dirname == '<memory>':
-        m = 'All data will be destroyed at end of experiment'
-        log.warn(m)
-        base_path = '<memory>'
-    elif dirname.endswith('*'):
+    if dirname.endswith('*'):
         base_path = os.path.join(dirname, experiment)
         if not os.path.exists(base_path):
             os.makedirs(base_path)
@@ -139,8 +134,11 @@ def _main(args):
 
     # The base path must get set before the window is shown otherwise it will
     # be too late to configure the store path for the files.
-    base_path = get_base_path(args.pathname, args.experiment)
-    core.invoke_command('psi.data.set_base_path', {'base_path': base_path})
+    if args.pathname is not None:
+        base_path = get_base_path(args.pathname, args.experiment)
+        core.invoke_command('psi.data.set_base_path', {'base_path': base_path})
+    else:
+        log.warn('All data will be destroyed at end of experiment')
 
     ui.show_window()
 
@@ -177,8 +175,7 @@ def launch_experiment(args):
 
 
 def add_default_options(parser):
-    parser.add_argument('pathname', type=str, help='Filename', nargs='?',
-                        default='<memory>')
+    parser.add_argument('pathname', type=str, help='Filename', nargs='?')
     parser.add_argument('--io', type=str, default=get_config('SYSTEM'),
                         help='Hardware configuration')
     parser.add_argument('--debug', default=True, action='store_true',

@@ -71,7 +71,8 @@ class SingleSetting(BaseSelector):
         return self.setting[item.name]
 
     def set_value(self, item, value):
-        self.setting[item.name] = item.coerce_to_type(value)
+        value = item.coerce_to_type(value)
+        self.setting[item.name] = value
         self.updated = True
 
 

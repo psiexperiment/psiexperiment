@@ -3,41 +3,56 @@ log = logging.getLogger(__name__)
 
 import os.path
 import atexit
-import tempfile
-import shutil
-import json
+from functools import partial
 
-from atom.api import Unicode, Typed, List
-
-import numpy as np
 import bcolz
+from atom.api import Atom, Typed, List, Dict, Unicode
+from enaml.core.api import d_
+from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
+import numpy as np
+import pandas as pd
 
-import enaml
-with enaml.imports():
-    from .abstract_store import (AbstractStore, ContinuousDataChannel,
-                                 EpochDataChannel)
+from psi.core.enaml.api import PSIManifest
+from psi.controller.api import ExperimentAction
+from psi.util import declarative_to_dict
+
+from .base_store import BaseStore
 
 
-class BColzStore(AbstractStore):
+class BColzStore(BaseStore):
     '''
-    Simple class for storing acquired trial data in a HDF5 file. No analysis or
-    further processing is done.
+    Simple class for storing acquired trial data in hierarchy of bcolz folders.
     '''
-    name = 'bcolz_store'
+    name = d_(Unicode('bcolz_store'))
 
-    base_path = Unicode()
-    temp_base_path = Unicode()
     trial_log = Typed(object)
     event_log = Typed(object)
+    continuous_inputs = d_(List())
+    epoch_inputs = d_(List())
+    _stores = Dict()
 
-    def _default_temp_base_path(self):
-        # Create a temporary folder. Be sure to delete when the program exits.
-        base_path = tempfile.mkdtemp()
-        atexit.register(shutil.rmtree, base_path)
-        return base_path
+    def prepare(self, plugin):
+        self._prepare_event_log()
+        self._prepare_trial_log(plugin.context_info)
+        # TODO: This seems a bit hackish. Do we really need this?
+        self._stores['trial_log'] = self.trial_log
+        self._stores['event_log'] = self.event_log
+
+    def get_source(self, source_name):
+        try:
+            return self._stores[source_name]
+        except KeyError as e:
+            raise AttributeError(source_name)
+
+    def _prepare_trial_log(self, context_info):
+        self.trial_log = self._create_trial_log(context_info)
+
+    def _prepare_event_log(self):
+        self.event_log = self._create_event_log()
 
     def process_trials(self, results):
-        names = self.trial_log.data.dtype.names
+        names = self.trial_log.dtype.names
         columns = []
         for name in names:
             rows = [result[name] for result in results]
@@ -51,23 +66,27 @@ class BColzStore(AbstractStore):
         self._stores[name].append(data)
 
     def process_ai_epochs(self, name, data):
-        self._stores[name].append(data)
+        epochs = []
+        metadata = []
+        for d in data:
+            epochs.append(d['signal'])
+            md = d['info']['metadata'].copy()
+            md['t0'] = d['info']['t0']
+            md['duration'] = d['info']['duration']
+            if 'calibration' in md:
+                del md['calibration']
+            metadata.append(md)
 
-    def _get_filename(self, name):
-        # Even if we use a memory store, we need to ensure that it has access
-        # to the disk (to avoid running out of memory)
-        if self.base_path != '<memory>':
-            filename = os.path.join(self.base_path, name)
-        else:
-            filename = os.path.join(self.temp_base_path, name)
-        log.info('Saving %s to %s', name, filename)
-        return filename
+        md_records = pd.DataFrame(metadata).to_records()
+        epochs = np.concatenate(epochs, axis=0)
+        self._stores[name].append(epochs)
+        self._stores[name + '_metadata'].append(md_records)
 
     def _create_trial_log(self, context_info):
         '''
         Create a table to hold the trial log.
         '''
-        filename = self._get_filename('trial_log')
+        filename = self.get_filename('trial_log')
         dtype = [(str(n), i.dtype) for n, i in context_info.items()]
         carray = bcolz.zeros(0, rootdir=filename, mode='w', dtype=dtype)
         atexit.register(carray.flush)
@@ -77,7 +96,7 @@ class BColzStore(AbstractStore):
         '''
         Create a table to hold the event log.
         '''
-        filename = self._get_filename('event_log')
+        filename = self.get_filename('event_log')
         dtype = [('timestamp', 'float32'), ('event', 'S512')]
         carray = bcolz.zeros(0, rootdir=filename, mode='w', dtype=dtype)
         atexit.register(carray.flush)
@@ -85,20 +104,20 @@ class BColzStore(AbstractStore):
 
     def create_ai_continuous(self, name, fs, dtype, **metadata):
         n = int(fs*60*60)
-        filename = self._get_filename(name)
+        filename = self.get_filename(name)
         carray = bcolz.carray([], rootdir=filename, mode='w', dtype=dtype,
                               expectedlen=n)
         carray.attrs['fs'] = fs
         for key, value in metadata.items():
             carray.attrs[key] = value
-        self._stores[name] = ContinuousDataChannel(data=carray, fs=fs)
+        self._stores[name] = carray
         atexit.register(carray.flush)
 
     def create_ai_epochs(self, name, fs, epoch_size, dtype, context_items,
                          **metadata):
         # Create signal data store
         n = int(fs*60*60)
-        base = self._get_filename(name)
+        base = self.get_filename(name)
         carray = bcolz.carray([], rootdir=base, mode='w', dtype=dtype,
                               expectedlen=n)
         carray.attrs['fs'] = fs
@@ -106,37 +125,56 @@ class BColzStore(AbstractStore):
             carray.attrs[key] = value
 
         # Create metadata store
-        filename = self._get_filename(name + '_metadata')
+        filename = self.get_filename(name + '_metadata')
         dtype = [(str(n), i.dtype) for n, i in context_items.items()]
         dtype += [('t0', 'float64'), ('duration', 'float64')]
         ctable = bcolz.zeros(0, rootdir=filename, mode='w', dtype=dtype)
 
-        self._stores[name] = EpochDataChannel(data=carray, metadata=ctable,
-                                              fs=fs, epoch_size=epoch_size)
+        self._stores[name] = carray
+        self._stores[name + '_metadata'] = ctable
         atexit.register(carray.flush)
         atexit.register(ctable.flush)
 
     def finalize(self, workbench):
-        if self.base_path != '<memory>':
-            # Save the settings file
-            cmd = 'psi.save_preferences'
-            filename = os.path.join(self.base_path, 'final')
-            params = {'filename': filename}
-            core = workbench.get_plugin('enaml.workbench.core')
-            core.invoke_command(cmd, params)
+        # Save the settings file
+        cmd = 'psi.save_preferences'
+        filename = os.path.join(self.base_path, 'final')
+        params = {'filename': filename}
+        core = workbench.get_plugin('enaml.workbench.core')
+        core.invoke_command(cmd, params)
 
-    def create_table(self, name, dataframe):
-        filename = self._get_filename(name + '.csv')
-        if os.path.exists(filename):
-            raise IOError('{} already exists'.format(filename))
-        dataframe.to_csv(filename)
 
-    def create_mapping(self, name, mapping):
-        filename = self._get_filename(name + '.json')
-        if os.path.exists(filename):
-            raise IOError('{} already exists'.format(filename))
-        with open(filename, 'w') as fh:
-            json.dump(mapping, fh, sort_keys=True, indent=4)
+def prepare(sink, event):
+    controller = event.workbench.get_plugin('psi.controller')
+    context = event.workbench.get_plugin('psi.context')
 
-    def set_base_path(self, base_path):
-        self.base_path = base_path
+    for input_name in sink.epoch_inputs:
+        i = controller.get_input(input_name)
+        md = declarative_to_dict(i, 'metadata')
+        sink.create_ai_epochs(context_items=context.context_items, **md)
+        cb = partial(sink.process_ai_epochs, i.name)
+        i.add_callback(cb)
+
+    for input_name in sink.continuous_inputs:
+        i = controller.get_input(input_name)
+        md = declarative_to_dict(i, 'metadata')
+        sink.create_ai_continuous(**md)
+        cb = partial(sink.process_ai_continuous, i.name)
+        i.add_callback(cb)
+
+
+enamldef BColzStoreManifest(PSIManifest): manifest:
+
+    Extension:
+        id = 'commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = manifest.id + '.prepare'
+            handler = partial(prepare, manifest.contribution)
+
+    Extension:
+        id = 'actions'
+        point = 'psi.controller.actions'
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = manifest.id + '.prepare'

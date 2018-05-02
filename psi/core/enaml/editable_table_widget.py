@@ -148,8 +148,11 @@ class QEditableTableView(QTableView):
     def set_column_widths(self, widths):
         columns = self.model.interface.get_columns()
         for i, c in enumerate(columns):
-            width = widths[c]
-            self.setColumnWidth(i, width)
+            try:
+                width = widths[c]
+                self.setColumnWidth(i, width)
+            except KeyError:
+                pass
 
 
 class EditableTable(RawWidget):

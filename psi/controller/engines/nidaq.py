@@ -313,21 +313,30 @@ def setup_hw_ao(channels, buffer_duration, callback_interval, callback,
     expected_range = get_channel_property(channels, 'expected_range')
     terminal_mode = get_channel_property(channels, 'terminal_mode')
 
-
-    lines = ','.join(lines)
+    merged_lines = ','.join(lines)
     terminal_mode = NIDAQEngine.terminal_mode_map[terminal_mode]
 
     task = create_task(task_name)
-    mx.DAQmxCreateAOVoltageChan(task, lines, '', expected_range[0],
+    mx.DAQmxCreateAOVoltageChan(task, merged_lines, '', expected_range[0],
                                 expected_range[1], mx.DAQmx_Val_Volts, '')
 
     setup_timing(task, channels)
     properties = get_timing_config(task)
+
+    result = ctypes.c_double()
+    try:
+        for line in lines:
+            mx.DAQmxGetAOGain(task, line, result)
+            properties['{} AO gain'.format(line)] = result.value
+    except:
+        # This means that the gain is not settable
+        properties['{} AO gain'.format(line)] = 0
+
     fs = properties['sample clock rate']
-    log_ao.info('AO timing properties: %r', properties)
+    log_ao.info('AO properties: %r', properties)
 
     if terminal_mode is not None:
-        mx.DAQmxSetAOTermCfg(task, lines, terminal_mode)
+        mx.DAQmxSetAOTermCfg(task, merged_lines, terminal_mode)
 
     # If the write reaches the end of the buffer and no new data has been
     # provided, do not loop around to the beginning and start over.
@@ -361,17 +370,17 @@ def setup_hw_ao(channels, buffer_duration, callback_interval, callback,
     log_ao.debug('Onboard buffer size %d', task._onboard_buffer_size)
 
     result = ctypes.c_int32()
-    mx.DAQmxGetAODataXferMech(task, lines, result)
+    mx.DAQmxGetAODataXferMech(task, merged_lines, result)
     log_ao.debug('Data transfer mechanism %d', result.value)
-    mx.DAQmxGetAODataXferReqCond(task, lines, result)
+    mx.DAQmxGetAODataXferReqCond(task, merged_lines, result)
     log_ao.debug('Data transfer condition %d', result.value)
     #result = ctypes.c_uint32()
-    #mx.DAQmxGetAOUseOnlyOnBrdMem(task, lines, result)
+    #mx.DAQmxGetAOUseOnlyOnBrdMem(task, merged_lines, result)
     #log_ao.debug('Use only onboard memory %d', result.value)
-    #mx.DAQmxGetAOMemMapEnable(task, lines, result)
+    #mx.DAQmxGetAOMemMapEnable(task, merged_lines, result)
     #log_ao.debug('Memory mapping enabled %d', result.value)
 
-    #mx.DAQmxGetAIFilterDelayUnits(task, lines, result)
+    #mx.DAQmxGetAIFilterDelayUnits(task, merged_lines, result)
     #log_ao.debug('AI filter delay unit %d', result.value)
 
     #result = ctypes.c_int32()
