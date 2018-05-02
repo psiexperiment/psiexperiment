@@ -402,7 +402,7 @@ class ChannelPlot(SinglePlot):
 
     def _update(self, event=None):
         low, high = self.parent.data_range.current_range
-        data = self._buffer.get_range_filled(low, high, 0)
+        data = self._buffer.get_range_filled(low, high, np.nan)
         t = self._cached_time[:len(data)] + low
         if self.downsample > 1:
             t = t[::self.downsample]

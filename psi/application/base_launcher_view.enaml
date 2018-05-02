@@ -10,15 +10,7 @@ from psi import get_config
 from . import list_preferences
 
 
-def update_base_folder(experiment, experimenter, animal, ear, note):
-    data_root = get_config('DATA_ROOT')
-    fmt = '{{date_time}} {experimenter} {animal} {ear} {note} {experiment}'
-    formatted = fmt.format(experiment=experiment, experimenter=experimenter,
-                           animal=animal, ear=ear, note=note)
-    return os.path.join(data_root, formatted)
-
-
-def launch(experiment, base_folder, settings, save):
+def launch_subprocess(experiment, base_folder, settings, save):
     args = ['psi', experiment]
     if save:
         dt_string = dt.datetime.now().strftime('%Y%m%d-%H%M')
@@ -29,9 +21,30 @@ def launch(experiment, base_folder, settings, save):
     subprocess.check_output(args)
 
 
+class Args:
+
+    def __init__(self, experiment, pathname, preferences, io, debug=False, debug_warning=False,
+                 pdb=False, no_preferences=False, no_layout=False, commands=[]):
+        vars(self).update(locals())
+
+
+def launch_main(experiment, base_folder, settings, save):
+    from psi import get_config
+    from psi.application import launch_experiment
+
+    if save:
+        dt_string = dt.datetime.now().strftime('%Y%m%d-%H%M')
+        base_folder = base_folder.format(date_time=dt_string)
+    else:
+        base_folder = None
+    args = Args(experiment, base_folder, settings, get_config('SYSTEM'))
+    launch_experiment(args)
+
+
 enamldef LauncherView(Window): main:
 
     attr launcher
+    attr experiments
 
     Container:
 
@@ -40,7 +53,8 @@ enamldef LauncherView(Window): main:
                 text = 'Experiment'
 
             ObjectCombo: experiment:
-                items = ['calibration', 'abr']
+                items << experiments
+                selected := launcher.experiment
 
             Label:
                 text = 'Experiment Settings'
@@ -48,12 +62,13 @@ enamldef LauncherView(Window): main:
             ObjectCombo: settings:
                 items << list_preferences(experiment.selected)
                 to_string = lambda x: os.path.splitext(os.path.basename(x))[0]
+                selected := launcher.settings
 
             Label:
                 text = 'Save data?'
 
             CheckBox: save:
-                checked = True
+                checked := launcher.save_data
 
         Form:
             enabled = save.checked
@@ -62,44 +77,48 @@ enamldef LauncherView(Window): main:
                 text = 'Experimenter'
 
             Field: experimenter:
-                pass
+                text := launcher.experimenter
 
             Label:
                 text = 'Animal'
 
             HGroup:
                 padding = 0
+
                 Field: animal:
-                    pass
-                ObjectCombo: ear:
-                    items = ['right', 'left']
+                    text := launcher.animal
+
+                Conditional:
+                    condition << hasattr(launcher, 'ear')
+
+                    ObjectCombo: ear:
+                        items = ['right', 'left']
+                        selected := launcher.ear
 
             Label:
                 text = 'Note'
 
             Field: note:
-                pass
+                text := launcher.note
 
             Label:
                 text = 'Base folder'
 
             Label: base_folder:
-                text << update_base_folder(experiment.selected,
-                                            experimenter.text,
-                                            animal.text, ear.selected,
-                                            note.text)
+                text << launcher.base_folder
 
         PushButton:
             text = 'Run experiment'
             enabled << bool(
+                # Note, since Ear is an Enum, we do not need to include it in
+                # the check since it always has a value.
                 not save.checked or \
                 (experiment.selected and \
                  experimenter.text and \
                  animal.text and \
-                 ear.selected and \
                  note.text)
             )
 
             clicked ::
-                launch(experiment.selected, base_folder.text,
-                       settings.selected, save.checked)
+                launch_main(experiment.selected, base_folder.text,
+                            settings.selected, save.checked)

@@ -86,12 +86,12 @@ def configure_hardware(event):
         max_level[frequency] = max(level, max_level.get(frequency, -np.inf))
 
     # Then figure out the maximum scaling factor required for that level.
-    # Multiply to convert from RMS to peak to peak and add 10% headroom.
+    # Multiply to convert from RMS to peak to peak and add 1% headroom.
     max_sf = {}
     for frequency, level in max_level.items():
         sf = target.calibration.get_sf(frequency, level)
         max_sf[frequency] = sf
-    max_sf = max(max_sf.values()) * np.sqrt(2) * 1.1
+    max_sf = max(max_sf.values()) * np.sqrt(2) * 1.01
     target.channel.expected_range = (-max_sf, max_sf)
 
     action_name = target.name + '_end'
