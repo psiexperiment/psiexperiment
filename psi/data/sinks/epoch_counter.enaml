@@ -41,8 +41,9 @@ class GroupedEpochCounter(EpochCounter):
     get_key = Typed(object)
 
     def _observe_groups(self, event):
-        self.groups.observe('values', self._update_get_key)
-        self._update_get_key()
+        if self.groups is not None:
+            self.groups.observe('values', self._update_get_key)
+            self._update_get_key()
 
     def _update_get_key(self, event=None):
         if len(self.groups.values):
@@ -112,11 +113,6 @@ enamldef GroupedEpochCounterManifest(PSIManifest): manifest:
             title << manifest.contribution.label
             VGroup:
                 Label:
-                    # We need to pull this from meta.values, not
-                    # manifest.contribution.grouping. For some reason, if we
-                    # don't pull from meta.values, then the change notification
-                    # doesn't get triggered when the GUI loads. Probably a
-                    # latent bug somewhere.
                     text << group_label_format(manifest.contribution.groups.values)
                 Form:
                     padding = 0
@@ -136,12 +132,3 @@ enamldef GroupedEpochCounterManifest(PSIManifest): manifest:
                         text = 'Total epochs acquired'
                     Label:
                         text << str(manifest.contribution.total_n)
-
-    #Extension:
-    #    id = 'items'
-    #    point = 'psi.context.items'
-    #    UnorderedContextMeta: meta:
-    #        name << manifest.contribution.name
-    #        label << '{} grouping'.format(manifest.contribution.label)
-    #        values ::
-    #            manifest.contribution.grouping = list(values)

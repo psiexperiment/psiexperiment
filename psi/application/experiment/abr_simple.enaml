@@ -16,26 +16,3 @@ enamldef ControllerManifest(ABRBaseManifest): manifest:
         BColzStore:
             epoch_inputs = ['erp']
             continuous_inputs = ['eeg']
-
-    Extension:
-        id = 'plots_extra'
-        point = 'psi.data.plots'
-
-        TimeContainer:
-            name = 'erp_container'
-            label = 'ERP average'
-            span = 8.5e-3
-
-            ViewBox:
-                y_min = -5
-                y_max = 5
-                label = 'Signal (V)'
-
-                StackedEpochAveragePlot:
-                    label = 'ERP average plot'
-                    source_name = 'valid_erp'
-                    n_update = 8
-                    group_filter = lambda key: key['target_tone_level'] % 20 == 0
-                    group_color_key = lambda key: key['target_tone_frequency']
-                    pen_color_cycle = 'palettable.cartocolors.qualitative.Vivid_10'
-                    pen_width = 2

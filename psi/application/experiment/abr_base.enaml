@@ -9,6 +9,7 @@ from enaml.workbench.core.api import Command
 from psi.core.enaml.editable_table_widget import DataFrameTable
 from psi.context.api import (ContextGroup, Parameter, BoolParameter,
                              EnumParameter)
+from psi.context.context_item import OrderedContextMeta
 from psi.context.selector import CartesianProduct
 from psi.controller import queue
 from psi.controller.api import ExperimentAction
@@ -18,7 +19,7 @@ from psi.controller.input import (ContinuousInput, ExtractEpochs,
 from psi.controller.output import QueuedEpochOutput
 from psi.controller.output_manifest import add_setting_to_epoch_output
 from psi.controller.calibration.util import db
-from psi.data.plots import (TimeContainer, ChannelPlot, ViewBox)
+from psi.data.plots import (TimeContainer, ChannelPlot, ViewBox, StackedEpochAveragePlot)
 from psi.data.sinks.epoch_counter import GroupedEpochCounter
 from psi.data.sinks.text_store import TextStore
 from psi.token.primitives import Cos2Envelope, Tone
@@ -195,6 +196,9 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 }
                 scope = 'experiment'
 
+        OrderedContextMeta: epoch_groups:
+            name = 'settings'
+
     Extension:
         id = 'selectors'
         point = 'psi.context.selectors'
@@ -255,6 +259,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
             name = 'valid_erp_counter'
             label = 'Valid ERPs acquired'
             source_name = 'valid_erp'
+            groups << epoch_groups
 
     Extension:
         id = 'calibration_view'
@@ -294,3 +299,23 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 ChannelPlot:
                     pen_color = 'k'
                     source_name = 'eeg_filtered'
+
+        TimeContainer:
+            name = 'erp_container'
+            label = 'ERP average'
+            span = 8.5e-3
+
+            ViewBox:
+                y_min = -5
+                y_max = 5
+                label = 'Signal (V)'
+
+                StackedEpochAveragePlot:
+                    label = 'ERP average plot'
+                    source_name = 'valid_erp'
+                    n_update = 8
+                    group_filter = lambda key: key['target_tone_level'] % 20 == 0
+                    group_color_key = lambda key: key['target_tone_frequency']
+                    pen_color_cycle = 'palettable.cartocolors.qualitative.Vivid_10'
+                    pen_width = 2
+                    groups << epoch_groups
