@@ -55,10 +55,11 @@ class EarLauncher(AnimalLauncher):
 
     def _update(self):
         data_root = get_config('DATA_ROOT')
-        fmt = '{{date_time}} {experimenter} {animal} {note} {experiment}'
+        fmt = '{{date_time}} {experimenter} {animal} {ear} {note} {experiment}'
         formatted = fmt.format(experiment=self.experiment,
                                experimenter=self.experimenter,
                                animal=self.animal,
+                               ear=self.ear,
                                note=self.note)
         self.base_folder = os.path.join(data_root, formatted)
 
