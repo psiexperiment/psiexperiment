@@ -94,12 +94,7 @@ def get_base_path(dirname, experiment):
 
 
 def _main(args):
-    for config in ['LAYOUT_ROOT', 'PREFERENCES_ROOT']:
-        path = get_config(config)
-        new_path = os.path.join(path, args.experiment)
-        set_config(config, new_path)
-        if not os.path.exists(new_path):
-            os.makedirs(new_path)
+    set_config('EXPERIMENT', args.experiment)
 
     if args.debug:
         # Show debugging information. This includes full tracebacks for
