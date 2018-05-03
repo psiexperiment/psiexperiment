@@ -9,16 +9,41 @@ class ContextMeta(Declarative):
 
     name = d_(Unicode())
     label = d_(Unicode())
+    link_rove = d_(Bool(True))
 
 
 class UnorderedContextMeta(ContextMeta):
 
     values = d_(Coerced(set))
 
+    def add_item(self, item):
+        if item not in self.values:
+            values = self.values.copy()
+            values.add(item)
+            self.values = values
+
+    def remove_item(self, item):
+        if item in self.values:
+            values = self.values.copy()
+            values.remove(item)
+            self.values = values
+
 
 class OrderedContextMeta(ContextMeta):
 
     values = d_(List())
+
+    def add_item(self, item):
+        if item not in self.values:
+            values = self.values.copy()
+            values.append(item)
+            self.values = values
+
+    def remove_item(self, item):
+        if item in self.values:
+            values = self.values.copy()
+            values.remove(item)
+            self.values = values
 
     def _default_values(self):
         return []

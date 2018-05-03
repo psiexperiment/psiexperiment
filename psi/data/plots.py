@@ -574,6 +574,7 @@ class TimeseriesPlot(BaseTimeseriesPlot):
 class GroupMixin(Declarative):
 
     source = Typed(object)
+    group_meta = d_(Unicode())
     groups = d_(List())
     group_names = List()
 
@@ -646,8 +647,12 @@ class GroupMixin(Declarative):
         self._plot_colors = defaultdict(lambda: next(self._pen_color_cycle))
 
     def _observe_groups(self, event):
+        self.groups.observe('values', self._update_groups)
+        self._update_groups()
+
+    def _update_groups(self, event=None):
         self._reset_plots()
-        self.group_names = [p.name for p in self.groups]
+        self.group_names = [p.name for p in self.groups.values]
         if self.source is not None:
             self.update()
 
