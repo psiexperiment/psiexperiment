@@ -12,7 +12,7 @@ from enaml.widgets.api import Container, DockItem, Form, Label, VGroup
 from ..sink import Sink
 
 from psi.core.enaml.api import PSIManifest
-from psi.context.context_item import UnorderedContextMeta
+from psi.context.context_item import ContextMeta
 from psi.controller.api import ExperimentAction
 
 
@@ -35,12 +35,19 @@ class GroupedEpochCounter(EpochCounter):
     min_n = Int()
     max_n = Int()
     groups_n = Int()
-    grouping = List()
+    groups = d_(Typed(ContextMeta))
+
     counts = Typed(defaultdict, (int,))
     get_key = Typed(object)
 
-    def _observe_grouping(self, event):
-        self.get_key = operator.itemgetter(*[v.name for v in self.grouping])
+    def _observe_groups(self, event):
+        self.groups.observe('values', self._update_get_key)
+        self._update_get_key()
+
+    def _update_get_key(self, event=None):
+        if len(self.groups.values):
+            group_names = [v.name for v in self.groups.values]
+            self.get_key = operator.itemgetter(*group_names)
 
     def added(self, epochs):
         for e in epochs:
@@ -78,11 +85,11 @@ enamldef EpochCounterManifest(PSIManifest): manifest:
                     text << str(manifest.contribution.total_n)
 
 
-def group_label_format(grouping):
-    if not grouping:
+def group_label_format(groups):
+    if not groups:
         return 'No groups specified'
     t = 'Grouped by {}'
-    groups = ', '.join(g.compact_label for g in grouping)
+    groups = ', '.join(g.compact_label for g in groups)
     return t.format(groups.lower())
 
 
@@ -110,7 +117,7 @@ enamldef GroupedEpochCounterManifest(PSIManifest): manifest:
                     # don't pull from meta.values, then the change notification
                     # doesn't get triggered when the GUI loads. Probably a
                     # latent bug somewhere.
-                    text << group_label_format(meta.values)
+                    text << group_label_format(manifest.contribution.groups.values)
                 Form:
                     padding = 0
                     Label:
@@ -130,11 +137,11 @@ enamldef GroupedEpochCounterManifest(PSIManifest): manifest:
                     Label:
                         text << str(manifest.contribution.total_n)
 
-    Extension:
-        id = 'items'
-        point = 'psi.context.items'
-        UnorderedContextMeta: meta:
-            name << manifest.contribution.name
-            label << '{} grouping'.format(manifest.contribution.label)
-            values ::
-                manifest.contribution.grouping = list(values)
+    #Extension:
+    #    id = 'items'
+    #    point = 'psi.context.items'
+    #    UnorderedContextMeta: meta:
+    #        name << manifest.contribution.name
+    #        label << '{} grouping'.format(manifest.contribution.label)
+    #        values ::
+    #            manifest.contribution.grouping = list(values)
