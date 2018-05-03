@@ -125,7 +125,10 @@ class SequenceSelector(BaseSelector):
         super(SequenceSelector, self).append_item(item)
 
     def sort_settings(self):
-        self.settings.sort()
+        key = lambda x: [x[i.name] for i in self.context_items]
+        settings = self.settings.copy()
+        settings.sort(key=key)
+        self.settings = settings
         self.updated = True
 
     def _observe_order(self, event):

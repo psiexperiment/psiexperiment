@@ -1,3 +1,4 @@
+from atom.api import Typed
 from enaml.application import deferred_call
 from enaml.core.api import Include, Looper
 from enaml.layout.api import (vbox, hbox)
@@ -11,18 +12,27 @@ from psi.core.enaml.list_view import ListView
 from psi.core.enaml.api import PSIManifest
 
 from . import selector as selector_classes
-from .context_item_view import ContextItemValidator
 
 
 enamldef BaseSelectorManifest(PSIManifest): manifest:
     pass
 
 
+class SettingFieldValidator(Validator):
+
+    item = Typed(object)
+
+    def validate(self, text):
+        try:
+            self.item.coerce_to_type(text)
+            return True
+        except:
+            return False
+
+
 enamldef SettingField(Field):
     attr item
-    validator << ContextItemValidator(
-        plugin=workbench.get_plugin('psi.context'),
-        item=item)
+    validator << SettingFieldValidator(item=item)
 
 
 ################################################################################
