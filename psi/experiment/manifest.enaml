@@ -34,6 +34,15 @@ preferences_fd_kwargs = {
 }
 
 
+def get_default_path(which):
+    root = get_config('{}_ROOT'.format(which.upper()))
+    experiment = get_config('EXPERIMENT')
+    default_path = os.path.join(root, experiment)
+    if not os.path.exists(default_path):
+        os.makedirs(default_path)
+    return os.path.join(default_path, 'default.{}'.format(which))
+
+
 def save_layout(event):
     file_name = FileDialogEx.get_save_file_name(**layout_fd_kwargs)
     if file_name:
@@ -63,15 +72,13 @@ def _load_layout(event, file_name):
 
 
 def set_default_layout(event):
-    layout_root = get_config('LAYOUT_ROOT')
-    file_name = os.path.join(layout_root, 'default.layout')
+    file_name = get_default_path('layout')
     _save_layout(event, file_name)
 
 
 def get_default_layout(event):
     try:
-        layout_root = get_config('LAYOUT_ROOT')
-        file_name = os.path.join(layout_root, 'default.layout')
+        file_name = get_default_path('layout')
         _load_layout(event, file_name)
     except IOError:
         pass
@@ -111,15 +118,13 @@ def _load_preferences(event, file_name):
 
 
 def set_default_preferences(event):
-    preferences_root = get_config('PREFERENCES_ROOT')
-    file_name = os.path.join(preferences_root, 'default.preferences')
+    file_name = get_default_path('preferences')
     _save_preferences(event, file_name)
-    
+
 
 def get_default_preferences(event):
     try:
-        preferences_root = get_config('PREFERENCES_ROOT')
-        file_name = os.path.join(preferences_root, 'default.preferences')
+        file_name = get_default_path('preferences')
         _load_preferences(event, file_name)
     except IOError:
         pass
