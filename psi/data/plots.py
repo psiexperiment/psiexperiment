@@ -718,6 +718,19 @@ class GroupedEpochFFTPlot(GroupMixin, BasePlot):
         return util.db(util.psd(y, self.source.fs))
 
 
+class GroupedEpochPhasePlot(GroupMixin, BasePlot):
+
+    def _cache_x(self, event=None):
+        # Cache the frequency points. Must be in units of log for PyQtGraph.
+        # TODO: This could be a utility function stored in the parent?
+        if self.source.fs and self.source.epoch_size:
+            self._x = get_x_fft(self.source.fs, self.source.epoch_size)
+
+    def _y(self, epoch):
+        y = np.mean(epoch, axis=0) if epoch else np.full_like(self._x, np.nan)
+        return util.phase(y, self.source.fs)
+
+
 class StackedEpochAveragePlot(GroupMixin, BasePlot):
 
     def _make_new_plot(self, key):
