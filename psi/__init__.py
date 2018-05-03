@@ -57,6 +57,7 @@ def load_config():
         log.debug('%s file defined by PSIEXPERIMENT_SETTINGS is missing', path)
     return config
 
+
 _config = load_config()
 
 

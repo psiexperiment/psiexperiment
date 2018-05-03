@@ -120,5 +120,5 @@ enamldef LauncherView(Window): main:
             )
 
             clicked ::
-                launch_main(experiment.selected, base_folder.text,
-                            settings.selected, save.checked)
+                launch_subprocess(experiment.selected, base_folder.text,
+                                  settings.selected, save.checked)
