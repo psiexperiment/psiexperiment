@@ -7,7 +7,7 @@ import time
 import numpy as np
 import pandas as pd
 
-from .util import tone_power_conv, db
+from .util import tone_power_conv, tone_phase_conv, db
 from . import (FlatCalibration, PointCalibration, CalibrationTHDError,
                CalibrationNFError)
 from ..queue import FIFOSignalQueue
@@ -66,10 +66,14 @@ def process_tone(fs, signal, frequency, min_snr=None, max_thd=None,
     # harmonics.
     signal = np.atleast_2d(signal)
     rms = tone_power_conv(signal, fs, harmonics, 'flattop')
+    phase = tone_phase_conv(signal, fs, frequency, 'flattop')
 
     # Compute the mean RMS at F0 across all repetitions
     rms = rms.mean(axis=1)
     freq_rms = rms[0]
+
+    freq_phase = phase.mean(axis=0)
+    freq_phase_deg = np.rad2deg(freq_phase)
 
     # Compute the harmonic distortion as a percent
     thd = np.sqrt(np.sum(rms[1:]**2))/freq_rms * 100
@@ -94,10 +98,13 @@ def process_tone(fs, signal, frequency, min_snr=None, max_thd=None,
                              freq_snr[np.newaxis],
                              thd[np.newaxis]))
 
+    data = {'rms': freq_rms, 'snr': freq_snr, 'thd': thd,
+            'phase': freq_phase, 'phase_degrees': freq_phase_deg}
+
     if result.ndim == 1:
-        return pd.Series({'rms': freq_rms, 'snr': freq_snr, 'thd': thd})
+        return pd.Series(data)
     else:
-        return pd.DataFrame({'rms': freq_rms, 'snr': freq_snr, 'thd': thd})
+        return pd.DataFrame(data)
 
 
 def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gain=0,
@@ -193,97 +200,6 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gain=0,
     return pd.concat(result).set_index(['channel_name', 'frequency'])
 
 
-def tone_power_old(engine, frequencies, ao_channel_name, ai_channel_names, gain=0,
-               vrms=1, repetitions=2, min_snr=None, max_thd=None, thd_harmonics=3,
-               duration=0.1, trim=0.01, iti=0.01, debug=False):
-    '''
-    Given a single output, measure response in multiple input channels.
-
-    Parameters
-    ----------
-    TODO
-
-    Returns
-    -------
-    result : pandas DataFrame
-        Dataframe will be indexed by output channel name and frequency. Columns
-        will be rms (in V), snr (in DB) and thd (in percent).
-    '''
-    frequencies = np.asarray(frequencies)
-    calibration = FlatCalibration.as_attenuation(vrms=vrms)
-
-    # Create a copy of the engine containing only the channels required for
-    # calibration.
-    channel_names = ai_channel_names + [ao_channel_name]
-    cal_engine = engine.clone(channel_names)
-    ao_channel = cal_engine.get_channel(ao_channel_name)
-    ai_channels = [cal_engine.get_channel(name) for name in ai_channel_names]
-
-    ao_fs = ao_channel.fs
-    ai_fs = ai_channels[0].fs
-
-    samples = int(ao_fs*duration)
-
-    # Build the signal queue
-    queue = FIFOSignalQueue()
-    for frequency in frequencies:
-        factory = ToneFactory(ao_fs, gain, frequency, 0, 1, calibration)
-        waveform = factory.next(samples)
-        md = {'gain': gain, 'frequency': frequency}
-        queue.append(waveform, repetitions, iti, metadata=md)
-
-    factory = SilenceFactory(ao_fs, calibration)
-    waveform = factory.next(samples)
-    queue.append(waveform, repetitions, iti)
-
-    # Add the queue to the output channel
-    ao_channel.add_queued_epoch_output(queue, auto_decrement=True)
-
-    # Create a dictionary of lists. Each list maps to an individual input
-    # channel and will be used to accumulate the epochs for that channel.
-    data = {ai_channel.name: [] for ai_channel in ai_channels}
-
-    def accumulate(epochs, epoch):
-        epochs.extend(epoch)
-
-    for ai_channel in ai_channels:
-        cb = partial(accumulate, data[ai_channel.name])
-        epoch_input = ExtractEpochs(queue=queue, epoch_size=duration)
-        epoch_input.add_callback(cb)
-        ai_channel.add_input(epoch_input)
-
-    cal_engine.start()
-    while not epoch_input.complete:
-        time.sleep(0.1)
-    cal_engine.stop()
-
-    result = []
-    for ai_channel in ai_channels:
-        # Process data from channel
-        epochs = [epoch['signal'][np.newaxis] for epoch in data[ai_channel.name]]
-        signal = np.concatenate(epochs)
-        signal.shape = [-1, repetitions] + list(signal.shape[1:])
-
-        if trim != 0:
-            trim_samples = round(ai_channel.fs * trim)
-            signal = signal[..., trim_samples:-trim_samples]
-
-        # Loop through each frequency (silence will always be the last one)
-        silence = signal[-1]
-        signal = signal[:-1]
-        channel_result = []
-        for f, s in zip(frequencies, signal):
-            f_result = process_tone(ai_channel.fs, s, f, min_snr, max_thd,
-                                    thd_harmonics, silence)
-            f_result['frequency'] = f
-            if debug:
-                f_result['waveform'] = s
-            channel_result.append(f_result)
-        df = pd.DataFrame(channel_result)
-        df['channel_name'] = ai_channel.name
-        result.append(df)
-
-    return pd.concat(result).set_index(['channel_name', 'frequency'])
 def tone_spl(engine, *args, **kwargs):
     '''
     Given a single output, measure resulting SPL in multiple input channels.

@@ -79,10 +79,12 @@ def csd(s, fs, window=None, waveform_averages=None):
     return np.fft.rfft(s, axis=-1)/n
 
 
-def phase(s, fs, window=None, waveform_averages=None):
+def phase(s, fs, window=None, waveform_averages=None, unwrap=True):
     c = csd(s, fs, window, waveform_averages)
-    return np.unwrap(np.angle(c))
-
+    p = np.angle(c)
+    if unwrap:
+        p = np.unwrap(p)
+    return p
 
 def psd(s, fs, window=None, waveform_averages=None):
     c = csd(s, fs, window, waveform_averages)
@@ -93,7 +95,7 @@ def psd_freq(s, fs):
     return np.fft.rfftfreq(s.shape[-1], 1.0/fs)
 
 
-def tone_power_conv(s, fs, frequency, window=None):
+def tone_conv(s, fs, frequency, window=None):
     frequency_shape = tuple([Ellipsis] + [np.newaxis]*s.ndim)
     frequency = np.asarray(frequency)[frequency_shape]
     s = signal.detrend(s, type='linear', axis=-1)
@@ -103,15 +105,33 @@ def tone_power_conv(s, fs, frequency, window=None):
         s = w/w.mean()*s
     t = np.arange(n)/fs
     r = 2.0*s*np.exp(-1.0j*(2.0*np.pi*t*frequency))
-    return np.abs(np.mean(r, axis=-1))/np.sqrt(2.0)
+    return np.mean(r, axis=-1)
+
+
+def tone_power_conv(s, fs, frequency, window=None):
+    r = tone_conv(s, fs, frequency, window)
+    return np.abs(r)/np.sqrt(2.0)
+
+
+def tone_phase_conv(s, fs, frequency, window=None):
+    r = tone_conv(s, fs, frequency, window)
+    return np.angle(r)
 
 
 def tone_power_fft(s, fs, frequency, window=None):
     power = psd(s, fs, window)
-    freqs = psd_freqs(s, fs)
+    freqs = psd_freq(s, fs)
     flb, fub = freqs*0.9, freqs*1.1
     mask = (freqs >= flb) & (freqs < fub)
     return power[..., mask].max(axis=-1)
+
+
+def tone_phase_fft(s, fs, frequency, window=None):
+    p = phase(s, fs, window, unwrap=False)
+    freqs = psd_freq(s, fs)
+    flb, fub = freqs*0.9, freqs*1.1
+    mask = (freqs >= flb) & (freqs < fub)
+    return p[..., mask].max(axis=-1)
 
 
 def tone_power_conv_nf(s, fs, frequency, window=None):
