@@ -1,7 +1,7 @@
 from enaml.workbench.api import Extension
 
 from psi.controller.input import IIRFilter, Downsample
-from psi.data.plots import TimeContainer, ViewBox, ChannelPlot, StackedEpochAveragePlot
+from psi.data.plots import TimeContainer, ViewBox, ChannelPlot
 from psi.data.sinks.bcolz_store import BColzStore
 
 from .abr_base import ControllerManifest as ABRBaseManifest
@@ -48,22 +48,3 @@ enamldef ControllerManifest(ABRBaseManifest): manifest:
 
                 ChannelPlot:
                     source_name = 'temperature_decimated'
-
-        TimeContainer:
-            name = 'erp_container'
-            label = 'ERP average'
-            span = 8.5e-3
-
-            ViewBox:
-                y_min = -5
-                y_max = 5
-                label = 'Signal (V)'
-
-                StackedEpochAveragePlot:
-                    label = 'ERP average plot'
-                    source_name = 'valid_erp'
-                    n_update = 8
-                    group_filter = lambda key: key['target_tone_level'] % 20 == 0
-                    group_color_key = lambda key: key['target_tone_frequency']
-                    pen_color_cycle = 'palettable.cartocolors.qualitative.Vivid_10'
-                    pen_width = 2

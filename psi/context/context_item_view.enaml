@@ -43,7 +43,7 @@ enamldef ContextItemField(Field):
 # Defines the view that appears when configuring details regarding the
 # parameter.
 ################################################################################
-template ContextMetaTemplate(context_meta, context_item, 
+template ContextMetaTemplate(context_meta, context_item,
                              MemberType: OrderedContextMeta):
     ObjectCombo:
         items = [None] + context_meta.get_choices(context_item)
@@ -52,7 +52,8 @@ template ContextMetaTemplate(context_meta, context_item,
         selected::
             context_meta.set_choice(selected, context_item)
 
-template ContextMetaTemplate(context_meta, context_item, 
+
+template ContextMetaTemplate(context_meta, context_item,
                              MemberType: UnorderedContextMeta):
 
     CheckBox:
@@ -79,7 +80,7 @@ enamldef ContextMetaPopup(PopupView): cm_popup:
             Field:
                 text := context_item.compact_label
         Looper:
-            iterable << context_meta.values()
+            iterable << [c for c in context_meta.values() if not c.link_rove]
             HGroup:
                 padding = 0
                 Label:
@@ -139,6 +140,8 @@ template ParameterTemplate(context_item, MemberType, scope: 'trial'):
             status_tip << context_item.name
             text << context_item.label
             checked := context_item.rove
+            checked ::
+                pass
         WidgetDynamicTemplate:
             pass
 

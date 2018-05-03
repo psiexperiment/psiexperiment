@@ -8,9 +8,9 @@ from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 
 from psi.context.api import ContextGroup, Parameter, EnumParameter
+from psi.context.context_item import OrderedContextMeta
 from psi.context.selector import SequenceSelector
 from psi.controller.api import ExperimentAction
-
 from psi.controller.output import SelectorQueuedEpochOutput, EpochOutput
 from psi.controller.input import ExtractEpochs, Input, Blocked, Accumulate, RejectEpochs, IIRFilter, Decimate
 
@@ -18,6 +18,7 @@ from psi.controller.base_manifest import (BaseManifest, get_hw_ao_choices,
                                           get_hw_ai_choices)
 
 from psi.controller.queue import InterleavedFIFOSignalQueue
+#from psi.data.io.bcolz import get_epoch_groups
 
 from psi.data.sinks.bcolz_store import BColzStore
 
@@ -27,7 +28,8 @@ from psi.data.plots import (TimeContainer,
                             GroupedEpochAveragePlot,
                             ChannelPlot, ViewBox,
                             FFTContainer,
-                            GroupedEpochFFTPlot)
+                            GroupedEpochFFTPlot,
+                            GroupedEpochPhasePlot)
 
 from psi.data.sinks.epoch_counter import GroupedEpochCounter
 from psi.token.primitives import Chirp
@@ -59,6 +61,13 @@ def configure_hardware(event):
 
     input_channel = controller.get_channel(values['input_channel'])
     input_channel.gain = values['input_gain']
+
+
+def calculate_spl(event):
+    data = event.workbench.get_plugin('psi.data')
+    epoch = data.find_source('epoch')
+    epoch_md = data.find_source('epoch_metadata')
+    epochs = get_epoch_groups(epoch, epoch_md, ['hw_ao_chirp_level'])
 
 
 enamldef ControllerManifest(BaseManifest): manifest:
@@ -133,6 +142,10 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 default = 10
                 scope = 'experiment'
 
+        OrderedContextMeta: epoch_group:
+            name = 'epoch_group'
+            label = 'Epoch groups'
+
     Extension:
         id = 'selectors'
         point = 'psi.context.selectors'
@@ -169,6 +182,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
             name = 'epoch_counter'
             label = 'N epochs'
             source_name = 'epoch'
+            groups << epoch_group
 
     Extension:
         id = 'plots'
@@ -176,32 +190,52 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
         TimeContainer:
             name = 'epoch_container'
-            label = 'Epoch average'
+            label = 'Signal'
             span = 1/50.0
 
             ViewBox:
-                y_min = -2.5
-                y_max = 2.5
+                y_min = -0.6
+                y_max = 0.6
                 label = 'Signal (V)'
 
                 GroupedEpochAveragePlot: ea_plot:
                     name = 'epoch_average'
-                    label = 'Epoch average plot'
+                    label = 'Signal'
                     source_name = 'epoch'
                     pen_color_cycle = ['r', 'k']
+                    groups << epoch_group
 
         FFTContainer:
-            name = 'epoch_fft_container'
-            label = 'Epoch FFT'
+            name = 'epoch_psd_container'
+            label = 'PSD'
             freq_lb = 50.0
             freq_ub = 50000
 
             ViewBox:
-                y_min = -130
-                y_max = -20
+                y_min = -160
+                y_max = -40
 
                 GroupedEpochFFTPlot:
-                    name = 'epoch_fft_average'
-                    label = 'FFT plot'
+                    name = 'epoch_psd_average'
+                    label = 'PSD'
                     source_name = 'epoch'
                     pen_color_cycle := ea_plot.pen_color_cycle
+                    groups << epoch_group
+
+        FFTContainer:
+            name = 'epoch_phase_container'
+            label = 'Phase'
+            freq_lb = 50.0
+            freq_ub = 50000
+
+            ViewBox:
+                y_min = 100
+                y_max = -800
+
+                GroupedEpochPhasePlot:
+                    unwrap = True
+                    name = 'epoch_phase_average_unwrap'
+                    label = 'Phase (unwrapped)'
+                    source_name = 'epoch'
+                    pen_color_cycle := ea_plot.pen_color_cycle
+                    groups << epoch_group

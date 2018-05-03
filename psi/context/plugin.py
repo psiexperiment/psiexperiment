@@ -216,11 +216,17 @@ class ContextPlugin(Plugin):
         for selector in self.selectors.values():
             if item not in selector.context_items:
                 selector.append_item(item)
+        for meta in self.context_meta.values():
+            if meta.link_rove:
+                meta.add_item(item)
 
     def unrove_item(self, item):
         for selector in self.selectors.values():
             if item in selector.context_items:
                 selector.remove_item(item)
+        for meta in self.context_meta.values():
+            if meta.link_rove:
+                meta.remove_item(item)
 
     def get_context_info(self):
         return dict((i, self.get_item_info(i)) for i in self.context_items)

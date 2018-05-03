@@ -164,7 +164,7 @@ def prepare(sink, event):
 
 
 def flush(sink, event):
-    for store in self._stores.values():
+    for store in sink._stores.values():
         store.flush()
 
 

@@ -19,6 +19,7 @@ from enaml.application import deferred_call, timed_call
 from psi.util import SignalBuffer
 from psi.core.enaml.api import PSIContribution
 from psi.controller.calibration import util
+from psi.context.context_item import ContextMeta
 
 
 ################################################################################
@@ -574,7 +575,8 @@ class TimeseriesPlot(BaseTimeseriesPlot):
 class GroupMixin(Declarative):
 
     source = Typed(object)
-    groups = d_(List())
+    group_meta = d_(Unicode())
+    groups = d_(Typed(ContextMeta))
     group_names = List()
 
     # Fucntion that takes the epoch metadata and decides whether to accept it
@@ -599,6 +601,9 @@ class GroupMixin(Declarative):
     _x = Typed(np.ndarray)
 
     n_update = d_(Int(1))
+
+    def _default_group_names(self):
+        return [p.name for p in self.groups.values]
 
     def _default_group_filter(self):
         return lambda key: True
@@ -646,8 +651,12 @@ class GroupMixin(Declarative):
         self._plot_colors = defaultdict(lambda: next(self._pen_color_cycle))
 
     def _observe_groups(self, event):
+        self.groups.observe('values', self._update_groups)
+        self._update_groups()
+
+    def _update_groups(self, event=None):
         self._reset_plots()
-        self.group_names = [p.name for p in self.groups]
+        self.group_names = [p.name for p in self.groups.values]
         if self.source is not None:
             self.update()
 
@@ -720,6 +729,8 @@ class GroupedEpochFFTPlot(GroupMixin, BasePlot):
 
 class GroupedEpochPhasePlot(GroupMixin, BasePlot):
 
+    unwrap = d_(Bool(True))
+
     def _cache_x(self, event=None):
         # Cache the frequency points. Must be in units of log for PyQtGraph.
         # TODO: This could be a utility function stored in the parent?
@@ -728,7 +739,7 @@ class GroupedEpochPhasePlot(GroupMixin, BasePlot):
 
     def _y(self, epoch):
         y = np.mean(epoch, axis=0) if epoch else np.full_like(self._x, np.nan)
-        return util.phase(y, self.source.fs)
+        return util.phase(y, self.source.fs, unwrap=self.unwrap)
 
 
 class StackedEpochAveragePlot(GroupMixin, BasePlot):
