@@ -10,20 +10,109 @@ with enaml.imports():
     from psi.controller.calibration import CalibrationTHDError
 
 
-def make_tone(fs, f0, duration):
+from psi.controller.calibration import util
+
+
+def make_tone(fs, f0, duration, phase=0):
     n = int(duration*fs)
     t = np.arange(n, dtype=np.double)/fs
-    y = np.cos(2*np.pi*f0*t)
+    y = np.cos(2*np.pi*f0*t + phase)
     return y
+
+
+@pytest.mark.benchmark(group='tone-phase')
+def test_tone_phase_conv(benchmark):
+    fs = 100e3
+    f1 = 1e3
+    p1 = 0
+    t1 = make_tone(fs, f1, 1, p1)
+    benchmark(util.tone_phase_conv, t1, fs, f1)
+
+
+@pytest.mark.benchmark(group='tone-phase')
+def test_tone_phase_fft(benchmark):
+    fs = 100e3
+    f1 = 1e3
+    p1 = 0
+    t1 = make_tone(fs, f1, 1, p1)
+    benchmark(util.tone_phase_fft, t1, fs, f1)
+
+
+@pytest.mark.benchmark(group='tone-power')
+def test_tone_power_conv(benchmark):
+    fs = 100e3
+    f1 = 1e3
+    p1 = 0
+    t1 = make_tone(fs, f1, 1, p1)
+    benchmark(util.tone_power_conv, t1, fs, f1)
+
+
+@pytest.mark.benchmark(group='tone-power')
+def test_tone_power_fft(benchmark):
+    fs = 100e3
+    f1 = 1e3
+    p1 = 0
+    t1 = make_tone(fs, f1, 1, p1)
+    benchmark(util.tone_power_fft, t1, fs, f1)
+
+
+def test_tone_util():
+    fs = 100e3
+    f1 = 1e3
+    p1 = 0
+    t1 = make_tone(fs, f1, 1, p1)
+
+    f2 = 2e3
+    p2 = np.pi/2
+    t2 = make_tone(fs, f2, 1, p2)
+
+    f3 = 32e3
+    p3 = np.pi/4
+    t3 = make_tone(fs, f3, 1, p3)
+
+    rms = 1/np.sqrt(2)
+
+    assert util.tone_power_conv(t1, fs, f1) == pytest.approx(rms)
+    assert util.tone_power_conv(t2, fs, f2) == pytest.approx(rms)
+    assert util.tone_power_conv(t3, fs, f3) == pytest.approx(rms)
+
+    assert util.tone_phase_conv(t1, fs, f1) == pytest.approx(p1, 6)
+    assert util.tone_phase_conv(t2, fs, f2) == pytest.approx(p2, 6)
+    assert util.tone_phase_conv(t3, fs, f3) == pytest.approx(p3, 6)
+
+    assert util.tone_power_fft(t1, fs, f1) == pytest.approx(rms)
+    assert util.tone_power_fft(t2, fs, f2) == pytest.approx(rms)
+    assert util.tone_power_fft(t3, fs, f3) == pytest.approx(rms)
+
+    assert util.tone_phase_fft(t1, fs, f1) == pytest.approx(p1, 6)
+    assert util.tone_phase_fft(t2, fs, f2) == pytest.approx(p2, 6)
+    assert util.tone_phase_fft(t3, fs, f3) == pytest.approx(p3, 6)
+
+    assert util.tone_power_conv(t1, fs, f1, window='flattop') == pytest.approx(rms)
+    assert util.tone_power_conv(t2, fs, f2, window='flattop') == pytest.approx(rms)
+    assert util.tone_power_conv(t3, fs, f3, window='flattop') == pytest.approx(rms)
+
+    assert util.tone_phase_conv(t1, fs, f1, window='flattop') == pytest.approx(p1, 6)
+    assert util.tone_phase_conv(t2, fs, f2, window='flattop') == pytest.approx(p2, 6)
+    assert util.tone_phase_conv(t3, fs, f3, window='flattop') == pytest.approx(p3, 6)
+
+    assert util.tone_power_fft(t1, fs, f1, window='flattop') == pytest.approx(rms)
+    assert util.tone_power_fft(t2, fs, f2, window='flattop') == pytest.approx(rms)
+    assert util.tone_power_fft(t3, fs, f3, window='flattop') == pytest.approx(rms)
+
+    assert util.tone_phase_fft(t1, fs, f1, window='flattop') == pytest.approx(p1, 6)
+    assert util.tone_phase_fft(t2, fs, f2, window='flattop') == pytest.approx(p2, 6)
+    assert util.tone_phase_fft(t3, fs, f3, window='flattop') == pytest.approx(p3, 6)
+
 
 
 def test_process_tone():
     fs = 100e3
-    f1 = 1e3
-    f2 = 500
+    f1, p1 = 1e3, 0
+    t1 = make_tone(fs, f1, 1, p1)
 
-    t1 = make_tone(fs, f1, 1)
-    t2 = make_tone(fs, f2, 1)
+    f2, p2 = 500, np.pi/2
+    t2 = make_tone(fs, f2, 1, p2)
 
     rms = 1/np.sqrt(2)
 
@@ -34,7 +123,8 @@ def test_process_tone():
     signal.shape = (2, 1, -1)
     result = process_tone(fs, signal, f1)
     assert np.allclose(result['rms'], rms)
-    assert result.shape == (1,3)
+    assert np.allclose(result['phase'], p1)
+    assert result.shape == (1,5)
 
     # Build a 3D array of repetition x channel x time with two repetitions, but
     # designed such that the second repetition is t2 (and therefore will have 0
@@ -43,7 +133,7 @@ def test_process_tone():
     signal.shape = (2, 1, -1)
     result = process_tone(fs, signal, f1)
     assert np.allclose(result['rms'], 0.5*rms)
-    assert result.shape == (1,3)
+    assert result.shape == (1,5)
 
     # Build a 3D array of repetition x channel x time with one repetition and
     # two channels (with channel 1 containing t1 and channel 2 containing t2).
@@ -52,11 +142,10 @@ def test_process_tone():
     signal.shape = (1, 2, -1)
     result = process_tone(fs, signal, f1)
     assert np.allclose(result['rms'], [rms, 0])
-    print(result)
-    assert result.shape == (2,3)
+    assert result.shape == (2,5)
     result = process_tone(fs, signal, f2)
     assert np.allclose(result['rms'], [0, rms])
-    assert result.shape == (2,3)
+    assert result.shape == (2,5)
 
     # Now, test the most simple case (e.g., single repetition, single channel).
     result = process_tone(fs, t1, f1)

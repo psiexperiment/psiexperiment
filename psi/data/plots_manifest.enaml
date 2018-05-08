@@ -86,7 +86,7 @@ enamldef EventPlotManifest(PSIManifest): manifest:
     Extension:
         id = 'actions'
         point = 'psi.controller.actions'
-        
+
         ExperimentAction:
             event << manifest.contribution.event + '_start'
             command = manifest.contribution.name + '.process'
@@ -112,7 +112,6 @@ enamldef BasePlotManifest(PSIManifest): manifest:
             id = manifest.contribution.name + '_attach_source'
             handler = partial(attach_source, manifest.contribution)
 
-
     Extension:
         id = 'actions'
         point = 'psi.controller.actions'
@@ -128,29 +127,6 @@ enamldef BasePlotManifest(PSIManifest): manifest:
             # race conditions).
             event = 'experiment_end'
             command = manifest.contribution.name + '_update'
-
-
-enamldef GroupMixin(BasePlotManifest): manifest:
-
-    Extension:
-        id = 'items'
-        point = 'psi.context.items'
-        OrderedContextMeta: meta:
-            name << manifest.contribution.name
-            label << manifest.contribution.label
-            values >> manifest.contribution.groups
-
-
-enamldef GroupedEpochAveragePlotManifest(GroupMixin):
-    pass
-
-
-enamldef GroupedEpochFFTPlotManifest(GroupMixin):
-    pass
-
-
-enamldef StackedEpochAveragePlotManifest(GroupMixin):
-    pass
 
 
 def set_data(manifest, event):

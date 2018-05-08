@@ -163,6 +163,11 @@ def prepare(sink, event):
         i.add_callback(cb)
 
 
+def flush(sink, event):
+    for store in sink._stores.values():
+        store.flush()
+
+
 enamldef BColzStoreManifest(PSIManifest): manifest:
 
     Extension:
@@ -172,9 +177,18 @@ enamldef BColzStoreManifest(PSIManifest): manifest:
             id = manifest.id + '.prepare'
             handler = partial(prepare, manifest.contribution)
 
+        Command:
+            id = manifest.id + '.flush'
+            handler = partial(flush, manifest.contribution)
+
     Extension:
         id = 'actions'
         point = 'psi.controller.actions'
         ExperimentAction:
             event = 'experiment_prepare'
             command = manifest.id + '.prepare'
+
+        ExperimentAction:
+            weight = 1000
+            event = 'experiment_end'
+            command = manifest.id + '.flush'

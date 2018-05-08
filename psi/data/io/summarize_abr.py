@@ -8,21 +8,20 @@ template = 'ABR {:.1f}ms to {:.1f}ms ' \
     '{{}}.csv'
 
 
-def _main(args):
+def process_abr(filenames, offset, duration, filter_lb, filter_ub):
     columns = ['frequency', 'level', 'polarity']
-    for filename in args.filenames:
+    for filename in filenames:
         print('Processing {}'.format(filename))
         try:
             fh = abr.load(filename)
-            epochs = fh.get_epochs_filtered(offset=args.offset,
-                                            duration=args.duration,
-                                            filter_lb=args.filter_lb,
-                                            filter_ub=args.filter_ub,
+            epochs = fh.get_epochs_filtered(offset=offset,
+                                            duration=duration,
+                                            filter_lb=filter_lb,
+                                            filter_ub=filter_ub,
                                             columns=columns)
 
-            file_template = template.format(args.offset*1e3,
-                                            (args.offset+args.duration)*1e3,
-                                            args.filter_lb, args.filter_ub)
+            file_template = template.format(offset*1e3, (offset+duration)*1e3,
+                                            filter_lb, filter_ub)
             file_template = os.path.join(filename, file_template)
 
             # Apply the reject
@@ -58,7 +57,8 @@ def main():
                         default=3000)
 
     args = parser.parse_args()
-    _main(args)
+    process_abr(args.filenames, args.offset, args.duration, args.filter_lb,
+                args.filter_ub)
 
 
 if __name__ == '__main__':
