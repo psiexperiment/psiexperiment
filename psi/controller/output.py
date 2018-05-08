@@ -51,7 +51,7 @@ class Output(PSIContribution):
 
     # TODO: clean this up. it's sort of hackish.
     token_name = d_(Unicode())
-    token = Typed(Declarative)
+    token = d_(Typed(Declarative))
 
     def _get_engine(self):
         return self.channel.engine
@@ -193,6 +193,21 @@ class QueuedEpochOutput(EpochOutput):
         else:
             waveform = np.zeros(samples, dtype=np.double)
         return waveform
+
+    def add_setting(self, setting, averages=None, iti_duration=None):
+        if averages is None:
+            averages = setting['{}_averages'.format(self.name)]
+        if iti_duration is None:
+            iti_duration = setting['{}_iti_duration'.format(self.name)]
+
+        # Somewhat surprisingly it appears to be faster to use factories in the
+        # queue rather than creating the waveforms for ABR tone pips, even for
+        # very short signal durations.
+        setting['fs'] = self.fs
+        setting['calibration'] = self.calibration
+        factory = self.token.initialize_factory(setting)
+        duration = factory.get_duration()
+        self.queue.append(factory, averages, iti_duration, duration, setting)
 
 
 class SelectorQueuedEpochOutput(QueuedEpochOutput):

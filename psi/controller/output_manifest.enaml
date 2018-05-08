@@ -77,23 +77,6 @@ def prepare_output(event, output):
     output.factory = factory
 
 
-def add_setting_to_epoch_output(setting, output, averages=None,
-                                iti_duration=None):
-    if averages is None:
-        averages = setting['{}_averages'.format(output.name)]
-    if iti_duration is None:
-        iti_duration = setting['{}_iti_duration'.format(output.name)]
-
-    # Somewhat surprisingly it appears to be faster to use factories in the
-    # queue rather than creating the waveforms for ABR tone pips, even for very
-    # short signal durations.
-    setting['fs'] = output.fs
-    setting['calibration'] = output.calibration
-    factory = output.token.initialize_factory(setting)
-    duration = factory.get_duration()
-    output.queue.append(factory, averages, iti_duration, duration, setting)
-
-
 def prepare_output_queue(event, output):
     log.info('Setting up queue for {}'.format(output.name))
 
@@ -104,7 +87,7 @@ def prepare_output_queue(event, output):
     output.complete_cb = partial(controller.invoke_actions, action_name)
 
     for setting in context.iter_settings(output.selector_name, 1):
-        add_setting_to_epoch_output(setting, output)
+        output.add_setting(setting)
 
 
 def set_output_queue(event, output):
