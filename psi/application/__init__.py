@@ -112,10 +112,6 @@ def _main(args):
         log.info('Logging information captured in {}'.format(filename))
         if args.debug_warning:
             warnings.showwarning = warn_with_traceback
-    else:
-        # This suppresses a FutureWarning in the Chaco library that we don't
-        # really need to deal with at the moment.
-        warnings.simplefilter(action="ignore", category=FutureWarning)
 
     from enaml.workbench.api import Workbench
     with enaml.imports():
