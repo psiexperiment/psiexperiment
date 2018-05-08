@@ -254,8 +254,8 @@ def golay_tf(a, b, a_signal, b_signal, fs):
     Estimate system transfer function from golay sequence as described in Zhou
     et al. 1992.
     '''
-    a_signal = a_signal[:len(a)]
-    b_signal = b_signal[:len(b)]
+    a_signal = a_signal[..., :len(a)]
+    b_signal = b_signal[..., :len(b)]
     ah_psd = np.fft.rfft(a_signal, axis=-1)
     bh_psd = np.fft.rfft(b_signal, axis=-1)
     a_psd = np.fft.rfft(a)
