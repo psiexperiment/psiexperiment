@@ -93,7 +93,7 @@ class ChannelDataRange(Atom):
 class PlotContainer(PSIContribution):
 
     label = d_(Unicode())
-    label = d_(Unicode())
+
     container = Typed(pg.GraphicsWidget)
     x_axis = Typed(pg.AxisItem)
     base_viewbox = Property()
