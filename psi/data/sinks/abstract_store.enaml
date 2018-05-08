@@ -223,14 +223,10 @@ class ContinuousDataChannel(DataChannel):
         self.data.append(data)
 
 
-class EpochDataChannel(DataChannel):
+class EpochData(DataChannel):
 
     metadata = Typed(object)
-    lock = Typed(object)
     epoch_size = Typed(float)
-
-    def _default_lock(self):
-        return threading.Lock()
 
     def append(self, data):
         epochs = []
@@ -246,45 +242,33 @@ class EpochDataChannel(DataChannel):
 
         md_records = pd.DataFrame(metadata).to_records()
         epochs = np.concatenate(epochs, axis=0)
-        with self.lock:
-            self.data.append(epochs)
-            self.metadata.append(md_records)
 
     def get_epoch_groups(self, groups):
-        if len(self.data) == 0:
-            return {}
+        df = self.metadata.todataframe()
+        df['samples'] = np.round(df['duration']*self.fs).astype('i')
+        df['offset'] = df['samples'].cumsum() - df.iloc[0]['samples']
         epochs = {}
-        with self.lock:
-            df = self.metadata.todataframe()
-            df['samples'] = np.round(df['duration']*self.fs).astype('i')
-            df['offset'] = df['samples'].cumsum() - df.iloc[0]['samples']
-            for keys, g_df in df.groupby(groups):
-                data = []
-                for _, row in g_df.iterrows():
-                    o = row['offset']
-                    s = row['samples']
-                    d = self.data[o:o+s][np.newaxis]
-                    data.append(d)
-                epochs[keys] = np.concatenate(data, axis=0)
-        return epochs
+        for keys, g_df in df.groupby(groups):
+            data = []
+            for _, row in g_df.iterrows():
+                o = row['offset']
+                s = row['samples']
+                d = self.data[o:o+s][np.newaxis]
+                data.append(d)
+            epochs[keys] = np.concatenate(data, axis=0)
+    return epochs
 
     def get_epochs(self, filters=None):
-        if len(self.data) == 0:
-            return []
-
         if filters is None:
             with self.lock:
                 return self.data[:]
-
         def match(row, filters):
             for k, v in filters.items():
                 if row[k] != v:
                     return False
             return True
-
-        with self.lock:
-            mask = np.array([match(m, filters) for m in self.metadata])
-            return self.data[:][mask]
+        mask = np.array([match(m, filters) for m in self.metadata])
+        return self.data[:][mask]
 
     def count_groups(self, grouping):
         groups = [tuple(getattr(m, g) for g in grouping) \
