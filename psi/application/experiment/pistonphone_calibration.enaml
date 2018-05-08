@@ -17,6 +17,7 @@ from psi.data.plots import (TimeContainer, ChannelPlot, ViewBox, FFTContainer,
                             FFTChannelPlot)
 
 from psi.data.sinks.bcolz_store import BColzStore
+from psi.data.sinks.text_store import TextStore
 
 from enaml.application import deferred_call
 
@@ -44,6 +45,10 @@ def configure_hardware(event):
     input_channel.samples = round(duration*input_channel.fs)
     input_channel.gain = input_gain
 
+    complete_event = '{}_end'.format(input_channel.engine.name)
+    complete_action = 'psi.controller.stop'
+    controller.register_action(complete_event, complete_action)
+
 
 def calculate_sens(event):
     data = event.workbench.get_plugin('psi.data')
@@ -57,19 +62,20 @@ def calculate_sens(event):
 
     source = data.find_source('hw_ai')
     waveform = source[:]
+    fs = source.attrs['fs']
 
     rms_overall = util.rms(waveform, detrend=True)
-    rms_nom = util.tone_power_conv(waveform, source.fs, frequency, 'flattop')
+    rms_nom = util.tone_power_conv(waveform, fs, frequency, 'flattop')
 
-    frequencies = util.psd_freq(waveform, source.fs)
-    psd_hanning = util.psd(waveform, source.fs, 'hanning')
-    psd_flattop = util.psd(waveform, source.fs, 'flattop')
+    frequencies = util.psd_freq(waveform, fs)
+    psd_hanning = util.psd(waveform, fs, 'hanning')
+    psd_flattop = util.psd(waveform, fs, 'flattop')
 
     freq_lb, freq_ub = frequency*0.9, frequency*1.1
     mask = (frequencies >= freq_lb) & (frequencies < freq_ub)
 
     peak_freq = frequencies[mask][np.argmax(psd_hanning[mask])]
-    rms_peak = util.tone_power_conv(waveform, source.fs, peak_freq, 'flattop')
+    rms_peak = util.tone_power_conv(waveform, fs, peak_freq, 'flattop')
     mic_sens_overall = rms_overall/pa*1e3
     mic_sens_peak = rms_peak/pa*1e3
     mic_sens_nom = rms_nom/pa*1e3
@@ -85,7 +91,12 @@ def calculate_sens(event):
     }
 
     dock_item.results = results
-    data.create_mapping('microphone_sensitivity', results)
+
+    core = event.workbench.get_plugin('enaml.workbench.core')
+    command = 'pistonphone_data.create_mapping'
+    parameters = {'name': 'microphone_sensitivity',
+                  'mapping': results}
+    core.invoke_command(command, parameters)
 
     summary = {
         'frequency': frequencies,
@@ -120,6 +131,9 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
         BColzStore:
             continuous_inputs = ['hw_ai']
+
+        TextStore:
+            name = 'pistonphone_data'
 
     Extension:
         id = 'io'
@@ -200,18 +214,14 @@ enamldef ControllerManifest(BaseManifest): manifest:
             id = 'psi.controller.calculate_sens'
             handler = calculate_sens
 
-    Extension:
+    Extension: actions:
         id = 'actions'
         point = 'psi.controller.actions'
 
-        ExperimentAction:
+        ExperimentAction: foo:
             event = 'experiment_prepare'
             command = 'psi.controller.configure_hardware'
             weight = 10
-
-        ExperimentAction:
-            event = 'NI_audio_end'
-            command = 'psi.controller.stop'
 
         ExperimentAction:
             event = 'experiment_end'

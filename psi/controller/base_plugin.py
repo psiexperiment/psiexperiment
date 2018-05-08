@@ -7,7 +7,7 @@ import threading
 
 import numpy as np
 
-from atom.api import Enum, Bool, Typed
+from atom.api import Enum, Bool, Typed, Property
 from enaml.application import timed_call
 from enaml.qt.QtCore import QTimer
 from enaml.workbench.api import Extension
@@ -164,9 +164,19 @@ class BasePlugin(Plugin):
     # List of events and actions that can be associated with the event
     _events = Typed(dict, {})
     _states = Typed(dict, {})
-    _actions = Typed(list, {})
     _action_context = Typed(dict, {})
     _timers = Typed(dict, {})
+
+    # Plugin actions are automatically registered when the manifests are
+    # loaded. In contrast, registered actions are registered by setup code
+    # (e.g., when one doesn't know in advance which output/input the user wants
+    # to record from).
+    _plugin_actions = Typed(list, {})
+    _registered_actions = Typed(list, {})
+    _actions = Property()
+
+    def _get__actions(self):
+        return self._registered_actions + self._plugin_actions
 
     def start(self):
         log.debug('Starting controller plugin')
@@ -299,8 +309,12 @@ class BasePlugin(Plugin):
         actions.sort(key=lambda a: a.weight)
         self._states = states
         self._events = events
-        self._actions = actions
+        self._plugin_actions = actions
         self._action_context = context
+
+    def register_action(self, event, command):
+        action = ExperimentAction(event=event, command=command)
+        self._registered_actions.append(action)
 
     def configure_engines(self):
         log.debug('Configuring engines')

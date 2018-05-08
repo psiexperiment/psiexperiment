@@ -14,6 +14,7 @@ from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 
 from psi.context.api import ContextGroup, Parameter, EnumParameter
+from psi.context.context_item import OrderedContextMeta
 from psi.context.selector import SequenceSelector
 from psi.controller.api import ExperimentAction
 from psi.controller.calibration.util import golay_pair, golay_tf, db, dbi
@@ -27,6 +28,7 @@ from psi.controller.base_manifest import (BaseManifest, get_hw_ao_choices,
 from psi.controller.queue import FIFOSignalQueue
 
 from psi.data.sinks.bcolz_store import BColzStore
+from psi.data.sinks.text_store import TextStore
 
 from psi.data.plots import (TimeContainer,
                             ChannelPlot,
@@ -118,7 +120,7 @@ def calculate_sens(event):
 
     result = pd.concat(summaries, keys=keys, names=['n_bits', 'output_gain'])
     parameters = {'name': 'sensitivity', 'dataframe': result}
-    core.invoke_command('bcolz_store.create_table', parameters=parameters)
+    core.invoke_command('calibration_data.create_table', parameters=parameters)
 
 
 def calculate_group_sens(fs, key, pt_groups, cal_groups, color, context, data,
@@ -223,6 +225,10 @@ enamldef ControllerManifest(BaseManifest): manifest:
             continuous_inputs = ['pt_hw_ai', 'cal_hw_ai']
             epoch_inputs = ['pt_epoch', 'cal_epoch']
 
+        TextStore:
+            name = 'calibration_data'
+
+
     Extension:
         id = 'io'
         point = 'psi.controller.io'
@@ -232,19 +238,19 @@ enamldef ControllerManifest(BaseManifest): manifest:
             auto_decrement = True
 
         # TODO: Come up with a synchronized approach for this?
-        Blocked: hw_ai:
+        Blocked:
             duration = 0.1
             name = 'pt_hw_ai'
 
-            ExtractEpochs: extract:
+            ExtractEpochs:
                 queue << hw_ao.queue
                 name = 'pt_epoch'
 
-        Blocked: hw_ai:
+        Blocked:
             duration = 0.1
             name = 'cal_hw_ai'
 
-            ExtractEpochs: extract:
+            ExtractEpochs:
                 queue << hw_ao.queue
                 name = 'cal_epoch'
 
@@ -354,6 +360,9 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 default = 10
                 scope = 'experiment'
 
+        OrderedContextMeta: epoch_groups:
+            name = 'settings'
+
     Extension:
         id = 'selectors'
         point = 'psi.context.selectors'
@@ -412,6 +421,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
                     label = 'PT epoch average plot'
                     source_name = 'pt_epoch'
                     pen_color_cycle = ['k', 'r']
+                    groups << epoch_groups
 
             ViewBox:
                 y_min = -0.25
@@ -423,6 +433,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
                     label = 'Cal. epoch average plot'
                     source_name = 'cal_epoch'
                     pen_color_cycle = ['k', 'r']
+                    groups << epoch_groups
 
         FFTContainer:
             name = 'calibration_result'
