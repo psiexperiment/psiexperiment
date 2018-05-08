@@ -1,23 +1,28 @@
 import os.path
 
-import numpy as np
-
 from enaml.workbench.api import PluginManifest, Extension
 
 from psi import get_config
-from psi.controller.engines.nidaq import NIDAQEngine
-from psi.controller.api import (AIChannel, AOChannel, ExperimentAction,
-                                Trigger, Toggle, DOChannel, Input)
+from psi.controller.engines.nidaq import (NIDAQEngine, 
+                                          NIDAQHardwareAIChannel,
+                                          NIDAQHardwareAOChannel,
+                                          NIDAQSoftwareDOChannel)
 
-from psi.controller.input import (Downsample, IIRFilter, Threshold, Edges,
-                                  CalibratedInput, RMS, SPL)
+from psi.controller.input import CalibratedInput, Input
 
-from psi.controller.calibration import GolayCalibration, FlatCalibration
+from psi.controller.calibration import GolayCalibration, FlatCalibration, InterpCalibration
 from psi.controller.calibration.util import db
-from psi.data.sinks.bcolz_store import BColzStore
 
 cal_root = get_config('CAL_ROOT')
-filename = os.path.join(cal_root, '161219 - Golay noise exposure D220TI speaker 1.cal')
+
+# Note that the fixed_gain is a hand-correction added to fix the problem I'm
+# having getting the output to match my desired SPL. We'll need to explore the
+# fix eventually.
+speaker_filename = os.path.join(cal_root, '161219 - Golay noise exposure D220TI speaker 1.cal')
+speaker_cal = GolayCalibration.from_file(speaker_filename, fixed_gain=-56+2.55)
+
+exp_mic_filename = os.path.join(cal_root, '20180508-1536 Brad exp mic on side wall pt_calibration')
+exp_mic_cal = InterpCalibration.from_psi(exp_mic_filename)
 
 
 enamldef IOManifest(PluginManifest): manifest:
@@ -26,59 +31,63 @@ enamldef IOManifest(PluginManifest): manifest:
     computer for the appetitive experiment.
     '''
     Extension:
-        id = 'data'
-        point = 'psi.data.sinks'
-
-        BColzStore:
-            pass
-
-    Extension:
         id = 'backend'
         point = 'psi.controller.io'
 
         NIDAQEngine:
             name = 'NI'
             master_clock = True
-            
+
             hw_ai_monitor_period = 0.1
             hw_ao_monitor_period = 1
 
-            AOChannel:
+            NIDAQHardwareAOChannel:
                 label = 'Noise exposure speaker'
                 name = 'speaker'
                 channel = 'Dev1/ao1'
                 fs = 25e3
                 expected_range = (-10, 10)
-                dtype = np.dtype('float64')
+                dtype = 'float64'
                 terminal_mode = 'RSE'
-                # Note that this is a hand-correction added to fix the problem
-                # I'm having getting the output to match my desired SPL. We'll
-                # need to explore the fix eventually.
-                #calibration = \
-                #    GolayCalibration.from_file(filename, fixed_gain=-20+2.55)
-                calibration = \
-                    GolayCalibration.from_file(filename, fixed_gain=-56+2.55)
+                calibration = speaker_cal
 
-            AIChannel:
-                label = 'Sparkfun Microphone'
-                name = 'microphone'
+            NIDAQHardwareAIChannel:
+                label = 'Experiment microphone'
+                name = 'experiment_microphone'
                 channel = 'Dev1/ai2'
-                #channel = 'Dev1/ai0'
                 start_trigger = 'ao/StartTrigger'
-                fs = 25e3
+                fs = 100e3
                 expected_range = (-10, 10)
-                dtype = np.dtype('float64')
+                dtype = 'float64'
                 terminal_mode = 'differential'
 
-                # When using the Sparkfun microphone. The fixed gain is a
+                # When using this microphone, the fixed gain is a
                 # hand-correction to compensate for slight differences in this
                 # microphone calibration and ensure it matches the reference
                 # calibration.
-                calibration = FlatCalibration(db(0.5224), fixed_gain=5.4)
 
-                # When using the PCB microphone.
-                #calibration = FlatCalibration(db(28.92e-3))
+                # Sparkfun microphone
+                #calibration = FlatCalibration(db(0.5224), fixed_gain=5.4)
+
+                # Custom microphone (knowles)
+                calibration = exp_mic_cal
+
+                gain = 20
+
+                CalibratedInput:
+                    name = 'experiment_microphone'
+
+            NIDAQHardwareAIChannel:
+                label = 'Calibration microphone'
+                name = 'calibration_microphone'
+                channel = 'Dev1/ai1'
+                start_trigger = 'ao/StartTrigger'
+                fs = 100e3
+                expected_range = (-10, 10)
+                dtype = 'float64'
+                terminal_mode = 'differential'
+                gain = 0
+                calibration = FlatCalibration(db(2.89e-3))
 
                 CalibratedInput:
                     name = 'microphone'
-                    save = True
