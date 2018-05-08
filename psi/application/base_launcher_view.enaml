@@ -1,24 +1,11 @@
 import os.path
-import datetime as dt
-import subprocess
 
 from enaml.core.api import Conditional
 from enaml.widgets.api import Window, ObjectCombo, Label, Field, Container, Form, HGroup, PushButton, VGroup, GroupBox, CheckBox
 
 from psi import get_config
 
-from . import list_preferences
-
-
-def launch_subprocess(experiment, base_folder, settings, save):
-    args = ['psi', experiment]
-    if save:
-        dt_string = dt.datetime.now().strftime('%Y%m%d-%H%M')
-        base_folder = base_folder.format(date_time=dt_string)
-        args.append(base_folder)
-    if settings:
-        args.extend(['--preferences', settings])
-    subprocess.check_output(args)
+from . import list_preferences, list_io
 
 
 class Args:
@@ -50,6 +37,13 @@ enamldef LauncherView(Window): main:
 
         Form:
             Label:
+                text = 'Hardware configuration'
+
+            ObjectCombo:
+                items << list_io()
+                selected := launcher.io
+
+            Label:
                 text = 'Experiment'
 
             ObjectCombo: experiment:
@@ -79,21 +73,24 @@ enamldef LauncherView(Window): main:
             Field: experimenter:
                 text := launcher.experimenter
 
-            Label:
-                text = 'Animal'
+            Conditional:
+                condition << hasattr(launcher, 'animal')
 
-            HGroup:
-                padding = 0
+                Label:
+                    text = 'Animal'
 
-                Field: animal:
-                    text := launcher.animal
+                HGroup:
+                    padding = 0
 
-                Conditional:
-                    condition << hasattr(launcher, 'ear')
+                    Field: animal:
+                        text := launcher.animal
 
-                    ObjectCombo: ear:
-                        items = ['right', 'left']
-                        selected := launcher.ear
+                    Conditional:
+                        condition << hasattr(launcher, 'ear')
+
+                        ObjectCombo: ear:
+                            items = ['right', 'left']
+                            selected := launcher.ear
 
             Label:
                 text = 'Note'
@@ -109,16 +106,7 @@ enamldef LauncherView(Window): main:
 
         PushButton:
             text = 'Run experiment'
-            enabled << bool(
-                # Note, since Ear is an Enum, we do not need to include it in
-                # the check since it always has a value.
-                not save.checked or \
-                (experiment.selected and \
-                 experimenter.text and \
-                 animal.text and \
-                 note.text)
-            )
+            enabled << launcher.can_launch
 
             clicked ::
-                launch_main(experiment.selected, base_folder.text,
-                            settings.selected, save.checked)
+                launcher.launch_subprocess()

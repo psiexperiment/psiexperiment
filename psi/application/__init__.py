@@ -150,6 +150,15 @@ def list_preferences(experiment):
     return glob(p_search)
 
 
+def list_io():
+    hostname = get_config('SYSTEM')
+    from . import io
+    from glob import iglob
+    base_path = os.path.dirname(io.__file__)
+    search_path = os.path.join(base_path, '*{}*'.format(hostname))
+    return [os.path.basename(f)[:-6] for f in iglob(search_path)]
+
+
 def launch_experiment(args):
     # Map to the actual controller module.
     args.controller = experiments[args.experiment]

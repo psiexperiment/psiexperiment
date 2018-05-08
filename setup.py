@@ -1,5 +1,9 @@
 from setuptools import setup
 
+requirements = [
+    'palettable',
+]
+
 setup(
     name='PsiExperiment',
     version='0.01',
@@ -10,6 +14,8 @@ setup(
     description='Module for running trial-based experiments.',
     entry_points={
         'console_scripts': [
+            'calibration=psi.application.base_launcher:main_calibration',
+            'cohort=psi.application.base_launcher:main_cohort',
             'behavior=psi.application.base_launcher:main_animal',
             'cfts=psi.application.base_launcher:main_ear',
             'psi=psi.application.psi_launcher:main',
