@@ -75,7 +75,6 @@ class Output(PSIContribution):
         return self.channel.calibration
 
 
-
 class AnalogOutput(Output):
 
     buffer_size = Property()
