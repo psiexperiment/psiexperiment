@@ -40,46 +40,57 @@ def get_default_path(which):
     default_path = os.path.join(root, experiment)
     if not os.path.exists(default_path):
         os.makedirs(default_path)
+    return default_path
+
+
+def get_default_filename(which):
+    default_path = get_default_path(which)
     return os.path.join(default_path, 'default.{}'.format(which))
 
 
 def save_layout(event):
-    file_name = FileDialogEx.get_save_file_name(**layout_fd_kwargs)
-    if file_name:
-        _save_layout(event, file_name)
+    filename = FileDialogEx.get_save_file_name(
+        name_filters=[get_config('LAYOUT_WILDCARD')],
+        current_path=get_default_path('layout')
+    )
+    if filename:
+        _save_layout(event, filename)
 
 
-def _save_layout(event, file_name):
-    if not file_name.endswith('.layout'):
-        file_name += '.layout'
+def _save_layout(event, filename):
+    if not filename.endswith('.layout'):
+        filename += '.layout'
     plugin = event.workbench.get_plugin('psi.experiment')
     layout = plugin.get_layout()
-    with open(file_name, 'wb') as fh:
+    with open(filename, 'wb') as fh:
         pickle.dump(layout, fh)
 
 
 def load_layout(event):
-    file_name = FileDialogEx.get_open_file_name(**layout_fd_kwargs)
-    if file_name:
-        _load_layout(event, file_name)
+    filename = FileDialogEx.get_save_file_name(
+        name_filters=[get_config('LAYOUT_WILDCARD')],
+        current_path=get_default_path('layout')
+    )
+    if filename:
+        _load_layout(event, filename)
 
 
-def _load_layout(event, file_name):
+def _load_layout(event, filename):
     plugin = event.workbench.get_plugin('psi.experiment')
-    with open(file_name, 'rb') as fh:
+    with open(filename, 'rb') as fh:
         layout = pickle.load(fh)
         plugin.set_layout(layout)
 
 
 def set_default_layout(event):
-    file_name = get_default_path('layout')
-    _save_layout(event, file_name)
+    filename = get_default_filename('layout')
+    _save_layout(event, filename)
 
 
 def get_default_layout(event):
     try:
-        file_name = get_default_path('layout')
-        _load_layout(event, file_name)
+        filename = get_default_filename('layout')
+        _load_layout(event, filename)
     except IOError:
         pass
 
@@ -87,45 +98,51 @@ def get_default_layout(event):
 def save_preferences(event):
     filename = event.parameters.get('filename', None)
     if filename is None:
-        filename = FileDialogEx.get_save_file_name(**preferences_fd_kwargs)
+        filename = FileDialogEx.get_save_file_name(
+            name_filters=[get_config('PREFERENCES_WILDCARD')],
+            current_path=get_default_path('preferences')
+        )
     if filename:
         _save_preferences(event, filename)
 
 
-def _save_preferences(event, file_name):
+def _save_preferences(event, filename):
     plugin = event.workbench.get_plugin('psi.experiment')
-    if not file_name.endswith('.preferences'):
-        file_name += '.preferences'
+    if not filename.endswith('.preferences'):
+        filename += '.preferences'
     preferences = plugin.get_preferences()
-    with open(file_name, 'w') as fh:
+    with open(filename, 'w') as fh:
         yaml.dump(preferences, fh, default_flow_style=False)
 
 
 def load_preferences(event):
     filename = event.parameters.get('filename', None)
     if filename is None:
-        filename = FileDialogEx.get_open_file_name(**preferences_fd_kwargs)
+        filename = FileDialogEx.get_save_file_name(
+            name_filters=[get_config('PREFERENCES_WILDCARD')],
+            current_path=get_default_path('preferences')
+        )
     if filename:
         _load_preferences(event, filename)
 
 
-def _load_preferences(event, file_name):
-    log.debug('Loading preferences from {}'.format(file_name))
-    with open(file_name, 'r') as fh:
+def _load_preferences(event, filename):
+    log.debug('Loading preferences from {}'.format(filename))
+    with open(filename, 'r') as fh:
         preferences = yaml.load(fh)
     plugin = event.workbench.get_plugin('psi.experiment')
     plugin.set_preferences(preferences)
 
 
 def set_default_preferences(event):
-    file_name = get_default_path('preferences')
-    _save_preferences(event, file_name)
+    filename = get_default_filename('preferences')
+    _save_preferences(event, filename)
 
 
 def get_default_preferences(event):
     try:
-        file_name = get_default_path('preferences')
-        _load_preferences(event, file_name)
+        filename = get_default_filename('preferences')
+        _load_preferences(event, filename)
     except IOError:
         pass
 
