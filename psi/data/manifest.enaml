@@ -1,10 +1,13 @@
 import logging
 log = logging.getLogger(__name__)
 
+import datetime as dt
+
 import enaml
 from enaml.workbench.api import Extension, PluginManifest, ExtensionPoint
 from enaml.workbench.core.api import Command
 
+from psi import get_config
 from psi.controller.api import ExperimentAction
 
 from .plugin import DataPlugin
@@ -33,14 +36,18 @@ def finalize(event):
     data.finalize()
 
 
-def set_current_time(event):
-    data = event.workbench.get_plugin('psi.data')
-    data.set_current_time(**event.parameters)
-
-
 def set_base_path(event):
+    if event.parameters.get('base_path', None) is not None:
+        base_path = event.parameters['base_path']
+    else:
+        args = get_config('ARGS')
+        if args.pathname is None:
+            return
+        else:
+            dt_string = dt.datetime.now().strftime('%Y%m%d-%H%M')
+            base_path = args.pathname.format(date_time=dt_string)
     data = event.workbench.get_plugin('psi.data')
-    data.set_base_path(**event.parameters)
+    data.set_base_path(base_path)
 
 
 def attach_source(event):
@@ -90,9 +97,16 @@ enamldef DataManifest(PluginManifest): manifest:
     Extension:
         id = 'actions'
         point = 'psi.controller.actions'
+
         ExperimentAction:
             event = 'plugins_started'
             command = 'psi.data.prepare'
+
         ExperimentAction:
             event = 'experiment_end'
             command = 'psi.data.finalize'
+
+        ExperimentAction:
+            weight = 0
+            event = 'experiment_prepare'
+            command = 'psi.data.set_base_path'

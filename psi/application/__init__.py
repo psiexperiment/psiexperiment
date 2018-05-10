@@ -77,22 +77,6 @@ def warn_with_traceback(message, category, filename, lineno, file=None,
     log.write(m)
 
 
-def get_base_path(dirname, experiment):
-    if dirname.endswith('*'):
-        base_path = os.path.join(dirname, experiment)
-        if not os.path.exists(base_path):
-            os.makedirs(base_path)
-        settings_root = get_config('SETTINGS_ROOT')
-        config_file = os.path.join(settings_root, '.bcolz_store')
-        session_name = dt.datetime.now().strftime('%Y%m%d_%H%M%S')
-        base_path = os.path.join(base_path, session_name)
-        os.makedirs(base_path)
-    else:
-        base_path = dirname
-        os.makedirs(base_path)
-    return base_path
-
-
 def _main(args):
     set_config('EXPERIMENT', args.experiment)
 
@@ -123,18 +107,13 @@ def _main(args):
     core = workbench.get_plugin('enaml.workbench.core')
     ui.select_workspace('psi.experiment.workspace')
 
-    # The base path must get set before the window is shown otherwise it will
-    # be too late to configure the store path for the files.
-    if args.pathname is not None:
-        base_path = get_base_path(args.pathname, args.experiment)
-        core.invoke_command('psi.data.set_base_path', {'base_path': base_path})
-    else:
+    if args.pathname is None:
         log.warn('All data will be destroyed at end of experiment')
 
     ui.show_window()
 
     if args.preferences is not None:
-        deferred_call(core.invoke_command, 'psi.load_preferences', 
+        deferred_call(core.invoke_command, 'psi.load_preferences',
                     {'filename': args.preferences})
 
     for command in args.commands:
@@ -189,6 +168,6 @@ def add_default_options(parser):
     parser.add_argument('--no-layout', default=False, action='store_true',
                         help="Don't load existing layout files")
     parser.add_argument('-c', '--commands', nargs='+', default=[],
-                        help='Commands to invoke') 
+                        help='Commands to invoke')
     parser.add_argument('-p', '--preferences', type=str, nargs='?',
                         help='Preferences file')

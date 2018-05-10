@@ -1,6 +1,5 @@
 import os.path
 import subprocess
-import datetime as dt
 
 from atom.api import Atom, Unicode, Bool, Enum
 import enaml
@@ -64,9 +63,7 @@ class SimpleLauncher(Atom):
     def launch_subprocess(self):
         args = ['psi', self.experiment]
         if self.save_data:
-            dt_string = dt.datetime.now().strftime('%Y%m%d-%H%M')
-            base_folder = self.base_folder.format(date_time=dt_string)
-            args.append(base_folder)
+            args.append(self.base_folder)
         if self.settings:
             args.extend(['--preferences', self.settings])
         if self.io:
