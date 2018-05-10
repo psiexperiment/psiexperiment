@@ -17,7 +17,6 @@ from psi.controller.base_manifest import BaseManifest
 from psi.controller.input import (ContinuousInput, ExtractEpochs,
                                   RejectEpochs, Decimate, IIRFilter)
 from psi.controller.output import QueuedEpochOutput
-from psi.controller.output_manifest import add_setting_to_epoch_output
 from psi.controller.calibration.util import db
 from psi.data.plots import (TimeContainer, ChannelPlot, ViewBox, StackedEpochAveragePlot)
 from psi.data.sinks.epoch_counter import GroupedEpochCounter
@@ -62,20 +61,20 @@ def configure_hardware(event):
 
     if not alternate_polarity:
         for setting in context.iter_settings('default', 1):
-            add_setting_to_epoch_output(setting, target, averages, iti)
+            target.add_setting(setting, averages, iti)
     elif ordering == 'interleaved':
         for setting in context.iter_settings('default', 1):
             setting['target_tone_polarity'] = 1
-            add_setting_to_epoch_output(setting, target, averages/2, iti)
+            target.add_setting(setting, averages/2, iti)
         for setting in context.iter_settings('default', 1):
             setting['target_tone_polarity'] = -1
-            add_setting_to_epoch_output(setting, target, averages/2, iti)
+            target.add_setting(setting, averages/2, iti)
     elif ordering == 'sequential':
         for setting in context.iter_settings('default', 1):
             setting['target_tone_polarity'] = 1
-            add_setting_to_epoch_output(setting, target, averages/2, iti)
+            target.add_setting(setting, averages/2, iti)
             setting['target_tone_polarity'] = -1
-            add_setting_to_epoch_output(setting, target, averages/2, iti)
+            target.add_setting(setting, averages/2, iti)
     else:
         raise ValueError('Unrecognized ordering')
 
