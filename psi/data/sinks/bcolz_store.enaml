@@ -221,13 +221,6 @@ class BColzStore(BaseStore):
     epoch_inputs = d_(List())
     _stores = Dict()
 
-    def prepare(self, plugin):
-        self._prepare_event_log()
-        self._prepare_trial_log(plugin.context_info)
-        # TODO: This seems a bit hackish. Do we really need this?
-        self._stores['trial_log'] = self.trial_log
-        self._stores['event_log'] = self.event_log
-
     def get_source(self, source_name):
         try:
             return self._stores[source_name]
@@ -335,6 +328,8 @@ def prepare(sink, event):
         cb = partial(sink.process_ai_continuous, i.name)
         i.add_callback(cb)
 
+    sink._prepare_event_log()
+    sink._prepare_trial_log(context.context_items)
 
 def flush(sink, event):
     for store in sink._stores.values():
