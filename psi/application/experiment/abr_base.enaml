@@ -35,6 +35,15 @@ def configure_hardware(event):
     rate = context.get_value('rate')
     averages = context.get_value('averages')
 
+    if context.get_value('digital_filter'):
+        f_highpass = context.get_value('digital_highpass')
+        f_lowpass = context.get_value('digital_lowpass')
+        controller.set_input_attr('eeg_filtered', 'f_highpass', f_highpass)
+        controller.set_input_attr('eeg_filtered', 'f_lowpass', f_lowpass)
+        controller.set_input_attr('eeg_filtered', 'active', True)
+    else:
+        controller.set_input_attr('eeg_filtered', 'active', False)
+
     if alternate_polarity and (averages % 2):
         # Round to the nearest multiple of 2
         averages = (int(averages/2) + 1) * 2
@@ -98,6 +107,24 @@ def configure_hardware(event):
     target.complete_cb = partial(controller.invoke_actions, action_name)
 
 
+def summarize_abr(event):
+    from psi.data.io.abr_summary import process_file
+    core = event.workbench.get_plugin('enaml.workbench.core')
+    settings = core.invoke_command('psi.context.get_values')
+    base_path = core.invoke_command('psi.data.get_base_path')
+    if settings['digital_filter']:
+        filter_settings = {
+            # lb is the lower corner of the filter, which translates to the
+            # highpass frequency. ub is the upper corner of the filter, which
+            # translates to the lowpass frequency.
+            'filter_lb': settings['digital_highpass'],
+            'filter_ub': setting['digital_lowpass'],
+        }
+    else:
+        filter_settings = None
+    process_file(base_path, -1e-3, 9e-3, filter_settings)
+
+
 enamldef ControllerManifest(BaseManifest): manifest:
 
     Extension:
@@ -141,8 +168,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 N = 2
                 btype = 'bandpass'
                 ftype = 'butter'
-                f_highpass = 300
-                f_lowpass = 3000
                 source_name = 'eeg_channel'
 
                 ExtractEpochs: extract:
@@ -195,6 +220,51 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 }
                 scope = 'experiment'
 
+        ContextGroup:
+            name = 'digital_filter'
+            label = 'Digital filter settings'
+
+            BoolParameter:
+                name = 'digital_filter'
+                label = 'Digital filter?'
+                scope = 'experiment'
+                default = True
+
+            Parameter:
+                name = 'digital_highpass'
+                label = 'Digital highpass filter cutoff'
+                default = 300
+                scope = 'experiment'
+
+            Parameter:
+                name = 'digital_lowpass'
+                label = 'Digital lowpass filter cutoff'
+                default = 3000
+                scope = 'experiment'
+
+        ContextGroup:
+            name = 'amplifier_settings'
+            label = 'Amplifier settings'
+
+            Parameter:
+                name = 'amplifier_highpass'
+                label = 'Amplifier highpass filter cutoff'
+                default = 10
+                scope = 'experiment'
+
+            Parameter:
+                name = 'amplifier_lowpass'
+                label = 'Amplifier lowpass filter cutoff'
+                default = 10e3
+                scope = 'experiment'
+
+            Parameter:
+                name = 'amplifier_gain'
+                label = 'Amplifier gain'
+                default = 100e3
+                scope = 'experiment'
+
+
         OrderedContextMeta: epoch_groups:
             name = 'settings'
 
@@ -212,6 +282,10 @@ enamldef ControllerManifest(BaseManifest): manifest:
         Command:
             id = 'psi.controller.configure_hardware'
             handler = configure_hardware
+
+        Command:
+            id = 'psi.controller.summarize_abr'
+            handler = summarize_abr
 
     Extension:
         id = 'actions'
@@ -249,6 +323,11 @@ enamldef ControllerManifest(BaseManifest): manifest:
         ExperimentAction:
             event = 'target_end'
             command = 'psi.controller.stop'
+
+        ExperimentAction:
+            event = 'experiment_end'
+            command = 'psi.controller.summarize_abr'
+            weight = 2000
 
     Extension:
         id = 'sink'

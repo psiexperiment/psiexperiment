@@ -93,7 +93,8 @@ class ABRFile:
         self._c_size = c_size
 
     def get_epochs(self, offset=0, duration=8.5e-3, padding_samples=0,
-                   base_name='target_tone_', columns=None, **trials):
+                   detrend='linear', base_name='target_tone_', columns=None,
+                   **trials):
 
         columns, names = format_columns(columns, base_name)
         query = make_query(trials, base_name)
@@ -129,81 +130,30 @@ class ABRFile:
         n_samples = len(epoch)
         t = (np.arange(n_samples)-padding_samples)/self.fs + offset
         epochs = np.concatenate(epochs, axis=0)
-        df = pd.DataFrame(epochs, columns=t)
+
+        if detrend is not None:
+            epochs = signal.detrend(epochs, -1, detrend)
 
         index = pd.MultiIndex.from_tuples(index, names=names)
-        df.index = index
+        df = pd.DataFrame(epochs, columns=t, index=index)
         df.sort_index(inplace=True)
         return df
 
-    def get_epochs_filtered(self, filter_lb=300, filter_ub=3000, filter_order=1,
-                            offset=0, duration=8.5e-3, base_name='target_tone_',
-                            columns=None, **trials):
+    def get_epochs_filtered(self, filter_lb=300, filter_ub=3000,
+                            filter_order=1, offset=-1e3, duration=10e-3,
+                            detrend='linear', pad_duration=10e-3,
+                            base_name='target_tone_', columns=None, **trials):
 
         Wn = (filter_lb/self.fs, filter_ub/self.fs)
         b, a = signal.iirfilter(filter_order, Wn, btype='band', ftype='butter')
-        padding_samples = round(1e-3*self.fs)
-        df = self.get_epochs(offset, duration, padding_samples, base_name,
-                             columns, **trials)
-        epochs_filtered = signal.filtfilt(b, a, df.values, method='gust')
+        padding_samples = round(pad_duration*self.fs)
+        df = self.get_epochs(offset, duration, padding_samples, detrend,
+                             base_name, columns, **trials)
+
+        epochs_filtered = signal.filtfilt(b, a, df.values)
         epochs_filtered = epochs_filtered[:, padding_samples:-padding_samples]
         columns = df.columns[padding_samples:-padding_samples]
         return pd.DataFrame(epochs_filtered, index=df.index, columns=columns)
-
-
-    #def get_epochs(self, trial_filter, offset=0, reject_threshold=np.inf,
-    #               signal_filter=None, base_name='target_tone_'):
-
-    #    if base_name is not None:
-    #        trial_filter = trial_filter.copy()
-    #        trial_filter = {'{}{}'.format(base_name, k): v \
-    #                        for k, v in trial_filter.items()}
-
-    #    fs = self._eeg.attrs['fs']
-
-    #    if signal_filter is not None:
-    #        fl = signal_filter['fl']
-    #        fh = signal_filter['fh']
-    #        Wn = fl/fs, fh/fs
-    #        btype = signal_filter['btype']
-    #        ftype = signal_filter['ftype']
-    #        N = signal_filter['order']
-    #        b, a = signal.iirfilter(N=N, Wn=Wn, btype=btype, ftype=ftype)
-    #        n_taps = max(len(b), len(a))*3
-    #    else:
-    #        n_taps = 0
-
-    #    queries = ['({} == {})'.format(k, v) for k, v in trial_filter.items()]
-    #    query = ' & '.join(queries)
-    #    epochs = []
-    #    offset_i = int(round(fs * offset))
-    #    for row, in self._erp_md.where(query, outcols='nrow__'):
-    #        lb = self._c_index[row] + offset_i - n_taps
-    #        ub = lb + self._c_size[row] + n_taps
-    #        epoch = self._eeg[lb:ub]
-    #        if signal_filter is not None:
-    #            epoch = signal.filtfilt(b, a, epoch)
-
-    #        if np.any(np.abs(epoch) >= reject_threshold):
-    #            continue
-    #        else:
-    #            if signal_filter is not None:
-    #                epochs.append(epoch[n_taps:-n_taps][np.newaxis])
-    #            else:
-    #                epochs.append(epoch[np.newaxis])
-
-    #    return np.concatenate(epochs, axis=0)
-
-    def get_epochs_combined_polarity(self, trial_filter, *args, **kwargs):
-        trial_filter = trial_filter.copy()
-        trial_filter['polarity'] = 1
-        p_epochs = self.get_epochs(trial_filter, *args, **kwargs)
-        trial_filter['polarity'] = -1
-        n_epochs = self.get_epochs(trial_filter, *args, **kwargs)
-        n = min(len(p_epochs), len(n_epochs))
-        p_epochs = p_epochs[:n]
-        n_epochs = n_epochs[:n]
-        return np.concatenate((p_epochs, n_epochs), axis=0)
 
     def get_epoch_groups(self, *columns):
         groups = self.count_epochs(*columns)
@@ -216,17 +166,6 @@ class ABRFile:
             results.append(epochs)
         index = pd.MultiIndex.from_tuples(keys, names=columns)
         return pd.Series(results, index=index, name='epochs')
-
-    def count_epochs(self, columns):
-        base_name = 'target_tone_'
-        column_names = ['{}{}'.format(base_name, c) for c in columns]
-        sizes = self.trial_log.groupby(column_names).size()
-        sizes.index.names = columns
-        return sizes
-
-    def count_epochs_combined_polarity(self, columns):
-        sizes = self.count_epochs(['polarity'] + list(columns))
-        return sizes.unstack('polarity').min(axis=1) * 2
 
     @property
     def fs(self):

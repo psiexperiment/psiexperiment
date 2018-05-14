@@ -50,6 +50,11 @@ def set_base_path(event):
     data.set_base_path(base_path)
 
 
+def get_base_path(event):
+    data = event.workbench.get_plugin('psi.data')
+    return data.get_base_path()
+
+
 def attach_source(event):
     contribution = event.parameters['contribution']
     controller = event.workbench.get_plugin('psi.controller')
@@ -87,6 +92,9 @@ enamldef DataManifest(PluginManifest): manifest:
             handler = finalize
         Command:
             id = PLUGIN_ID + '.set_base_path'
+            handler = set_base_path
+        Command:
+            id = PLUGIN_ID + '.get_base_path'
             handler = set_base_path
 
         # Helper commands

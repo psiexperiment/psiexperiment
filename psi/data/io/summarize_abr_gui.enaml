@@ -1,0 +1,50 @@
+from enaml.widgets.api import MainWindow, HGroup, Form, Label, CheckBox, Container, VGroup
+from enaml.stdlib.fields import FloatField, IntField
+
+
+enamldef Main(MainWindow):
+
+    Container:
+
+        VGroup:
+
+            VGroup:
+                padding = 0
+                spacing = 0
+
+                CheckBox: filter_waveforms:
+                    text = 'Filter?'
+                    checked = True
+
+                Form:
+                    padding = 0
+
+                    enabled << filter_waveforms.checked
+                    Label:
+                        text = 'Highpass filter cutoff (Hz)'
+                    FloatField:
+                        value = 300.0
+                    Label:
+                        text = 'Lowpass filter cutoff (Hz)'
+                    FloatField:
+                        value = 32e3
+                    Label:
+                        text = 'Filter order'
+                    IntField:
+                        value = 1
+
+            VGroup:
+                padding = 0
+                spacing = 0
+
+                CheckBox: reject_threshold:
+                    text = 'Use reject threshold in file?'
+                    checked = True
+
+                Form:
+                    padding = 0
+
+                    Label:
+                        text = 'Alternate reject threshold'
+                    FloatField:
+                        pass
