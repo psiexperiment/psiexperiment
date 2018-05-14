@@ -19,7 +19,8 @@ cal_root = get_config('CAL_ROOT')
 # having getting the output to match my desired SPL. We'll need to explore the
 # fix eventually.
 speaker_filename = os.path.join(cal_root, '161219 - Golay noise exposure D220TI speaker 1.cal')
-speaker_cal = GolayCalibration.from_file(speaker_filename, fixed_gain=-56+2.55)
+#speaker_cal = GolayCalibration.from_file(speaker_filename, fixed_gain=-56+2.55)
+speaker_cal = GolayCalibration.from_file(speaker_filename, fixed_gain=-36+2.55)
 
 exp_mic_filename = os.path.join(cal_root, '20180508-1536 Brad exp mic on side wall pt_calibration')
 exp_mic_cal = InterpCalibration.from_psi(exp_mic_filename)
@@ -61,21 +62,22 @@ enamldef IOManifest(PluginManifest): manifest:
                 dtype = 'float64'
                 terminal_mode = 'differential'
 
-                # When using this microphone, the fixed gain is a
-                # hand-correction to compensate for slight differences in this
-                # microphone calibration and ensure it matches the reference
-                # calibration.
-
-                # Sparkfun microphone
-                #calibration = FlatCalibration(db(0.5224), fixed_gain=5.4)
-
                 # Custom microphone (knowles)
                 calibration = exp_mic_cal
-
                 gain = 20
 
-                CalibratedInput:
-                    name = 'experiment_microphone'
+            NIDAQHardwareAIChannel:
+                label = 'Sparkfun microphone'
+                name = 'sparkfun_microphone'
+                channel = 'Dev1/ai6'
+                start_trigger = 'ao/StartTrigger'
+                fs = 100e3
+                expected_range = (-10, 10)
+                dtype = 'float64'
+                terminal_mode = 'differential'
+
+                # Sparkfun microphone
+                calibration = FlatCalibration(db(0.5224), fixed_gain=5.4)
 
             NIDAQHardwareAIChannel:
                 label = 'Calibration microphone'
@@ -88,6 +90,3 @@ enamldef IOManifest(PluginManifest): manifest:
                 terminal_mode = 'differential'
                 gain = 0
                 calibration = FlatCalibration(db(2.89e-3))
-
-                CalibratedInput:
-                    name = 'microphone'

@@ -18,6 +18,7 @@ from .device import Device
 from .queue import AbstractSignalQueue
 
 from psi.core.enaml.api import PSIContribution
+from psi.controller.calibration import FlatCalibration
 
 
 @coroutine
@@ -152,9 +153,12 @@ def calibrate(calibration, target):
 
 class CalibratedInput(ContinuousInput):
 
+    def _get_calibration(self):
+        return FlatCalibration(0)
+
     def configure_callback(self):
         cb = super().configure_callback()
-        return calibrate(self.channel.calibration, cb).send
+        return calibrate(self.source.calibration, cb).send
 
 
 @coroutine
@@ -186,17 +190,22 @@ class RMS(ContinuousInput):
 
 
 @coroutine
-def spl(target):
+def spl(target, sens):
+    v_to_pa = dbi(sens)
     while True:
         data = (yield)
-        target(patodb(data))
+        data /= v_to_pa
+        spl = patodb(data)
+        target(spl)
 
 
 class SPL(ContinuousInput):
 
     def configure_callback(self):
         cb = super().configure_callback()
-        return spl(cb).send
+        sens = self.calibration.get_sens(1000)
+        print('sensitivity', sens)
+        return spl(cb, sens).send
 
 
 @coroutine
