@@ -8,7 +8,6 @@ from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 from enaml.widgets.api import DockItem, Container, Label, Form
 
-from .device_manifest import DeviceManifest
 from .experiment_action import (ExperimentEvent, ExperimentState,
                                 ExperimentAction)
 

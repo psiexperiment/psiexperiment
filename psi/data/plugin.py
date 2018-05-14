@@ -147,6 +147,9 @@ class DataPlugin(Plugin):
         for sink in self._sinks:
             sink.set_base_path(self.base_path)
 
+    def get_base_path(self):
+        return self.base_path
+
     def find_source(self, source_name):
         '''
         Find the source by quering the sinks in order until one of them returns

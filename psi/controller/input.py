@@ -228,6 +228,11 @@ def iirfilter(N, Wn, rp, rs, btype, ftype, target):
 
 class IIRFilter(ContinuousInput):
 
+    # Allows user to deactivate the filter entirely during configuration if
+    # desired. Ideally we could just remove it from the graph, but it seems a
+    # bit tricky to do so.
+    active = d_(Bool(True)).tag(metadata=True)
+
     N = d_(Int()).tag(metadata=True)
     btype = d_(Enum('bandpass', 'lowpass', 'highpass', 'bandstop')).tag(metadata=True)
     ftype = d_(Enum('butter', 'cheby1', 'cheby2', 'ellip', 'bessel')).tag(metadata=True)
@@ -246,8 +251,10 @@ class IIRFilter(ContinuousInput):
 
     def configure_callback(self):
         cb = super().configure_callback()
-        return iirfilter(self.N, self.wn, None, None, self.btype,
-                         self.ftype, cb).send
+        if not self.active:
+            return cb
+        return iirfilter(self.N, self.wn, None, None, self.btype, self.ftype,
+                         cb).send
 
 
 @coroutine
@@ -310,6 +317,256 @@ class Accumulate(ContinuousInput):
         return accumulate(self.n, self.axis, self.newaxis, cb).send
 
 
+@coroutine
+def capture(fs, queue, target):
+    t0 = 0
+    t_next = None
+    active = False
+
+    while True:
+        # Wait for new data to come in
+        data = (yield)
+
+        try:
+            # We've recieved a new command. The command will either be None
+            # (i.e., no more acquisition for a bit) or a floating-point value
+            # (indicating when next acquisition should begin).
+            t_next = queue.get(block=False)
+            if t_next is not None:
+                t_next = round(t_next*fs)
+        except Empty:
+            pass
+
+        if t_next is None:
+            pass
+        elif t_next < t0:
+            raise SystemError('Data lost')
+        elif t_next >= t0:
+            i = t_next-t0
+            if i < data.shape[-1]:
+                d = data[i:]
+                target(d)
+                t_next += d.shape[-1]
+
+        t0 += data.shape[-1]
+
+
+class Capture(ContinuousInput):
+
+    queue = Typed(Queue)
+
+    def configure_callback(self):
+        self.queue = Queue()
+        cb = super().configure_callback()
+        return capture(self.fs, self.queue, cb).send
+
+
+@coroutine
+def downsample(q, target):
+    y_remainder = np.array([])
+    while True:
+        y = np.r_[y_remainder, (yield)]
+        remainder = len(y) % q
+        if remainder != 0:
+            y, y_remainder = y[:-remainder], y[-remainder:]
+        else:
+            y_remainder = np.array([])
+        result = y[::q]
+        if len(result):
+            target(result)
+
+
+class Downsample(ContinuousInput):
+
+    q = d_(Int()).tag(metadata=True)
+
+    def _get_fs(self):
+        return self.source.fs/self.q
+
+    def configure_callback(self):
+        cb = super().configure_callback()
+        return downsample(self.q, cb).send
+
+
+@coroutine
+def decimate(q, target):
+    b, a = signal.cheby1(4, 0.05, 0.8/q)
+    if np.any(np.abs(np.roots(a)) > 1):
+        raise ValueError('Unstable filter coefficients')
+    zf = signal.lfilter_zi(b, a)
+    y_remainder = np.array([])
+    while True:
+        y = np.r_[y_remainder, (yield)]
+        remainder = len(y) % q
+        if remainder != 0:
+            y, y_remainder = y[:-remainder], y[-remainder:]
+        else:
+            y_remainder = np.array([])
+        y, zf = signal.lfilter(b, a, y, zi=zf)
+        result = y[::q]
+        if len(result):
+            target(result)
+
+
+class Decimate(ContinuousInput):
+
+    q = d_(Int()).tag(metadata=True)
+
+    def _get_fs(self):
+        return self.source.fs/self.q
+
+    def configure_callback(self):
+        cb = super().configure_callback()
+        return decimate(self.q, cb).send
+
+
+@coroutine
+def discard(discard_samples, cb):
+    while True:
+        samples = (yield)
+        if discard_samples == 0:
+            cb(samples)
+        elif samples.shape[-1] <= discard_samples:
+            discard_samples -= samples.shape[-1]
+        elif samples.shape[-1] > discard_samples:
+            s = samples[..., discard_samples:]
+            discard_samples -= s.shape[-1]
+            cb(s)
+
+
+class Discard(ContinuousInput):
+
+    duration = d_(Float()).tag(metadata=True)
+
+    def configure_callback(self):
+        cb = super().configure_callback()
+        samples = round(self.duration*self.fs)
+        return discard(samples, cb).send
+
+
+@coroutine
+def threshold(threshold, target):
+    while True:
+        samples = (yield)
+        target(samples >= threshold)
+
+
+class Threshold(ContinuousInput):
+
+    threshold = d_(Float(0)).tag(metadata=True)
+
+    def configure_callback(self):
+        cb = super().configure_callback()
+        return threshold(self.threshold, cb).send
+
+
+@coroutine
+def average(n, target):
+    data = (yield)
+    axis = 0
+    while True:
+        while data.shape[axis] >= n:
+            s = [Ellipsis]*data.ndim
+            s[axis] = np.s_[:block_size]
+            target(data[s].mean(axis=axis))
+            s[axis] = np.s_[block_size:]
+            data = data[s]
+        new_data = (yield)
+        data = np.concatenate((data, new_data), axis=axis)
+
+
+class Average(ContinuousInput):
+
+    n = d_(Float()).tag(metadata=True)
+
+    def configure_callback(self):
+        cb = super().configure_callback()
+        return average(self.n, cb).send
+
+
+@coroutine
+def delay(n, target):
+    data = np.full(n, np.nan)
+    while True:
+        target(data)
+        data = (yield)
+
+
+class Delay(ContinuousInput):
+
+    # This can be set to account for things such as the AO and AI filter delays
+    # on the 4461. For AO at 100 kHz, the output delay is ~0.48 msec. For the
+    # AI at 25e-3, the input delay is 63 samples (divide this by the
+    # acquisition rate).
+    delay = d_(Float(0)).tag(metadata=True)
+
+    def configure_callback(self):
+        cb = super().configure_callback()
+        n = int(self.delay * self.fs)
+        return delay(n, cb).send
+
+
+@coroutine
+def transform(function, target):
+    while True:
+        data = (yield)
+        transformed_data = function(data)
+        target(transformed_data)
+
+
+class Transform(ContinuousInput):
+
+    function = d_(Callable())
+
+    def configure_callback(self):
+        cb = super().configure_callback()
+        return transform(self.function, cb).send
+
+
+################################################################################
+# Event input types
+################################################################################
+@coroutine
+def edges(initial_state, min_samples, fs, target):
+    if min_samples < 1:
+        raise ValueError('min_samples must be greater than 1')
+    prior_samples = np.tile(initial_state, min_samples)
+    t_prior = -min_samples
+    while True:
+        # Wait for new data to become available
+        new_samples = (yield)
+        samples = np.r_[prior_samples, new_samples]
+        ts_change = np.flatnonzero(np.diff(samples, axis=-1)) + 1
+        ts_change = np.r_[ts_change, samples.shape[-1]]
+
+        events = []
+        for tlb, tub in zip(ts_change[:-1], ts_change[1:]):
+            if (tub-tlb) >= min_samples:
+                if initial_state == samples[tlb]:
+                    continue
+                edge = 'rising' if samples[tlb] == 1 else 'falling'
+                initial_state = samples[tlb]
+                ts = t_prior + tlb
+                events.append((edge, ts/fs))
+        events.append(('processed', t_prior/fs))
+        target(events)
+        t_prior += new_samples.shape[-1]
+        prior_samples = samples[..., -min_samples:]
+
+
+class Edges(EventInput):
+
+    initial_state = d_(Int(0)).tag(metadata=True)
+    debounce = d_(Int()).tag(metadata=True)
+
+    def configure_callback(self):
+        cb = super().configure_callback()
+        return edges(self.initial_state, self.debounce, self.fs, cb).send
+
+
+################################################################################
+# Epoch input types
+################################################################################
 @coroutine
 def capture_epoch(epoch_t0, epoch_samples, info, callback):
     '''
@@ -448,255 +705,6 @@ def extract_epochs(fs, queue, epoch_size, buffer_size, target,
             empty_queue_cb = None
 
 
-@coroutine
-def capture(fs, queue, target):
-    t0 = 0
-    t_next = None
-    active = False
-
-    while True:
-        # Wait for new data to come in
-        data = (yield)
-
-        try:
-            # We've recieved a new command. The command will either be None
-            # (i.e., no more acquisition for a bit) or a floating-point value
-            # (indicating when next acquisition should begin).
-            t_next = queue.get(block=False)
-            if t_next is not None:
-                t_next = round(t_next*fs)
-        except Empty:
-            pass
-
-        if t_next is None:
-            pass
-        elif t_next < t0:
-            raise SystemError('Data lost')
-        elif t_next >= t0:
-            i = t_next-t0
-            if i < data.shape[-1]:
-                d = data[i:]
-                target(d)
-                t_next += d.shape[-1]
-
-        t0 += data.shape[-1]
-
-
-class Capture(ContinuousInput):
-
-    queue = Typed(Queue)
-
-    def configure_callback(self):
-        self.queue = Queue()
-        cb = super().configure_callback()
-        return capture(self.fs, self.queue, cb).send
-
-
-@coroutine
-def downsample(q, target):
-    y_remainder = np.array([])
-    while True:
-        y = np.r_[y_remainder, (yield)]
-        remainder = len(y) % q
-        if remainder != 0:
-            y, y_remainder = y[:-remainder], y[-remainder:]
-        else:
-            y_remainder = np.array([])
-        result = y[::q]
-        if len(result):
-            target(result)
-
-
-class Downsample(ContinuousInput):
-
-    q = d_(Int()).tag(metadata=True)
-
-    def _get_fs(self):
-        return self.source.fs/self.q
-
-    def configure_callback(self):
-        cb = super().configure_callback()
-        return downsample(self.q, cb).send
-
-
-@coroutine
-def decimate(q, target):
-    b, a = signal.cheby1(4, 0.05, 0.8/q)
-    if np.any(np.abs(np.roots(a)) > 1):
-        raise ValueError('Unstable filter coefficients')
-    zf = signal.lfilter_zi(b, a)
-    y_remainder = np.array([])
-    while True:
-        y = np.r_[y_remainder, (yield)]
-        remainder = len(y) % q
-        if remainder != 0:
-            y, y_remainder = y[:-remainder], y[-remainder:]
-        else:
-            y_remainder = np.array([])
-        y, zf = signal.lfilter(b, a, y, zi=zf)
-        result = y[::q]
-        if len(result):
-            target(result)
-
-
-class Decimate(ContinuousInput):
-
-    q = d_(Int()).tag(metadata=True)
-
-    def _get_fs(self):
-        return self.source.fs/self.q
-
-    def configure_callback(self):
-        cb = super().configure_callback()
-        return decimate(self.q, cb).send
-
-
-@coroutine
-def discard(discard_samples, cb):
-    while True:
-        samples = (yield)
-        if discard_samples == 0:
-            cb(samples)
-        elif samples.shape[-1] <= discard_samples:
-            discard_samples -= samples.shape[-1]
-        elif samples.shape[-1] > discard_samples:
-            s = samples[..., discard_samples:]
-            discard_samples -= s.shape[-1]
-            cb(s)
-
-
-class Discard(ContinuousInput):
-
-    duration = d_(Float()).tag(metadata=True)
-
-    def configure_callback(self):
-        cb = super().configure_callback()
-        samples = round(self.duration*self.fs)
-        return discard(samples, cb).send
-
-@coroutine
-def threshold(threshold, target):
-    while True:
-        samples = (yield)
-        target(samples >= threshold)
-
-
-class Threshold(ContinuousInput):
-
-    threshold = d_(Float(0)).tag(metadata=True)
-
-    def configure_callback(self):
-        cb = super().configure_callback()
-        return threshold(self.threshold, cb).send
-
-
-@coroutine
-def edges(initial_state, min_samples, fs, target):
-    if min_samples < 1:
-        raise ValueError('min_samples must be greater than 1')
-    prior_samples = np.tile(initial_state, min_samples)
-    t_prior = -min_samples
-    while True:
-        # Wait for new data to become available
-        new_samples = (yield)
-        samples = np.r_[prior_samples, new_samples]
-        ts_change = np.flatnonzero(np.diff(samples, axis=-1)) + 1
-        ts_change = np.r_[ts_change, samples.shape[-1]]
-
-        events = []
-        for tlb, tub in zip(ts_change[:-1], ts_change[1:]):
-            if (tub-tlb) >= min_samples:
-                if initial_state == samples[tlb]:
-                    continue
-                edge = 'rising' if samples[tlb] == 1 else 'falling'
-                initial_state = samples[tlb]
-                ts = t_prior + tlb
-                events.append((edge, ts/fs))
-        events.append(('processed', t_prior/fs))
-        target(events)
-        t_prior += new_samples.shape[-1]
-        prior_samples = samples[..., -min_samples:]
-
-
-@coroutine
-def average(n, target):
-    data = (yield)
-    axis = 0
-    while True:
-        while data.shape[axis] >= n:
-            s = [Ellipsis]*data.ndim
-            s[axis] = np.s_[:block_size]
-            target(data[s].mean(axis=axis))
-            s[axis] = np.s_[block_size:]
-            data = data[s]
-        new_data = (yield)
-        data = np.concatenate((data, new_data), axis=axis)
-
-
-class Average(ContinuousInput):
-
-    n = d_(Float()).tag(metadata=True)
-
-    def configure_callback(self):
-        cb = super().configure_callback()
-        return average(self.n, cb).send
-
-
-@coroutine
-def delay(n, target):
-    data = np.full(n, np.nan)
-    while True:
-        target(data)
-        data = (yield)
-
-
-class Delay(ContinuousInput):
-
-    # This can be set to account for things such as the AO and AI filter delays
-    # on the 4461. For AO at 100 kHz, the output delay is ~0.48 msec. For the
-    # AI at 25e-3, the input delay is 63 samples (divide this by the
-    # acquisition rate).
-    delay = d_(Float(0)).tag(metadata=True)
-
-    def configure_callback(self):
-        cb = super().configure_callback()
-        n = int(self.delay * self.fs)
-        return delay(n, cb).send
-
-
-@coroutine
-def transform(function, target):
-    while True:
-        data = (yield)
-        transformed_data = function(data)
-        target(transformed_data)
-
-
-class Transform(ContinuousInput):
-
-    function = d_(Callable())
-
-    def configure_callback(self):
-        cb = super().configure_callback()
-        return transform(self.function, cb).send
-
-
-################################################################################
-# Event input types
-################################################################################
-class Edges(EventInput):
-
-    initial_state = d_(Int(0)).tag(metadata=True)
-    debounce = d_(Int()).tag(metadata=True)
-
-    def configure_callback(self):
-        cb = super().configure_callback()
-        return edges(self.initial_state, self.debounce, self.fs, cb).send
-
-
-################################################################################
-# Epoch input types
-################################################################################
 class ExtractEpochs(EpochInput):
 
     queue = d_(Typed(AbstractSignalQueue))
