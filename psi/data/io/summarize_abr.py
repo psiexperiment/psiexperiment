@@ -24,10 +24,10 @@ def process_folder(folder, filter_settings=None):
 
 
 def process_files(filenames, offset=-0.001, duration=0.01,
-                  filter_settings=None):
+                  filter_settings=None, reprocess=False):
     for filename in filenames:
         try:
-            process_file(filename, offset, duration, filter_settings)
+            process_file(filename, offset, duration, filter_settings, reprocess)
             print('Processed {}'.format(filename))
         except Exception as e:
             print('Error processing {}'.format(filename))
@@ -148,8 +148,6 @@ def main():
                         help='Redo existing results',
                         action='store_true')
     args = parser.parse_args()
-    print(args)
-    return
 
     if args.filter_lb is not None or args.filter_ub is not None:
         filter_settings = {
@@ -158,7 +156,8 @@ def main():
         }
     else:
         filter_settings = None
-    process_files(args.filenames, args.offset, args.duration, filter_settings)
+    process_files(args.filenames, args.offset, args.duration, filter_settings,
+                  args.reprocess)
 
 
 if __name__ == '__main__':
