@@ -108,20 +108,26 @@ def configure_hardware(event):
 
 
 def summarize_abr(event):
-    from psi.data.io.abr_summary import process_file
+    from psi.data.io.summarize_abr import process_file
     core = event.workbench.get_plugin('enaml.workbench.core')
     settings = core.invoke_command('psi.context.get_values')
     base_path = core.invoke_command('psi.data.get_base_path')
+
+    if not base_path:
+        # Data is not being saved. Do nothing.
+        return
+
     if settings['digital_filter']:
         filter_settings = {
             # lb is the lower corner of the filter, which translates to the
             # highpass frequency. ub is the upper corner of the filter, which
             # translates to the lowpass frequency.
-            'filter_lb': settings['digital_highpass'],
-            'filter_ub': setting['digital_lowpass'],
+            'lb': settings['digital_highpass'],
+            'ub': settings['digital_lowpass'],
         }
     else:
         filter_settings = None
+
     process_file(base_path, -1e-3, 9e-3, filter_settings)
 
 
