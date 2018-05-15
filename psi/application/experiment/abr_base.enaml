@@ -106,33 +106,6 @@ def configure_hardware(event):
     target.complete_cb = partial(controller.invoke_actions, action_name)
 
 
-def summarize_abr(event):
-    from psi.data.io.summarize_abr import process_file
-    from subprocess import Popen
-
-    core = event.workbench.get_plugin('enaml.workbench.core')
-    settings = core.invoke_command('psi.context.get_values')
-    base_path = core.invoke_command('psi.data.get_base_path')
-
-    if not base_path:
-        # Data is not being saved. Do nothing.
-        return
-
-    args = ['summarize-abr']
-
-    if settings['digital_filter']:
-        args.extend(['--filter-lb', str(settings['digital_highpass'])])
-        args.extend(['--filter-ub', str(settings['digital_lowpass'])])
-
-    args.append(base_path)
-
-    # See https://stackoverflow.com/a/13256908/1547328
-    CREATE_NEW_PROCESS_GROUP = 0x00000200
-    DETACHED_PROCESS = 0x00000008
-    FLAGS = DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
-    process = Popen(args, creationflags=FLAGS)
-
-
 enamldef ControllerManifest(BaseManifest): manifest:
 
     Extension:
@@ -291,10 +264,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
             id = 'psi.controller.configure_hardware'
             handler = configure_hardware
 
-        Command:
-            id = 'psi.controller.summarize_abr'
-            handler = summarize_abr
-
     Extension:
         id = 'actions'
         point = 'psi.controller.actions'
@@ -331,11 +300,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
         ExperimentAction:
             event = 'target_end'
             command = 'psi.controller.stop'
-
-        ExperimentAction:
-            event = 'experiment_end'
-            command = 'psi.controller.summarize_abr'
-            weight = 2000
 
     Extension:
         id = 'sink'

@@ -20,6 +20,7 @@ setup(
             'cfts=psi.application.base_launcher:main_ear',
             'psi=psi.application.psi_launcher:main',
             'summarize-abr=psi.data.io.summarize_abr:main',
+            'summarize-abr-auto=psi.data.io.summarize_abr:main_auto',
         ]
     },
 )

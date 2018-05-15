@@ -150,8 +150,14 @@ class ABRFile:
         df = self.get_epochs(offset, duration, padding_samples, detrend,
                              base_name, columns, **trials)
 
-        epochs_filtered = signal.filtfilt(b, a, df.values)
-        epochs_filtered = epochs_filtered[:, padding_samples:-padding_samples]
+        # The vectorized approach takes up too much memory on some of the older
+        # NI PXI systems. Hopefully someday we can move away from all this!
+        epochs_filtered = []
+        for epoch in df.values:
+            e = signal.filtfilt(b, a, epoch)
+            e = e[padding_samples:-padding_samples]
+            epochs_filtered.append(e)
+
         columns = df.columns[padding_samples:-padding_samples]
         return pd.DataFrame(epochs_filtered, index=df.index, columns=columns)
 
