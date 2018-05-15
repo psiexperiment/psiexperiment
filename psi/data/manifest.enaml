@@ -97,7 +97,7 @@ enamldef DataManifest(PluginManifest): manifest:
             handler = set_base_path
         Command:
             id = PLUGIN_ID + '.get_base_path'
-            handler = set_base_path
+            handler = get_base_path
 
         # Helper commands
         Command:
