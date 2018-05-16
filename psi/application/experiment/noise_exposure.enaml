@@ -9,7 +9,7 @@ from psi.controller.base_manifest import BaseManifest, get_hw_ai_choices
 from psi.controller.api import ExperimentAction
 
 from psi.controller.api import EpochOutput, ExperimentAction, ExperimentState
-from psi.controller.input import (IIRFilter, CalibratedInput, RMS, SPL)
+from psi.controller.input import (Input, IIRFilter, CalibratedInput, RMS, SPL)
 
 from psi.data.plots import (TimeContainer, ChannelPlot, FFTContainer,
                             FFTChannelPlot, ViewBox)
@@ -29,8 +29,12 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
     id = 'psi.controller'
 
-    BColzStore:
-        continuous_inputs = ['microphone']
+    Extension:
+        id = 'noise_exposure_stores'
+        point = 'psi.data.sinks'
+
+        BColzStore:
+            continuous_inputs = ['microphone', 'noise_level']
 
     Extension:
         id = 'branding'
@@ -57,21 +61,23 @@ enamldef ControllerManifest(BaseManifest): manifest:
             label = 'Exposure'
             target_name = 'speaker'
 
-        CalibratedInput:
+        Input:
             name = 'microphone'
 
-            IIRFilter:
-                source_name = 'microphone'
-                btype = 'highpass'
-                ftype = 'butter'
-                N = 2
-                f_highpass = 100
-                name = 'filtered_microphone'
-                RMS:
-                    name = 'RMS'
-                    duration = 1
-                    SPL: spl:
-                        name = 'noise_level'
+            CalibratedInput:
+                name = 'calibrated_microphone'
+
+                IIRFilter:
+                    btype = 'highpass'
+                    ftype = 'butter'
+                    N = 2
+                    f_highpass = 100
+                    name = 'filtered_microphone'
+                    RMS:
+                        name = 'RMS'
+                        duration = 1
+                        SPL: spl:
+                            name = 'noise_level'
 
     Extension:
         id = 'calibration_commands'
@@ -164,4 +170,3 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 FFTChannelPlot:
                     source_name = 'filtered_microphone'
                     time_span = 2
-                    #reference = 20e-6
