@@ -93,7 +93,7 @@ class ABRFile:
         self._c_size = c_size
 
     def get_epochs(self, offset=0, duration=8.5e-3, padding_samples=0,
-                   detrend='linear', base_name='target_tone_', columns=None,
+                   detrend='constant', base_name='target_tone_', columns=None,
                    **trials):
 
         columns, names = format_columns(columns, base_name)
@@ -141,7 +141,7 @@ class ABRFile:
 
     def get_epochs_filtered(self, filter_lb=300, filter_ub=3000,
                             filter_order=1, offset=-1e3, duration=10e-3,
-                            detrend='linear', pad_duration=10e-3,
+                            detrend='constant', pad_duration=10e-3,
                             base_name='target_tone_', columns=None, **trials):
 
         Wn = (filter_lb/self.fs, filter_ub/self.fs)
@@ -150,8 +150,14 @@ class ABRFile:
         df = self.get_epochs(offset, duration, padding_samples, detrend,
                              base_name, columns, **trials)
 
-        epochs_filtered = signal.filtfilt(b, a, df.values)
-        epochs_filtered = epochs_filtered[:, padding_samples:-padding_samples]
+        # The vectorized approach takes up too much memory on some of the older
+        # NI PXI systems. Hopefully someday we can move away from all this!
+        epochs_filtered = []
+        for epoch in df.values:
+            e = signal.filtfilt(b, a, epoch)
+            e = e[padding_samples:-padding_samples]
+            epochs_filtered.append(e)
+
         columns = df.columns[padding_samples:-padding_samples]
         return pd.DataFrame(epochs_filtered, index=df.index, columns=columns)
 

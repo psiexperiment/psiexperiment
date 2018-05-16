@@ -7,8 +7,7 @@ from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 
 from psi.core.enaml.editable_table_widget import DataFrameTable
-from psi.context.api import (ContextGroup, Parameter, BoolParameter,
-                             EnumParameter)
+from psi.context.api import (ContextGroup, Parameter, BoolParameter, EnumParameter)
 from psi.context.context_item import OrderedContextMeta
 from psi.context.selector import CartesianProduct
 from psi.controller import queue
@@ -105,24 +104,6 @@ def configure_hardware(event):
 
     action_name = target.name + '_end'
     target.complete_cb = partial(controller.invoke_actions, action_name)
-
-
-def summarize_abr(event):
-    from psi.data.io.abr_summary import process_file
-    core = event.workbench.get_plugin('enaml.workbench.core')
-    settings = core.invoke_command('psi.context.get_values')
-    base_path = core.invoke_command('psi.data.get_base_path')
-    if settings['digital_filter']:
-        filter_settings = {
-            # lb is the lower corner of the filter, which translates to the
-            # highpass frequency. ub is the upper corner of the filter, which
-            # translates to the lowpass frequency.
-            'filter_lb': settings['digital_highpass'],
-            'filter_ub': setting['digital_lowpass'],
-        }
-    else:
-        filter_settings = None
-    process_file(base_path, -1e-3, 9e-3, filter_settings)
 
 
 enamldef ControllerManifest(BaseManifest): manifest:
@@ -283,10 +264,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
             id = 'psi.controller.configure_hardware'
             handler = configure_hardware
 
-        Command:
-            id = 'psi.controller.summarize_abr'
-            handler = summarize_abr
-
     Extension:
         id = 'actions'
         point = 'psi.controller.actions'
@@ -323,11 +300,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
         ExperimentAction:
             event = 'target_end'
             command = 'psi.controller.stop'
-
-        ExperimentAction:
-            event = 'experiment_end'
-            command = 'psi.controller.summarize_abr'
-            weight = 2000
 
     Extension:
         id = 'sink'

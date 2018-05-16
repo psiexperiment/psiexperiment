@@ -1,3 +1,5 @@
+import argparse
+from glob import glob
 import os.path
 
 import numpy as np
@@ -15,30 +17,86 @@ filter_template = 'ABR {:.1f}ms to {:.1f}ms ' \
 columns = ['frequency', 'level', 'polarity']
 
 
-def process_files(filenames, offset, duration, filter_settings=None):
+def process_folder(folder, filter_settings=None):
+    glob_pattern = os.path.join(folder, '*abr')
+    filenames = glob(glob_pattern)
+    process_files(filenames, filter_settings=filter_settings)
+
+
+def process_files(filenames, offset=-0.001, duration=0.01,
+                  filter_settings=None, reprocess=False):
     for filename in filenames:
         try:
-            process_file(filename, offset, duration, filter_settings)
+            process_file(filename, offset, duration, filter_settings, reprocess)
             print('Processed {}'.format(filename))
         except Exception as e:
-            raise
             print('Error processing {}'.format(filename))
 
 
-def process_file(filename, offset, duration, filter_settings):
-    fh = abr.load(filename)
-    if filter_settings is None:
-        epochs = fh.get_epochs(offset=offset, duration=duration,
-                               columns=columns)
-        file_template = nofilter_template.format(offset*1e3, (offset+duration)*1e3)
+def _get_file_template(fh, offset, duration, filter_settings):
+    template_args = [offset*1e3, (offset+duration)*1e3]
+    if filter_settings == 'saved':
+        settings = fh.trial_log.iloc[0]
+        if not settings.get('digital_filter', True):
+            file_template = nofilter_template.format(*template_args)
+        else:
+            lb = settings.get('digital_highpass', 300)
+            ub = settings.get('digital_lowpass', 3000)
+            template_args += [lb, ub]
+            file_template = filter_template.format(*template_args)
+    elif filter_settings is None:
+        file_template = nofilter_template.format(*template_args)
     else:
         lb = filter_settings['lb']
         ub = filter_settings['ub']
-        file_template = filter_template.format(offset*1e3,
-                                               (offset+duration)*1e3, lb, ub)
-        epochs = fh.get_epochs_filtered(offset=offset, duration=duration,
-                                        filter_lb=lb, filter_ub=ub,
-                                        columns=columns)
+        template_args += [lb, ub]
+        file_template = filter_template.format(*template_args)
+    return file_template
+
+
+def _get_epochs(fh, offset, duration, filter_settings):
+    kwargs = {'offset': offset, 'duration': duration, 'columns': columns}
+    if filter_settings == 'saved':
+        settings = fh.trial_log.iloc[0]
+        if not settings.get('digital_filter', True):
+            epochs = fh.get_epochs(**kwargs)
+        else:
+            lb = settings.get('digital_highpass', 300)
+            ub = settings.get('digital_lowpass', 3000)
+            kwargs.update({'filter_lb': lb, 'filter_ub': ub})
+            epochs = fh.get_epochs_filtered(**kwargs)
+    elif filter_settings is None:
+        epochs = fh.get_epochs(**kwargs)
+    else:
+        lb = filter_settings['lb']
+        ub = filter_settings['ub']
+        kwargs.update({'filter_lb': lb, 'filter_ub': ub})
+        epochs = fh.get_epochs_filtered(**kwargs)
+    return epochs
+
+
+def process_file(filename, offset, duration, filter_settings, reprocess=False):
+    fh = abr.load(filename)
+
+    # Generate the filenames
+    file_template = _get_file_template(fh, offset, duration, filter_settings)
+    file_template = os.path.join(filename, file_template)
+    raw_epoch_file = file_template.format('individual waveforms')
+    mean_epoch_file = file_template.format('average waveforms')
+    n_epoch_file = file_template.format('number of epochs')
+    reject_ratio_file = file_template.format('reject ratio')
+
+    # Check to see if all of them exist before reprocessing
+    if not reprocess and \
+            (os.path.exists(raw_epoch_file) and \
+             os.path.exists(mean_epoch_file) and \
+             os.path.exists(n_epoch_file) and \
+             os.path.exists(reject_ratio_file)):
+        print('{} already processed. Skipping.'.format(filename))
+        return
+
+    # Load the epochs
+    epochs = _get_epochs(fh, offset, duration, filter_settings)
 
     # Apply the reject
     reject_threshold = fh.trial_log.at[0, 'reject_threshold']
@@ -51,12 +109,6 @@ def process_file(filename, offset, duration, filter_settings):
         .groupby(columns[:-1]).mean()
     epoch_n = epochs.groupby(columns[:-1]).size()
 
-    file_template = os.path.join(filename, file_template)
-    raw_epoch_file = file_template.format('individual waveforms')
-    mean_epoch_file = file_template.format('average waveforms')
-    n_epoch_file = file_template.format('number of epochs')
-    reject_ratio_file = file_template.format('reject ratio')
-
     # Write the data to CSV files
     epoch_reject_ratio.name = 'epoch_reject_ratio'
     epoch_reject_ratio.to_csv(reject_ratio_file, header=True)
@@ -68,8 +120,14 @@ def process_file(filename, offset, duration, filter_settings):
     epochs.T.to_csv(raw_epoch_file)
 
 
+def main_auto():
+    parser = argparse.ArgumentParser('Filter and summarize ABR files in folder')
+    parser.add_argument('folder', type=str, help='Folder containing ABR data')
+    args = parser.parse_args()
+    process_folder(args.folder, filter_settings='saved')
+
+
 def main():
-    import argparse
     parser = argparse.ArgumentParser('Filter and summarize ABR data')
 
     parser.add_argument('filenames', type=str,
@@ -86,6 +144,9 @@ def main():
     parser.add_argument('--filter-ub', type=float,
                         help='Lowpass filter cutoff',
                         default=None)
+    parser.add_argument('--reprocess',
+                        help='Redo existing results',
+                        action='store_true')
     args = parser.parse_args()
 
     if args.filter_lb is not None or args.filter_ub is not None:
@@ -95,7 +156,8 @@ def main():
         }
     else:
         filter_settings = None
-    process_files(args.filenames, args.offset, args.duration, filter_settings)
+    process_files(args.filenames, args.offset, args.duration, filter_settings,
+                  args.reprocess)
 
 
 if __name__ == '__main__':
