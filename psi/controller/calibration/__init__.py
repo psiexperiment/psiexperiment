@@ -78,6 +78,14 @@ class Calibration(Atom):
         return cls(mic_freq, mic_sens, **kwargs)
 
     @classmethod
+    def from_epl(cls, filename, **kwargs):
+        calibration = pd.io.parsers.read_csv(filename, skiprows=14,
+                                             delimiter='\t')
+        freq = calibration['Freq(Hz)']
+        spl = calibration['Mag(dB)']
+        return cls.from_spl(freq, spl, **kwargs)
+
+    @classmethod
     def as_attenuation(cls, vrms=1, **kwargs):
         '''
         Allows levels to be specified in dB attenuation
