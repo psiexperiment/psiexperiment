@@ -252,7 +252,8 @@ class BasePlugin(Plugin):
         if target_name in self._channels:
             target = self._channels[target_name]
         else:
-            m = "Unknown target {}".format(target_name)
+            m = "Unknown target {} specified for output {}" \
+                .format(target_name, output_name)
             raise ValueError(m)
 
         o = self._outputs[output_name]
