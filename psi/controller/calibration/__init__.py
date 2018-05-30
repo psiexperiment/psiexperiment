@@ -173,6 +173,11 @@ class FlatCalibration(Calibration):
         sensitivity = util.db(vrms)-spl-util.db(20e-6)
         return cls(sensitivity, **kwargs)
 
+    @classmethod
+    def from_mv_pa(cls, mv_pa, **kwargs):
+        sens = util.db(mv_pa*1e-3)
+        return cls(sens, **kwargs)
+
     def __init__(self, sensitivity, fixed_gain=0):
         self.sensitivity = sensitivity
         self.fixed_gain = fixed_gain
