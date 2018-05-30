@@ -24,6 +24,7 @@ experiments = {
     'dual_efr': 'psi.application.experiment.dual_efr.ControllerManifest',
     'calibration': 'psi.application.experiment.calibration.ControllerManifest',
     'pt_calibration': 'psi.application.experiment.pt_calibration.ControllerManifest',
+    'pt_calibration_chirp': 'psi.application.experiment.pt_calibration_chirp.ControllerManifest',
     'pistonphone_calibration': 'psi.application.experiment.pistonphone_calibration.ControllerManifest',
     'dpoae': 'psi.application.experiment.dpoae.ControllerManifest',
 }

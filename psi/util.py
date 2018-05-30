@@ -3,7 +3,14 @@ import inspect
 import threading
 
 import numpy as np
+import pandas as pd
 from atom.api import Property
+
+
+def as_numeric(x):
+    if not isinstance(x, (np.ndarray, pd.DataFrame, pd.Series)):
+        x = np.asanyarray(x)
+    return x
 
 
 def rpc(plugin_name, method_name):
@@ -220,3 +227,15 @@ class SignalBuffer:
 
     def get_samples_ub(self):
         return self._samples
+
+
+def octave_space(lb, ub, step):
+    '''
+    >>> freq = octave_space(4, 32, 1)
+    >>> print(freq)
+    [ 4.  8. 16. 32.]
+    '''
+    lbi = round(np.log2(lb) / step) * step
+    ubi = round(np.log2(ub) / step) * step
+    x = np.arange(lbi, ubi+step, step)
+    return 2**x

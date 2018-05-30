@@ -2,15 +2,17 @@ import numpy as np
 from scipy import signal
 from fractions import gcd
 
+from psi.util import as_numeric
+
 
 def db(target, reference=1):
-    target = np.asarray(target, dtype=np.double)
-    reference = np.asarray(reference, dtype=np.double)
+    target = as_numeric(target)
+    reference = as_numeric(reference)
     return 20*np.log10(target/reference)
 
 
 def dbi(db, reference=1):
-    db = np.asarray(db, dtype=np.double)
+    db = as_numeric(db)
     return (10**(db/20))*reference
 
 

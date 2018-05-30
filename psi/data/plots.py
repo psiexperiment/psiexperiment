@@ -307,6 +307,25 @@ class ViewBox(PSIContribution):
     def add_plot(self, plot):
         self.viewbox.addItem(plot)
 
+    def plot(self, x, y, color='k', log_x=False, log_y=False, label=None,
+             kind='line'):
+        if log_x:
+            x = np.log10(x)
+        if log_y:
+            y = np.log10(y)
+        x = np.asarray(x)
+        y = np.asarray(y)
+
+        if kind == 'line':
+            item = pg.PlotCurveItem(pen=pg.mkPen(color))
+        elif kind == 'scatter':
+            item = pg.ScatterPlotItem(pen=pg.mkPen(color))
+        item.setData(x, y)
+        self.add_plot(item)
+
+        if label is not None:
+            self.parent.legend.addItem(item, label)
+
 
 ################################################################################
 # Plots

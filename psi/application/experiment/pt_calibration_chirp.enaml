@@ -18,18 +18,16 @@ from psi.context.api import ContextGroup, Parameter, EnumParameter
 from psi.context.context_item import OrderedContextMeta
 from psi.context.selector import SequenceSelector
 from psi.controller.api import ExperimentAction
-from psi.controller.calibration import FlatCalibration, InterpCalibration
-from psi.controller.calibration.util import (golay_pair, golay_tf, db, dbi,
-                                             summarize_golay)
-from psi.controller.calibration.tone import tone_sens
+from psi.controller.calibration.util import psd, psd_freq, db, dbi
 
-from psi.controller.output import QueuedEpochOutput
+from psi.controller.output import SelectorQueuedEpochOutput
 from psi.controller.input import ExtractEpochs, Input, Blocked, Accumulate, IIRFilter, Decimate
 
 from psi.controller.base_manifest import (BaseManifest, get_hw_ao_choices,
                                           get_hw_ai_choices)
+from psi.controller.calibration.tone import tone_sens
 
-from psi.controller.queue import FIFOSignalQueue
+from psi.token.primitives import Chirp
 
 from psi.data.sinks.bcolz_store import BColzStore
 from psi.data.sinks.text_store import TextStore
@@ -42,7 +40,8 @@ from psi.data.plots import (TimeContainer,
                             GroupedEpochFFTPlot)
 
 
-from psi.controller.calibration import FlatCalibration
+from psi.controller.calibration import FlatCalibration, InterpCalibration
+from psi.util import octave_space
 
 
 def configure_hardware(event):
@@ -69,33 +68,6 @@ def configure_hardware(event):
     output_channel = controller.get_channel(values['output_channel'])
     output_channel.calibration = FlatCalibration.as_attenuation()
 
-    # Set up the queue now that we know what the channel is
-    output = controller.get_output('hw_ao')
-    output.queue = FIFOSignalQueue()
-
-    for setting in context.iter_settings('default', 1):
-        n = setting['n_bits']
-        gain = setting['output_gain']
-
-        n_fft = setting['fft_averages']
-        n_waveform = setting['waveform_averages']
-        n_discard = setting['discard']
-        n_trials = n_fft*n_waveform + n_discard
-
-        iti = setting['iti']
-        ab_delay = setting['ab_delay']
-        delays = [iti] * n_trials
-        delays[-1] = ab_delay
-
-        sf = output_channel.calibration.get_sf(None, gain)
-        a, b = golay_pair(n)
-        a *= sf
-        b *= sf
-        output.queue.append(a, n_trials, delays, metadata=setting)
-        output.queue.append(b, n_trials, delays, metadata=setting)
-
-    output.channel.expected_range = (-sf, sf)
-
 
 def calculate_sens(event):
     core = event.workbench.get_plugin('enaml.workbench.core')
@@ -104,8 +76,8 @@ def calculate_sens(event):
 
     pt_source = data.find_source('pt_epoch')
     cal_source = data.find_source('cal_epoch')
-    pt_groups = pt_source.get_epoch_groups(['n_bits', 'output_gain'])
-    cal_groups = cal_source.get_epoch_groups(['n_bits', 'output_gain'])
+    pt_groups = pt_source.get_epoch_groups(['hw_ao_chirp_level'])
+    cal_groups = cal_source.get_epoch_groups(['hw_ao_chirp_level'])
 
     n = max(len(cal_groups), 3)
     cmap_name = 'Dark2_{}'.format(n)
@@ -124,56 +96,55 @@ def calculate_sens(event):
         summaries.append(sens_summary)
         keys.append(key)
 
-    result = pd.concat(summaries, keys=keys, names=['n_bits', 'output_gain'])
-    parameters = {'name': 'sensitivity', 'dataframe': result}
-    filename = core.invoke_command('calibration_data.create_table',
-                                   parameters=parameters)
-    filename = os.path.dirname(filename)
-    validate_sens(event, filename)
+    result = pd.concat(summaries, keys=keys, names=['hw_ao_chirp_level'])
+    parameters = {'name': 'chirp_sensitivity', 'dataframe': result}
+    core.invoke_command('calibration_data.create_table', parameters=parameters)
+    validate_sens(event, result.loc[-37].reset_index())
 
 
-def calculate_group_sens(fs, key, pt_waveform, cal_waveform, color, context,
+def calculate_group_sens(fs, pt_waveform, cal_waveform, color, context,
                          data, name):
-    n_bits = context.get_value('n_bits')
-    n_fft = context.get_value('fft_averages')
-    n_waveforms = context.get_value('waveform_averages')
-    n_discard = context.get_value('discard')
+
     cal_mic_sens = context.get_value('cal_mic_sens_mv') * 1e-3
     smoothing_window = context.get_value('smoothing_window')
 
-    a, b = golay_pair(n_bits)
+    freq = psd_freq(pt_waveform, fs)
+    pt_psd = np.mean(psd(pt_waveform, fs), axis=0)
+    cal_psd = np.mean(psd(cal_waveform, fs), axis=0)
 
-    n = n_waveforms * n_fft + n_discard
-
-    pt_a, pt_b = pt_waveform[n_discard:n], pt_waveform[n+n_discard:]
-    pt_summary = summarize_golay(fs, a, b, pt_a, pt_b, n_waveforms)
-
-    cal_a, cal_b = cal_waveform[n_discard:n], cal_waveform[n+n_discard:]
-    cal_summary = summarize_golay(fs, a, b, cal_a, cal_b, n_waveforms)
-
-    pt_psd = pt_summary['psd']
-    cal_psd = cal_summary['psd']
-    pt_phase = pt_summary['phase']
-    cal_phase = cal_summary['phase']
+    #pt_psd = pt_summary['psd']
+    #cal_psd = cal_summary['psd']
+    #pt_phase = pt_summary['phase']
+    #cal_phase = cal_summary['phase']
 
     sens = db(pt_psd) + db(cal_mic_sens) - db(cal_psd)
-    phase = pt_phase - cal_phase
+    #phase = pt_phase - cal_phase
+    print(sens)
 
     if smoothing_window > 0:
         w = signal.hamming(smoothing_window)
         w /= w.sum()
         sens = np.convolve(sens, w, mode='same')
-        phase = np.convolve(phase, w, mode='same')
+        #phase = np.convolve(phase, w, mode='same')
+
+    pt_summary = {
+        'frequency': freq,
+        'psd': pt_psd,
+    }
+
+    cal_summary = {
+        'frequency': freq,
+        'psd': cal_psd,
+    }
 
     sens_summary = {
-        'frequency': pt_summary['frequency'],
+        'frequency': freq,
         'sens': sens,
-        'phase': phase,
+        #'phase': phase,
     }
 
     def plot_data(data=data, pt_summary=pt_summary, cal_summary=cal_summary,
                   sens_summary=sens_summary, color=color, name=name):
-
         vb = data.find_viewbox('pt_fft')
         vb.plot(pt_summary['frequency'], db(pt_summary['psd']), color,
                 log_x=True)
@@ -192,6 +163,7 @@ def validate_sens(event, sens):
     controller = event.workbench.get_plugin('psi.controller')
     context = event.workbench.get_plugin('psi.context')
     data = event.workbench.get_plugin('psi.data')
+    core = event.workbench.get_plugin('enaml.workbench.core')
 
     output_channel = context.get_value('output_channel')
     pt_channel = context.get_value('pt_channel')
@@ -205,8 +177,9 @@ def validate_sens(event, sens):
     cal_ai = controller.get_channel(cal_channel)
     cal_ai.calibration = InterpCalibration(sens['frequency'], sens['sens'])
 
-    freq_lb = 100
-    freq_ub = 50000
+    freq_lb = context.get_value('hw_ao_chirp_start_frequency')
+    freq_ub = context.get_value('hw_ao_chirp_end_frequency')
+
     frequencies = octave_space(freq_lb*1e-3, freq_ub*1e-3, 0.5)*1e3
 
     ai_channels = [pt_channel, cal_channel]
@@ -223,8 +196,8 @@ def validate_sens(event, sens):
         vb.plot(sens.index, sens.values, log_x=True, kind='scatter')
 
     deferred_call(plot_data)
-    return sens
-
+    parameters = {'name': 'tone_sensitivity', 'dataframe': result}
+    core.invoke_command('calibration_data.create_table', parameters=parameters)
 
 
 enamldef ControllerManifest(BaseManifest): manifest:
@@ -243,12 +216,20 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
 
     Extension:
+        id = 'signals'
+        point = 'psi.token.tokens'
+
+        Chirp:
+            pass
+
+    Extension:
         id = 'io'
         point = 'psi.controller.io'
 
-        QueuedEpochOutput: hw_ao:
+        SelectorQueuedEpochOutput: hw_ao:
             name = 'hw_ao'
             auto_decrement = True
+            selector_name = 'default'
 
         # TODO: Come up with a synchronized approach for this?
         Blocked:
@@ -270,52 +251,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
     Extension:
         id = 'context'
         point = 'psi.context.items'
-
-        ContextGroup:
-            name = 'golay'
-            label = 'Golay'
-
-            Parameter:
-                name = 'n_bits'
-                label = 'Number of bits for Golay'
-                default = 14
-                scope = 'trial'
-
-            Parameter:
-                name = 'fft_averages'
-                label = 'FFT averages'
-                default = 4
-                scope = 'experiment'
-
-            Parameter:
-                name = 'waveform_averages'
-                label = 'Waveform averages'
-                default = 2
-                scope = 'experiment'
-
-            Parameter:
-                name = 'discard'
-                label = 'Repetitions to discard'
-                default = 2
-                scope = 'experiment'
-
-            Parameter:
-                name = 'iti'
-                label = 'Delay between repetitions (sec)'
-                default = 1e-5
-                scope = 'experiment'
-
-            Parameter:
-                name = 'ab_delay'
-                label = 'Delay between A and B code (sec)'
-                default = 2
-                scope = 'experiment'
-
-            Parameter:
-                name = 'output_gain'
-                label = 'Output gain'
-                default = -20
-                scope = 'trial'
 
         ContextGroup:
             name = 'calibration'
@@ -420,30 +355,54 @@ enamldef ControllerManifest(BaseManifest): manifest:
         point = 'psi.data.plots'
 
         TimeContainer:
-            name = 'epoch_container'
-            label = 'Epoch average'
+            name = 'epoch_container_signal'
+            label = 'Epoch average (signal)'
             span = 0.01
 
             ViewBox:
-                y_min = -2.5
-                y_max = 2.5
+                y_min = -0.1
+                y_max = 0.1
                 label = 'Signal (V)'
 
                 GroupedEpochAveragePlot:
-                    name = 'pt_epoch_average'
                     label = 'PT epoch average plot'
                     source_name = 'pt_epoch'
                     pen_color_cycle = ['k', 'r']
                     groups << epoch_groups
 
             ViewBox:
-                y_min = -0.25
-                y_max = 0.25
+                y_min = -0.01
+                y_max = 0.01
                 label = 'Signal (V)'
 
                 GroupedEpochAveragePlot:
-                    name = 'cal_epoch_average'
                     label = 'Cal. epoch average plot'
+                    source_name = 'cal_epoch'
+                    pen_color_cycle = ['k', 'r']
+                    groups << epoch_groups
+
+        FFTContainer:
+            name = 'epoch_container_psd'
+            label = 'Epoch average (PSD)'
+            freq_lb = 50.0
+            freq_ub = 50000
+
+            ViewBox:
+                label = 'Signal (dB re 1V)'
+                y_min = -160
+                y_max = -50
+
+                GroupedEpochFFTPlot:
+                    source_name = 'pt_epoch'
+                    pen_color_cycle = ['k', 'r']
+                    groups << epoch_groups
+
+            ViewBox:
+                label = 'Signal (dB re 1V)'
+                y_min = -160
+                y_max = -50
+
+                GroupedEpochFFTPlot:
                     source_name = 'cal_epoch'
                     pen_color_cycle = ['k', 'r']
                     groups << epoch_groups
@@ -455,10 +414,14 @@ enamldef ControllerManifest(BaseManifest): manifest:
             freq_ub = 50000
 
             ViewBox:
+                y_min = -160
+                y_max = -50
                 name = 'pt_fft'
                 label = 'Probe tube PSD (dB re 1V)'
 
             ViewBox:
+                y_min = -160
+                y_max = -50
                 name = 'cal_fft'
                 label = 'Calibration mic. PSD (dB re 1V)'
 

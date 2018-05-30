@@ -300,9 +300,6 @@ class AbstractStore(Sink):
         except KeyError as e:
             raise AttributeError(source_name)
 
-    def set_current_time(self, name, timestamp):
-        self._stores[name].set_current_time(timestamp)
-
     def _prepare_trial_log(self, context_info):
         data = self._create_trial_log(context_info)
         self.trial_log = DataTable(data=data)
