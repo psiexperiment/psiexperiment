@@ -24,10 +24,12 @@ class TextStore(BaseStore):
         if path.exists():
             raise IOError('{} already exists'.format(path))
         dataframe.to_csv(path)
+        return path
 
     def update_table(self, name, dataframe):
         path = self.get_filename(name, '.csv')
         dataframe.to_csv(path)
+        return path
 
     def create_mapping(self, name, mapping):
         path = self.get_filename(name, '.json')
@@ -35,8 +37,10 @@ class TextStore(BaseStore):
             raise IOError('{} already exists'.format(path))
         with open(path, 'w') as fh:
             json.dump(mapping, fh, sort_keys=True, indent=4)
+        return path
 
     def update_mapping(self, name, mapping):
         path = self.get_filename(name, '.json')
         with open(path, 'w') as fh:
             json.dump(mapping, fh, sort_keys=True, indent=4)
+        return path

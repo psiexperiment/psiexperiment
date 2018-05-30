@@ -332,11 +332,13 @@ def prepare(sink, event):
 
 
 def create_table(sink, event):
-    sink.create_table(event.parameters['name'], event.parameters['dataframe'])
+    return sink.create_table(event.parameters['name'],
+                             event.parameters['dataframe'])
 
 
 def create_mapping(sink, event):
-    sink.create_mapping(event.parameters['name'], event.parameters['mapping'])
+    return sink.create_mapping(event.parameters['name'],
+                               event.parameters['mapping'])
 
 
 enamldef AbstractStoreManifest(PSIManifest): manifest:
