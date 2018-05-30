@@ -18,7 +18,8 @@ from psi.controller.base_manifest import (BaseManifest, get_hw_ao_choices,
                                           get_hw_ai_choices)
 
 from psi.controller.queue import InterleavedFIFOSignalQueue
-#from psi.data.io.bcolz import get_epoch_groups
+from psi.data.io.bcolz_tools import get_epoch_groups
+from psi.controller.calibration import util
 
 from psi.data.sinks.bcolz_store import BColzStore
 
@@ -67,7 +68,15 @@ def calculate_spl(event):
     data = event.workbench.get_plugin('psi.data')
     epoch = data.find_source('epoch')
     epoch_md = data.find_source('epoch_metadata')
-    epochs = get_epoch_groups(epoch, epoch_md, ['hw_ao_chirp_level'])
+    epoch_groups = get_epoch_groups(epoch, epoch_md, ['hw_ao_chirp_level'])
+
+    results = {}
+    for key, epoch in epoch_groups.items():
+        results[key] = {
+            'psd': util.psd(epoch, epoch.attrs['fs']),
+            'phase': util.phase(epoch, epoch.attrs['fs']),
+            'frequency': util.psd_freq(epoch, epoch.attrs['fs']),
+        }
 
 
 enamldef ControllerManifest(BaseManifest): manifest:
