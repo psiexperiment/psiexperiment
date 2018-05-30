@@ -12,7 +12,7 @@ from psi.context.context_item import OrderedContextMeta
 from psi.context.selector import CartesianProduct
 from psi.controller import queue
 from psi.controller.api import ExperimentAction
-from psi.controller.base_manifest import BaseManifest
+from psi.controller.base_manifest import BaseManifest, get_hw_ao_choices
 from psi.controller.input import (ContinuousInput, ExtractEpochs,
                                   RejectEpochs, Decimate, IIRFilter)
 from psi.controller.output import QueuedEpochOutput
@@ -24,6 +24,13 @@ from psi.token.primitives import Cos2Envelope, Tone
 
 
 def configure_hardware(event):
+    context = event.workbench.get_plugin('psi.context')
+    controller = event.workbench.get_plugin('psi.controller')
+    output_channel = context.get_value('output_channel')
+    controller.connect_output('target', output_channel)
+
+
+def configure_experiment(event):
     context = event.workbench.get_plugin('psi.context')
     controller = event.workbench.get_plugin('psi.controller')
 
@@ -132,8 +139,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
         QueuedEpochOutput: output:
             name = 'target'
             label = 'Target'
-            target_name = 'speaker_0'
-            auto_decrement = False
 
         ContinuousInput:
             name = 'microphone'
@@ -224,8 +229,15 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 scope = 'experiment'
 
         ContextGroup:
-            name = 'amplifier_settings'
-            label = 'Amplifier settings'
+            name = 'hardware_settings'
+            label = 'Hardware settings'
+
+            EnumParameter:
+                name = 'output_channel'
+                label = 'Output channel'
+                compact_label = 'ao'
+                choices << get_hw_ao_choices(workbench)
+                scope = 'experiment'
 
             Parameter:
                 name = 'amplifier_highpass'
@@ -245,7 +257,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 default = 100e3
                 scope = 'experiment'
 
-
         OrderedContextMeta: epoch_groups:
             name = 'settings'
 
@@ -260,14 +271,24 @@ enamldef ControllerManifest(BaseManifest): manifest:
     Extension:
         id = 'calibration_commands'
         point = 'enaml.workbench.core.commands'
+
         Command:
             id = 'psi.controller.configure_hardware'
             handler = configure_hardware
+
+        Command:
+            id = 'psi.controller.configure_experiment'
+            handler = configure_experiment
 
     Extension:
         id = 'actions'
         point = 'psi.controller.actions'
         rank = 100
+
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'psi.controller.configure_hardware'
+            weight = 9
 
         ExperimentAction:
             weight = 10
@@ -290,8 +311,8 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
         ExperimentAction:
             event = 'experiment_prepare'
-            command = 'psi.controller.configure_hardware'
-            weight = 15
+            command = 'psi.controller.configure_experiment'
+            weight = 11
 
         ExperimentAction:
             event = 'valid_erp_acquired'
