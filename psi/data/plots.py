@@ -711,10 +711,15 @@ class GroupMixin(Declarative):
 
 
 class GroupedEpochAveragePlot(GroupMixin, BasePlot):
-    pass
+
+    def _default_name(self):
+        return self.source_name + '_grouped_epoch_average_plot'
 
 
 class GroupedEpochFFTPlot(GroupMixin, BasePlot):
+
+    def _default_name(self):
+        return self.source_name + '_grouped_epoch_fft_plot'
 
     def _cache_x(self, event=None):
         # Cache the frequency points. Must be in units of log for PyQtGraph.
@@ -730,6 +735,9 @@ class GroupedEpochFFTPlot(GroupMixin, BasePlot):
 class GroupedEpochPhasePlot(GroupMixin, BasePlot):
 
     unwrap = d_(Bool(True))
+
+    def _default_name(self):
+        return self.source_name + '_grouped_epoch_phase_plot'
 
     def _cache_x(self, event=None):
         # Cache the frequency points. Must be in units of log for PyQtGraph.
