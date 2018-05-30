@@ -311,10 +311,12 @@ class BColzStore(BaseStore):
 
 
 def prepare(sink, event):
+    log.debug('Preparing %s', sink.name)
     controller = event.workbench.get_plugin('psi.controller')
     context = event.workbench.get_plugin('psi.context')
 
     for input_name in sink.epoch_inputs:
+        log.debug('\tCreating save file for epoch input %s', input_name)
         i = controller.get_input(input_name)
         md = declarative_to_dict(i, 'metadata')
         sink.create_ai_epochs(context_items=context.context_items, **md)
@@ -322,6 +324,7 @@ def prepare(sink, event):
         i.add_callback(cb)
 
     for input_name in sink.continuous_inputs:
+        log.debug('\tCreating save file for continuous input %s', input_name)
         i = controller.get_input(input_name)
         md = declarative_to_dict(i, 'metadata')
         sink.create_ai_continuous(**md)

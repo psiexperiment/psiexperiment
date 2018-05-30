@@ -204,7 +204,6 @@ class SPL(ContinuousInput):
     def configure_callback(self):
         cb = super().configure_callback()
         sens = self.calibration.get_sens(1000)
-        print('sensitivity', sens)
         return spl(cb, sens).send
 
 

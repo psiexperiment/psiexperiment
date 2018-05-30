@@ -300,7 +300,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 'parameter_names': ['target_tone_frequency'],
                 'gain': -50,
                 'max_thd': None,
-                'min_snr': None,
+                'min_snr': 10,
                 'duration': 0.1,
                 'trim': 0.01,
                 'iti': 0,
@@ -364,8 +364,8 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
             ViewBox:
                 name = 'ecg_view'
-                y_min = -5
-                y_max = 5
+                y_min = -0.2
+                y_max = 0.2
 
                 ChannelPlot:
                     pen_color = 'k'
