@@ -78,16 +78,15 @@ def process_tone(fs, signal, frequency, min_snr=None, max_thd=None,
     # Compute the harmonic distortion as a percent
     thd = np.sqrt(np.sum(rms[1:]**2))/freq_rms * 100
 
+    silence = np.atleast_2d(silence)
+    noise_rms = tone_power_conv(silence, fs, frequency, 'flattop')
+    noise_rms = noise_rms.mean(axis=0)
+    freq_snr = db(freq_rms, noise_rms)
+
     if min_snr is not None:
-        silence = np.atleast_2d(silence)
-        noise_rms = tone_power_conv(silence, fs, frequency, 'flattop')
-        noise_rms = noise_rms.mean(axis=0)
-        freq_snr = db(freq_rms, noise_rms)
         if np.any(freq_snr < min_snr):
             mesg = nf_err_mesg.format(frequency, freq_snr)
             raise CalibrationNFError(mesg)
-    else:
-        freq_snr = np.full_like(freq_rms, np.nan)
 
     if max_thd is not None and np.any(thd > max_thd):
         mesg = thd_err_mesg.format(frequency, thd)
