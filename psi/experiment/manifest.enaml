@@ -67,7 +67,7 @@ def _save_layout(event, filename):
 
 
 def load_layout(event):
-    filename = FileDialogEx.get_save_file_name(
+    filename = FileDialogEx.get_open_file_name(
         name_filters=[get_config('LAYOUT_WILDCARD')],
         current_path=get_default_path('layout')
     )
@@ -118,7 +118,7 @@ def _save_preferences(event, filename):
 def load_preferences(event):
     filename = event.parameters.get('filename', None)
     if filename is None:
-        filename = FileDialogEx.get_save_file_name(
+        filename = FileDialogEx.get_open_file_name(
             name_filters=[get_config('PREFERENCES_WILDCARD')],
             current_path=get_default_path('preferences')
         )
