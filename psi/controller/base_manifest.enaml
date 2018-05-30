@@ -5,6 +5,7 @@ import enaml
 from enaml.application import deferred_call
 from enaml.core.api import Looper
 from enaml.layout.api import InsertItem
+from enaml.stdlib.message_box import critical
 from enaml.widgets.api import Action, ToolBar
 from enaml.workbench.api import Extension, ExtensionPoint, PluginManifest
 from enaml.workbench.core.api import Command
@@ -43,9 +44,13 @@ def log_actions(event):
 
 
 def start_experiment(event):
-    controller = event.workbench.get_plugin('psi.controller')
-    controller.prepare_experiment()
-    controller.start_experiment()
+    try:
+        controller = event.workbench.get_plugin('psi.controller')
+        controller.prepare_experiment()
+        controller.start_experiment()
+    except Exception as e:
+        critical(None, 'Error starting experiment', str(e))
+        log.exception(e)
 
 
 def get_hw_ao_choices(workbench):
