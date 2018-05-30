@@ -1,6 +1,7 @@
 import logging
 log = logging.getLogger(__name__)
 
+import os.path
 from atom.api import Typed
 import numpy as np
 from scipy import signal
@@ -17,9 +18,12 @@ from psi.context.api import ContextGroup, Parameter, EnumParameter
 from psi.context.context_item import OrderedContextMeta
 from psi.context.selector import SequenceSelector
 from psi.controller.api import ExperimentAction
-from psi.controller.calibration.util import golay_pair, golay_tf, db, dbi
+from psi.controller.calibration import FlatCalibration, InterpCalibration
+from psi.controller.calibration.util import (golay_pair, golay_tf, db, dbi,
+                                             summarize_golay)
+from psi.controller.calibration.tone import tone_sens
 
-from psi.controller.output import QueuedEpochOutput, EpochOutput
+from psi.controller.output import QueuedEpochOutput
 from psi.controller.input import ExtractEpochs, Input, Blocked, Accumulate, IIRFilter, Decimate
 
 from psi.controller.base_manifest import (BaseManifest, get_hw_ao_choices,
@@ -90,6 +94,8 @@ def configure_hardware(event):
         output.queue.append(a, n_trials, delays, metadata=setting)
         output.queue.append(b, n_trials, delays, metadata=setting)
 
+    output.channel.expected_range = (-sf, sf)
+
 
 def calculate_sens(event):
     core = event.workbench.get_plugin('enaml.workbench.core')
@@ -110,9 +116,9 @@ def calculate_sens(event):
     keys = []
     for key, color in zip(pt_groups.keys(), colors):
         name = '{}'.format(key)
-        sens_summary = calculate_group_sens(pt_source.fs, key, pt_groups,
-                                            cal_groups, color, context, data,
-                                            name)
+        sens_summary = calculate_group_sens(pt_source.fs, pt_groups[key],
+                                            cal_groups[key], color, context,
+                                            data, name)
         sens_summary = pd.DataFrame(sens_summary)
         sens_summary.set_index('frequency', inplace=True)
         summaries.append(sens_summary)
@@ -120,11 +126,15 @@ def calculate_sens(event):
 
     result = pd.concat(summaries, keys=keys, names=['n_bits', 'output_gain'])
     parameters = {'name': 'sensitivity', 'dataframe': result}
-    core.invoke_command('calibration_data.create_table', parameters=parameters)
+    filename = core.invoke_command('calibration_data.create_table',
+                                   parameters=parameters)
+    filename = os.path.dirname(filename)
+
+    validate_sens(event, filename)
 
 
-def calculate_group_sens(fs, key, pt_groups, cal_groups, color, context, data,
-                         name):
+def calculate_group_sens(fs, key, pt_waveform, cal_waveform, color, context,
+                         data, name):
     n_bits = context.get_value('n_bits')
     n_fft = context.get_value('fft_averages')
     n_waveforms = context.get_value('waveform_averages')
@@ -133,8 +143,6 @@ def calculate_group_sens(fs, key, pt_groups, cal_groups, color, context, data,
     smoothing_window = context.get_value('smoothing_window')
 
     a, b = golay_pair(n_bits)
-    pt_waveform = pt_groups[key]
-    cal_waveform = cal_groups[key]
 
     n = n_waveforms * n_fft + n_discard
 
@@ -194,24 +202,33 @@ def calculate_group_sens(fs, key, pt_groups, cal_groups, color, context, data,
     return sens_summary
 
 
-def summarize_golay(fs, a, b, a_response, b_response, waveform_averages=None):
+def validate_sens(event, filename):
+    controller = event.workbench.get_plugin('psi.controller')
+    context = event.workbench.get_plugin('psi.context')
+    output_channel = context.get_value('output_channel')
+    pt_channel = context.get_value('pt_channel')
+    cal_channel = context.get_value('cal_channel')
+    cal_mic_sens_mv = context.get_value('cal_mic_sens_mv')
 
-    if waveform_averages is not None:
-        n_epochs, n_time = a_response.shape
-        new_shape = (waveform_averages, -1, n_time)
-        a_response = a_response.reshape(new_shape).mean(axis=0)
-        b_response = b_response.reshape(new_shape).mean(axis=0)
+    ao = controller.get_channel(output_channel)
+    pt_ai = controller.get_channel(pt_channel)
+    pt_ai.calibration = flatcalibration.from_mv_pa(cal_mic_sens_mv)
+    print(pt_ai.gain)
+    cal_ai = controller.get_channel(cal_channel)
+    cal_ai.calibration = interpcalibration.from_psi(filename)
+    print(cal_ai.gain)
 
-    time = np.arange(a_response.shape[-1])/fs
-    freq, tf_psd, tf_phase = golay_tf(a, b, a_response, b_response, fs)
-    tf_psd = tf_psd.mean(axis=0)
-    tf_phase = tf_phase.mean(axis=0)
+    frequencies = [500, 1000, 2000, 4000, 8000, 16000]
+    ai_channels = [pt_channel, cal_channel]
+    result = tone_sens(ao.engine, frequencies, gain=-50,
+                       ao_channel_name=output_channel,
+                       ai_channel_names=ai_channels)
+    print(result)
+    r = result['spl'].unstack('channel_name')
+    print(r[pt_channel] - r[cal_channel])
+    print(result['sens'].unstack('channel_name'))
 
-    return {
-        'psd': tf_psd,
-        'phase': tf_phase,
-        'frequency': freq,
-    }
+
 
 
 enamldef ControllerManifest(BaseManifest): manifest:

@@ -275,6 +275,26 @@ def golay_ir(n, a, b, a_signal, b_signal):
     return 1.0/(2.0*n)*(a_conv+b_conv)[..., -len(a):]
 
 
+def summarize_golay(fs, a, b, a_response, b_response, waveform_averages=None):
+
+    if waveform_averages is not None:
+        n_epochs, n_time = a_response.shape
+        new_shape = (waveform_averages, -1, n_time)
+        a_response = a_response.reshape(new_shape).mean(axis=0)
+        b_response = b_response.reshape(new_shape).mean(axis=0)
+
+    time = np.arange(a_response.shape[-1])/fs
+    freq, tf_psd, tf_phase = golay_tf(a, b, a_response, b_response, fs)
+    tf_psd = tf_psd.mean(axis=0)
+    tf_phase = tf_phase.mean(axis=0)
+
+    return {
+        'psd': tf_psd,
+        'phase': tf_phase,
+        'frequency': freq,
+    }
+
+
 def freq_smooth(frequency, power, bandwidth=20):
     '''
     Uses Konno & Ohmachi (1998) algorithm
