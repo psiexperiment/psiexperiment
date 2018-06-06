@@ -92,7 +92,9 @@ class EarLauncher(AnimalLauncher):
 
 
 def main_calibration():
-    experiments =['pistonphone_calibration', 'pt_calibration']
+    experiments =['speaker_calibration', 'pistonphone_calibration',
+                  'pt_calibration_golay', 'pt_calibration_chirp']
+
     app = QtApplication()
     launcher = SimpleLauncher(root_folder=get_config('CAL_ROOT'))
     view = LauncherView(launcher=launcher, experiments=experiments)

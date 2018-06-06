@@ -610,7 +610,7 @@ def capture_epoch(epoch_t0, epoch_samples, info, callback):
 
 
 @coroutine
-def extract_epochs(fs, queue, epoch_size, buffer_size, target,
+def extract_epochs(fs, queue, epoch_size, epoch_size_post, buffer_size, target,
                    empty_queue_cb=None):
 
     # The variable `tlb` tracks the number of samples that have been acquired
@@ -656,12 +656,16 @@ def extract_epochs(fs, queue, epoch_size, buffer_size, target,
 
             # Figure out how many samples to capture for that epoch
             t0 = round(info['t0'] * fs)
+            info['epoch_size_post'] = epoch_size_post
             if epoch_size:
                 info['epoch_size'] = epoch_size
-                epoch_samples = round(epoch_size * fs)
+                total_epoch_size = epoch_size + epoch_size_post
             else:
                 info['epoch_size'] = info['duration']
-                epoch_samples = round(info['duration'] * fs)
+                total_epoch_size = info['duration'] + epoch_size_post
+
+            info['total_epoch_size'] = total_epoch_size
+            epoch_samples = round(total_epoch_size * fs)
 
             epoch_coroutine = capture_epoch(t0, epoch_samples, info,
                                             epochs.append)
@@ -708,7 +712,14 @@ class ExtractEpochs(EpochInput):
 
     queue = d_(Typed(AbstractSignalQueue))
     buffer_size = d_(Float(0)).tag(metadata=True)
+
+    # Defines the size of the epoch (if 0, this is automatically drawn from the
+    # information provided by the queue).
     epoch_size = d_(Float(0)).tag(metadata=True)
+
+    # Defines the extra time period to capture beyond the epoch duration.
+    epoch_size_post = d_(Float(0).tag(metadata=True))
+
     complete = Bool(False)
 
     def mark_complete(self):
@@ -721,7 +732,8 @@ class ExtractEpochs(EpochInput):
                 raise SystemError('Cannot have an infinite epoch size')
         cb = super().configure_callback()
         return extract_epochs(self.fs, self.queue, self.epoch_size,
-                              self.buffer_size, cb, self.mark_complete).send
+                              self.epoch_size_post, self.buffer_size, cb,
+                              self.mark_complete).send
 
 
 @coroutine

@@ -344,6 +344,8 @@ enamldef AnalogOutputManifest(PSIManifest): manifest:
             id = manifest.contribution.name + '.clear'
             handler = partial(clear_output, output=manifest.contribution)
 
+    # TODO: Wrap in a conditional block to specify output is/isn't
+    # configurable?
     Extension:
         id = 'output_menu.' + manifest.contribution.name
         point = 'enaml.workbench.ui.actions'

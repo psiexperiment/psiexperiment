@@ -33,7 +33,7 @@ from psi.data.plots import (TimeContainer,
                             GroupedEpochPhasePlot)
 
 from psi.data.sinks.epoch_counter import GroupedEpochCounter
-from psi.token.primitives import Chirp
+from psi.token.primitives import Chirp, Cos2Envelope, Tone
 
 
 from psi.controller.calibration import FlatCalibration
@@ -96,6 +96,12 @@ enamldef ControllerManifest(BaseManifest): manifest:
         Chirp:
             pass
 
+        Cos2Envelope:
+            label = 'tone pip'
+
+            Tone:
+                pass
+
     Extension:
         id = 'io'
         point = 'psi.controller.io'
@@ -112,6 +118,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
             ExtractEpochs: extract:
                 queue << hw_ao.queue
                 name = 'epoch'
+                epoch_size_post = 10e-3
 
     Extension:
         id = 'context'

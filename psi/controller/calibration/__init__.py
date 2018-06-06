@@ -62,7 +62,19 @@ class Calibration(Atom):
             return cls(mic_freq, mic_sens, **kwargs)
 
     @classmethod
-    def from_psi(cls, folder, n_bits=None, output_gain=None, **kwargs):
+    def from_psi_chirp(cls, folder, output_gain=None, **kwargs):
+        filename = os.path.join(folder, 'chirp_sensitivity.csv')
+        sensitivity = pd.io.parsers.read_csv(filename)
+        if output_gain is None:
+            output_gain = sensitivity.loc[:, 'hw_ao_chirp_level'].max()
+        print(output_gain)
+        m = sensitivity['hw_ao_chirp_level'] == output_gain
+        mic_freq = sensitivity.loc[m, 'frequency'].values
+        mic_sens = sensitivity.loc[m, 'sens'].values
+        return cls(mic_freq, mic_sens, **kwargs)
+
+    @classmethod
+    def from_psi_golay(cls, folder, n_bits=None, output_gain=None, **kwargs):
         filename = os.path.join(folder, 'sensitivity.csv')
         sensitivity = pd.io.parsers.read_csv(filename)
         if n_bits is None:
