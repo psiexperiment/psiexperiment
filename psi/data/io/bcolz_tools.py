@@ -1,3 +1,22 @@
+import os.path
+
+import bcolz
+import numpy as np
+
+
+class EpochData:
+
+    def __init__(self, base_path, epoch_name):
+        epoch_path = os.path.join(base_path, epoch_name)
+        epoch_md_path = os.path.join(base_path,
+                                     '{}_metadata'.format(epoch_name))
+        self.epoch = bcolz.carray(rootdir=epoch_path)
+        self.epoch_md = bcolz.ctable(rootdir=epoch_md_path)
+
+    def get_groups(self, groups):
+        return get_epoch_groups(self.epoch, self.epoch_md, groups)
+
+
 def get_epoch_groups(epoch, epoch_md, groups):
     fs = epoch.attrs['fs']
     df = epoch_md.todataframe()
