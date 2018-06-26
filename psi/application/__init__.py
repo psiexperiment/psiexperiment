@@ -50,7 +50,7 @@ def configure_logging(filename=None):
             },
         'loggers': {
             '__main__': {'level': 'INFO'},
-            'psi': {'level': 'INFO'},
+            'psi': {'level': 'DEBUG'},
             },
         'root': {
             'handlers': ['console'],
@@ -93,33 +93,18 @@ def _main(args):
         if args.debug_warning:
             warnings.showwarning = warn_with_traceback
 
-    from enaml.workbench.api import Workbench
-    with enaml.imports():
-        from enaml.workbench.core.core_manifest import CoreManifest
-        from enaml.workbench.ui.ui_manifest import UIManifest
-        from psi.experiment.manifest import ExperimentManifest
+    from psi.experiment.workbench import PSIWorkbench
 
-    workbench = Workbench()
-    workbench.register(ExperimentManifest())
-    workbench.register(CoreManifest())
-    workbench.register(UIManifest())
-
-    ui = workbench.get_plugin('enaml.workbench.ui')
-    core = workbench.get_plugin('enaml.workbench.core')
-    ui.select_workspace('psi.experiment.workspace')
+    workbench = PSIWorkbench()
+    workbench.register_core_plugins(args.io, args.controller)
 
     if args.pathname is None:
         log.warn('All data will be destroyed at end of experiment')
-
-    ui.show_window()
-
     if args.preferences is not None:
         deferred_call(core.invoke_command, 'psi.load_preferences',
                     {'filename': args.preferences})
 
-    for command in args.commands:
-        deferred_call(core.invoke_command, command)
-    ui.start_application()
+    workbench.start_workspace(commands=args.commands)
 
 
 def list_preferences(experiment):
@@ -140,8 +125,6 @@ def list_io():
 
 
 def launch_experiment(args):
-    # Map to the actual controller module.
-    args.controller = experiments[args.experiment]
     set_config('ARGS', args)
     try:
         _main(args)
@@ -155,9 +138,22 @@ def launch_experiment(args):
 
 
 def add_default_options(parser):
+    import argparse
+
+    def parse_io(io):
+        if '.' not in io:
+            io = 'psi.application.io.{}.IOManifest'.format(io)
+        return io
+
+    class IOAction(argparse.Action):
+        def __call__(self, parser, namespace, value, option_string=None):
+            setattr(namespace, self.dest, parse_io(value))
+
+    default_io = parse_io(get_config('SYSTEM'))
+
     parser.add_argument('pathname', type=str, help='Filename', nargs='?')
-    parser.add_argument('--io', type=str, default=get_config('SYSTEM'),
-                        help='Hardware configuration')
+    parser.add_argument('--io', type=str, default=default_io,
+                        help='Hardware configuration', action=IOAction)
     parser.add_argument('--debug', default=True, action='store_true',
                         help='Debug mode?')
     parser.add_argument('--debug-warning', default=False, action='store_true',
