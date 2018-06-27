@@ -1,13 +1,12 @@
 from atom.api import Typed
-from enaml.application import deferred_call
-from enaml.core.api import Include, Looper
+from enaml.core.api import Include, Looper, d_
 from enaml.layout.api import (vbox, hbox)
 from enaml.workbench.api import Extension
 from enaml.widgets.api import (PushButton, Field, Container, VGroup, HGroup,
-                               Label, ObjectCombo, DockItem, GroupBox)
-from enaml.stdlib.fields import FloatField
+                               Label, ObjectCombo, DockItem)
 from enaml.validator import Validator
 
+from psi.core.enaml.editable_table_widget import EditableTable
 from psi.core.enaml.list_view import ListView
 from psi.core.enaml.api import PSIManifest
 
@@ -97,152 +96,70 @@ enamldef SingleSettingManifest(BaseSelectorManifest): manifest:
 ################################################################################
 # SequenceSelector
 ################################################################################
-enamldef SequenceSettingField(SettingField):
-    attr selector
-    attr setting_index
-    text << str(selector.get_value(setting_index, item))
-    text ::
-        selector.set_value(setting_index, item, text)
+class SequenceTable(EditableTable):
 
+    selector = d_(Typed(selector_classes.SequenceSelector))
 
-enamldef SettingRemoveButton(PushButton):
-    attr setting
-    attr selector
-    text = '-'
-    clicked ::
-        selector.remove_setting(setting)
-        selector.updated = True
+    def _observe_selector(self, event):
+        self.selector.observe('updated', self._reset_model)
 
-
-class UpdateSelectorWidgets(object):
-
-    def __init__(self):
-        self.widgets = None
-        self.old_widgets = None
-
-    def __call__(self, selector, context_items, settings):
-        if len(context_items) == 0:
+    def get_rows(self):
+        if self.selector is None:
             return []
-        lw = []
-        sw = [SettingRemoveButton(setting=s, selector=selector) for s in settings]
-        for item in context_items:
-            label = Label(text=item.label)
-            lw.append(label)
-            for j, s in enumerate(settings):
-                field = SequenceSettingField(selector=selector,
-                                             setting_index=j, item=item)
-                sw.append(field)
-        lw.extend(sw)
-        self.old_widgets = self.widgets
-        self.widgets = lw
-        deferred_call(self.destroy_old_widgets)
-        return lw
+        return range(len(self.selector.settings))
 
-    def destroy_old_widgets(self):
-        if self.old_widgets is not None:
-            for w in self.old_widgets:
-                w.destroy()
-            self.old_widgets = None
+    def get_columns(self):
+        if self.selector is None:
+            return []
+        return [ci.name for ci in self.selector.context_items]
 
+    def get_data(self, row, col):
+        item = self.selector.context_items[col]
+        return str(self.selector.get_value(row, item))
 
-class SelectorWidgetManager(object):
+    def set_data(self, row, col, value):
+        item = self.selector.context_items[col]
+        self.selector.set_value(row, item, value)
 
-    def __init__(self):
-        self.updaters = {}
+    def get_column_label(self, col):
+        return self.selector.context_items[col].compact_label
 
-    def __call__(self, selector, *args, **kwargs):
-        if selector not in self.updaters:
-            self.updaters[selector] = UpdateSelectorWidgets()
-        return self.updaters[selector](selector, *args, **kwargs)
+    def remove_row(self, row):
+        setting = self.selector.settings[row]
+        self.selector.remove_setting(setting, update=False)
 
 
-update_selector_widgets = SelectorWidgetManager()
-
-
-enamldef SequenceSelectorContainer(Container):
+enamldef SequenceSelectorContainer(Container): container:
 
     attr selector
 
     Container:
-        VGroup:
-            HGroup:
-                spacing = 0
-                padding = 0
-                PushButton: add:
-                    text = 'Add'
-                    clicked ::
-                        selector.add_setting()
-                        selector.updated = True
-                PushButton: sort:
-                    text = 'Sort'
-                    clicked ::
-                        selector.sort_settings()
-                        selector.updated = True
-            HGroup:
-                spacing = 0
-                padding = 0
-                Label:
-                    text = 'Order'
-                ObjectCombo:
-                    items = list(selector.get_member('order').items)
-                    selected := selector.order
 
-        Container: labels:
-            share_layout = True
+        HGroup:
+            spacing = 0
             padding = 0
-            layout_constraints => ():
-                n_context_items = len(selector.context_items)
-                n_settings = len(selector.settings)
+            PushButton: add:
+                text = 'Add'
+                clicked ::
+                    selector.add_setting()
+                    selector.updated = True
+            PushButton: sort:
+                text = 'Sort'
+                clicked ::
+                    selector.sort_settings()
+                    selector.updated = True
+        HGroup:
+            spacing = 0
+            padding = 0
+            Label:
+                text = 'Order'
+            ObjectCombo:
+                items = list(selector.get_member('order').items)
+                selected := selector.order
 
-                # There's a drop area on either side of the label widgets to
-                # facilitate reordering.
-                n_label_widgets = n_context_items
-
-                widgets = self.visible_widgets()
-                label_widgets = widgets[:n_label_widgets]
-
-                setting_widgets = widgets[n_label_widgets:]
-                setting_button_widgets = setting_widgets[:n_settings]
-                setting_value_widgets = setting_widgets[n_settings:]
-
-                if len(setting_widgets) == 0:
-                    return []
-
-                # Setup hbox constraints for title row and each settings row.
-                # Embed all hboxes in a vbox.
-                box_constraints = [hbox(*label_widgets, spacing=0)]
-                for i in range(n_settings):
-                    sw = [setting_button_widgets[i]]
-                    sw.extend(setting_value_widgets[i::n_settings])
-                    box_constraints.append(hbox(*sw, spacing=0))
-                constraints = [vbox(*box_constraints, spacing=0)]
-
-                for i, lw in enumerate(label_widgets):
-                    o = i*n_settings
-                    for sw in setting_value_widgets[o:o+n_settings]:
-                        constraints.append(lw.left == sw.left)
-
-                if setting_value_widgets:
-                    sw_base = setting_value_widgets[0]
-                    for sw in setting_value_widgets[1:]:
-                        constraints.append(sw_base.width == sw.width)
-
-                if setting_button_widgets:
-                    for sw in setting_button_widgets:
-                        constraints.append(sw.width == 20)
-                        constraints.append(sw.width == sw.height)
-
-                if label_widgets:
-                    t_base = label_widgets[0]
-                    for t in label_widgets[1:]:
-                        constraints.append(t_base.v_center == t.v_center)
-
-                return constraints
-
-            Include: inc:
-                destroy_old = False
-                objects << update_selector_widgets(
-                    selector, selector.context_items, selector.settings)
+        SequenceTable:
+            editable = True
+            selector << container.selector
 
 
 enamldef SequenceSelectorManifest(BaseSelectorManifest): manifest:
