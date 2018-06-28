@@ -104,7 +104,7 @@ def _main(args):
         deferred_call(core.invoke_command, 'psi.load_preferences',
                     {'filename': args.preferences})
 
-    workbench.start_workspace(commands=args.commands)
+    workbench.start_workspace(args.experiment, commands=args.commands)
 
 
 def list_preferences(experiment):
