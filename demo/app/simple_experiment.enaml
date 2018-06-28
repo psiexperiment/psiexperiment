@@ -26,13 +26,17 @@ enamldef ControllerManifest(BaseManifest): manifest:
         BandlimitedNoise:
             name = 'continuous_bandlimited_noise'
             label = 'Continuous bandlimited noise'
+            compact_label = 'cont. noise'
 
         Cos2Envelope:
             name = 'bandlimited_sam_noise'
-            label = 'Bandlimited SAM noise'
+            label = 'SAM cosine envelope'
+            compact_label = 'SAM cos. env.'
             SAMEnvelope:
+                label = 'SAM envelope'
+                compact_label = 'SAM env.'
                 BandlimitedNoise:
-                    pass
+                    label = 'SAM carrier'
 
     Extension:
         id = 'io'

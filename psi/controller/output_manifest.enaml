@@ -310,7 +310,7 @@ def load_items(output, block):
         new_parameter.label = '{} {}' \
             .format(block.label, parameter.label)
         new_parameter.compact_label = '{} {}' \
-            .format(block.label, parameter.compact_label)
+            .format(block.compact_label, parameter.compact_label)
         new_parameter.group = output.name
         new_parameter.scope = scope
         parameters.append(new_parameter)
