@@ -67,7 +67,6 @@ class Calibration(Atom):
         sensitivity = pd.io.parsers.read_csv(filename)
         if output_gain is None:
             output_gain = sensitivity.loc[:, 'hw_ao_chirp_level'].max()
-        print(output_gain)
         m = sensitivity['hw_ao_chirp_level'] == output_gain
         mic_freq = sensitivity.loc[m, 'frequency'].values
         mic_sens = sensitivity.loc[m, 'sens'].values
@@ -291,6 +290,7 @@ class GolayCalibration(InterpCalibration):
 
     @classmethod
     def from_file(cls, filename, **kwargs):
+        import tables
         with tables.open_file(filename, 'r') as fh:
             fs = fh.root._v_attrs['fs']
             freq = fh.root.frequency.read()
