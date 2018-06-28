@@ -1,9 +1,9 @@
 from atom.api import Typed
 from enaml.core.api import Include, Looper, d_
-from enaml.layout.api import (vbox, hbox)
+from enaml.layout.api import vbox, hbox, spacer, align
 from enaml.workbench.api import Extension
-from enaml.widgets.api import (PushButton, Field, Container, VGroup, HGroup,
-                               Label, ObjectCombo, DockItem)
+from enaml.widgets.api import (PushButton, Field, Container, VGroup, Label,
+                               ObjectCombo, DockItem)
 from enaml.validator import Validator
 
 from psi.core.enaml.editable_table_widget import EditableTable
@@ -101,7 +101,11 @@ class SequenceTable(EditableTable):
     selector = d_(Typed(selector_classes.SequenceSelector))
 
     def _observe_selector(self, event):
-        self.selector.observe('updated', self._reset_model)
+        self.selector.observe('updated', self._check_and_reset_model)
+
+    def _check_and_reset_model(self, event):
+        if not self.live_edit:
+            self._reset_model()
 
     def get_rows(self):
         if self.selector is None:
@@ -126,7 +130,10 @@ class SequenceTable(EditableTable):
 
     def remove_row(self, row):
         setting = self.selector.settings[row]
-        self.selector.remove_setting(setting, update=False)
+        self.selector.remove_setting(setting)
+
+    def insert_row(self, row_index):
+        self.selector.add_setting(index=row_index)
 
 
 enamldef SequenceSelectorContainer(Container): container:
@@ -135,29 +142,33 @@ enamldef SequenceSelectorContainer(Container): container:
 
     Container:
 
-        HGroup:
-            spacing = 0
-            padding = 0
-            PushButton: add:
-                text = 'Add'
-                clicked ::
-                    selector.add_setting()
-                    selector.updated = True
-            PushButton: sort:
-                text = 'Sort'
-                clicked ::
-                    selector.sort_settings()
-                    selector.updated = True
-        HGroup:
-            spacing = 0
-            padding = 0
-            Label:
-                text = 'Order'
-            ObjectCombo:
-                items = list(selector.get_member('order').items)
-                selected := selector.order
+        constraints = [
+            vbox(
+                hbox(order_label, order, spacer, add, sort),
+                table
+            ),
+            add.width == 50,
+            sort.width == 50,
+            align('v_center', order_label, order, add, sort),
+        ]
 
-        SequenceTable:
+        Label: order_label:
+            text = 'Order'
+        ObjectCombo: order:
+            items = list(selector.get_member('order').items)
+            selected := selector.order
+        PushButton: add:
+            text = 'Add'
+            clicked ::
+                selector.add_setting()
+                selector.updated = True
+        PushButton: sort:
+            text = 'Sort'
+            clicked ::
+                selector.sort_settings()
+                selector.updated = True
+
+        SequenceTable: table:
             editable = True
             selector << container.selector
 

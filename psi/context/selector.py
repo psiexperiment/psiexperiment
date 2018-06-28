@@ -101,23 +101,25 @@ class SequenceSelector(BaseSelector):
     settings = Typed(list, []).tag(preference=True)
     order = d_(Enum(*choice.options.keys())).tag(preference=True)
 
-    def add_setting(self, values=None):
+    def add_setting(self, values=None, index=None):
         if values is None:
             values = {}
         for item in self.context_items:
             if item.name not in values:
                 values[item.name] = item.default
         settings = self.settings[:]
-        settings.append(values)
+        if index is None:
+            settings.append(values)
+        else:
+            settings.insert(index, values)
         self.settings = settings
         self.updated = True
 
-    def remove_setting(self, setting, update=True):
+    def remove_setting(self, setting):
         settings = self.settings[:]
         settings.remove(setting)
         self.settings = settings
-        if update:
-            self.updated = True
+        self.updated = True
 
     def append_item(self, item):
         for setting in self.settings:

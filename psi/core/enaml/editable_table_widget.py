@@ -13,7 +13,7 @@ from enaml.qt.QtWidgets import QTableView, QHeaderView, QAbstractItemView
 from enaml.qt.QtGui import QColor
 
 
-class DeleteFilter(QObject):
+class EventFilter(QObject):
 
     def __init__(self, widget, *args, **kwargs):
         self.widget = widget
@@ -70,23 +70,29 @@ class QEditableTableModel(QAbstractTableModel):
             return self.interface.get_data(r, c)
 
     def setData(self, index, value, role):
-        r = index.row()
-        c = index.column()
-        self.interface.set_data(r, c, value)
-        self.dataChanged.emit(index, index)
-        return True
+        with self.interface.live_edit:
+            r = index.row()
+            c = index.column()
+            try:
+                self.interface.set_data(r, c, value)
+            except:
+                pass
+            self.dataChanged.emit(index, index)
+            return True
 
     def removeRows(self, row, count, index):
-        self.beginRemoveRows(index, row, row)
-        self.interface.remove_row(row)
-        self.endRemoveRows()
-        return True
+        with self.interface.live_edit:
+            self.beginRemoveRows(index, row, row)
+            self.interface.remove_row(row)
+            self.endRemoveRows()
+            return True
 
     def insertRows(self, row, count, index):
-        self.beginInsertRows(index, row, row)
-        self.interface.insert_row(row)
-        self.endInsertRows()
-        return True
+        with self.interface.live_edit:
+            self.beginInsertRows(index, row, row)
+            self.interface.insert_row(row)
+            self.endInsertRows()
+            return True
 
     def columnCount(self, index=QModelIndex()):
         if self.interface is None:
@@ -98,6 +104,10 @@ class QEditableTableModel(QAbstractTableModel):
             return 0
         return len(self.interface.get_rows())
 
+    def sort(self, column_index, order):
+        ascending = order == Qt.AscendingOrder
+        self.interface.sort_rows(column_index, ascending)
+
 
 class QEditableTableView(QTableView):
 
@@ -107,20 +117,20 @@ class QEditableTableView(QTableView):
         self.setModel(model)
         self._setup_hheader()
         self._setup_vheader()
-        self.setSelectionBehavior(self.SelectRows)
         self.setVerticalScrollMode(QAbstractItemView.ScrollPerItem)
         self.setHorizontalScrollMode(QAbstractItemView.ScrollPerItem)
 
     def _setup_vheader(self):
-        self.vheader = QHeaderView(Qt.Vertical)
-        self.setVerticalHeader(self.vheader)
-        self.vheader.setSectionResizeMode(QHeaderView.Fixed)
-        self.vheader.setDefaultSectionSize(20)
-        #self.vheader.setSectionsMovable(True)
+        header = self.verticalHeader()
+        header.setSectionResizeMode(QHeaderView.Fixed)
+        header.setDefaultSectionSize(20)
+        header.setSectionsMovable(False)
 
     def _setup_hheader(self):
-        self.hheader = self.horizontalHeader()
-        self.hheader.setSectionsMovable(True)
+        header = self.horizontalHeader()
+        header.setSectionsMovable(True)
+        #header.setSortIndicatorShown(True)
+        #header.sortIndicatorChanged.connect(self.model.sort)
 
     def remove_selected_rows(self):
         selection_model = self.selectionModel()
@@ -131,16 +141,18 @@ class QEditableTableView(QTableView):
     def insert_row(self):
         selection_model = self.selectionModel()
         rows = [index.row() for index in selection_model.selectedRows()]
+        rows.sort()
         if len(rows) == 0:
             self.model.insertRow(0)
-        for row in rows:
-            self.model.insertRow(row)
+        for row in sorted(rows, reverse=True):
+            self.model.insertRow(row+1)
 
     def get_column_widths(self):
         widths = {}
         columns = self.model.interface.get_columns()
+        header = self.horizontalHeader()
         for i, c in enumerate(columns):
-            widths[c] = self.hheader.sectionSize(i)
+            widths[c] = header.sectionSize(i)
         return widths
 
     def set_column_widths(self, widths):
@@ -153,6 +165,21 @@ class QEditableTableView(QTableView):
                 pass
 
 
+class LiveEdit:
+
+    def __init__(self):
+        self._editing = False
+
+    def __enter__(self):
+        self._editing = True
+
+    def __exit__(self, type, value, traceback):
+        self._editing = False
+
+    def __bool__(self):
+        return self._editing
+
+
 class EditableTable(RawWidget):
 
     # Expand the table by default
@@ -161,7 +188,7 @@ class EditableTable(RawWidget):
 
     model = Typed(QEditableTableModel)
     view = Typed(QEditableTableView)
-    delete_filter = Typed(DeleteFilter)
+    event_filter = Typed(EventFilter)
 
     editable = d_(Bool(False))
     autoscroll = d_(Bool(False))
@@ -172,6 +199,8 @@ class EditableTable(RawWidget):
     column_widths = Property()
 
     data = d_(Typed(object))
+
+    live_edit = Typed(LiveEdit, {})
 
     def get_column_attribute(self, column_name, attribute, default,
                              raise_error=False):
@@ -234,6 +263,10 @@ class EditableTable(RawWidget):
         raise NotImplementedError
 
     @d_func
+    def sort_rows(self, column_index, ascending):
+        raise NotImplementedError
+
+    @d_func
     def get_default_row(self):
         values = []
         for column in self.get_columns():
@@ -251,8 +284,8 @@ class EditableTable(RawWidget):
         self.model = QEditableTableModel(self)
         self.view = QEditableTableView(self.model, parent=parent)
         if self.editable:
-            self.delete_filter = DeleteFilter(self.view)
-            self.view.installEventFilter(self.delete_filter)
+            self.event_filter = EventFilter(self.view)
+            self.view.installEventFilter(self.event_filter)
         return self.view
 
     def _observe_data(self, event):
