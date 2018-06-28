@@ -1,18 +1,16 @@
 #----------------------------------------------------------------------------
 #  Adapted from BSD-licensed module used by Enthought, Inc.
 #----------------------------------------------------------------------------
-import numpy as np
 import pandas as pd
 
-from atom.api import (Typed, set_default, observe, Value, Event, Property,
-                      ContainerList, Bool, Signal, List, Dict, Unicode)
-from atom.api import Signal as AtomSignal
+from atom.api import (Typed, set_default, observe, Event, Property,
+                      Bool, Dict, Unicode, Atom, List)
 from enaml.core.declarative import d_, d_func
-from enaml.widgets.api import RawWidget, Menu
+from enaml.widgets.api import RawWidget
 
-from enaml.qt.QtCore import QAbstractTableModel, QModelIndex, Qt, Slot, Signal, QObject, QEvent
-from enaml.qt.QtWidgets import QTableView, QHeaderView, QAbstractItemView, QItemDelegate, QMenu
-from enaml.qt.QtGui import QFont, QColor
+from enaml.qt.QtCore import QAbstractTableModel, QModelIndex, Qt, QObject, QEvent
+from enaml.qt.QtWidgets import QTableView, QHeaderView, QAbstractItemView
+from enaml.qt.QtGui import QColor
 
 
 class DeleteFilter(QObject):
@@ -166,7 +164,6 @@ class EditableTable(RawWidget):
     delete_filter = Typed(DeleteFilter)
 
     editable = d_(Bool(False))
-    updated = d_(Event())
     autoscroll = d_(Bool(False))
 
     # Can include label, compact_label, default value (for adding
@@ -263,7 +260,7 @@ class EditableTable(RawWidget):
         # lose a reference to the actual list.
         self._reset_model()
 
-    def _reset_model(self):
+    def _reset_model(self, event=None):
         # Forces a reset of the model and view
         self.model.beginResetModel()
         self.model.endResetModel()

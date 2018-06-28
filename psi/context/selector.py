@@ -112,11 +112,12 @@ class SequenceSelector(BaseSelector):
         self.settings = settings
         self.updated = True
 
-    def remove_setting(self, setting):
+    def remove_setting(self, setting, update=True):
         settings = self.settings[:]
         settings.remove(setting)
         self.settings = settings
-        self.updated = True
+        if update:
+            self.updated = True
 
     def append_item(self, item):
         for setting in self.settings:
@@ -146,6 +147,8 @@ class SequenceSelector(BaseSelector):
         return selector(settings, cycles, key=key)
 
     def set_value(self, setting_index, item, value):
+        # TODO: It's weird that some methods take the index of the setting,
+        # while others take the setting object. Need to sanitize this.
         value = item.coerce_to_type(value)
         self.settings[setting_index][item.name] = value
         self.updated = True
