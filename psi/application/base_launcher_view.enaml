@@ -54,6 +54,9 @@ enamldef LauncherView(Window): main:
                 text = 'Experiment Settings'
 
             ObjectCombo: settings:
+                constraints = [
+                    width == 300
+                ]
                 items << list_preferences(experiment.selected)
                 to_string = lambda x: os.path.splitext(os.path.basename(x))[0]
                 selected := launcher.settings

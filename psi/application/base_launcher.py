@@ -27,6 +27,9 @@ class SimpleLauncher(Atom):
 
     can_launch = Bool(False)
 
+    def _default_io(self):
+        return get_config('SYSTEM')
+
     def _default_root_folder(self):
         return get_config('DATA_ROOT')
 
