@@ -127,7 +127,7 @@ def list_preferences(experiment):
     p_wildcard = get_config('PREFERENCES_WILDCARD')
     p_glob = p_wildcard[:-1].split('(')[1]
     p_search = os.path.join(p_root, experiment, p_glob)
-    return glob(p_search)
+    return sorted(glob(p_search))
 
 
 def list_io():
@@ -136,7 +136,8 @@ def list_io():
     from glob import iglob
     base_path = os.path.dirname(io.__file__)
     search_path = os.path.join(base_path, '*{}*'.format(hostname))
-    return [os.path.basename(f)[:-6] for f in iglob(search_path)]
+    result = [os.path.basename(f)[:-6] for f in iglob(search_path)]
+    return sorted(result)
 
 
 def launch_experiment(args):
