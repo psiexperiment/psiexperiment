@@ -49,11 +49,15 @@ class PSIWorkbench(Workbench):
 
         self.register(ContextViewManifest())
 
-    def start_workspace(self, experiment_name,
+    def start_workspace(self,
+                        experiment_name,
+                        base_path=None,
                         workspace='psi.experiment.workspace',
                         commands=None,
-                        load_preferences=True, load_layout=True,
-                        preferences_file=None, layout_file=None):
+                        load_preferences=True,
+                        load_layout=True,
+                        preferences_file=None,
+                        layout_file=None):
 
         # TODO: Hack alert ... don't store this information in a shared config
         # file. It's essentially a global variable.
@@ -80,6 +84,12 @@ class PSIWorkbench(Workbench):
         if commands is not None:
             for command in commands:
                 deferred_call(core.invoke_command, command)
+
+        if base_path is not None:
+            controller = self.get_plugin('psi.controller')
+            controller.register_action('experiment_prepare',
+                                       'psi.data.set_base_path',
+                                       {'base_path': base_path})
 
         # Now, open workspace
         ui.select_workspace(workspace)

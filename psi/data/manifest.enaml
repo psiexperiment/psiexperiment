@@ -38,15 +38,9 @@ def finalize(event):
 
 
 def set_base_path(event):
-    if event.parameters.get('base_path', None) is not None:
-        base_path = event.parameters['base_path']
-    else:
-        args = get_config('ARGS')
-        if args.pathname is None:
-            return
-        else:
-            dt_string = dt.datetime.now().strftime('%Y%m%d-%H%M')
-            base_path = args.pathname.format(date_time=dt_string)
+    base_path = event.parameters['base_path']
+    dt_string = dt.datetime.now().strftime('%Y%m%d-%H%M')
+    base_path = args.pathname.format(date_time=dt_string)
     data = event.workbench.get_plugin('psi.data')
     os.makedirs(base_path)
     data.set_base_path(base_path)
@@ -115,8 +109,3 @@ enamldef DataManifest(PluginManifest): manifest:
         ExperimentAction:
             event = 'experiment_end'
             command = 'psi.data.finalize'
-
-        ExperimentAction:
-            weight = 0
-            event = 'experiment_prepare'
-            command = 'psi.data.set_base_path'
