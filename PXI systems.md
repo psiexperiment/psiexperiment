@@ -21,7 +21,7 @@ Installing
 	pip install pydaqmx palettable
 	```
 
-6. Clone the git repository for [psiexperiment](https://github.com/bburan/psiexperiment). If you prefer not to install [Git](https://git-scm.com/download/win) on your system, you can download a (zip archive)[https://github.com/bburan/psiexperiment/archive/master.zip] and extract it to a folder. If you decided to install Git, see
+6. Clone the git repository for [psiexperiment](https://github.com/bburan/psiexperiment). If you prefer not to install [Git](https://git-scm.com/download/win) on your system, you can download a [zip archive](https://github.com/bburan/psiexperiment/archive/master.zip) and extract it to a folder. If you decided to install Git, see
 
 7. Now, CD to the folder where you cloned the git repository and install psiexperiment. You need to be in the parent folder containing the repository folder (e.g., if you saved the repository to `c:/users/lab/python/psi/psiexperiment`, you need to CD to `c:/users/lab/python/psi`. Note the `-e` flag!
 	```
