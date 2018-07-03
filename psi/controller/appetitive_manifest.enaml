@@ -6,7 +6,7 @@ from enaml.workbench.core.api import Command
 
 from ..context.api import (ContextGroup, Parameter, EnumParameter,
                            BoolParameter, Result)
-from ..context.selector import SequenceSelector, SingleSetting
+from ..context.selector import SequenceSelector
 
 from .base_manifest import BaseManifest
 from .appetitive_plugin import AppetitivePlugin, Event
@@ -226,7 +226,7 @@ enamldef AppetitiveManifest(BaseManifest): manifest:
         SequenceSelector:
             name = 'go'
             label = 'Go sequence'
-        SingleSetting:
+        SequenceSelector:
             name = 'nogo'
             label = 'Nogo sequence'
         SequenceSelector:
