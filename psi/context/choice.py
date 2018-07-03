@@ -162,7 +162,7 @@ def shuffled_set(sequence, c=np.inf, key=None, seed=None):
     state = RandomState()
     state.seed(seed)
     while cycle < c:
-        indices = range(len(sequence))
+        indices = list(range(len(sequence)))
         state.shuffle(indices)
         for i in indices:
             yield sequence[i]
