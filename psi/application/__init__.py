@@ -100,13 +100,13 @@ def _main(args):
 
     if args.pathname is None:
         log.warn('All data will be destroyed at end of experiment')
-    if args.preferences is not None:
-        core = workbench.get_plugin('enaml.workbench.core')
-        deferred_call(core.invoke_command, 'psi.load_preferences',
-                      {'filename': args.preferences})
 
-    workbench.start_workspace(args.experiment, args.pathname,
-                              commands=args.commands)
+    workbench.start_workspace(args.experiment, 
+                              args.pathname,
+                              commands=args.commands,
+                              load_preferences=not args.no_preferences,
+                              load_layout=not args.no_layout,
+                              preferences_file=args.preferences)
 
 
 def list_preferences(experiment):
