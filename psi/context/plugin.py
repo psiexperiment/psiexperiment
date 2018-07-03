@@ -4,7 +4,7 @@ log = logging.getLogger(__name__)
 import pickle as pickle
 from copy import deepcopy
 
-from atom.api import Typed, Bool, Str, observe
+from atom.api import Typed, Bool, Str, observe, Property
 from enaml.application import deferred_call
 from enaml.layout.api import InsertItem, InsertTab
 from enaml.workbench.plugin import Plugin
@@ -48,6 +48,15 @@ class ContextPlugin(Plugin):
     _iterators = Typed(dict, ())
     _namespace = Typed(ExpressionNamespace, ())
     _prior_values = Typed(list, ())
+
+    # Subset of context_items that are parameters
+    parameters = Property()
+
+    # Return expressions for non-roved parameters
+    expressions = Property()
+
+    # Return all expressions, including those for roved parameters
+    all_expressions = Property()
 
     def start(self):
         self._refresh_selectors()
@@ -281,10 +290,10 @@ class ContextPlugin(Plugin):
             else:
                 raise ValueError('Unsupported fail mode {}'.format(fail_mode))
 
-    def get_values(self, trial=None):
+    def get_values(self, context_names=None, trial=None):
         if trial is not None:
             return self._prior_values[trial]
-        return self._namespace.get_values()
+        return self._namespace.get_values(names=context_names)
 
     def set_value(self, context_name, value):
         self._namespace.set_value(context_name, value)
@@ -311,7 +320,7 @@ class ContextPlugin(Plugin):
     def apply_changes(self):
         self._apply_context_item_state()
         self._apply_selector_state()
-        self._namespace.update_expressions(self._get_expressions())
+        self._namespace.update_expressions(self.expressions)
         self._namespace.update_symbols(self.symbols)
         self._iterators = self._get_iterators()
         self.changes_pending = False
@@ -325,8 +334,11 @@ class ContextPlugin(Plugin):
         return {n: i for n, i in self.context_items.items() \
                 if isinstance(i, Parameter)}
 
+    def _get_all_expressions(self):
+        return {n: i.expression for n, i in self.parameters.items()}
+
     def _get_expressions(self):
-        return {n: i.expression for n, i in self._get_parameters().items() \
+        return {n: i.expression for n, i in self.parameters.items() \
                 if not i.rove}
 
     def _apply_selector_state(self):

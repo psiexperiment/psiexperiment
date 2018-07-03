@@ -53,8 +53,10 @@ class ExpressionNamespace(Atom):
             self._evaluate_value(name, context)
         return self._locals[name]
 
-    def get_values(self, context=None):
-        for name in self._expressions.keys():
+    def get_values(self, names=None, context=None):
+        if names is None:
+            names = self._expressions.keys()
+        for name in names:
             if name not in self._locals:
                 self._evaluate_value(name, context)
         return dict(self._locals.copy())

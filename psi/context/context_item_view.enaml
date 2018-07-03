@@ -20,7 +20,7 @@ class ContextItemValidator(Validator):
     def validate(self, text):
         try:
             namespace = ExpressionNamespace()
-            expressions = self.plugin._get_expressions()
+            expressions = self.plugin.all_expressions
             expressions[self.item.name] = text
             namespace.update_expressions(expressions)
             namespace.update_symbols(self.plugin.symbols)

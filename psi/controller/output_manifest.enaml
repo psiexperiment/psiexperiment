@@ -54,6 +54,13 @@ def set_token(event, output, output_type):
     context_plugin._refresh_items()
 
 
+def get_parameters(block):
+    parameters = list(block.context_name_map.keys())
+    for b in block.blocks:
+        parameters.extend(get_parameters(b))
+    return parameters
+
+
 def prepare_output(event, output):
     '''
     Set up the factory in preparation for producing the signal. This allows the
@@ -62,7 +69,8 @@ def prepare_output(event, output):
     '''
     log.debug('Preparing output %s', output.name)
     core = event.workbench.get_plugin('enaml.workbench.core')
-    context = core.invoke_command('psi.context.get_values')
+    parameters = {'context_names': get_parameters(output.token)}
+    context = core.invoke_command('psi.context.get_values', parameters)
 
     context['fs'] = output.fs
     context['calibration'] = output.calibration
@@ -289,6 +297,7 @@ enamldef SynchronizedManifest(PSIManifest): manifest:
         Command:
             id = manifest.contribution.name + '.clear'
             handler = partial(clear_synchronized, manifest.contribution)
+
 
 
 def load_items(output, block):
