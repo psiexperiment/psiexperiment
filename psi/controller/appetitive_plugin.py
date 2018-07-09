@@ -119,23 +119,36 @@ class AppetitivePlugin(BasePlugin):
         '''
         Determine next trial type
         '''
-        if self.trial == 1:
-            self.trial_type = 'go_remind'
-            return 'remind'
-
+        n_remind = self.context.get_value('remind_trials')
+        n_warmup = self.context.get_value('warmup_trials')
         max_nogo = self.context.get_value('max_nogo')
         go_probability = self.context.get_value('go_probability')
 
-        if self._remind_requested:
+        if self.trial <= n_remind:
+            self.trial_type = 'go_remind'
+            return 'remind'
+
+        elif self._remind_requested:
             self.trial_type = 'go_remind'
             self._remind_requested = False
             return 'remind'
+
+        elif self.trial <= n_remind + n_warmup:
+            if self.rng.uniform() <= go_probability:
+                self.trial_type = 'go_remind'
+                return 'remind'
+            else:
+                self.trial_type = 'nogo'
+                return 'nogo'
+
         elif self.consecutive_nogo >= max_nogo:
             self.trial_type = 'go_forced'
             return 'go'
+
         elif self.prior_score == TrialScore.false_alarm:
             self.trial_type = 'nogo_repeat'
             return 'nogo'
+
         else:
             if self.rng.uniform() <= go_probability:
                 self.trial_type = 'go'

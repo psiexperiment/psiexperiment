@@ -52,6 +52,7 @@ import doctest
 import collections
 
 import numpy as np
+from numpy.random import RandomState
 
 
 def check_sequence(f):
@@ -114,19 +115,20 @@ def descending(sequence, c=np.inf, key=None):
 
 
 @check_sequence
-def pseudorandom(sequence, seed=None, key=None):
+def pseudorandom(sequence, c=np.inf, key=None, seed=None):
     '''
     Returns a randomly selected element from the sequence.
     '''
     # We need to create a stand-alone generator that cannot be affected by other
     # parts of the code that may require random data (e.g. noise).
-    from numpy.random import RandomState
     state = RandomState()
     state.seed(seed)
     n = len(sequence)
-    while True:
+    cycle = 0
+    while cycle < c:
         i = state.randint(0, n)
         yield sequence[i]
+        cycle += 1
 
 
 @check_sequence
@@ -150,16 +152,18 @@ def exact_order(sequence, c=np.inf, key=None):
 
 
 @check_sequence
-def shuffled_set(sequence, c=np.inf, key=None):
+def shuffled_set(sequence, c=np.inf, key=None, seed=None):
     '''
     Returns a randomly selected element from the sequence and removes it from
     the sequence.  Once the sequence is exhausted, repopulate list with the
     original sequence.
     '''
     cycle = 0
+    state = RandomState()
+    state.seed(seed)
     while cycle < c:
         indices = range(len(sequence))
-        np.random.shuffle(indices)  # Shuffle is in-place
+        state.shuffle(indices)
         for i in indices:
             yield sequence[i]
         cycle += 1

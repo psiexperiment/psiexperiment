@@ -11,6 +11,7 @@ class Block(Declarative):
 
     name = d_(Unicode())
     label = d_(Unicode())
+    compact_label = d_(Unicode())
     factory = d_(Callable())
     context_name_map = Typed(dict)
 
@@ -31,6 +32,7 @@ class Block(Declarative):
         result = cls.__new__(cls)
         result.name = self.name
         result.label = self.label
+        result.compact_label = self.compact_label
         result.factory = self.factory
         for c in self.children:
             result.children.append(copy.copy(c))

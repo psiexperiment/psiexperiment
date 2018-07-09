@@ -158,6 +158,18 @@ enamldef AppetitiveManifest(BaseManifest): manifest:
                 default = 'yes'
                 scope = 'arbitrary'
                 choices = {'yes': True, 'no': False}
+            Parameter:
+                name = 'remind_trials'
+                label = 'Remind trials'
+                compact_label = 'N remind'
+                scope = 'experiment'
+                default = 10
+            Parameter:
+                name = 'warmup_trials'
+                label = 'Warmup trials'
+                compact_label = 'N warmup'
+                scope = 'experiment'
+                default = 20
 
         ContextGroup:
             name = 'results'
@@ -217,7 +229,7 @@ enamldef AppetitiveManifest(BaseManifest): manifest:
         SingleSetting:
             name = 'nogo'
             label = 'Nogo sequence'
-        SingleSetting:
+        SequenceSelector:
             name = 'remind'
             label = 'Remind sequence'
 

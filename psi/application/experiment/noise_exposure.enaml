@@ -150,8 +150,8 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
             ViewBox:
                 label = 'Noise level (dB SPL)'
-                y_min = 110
-                y_max = 120
+                y_min = 108
+                y_max = 118
                  
                 ChannelPlot:
                     source_name = 'noise_level'

@@ -6,6 +6,9 @@ class NullEngine(Engine):
 
     buffer_size = Float()
 
+    def register_done_callback(self, callback):
+        pass
+
     def register_ao_callback(self, callback, channel_name):
         pass
 

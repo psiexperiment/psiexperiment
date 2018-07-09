@@ -1,0 +1,28 @@
+from enaml.workbench.api import PluginManifest, Extension
+
+from psi.controller.engines.null import NullEngine
+from psi.controller.api import (HardwareAIChannel, HardwareAOChannel)
+
+
+enamldef IOManifest(PluginManifest): manifest:
+    '''
+    This defines the hardware connections that are specific to the computer of
+    interest.
+    '''
+    Extension:
+        id = 'backend'
+        point = 'psi.controller.io'
+
+        NullEngine: engine:
+            name = 'example'
+            master_clock = True
+
+            HardwareAOChannel:
+                label = 'AO'
+                name = 'speaker'
+                fs = 100e3
+
+            HardwareAIChannel:
+                label = 'AI'
+                name = 'microphone'
+                fs = 25e3

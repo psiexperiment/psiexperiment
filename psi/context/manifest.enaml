@@ -166,14 +166,20 @@ enamldef ContextManifest(PluginManifest): manifest:
 
                 log.debug('Setting context item states')
                 for item in plugin.context_items.values():
-                    group_state = parameter_state.get(item.group, {})
-                    state = group_state.get(item.name, {})
-                    item.__setstate__(state)
+                    try:
+                        group_state = parameter_state.get(item.group, {})
+                        state = group_state.get(item.name, {})
+                        item.__setstate__(state)
+                    except Exception as e:
+                        log.exception(e)
 
                 log.debug('Setting selector states')
                 for selector in plugin.selectors.values():
-                    state = selector_state.get(selector.name, {})
-                    selector.__setstate__(state)
+                    try:
+                        state = selector_state.get(selector.name, {})
+                        selector.__setstate__(state)
+                    except Exception as e:
+                        log.exception(e)
 
                 log.debug('Setting meta states')
                 for meta in plugin.context_meta.values():

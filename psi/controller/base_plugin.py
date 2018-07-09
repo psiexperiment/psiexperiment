@@ -313,8 +313,10 @@ class BasePlugin(Plugin):
         self._plugin_actions = actions
         self._action_context = context
 
-    def register_action(self, event, command):
-        action = ExperimentAction(event=event, command=command)
+    def register_action(self, event, command, kwargs=None):
+        if kwargs is None:
+            kwargs = {}
+        action = ExperimentAction(event=event, command=command, kwargs=kwargs)
         self._registered_actions.append(action)
 
     def configure_engines(self):

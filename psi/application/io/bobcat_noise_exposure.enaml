@@ -23,7 +23,7 @@ speaker_filename = os.path.join(cal_root, '161219 - Golay noise exposure D220TI 
 speaker_cal = GolayCalibration.from_file(speaker_filename, fixed_gain=-36+2.55)
 
 exp_mic_filename = os.path.join(cal_root, '20180508-1536 Brad exp mic on side wall pt_calibration')
-exp_mic_cal = InterpCalibration.from_psi(exp_mic_filename)
+exp_mic_cal = InterpCalibration.from_psi_golay(exp_mic_filename)
 
 
 enamldef IOManifest(PluginManifest): manifest:

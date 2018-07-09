@@ -256,6 +256,8 @@ class BColzStore(BaseStore):
         '''
         filename = self.get_filename('trial_log')
         dtype = [(str(n), i.dtype) for n, i in context_info.items()]
+        mesg = ['Trial log data type'] + [str(m) for m in dtype]
+        log.info('\n'.join(mesg))
         carray = bcolz.zeros(0, rootdir=filename, mode='w', dtype=dtype)
         atexit.register(carray.flush)
         return carray
