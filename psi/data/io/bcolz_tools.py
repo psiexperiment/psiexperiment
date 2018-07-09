@@ -5,6 +5,22 @@ import numpy as np
 import pandas as pd
 
 
+def load_ctable_as_df(path, decode=True, archive=True):
+    csv_path = f'{path}.csv'
+    if os.path.exists(csv_path):
+        return pd.io.parsers.read_csv(csv_path)
+    table = bcolz.ctable(rootdir=path)
+    df = table.todataframe()
+    if decode:
+        for c in table.cols:
+            if table[c].dtype.char == 'S':
+                df[c] = df[c].str.decode('utf8')
+
+    if archive:
+        df.to_csv(csv_path, index=False)
+    return df
+
+
 class Dataset:
 
     def __init__(self, base_path, continuous_names=None, epoch_names=None):
@@ -26,8 +42,8 @@ class Dataset:
                 md = bcolz.ctable(rootdir=path)
                 self.epoch_md[name] = md.todataframe()
 
-    def extract_epochs_df(self, signal_name, epoch_name, columns=None, offset=0,
-                          duration=None, padding_samples=0):
+    def extract_epochs_df(self, signal_name, epoch_name, columns=None,
+                          offset=0, duration=None, padding_samples=0):
         return get_epochs_df(
             self.continuous[signal_name],
             self.epoch_md[epoch_name],
