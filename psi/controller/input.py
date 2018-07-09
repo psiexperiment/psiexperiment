@@ -122,10 +122,10 @@ class EventInput(Input):
 
 class EpochInput(Input):
 
-    epoch_size = Property().tag(metadata=True)
+    duration = Property().tag(metadata=True)
 
-    def _get_epoch_size(self):
-        return self.source.epoch_size
+    def _get_duration(self):
+        return self.source.duration
 
 
 class Callback(Input):
@@ -610,7 +610,7 @@ def capture_epoch(epoch_t0, epoch_samples, info, callback):
 
 
 @coroutine
-def extract_epochs(fs, queue, epoch_size, epoch_size_post, buffer_size, target,
+def extract_epochs(fs, queue, epoch_size, poststim_time, buffer_size, target,
                    empty_queue_cb=None):
 
     # The variable `tlb` tracks the number of samples that have been acquired
@@ -656,13 +656,13 @@ def extract_epochs(fs, queue, epoch_size, epoch_size_post, buffer_size, target,
 
             # Figure out how many samples to capture for that epoch
             t0 = round(info['t0'] * fs)
-            info['epoch_size_post'] = epoch_size_post
+            info['poststim_time'] = poststim_time
             if epoch_size:
                 info['epoch_size'] = epoch_size
-                total_epoch_size = epoch_size + epoch_size_post
+                total_epoch_size = epoch_size + poststim_time
             else:
                 info['epoch_size'] = info['duration']
-                total_epoch_size = info['duration'] + epoch_size_post
+                total_epoch_size = info['duration'] + poststim_time
 
             info['total_epoch_size'] = total_epoch_size
             epoch_samples = round(total_epoch_size * fs)
@@ -718,7 +718,7 @@ class ExtractEpochs(EpochInput):
     epoch_size = d_(Float(0)).tag(metadata=True)
 
     # Defines the extra time period to capture beyond the epoch duration.
-    epoch_size_post = d_(Float(0).tag(metadata=True))
+    poststim_time = d_(Float(0).tag(metadata=True))
 
     complete = Bool(False)
 
@@ -732,8 +732,18 @@ class ExtractEpochs(EpochInput):
                 raise SystemError('Cannot have an infinite epoch size')
         cb = super().configure_callback()
         return extract_epochs(self.fs, self.queue, self.epoch_size,
-                              self.epoch_size_post, self.buffer_size, cb,
+                              self.poststim_time, self.buffer_size, cb,
                               self.mark_complete).send
+
+    def _get_duration(self):
+        return self.epoch_size + self.poststim_time
+
+    # force change notification for duration
+    def _observe_epoch_size(self, event):
+        self.notify('duration', self.duration)
+
+    def _observe_poststim_time(self, event):
+        self.notify('duration', self.duration)
 
 
 @coroutine

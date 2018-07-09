@@ -715,8 +715,7 @@ class GroupMixin(Declarative):
         if self.source is not None:
             self.source.add_callback(self._epochs_acquired)
             self.source.observe('fs', self._cache_x)
-            self.source.observe('epoch_size', self._cache_x)
-            self.source.observe('epoch_size_post', self._cache_x)
+            self.source.observe('duration', self._cache_x)
             self._reset_plots()
             self._cache_x()
 
@@ -725,12 +724,8 @@ class GroupedEpochAveragePlot(GroupMixin, BasePlot):
 
     def _cache_x(self, event=None):
         # Set up the new time axis
-        if self.source.fs and \
-                self.source.epoch_size and \
-                self.source.epoch_size_post:
-            total_size = self.source.epoch_size + self.source.epoch_size_post
-            print('recaching', total_size)
-            n_time = round(self.source.fs * total_size)
+        if self.source.fs and self.source.duration:
+            n_time = round(self.source.fs * self.source.duration)
             self._x = np.arange(n_time)/self.source.fs
 
     def _default_name(self):
@@ -745,11 +740,8 @@ class GroupedEpochFFTPlot(GroupMixin, BasePlot):
     def _cache_x(self, event=None):
         # Cache the frequency points. Must be in units of log for PyQtGraph.
         # TODO: This could be a utility function stored in the parent?
-        if self.source.fs and \
-                self.source.epoch_size and \
-                self.source.epoch_size_post:
-            total_size = self.source.epoch_size + self.source.epoch_size_post
-            self._x = get_x_fft(self.source.fs, total_size)
+        if self.source.fs and self.source.duration:
+            self._x = get_x_fft(self.source.fs, self.source.duration)
 
     def _y(self, epoch):
         y = np.mean(epoch, axis=0) if epoch else np.full_like(self._x, np.nan)
@@ -766,17 +758,8 @@ class GroupedEpochPhasePlot(GroupMixin, BasePlot):
     def _cache_x(self, event=None):
         # Cache the frequency points. Must be in units of log for PyQtGraph.
         # TODO: This could be a utility function stored in the parent?
-        if self.source.fs and \
-                self.source.epoch_size and \
-                self.source.epoch_size_post:
-            total_size = self.source.epoch_size + self.source.epoch_size_post
-            self._x = get_x_fft(self.source.fs, total_size)
-
-    #def _cache_x(self, event=None):
-    #    # Cache the frequency points. Must be in units of log for PyQtGraph.
-    #    # TODO: This could be a utility function stored in the parent?
-    #    if self.source.fs and self.source.epoch_size:
-    #        self._x = get_x_fft(self.source.fs, self.source.epoch_size)
+        if self.source.fs and self.source.duration:
+            self._x = get_x_fft(self.source.fs, self.source.duration)
 
     def _y(self, epoch):
         y = np.mean(epoch, axis=0) if epoch else np.full_like(self._x, np.nan)
@@ -797,6 +780,12 @@ class StackedEpochAveragePlot(GroupMixin, BasePlot):
             offset = (i+1) * height / (n+1)
             point = vb.mapToView(pg.Point(0, offset))
             plot.setPos(0, point.y())
+
+    def _cache_x(self, event=None):
+        # Set up the new time axis
+        if self.source.fs and self.source.duration:
+            n_time = round(self.source.fs * self.source.duration)
+            self._x = np.arange(n_time)/self.source.fs
 
     def _reset_plots(self):
         super()._reset_plots()
