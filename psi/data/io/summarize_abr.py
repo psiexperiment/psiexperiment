@@ -28,7 +28,6 @@ def process_files(filenames, offset=-0.001, duration=0.01,
     for filename in filenames:
         try:
             process_file(filename, offset, duration, filter_settings, reprocess)
-            print('Processed {}'.format(filename))
         except Exception as e:
             print('Error processing {}'.format(filename))
 
@@ -118,6 +117,8 @@ def process_file(filename, offset, duration, filter_settings, reprocess=False):
     epoch_mean.T.to_csv(mean_epoch_file)
     epochs.columns.name = 'time'
     epochs.T.to_csv(raw_epoch_file)
+
+    print('Processed {}'.format(filename))
 
 
 def main_auto():

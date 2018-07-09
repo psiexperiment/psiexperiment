@@ -16,6 +16,8 @@ import numpy as np
 import pandas as pd
 from scipy import signal
 
+from .bcolz_tools import load_ctable_as_df
+
 
 MERGE_PATTERN = \
     r'\g<date>-* ' \
@@ -24,21 +26,6 @@ MERGE_PATTERN = \
     r'\g<ear> ' \
     r'\g<note> ' \
     r'\g<experiment>*'
-
-
-def fix_polarity_column(table):
-    col = table['target_tone_polarity']
-    if col.dtype != np.object:
-        return
-    tp = col[:].astype(np.int)
-    table.delcol('target_tone_polarity')
-    table.addcol(tp, 'target_tone_polarity')
-
-
-def fix_epoch_size(table):
-    if 'epoch_size' not in table.names:
-        data = np.full(len(table), 8.5e-3)
-        table.addcol(data, 'epoch_size')
 
 
 def make_query(trials, base_name='target_tone_'):
@@ -70,27 +57,23 @@ class ABRFile:
         self._erp_md_folder = os.path.join(base_folder, 'erp_metadata')
         self._eeg = bcolz.carray(rootdir=self._eeg_folder)
         self._erp = bcolz.carray(rootdir=self._erp_folder)
-        self._erp_md = bcolz.ctable(rootdir=self._erp_md_folder)
-        self.trial_log = self._erp_md.todataframe()
+        self.trial_log = load_ctable_as_df(self._erp_md_folder)
 
-        # Run some fixers
-        fix_polarity_column(self._erp_md)
-        fix_epoch_size(self._erp_md)
-
-        epoch_size = self._erp_md['epoch_size'][:]
+        epoch_size = self.trial_log['epoch_size']
         e_size = epoch_size * self._erp.attrs['fs']
         e_size = np.round(e_size).astype('int64')
         e_index = e_size.cumsum() - e_size[0]
         self._e_index = e_index
         self._e_size = e_size
 
-        t0 = self._erp_md['t0'][:]
+        t0 = self.trial_log['t0']
         c_index = t0 * self._eeg.attrs['fs']
         c_index = np.round(c_index).astype('int64')
         c_size = epoch_size * self._eeg.attrs['fs']
         c_size = np.round(c_size).astype('int64')
         self._c_index = c_index
         self._c_size = c_size
+
 
     def get_epochs(self, offset=0, duration=8.5e-3, padding_samples=0,
                    detrend='constant', base_name='target_tone_', columns=None,
@@ -99,9 +82,9 @@ class ABRFile:
         columns, names = format_columns(columns, base_name)
         query = make_query(trials, base_name)
         if query:
-            result_set = self._erp_md.where(query, outcols=columns)
+            result_set = self.trial_log.query(query)[columns]
         else:
-            result_set = self._erp_md.iter(outcols=columns)
+            result_set = self.trial_log[columns]
 
         fs = self._eeg.attrs['fs']
         duration_samples = round(duration*fs)
@@ -110,7 +93,7 @@ class ABRFile:
         index = []
         max_samples = self._eeg.shape[-1]
 
-        for i, row in enumerate(result_set):
+        for _, row in result_set.iterrows():
             t0 = row.t0
             lb = round((row.t0+offset)*fs)
             ub = lb + duration_samples
