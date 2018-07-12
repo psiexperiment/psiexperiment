@@ -118,7 +118,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
             ExtractEpochs: extract:
                 queue << hw_ao.queue
                 name = 'epoch'
-                epoch_size_post = 10e-3
+                poststim_time = 10e-3
 
     Extension:
         id = 'context'
