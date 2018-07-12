@@ -124,7 +124,7 @@ def main_animal():
 
 
 def main_ear():
-    experiments = ['calibration', 'abr']
+    experiments = ['speaker_calibration', 'abr']
     app = QtApplication()
     launcher = EarLauncher()
     view = LauncherView(launcher=launcher, experiments=experiments)
