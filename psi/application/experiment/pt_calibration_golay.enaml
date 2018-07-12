@@ -42,7 +42,8 @@ from psi.data.plots import (TimeContainer,
                             GroupedEpochFFTPlot)
 
 
-from psi.controller.calibration import FlatCalibration
+from psi.controller.calibration import FlatCalibration, InterpCalibration
+from psi.util import octave_space
 
 
 def configure_hardware(event):
@@ -129,11 +130,11 @@ def calculate_sens(event):
     filename = core.invoke_command('calibration_data.create_table',
                                    parameters=parameters)
     filename = os.path.dirname(filename)
-    validate_sens(event, filename)
+    validate_sens(event, result.loc[14, -18].reset_index())
 
 
-def calculate_group_sens(fs, key, pt_waveform, cal_waveform, color, context,
-                         data, name):
+def calculate_group_sens(fs, pt_waveform, cal_waveform, color, context, data,
+                         name):
     n_bits = context.get_value('n_bits')
     n_fft = context.get_value('fft_averages')
     n_waveforms = context.get_value('waveform_averages')
