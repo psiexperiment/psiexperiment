@@ -59,22 +59,6 @@ class ABRFile:
         self._erp = bcolz.carray(rootdir=self._erp_folder)
         self.trial_log = load_ctable_as_df(self._erp_md_folder)
 
-        epoch_size = self.trial_log['epoch_size']
-        e_size = epoch_size * self._erp.attrs['fs']
-        e_size = np.round(e_size).astype('int64')
-        e_index = e_size.cumsum() - e_size[0]
-        self._e_index = e_index
-        self._e_size = e_size
-
-        t0 = self.trial_log['t0']
-        c_index = t0 * self._eeg.attrs['fs']
-        c_index = np.round(c_index).astype('int64')
-        c_size = epoch_size * self._eeg.attrs['fs']
-        c_size = np.round(c_size).astype('int64')
-        self._c_index = c_index
-        self._c_size = c_size
-
-
     def get_epochs(self, offset=0, duration=8.5e-3, padding_samples=0,
                    detrend='constant', base_name='target_tone_', columns=None,
                    **trials):
@@ -93,9 +77,9 @@ class ABRFile:
         index = []
         max_samples = self._eeg.shape[-1]
 
-        for _, row in result_set.iterrows():
+        for i, (_, row) in enumerate(result_set.iterrows()):
             t0 = row.t0
-            lb = round((row.t0+offset)*fs)
+            lb = int(round((row.t0+offset)*fs))
             ub = lb + duration_samples
             lb -= padding_samples
             ub += padding_samples
@@ -166,34 +150,14 @@ class ABRSupersetFile:
     def __init__(self, *base_folders):
         self._fh = [ABRFile(base_folder) for base_folder in base_folders]
 
-    def get_epochs(self, **kwargs):
-        epoch_superset = []
-        for fh in self._fh:
-            epochs = fh.get_epochs(**kwargs)
-            epoch_superset.append(epochs)
-        return np.concatenate(epoch_superset, axis=0)
-
-    def count_epochs(self, *columns):
-        counts = self._fh[0].count_epochs(*columns)
-        for fh in self._fh[1:]:
-            new_counts = fh.count_epochs(*columns)
-            counts = counts.add(new_counts, fill_value=0)
-        return counts
-
-    def get_epoch_groups(self, *columns):
-        groups = self.count_epochs(*columns)
-        results = []
+    def get_epochs_filtered(self, *args, **kwargs):
+        epoch_set = []
         keys = []
-        for index, _ in groups.iteritems():
-            kwargs = {c: i for c, i in zip(columns, index)}
-            epochs = self.get_epochs(**kwargs)
-            keys.append(index)
-            results.append(epochs)
-        index = pd.MultiIndex.from_tuples(keys, names=columns)
-        return pd.Series(results, index=index, name='epochs')
-
-    def get_average(self, **kwargs):
-        return self.get_epochs(**kwargs).mean(axis=0)
+        for fh in self._fh:
+            epochs = fh.get_epochs_filtered(*args, **kwargs)
+            keys.append(os.path.basename(fh._base_folder))
+            epoch_set.append(epochs)
+        return pd.concat(epoch_set, keys=keys, names=['file'])
 
     @classmethod
     def from_pattern(cls, base_folder):
@@ -215,6 +179,10 @@ class ABRSupersetFile:
         if len(set(fs)) != 1:
             raise ValueError('Sampling rate of ABR sets differ')
         return fs[0]
+
+    @property
+    def trial_log(self):
+        return pd.concat([fh.trial_log for fh in self._fh], ignore_index=True)
 
 
 def load(base_folder):
