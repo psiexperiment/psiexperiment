@@ -23,16 +23,41 @@ memory = Memory(cachedir=cachedir, mmap_mode='r')
 ################################################################################
 # Exceptions
 ################################################################################
-class CalibrationError(BaseException):
+mesg = '''
+Unable to run the calibration. Please double-check that the microphone and
+speaker amplifiers are powered on and that the devices are positioned properly.
+If you keep receiving this message, the microphone and/or the speaker may have
+gone bad and need to be replaced.
+
+{}
+'''
+mesg = mesg.strip()
+
+
+thd_err_mesg = 'Total harmonic distortion for {:.1f}Hz is {:.1f}%'
+nf_err_mesg = 'Power at {:.1f}Hz has SNR of {:.2f}dB'
+
+
+class CalibrationError(Exception):
     pass
 
 
 class CalibrationTHDError(CalibrationError):
-    pass
+
+    def __init__(self, frequency, thd):
+        self.frequency = frequency
+        self.thd = thd
+        self.base_message = thd_err_mesg.format(frequency, thd)
+        self.message = mesg.format(self.base_message)
 
 
 class CalibrationNFError(CalibrationError):
-    pass
+
+    def __init__(self, frequency, snr):
+        self.frequency = frequency
+        self.snr = snr
+        self.base_message = nf_err_mesg.format(frequency, snr)
+        self.message = mesg.format(self.base_message)
 
 
 ################################################################################
