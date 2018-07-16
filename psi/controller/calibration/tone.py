@@ -18,10 +18,6 @@ from ..input import ExtractEpochs
 from psi.token.primitives import ToneFactory, SilenceFactory
 
 
-thd_err_mesg = 'Total harmonic distortion for {}Hz is {}%'
-nf_err_mesg = 'Power at {}Hz has SNR of {}dB'
-
-
 def process_tone(fs, signal, frequency, min_snr=None, max_thd=None,
                  thd_harmonics=3, silence=None):
     '''
@@ -85,12 +81,10 @@ def process_tone(fs, signal, frequency, min_snr=None, max_thd=None,
 
     if min_snr is not None:
         if np.any(freq_snr < min_snr):
-            mesg = nf_err_mesg.format(frequency, freq_snr)
-            raise CalibrationNFError(mesg)
+            raise CalibrationNFError(frequency, freq_snr)
 
     if max_thd is not None and np.any(thd > max_thd):
-        mesg = thd_err_mesg.format(frequency, thd)
-        raise CalibrationTHDError(mesg)
+        raise CalibrationTHDError(frequency, thd)
 
     # Concatenate and return as a record array
     result = np.concatenate((freq_rms[np.newaxis],
