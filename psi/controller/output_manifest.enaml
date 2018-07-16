@@ -200,6 +200,12 @@ def start_output(event, output):
     ts = event.parameters['timestamp']
     start = event.parameters.get('start', ts)
     delay = event.parameters.get('delay', 0)
+
+    # Is this a hack? If no timestamp is defined, then assume that the start is
+    # 0 (e.g., in the case of experiment_prepare).
+    if start is None:
+        start = 0
+
     offset = round((start+delay)*output.channel.fs)
 
     # This needs to be done before we update the engine since it gets set to
@@ -297,7 +303,6 @@ enamldef SynchronizedManifest(PSIManifest): manifest:
         Command:
             id = manifest.contribution.name + '.clear'
             handler = partial(clear_synchronized, manifest.contribution)
-
 
 
 def load_items(output, block):

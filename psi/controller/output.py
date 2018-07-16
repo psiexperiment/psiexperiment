@@ -78,6 +78,7 @@ class Output(PSIContribution):
 class AnalogOutput(Output):
 
     buffer_size = Property()
+    active = Bool(False)
 
     _buffer = Typed(SignalBuffer)
     _offset = Int(0)
@@ -121,11 +122,20 @@ class AnalogOutput(Output):
     def get_next_samples(self, samples):
         raise NotImplementedError
 
+    def activate(self, offset):
+        self.active = True
+        self._offset = offset
+        self._buffer.invalidate_samples(offset)
+
+    def deactivate(self, offset):
+        self.active = False
+        self.factory = None
+        self._buffer.invalidate_samples(offset)
+
 
 class EpochOutput(AnalogOutput):
 
     factory = Typed(object)
-    active = Bool(False)
 
     def _observe_factory(self, event):
         pass
@@ -153,23 +163,12 @@ class EpochOutput(AnalogOutput):
             waveform = np.zeros(samples, dtype=np.double)
         return waveform
 
-    def activate(self, offset):
-        self.active = True
-        self._offset = offset
-        self._buffer.invalidate_samples(offset)
-
-    def deactivate(self, offset):
-        self.active = False
-        self.factory = None
-        self._buffer.invalidate_samples(offset)
-
 
 class QueuedEpochOutput(EpochOutput):
 
     queue = d_(Typed(AbstractSignalQueue))
     auto_decrement = d_(Bool(False))
     complete_cb = Typed(object)
-    active = d_(Bool(True))
 
     def _observe_target(self, event):
         self._update_queue()
@@ -219,7 +218,10 @@ class ContinuousOutput(AnalogOutput):
     factory = Typed(object)
 
     def get_next_samples(self, samples):
-        return self.factory.next(samples)
+        if self.active:
+            return self.factory.next(samples)
+        else:
+            return np.zeros(samples, dtype=np.double)
 
 
 class DigitalOutput(Output):

@@ -22,7 +22,7 @@ def get_metadata(contribution):
 
 def prepare_event_callback(input, event):
     # Check to see if we need to configure this callback. Don't configure
-    # unecessary callbacks.
+    # unecessary callbacks as this slows down the system.
     controller = event.workbench.get_plugin('psi.controller')
     event_name = input.name + '_acquired'
     if controller.event_used(event_name):

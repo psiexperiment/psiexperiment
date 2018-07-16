@@ -394,7 +394,7 @@ def setup_hw_ao(channels, buffer_duration, callback_interval, callback,
         task, mx.DAQmx_Val_Transferred_From_Buffer, int(callback_samples), 0,
         task._cb_ptr, None)
 
-    mx.DAQmxTaskControl(task, mx.DAQmx_Val_Task_Verify)
+    mx.DAQmxTaskControl(task, mx.DAQmx_Val_Task_Reserve)
     task._names = verify_channel_names(task, names)
     task._devices = device_list(task)
     task._fs = fs
@@ -492,7 +492,7 @@ def setup_hw_ai(channels, callback_duration, callback, task_name='hw_ao'):
         task, mx.DAQmx_Val_Acquired_Into_Buffer, int(callback_samples), 0,
         task._cb_ptr, None)
 
-    mx.DAQmxTaskControl(task, mx.DAQmx_Val_Task_Verify)
+    mx.DAQmxTaskControl(task, mx.DAQmx_Val_Task_Reserve)
 
     task._names = verify_channel_names(task, names)
     task._devices = device_list(task)
@@ -542,12 +542,11 @@ def setup_hw_di(fs, lines, callback, callback_samples, start_trigger=None,
     task._cb_helper = cb_helper
     task._initial_state = initial_state
 
-    #mx.DAQmxTaskControl(task, mx.DAQmx_Val_Task_Commit)
     rate = ctypes.c_double()
     mx.DAQmxGetSampClkRate(task, rate)
 
-    mx.DAQmxTaskControl(task, mx.DAQmx_Val_Task_Verify)
-    mx.DAQmxTaskControl(clock_task, mx.DAQmx_Val_Task_Verify)
+    mx.DAQmxTaskControl(task, mx.DAQmx_Val_Task_Reserve)
+    mx.DAQmxTaskControl(clock_task, mx.DAQmx_Val_Task_Reserve)
 
     return [task, clock_task]
 
@@ -557,7 +556,7 @@ def setup_sw_ao(lines, expected_range, task_name='sw_ao'):
     task = create_task(task_name)
     lb, ub = expected_range
     mx.DAQmxCreateAOVoltageChan(task, lines, '', lb, ub, mx.DAQmx_Val_Volts, '')
-    mx.DAQmxTaskControl(task, mx.DAQmx_Val_Task_Verify)
+    mx.DAQmxTaskControl(task, mx.DAQmx_Val_Task_Reserve)
     return task
 
 
@@ -569,9 +568,8 @@ def setup_sw_do(channels, task_name='sw_do'):
 
     lines = ','.join(lines)
     mx.DAQmxCreateDOChan(task, lines, '', mx.DAQmx_Val_ChanForAllLines)
-    mx.DAQmxTaskControl(task, mx.DAQmx_Val_Task_Verify)
+    mx.DAQmxTaskControl(task, mx.DAQmx_Val_Task_Reserve)
 
-    #task._names = verify_channel_names(task, names)
     task._names = names
     task._devices = device_list(task)
 
@@ -761,8 +759,7 @@ class NIDAQEngine(Engine):
         log.debug('Task %s complete', task_name)
         self._task_done[task_name] = True
         task = self._tasks[task_name]
-        #import time
-        #time.sleep(1)
+
         # We have frozen the first three arguments (cb, channels, discard)
         # using functools.partial and need to provide task and cb_samples.
         # Setting cb_samples to 1 means that we read all remaning samples,
@@ -1093,8 +1090,8 @@ class NIDAQEngine(Engine):
             raise SystemError('Insufficient time to update output')
 
         mx.DAQmxWriteAnalogF64(task, data.shape[-1], False, timeout,
-                            mx.DAQmx_Val_GroupByChannel,
-                            data.astype(np.float64), self._int32, None)
+                               mx.DAQmx_Val_GroupByChannel,
+                               data.astype(np.float64), self._int32, None)
 
         # Now, reset it back to 0
         if offset is not None:
