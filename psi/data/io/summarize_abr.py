@@ -27,9 +27,14 @@ def process_files(filenames, offset=-0.001, duration=0.01,
                   filter_settings=None, reprocess=False):
     for filename in filenames:
         try:
-            process_file(filename, offset, duration, filter_settings, reprocess)
+            processed = process_file(filename, offset, duration,
+                                     filter_settings, reprocess)
+            if processed:
+                print('\nProcessed {}'.format(filename))
+            else:
+                print('.', end='')
         except Exception as e:
-            print('Error processing {}'.format(filename))
+            print('\nError processing {}'.format(filename))
 
 
 def _get_file_template(fh, offset, duration, filter_settings):
@@ -91,8 +96,7 @@ def process_file(filename, offset, duration, filter_settings, reprocess=False):
              os.path.exists(mean_epoch_file) and \
              os.path.exists(n_epoch_file) and \
              os.path.exists(reject_ratio_file)):
-        print('{} already processed. Skipping.'.format(filename))
-        return
+        return False
 
     # Load the epochs
     epochs = _get_epochs(fh, offset, duration, filter_settings)
@@ -117,8 +121,7 @@ def process_file(filename, offset, duration, filter_settings, reprocess=False):
     epoch_mean.T.to_csv(mean_epoch_file)
     epochs.columns.name = 'time'
     epochs.T.to_csv(raw_epoch_file)
-
-    print('Processed {}'.format(filename))
+    return True
 
 
 def main_auto():
