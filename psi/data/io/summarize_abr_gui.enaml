@@ -1,4 +1,6 @@
-from enaml.widgets.api import MainWindow, HGroup, Form, Label, CheckBox, Container, VGroup
+from enaml.widgets.api import (MainWindow, HGroup, Form, Label, CheckBox,
+                               Container, VGroup, ObjectCombo, Field,
+                               PushButton, FileDialogEx)
 from enaml.stdlib.fields import FloatField, IntField
 
 
@@ -6,45 +8,61 @@ enamldef Main(MainWindow):
 
     Container:
 
-        VGroup:
+        Form:
+            Label:
+                text = 'Directory'
 
             VGroup:
                 padding = 0
-                spacing = 0
 
-                CheckBox: filter_waveforms:
-                    text = 'Filter?'
-                    checked = True
+                Field: filename:
+                    pass
 
-                Form:
-                    padding = 0
+                PushButton:
+                    text = 'Browse'
+                    clicked ::
+                        current_path = filename.text
+                        result = FileDialogEx \
+                            .get_existing_directory(current_path=current_path)
+                        if result:
+                            filename.text = result
 
-                    enabled << filter_waveforms.checked
-                    Label:
-                        text = 'Highpass filter cutoff (Hz)'
-                    FloatField:
-                        value = 300.0
-                    Label:
-                        text = 'Lowpass filter cutoff (Hz)'
-                    FloatField:
-                        value = 32e3
-                    Label:
-                        text = 'Filter order'
-                    IntField:
-                        value = 1
+            Label:
+                text = 'Filter'
 
-            VGroup:
-                padding = 0
-                spacing = 0
+            ObjectCombo: filter_waveforms:
+                items = ['raw', 'auto', 'manual']
+                selected = 'auto'
 
-                CheckBox: reject_threshold:
-                    text = 'Use reject threshold in file?'
-                    checked = True
+            Label:
+                text = 'Highpass filter cutoff (Hz)'
+            FloatField:
+                value = 300.0
+                enabled << filter_waveforms.selected == 'manual'
+            Label:
+                text = 'Lowpass filter cutoff (Hz)'
+            FloatField:
+                value = 32e3
+                enabled << filter_waveforms.selected == 'manual'
+            Label:
+                text = 'Filter order'
+            IntField:
+                value = 1
+                enabled << filter_waveforms.selected == 'manual'
 
-                Form:
-                    padding = 0
+            Label:
+                text = 'Use reject threshold in file?'
 
-                    Label:
-                        text = 'Alternate reject threshold'
-                    FloatField:
-                        pass
+            CheckBox: reject_threshold:
+                checked = True
+
+            Label:
+                text = 'Reject threshold'
+            FloatField:
+                enabled << not reject_threshold.checked
+
+            PushButton:
+                enabled << bool(filename.text)
+                text = 'Process folder'
+                clicked ::
+                    pass
