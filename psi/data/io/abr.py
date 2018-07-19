@@ -169,9 +169,9 @@ class ABRSupersetFile:
 
     @classmethod
     def from_folder(cls, base_folder):
-        folders = os.listdir(base_folder)
-        folders = [os.path.join(base_folder, f) for f in folders]
-        return cls(*folders)
+        folders = [os.path.join(base_folder, f) \
+                   for f in os.listdir(base_folder)]
+        return cls(*[f for f in folders if os.path.isdir(f)])
 
     @property
     def fs(self):
