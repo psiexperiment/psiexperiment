@@ -30,11 +30,11 @@ def process_files(filenames, offset=-0.001, duration=0.01,
             processed = process_file(filename, offset, duration,
                                      filter_settings, reprocess)
             if processed:
-                print('\nProcessed {}'.format(filename))
+                print(f'\nProcessed {filename}\n')
             else:
-                print('.', end='')
+                print('.', end='', flush=True)
         except Exception as e:
-            print('\nError processing {}'.format(filename))
+            print(f'\nError processing {filename}\n')
 
 
 def _get_file_template(fh, offset, duration, filter_settings):
