@@ -275,6 +275,7 @@ class BColzStore(BaseStore):
     def create_ai_continuous(self, name, fs, dtype, **metadata):
         n = int(fs*60*60)
         filename = self.get_filename(name)
+        log.debug('Saving %s to %s', name, filename)
         carray = bcolz.carray([], rootdir=filename, mode='w', dtype=dtype,
                               expectedlen=n)
         carray.attrs['fs'] = fs
@@ -288,6 +289,7 @@ class BColzStore(BaseStore):
         # Create signal data store
         n = int(fs*60*60)
         base = self.get_filename(name)
+        log.debug('Saving %s to %s', name, base)
         carray = bcolz.carray([], rootdir=base, mode='w', dtype=dtype,
                               expectedlen=n)
         carray.attrs['fs'] = fs
