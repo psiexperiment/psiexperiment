@@ -187,6 +187,11 @@ enamldef ControllerManifest(BaseManifest): manifest:
             weight = 10
 
         ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'hw_ao.start'
+            weight = 250
+
+        ExperimentAction:
             event = 'epoch_queue_end and not hw_ao_active'
             command = 'psi.controller.stop'
 

@@ -129,6 +129,7 @@ class OutputMixin(Declarative):
         # as children of the parent when initialized.
         o = QueuedEpochOutput(queue=queue, auto_decrement=auto_decrement)
         self.add_output(o)
+        return o
 
     def _get_buffer_size(self):
         return self.engine.get_buffer_size(self.name)

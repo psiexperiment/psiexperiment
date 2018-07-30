@@ -55,10 +55,16 @@ class AbstractSignalQueue:
         self._filter_delay = filter_delay
 
     def set_fs(self, fs):
+        # Sampling rate at which samples will be generated.
         self._fs = fs
         self._delay_samples = int(self._initial_delay * fs)
         if self._delay_samples < 0:
             raise ValueError('Invalid option for initial delay')
+
+    def set_t0(self, t0):
+        # Sample at which queue was started relative to experiment acquisition
+        # start.
+        self._t0 = t0
 
     def _add_source(self, source, trials, delays, duration, metadata):
         key = uuid.uuid4()
@@ -181,11 +187,14 @@ class AbstractSignalQueue:
         if self._delay_samples < 0:
             raise ValueError('Invalid option for delay samples')
 
+        queue_t0 = (self._samples+self._filter_delay)/self._fs
+
         return {
-            't0': (self._samples+self._filter_delay)/self._fs,
-            'duration': data['duration'],
-            'key': key,
-            'metadata': data['metadata'],
+            't0': self._t0 + queue_t0,       # Samples re. acq. start
+            'queue_t0': queue_t0,           # Samples re. queue start
+            'duration': data['duration'],   # Duration of token
+            'key': key,                     # Unique ID
+            'metadata': data['metadata'],   # Metadata re. token
         }
 
     def pop_buffer(self, samples, decrement=True):

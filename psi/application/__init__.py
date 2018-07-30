@@ -101,7 +101,7 @@ def _main(args):
     if args.pathname is None:
         log.warn('All data will be destroyed at end of experiment')
 
-    workbench.start_workspace(args.experiment, 
+    workbench.start_workspace(args.experiment,
                               args.pathname,
                               commands=args.commands,
                               load_preferences=not args.no_preferences,

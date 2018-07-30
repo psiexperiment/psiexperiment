@@ -82,7 +82,7 @@ def prepare_output(event, output):
         samples = round(output.fs*duration)
         waveform = factory.next(samples)
         factory = FixedWaveform(output.fs, waveform)
-    output.factory = factory
+    output.source = factory
 
 
 def prepare_output_queue(event, output):
@@ -112,8 +112,8 @@ def prepare_synchronized(synchronized, event):
 def start_synchronized(synchronized, event):
     log.debug('Starting synchronized %s', synchronized.name)
     for output in synchronized.outputs:
-        if output.factory is None:
-            log.warn('Output %s was not prepared', output.name)
+        if not output.is_ready():
+            log.warn('Output %s is not ready', output.name)
             prepare_output(event, output)
 
     ts = event.parameters['timestamp']
@@ -193,8 +193,8 @@ def clear_synchronized(synchronized, event):
 
 
 def start_output(event, output):
-    if output.factory is None:
-        log.warn('Output %s was not prepared', output.name)
+    if not output.is_ready():
+        log.warn('Output %s is not ready', output.name)
         prepare_output(event, output)
 
     ts = event.parameters['timestamp']
@@ -210,7 +210,7 @@ def start_output(event, output):
 
     # This needs to be done before we update the engine since it gets set to
     # None once all samples have been generated.
-    duration = output.factory.get_duration()
+    duration = output.get_duration()
 
     try:
         output.engine.lock.acquire()

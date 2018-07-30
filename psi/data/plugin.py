@@ -84,24 +84,19 @@ class DataPlugin(Plugin):
         for sink in self._sinks:
             sink.context_info_updated(self.context_info)
 
-    def _prepare_trial_log(self):
+    def _default_trial_log(self):
         ci = self.context_info.items()
         arrays = dict((k, np.array([], dtype=i.dtype)) for k, i in ci)
-        self.trial_log = pd.DataFrame(arrays)
+        return pd.DataFrame(arrays)
 
-    def _prepare_event_log(self):
+    def _default_event_log(self):
         arrays = dict([
             ('timestamp', np.array([], dtype=np.dtype('float32'))),
             ('event', np.array([], dtype=np.dtype('S512'))),
         ])
-        self.event_log = pd.DataFrame(arrays)
+        return pd.DataFrame(arrays)
 
     def prepare(self):
-        self._prepare_trial_log()
-        self._prepare_event_log()
-        controller = self.workbench.get_plugin('psi.controller')
-        # TODO: This should go away once we have eliminated the hard dependency
-        # on trial_log and event_log.
         for sink in self._sinks:
             sink.prepare(self)
 

@@ -144,7 +144,10 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gain=0,
     queue.append(waveform, repetitions, iti)
 
     # Add the queue to the output channel
-    ao_channel.add_queued_epoch_output(queue, auto_decrement=True)
+    output = ao_channel.add_queued_epoch_output(queue, auto_decrement=True)
+
+    # Activate the output so it begins as soon as acquisition begins
+    output.activate(0)
 
     # Create a dictionary of lists. Each list maps to an individual input
     # channel and will be used to accumulate the epochs for that channel.

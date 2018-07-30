@@ -74,11 +74,15 @@ class Output(PSIContribution):
     def _get_calibration(self):
         return self.channel.calibration
 
+    def is_ready(self):
+        raise NotImplementedError
+
 
 class AnalogOutput(Output):
 
     buffer_size = Property()
     active = Bool(False)
+    source = Typed(object)
 
     _buffer = Typed(SignalBuffer)
     _offset = Int(0)
@@ -111,7 +115,6 @@ class AnalogOutput(Output):
             s = b.shape[-1]
             out[:s] = b
             samples -= s
-            #log.debug('Pulled %d samples out of buffer for %s', s, self.name)
 
         # Generate new samples
         if samples > 0:
@@ -129,16 +132,17 @@ class AnalogOutput(Output):
 
     def deactivate(self, offset):
         self.active = False
-        self.factory = None
+        self.source = None
         self._buffer.invalidate_samples(offset)
+
+    def is_ready(self):
+        return self.source is not None
+
+    def get_duration(self):
+        return self.source.get_duration()
 
 
 class EpochOutput(AnalogOutput):
-
-    factory = Typed(object)
-
-    def _observe_factory(self, event):
-        pass
 
     def get_next_samples(self, samples):
         if self.active:
@@ -154,9 +158,9 @@ class EpochOutput(AnalogOutput):
                 w = np.zeros(zero_padding, dtype=np.double)
                 waveforms.append(w)
             if waveform_samples:
-                w = self.factory.next(waveform_samples)
+                w = self.source.next(waveform_samples)
                 waveforms.append(w)
-            if self.factory.is_complete():
+            if self.source.is_complete():
                 self.deactivate(self._buffer.get_samples_ub())
             waveform = np.concatenate(waveforms, axis=-1)
         else:
@@ -164,16 +168,23 @@ class EpochOutput(AnalogOutput):
         return waveform
 
 
-class QueuedEpochOutput(EpochOutput):
+class QueuedEpochOutput(AnalogOutput):
 
     queue = d_(Typed(AbstractSignalQueue))
     auto_decrement = d_(Bool(False))
     complete_cb = Typed(object)
+    queue = Property()
+
+    def _get_queue(self):
+        return self.source
+
+    def _set_queue(self, value):
+        self.source = value
 
     def _observe_target(self, event):
         self._update_queue()
 
-    def _observe_queue(self, event):
+    def _observe_source(self, event):
         self._update_queue()
 
     def _update_queue(self):
@@ -206,6 +217,14 @@ class QueuedEpochOutput(EpochOutput):
         factory = self.token.initialize_factory(setting)
         duration = factory.get_duration()
         self.queue.append(factory, averages, iti_duration, duration, setting)
+
+    def activate(self, offset):
+        super().activate(offset)
+        self.queue.set_t0(offset)
+
+    def get_duration(self):
+        # TODO: add a method to get actual duration from queue.
+        return np.inf
 
 
 class SelectorQueuedEpochOutput(QueuedEpochOutput):

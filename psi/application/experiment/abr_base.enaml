@@ -315,6 +315,10 @@ enamldef ControllerManifest(BaseManifest): manifest:
             weight = 11
 
         ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'target.start'
+
+        ExperimentAction:
             event = 'valid_erp_acquired'
             command = 'target.decrement_key'
 
