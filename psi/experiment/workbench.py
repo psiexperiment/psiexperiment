@@ -1,8 +1,12 @@
 import importlib
+import sys
 
 import enaml
 from enaml.application import deferred_call
 from enaml.workbench.api import Workbench
+
+with enaml.imports():
+    from enaml.stdlib.message_box import critical
 
 from psi import set_config
 
@@ -91,7 +95,15 @@ class PSIWorkbench(Workbench):
                                        'psi.data.set_base_path',
                                        {'base_path': base_path})
 
+        # Set up better exception handler
+        sys.excepthook = self.exception_notifier
+
         # Now, open workspace
         ui.select_workspace(workspace)
         ui.show_window()
         ui.start_application()
+
+    def exception_notifier(self, exctype, value, traceback):
+        exception = exctype(value)
+        critical(None, 'Program error', str(exception))
+        sys.__excepthook__(exctype, value, traceback)

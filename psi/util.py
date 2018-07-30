@@ -239,3 +239,7 @@ def octave_space(lb, ub, step):
     ubi = round(np.log2(ub) / step) * step
     x = np.arange(lbi, ubi+step, step)
     return 2**x
+
+
+class ConfigurationException(Exception):
+    pass

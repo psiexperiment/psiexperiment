@@ -16,7 +16,7 @@ from atom.api import (Unicode, Float, Tuple, Int, Typed, Property, Atom, Bool,
 from enaml.core.api import Declarative, d_, d_func
 from enaml.application import deferred_call, timed_call
 
-from psi.util import SignalBuffer
+from psi.util import SignalBuffer, ConfigurationException
 from psi.core.enaml.api import PSIContribution
 from psi.controller.calibration import util
 from psi.context.context_item import ContextMeta
@@ -684,12 +684,19 @@ class GroupMixin(Declarative):
 
     def _make_new_plot(self, key):
         log.info('Adding plot for key %r', key)
-        pen_color = self.get_pen_color(key)
-        pen = pg.mkPen(pen_color, width=self.pen_width)
+        try:
+            pen_color = self.get_pen_color(key)
+            pen = pg.mkPen(pen_color, width=self.pen_width)
 
-        plot = pg.PlotCurveItem(pen=pen, antialias=self.antialias)
-        self.parent.viewbox.addItem(plot)
-        self.plots[key] = plot
+            plot = pg.PlotCurveItem(pen=pen, antialias=self.antialias)
+            self.parent.viewbox.addItem(plot)
+            self.plots[key] = plot
+        except KeyError as key_error:
+            key = key_error.args[0]
+            m = f'Cannot update plot since a field, {key}, ' \
+                 'required by the plot is missing.'
+            raise ConfigurationException(m) from key_error
+
 
     def get_plot(self, key):
         if key not in self.plots:
