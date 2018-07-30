@@ -220,7 +220,7 @@ class QueuedEpochOutput(AnalogOutput):
 
     def activate(self, offset):
         super().activate(offset)
-        self.queue.set_t0(offset)
+        self.queue.set_t0(offset/self.fs)
 
     def get_duration(self):
         # TODO: add a method to get actual duration from queue.

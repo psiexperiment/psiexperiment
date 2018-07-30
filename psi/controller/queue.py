@@ -30,7 +30,7 @@ def as_iterator(x):
 
 class AbstractSignalQueue:
 
-    def __init__(self, initial_delay=1):
+    def __init__(self):
         '''
         Parameters
         ----------
@@ -43,7 +43,7 @@ class AbstractSignalQueue:
             each trial will be adjusted by the filter delay to reflect the true
             time at which the trial reaches the output of the DAC.
         '''
-        self._initial_delay = initial_delay
+        self._delay_samples = 0
         self._data = {} # list of generators
         self._ordering = [] # order of items added to queue
         self._source = None
@@ -57,9 +57,6 @@ class AbstractSignalQueue:
     def set_fs(self, fs):
         # Sampling rate at which samples will be generated.
         self._fs = fs
-        self._delay_samples = int(self._initial_delay * fs)
-        if self._delay_samples < 0:
-            raise ValueError('Invalid option for initial delay')
 
     def set_t0(self, t0):
         # Sample at which queue was started relative to experiment acquisition

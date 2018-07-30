@@ -317,6 +317,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
         ExperimentAction:
             event = 'experiment_prepare'
             command = 'target.start'
+            kwargs = {'delay': 1}
 
         ExperimentAction:
             event = 'valid_erp_acquired'

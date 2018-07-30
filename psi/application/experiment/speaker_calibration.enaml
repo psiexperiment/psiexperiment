@@ -53,7 +53,7 @@ def configure_hardware(event):
 
     # Set up the queue now that we know what the channel is
     output = controller.get_output('hw_ao')
-    output.queue = InterleavedFIFOSignalQueue(initial_delay=1)
+    output.queue = InterleavedFIFOSignalQueue()
 
     # Set up the calibration. By setting fixed_gain to the attenuation, this
     # will ensure that the waveform is scaled down to the desired attenuation.
@@ -190,6 +190,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
             event = 'experiment_prepare'
             command = 'hw_ao.start'
             weight = 250
+            kwargs = {'delay': 1}
 
         ExperimentAction:
             event = 'epoch_queue_end and not hw_ao_active'
