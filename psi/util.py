@@ -187,7 +187,7 @@ class SignalBuffer:
             self._samples += samples
 
     def _invalidate(self, i):
-        if i < 0:
+        if i <= 0:
             self._buffer[:] = self._fill_value
             self._ilb = self._buffer_samples
         else:

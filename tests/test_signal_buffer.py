@@ -79,6 +79,10 @@ def test_buffer_filled(sb):
     assert np.all(result[250:] == data2[:250])
 
 
+def test_buffer_invalidate_zero(sb):
+    sb.invalidate(0)
+
+
 def test_buffer_invalidate(sb):
     data1 = np.random.uniform(size=500)
     sb.append_data(data1)
