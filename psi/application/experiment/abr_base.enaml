@@ -46,9 +46,9 @@ def configure_experiment(event):
         f_lowpass = context.get_value('digital_lowpass')
         controller.set_input_attr('eeg_filtered', 'f_highpass', f_highpass)
         controller.set_input_attr('eeg_filtered', 'f_lowpass', f_lowpass)
-        controller.set_input_attr('eeg_filtered', 'active', True)
+        controller.set_input_attr('eeg_filtered', 'passthrough', False)
     else:
-        controller.set_input_attr('eeg_filtered', 'active', False)
+        controller.set_input_attr('eeg_filtered', 'passthrough', True)
 
     if alternate_polarity and (averages % 2):
         # Round to the nearest multiple of 2

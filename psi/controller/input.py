@@ -229,8 +229,9 @@ class IIRFilter(ContinuousInput):
 
     # Allows user to deactivate the filter entirely during configuration if
     # desired. Ideally we could just remove it from the graph, but it seems a
-    # bit tricky to do so.
-    active = d_(Bool(True)).tag(metadata=True)
+    # bit tricky to do so as some other components may be looking for the
+    # output of this block.
+    passthrough = d_(Bool(False)).tag(metadata=True)
 
     N = d_(Int()).tag(metadata=True)
     btype = d_(Enum('bandpass', 'lowpass', 'highpass', 'bandstop')).tag(metadata=True)
@@ -250,7 +251,7 @@ class IIRFilter(ContinuousInput):
 
     def configure_callback(self):
         cb = super().configure_callback()
-        if not self.active:
+        if self.passthrough:
             return cb
         return iirfilter(self.N, self.wn, None, None, self.btype, self.ftype,
                          cb).send
