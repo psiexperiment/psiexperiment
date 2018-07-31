@@ -34,7 +34,8 @@ def process_files(filenames, offset=-0.001, duration=0.01,
             else:
                 print('.', end='', flush=True)
         except Exception as e:
-            print(f'\nError processing {filename}\n')
+            print(f'\nError processing {filename}\n{e}\n')
+            raise
 
 
 def _get_file_template(fh, offset, duration, filter_settings):
