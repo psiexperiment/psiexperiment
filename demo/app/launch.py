@@ -1,4 +1,7 @@
 def main():
+    import logging
+    logging.basicConfig(level='DEBUG')
+
     from psi.experiment.workbench import PSIWorkbench
     workbench = PSIWorkbench()
 
