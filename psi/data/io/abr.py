@@ -9,6 +9,7 @@ pull out enough pre/post samples for proper trial_filtering.
 import logging
 log = logging.getLogger(__name__)
 
+import functools
 import os.path
 import shutil
 import re
@@ -54,21 +55,37 @@ def format_columns(columns, base_name):
 class ABRFile:
 
     def __init__(self, base_folder):
+        # For speed purposes, we do not actually load the EEG or trial log
+        # until they are requested. This allows the __init__ to serve as a
+        # method for verifying that the folder contains valid ABR data without
+        # having to actually inspect the files.
         self._base_folder = base_folder
         self._eeg_folder = os.path.join(base_folder, 'eeg')
-        self._erp_folder = os.path.join(base_folder, 'erp')
         self._erp_md_folder = os.path.join(base_folder, 'erp_metadata')
 
+        # Verify that all folders required for processing the ABR exist (note
+        # we don't actually use the ERP data).
+        for folder in (self._eeg_folder, self._erp_md_folder):
+            if not os.path.exists(folder):
+                raise ValueError(f'Missing folder {folder}')
+
+    @property
+    @functools.lru_cache()
+    def eeg(self):
         # Load and ensure that the EEG data is fine. If not, repair it and
         # reload the data.
-        self._eeg = bcolz.carray(rootdir=self._eeg_folder)
-        if len(self._eeg) == 0:
-            log.debug('EEG file %s is corrupt. Repairing.', self._eeg_folder)
+        eeg = bcolz.carray(rootdir=self._eeg_folder)
+        if len(eeg) == 0:
+            log.debug('EEG file %s is corrupt. Repairing.',
+                        self._eeg_folder)
             repair_carray_size(self._eeg_folder)
-            self._eeg = bcolz.carray(rootdir=self._eeg_folder)
+            eeg = bcolz.carray(rootdir=self._eeg_folder)
+        return eeg
 
-        self._erp = bcolz.carray(rootdir=self._erp_folder)
-        self.trial_log = load_ctable_as_df(self._erp_md_folder)
+    @property
+    @functools.lru_cache()
+    def trial_log(self):
+        return load_ctable_as_df(self._erp_md_folder)
 
     def get_epochs(self, offset=0, duration=8.5e-3, padding_samples=0,
                    detrend='constant', base_name='target_tone_', columns=None,
@@ -81,12 +98,13 @@ class ABRFile:
         else:
             result_set = self.trial_log[columns]
 
-        fs = self._eeg.attrs['fs']
+        fs = self.fs
+        eeg = self.eeg
         duration_samples = round(duration*fs)
 
         epochs = []
         index = []
-        max_samples = self._eeg.shape[-1]
+        max_samples = eeg.shape[-1]
 
         for i, (_, row) in enumerate(result_set.iterrows()):
             t0 = row.t0
@@ -101,7 +119,7 @@ class ABRFile:
                 print(mesg)
                 break
 
-            epoch = self._eeg[lb:ub]
+            epoch = eeg[lb:ub]
             epochs.append(epoch[np.newaxis])
             index.append(row)
 
@@ -153,7 +171,7 @@ class ABRFile:
 
     @property
     def fs(self):
-        return self._eeg.attrs['fs']
+        return self.eeg.attrs['fs']
 
 
 class ABRSupersetFile:
@@ -202,3 +220,12 @@ def load(base_folder):
         return ABRFile(base_folder)
     else:
         return ABRSupersetFile.from_folder(base_folder)
+
+
+def is_abr_experiment(path):
+    try:
+        load(path)
+        return True
+    except Exception:
+        return False
+
