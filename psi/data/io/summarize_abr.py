@@ -81,6 +81,31 @@ def _get_epochs(fh, offset, duration, filter_settings):
 
 
 def process_file(filename, offset, duration, filter_settings, reprocess=False):
+    '''
+    Extract ABR epochs, filter and save result to CSV files
+
+    Parameters
+    ----------
+    filename : path
+        Path to ABR experiment. If it's a set of ABR experiments, epochs across
+        all experiments will be combined for the analysis.
+    offset : sec
+        The start of the epoch to extract, in seconds, relative to tone pip
+        onset. Negative values can be used to extract a prestimulus baseline.
+    duration: sec
+        The duration of the epoch to extract, in seconds, relative to the
+        offset. If offset is set to -0.001 sec and duration is set to 0.01 sec,
+        then the epoch will be extracted from -0.001 to 0.009 sec re tone pip
+        onset.
+    filter_settings : {None, 'saved', dict}
+        If None, no additional filtering is done. If 'saved', uses the digital
+        filter settings that were saved in the ABR file. If a dictionary, must
+        contain 'lb' (the lower bound of the passband in Hz) and 'ub' (the
+        upper bound of the passband in Hz).
+    reprocess : bool
+        If True, reprocess the file even if it already has been processed for
+        the specified filter settings.
+    '''
     fh = abr.load(filename)
 
     # Generate the filenames
