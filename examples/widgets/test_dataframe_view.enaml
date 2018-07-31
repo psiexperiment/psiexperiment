@@ -55,8 +55,7 @@ enamldef Main(Window): main:
                 editable = True
                 data << main.setting.values
                 column_info << main.column_info
-                get_columns => ():
-                    return ['mod_depth', 'reward_volume']
+                columns = ['mod_depth', 'reward_volume']
 
         HGroup:
             PushButton:

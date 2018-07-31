@@ -4,31 +4,15 @@
 import pandas as pd
 
 from atom.api import (Typed, set_default, observe, Event, Property,
-                      Bool, Dict, Unicode, Atom, List)
+                      Bool, Dict, Unicode, Atom, List, Value)
 from enaml.core.declarative import d_, d_func
 from enaml.widgets.api import RawWidget
 
-from enaml.qt.QtCore import QAbstractTableModel, QModelIndex, Qt, QObject, QEvent
+from enaml.qt.QtCore import QAbstractTableModel, QModelIndex, Qt
 from enaml.qt.QtWidgets import QTableView, QHeaderView, QAbstractItemView
 from enaml.qt.QtGui import QColor
 
-
-class EventFilter(QObject):
-
-    def __init__(self, widget, *args, **kwargs):
-        self.widget = widget
-        super().__init__(*args, **kwargs)
-
-    def eventFilter(self, obj, event):
-        if event.type() == QEvent.KeyPress:
-            if event.key() == Qt.Key_Delete:
-                self.widget.remove_selected_rows()
-                return True
-            if event.key() == Qt.Key_Plus:
-                if (event.modifiers() & Qt.ControlModifier):
-                    self.widget.insert_row()
-                    return True
-        return super().eventFilter(obj, event)
+from .event_filter import EventFilter
 
 
 class QEditableTableModel(QAbstractTableModel):
@@ -119,6 +103,11 @@ class QEditableTableView(QTableView):
         self._setup_vheader()
         self.setVerticalScrollMode(QAbstractItemView.ScrollPerItem)
         self.setHorizontalScrollMode(QAbstractItemView.ScrollPerItem)
+        self._set_default_column_widths()
+
+    def _set_default_column_widths(self):
+        widths = self.model.interface.get_default_column_widths()
+        self.set_column_widths(widths)
 
     def _setup_vheader(self):
         header = self.verticalHeader()
@@ -199,6 +188,7 @@ class EditableTable(RawWidget):
     column_widths = Property()
 
     data = d_(Typed(object))
+    update = d_(Bool())
 
     live_edit = Typed(LiveEdit, {})
 
@@ -219,16 +209,55 @@ class EditableTable(RawWidget):
 
     @d_func
     def get_cell_color(self, row_index, column_index):
+        '''
+        Parameters
+        ----------
+        row_index : int
+            Row index (zero-based)
+        column_index : int
+            Column index (zero-based)
+
+        Result
+        ------
+        color : SVG color name or hex color code
+            Color to use for the background cell. Defaults to white. See
+            http://www.december.com/html/spec/colorsvg.html for SVG color
+            names.
+        '''
+        # Given the row and column
         # This must return one of the SVG color names (see
-        # http://www.december.com/html/spec/colorsvg.html) or a hex color code.
         return 'white'
 
     @d_func
     def get_row_label(self, row_index):
+        '''
+        Parameters
+        ----------
+        row_index : int
+            Row index (zero-based)
+
+        Result
+        ------
+        label : str
+            Label to use for column header. Defaults to a 1-based row number.
+        '''
         return str(row_index+1)
 
     @d_func
     def get_column_label(self, column_index):
+        '''
+        Parameters
+        ----------
+        column_index : int
+            Column index (zero-based)
+
+        Result
+        ------
+        label : str
+            Label to use for row header. Defaults to the 'compact_label' key in
+            'column_info'. If 'compact_label' is not found, checks for the
+            'label' key.
+        '''
         column = self.get_columns()[column_index]
         try:
             return self.get_column_attribute(column, 'compact_label', column,
@@ -244,18 +273,48 @@ class EditableTable(RawWidget):
 
     @d_func
     def get_columns(self):
+        '''
+        Result
+        ------
+        column_labels : list of str
+            List of column labels.
+        '''
         raise NotImplementedError
 
     @d_func
     def get_data(self, row_index, column_index):
+        '''
+        Parameters
+        ----------
+        row_index : int
+            Row index (zero-based)
+        column_index : int
+            Column index (zero-based)
+
+        Result
+        ------
+        data : object
+            Data to be shown in cell.
+        '''
         raise NotImplementedError
 
     @d_func
     def set_data(self, row_index, column_index, value):
+        '''
+        Save value at specified row and column index to data
+
+        Parameters
+        ----------
+        row_index : int
+            Row index (zero-based)
+        column_index : int
+            Column index (zero-based)
+        value : object
+        '''
         raise NotImplementedError
 
     @d_func
-    def remove_row(self, row):
+    def remove_row(self, row_index):
         raise NotImplementedError
 
     @d_func
@@ -293,6 +352,11 @@ class EditableTable(RawWidget):
         # lose a reference to the actual list.
         self._reset_model()
 
+    def _observe_update(self, event):
+        if self.update:
+            self._reset_model()
+            self.update = False
+
     def _reset_model(self, event=None):
         # Forces a reset of the model and view
         self.model.beginResetModel()
@@ -306,6 +370,10 @@ class EditableTable(RawWidget):
     def _set_column_widths(self, widths):
         self.view.set_column_widths(widths)
         self._reset_model()
+
+    def get_default_column_widths(self):
+        return {c: self.get_column_attribute(c, 'initial_width', 100) \
+                for c in self.get_columns()}
 
 
 class DataFrameTable(EditableTable):
@@ -348,6 +416,17 @@ class DataFrameTable(EditableTable):
 
 
 class ListDictTable(EditableTable):
+
+    data = d_(List())
+    columns = d_(List())
+
+    def get_columns(self):
+        if self.columns is not None:
+            return self.columns
+        if (self.data is not None) and (len(self.data) != 0):
+            return list(self.data[0].keys())
+        else:
+            return []
 
     def get_data(self, row_index, column_index):
         column = self.get_columns()[column_index]

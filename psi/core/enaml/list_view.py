@@ -3,24 +3,14 @@ from atom.api import (Bool, List, observe, set_default, Unicode, Enum, Int, Type
 from enaml.widgets.api import RawWidget
 from enaml.core.declarative import d_, d_func
 from enaml.qt.QtWidgets import QListWidget, QListWidgetItem, QAbstractItemView
-from enaml.qt.QtCore import *
-
-
-class DeleteFilter(QObject):
-
-    def __init__(self, widget, *args, **kwargs):
-        self.widget = widget
-        super().__init__(*args, **kwargs)
-
-    def eventFilter(self, obj, event):
-        if event.type() == QEvent.KeyPress:
-            if event.key() == Qt.Key_Delete:
-                self.widget.remove_selected_items()
-                return True
-        return super().eventFilter(obj, event)
+from enaml.qt.QtCore import Qt
+from .event_filter import EventFilter
 
 
 class ListView(RawWidget):
+
+    hug_width = set_default('weak')
+    hug_height = set_default('weak')
 
     __slots__ = '__weakref__'
 
@@ -29,15 +19,10 @@ class ListView(RawWidget):
 
     # Whether or not the items should be editable
     editable = d_(Bool(True))
-
     updated = d_(Event())
 
-    hug_width = set_default('weak')
-    hug_height = set_default('weak')
-
     # Filter for capturing the delete key
-    _delete_filter = Typed(QObject)
-    _widget = Typed(QObject)
+    _event_filter = Typed(EventFilter)
 
     def create_widget(self, parent):
         # Create the list model and accompanying controls:
@@ -46,8 +31,8 @@ class ListView(RawWidget):
         widget.itemChanged.connect(self.on_edit)
         widget.setEditTriggers(QAbstractItemView.AnyKeyPressed)
         widget.setSelectionMode(QAbstractItemView.ExtendedSelection)
-        self._delete_filter = DeleteFilter(self)
-        widget.installEventFilter(self._delete_filter)
+        self._event_filter = EventFilter(self)
+        widget.installEventFilter(self._event_filter)
         self.set_items(self.items, widget)
         return widget
 
@@ -71,7 +56,7 @@ class ListView(RawWidget):
             next_wi.setSelected(False)
             widget.setCurrentItem(next_wi)
 
-    def remove_selected_items(self):
+    def remove_selected_rows(self):
         widget = self.get_widget()
         rows = [widget.row(wi) for wi in widget.selectedItems()]
         for row in sorted(rows, reverse=True):
