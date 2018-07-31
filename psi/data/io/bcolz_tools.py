@@ -1,8 +1,31 @@
+from glob import glob
 import os.path
 
 import bcolz
 import numpy as np
 import pandas as pd
+
+
+def repair_carray_size(path):
+    chunk_wildcard = os.path.join(path, 'data', '*.blp')
+    sizes_filename = os.path.join(path, 'meta', 'sizes')
+    storage_filename = os.path.join(path, 'meta', 'storage')
+
+    with open(sizes_filename, 'r') as fh:
+        sizes = json.load(fh)
+
+    with open(storage_filename, 'r') as fh:
+        storage = json.load(fh)
+
+    if sizes['shape'] != [0]:
+        raise ValueError('Data seems fine')
+
+    chunklen = storage['chunklen']
+    n_chunks = len(glob(chunk_wildcard))
+    storage['shape'] = [n_chunks * chunklen]
+
+    with open(sizes_filename, 'w') as fh:
+        json.dump(fh)
 
 
 def load_ctable_as_df(path, decode=True, archive=True):
