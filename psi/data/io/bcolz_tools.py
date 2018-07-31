@@ -1,4 +1,6 @@
 from glob import glob
+import json
+import shutil
 import os.path
 
 import bcolz
@@ -22,10 +24,12 @@ def repair_carray_size(path):
 
     chunklen = storage['chunklen']
     n_chunks = len(glob(chunk_wildcard))
-    storage['shape'] = [n_chunks * chunklen]
+    sizes['shape'] = [n_chunks * chunklen]
 
+    # Backup the file before overwriting.
+    shutil.copy(sizes_filename, sizes_filename + '.old')
     with open(sizes_filename, 'w') as fh:
-        json.dump(fh)
+        json.dump(sizes, fh)
 
 
 def load_ctable_as_df(path, decode=True, archive=True):

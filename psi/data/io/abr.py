@@ -6,6 +6,9 @@ reading from the raw (i.e., untrial_filtered) data. Maybe eventually. It wouldn'
 hard to add, but would need support for trial_filter specs as well as ensuring that we
 pull out enough pre/post samples for proper trial_filtering.
 '''
+import logging
+log = logging.getLogger(__name__)
+
 import os.path
 import shutil
 import re
@@ -16,7 +19,7 @@ import numpy as np
 import pandas as pd
 from scipy import signal
 
-from .bcolz_tools import load_ctable_as_df
+from .bcolz_tools import load_ctable_as_df, repair_carray_size
 
 
 MERGE_PATTERN = \
@@ -55,7 +58,15 @@ class ABRFile:
         self._eeg_folder = os.path.join(base_folder, 'eeg')
         self._erp_folder = os.path.join(base_folder, 'erp')
         self._erp_md_folder = os.path.join(base_folder, 'erp_metadata')
+
+        # Load and ensure that the EEG data is fine. If not, repair it and
+        # reload the data.
         self._eeg = bcolz.carray(rootdir=self._eeg_folder)
+        if len(self._eeg) == 0:
+            log.debug('EEG file %s is corrupt. Repairing.', self._eeg_folder)
+            repair_carray_size(self._eeg_folder)
+            self._eeg = bcolz.carray(rootdir=self._eeg_folder)
+
         self._erp = bcolz.carray(rootdir=self._erp_folder)
         self.trial_log = load_ctable_as_df(self._erp_md_folder)
 
