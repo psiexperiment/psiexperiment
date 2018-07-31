@@ -9,24 +9,18 @@ from enaml.core.api import d_
 from enaml.workbench.api import Extension
 from enaml.widgets.api import Container, DockItem, Form, Label, VGroup
 
-from ..sink import Sink
+from ..sink import SinkWithSource, SinkWithSourceManifest
 
 from psi.core.enaml.api import PSIManifest
 from psi.context.context_item import ContextMeta
 from psi.controller.api import ExperimentAction
 
 
-class EpochCounter(Sink):
+class EpochCounter(SinkWithSource):
 
     total_n = Int()
-    source_name = d_(Unicode())
-    source = Typed(object)
 
-    def _observe_source(self, event):
-        if self.source is not None:
-            self.source.add_callback(self.added)
-
-    def added(self, epochs):
+    def _update_data(self, epochs):
         self.total_n += len(epochs)
 
 
@@ -50,7 +44,7 @@ class GroupedEpochCounter(EpochCounter):
             group_names = [v.name for v in self.groups.values]
             self.get_key = operator.itemgetter(*group_names)
 
-    def added(self, epochs):
+    def _update_data(self, epochs):
         for e in epochs:
             md = e['info']['metadata']
             key = self.get_key(md)
@@ -62,16 +56,7 @@ class GroupedEpochCounter(EpochCounter):
         self.groups_n = len(counts)
 
 
-enamldef EpochCounterManifest(PSIManifest): manifest:
-
-    Extension:
-        id = 'actions'
-        point = 'psi.controller.actions'
-        ExperimentAction:
-            event = 'experiment_prepare'
-            command = 'psi.data.attach_source'
-            kwargs = {'contribution': manifest.contribution}
-            weight = 15
+enamldef EpochCounterManifest(SinkWithSourceManifest): manifest:
 
     Extension:
         id = 'workspace'
@@ -94,16 +79,7 @@ def group_label_format(groups):
     return t.format(groups.lower())
 
 
-enamldef GroupedEpochCounterManifest(PSIManifest): manifest:
-
-    Extension:
-        id = 'actions'
-        point = 'psi.controller.actions'
-        ExperimentAction:
-            event = 'experiment_prepare'
-            command = 'psi.data.attach_source'
-            kwargs = {'contribution': manifest.contribution}
-            weight = 15
+enamldef GroupedEpochCounterManifest(SinkWithSourceManifest): manifest:
 
     Extension:
         id = 'workspace'

@@ -1,0 +1,35 @@
+from atom.api import Value
+from enaml.widgets.api import Container, Label, DockItem
+from enaml.workbench.api import Extension
+
+import numpy as np
+
+from ..sink import SinkWithSource, SinkWithSourceManifest
+
+
+
+class DisplayValue(SinkWithSource):
+
+    value = Value(np.nan)
+
+    def _update_data(self, data):
+        self.value = data[-1]
+
+
+def format_value(value):
+    return '{:.1f}'.format(value)
+
+
+enamldef DisplayValueManifest(SinkWithSourceManifest): manifest:
+
+    Extension:
+        id = 'workspace'
+        point = 'psi.experiment.workspace'
+        DockItem: di:
+            closable = False
+            name << manifest.contribution.name
+            title << manifest.contribution.label
+
+            Container:
+                Label:
+                    text << format_value(manifest.contribution.value)
