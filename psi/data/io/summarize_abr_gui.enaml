@@ -1,68 +1,112 @@
+import os.path
+import urllib.parse
+
 from enaml.widgets.api import (MainWindow, HGroup, Form, Label, CheckBox,
                                Container, VGroup, ObjectCombo, Field,
-                               PushButton, FileDialogEx)
+                               PushButton, Feature, ProgressBar)
+
 from enaml.stdlib.fields import FloatField, IntField
+from psi.core.enaml.api import ListView
+from psi.data.io.abr import is_abr_experiment
+from psi.data.io.summarize_abr import process_file
+
+
+def drop_data_to_file_list(event, validator=None):
+    if validator is None:
+        validator = lambda x: True
+
+    text = event.mime_data().data('text/uri-list').decode('utf-8')
+    file_list = []
+    for t in text.strip().split('\n'):
+        t = urllib.parse.unquote(t).strip()
+        fragments = urllib.parse.urlsplit(t)
+        path = fragments.path
+        if validator(path):
+            file_list.append(path)
+    return file_list
 
 
 enamldef Main(MainWindow):
 
+    initial_size = (800, 600)
+    attr files = []
+
     Container:
 
-        Form:
-            Label:
-                text = 'Directory'
+        features = Feature.DropEnabled
 
-            VGroup:
+        drag_enter => (event):
+            if event.mime_data().has_format('text/uri-list'):
+                event.accept_proposed_action()
+
+        drop => (event):
+            for path in drop_data_to_file_list(event, is_abr_experiment):
+                if path not in files:
+                    files.append(path)
+            list_view.items = files
+
+        ListView: list_view:
+            editable = False
+
+        Container:
+            constraints = [
+                pb_process.top == filter_form.top,
+                pb_process.left == filter_form.right + 10,
+                progress.top == pb_process.bottom + 10,
+                progress.left == pb_process.left,
+            ]
+
+            Form: filter_form:
                 padding = 0
 
-                Field: filename:
-                    pass
+                Label:
+                    text = 'Filter'
 
-                PushButton:
-                    text = 'Browse'
-                    clicked ::
-                        current_path = filename.text
-                        result = FileDialogEx \
-                            .get_existing_directory(current_path=current_path)
-                        if result:
-                            filename.text = result
+                ObjectCombo: filter_method:
+                    items = ['no filtering', 'as defined in file', 'manual']
+                    selected = 'as defined in file'
 
-            Label:
-                text = 'Filter'
+                Label:
+                    text = 'Highpass filter cutoff (kHz)'
+                FloatField: filter_lb:
+                    value = 300.0
+                    enabled << filter_method.selected == 'manual'
+                Label:
+                    text = 'Lowpass filter cutoff (Hz)'
+                FloatField: filter_ub:
+                    value = 3e3
+                    enabled << filter_method.selected == 'manual'
 
-            ObjectCombo: filter_waveforms:
-                items = ['raw', 'auto', 'manual']
-                selected = 'auto'
+                Label:
+                    text = 'Prestim duration (msec before tone pip onset)'
+                FloatField: prestim:
+                    value = 1.0
 
-            Label:
-                text = 'Highpass filter cutoff (Hz)'
-            FloatField:
-                value = 300.0
-                enabled << filter_waveforms.selected == 'manual'
-            Label:
-                text = 'Lowpass filter cutoff (Hz)'
-            FloatField:
-                value = 32e3
-                enabled << filter_waveforms.selected == 'manual'
-            Label:
-                text = 'Filter order'
-            IntField:
-                value = 1
-                enabled << filter_waveforms.selected == 'manual'
+                Label:
+                    text = 'Poststim duration (msec after tone pip onset)'
+                FloatField: poststim:
+                    value = 9.0
 
-            Label:
-                text = 'Use reject threshold in file?'
+            ProgressBar: progress:
+                pass
 
-            CheckBox: reject_threshold:
-                checked = True
-
-            Label:
-                text = 'Reject threshold'
-            FloatField:
-                enabled << not reject_threshold.checked
-
-            PushButton:
-                enabled << bool(filename.text)
-                text = 'Process folder'
+            PushButton: pb_process:
+                text = 'Process experiments'
                 clicked ::
-                    pass
+                    if filter_method.selected == 'no filtering':
+                        filter_settings = None
+                    elif filter_method.selected == 'as defined in file':
+                        filter_settings = 'saved'
+                    else:
+                        filter_settings = {
+                            'lb': filter_lb.value,
+                            'ub': filter_ub.value,
+                        }
+
+                    offset = -prestim.value * 1e-3
+                    duration = (prestim.value + poststim.value) * 1e-3
+
+                    progress.maximum = len(files)
+                    for i, path in enumerate(files):
+                        process_file(path, offset, duration, filter_settings)
+                        progress.value = i+1
