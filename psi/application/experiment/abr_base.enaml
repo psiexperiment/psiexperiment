@@ -3,10 +3,10 @@ from functools import partial
 import numpy as np
 
 from enaml.widgets.api import DockItem, Container
-from enaml.workbench.api import Extension
+from enaml.workbench.api import Extension, PluginManifest
 from enaml.workbench.core.api import Command
 
-from psi.core.enaml.editable_table_widget import DataFrameTable
+from psi.core.enaml.api import DataFrameTable
 from psi.context.api import (ContextGroup, Parameter, BoolParameter, EnumParameter)
 from psi.context.context_item import OrderedContextMeta
 from psi.context.selector import CartesianProduct
@@ -14,12 +14,15 @@ from psi.controller import queue
 from psi.controller.api import ExperimentAction
 from psi.controller.base_manifest import BaseManifest, get_hw_ao_choices
 from psi.controller.input import (ContinuousInput, ExtractEpochs,
-                                  RejectEpochs, Decimate, IIRFilter)
+                                  RejectEpochs, Decimate, IIRFilter,
+                                  Downsample)
 from psi.controller.output import QueuedEpochOutput
 from psi.controller.calibration.util import db
 from psi.data.plots import (TimeContainer, ChannelPlot, ViewBox, StackedEpochAveragePlot)
 from psi.data.sinks.epoch_counter import GroupedEpochCounter
 from psi.data.sinks.text_store import TextStore
+from psi.data.sinks.bcolz_store import BColzStore
+from psi.data.sinks.display_value import DisplayValue
 from psi.token.primitives import Cos2Envelope, Tone
 
 
@@ -122,6 +125,11 @@ enamldef ControllerManifest(BaseManifest): manifest:
         TextStore:
             name = 'calibration_data'
 
+        BColzStore:
+            name = 'erp_eeg'
+            epoch_inputs = ['erp']
+            continuous_inputs = ['eeg']
+
     Extension:
         id = 'tokens'
         point = 'psi.token.tokens'
@@ -144,25 +152,21 @@ enamldef ControllerManifest(BaseManifest): manifest:
             name = 'microphone'
             source_name = 'microphone_channel'
 
-        Decimate:
-            q = 4
-            name = 'eeg'
+        IIRFilter:
+            source_name = 'eeg_channel'
+            name = 'eeg_filtered'
+            N = 2
+            btype = 'bandpass'
+            ftype = 'butter'
             source_name = 'eeg_channel'
 
-            IIRFilter:
-                name = 'eeg_filtered'
-                N = 2
-                btype = 'bandpass'
-                ftype = 'butter'
-                source_name = 'eeg_channel'
+            ExtractEpochs: extract:
+                name = 'erp'
+                queue << output.queue
+                epoch_size = 8.5e-3
 
-                ExtractEpochs: extract:
-                    name = 'erp'
-                    queue << output.queue
-                    epoch_size = 8.5e-3
-
-                    RejectEpochs:
-                        name = 'valid_erp'
+                RejectEpochs:
+                    name = 'valid_erp'
 
     Extension:
         id = 'context'
@@ -362,21 +366,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
         point = 'psi.data.plots'
 
         TimeContainer:
-            name = 'trial_plot_container'
-            label = 'Trial timing'
-            span = 2
-            delay = 0.125
-
-            ViewBox:
-                name = 'ecg_view'
-                y_min = -0.2
-                y_max = 0.2
-
-                ChannelPlot:
-                    pen_color = 'k'
-                    source_name = 'eeg_filtered'
-
-        TimeContainer:
             name = 'erp_container'
             label = 'ERP average'
             span = 8.5e-3
@@ -395,3 +384,60 @@ enamldef ControllerManifest(BaseManifest): manifest:
                     pen_color_cycle = 'palettable.cartocolors.qualitative.Vivid_10'
                     pen_width = 2
                     groups << epoch_groups
+
+
+enamldef EEGViewMixinManifest(PluginManifest): manifest:
+
+    id = 'eeg_view_mixin'
+
+    Extension:
+        id = 'plots'
+        point = 'psi.data.plots'
+
+        TimeContainer:
+            name = 'trial_plot_container'
+            label = 'Trial timing'
+            span = 2
+            delay = 0.125
+
+            ViewBox:
+                name = 'ecg_view'
+                y_min = -0.2
+                y_max = 0.2
+
+                ChannelPlot:
+                    pen_color = 'k'
+                    source_name = 'eeg_filtered'
+
+
+enamldef TemperatureMixinManifest(PluginManifest): manifest:
+
+    id = 'temperature_mixin'
+
+    Extension:
+        id = 'temperature_data'
+        point = 'psi.data.sinks'
+
+        BColzStore:
+            name = 'temperature_store'
+            continuous_inputs = ['temperature']
+
+        DisplayValue:
+            name = 'temperature_display'
+            label = 'Temperature'
+            source_name = 'temperature_decimated'
+
+    Extension:
+        id = 'temperature_io'
+        point = 'psi.controller.io'
+
+        IIRFilter:
+            source_name = 'temperature'
+            f_lowpass = 0.5
+            btype = 'lowpass'
+            ftype = 'butter'
+            N = 1
+
+            Downsample:
+                name = 'temperature_decimated'
+                q = 50

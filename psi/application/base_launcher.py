@@ -53,7 +53,9 @@ class SimpleLauncher(Atom):
 
         exclude = ['settings', 'save_data', 'base_folder', 'can_launch']
         vals = {m: getattr(self, m) for m in self.members() if m not in exclude}
-        for v in vals.values():
+        for k, v in vals.items():
+            if k == 'note':
+                continue
             if not v:
                 self.can_launch = False
                 self.base_folder = ''
@@ -124,7 +126,7 @@ def main_animal():
 
 
 def main_ear():
-    experiments = ['speaker_calibration', 'abr']
+    experiments = ['speaker_calibration', 'abr', 'abr_with_eeg_view']
     app = QtApplication()
     launcher = EarLauncher()
     view = LauncherView(launcher=launcher, experiments=experiments)

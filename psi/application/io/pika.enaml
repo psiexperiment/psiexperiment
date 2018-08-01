@@ -60,7 +60,7 @@ enamldef IOManifest(PluginManifest): manifest:
                 name = 'eeg_channel'
                 channel = 'PXI1Slot7/ai0'
                 start_trigger = '/PXI1Slot8/ao/StartTrigger'
-                fs = 100e3
+                fs = 25e3
                 reference_clock = 'PXI_Clk10'
                 expected_range = (-10, 10)
                 dtype = 'float64'

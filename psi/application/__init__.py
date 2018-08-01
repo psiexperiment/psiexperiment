@@ -14,19 +14,36 @@ from enaml.application import deferred_call
 
 from psi import get_config, set_config
 
-
+# TODO: make mixins loadable at runtime
 experiments = {
-    'appetitive_gonogo_food': 'psi.application.experiment.appetitive.ControllerManifest',
-    'abr': 'psi.application.experiment.abr_with_temperature.ControllerManifest',
-    'abr-debug': 'psi.application.experiment.abr_debug.ControllerManifest',
-    'noise_exposure': 'psi.application.experiment.noise_exposure.ControllerManifest',
-    'efr': 'psi.application.experiment.efr.ControllerManifest',
-    'dual_efr': 'psi.application.experiment.dual_efr.ControllerManifest',
-    'speaker_calibration': 'psi.application.experiment.speaker_calibration.ControllerManifest',
-    'pt_calibration_golay': 'psi.application.experiment.pt_calibration_golay.ControllerManifest',
-    'pt_calibration_chirp': 'psi.application.experiment.pt_calibration_chirp.ControllerManifest',
-    'pistonphone_calibration': 'psi.application.experiment.pistonphone_calibration.ControllerManifest',
-    'dpoae': 'psi.application.experiment.dpoae.ControllerManifest',
+    'abr': [
+        'psi.application.experiment.abr_base.ControllerManifest',
+    ],
+    'abr_with_eeg_view': [
+        'psi.application.experiment.abr_base.ControllerManifest',
+        'psi.application.experiment.abr_base.EEGViewMixinManifest',
+    ],
+    'abr_with_temperature': [
+        'psi.application.experiment.abr_base.ControllerManifest',
+        'psi.application.experiment.abr_base.TemperatureMixinManifest',
+    ],
+    'abr_with_eeg_view_and_temperature': [
+        'psi.application.experiment.abr_base.ControllerManifest',
+        'psi.application.experiment.abr_base.TemperatureMixinManifest',
+        'psi.application.experiment.abr_base.EEGViewMixinManifest',
+    ],
+    'speaker_calibration': [
+        'psi.application.experiment.speaker_calibration.ControllerManifest',
+    ],
+    #'appetitive_gonogo_food': 'psi.application.experiment.appetitive.ControllerManifest',
+    #'abr-debug': 'psi.application.experiment.abr_debug.ControllerManifest',
+    #'noise_exposure': 'psi.application.experiment.noise_exposure.ControllerManifest',
+    #'efr': 'psi.application.experiment.efr.ControllerManifest',
+    #'dual_efr': 'psi.application.experiment.dual_efr.ControllerManifest',
+    #'pt_calibration_golay': 'psi.application.experiment.pt_calibration_golay.ControllerManifest',
+    #'pt_calibration_chirp': 'psi.application.experiment.pt_calibration_chirp.ControllerManifest',
+    #'pistonphone_calibration': 'psi.application.experiment.pistonphone_calibration.ControllerManifest',
+    #'dpoae': 'psi.application.experiment.dpoae.ControllerManifest',
 }
 
 

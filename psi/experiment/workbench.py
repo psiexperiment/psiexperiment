@@ -19,39 +19,41 @@ def load_manifest(manifest_path):
 
 class PSIWorkbench(Workbench):
 
-    def register_core_plugins(self, io_manifest, controller_manifest):
+    def register_core_plugins(self, io_manifest, controller_manifests):
         # Note, the get_plugin calls appear to be necessary to properly
         # initialize parts of the application before new plugins are loaded.
         # This is likely some sort of bug or poor design on my part.
-
         with enaml.imports():
             from enaml.workbench.core.core_manifest import CoreManifest
             from enaml.workbench.ui.ui_manifest import UIManifest
             from psi.experiment.manifest import ExperimentManifest
+
+            self.register(ExperimentManifest())
+            self.register(CoreManifest())
+            self.register(UIManifest())
+            self.get_plugin('enaml.workbench.ui')
+            self.get_plugin('enaml.workbench.core')
+
+            manifest_class = load_manifest(io_manifest)
+            self.register(manifest_class())
+
+            for manifest in controller_manifests:
+                manifest_class = load_manifest(manifest)
+                print(manifest)
+                self.register(manifest_class())
+
             from psi.context.manifest import ContextManifest
-            from psi.context.manifest import ContextViewManifest
             from psi.data.manifest import DataManifest
             from psi.token.manifest import TokenManifest
-            IOManifest = load_manifest(io_manifest)
-            ControllerManifest = load_manifest(controller_manifest)
 
-        self.register(ExperimentManifest())
-        self.register(CoreManifest())
-        self.register(UIManifest())
+            self.register(ContextManifest())
+            self.register(DataManifest())
+            self.register(TokenManifest())
 
-        self.get_plugin('enaml.workbench.ui')
-        self.get_plugin('enaml.workbench.core')
+            self.get_plugin('psi.controller')
 
-        self.register(IOManifest())
-        self.register(ControllerManifest())
-
-        self.register(ContextManifest())
-        self.register(DataManifest())
-        self.register(TokenManifest())
-
-        self.get_plugin('psi.controller')
-
-        self.register(ContextViewManifest())
+            from psi.context.manifest import ContextViewManifest
+            self.register(ContextViewManifest())
 
     def start_workspace(self,
                         experiment_name,
