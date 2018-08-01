@@ -34,9 +34,9 @@ from enaml.core.api import Declarative, d_
 
 from ..calibration.util import dbi
 from ..engine import Engine
-from ..channel import (HardwareAIChannel, HardwareAOChannel, 
-                       HardwareDIChannel, HardwareDOChannel, 
-                       SoftwareDIChannel, SoftwareDOChannel)
+from ..channel import (CounterChannel,
+                       HardwareAIChannel, HardwareAOChannel, HardwareDIChannel,
+                       HardwareDOChannel, SoftwareDIChannel, SoftwareDOChannel)
 
 
 ################################################################################
@@ -48,6 +48,7 @@ class NIDAQGeneralMixin(Declarative):
     channel = d_(Unicode()).tag(metadata=True)
 
 
+
 class NIDAQTimingMixin(Declarative):
 
     # If specifying a sample clock, you still need to specify fs.
@@ -56,6 +57,13 @@ class NIDAQTimingMixin(Declarative):
 
     # A good value is 'PXI_Clk10'
     reference_clock = d_(Unicode()).tag(metadata=True)
+
+
+class NIDAQCounterChannel(NIDAQGeneralMixin, CounterChannel):
+
+    high_samples = d_(Int().tag(metadata=True))
+    low_samples = d_(Int().tag(metadata=True))
+    source_terminal = d_(Unicode().tag(metadata=True))
 
 
 class NIDAQHardwareAOChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
@@ -302,6 +310,25 @@ def create_task(name=None):
     return task
 
 
+def setup_counters(channels, task_name='counter'):
+    lines = get_channel_property(channels, 'channel', True)
+    names = get_channel_property(channels, 'name', True)
+    log.debug('Configuring lines {}'.format(lines))
+
+    source_terminal = get_channel_property(channels, 'source_terminal')
+    low_samples = get_channel_property(channels, 'low_samples')
+    high_samples = get_channel_property(channels, 'high_samples')
+
+    merged_lines = ','.join(lines)
+    task = create_task(task_name)
+    mx.DAQmxCreateCOPulseChanTicks(task, merged_lines, '', source_terminal,
+                                   mx.DAQmx_Val_Low, 0, low_samples,
+                                   high_samples)
+    mx.DAQmxCfgSampClkTiming(task, source_terminal, 100, mx.DAQmx_Val_Rising,
+                             mx.DAQmx_Val_HWTimedSinglePoint, 2)
+    return task
+
+
 def setup_hw_ao(channels, buffer_duration, callback_interval, callback,
                 task_name='hw_ao'):
 
@@ -403,16 +430,46 @@ def setup_hw_ao(channels, buffer_duration, callback_interval, callback,
 
 def get_timing_config(task):
     properties = {}
+
     info = ctypes.c_double()
     mx.DAQmxGetSampClkRate(task, info)
     properties['sample clock rate'] = info.value
+    mx.DAQmxGetSampClkMaxRate(task, info)
+    properties['sample clock maximum rate'] = info.value
     mx.DAQmxGetSampClkTimebaseRate(task, info)
     properties['sample clock timebase rate'] = info.value
+    try:
+        mx.DAQmxGetMasterTimebaseRate(task, info)
+        properties['master timebase rate'] = info.value
+    except:
+        pass
+    mx.DAQmxGetRefClkRate(task, info)
+    properties['reference clock rate'] = info.value
+
     info = ctypes.c_buffer(256)
     mx.DAQmxGetSampClkSrc(task, info, len(info))
     properties['sample clock source'] = str(info.value)
     mx.DAQmxGetSampClkTimebaseSrc(task, info, len(info))
     properties['sample clock timebase source'] = str(info.value)
+    mx.DAQmxGetSampClkTerm(task, info, len(info))
+    properties['sample clock terminal'] = str(info.value)
+    try:
+        mx.DAQmxGetMasterTimebaseSrc(task, info, len(info))
+        properties['master timebase source'] = str(info.value)
+    except:
+        pass
+    mx.DAQmxGetRefClkSrc(task, info, len(info))
+    properties['reference clock source'] = str(info.value)
+
+    info = ctypes.c_int32()
+    try:
+        mx.DAQmxGetSampClkOverrunBehavior(task, info)
+        properties['sample clock overrun behavior'] = info.value
+    except:
+        pass
+    mx.DAQmxGetSampClkActiveEdge(task, info)
+    properties['sample clock active edge'] = info.value
+
     info = ctypes.c_uint32()
     try:
         mx.DAQmxGetSampClkTimebaseDiv(task, info)
@@ -498,6 +555,8 @@ def setup_hw_ai(channels, callback_duration, callback, task_name='hw_ao'):
     task._devices = device_list(task)
     task._sf = dbi(gains)[..., np.newaxis]
     task._fs = properties['sample clock rate']
+    properties = get_timing_config(task)
+    log_ai.info('AI timing properties: %r', properties)
     return task
 
 
@@ -687,15 +746,18 @@ class NIDAQEngine(Engine):
     def configure(self):
         log.debug('Configuring {} engine'.format(self.name))
 
+        counter_channels = self.get_channels('counter')
         sw_do_channels = self.get_channels('digital', 'output', 'software')
         hw_ai_channels = self.get_channels('analog', 'input', 'hardware')
         hw_di_channels = self.get_channels('digital', 'input', 'hardware')
         hw_ao_channels = self.get_channels('analog', 'output', 'hardware')
 
+        if counter_channels:
+            log.debug('Configuring counter channels')
+            self.configure_counters(counter_channels)
+
         if sw_do_channels:
             log.debug('Configuring SW DO channels')
-            lines = ','.join(get_channel_property(sw_do_channels, 'channel', True))
-            names = get_channel_property(sw_do_channels, 'name', True)
             self.configure_sw_do(sw_do_channels)
 
         if hw_ai_channels:
@@ -772,6 +834,10 @@ class NIDAQEngine(Engine):
             for cb in self._callbacks.get('done', []):
                 cb()
 
+    def configure_counters(self, channels):
+        task = setup_counters(channels)
+        self._tasks['counter'] = task
+
     def configure_hw_ao(self, channels):
         '''
         Initialize hardware-timed analog output
@@ -794,6 +860,8 @@ class NIDAQEngine(Engine):
                            '{}_hw_ao'.format(self.name))
         self._tasks['hw_ao'] = task
         self.ao_fs = task._fs
+        for channel in channels:
+            channel.fs = task._fs
 
     def configure_hw_ai(self, channels):
         task_name = '{}_hw_ai'.format(self.name)

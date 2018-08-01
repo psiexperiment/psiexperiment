@@ -20,6 +20,9 @@ class Channel(Declarative):
     # Lable of channel used in GUI
     label = d_(Unicode()).tag(metadata=True)
 
+    # Is channel active during experiment?
+    active = Property()
+
     # SI unit (e.g., V)
     unit = d_(Unicode()).tag(metadata=True)
 
@@ -60,6 +63,7 @@ class Channel(Declarative):
 
 
 class HardwareMixin(Declarative):
+
     fs = d_(Float()).tag(metadata=True)
 
 
@@ -104,6 +108,12 @@ class DigitalMixin(Declarative):
     dtype = 'bool'
 
 
+class CounterMixin(Declarative):
+
+    def _get_active(self):
+        return True
+
+
 class OutputMixin(Declarative):
 
     outputs = List()
@@ -133,6 +143,10 @@ class OutputMixin(Declarative):
 
     def _get_buffer_size(self):
         return self.engine.get_buffer_size(self.name)
+
+
+class CounterChannel(CounterMixin, Channel):
+    pass
 
 
 class HardwareAOChannel(AnalogMixin, OutputMixin, HardwareMixin, Channel):

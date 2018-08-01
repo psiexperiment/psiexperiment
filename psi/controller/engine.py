@@ -12,7 +12,7 @@ from enaml.core.api import Declarative, d_
 from psi.core.enaml.api import PSIContribution
 from ..util import copy_declarative
 from .channel import (Channel, AnalogMixin, DigitalMixin, HardwareMixin,
-                      SoftwareMixin, OutputMixin, InputMixin)
+                      SoftwareMixin, OutputMixin, InputMixin, CounterMixin)
 
 
 def log_configuration(engine):
@@ -95,6 +95,8 @@ class Engine(PSIContribution):
                 channels = [c for c in channels if isinstance(c, AnalogMixin)]
             elif mode == 'digital':
                 channels = [c for c in channels if isinstance(c, DigitalMixin)]
+            elif mode == 'counter':
+                channels = [c for c in channels if isinstance(c, CounterMixin)]
             else:
                 raise ValueError('Unsupported mode')
 

@@ -15,7 +15,7 @@ from psi.controller.api import ExperimentAction
 from psi.controller.base_manifest import BaseManifest, get_hw_ao_choices
 from psi.controller.input import (ContinuousInput, ExtractEpochs,
                                   RejectEpochs, Decimate, IIRFilter,
-                                  Downsample)
+                                  Downsample, Input)
 from psi.controller.output import QueuedEpochOutput
 from psi.controller.calibration.util import db
 from psi.data.plots import (TimeContainer, ChannelPlot, ViewBox, StackedEpochAveragePlot)
@@ -152,21 +152,24 @@ enamldef ControllerManifest(BaseManifest): manifest:
             name = 'microphone'
             source_name = 'microphone_channel'
 
-        IIRFilter:
+        Input:
             source_name = 'eeg_channel'
-            name = 'eeg_filtered'
-            N = 2
-            btype = 'bandpass'
-            ftype = 'butter'
-            source_name = 'eeg_channel'
+            name = 'eeg'
 
-            ExtractEpochs: extract:
-                name = 'erp'
-                queue << output.queue
-                epoch_size = 8.5e-3
+            IIRFilter:
+                name = 'eeg_filtered'
+                N = 2
+                btype = 'bandpass'
+                ftype = 'butter'
+                source_name = 'eeg_channel'
 
-                RejectEpochs:
-                    name = 'valid_erp'
+                ExtractEpochs: extract:
+                    name = 'erp'
+                    queue << output.queue
+                    epoch_size = 8.5e-3
+
+                    RejectEpochs:
+                        name = 'valid_erp'
 
     Extension:
         id = 'context'
@@ -293,25 +296,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
             event = 'experiment_prepare'
             command = 'psi.controller.configure_hardware'
             weight = 9
-
-        ExperimentAction:
-            weight = 10
-            event = 'experiment_prepare'
-            command = 'psi.controller.tone_calibrate_channel'
-            kwargs = {
-                'input_name': 'microphone',
-                'output_name': 'target',
-                'parameter_names': ['target_tone_frequency'],
-                'gain': -40,
-                'max_thd': None,
-                'min_snr': 5,
-                'duration': 0.1,
-                'trim': 0.01,
-                'iti': 0,
-                'widget_name': 'calibration_result',
-                'attr_name': 'result',
-                'store_name': 'calibration_data',
-            }
 
         ExperimentAction:
             event = 'experiment_prepare'
@@ -441,3 +425,31 @@ enamldef TemperatureMixinManifest(PluginManifest): manifest:
             Downsample:
                 name = 'temperature_decimated'
                 q = 50
+
+
+enamldef InEarCalibrationMixin(PluginManifest): manifest:
+
+    id = 'inear_calibration_mixin'
+
+    Extension:
+        id = 'actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            weight = 10
+            event = 'experiment_prepare'
+            command = 'psi.controller.tone_calibrate_channel'
+            kwargs = {
+                'input_name': 'microphone',
+                'output_name': 'target',
+                'parameter_names': ['target_tone_frequency'],
+                'gain': -40,
+                'max_thd': None,
+                'min_snr': 5,
+                'duration': 0.1,
+                'trim': 0.01,
+                'iti': 0,
+                'widget_name': 'calibration_result',
+                'attr_name': 'result',
+                'store_name': 'calibration_data',
+            }

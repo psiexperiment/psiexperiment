@@ -103,14 +103,14 @@ class AnalogOutput(Output):
             # This breaks an implicit software contract.
             raise SystemError('Mismatch between offsets')
         elif lb == buffered_ub:
-            log.debug('Generating new data')
+            log.trace('Generating new data')
             pass
         elif lb >= buffered_lb and ub <= buffered_ub:
-            log.debug('Extracting from buffer')
+            log.trace('Extracting from buffer')
             out[:] = self._buffer.get_range_samples(lb, ub)
             samples = 0
         elif lb >= buffered_lb and ub > buffered_ub:
-            log.debug('Extracting from buffer and generating new data')
+            log.trace('Extracting from buffer and generating new data')
             b = self._buffer.get_range_samples(lb)
             s = b.shape[-1]
             out[:s] = b

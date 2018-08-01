@@ -6,16 +6,12 @@ from psi import get_config
 
 from psi.controller.engines.nidaq import (NIDAQEngine,
                                           NIDAQHardwareAIChannel,
-                                          NIDAQHardwareAOChannel)
+                                          NIDAQHardwareAOChannel,
+                                          NIDAQCounterChannel)
 from psi.controller.input import (ContinuousInput, IIRFilter, Decimate,
                                   Transform)
 from psi.controller.calibration import InterpCalibration, FlatCalibration
 
-
-#cal_root = get_config('CAL_ROOT')
-#cal_filename = '20180411-1313 pt_calibration'
-#cal_path = os.path.join(cal_root, cal_filename)
-#psi_mic_cal = InterpCalibration.from_psi(cal_path)
 
 epl_cal_filename = 'c:/data/Probe Tube Calibrations/Right_ProbeTube.calib'
 epl_mic_cal = InterpCalibration.from_epl(epl_cal_filename)
@@ -31,16 +27,24 @@ enamldef IOManifest(PluginManifest): manifest:
             name = 'NI_EEG'
             hw_ai_monitor_period = 0.125
 
+            NIDAQCounterChannel:
+                label = 'EEG clock'
+                name = 'eeg clock'
+                channel = 'PXI1Slot2/ctr0'
+                source_terminal = '/PXI1Slot4/ao/SampleClock'
+                high_samples = 2
+                low_samples = 2
+
             NIDAQHardwareAIChannel:
                 label = 'EEG'
                 name = 'eeg_channel'
                 channel = 'PXI1Slot2/ai0'
-                sample_clock = '/PXI1Slot4/ao/SampleClock'
-                fs = 25e3
+                fs << ao0.fs/4
                 expected_range = (-0.1, 0.1)
                 dtype = 'float64'
                 terminal_mode = 'differential'
                 unit = 'V'
+                sample_clock = '/PXI1Slot2/Ctr0InternalOutput'
 
         NIDAQEngine:
             name = 'NI_audio'
@@ -50,30 +54,32 @@ enamldef IOManifest(PluginManifest): manifest:
             hw_ao_monitor_period = 0.125
             hw_ao_buffer_size = 1
 
-            NIDAQHardwareAOChannel:
+            NIDAQHardwareAOChannel: ao0:
                 label = 'primary'
                 name = 'speaker_0'
                 channel = 'PXI1Slot4/ao0'
-                fs = 100e3
+                fs = 100000.00002037268
                 expected_range = (-10, 10)
                 dtype = 'float64'
                 terminal_mode = 'pseudodifferential'
+                calibration = FlatCalibration.as_attenuation()
 
             NIDAQHardwareAOChannel:
                 label = 'secondary'
                 name = 'speaker_1'
                 channel = 'PXI1Slot4/ao1'
-                fs = 100e3
+                fs = 100000.00002037268
                 expected_range = (-10, 10)
                 dtype = 'float64'
                 terminal_mode = 'pseudodifferential'
+                calibration = FlatCalibration.as_attenuation()
 
             NIDAQHardwareAIChannel:
                 label = 'Probe tube microphone'
                 name = 'microphone_channel'
                 channel = 'PXI1Slot4/ai0'
                 start_trigger = '/PXI1Slot4/ao/StartTrigger'
-                fs = 100e3
+                fs = 100000.00002037268
                 expected_range = (-10, 10)
                 dtype = 'float64'
                 terminal_mode = 'pseudodifferential'
@@ -86,7 +92,7 @@ enamldef IOManifest(PluginManifest): manifest:
                 name = 'reference_microphone_channel'
                 channel = 'PXI1Slot4/ai1'
                 start_trigger = '/PXI1Slot4/ao/StartTrigger'
-                fs = 100e3
+                fs = 100000.00002037268
                 expected_range = (-10, 10)
                 dtype = 'float64'
                 terminal_mode = 'pseudodifferential'

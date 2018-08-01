@@ -16,21 +16,29 @@ from psi import get_config, set_config
 
 # TODO: make mixins loadable at runtime
 experiments = {
+    'abr_debug': [
+        'psi.application.experiment.abr_base.ControllerManifest',
+        'psi.application.experiment.abr_base.EEGViewMixinManifest',
+    ],
     'abr': [
         'psi.application.experiment.abr_base.ControllerManifest',
+        'psi.application.experiment.abr_base.InEarCalibrationMixin',
     ],
     'abr_with_eeg_view': [
         'psi.application.experiment.abr_base.ControllerManifest',
         'psi.application.experiment.abr_base.EEGViewMixinManifest',
+        'psi.application.experiment.abr_base.InEarCalibrationMixin',
     ],
     'abr_with_temperature': [
         'psi.application.experiment.abr_base.ControllerManifest',
         'psi.application.experiment.abr_base.TemperatureMixinManifest',
+        'psi.application.experiment.abr_base.InEarCalibrationMixin',
     ],
     'abr_with_eeg_view_and_temperature': [
         'psi.application.experiment.abr_base.ControllerManifest',
         'psi.application.experiment.abr_base.TemperatureMixinManifest',
         'psi.application.experiment.abr_base.EEGViewMixinManifest',
+        'psi.application.experiment.abr_base.InEarCalibrationMixin',
     ],
     'speaker_calibration': [
         'psi.application.experiment.speaker_calibration.ControllerManifest',
