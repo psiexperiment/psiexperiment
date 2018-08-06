@@ -154,6 +154,11 @@ def list_io():
 
 def launch_experiment(args):
     set_config('ARGS', args)
+    if args.profile:
+        from pyinstrument import Profiler
+        profiler = Profiler()
+        profiler.start()
+
     try:
         _main(args)
     except:
@@ -163,6 +168,12 @@ def launch_experiment(args):
             pdb.post_mortem(tb)
         else:
             raise
+
+    if args.profile:
+        profiler.stop()
+        html = profiler.output_html()
+        with open('profile.html', 'w') as fh:
+            fh.write(html)
 
 
 def add_default_options(parser):
@@ -196,3 +207,4 @@ def add_default_options(parser):
                         help='Commands to invoke')
     parser.add_argument('-p', '--preferences', type=str, nargs='?',
                         help='Preferences file')
+    parser.add_argument('--profile', action='store_true', help='Profile app')
