@@ -342,7 +342,7 @@ class BasePlot(PSIContribution):
 
     def update(self, event=None):
         if not self.update_pending:
-            deferred_call(self._update, event)
+            self._update(event)
             self.update_pending = True
 
     def _update(self, event=None):
@@ -428,11 +428,16 @@ class ChannelPlot(SinglePlot):
             t = t[:len(d_min)]
             x = np.c_[t, t].ravel()
             y = np.c_[d_min, d_max].ravel()
-            self.plot.setData(x, y, connect='pairs')
+            def update():
+                self.plot.setData(x, y, connect='pairs')
+                self.update_pending = False
         else:
             t = t[:len(data)]
-            self.plot.setData(t, data)
-        self.update_pending = False
+            def update():
+                self.plot.setData(t, data)
+                self.update_pending = False
+
+        deferred_call(update)
 
 
 def decimate_extremes(data, downsample):
@@ -492,8 +497,10 @@ class FFTChannelPlot(ChannelPlot):
         if self._buffer.get_time_ub() >= self.time_span:
             data = self._buffer.get_latest(-self.time_span, 0)
             psd = util.patodb(util.psd(data, self.source.fs, self.window))
-            self.plot.setData(self._x, psd)
-        self.update_pending = False
+            def update():
+                self.plot.setData(self._x, psd)
+                self.update_pending = False
+            deferred_call(update)
 
 
 class BaseTimeseriesPlot(SinglePlot):
@@ -540,8 +547,11 @@ class BaseTimeseriesPlot(SinglePlot):
             x_width = x_end-x_start
             r = pg.QtCore.QRectF(x_start, y_start, x_width, self.rect_height)
             path.addRect(r)
-        self.plot.setPath(path)
-        self.update_pending = False
+
+        def update():
+            self.plot.setPath(path)
+            self.update_pending = False
+        deferred_call(update)
 
 
 class EventPlot(BaseTimeseriesPlot):
@@ -689,14 +699,13 @@ class GroupMixin(Declarative):
             pen = pg.mkPen(pen_color, width=self.pen_width)
 
             plot = pg.PlotCurveItem(pen=pen, antialias=self.antialias)
-            self.parent.viewbox.addItem(plot)
+            deferred_call(self.parent.viewbox.addItem, plot)
             self.plots[key] = plot
         except KeyError as key_error:
             key = key_error.args[0]
             m = f'Cannot update plot since a field, {key}, ' \
                  'required by the plot is missing.'
             raise ConfigurationException(m) from key_error
-
 
     def get_plot(self, key):
         if key not in self.plots:
@@ -709,14 +718,20 @@ class GroupMixin(Declarative):
 
     def _update(self, event=None):
         # Update epochs that need updating
+        todo = []
         for key, count in list(self._epoch_count.items()):
             if count >= self._epoch_updated[key] + self.n_update:
                 epoch = self._epoch_cache[key]
                 plot = self.get_plot(key)
                 y = self._y(epoch)
-                plot.setData(self._x, y)
+                todo.append((plot.setData, self._x, y))
                 self._epoch_updated[key] = len(epoch)
-        self.update_pending = False
+
+        def update():
+            for setter, x, y in todo:
+                setter(x, y)
+            self.update_pending = False
+        deferred_call(update)
 
     def _observe_source(self, event):
         if self.source is not None:
@@ -780,6 +795,9 @@ class StackedEpochAveragePlot(GroupMixin, BasePlot):
         self._update_offsets()
 
     def _update_offsets(self, vb=None):
+        deferred_call(self.__update_offsets, vb)
+
+    def __update_offsets(self, vb=None):
         vb = self.parent.viewbox
         height = vb.height()
         n = len(self.plots)
@@ -815,14 +833,19 @@ class DataFramePlot(GroupMixin, BasePlot):
         self.update()
 
     def _update(self, event=None):
+        todo = []
         for key, group in self.data.groupby(self.group_names):
             if len(self.group_names) == 1:
                 key = (key,)
-            print('key', key)
             plot = self.get_plot(key)
             x = group[self.x_column]
             y = group[self.y_column]
             x = np.array(x)
             y = np.array(y)
-            plot.setData(x, y)
-        self.update_pending = False
+            todo.append(plot.setData, x, y)
+
+        def update():
+            for setter, x, y in todo:
+                setter(x, y)
+            self.update_pending = False
+        deferred_call(update)
