@@ -8,7 +8,7 @@ import threading
 import numpy as np
 
 from atom.api import Enum, Bool, Typed, Property
-from enaml.application import timed_call
+from enaml.application import deferred_call
 from enaml.qt.QtCore import QTimer
 from enaml.workbench.api import Extension
 from enaml.workbench.plugin import Plugin
@@ -395,6 +395,25 @@ class BasePlugin(Plugin):
         self._invoke_actions(event_name, timestamp, **kw)
 
     def event_used(self, event_name):
+        '''
+        Returns true if the experiment event is bound to an experiment action.
+
+        This is typically used internally as a performance-optimization so we
+        don't configure callbacks for events that are unused. For example, we
+        can attach actions to the <input_name>_acquired event. However, this
+        event typically occurs several times a second for each input. This
+        would result in unecessary calls to `invoke_actions`.
+
+        Parameters
+        ----------
+        event_name : str
+            Name of event
+
+        Returns
+        -------
+        used : bool
+            True if event is bound to an action, False otherwise.
+        '''
         for action in self._actions:
             if event_name in action.dependencies:
                 return True
@@ -438,19 +457,19 @@ class BasePlugin(Plugin):
     def request_apply(self):
         if not self.apply_changes():
             log.debug('Apply requested')
-            self._apply_requested = True
+            deferred_call(lambda: setattr(self, '_apply_requested', True))
 
     def request_remind(self):
-        self._remind_requested = True
+        deferred_call(lambda: setattr(self, '_remind_requested', True))
 
     def request_pause(self):
         if not self.pause_experiment():
             log.debug('Pause requested')
-            self._pause_requested = True
+            deferred_call(lambda: setattr(self, '_pause_requested', True))
 
     def request_resume(self):
         self._pause_requested = False
-        self.experiment_state = 'running'
+        deferred_call(lambda: setattr(self, 'experiment_state', 'running'))
 
     def apply_changes(self):
         raise NotImplementedError
@@ -460,11 +479,11 @@ class BasePlugin(Plugin):
 
     def start_experiment(self):
         self.invoke_actions('experiment_start')
-        self.experiment_state = 'running'
+        deferred_call(lambda: setattr(self, 'experiment_state', 'running'))
 
     def stop_experiment(self):
         self.invoke_actions('experiment_end', self.get_ts())
-        self.experiment_state = 'stopped'
+        deferred_call(lambda: setattr(self, 'experiment_state', 'stopped'))
 
     def pause_experiment(self):
         raise NotImplementedError
@@ -473,7 +492,7 @@ class BasePlugin(Plugin):
         return self._master_engine.get_ts()
 
     def set_pause_ok(self, value):
-        self._pause_ok = value
+        deferred_call(lambda: setattr(self, '_pause_ok', value))
 
     def start_timer(self, name, duration, callback):
         log.debug('Starting %f sec. timer %s', duration, name)

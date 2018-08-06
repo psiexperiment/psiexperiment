@@ -5,6 +5,7 @@ import operator
 from collections import defaultdict
 
 from atom.api import Typed, Event, Unicode, Int, List, Dict
+from enaml.application import deferred_call
 from enaml.core.api import d_
 from enaml.workbench.api import Extension
 from enaml.widgets.api import Container, DockItem, Form, Label, VGroup
@@ -21,7 +22,8 @@ class EpochCounter(SinkWithSource):
     total_n = Int()
 
     def _update_data(self, epochs):
-        self.total_n += len(epochs)
+        n = len(epochs)
+        deferred_call(lambda: setattr(self, 'total_n', self.total_n + n))
 
 
 class GroupedEpochCounter(EpochCounter):
@@ -50,10 +52,19 @@ class GroupedEpochCounter(EpochCounter):
             key = self.get_key(md)
             self.counts[key] += 1
         counts = self.counts.values()
-        self.min_n = min(counts)
-        self.max_n = max(counts)
-        self.total_n = sum(counts)
-        self.groups_n = len(counts)
+
+        min_n = min(counts)
+        max_n = max(counts)
+        total_n = sum(counts)
+        groups_n = len(counts)
+
+        def update():
+            self.min_n = min_n
+            self.max_n = max_n
+            self.total_n = total_n
+            self.groups_n = groups_n
+
+        deferred_call(update)
 
 
 enamldef EpochCounterManifest(SinkWithSourceManifest): manifest:
