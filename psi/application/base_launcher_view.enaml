@@ -1,6 +1,6 @@
 import os.path
 
-from enaml.core.api import Conditional
+from enaml.core.api import Conditional, Looper
 from enaml.widgets.api import Window, ObjectCombo, Label, Field, Container, Form, HGroup, PushButton, VGroup, GroupBox, CheckBox
 
 from psi import get_config
@@ -8,24 +8,24 @@ from psi import get_config
 from . import list_preferences, list_io
 
 
-class Args:
-
-    def __init__(self, experiment, pathname, preferences, io, debug=False, debug_warning=False,
-                 pdb=False, no_preferences=False, no_layout=False, commands=[]):
-        vars(self).update(locals())
-
-
-def launch_main(experiment, base_folder, settings, save):
-    from psi import get_config
-    from psi.application import launch_experiment
-
-    if save:
-        dt_string = dt.datetime.now().strftime('%Y%m%d-%H%M')
-        base_folder = base_folder.format(date_time=dt_string)
-    else:
-        base_folder = None
-    args = Args(experiment, base_folder, settings, get_config('SYSTEM'))
-    launch_experiment(args)
+#class Args:
+#
+#    def __init__(self, experiment, pathname, preferences, io, debug=False, debug_warning=False,
+#                 pdb=False, no_preferences=False, no_layout=False, commands=[]):
+#        vars(self).update(locals())
+#
+#
+#def launch_main(experiment, base_folder, settings, save):
+#    from psi import get_config
+#    from psi.application import launch_experiment
+#
+#    if save:
+#        dt_string = dt.datetime.now().strftime('%Y%m%d-%H%M')
+#        base_folder = base_folder.format(date_time=dt_string)
+#    else:
+#        base_folder = None
+#    args = Args(experiment, base_folder, settings, get_config('SYSTEM'))
+#    launch_experiment(args)
 
 
 enamldef LauncherView(Window): main:
@@ -48,27 +48,35 @@ enamldef LauncherView(Window): main:
 
             ObjectCombo: experiment:
                 items << experiments
+                to_string = lambda x: x.title
                 selected := launcher.experiment
 
-            Label:
-                text = 'Experiment Settings'
+        GroupBox:
+            title = 'Experiment settings'
 
             ObjectCombo: settings:
                 constraints = [
                     width == 300
                 ]
-                items << list_preferences(experiment.selected)
+                items << list_preferences(experiment.selected) if experiment is not None else []
                 to_string = lambda x: os.path.splitext(os.path.basename(x))[0]
                 selected := launcher.settings
+
+            VGroup:
+                Looper:
+                    iterable << launcher.experiment.plugins
+                    CheckBox:
+                        checked := loop_item.selected
+                        text << loop_item.title
+                        visible << not loop_item.required
+
+        Form:
 
             Label:
                 text = 'Save data?'
 
             CheckBox: save:
                 checked := launcher.save_data
-
-        Form:
-            enabled = save.checked
 
             Label:
                 text = 'Experimenter'

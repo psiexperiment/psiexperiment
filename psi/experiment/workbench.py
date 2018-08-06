@@ -42,7 +42,6 @@ class PSIWorkbench(Workbench):
 
             for manifest in controller_manifests:
                 manifest_class = load_manifest(manifest)
-                print(manifest)
                 self.register(manifest_class())
 
             from psi.context.manifest import ContextManifest

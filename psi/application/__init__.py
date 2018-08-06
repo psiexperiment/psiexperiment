@@ -14,45 +14,22 @@ from enaml.application import deferred_call
 
 from psi import get_config, set_config
 
+
 # TODO: make mixins loadable at runtime
-experiments = {
-    'abr_debug': [
-        'psi.application.experiment.abr_base.ControllerManifest',
-        'psi.application.experiment.abr_base.EEGViewMixinManifest',
-    ],
-    'abr': [
-        'psi.application.experiment.abr_base.ControllerManifest',
-        'psi.application.experiment.abr_base.InEarCalibrationMixin',
-    ],
-    'abr_with_eeg_view': [
-        'psi.application.experiment.abr_base.ControllerManifest',
-        'psi.application.experiment.abr_base.EEGViewMixinManifest',
-        'psi.application.experiment.abr_base.InEarCalibrationMixin',
-    ],
-    'abr_with_temperature': [
-        'psi.application.experiment.abr_base.ControllerManifest',
-        'psi.application.experiment.abr_base.TemperatureMixinManifest',
-        'psi.application.experiment.abr_base.InEarCalibrationMixin',
-    ],
-    'abr_with_eeg_view_and_temperature': [
-        'psi.application.experiment.abr_base.ControllerManifest',
-        'psi.application.experiment.abr_base.TemperatureMixinManifest',
-        'psi.application.experiment.abr_base.EEGViewMixinManifest',
-        'psi.application.experiment.abr_base.InEarCalibrationMixin',
-    ],
-    'speaker_calibration': [
-        'psi.application.experiment.speaker_calibration.ControllerManifest',
-    ],
-    #'appetitive_gonogo_food': 'psi.application.experiment.appetitive.ControllerManifest',
-    #'abr-debug': 'psi.application.experiment.abr_debug.ControllerManifest',
-    #'noise_exposure': 'psi.application.experiment.noise_exposure.ControllerManifest',
-    #'efr': 'psi.application.experiment.efr.ControllerManifest',
-    #'dual_efr': 'psi.application.experiment.dual_efr.ControllerManifest',
-    #'pt_calibration_golay': 'psi.application.experiment.pt_calibration_golay.ControllerManifest',
-    #'pt_calibration_chirp': 'psi.application.experiment.pt_calibration_chirp.ControllerManifest',
-    #'pistonphone_calibration': 'psi.application.experiment.pistonphone_calibration.ControllerManifest',
-    #'dpoae': 'psi.application.experiment.dpoae.ControllerManifest',
-}
+#experiments = {
+#    'speaker_calibration': [
+#        'psi.application.experiment.speaker_calibration.ControllerManifest',
+#    ],
+#    #'appetitive_gonogo_food': 'psi.application.experiment.appetitive.ControllerManifest',
+#    #'abr-debug': 'psi.application.experiment.abr_debug.ControllerManifest',
+#    #'noise_exposure': 'psi.application.experiment.noise_exposure.ControllerManifest',
+#    #'efr': 'psi.application.experiment.efr.ControllerManifest',
+#    #'dual_efr': 'psi.application.experiment.dual_efr.ControllerManifest',
+#    #'pt_calibration_golay': 'psi.application.experiment.pt_calibration_golay.ControllerManifest',
+#    #'pt_calibration_chirp': 'psi.application.experiment.pt_calibration_chirp.ControllerManifest',
+#    #'pistonphone_calibration': 'psi.application.experiment.pistonphone_calibration.ControllerManifest',
+#    #'dpoae': 'psi.application.experiment.dpoae.ControllerManifest',
+#}
 
 
 def configure_logging(filename=None):
@@ -121,7 +98,10 @@ def _main(args):
     from psi.experiment.workbench import PSIWorkbench
 
     workbench = PSIWorkbench()
-    workbench.register_core_plugins(args.io, args.controller)
+    plugins = [p.manifest for p in args.controller.plugins \
+               if p.selected or p.required]
+    print(plugins)
+    workbench.register_core_plugins(args.io, plugins)
 
     if args.pathname is None:
         log.warn('All data will be destroyed at end of experiment')
@@ -138,7 +118,7 @@ def list_preferences(experiment):
     p_root = get_config('PREFERENCES_ROOT')
     p_wildcard = get_config('PREFERENCES_WILDCARD')
     p_glob = p_wildcard[:-1].split('(')[1]
-    p_search = os.path.join(p_root, experiment, p_glob)
+    p_search = os.path.join(p_root, experiment.name, p_glob)
     return sorted(glob(p_search))
 
 
