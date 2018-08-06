@@ -27,24 +27,17 @@ enamldef IOManifest(PluginManifest): manifest:
             name = 'NI_EEG'
             hw_ai_monitor_period = 0.125
 
-            NIDAQCounterChannel:
-                label = 'EEG clock'
-                name = 'eeg clock'
-                channel = 'PXI1Slot2/ctr0'
-                source_terminal = '/PXI1Slot4/ao/SampleClock'
-                high_samples = 2
-                low_samples = 2
-
             NIDAQHardwareAIChannel:
                 label = 'EEG'
                 name = 'eeg_channel'
                 channel = 'PXI1Slot2/ai0'
-                fs << ao0.fs/4
+                fs = 25e3
                 expected_range = (-0.1, 0.1)
                 dtype = 'float64'
                 terminal_mode = 'differential'
                 unit = 'V'
-                sample_clock = '/PXI1Slot2/Ctr0InternalOutput'
+                reference_clock = 'PXI_Clk10'
+                start_trigger = '/PXI1Slot4/ao/StartTrigger'
 
         NIDAQEngine:
             name = 'NI_audio'
@@ -58,44 +51,48 @@ enamldef IOManifest(PluginManifest): manifest:
                 label = 'primary'
                 name = 'speaker_0'
                 channel = 'PXI1Slot4/ao0'
-                fs = 100000.00002037268
+                fs = 100e3
                 expected_range = (-10, 10)
                 dtype = 'float64'
                 terminal_mode = 'pseudodifferential'
                 calibration = FlatCalibration.as_attenuation()
+                reference_clock = 'PXI_Clk10'
 
             NIDAQHardwareAOChannel:
                 label = 'secondary'
                 name = 'speaker_1'
                 channel = 'PXI1Slot4/ao1'
-                fs = 100000.00002037268
+                fs = 100e3
                 expected_range = (-10, 10)
                 dtype = 'float64'
                 terminal_mode = 'pseudodifferential'
                 calibration = FlatCalibration.as_attenuation()
+                reference_clock = 'PXI_Clk10'
 
             NIDAQHardwareAIChannel:
                 label = 'Probe tube microphone'
                 name = 'microphone_channel'
                 channel = 'PXI1Slot4/ai0'
                 start_trigger = '/PXI1Slot4/ao/StartTrigger'
-                fs = 100000.00002037268
+                fs = 100e3
                 expected_range = (-10, 10)
                 dtype = 'float64'
                 terminal_mode = 'pseudodifferential'
                 terminal_coupling = 'AC'
                 calibration = epl_mic_cal
                 gain = 40
+                reference_clock = 'PXI_Clk10'
 
             NIDAQHardwareAIChannel:
                 label = 'Reference microphone'
                 name = 'reference_microphone_channel'
                 channel = 'PXI1Slot4/ai1'
                 start_trigger = '/PXI1Slot4/ao/StartTrigger'
-                fs = 100000.00002037268
+                fs = 100e3
                 expected_range = (-10, 10)
                 dtype = 'float64'
                 terminal_mode = 'pseudodifferential'
                 terminal_coupling = 'AC'
                 calibration = FlatCalibration(1e-3)
                 gain = 0
+                reference_clock = 'PXI_Clk10'
