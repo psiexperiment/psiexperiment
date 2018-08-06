@@ -187,6 +187,8 @@ class SignalBuffer:
             self._samples += samples
 
     def _invalidate(self, i):
+        # This is only called by invalidate or invalidate_samples, which are
+        # already wrapped inside a lock block.
         if i <= 0:
             self._buffer[:] = self._fill_value
             self._ilb = self._buffer_samples
@@ -220,13 +222,16 @@ class SignalBuffer:
         return self.get_samples_lb()/self._buffer_fs
 
     def get_time_ub(self):
-        return self.get_samples_ub()/self._buffer_fs
+        with self._lock:
+            return self.get_samples_ub()/self._buffer_fs
 
     def get_samples_lb(self):
-        return self._samples - self._buffer_samples + self._ilb
+        with self._lock:
+            return self._samples - self._buffer_samples + self._ilb
 
     def get_samples_ub(self):
-        return self._samples
+        with self._lock:
+            return self._samples
 
 
 def octave_space(lb, ub, step):
