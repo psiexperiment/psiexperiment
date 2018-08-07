@@ -22,7 +22,7 @@ enamldef IOManifest(PluginManifest): manifest:
                 channel = 'PXI1Slot5/ai1'
                 start_trigger = '/PXI1Slot7/ao/StartTrigger'
                 reference_clock = 'PXI_Clk10'
-                fs = 100e3
+                fs = 25e3
                 expected_range = (-10, 10)
                 dtype = 'float64'
                 terminal_mode = 'differential'

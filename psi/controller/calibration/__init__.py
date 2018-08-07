@@ -39,7 +39,9 @@ nf_err_mesg = 'Power at {:.1f}Hz has SNR of {:.2f}dB'
 
 
 class CalibrationError(Exception):
-    pass
+
+    def __str__(self):
+        return self.message
 
 
 class CalibrationTHDError(CalibrationError):

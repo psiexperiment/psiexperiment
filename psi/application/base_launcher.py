@@ -1,11 +1,12 @@
 import os.path
 import subprocess
 
-from atom.api import Atom, Unicode, Bool, Enum
+from atom.api import Atom, Unicode, Bool, Enum, Typed
 import enaml
 from enaml.qt.qt_application import QtApplication
 
 from psi import get_config
+from psi.application.experiment_description import get_experiments, ParadigmDescription
 
 
 with enaml.imports():
@@ -15,7 +16,7 @@ with enaml.imports():
 class SimpleLauncher(Atom):
 
     io = Unicode()
-    experiment = Unicode()
+    experiment = Typed(ParadigmDescription)
     settings = Unicode()
     save_data = Bool(True)
     experimenter = Unicode()
@@ -61,18 +62,22 @@ class SimpleLauncher(Atom):
                 self.base_folder = ''
                 return
 
+        vals['experiment'] = vals['experiment'].name
         formatted = self.template.format(**vals)
         self.base_folder = os.path.join(self.root_folder, formatted)
         self.can_launch = True
 
     def launch_subprocess(self):
-        args = ['psi', self.experiment]
+        args = ['psi', self.experiment.name]
+        plugins = [p.name for p in self.experiment.plugins if p.selected]
         if self.save_data:
             args.append(self.base_folder)
         if self.settings:
             args.extend(['--preferences', self.settings])
         if self.io:
             args.extend(['--io', self.io])
+        for plugin in plugins:
+            args.extend(['--plugins', plugin])
         subprocess.check_output(args)
 
 
@@ -126,9 +131,9 @@ def main_animal():
 
 
 def main_ear():
-    experiments = ['speaker_calibration', 'abr', 'abr_with_eeg_view']
+    experiments = get_experiments('ear')
     app = QtApplication()
-    launcher = EarLauncher()
+    launcher = EarLauncher(experiment=experiments[0])
     view = LauncherView(launcher=launcher, experiments=experiments)
     view.show()
     app.start()

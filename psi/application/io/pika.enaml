@@ -9,7 +9,7 @@ from psi.controller.engines.nidaq import (NIDAQEngine,
                                           NIDAQHardwareAIChannel,
                                           NIDAQHardwareAOChannel)
 from psi.controller.input import Transform
-from psi.controller.calibration import InterpCalibration
+from psi.controller.calibration import InterpCalibration, FlatCalibration
 
 
 cal_root = get_config('CAL_ROOT')
@@ -85,6 +85,7 @@ enamldef IOManifest(PluginManifest): manifest:
                 expected_range = (-0.1, 0.1)
                 dtype = 'float64'
                 terminal_mode = 'pseudodifferential'
+                calibration = FlatCalibration.as_attenuation()
 
             NIDAQHardwareAOChannel:
                 label = 'secondary'
@@ -95,6 +96,7 @@ enamldef IOManifest(PluginManifest): manifest:
                 expected_range = (-0.1, 0.1)
                 dtype = 'float64'
                 terminal_mode = 'pseudodifferential'
+                calibration = FlatCalibration.as_attenuation()
 
             NIDAQHardwareAIChannel:
                 label = 'Probe tube microphone'

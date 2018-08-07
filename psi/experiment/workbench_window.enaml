@@ -1,6 +1,6 @@
 from enaml.core.api import Include
 from enaml.stdlib.message_box import warning
-from enaml.widgets.api import Container, StatusBar, DockArea
+from enaml.widgets.api import Container, StatusBar
 from enaml.workbench.ui.workbench_window import WorkbenchWindow
 
 

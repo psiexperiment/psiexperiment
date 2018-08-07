@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 import importlib
 import sys
 
@@ -39,7 +42,6 @@ class PSIWorkbench(Workbench):
 
             for manifest in controller_manifests:
                 manifest_class = load_manifest(manifest)
-                print(manifest)
                 self.register(manifest_class())
 
             from psi.context.manifest import ContextManifest
@@ -97,7 +99,7 @@ class PSIWorkbench(Workbench):
                                        'psi.data.set_base_path',
                                        {'base_path': base_path})
 
-        # Set up better exception handler
+        # Set up exception handler to capture all errors
         sys.excepthook = self.exception_notifier
 
         # Now, open workspace
@@ -105,7 +107,6 @@ class PSIWorkbench(Workbench):
         ui.show_window()
         ui.start_application()
 
-    def exception_notifier(self, exctype, value, traceback):
-        exception = exctype(value)
-        critical(None, 'Program error', str(exception))
-        sys.__excepthook__(exctype, value, traceback)
+    def exception_notifier(self, *args):
+        log.error("Uncaught exception", exc_info=args)
+        sys.__excepthook__(*args)

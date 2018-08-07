@@ -800,7 +800,7 @@ class NIDAQEngine(Engine):
         # acquisition is done.
         self._task_done = {}
         for name, task in self._tasks.items():
-            def cb(t, s, cb_data):
+            def cb(task, s, cb_data):
                 nonlocal name
                 self.task_complete(name)
                 return 0
@@ -822,13 +822,15 @@ class NIDAQEngine(Engine):
         self._task_done[task_name] = True
         task = self._tasks[task_name]
 
-        # We have frozen the first three arguments (cb, channels, discard)
-        # using functools.partial and need to provide task and cb_samples.
-        # Setting cb_samples to 1 means that we read all remaning samples,
-        # regardless of whether they fit evenly into a block of samples. The
-        # other two arguments (event_type and cb_data) are required of the
-        # function signature by NIDAQmx but are unused.
-        task._cb(task, None, 1)
+        # We have frozen the initial arguments (in the case of hw_ai_helper,
+        # that would be cb, channels, discard; in the case of hw_ao_helper,
+        # that would be cb) using functools.partial and need to provide task,
+        # cb_samples and cb_data. For hw_ai_helper, setting cb_samples to 1
+        # means that we read all remaning samples, regardless of whether they
+        # fit evenly into a block of samples. The other two arguments
+        # (event_type and cb_data) are required of the function signature by
+        # NIDAQmx but are unused.
+        task._cb(task, None, 1, None)
 
         if all(self._task_done.values()):
             for cb in self._callbacks.get('done', []):

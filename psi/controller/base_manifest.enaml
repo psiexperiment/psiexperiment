@@ -156,7 +156,7 @@ def tone_calibrate_channel(event):
         ui = event.workbench.get_plugin('enaml.workbench.ui')
         widget = ui.window.find(p['widget_name'])
         attr_name = p.get('attr_name')
-        setattr(widget, attr_name, result)
+        deferred_call(setattr, widget, attr_name, result)
 
 
 enamldef BaseManifest(PluginManifest): manifest:
