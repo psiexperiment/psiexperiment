@@ -13,8 +13,8 @@ from psi.context.selector import CartesianProduct
 from psi.controller import queue
 from psi.controller.api import ExperimentAction
 from psi.controller.base_manifest import BaseManifest, get_hw_ao_choices
-from psi.controller.input import (ContinuousInput, ExtractEpochs, RejectEpochs,
-                                  IIRFilter, Input)
+from psi.controller.api import (ContinuousInput, ExtractEpochs, RejectEpochs,
+                                IIRFilter, Input, Detrend)
 from psi.controller.output import QueuedEpochOutput
 from psi.controller.calibration.util import db
 from psi.data.plots import (TimeContainer, ViewBox, StackedEpochAveragePlot)
@@ -35,7 +35,9 @@ def configure_experiment(event):
     context = event.workbench.get_plugin('psi.context')
     controller = event.workbench.get_plugin('psi.controller')
 
-    threshold = context.get_value('reject_threshold')
+    reject_threshold = context.get_value('reject_threshold')
+    reject_mode = context.get_value('reject_mode')
+    detrend_mode = context.get_value('detrend_mode')
     ordering = context.get_value('ordering')
     alternate_polarity = context.get_value('alternate_polarity')
     tone_duration = context.get_value('target_tone_burst_duration')
@@ -61,7 +63,9 @@ def configure_experiment(event):
     if iti <= 0:
         raise ValueError('Repetition rate is too fast')
 
-    controller.set_input_attr('valid_erp', 'threshold', threshold)
+    controller.set_input_attr('erp_detrend', 'mode', detrend_mode)
+    controller.set_input_attr('valid_erp', 'threshold', reject_threshold)
+    controller.set_input_attr('valid_erp', 'mode', reject_mode)
     target = controller.get_output('target')
 
     # Configure the queues
@@ -166,8 +170,11 @@ enamldef ControllerManifest(BaseManifest): manifest:
                     queue << output.queue
                     epoch_size = 8.5e-3
 
-                    RejectEpochs:
-                        name = 'valid_erp'
+                    Detrend:
+                        name = 'erp_detrend'
+
+                        RejectEpochs:
+                            name = 'valid_erp'
 
     Extension:
         id = 'context'
@@ -176,6 +183,28 @@ enamldef ControllerManifest(BaseManifest): manifest:
         ContextGroup:
             name = 'abr'
             label = 'ABR settings'
+
+            EnumParameter:
+                name = 'detrend_mode'
+                label = 'Detrend mode'
+                choices = {
+                    'None': 'None',
+                    'constant': '"constant"',
+                    'linear': '"linear"',
+                }
+                default = 'None'
+                scope = 'experiment'
+
+            EnumParameter:
+                name = 'reject_mode'
+                label = 'Reject mode'
+                compact_label = 'Rej. mode'
+                choices = {
+                    'absolute value': '"absolute value"',
+                    'amplitude (max-min)': '"amplitude"',
+                }
+                default = 'absolute value'
+                scope = 'experiment'
 
             Parameter:
                 name = 'reject_threshold'

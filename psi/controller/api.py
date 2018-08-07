@@ -7,7 +7,8 @@ from .engine import Engine
 from .input import (Input, ContinuousInput, EventInput, EpochInput, Callback,
                     CalibratedInput, RMS, SPL, IIRFilter, Blocked, Accumulate,
                     Capture, Downsample, Decimate, Discard, Threshold, Average,
-                    Delay, Transform, Edges, ExtractEpochs, RejectEpochs)
+                    Delay, Transform, Edges, ExtractEpochs, RejectEpochs,
+                    Detrend)
 
 from .output import (Synchronized, ContinuousOutput, EpochOutput,
                      QueuedEpochOutput, SelectorQueuedEpochOutput,

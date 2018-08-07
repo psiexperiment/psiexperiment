@@ -714,8 +714,8 @@ class ExtractEpochs(EpochInput):
     queue = d_(Typed(AbstractSignalQueue))
     buffer_size = d_(Float(0)).tag(metadata=True)
 
-    # Defines the size of the epoch (if 0, this is automatically drawn from the
-    # information provided by the queue).
+    # Defines the size of the epoch (if 0, this is automatically drawn from
+    # the information provided by the queue).
     epoch_size = d_(Float(0)).tag(metadata=True)
 
     # Defines the extra time period to capture beyond the epoch duration.
@@ -748,18 +748,16 @@ class ExtractEpochs(EpochInput):
 
 
 @coroutine
-def reject_epochs(reject_threshold, status, valid_target):
+def reject_epochs(reject_threshold, mode, status, valid_target):
+    if mode == 'absolute value':
+        accept = lambda s: np.max(np.abs(s)) < reject_threshold
+    elif mode == 'amplitude':
+        accept = lambda s: np.ptp(s) < reject_threshold
+
     while True:
         epochs = (yield)
-        valid = []
-
-        # Find valid epochs
-        for epoch in epochs:
-            s = epoch['signal']
-            if np.max(np.abs(epoch['signal'])) < reject_threshold:
-                valid.append(epoch)
-
-        # Send valid epochs if there are some
+        # Check for valid epochs and send them if there are any
+        valid = [e for e in epochs if accept(e['signal'])]
         if len(valid):
             valid_target(valid)
 
@@ -770,9 +768,20 @@ def reject_epochs(reject_threshold, status, valid_target):
 
 
 class RejectEpochs(EpochInput):
+    '''
+    Rejects epochs whose amplitude exceeds a specified threshold.
 
+    Attributes
+    ----------
+    threshold : float
+        Reject threshold
+    mode : {'absolute value', 'amplitude'}
+        If absolute value, rejects epoch if the minimum or maximum exceeds the
+        reject threshold. If amplitude, rejects epoch if the difference between
+        the minimum and maximum exceeds the reject threshold.
+    '''
     threshold = d_(Float()).tag(metadata=True)
-    reject_name = d_(Unicode()).tag(metadata=True)
+    mode = d_(Enum('absolute value', 'amplitude')).tag(metadata=True)
 
     total = Int()
     rejects = Int()
@@ -780,4 +789,39 @@ class RejectEpochs(EpochInput):
 
     def configure_callback(self):
         valid_cb = super().configure_callback()
-        return reject_epochs(self.threshold, self, valid_cb).send
+        return reject_epochs(self.threshold, self.mode, self, valid_cb).send
+
+
+@coroutine
+def detrend(mode, target):
+    if mode is None:
+        do_detrend = lambda x: x
+    else:
+        do_detrend = partial(signal.detrend, type=mode)
+    while True:
+        epochs = []
+        for epoch in (yield):
+            epoch = {
+                'signal': do_detrend(epoch['signal']),
+                'info': epoch['info']
+            }
+            epochs.append(epoch)
+        target(epochs)
+
+
+class Detrend(EpochInput):
+    '''
+    Removes linear trend from epoch
+
+    Attributes
+    ----------
+    mode : {None, 'linear', 'constant'}
+        If None, this acts as a passthrough. If 'linear', the result of a
+        linear least-squares fit is subtracted from the epoch. If 'constant',
+        only the mean of the epoch is subtracted.
+    '''
+    mode = Enum('constant', 'linear', None)
+
+    def configure_callback(self):
+        cb = super().configure_callback()
+        return detrend(self.mode, cb).send
