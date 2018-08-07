@@ -15,23 +15,6 @@ from enaml.application import deferred_call
 from psi import get_config, set_config
 
 
-# TODO: make mixins loadable at runtime
-#experiments = {
-#    'speaker_calibration': [
-#        'psi.application.experiment.speaker_calibration.ControllerManifest',
-#    ],
-#    #'appetitive_gonogo_food': 'psi.application.experiment.appetitive.ControllerManifest',
-#    #'abr-debug': 'psi.application.experiment.abr_debug.ControllerManifest',
-#    #'noise_exposure': 'psi.application.experiment.noise_exposure.ControllerManifest',
-#    #'efr': 'psi.application.experiment.efr.ControllerManifest',
-#    #'dual_efr': 'psi.application.experiment.dual_efr.ControllerManifest',
-#    #'pt_calibration_golay': 'psi.application.experiment.pt_calibration_golay.ControllerManifest',
-#    #'pt_calibration_chirp': 'psi.application.experiment.pt_calibration_chirp.ControllerManifest',
-#    #'pistonphone_calibration': 'psi.application.experiment.pistonphone_calibration.ControllerManifest',
-#    #'dpoae': 'psi.application.experiment.dpoae.ControllerManifest',
-#}
-
-
 def configure_logging(filename=None):
     time_format = '[%(relativeCreated)d %(thread)d %(name)s - %(levelname)s] %(message)s'
     simple_format = '%(relativeCreated)8d %(thread)d %(name)s - %(message)s'

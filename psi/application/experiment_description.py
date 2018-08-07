@@ -99,9 +99,49 @@ speaker_calibration_experiment = ParadigmDescription(
 )
 
 
+noise_exposure_controller = PluginDescription(
+    name='noise_exposure_controller',
+    title='Noise exposure controller',
+    required=True,
+    selected=True,
+    manifest='psi.application.experiment.noise_exposure.ControllerManifest',
+)
+
+
+noise_exposure_experiment = ParadigmDescription(
+    name='noise_exposure',
+    title='Noise exposure',
+    type='cohort',
+    plugins=[
+        noise_exposure_controller,
+    ],
+)
+
+
+appetitive_gonogo_controller = PluginDescription(
+    name='appetitive_gonogo_controller',
+    title='Appetitive GO-NOGO controller',
+    required=True,
+    selected=True,
+    manifest='psi.application.experiment.appetitive.ControllerManifest',
+)
+
+
+appetitive_experiment = ParadigmDescription(
+    name='appetitive_gonogo_food',
+    title='Appetitive GO-NOGO food',
+    type='animal',
+    plugins=[
+        appetitive_gonogo_controller,
+    ],
+)
+
+
 experiments = {
     'abr': abr_experiment,
     'speaker_calibration': speaker_calibration_experiment,
+    'appetitive_gonogo_food': appetitive_experiment,
+    'noise_exposure': noise_exposure_experiment,
 }
 
 
