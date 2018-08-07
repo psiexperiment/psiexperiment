@@ -234,11 +234,9 @@ class SelectorQueuedEpochOutput(QueuedEpochOutput):
 
 class ContinuousOutput(AnalogOutput):
 
-    factory = Typed(object)
-
     def get_next_samples(self, samples):
         if self.active:
-            return self.factory.next(samples)
+            return self.source.next(samples)
         else:
             return np.zeros(samples, dtype=np.double)
 

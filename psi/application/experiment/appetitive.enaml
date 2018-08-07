@@ -69,6 +69,10 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
         # Experiment-level actions
         ExperimentAction:
             event = 'experiment_prepare'
+            command = 'background.prepare'
+
+        ExperimentAction:
+            event = 'experiment_prepare'
             command = 'background.start'
 
         ExperimentAction:
