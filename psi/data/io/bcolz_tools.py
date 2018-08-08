@@ -1,6 +1,8 @@
+import functools
 from glob import glob
 import json
 import shutil
+from pathlib import Path
 import os.path
 
 import bcolz
@@ -50,72 +52,93 @@ def load_ctable_as_df(path, decode=True, archive=True):
 
 class Dataset:
 
-    def __init__(self, base_path, continuous_names=None, epoch_names=None):
-        self.continuous = {}
-        if continuous_names is not None:
-            for name in continuous_names:
-                path = os.path.join(base_path, name)
-                self.continuous[name] = bcolz.carray(rootdir=path)
+    def __init__(self, base_path):
+        self.base_path = Path(base_path)
+        carray_names = set(d.parts[-2] for d in self.base_path.glob('*/meta'))
+        ctable_names = set(d.parts[-3] for d in self.base_path.glob('*/*/meta'))
+        self.carray_names = carray_names
+        self.ctable_names = ctable_names
 
-        self.epoch = {}
-        self.epoch_md = {}
-        if epoch_names is not None:
-            for name in epoch_names:
-                # Open the epoch
-                path = os.path.join(base_path, name)
-                self.epoch[name] = bcolz.carray(rootdir=path)
-                # Load the metadata
-                path = os.path.join(base_path, f'{name}_metadata')
-                md = bcolz.ctable(rootdir=path)
-                self.epoch_md[name] = md.todataframe()
+    def __getattr__(self, attr):
+        return self._load_bcolz(attr)
 
-    def extract_epochs_df(self, signal_name, epoch_name, columns=None,
-                          offset=0, duration=None, padding_samples=0):
-        return get_epochs_df(
-            self.continuous[signal_name],
-            self.epoch_md[epoch_name],
-            columns=columns,
+    @functools.lru_cache()
+    def _load_bcolz(self, name):
+        if name in self.carray_names:
+            return bcolz.carray(rootdir=self.base_path / name)
+        elif name in self.ctable_names:
+            return load_ctable_as_df(self.base_path / name)
+        else:
+            raise AttributeError(name)
+
+    def get_epochs(self, continuous, df, offset=0, duration=None,
+                   padding_samples=0, columns=None):
+        return get_epochs(
+            continuous,
+            df,
             offset=offset,
             duration=duration,
-            padding_samples=padding_samples
+            padding_samples=padding_samples,
+            columns=columns,
         )
 
 
-def get_epochs_df(continuous, epoch_md, columns, offset=0, duration=None,
-                  padding_samples=0):
+def make_query(trials, base_name='target_tone_'):
+    if base_name is not None:
+        trials = trials.copy()
+        trials = {'{}{}'.format(base_name, k): v for k, v in trials.items()}
+    queries = ['({} == {})'.format(k, v) for k, v in trials.items()]
+    return ' & '.join(queries)
 
-    fs = continuous.attrs['fs']
+
+def format_columns(columns):
     if columns is None:
-        columns = []
-    columns = list(columns) + ['t0']
-    keys = []
-    data = []
+        columns = ['t0']
+        names = ['t0']
+    else:
+        names = columns + ['t0']
+        columns = columns + ['t0']
+    return columns, names
+
+
+def get_epochs(continuous, epoch_md, offset=0, duration=None,
+               padding_samples=0, columns=None):
+
+    columns, names = format_columns(columns)
+    result_set = epoch_md[columns]
+    fs = continuous.attrs['fs']
+
+    epochs = []
+    index = []
     max_samples = continuous.shape[-1]
 
-    for _, row in epoch_md.iterrows():
+    for i, (_, row) in enumerate(result_set.iterrows()):
         if duration is None:
             duration = row['duration']
-        key = tuple(row[c] for c in columns)
-        keys.append(key)
+
         t0 = row['t0']
-        lb = round((t0+offset)*fs)
-        ub = lb + round(duration*fs)
+        lb = int(round((t0+offset)*fs))
+        ub = lb + int(round(duration*fs))
         lb -= padding_samples
         ub += padding_samples
 
-        d = continuous[lb:ub]
-
         if lb < 0 or ub > max_samples:
-            lb_pad = max(0-lb, 0)
-            ub_pad = max(ub-max_samples, 0)
-            d = np.pad(d, (lb_pad, ub_pad), mode='constant',
-                       constant_values=np.nan)
+            mesg = 'Data missing for epochs {} through {}'
+            mesg = mesg.format(i+1, len(epoch_md))
+            break
 
-        t = pd.Index(np.arange((ub-lb))/fs, name='time')
-        d = pd.Series(d, index=t, name='signal')
-        data.append(d)
+        epoch = continuous[lb:ub]
+        epochs.append(epoch[np.newaxis])
+        index.append(row)
 
-    return pd.concat(data, keys=keys, names=columns).unstack('time')
+    n_samples = len(epoch)
+    t = (np.arange(n_samples)-padding_samples)/fs + offset
+    epochs = np.concatenate(epochs, axis=0)
+
+    index = pd.MultiIndex.from_tuples(index, names=names)
+    df = pd.DataFrame(epochs, columns=t, index=index)
+    df.sort_index(inplace=True)
+    return df
 
 
 def get_epoch_groups(epoch, epoch_md, groups):
