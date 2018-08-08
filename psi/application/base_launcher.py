@@ -102,29 +102,28 @@ class EarLauncher(AnimalLauncher):
 
 
 def main_calibration():
-    experiments =['speaker_calibration', 'pistonphone_calibration',
-                  'pt_calibration_golay', 'pt_calibration_chirp']
-
+    experiments = get_experiments('calibration')
     app = QtApplication()
-    launcher = SimpleLauncher(root_folder=get_config('CAL_ROOT'))
+    launcher = SimpleLauncher(root_folder=get_config('CAL_ROOT'),
+                              experiment=experiments[0])
     view = LauncherView(launcher=launcher, experiments=experiments)
     view.show()
     app.start()
 
 
 def main_cohort():
-    experiments = ['noise_exposure']
+    experiments = get_experiments('cohort')
     app = QtApplication()
-    launcher = SimpleLauncher()
+    launcher = SimpleLauncher(experiment=experiments[0])
     view = LauncherView(launcher=launcher, experiments=experiments)
     view.show()
     app.start()
 
 
 def main_animal():
-    experiments = ['appetitive_gonogo_food']
+    experiments = get_experiments('animal')
     app = QtApplication()
-    launcher = AnimalLauncher()
+    launcher = AnimalLauncher(experiment=experiments[0])
     view = LauncherView(launcher=launcher, experiments=experiments)
     view.show()
     app.start()

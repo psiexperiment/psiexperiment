@@ -137,11 +137,31 @@ appetitive_experiment = ParadigmDescription(
 )
 
 
+pistonphone_controller = PluginDescription(
+    name='pistonphone_controller',
+    title='Pistonphone controller',
+    required=True,
+    selected=True,
+    manifest='psi.application.experiment.pistonphone_calibration.ControllerManifest',
+)
+
+
+pistonphone_calibration = ParadigmDescription(
+    name='pistonphone_calibration',
+    title='Pistonphone calibration',
+    type='calibration',
+    plugins=[
+        pistonphone_controller
+    ],
+)
+
+
 experiments = {
     'abr': abr_experiment,
     'speaker_calibration': speaker_calibration_experiment,
     'appetitive_gonogo_food': appetitive_experiment,
     'noise_exposure': noise_exposure_experiment,
+    'pistonphone_calibration': pistonphone_calibration,
 }
 
 
