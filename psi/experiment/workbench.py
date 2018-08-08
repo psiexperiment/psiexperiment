@@ -109,4 +109,4 @@ class PSIWorkbench(Workbench):
 
     def exception_notifier(self, *args):
         log.error("Uncaught exception", exc_info=args)
-        sys.__excepthook__(exctype, value, traceback)
+        sys.__excepthook__(*args)
