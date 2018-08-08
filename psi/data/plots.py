@@ -500,7 +500,10 @@ class FFTChannelPlot(ChannelPlot):
             def update():
                 self.plot.setData(self._x, psd)
                 self.update_pending = False
-            deferred_call(update)
+        else:
+            def update():
+                self.update_pending = False
+        deferred_call(update)
 
 
 class BaseTimeseriesPlot(SinglePlot):
