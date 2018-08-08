@@ -8,26 +8,6 @@ from psi import get_config
 from . import list_preferences, list_io
 
 
-#class Args:
-#
-#    def __init__(self, experiment, pathname, preferences, io, debug=False, debug_warning=False,
-#                 pdb=False, no_preferences=False, no_layout=False, commands=[]):
-#        vars(self).update(locals())
-#
-#
-#def launch_main(experiment, base_folder, settings, save):
-#    from psi import get_config
-#    from psi.application import launch_experiment
-#
-#    if save:
-#        dt_string = dt.datetime.now().strftime('%Y%m%d-%H%M')
-#        base_folder = base_folder.format(date_time=dt_string)
-#    else:
-#        base_folder = None
-#    args = Args(experiment, base_folder, settings, get_config('SYSTEM'))
-#    launch_experiment(args)
-
-
 enamldef LauncherView(Window): main:
 
     attr launcher
