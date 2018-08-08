@@ -35,12 +35,13 @@ def process_files(filenames, offset=-0.001, duration=0.01,
                 print('.', end='', flush=True)
         except Exception as e:
             print(f'\nError processing {filename}\n{e}\n')
+            raise
 
 
 def _get_file_template(fh, offset, duration, filter_settings):
     template_args = [offset*1e3, (offset+duration)*1e3]
     if filter_settings == 'saved':
-        settings = fh.trial_log.iloc[0]
+        settings = fh.erp_metadata.iloc[0]
         if not settings.get('digital_filter', True):
             file_template = nofilter_template.format(*template_args)
         else:
@@ -61,7 +62,7 @@ def _get_file_template(fh, offset, duration, filter_settings):
 def _get_epochs(fh, offset, duration, filter_settings):
     kwargs = {'offset': offset, 'duration': duration, 'columns': columns}
     if filter_settings == 'saved':
-        settings = fh.trial_log.iloc[0]
+        settings = fh.erp_metadata.iloc[0]
         if not settings.get('digital_filter', True):
             epochs = fh.get_epochs(**kwargs)
         else:
@@ -127,7 +128,7 @@ def process_file(filename, offset, duration, filter_settings, reprocess=False):
     epochs = _get_epochs(fh, offset, duration, filter_settings)
 
     # Apply the reject
-    reject_threshold = fh.trial_log.at[0, 'reject_threshold']
+    reject_threshold = fh.erp_metadata.at[0, 'reject_threshold']
     m = np.abs(epochs) < reject_threshold
     m = m.all(axis=1)
     epochs = epochs.loc[m]
