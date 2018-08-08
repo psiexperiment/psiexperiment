@@ -62,7 +62,7 @@ def get_hw_ao_choices(workbench):
 def get_hw_ai_choices(workbench):
     plugin = workbench.get_plugin('psi.controller')
     channels = plugin.get_channels('analog', 'input', 'hardware', False)
-    return {c.label: '"{}"'.format(c.name) for c in channels}
+    return {str(c): '"{}"'.format(c.name) for c in channels}
 
 
 def tone_calibrate_channel(event):

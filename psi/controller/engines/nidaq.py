@@ -47,6 +47,8 @@ class NIDAQGeneralMixin(Declarative):
     # Channel identifier (e.g., /Dev1/ai0)
     channel = d_(Unicode()).tag(metadata=True)
 
+    def __str__(self):
+        return f'{self.label} ({self.channel})'
 
 
 class NIDAQTimingMixin(Declarative):

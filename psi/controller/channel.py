@@ -61,6 +61,9 @@ class Channel(Declarative):
     def _get_active(self):
         raise NotImplementedError
 
+    def __str__(self):
+        return self.label
+
 
 class HardwareMixin(Declarative):
 
