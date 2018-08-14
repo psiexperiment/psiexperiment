@@ -10,6 +10,7 @@ from scipy import signal
 
 from atom.api import (Unicode, Float, Typed, Int, Property, Enum, Bool,
                       Callable, List)
+from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
 from ..util import coroutine
 from .channel import Channel
@@ -761,10 +762,14 @@ def reject_epochs(reject_threshold, mode, status, valid_target):
         if len(valid):
             valid_target(valid)
 
-        # Update the status
-        status.total += len(epochs)
-        status.rejects += len(epochs)-len(valid)
-        status.reject_ratio = status.rejects / status.total
+        def update():
+            # Update the status. Must be wrapped in a deferred call to ensure
+            # that the update occurs on the GUI thread.
+            status.total += len(epochs)
+            status.rejects += len(epochs)-len(valid)
+            status.reject_ratio = status.rejects / status.total
+
+        deferred_call(update)
 
 
 class RejectEpochs(EpochInput):
