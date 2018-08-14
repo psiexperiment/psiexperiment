@@ -44,9 +44,18 @@ def get_color_cycle(name):
 class ChannelDataRange(Atom):
 
     container = Typed(object)
+
+    # Size of display window
     span = Float(1)
+
+    # Delay before clearing window once data has "scrolled off" the window.
     delay = Float(0)
+
+    # Automatically updated. Indicates last "seen" time based on all data
+    # sources reporting to this range.
     current_time = Float(0)
+
+    # Current visible data range
     current_range = Tuple(Float(), Float())
 
     current_samples = Typed(defaultdict, (int,))
@@ -69,21 +78,21 @@ class ChannelDataRange(Atom):
         high_value = low_value+self.span
         self.current_range = low_value, high_value
 
-    def add_source(self, source, plot):
-        cb = partial(self.source_added, plot=plot, fs=source.fs)
+    def add_source(self, source):
+        cb = partial(self.source_added, source=source)
         source.add_callback(cb)
 
-    def add_event_source(self, source, plot):
-        cb = partial(self.event_source_added, plot=plot, fs=source.fs)
+    def add_event_source(self, source):
+        cb = partial(self.event_source_added, source=source)
         source.add_callback(cb)
 
-    def source_added(self, data, plot, fs):
-        self.current_samples[plot] += data.shape[-1]
-        self.current_times[plot] = self.current_samples[plot]/fs
+    def source_added(self, data, source):
+        self.current_samples[source] += data.shape[-1]
+        self.current_times[source] = self.current_samples[source]/source.fs
         self.current_time = max(self.current_times.values())
 
-    def event_source_added(self, data, plot, fs):
-        self.current_times[plot] = data[-1][1]
+    def event_source_added(self, data, source):
+        self.current_times[source] = data[-1][1]
         self.current_time = max(self.current_times.values())
 
 
@@ -97,7 +106,6 @@ class PlotContainer(PSIContribution):
     container = Typed(pg.GraphicsWidget)
     x_axis = Typed(pg.AxisItem)
     base_viewbox = Property()
-    update_pending = Bool(False)
     legend = Typed(pg.LegendItem)
 
     def _default_container(self):
@@ -131,12 +139,7 @@ class PlotContainer(PSIContribution):
         return x_axis
 
     def update(self, event=None):
-        if not self.update_pending:
-            deferred_call(self._update, event)
-            self.update_pending = True
-
-    def _update(self, event=None):
-        self.update_pending = False
+        pass
 
     def find(self, name):
         for child in self.children:
@@ -170,13 +173,13 @@ class TimeContainer(PlotContainer):
         x_axis.setLabel('Time', unitPrefix='sec.')
         return x_axis
 
-    def _update(self, event=None):
+    def update(self, event=None):
         low, high = self.data_range.current_range
         current_time = self.data_range.current_time
         for child in self.children:
-            child._update()
-        self.base_viewbox.setXRange(low, high, padding=0)
-        super()._update()
+            child.update()
+        deferred_call(self.base_viewbox.setXRange, low, high, padding=0)
+        super().update()
 
 
 def format_log_ticks(values, scale, spacing):
@@ -300,9 +303,9 @@ class ViewBox(PSIContribution):
                 viewbox.addItem(plot)
         return viewbox
 
-    def _update(self, event=None):
+    def update(self, event=None):
         for child in self.children:
-            child._update()
+            child.update()
 
     def add_plot(self, plot):
         self.viewbox.addItem(plot)
@@ -337,16 +340,10 @@ class BasePlot(PSIContribution):
 
     source_name = d_(Unicode())
     source = Typed(object)
-    update_pending = Bool(False)
     label = d_(Unicode())
 
     def update(self, event=None):
-        if not self.update_pending:
-            self._update(event)
-            self.update_pending = True
-
-    def _update(self, event=None):
-        raise NotImplementedError
+        pass
 
 
 ################################################################################
@@ -388,7 +385,7 @@ class ChannelPlot(SinglePlot):
 
     def _observe_source(self, event):
         if self.source is not None:
-            self.parent.data_range.add_source(self.source, self)
+            self.parent.data_range.add_source(self.source)
             self.parent.data_range.observe('span', self._update_time)
             self.source.add_callback(self._append_data)
             self.parent.viewbox.sigResized.connect(self._update_decimation)
@@ -418,7 +415,7 @@ class ChannelPlot(SinglePlot):
         self._buffer.append_data(data)
         self.update()
 
-    def _update(self, event=None):
+    def update(self, event=None):
         low, high = self.parent.data_range.current_range
         data = self._buffer.get_range_filled(low, high, np.nan)
         t = self._cached_time[:len(data)] + low
@@ -428,16 +425,10 @@ class ChannelPlot(SinglePlot):
             t = t[:len(d_min)]
             x = np.c_[t, t].ravel()
             y = np.c_[d_min, d_max].ravel()
-            def update():
-                self.plot.setData(x, y, connect='pairs')
-                self.update_pending = False
+            deferred_call(self.plot.setData, x, y, connect='pairs')
         else:
             t = t[:len(data)]
-            def update():
-                self.plot.setData(t, data)
-                self.update_pending = False
-
-        deferred_call(update)
+            deferred_call(self.plot.setData, t, data)
 
 
 def decimate_extremes(data, downsample):
@@ -493,17 +484,11 @@ class FFTChannelPlot(ChannelPlot):
         if self.source.fs:
             self._x = get_x_fft(self.source.fs, self.time_span)
 
-    def _update(self, event=None):
+    def update(self, event=None):
         if self._buffer.get_time_ub() >= self.time_span:
             data = self._buffer.get_latest(-self.time_span, 0)
             psd = util.patodb(util.psd(data, self.source.fs, self.window))
-            def update():
-                self.plot.setData(self._x, psd)
-                self.update_pending = False
-        else:
-            def update():
-                self.update_pending = False
-        deferred_call(update)
+            deferred_call(self.plot.setData, self._x, psd)
 
 
 class BaseTimeseriesPlot(SinglePlot):
@@ -524,7 +509,7 @@ class BaseTimeseriesPlot(SinglePlot):
         plot.setBrush(self.brush)
         return plot
 
-    def _update(self, event=None):
+    def update(self, event=None):
         lb, ub = self.parent.data_range.current_range
         current_time = self.parent.data_range.current_time
 
@@ -551,10 +536,7 @@ class BaseTimeseriesPlot(SinglePlot):
             r = pg.QtCore.QRectF(x_start, y_start, x_width, self.rect_height)
             path.addRect(r)
 
-        def update():
-            self.plot.setPath(path)
-            self.update_pending = False
-        deferred_call(update)
+        deferred_call(self.plot.setPath, path)
 
 
 class EventPlot(BaseTimeseriesPlot):
@@ -586,7 +568,7 @@ class TimeseriesPlot(BaseTimeseriesPlot):
 
     def _observe_source(self, event):
         if self.source is not None:
-            self.parent.data_range.add_event_source(self.source, self)
+            self.parent.data_range.add_event_source(self.source)
             self.parent.data_range.observe('current_time', self.update)
             self.source.add_callback(self._append_data)
 
@@ -719,7 +701,7 @@ class GroupMixin(Declarative):
         return np.mean(epoch, axis=0) if len(epoch) \
             else np.full_like(self._x, np.nan)
 
-    def _update(self, event=None):
+    def update(self, event=None):
         # Update epochs that need updating
         todo = []
         for key, count in list(self._epoch_count.items()):
@@ -733,7 +715,6 @@ class GroupMixin(Declarative):
         def update():
             for setter, x, y in todo:
                 setter(x, y)
-            self.update_pending = False
         deferred_call(update)
 
     def _observe_source(self, event):
@@ -835,7 +816,7 @@ class DataFramePlot(GroupMixin, BasePlot):
     def _observe_data(self, event):
         self.update()
 
-    def _update(self, event=None):
+    def update(self, event=None):
         todo = []
         for key, group in self.data.groupby(self.group_names):
             if len(self.group_names) == 1:
@@ -850,5 +831,4 @@ class DataFramePlot(GroupMixin, BasePlot):
         def update():
             for setter, x, y in todo:
                 setter(x, y)
-            self.update_pending = False
         deferred_call(update)
