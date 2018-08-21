@@ -129,7 +129,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
         point = 'psi.data.plots'
 
         TimeContainer:
-            name = 'microphone_container' 
+            name = 'microphone_container'
             label = 'Microphone'
             delay = 1
             span = 10
