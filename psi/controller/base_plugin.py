@@ -452,7 +452,10 @@ class BasePlugin(Plugin):
         kwargs.update(kw)
         kwargs['timestamp'] = timestamp
         kwargs['event'] = event_name
-        self.core.invoke_command(action.command, parameters=kwargs)
+        try:
+            self.core.invoke_command(action.command, parameters=kwargs)
+        except Exception as e:
+            log.exception(e)
 
     def request_apply(self):
         if not self.apply_changes():
