@@ -16,3 +16,12 @@ from .output import (Synchronized, ContinuousOutput, EpochOutput,
 
 from .experiment_action import (ExperimentAction, ExperimentEvent,
                                 ExperimentState)
+
+from .queue import FIFOSignalQueue
+
+
+import enaml
+with enaml.imports():
+    from .base_manifest import (BaseManifest, get_hw_ao_choices,
+                                get_hw_ai_choices)
+

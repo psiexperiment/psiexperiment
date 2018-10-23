@@ -22,8 +22,11 @@ from psi.controller.calibration.util import (psd, psd_freq, db, dbi,
                                              golay_pair, summarize_golay,
                                              golay_tf)
 
-from psi.controller.output import SelectorQueuedEpochOutput, QueuedEpochOutput
-from psi.controller.input import ExtractEpochs, Input, Blocked, Accumulate, IIRFilter, Decimate
+from psi.controller.api import (SelectorQueuedEpochOutput, QueuedEpochOutput,
+                                ExtractEpochs, Input, Blocked, Accumulate,
+                                IIRFilter, Decimate, FIFOSignalQueue,
+                                BaseManifest, get_hw_ao_choices,
+                                get_hw_ai_choices)
 
 from psi.controller.base_manifest import (BaseManifest, get_hw_ao_choices,
                                           get_hw_ai_choices)
@@ -82,7 +85,6 @@ def configure_hardware_chirp(event):
 
     controller = event.workbench.get_plugin('psi.controller')
     output = controller.get_output('hw_ao')
-    print('output', output.queue)
     controller.set_input_attr('pt_epoch', 'queue', output.queue)
     controller.set_input_attr('cal_epoch', 'queue', output.queue)
 
@@ -98,6 +100,7 @@ def configure_hardware_golay(event):
 
     context = event.workbench.get_plugin('psi.context')
     controller = event.workbench.get_plugin('psi.controller')
+    values = context.get_values()
 
     output_channel = controller.get_channel(values['output_channel'])
     output = controller.get_output('hw_ao')
@@ -130,9 +133,6 @@ def configure_hardware_golay(event):
 
 
 def calculate_sens(event, grouping, filename, calc_sens):
-    # For chirp, filename = 'chirp_sensitivity', grouping = ['hw_ao_chirp_level']
-    # For golay, filename = 'sensitivity', grouping = ['n_bits', 'output_gain']
-
     core = event.workbench.get_plugin('enaml.workbench.core')
     context = event.workbench.get_plugin('psi.context')
     data = event.workbench.get_plugin('psi.data')
@@ -167,13 +167,15 @@ def calculate_sens(event, grouping, filename, calc_sens):
 def calculate_sens_chirp(event):
     result = calculate_sens(event, ['hw_ao_chirp_level'], 'chirp_sensitivity',
                    calculate_group_sens_chirp)
-    validate_sens(event, result.loc[-37].reset_index())
+    validate_sens(event, result.loc[-40].reset_index())
 
 
 def calculate_sens_golay(event):
     result = calculate_sens(event, ['n_bits', 'output_gain'], 'sensitivity',
-                   calculate_group_sens_goaly)
-    validate_sens(event, result.loc[14, -18].reset_index())
+                   calculate_group_sens_golay)
+    max_n = result.index.get_level_values('n_bits').max()
+    max_gain = result.index.get_level_values('output_gain').max()
+    validate_sens(event, result.loc[max_n, max_gain].reset_index())
 
 
 def calculate_group_sens_chirp(fs, pt_waveform, cal_waveform, color, context,
@@ -233,8 +235,8 @@ def calculate_group_sens_chirp(fs, pt_waveform, cal_waveform, color, context,
     return sens_summary
 
 
-def calculate_group_sens(fs, pt_waveform, cal_waveform, color, context, data,
-                         name):
+def calculate_group_sens_golay(fs, pt_waveform, cal_waveform, color, context,
+                               data, name):
     n_bits = context.get_value('n_bits')
     n_fft = context.get_value('fft_averages')
     n_waveforms = context.get_value('waveform_averages')
@@ -348,26 +350,21 @@ enamldef ControllerManifest(BaseManifest): manifest:
         TextStore:
             name = 'calibration_data'
 
-
     Extension:
         id = 'io'
         point = 'psi.controller.io'
 
         # TODO: Come up with a synchronized approach for this?
-        Blocked:
-            duration = 0.1
+        Input:
             name = 'pt_hw_ai'
 
             ExtractEpochs:
-                queue << hw_ao.queue
                 name = 'pt_epoch'
 
-        Blocked:
-            duration = 0.1
+        Input:
             name = 'cal_hw_ai'
 
             ExtractEpochs:
-                queue << hw_ao.queue
                 name = 'cal_epoch'
 
     Extension:
@@ -451,13 +448,12 @@ enamldef ControllerManifest(BaseManifest): manifest:
             weight = 9
 
         ExperimentAction:
-            event = 'experiment_end'
-            command = 'psi.controller.calculate_sens'
-            weight = 100
+            event = 'cal_epoch_queue_end'
+            command = 'psi.controller.stop'
 
         ExperimentAction:
             event = 'cal_epoch_queue_end'
-            command = 'psi.controller.stop'
+            command = 'psi.controller.calculate_sens'
 
         ExperimentAction:
             event = 'experiment_start'
@@ -586,7 +582,7 @@ enamldef GolayControllerManifest(ControllerManifest): manifest:
             auto_decrement = True
 
     Extension:
-        id = 'context'
+        id = 'context_golay'
         point = 'psi.context.items'
 
         ContextGroup:
@@ -636,7 +632,7 @@ enamldef GolayControllerManifest(ControllerManifest): manifest:
                 scope = 'trial'
 
     Extension:
-        id = 'calibration_commands'
+        id = 'calibration_commands_golay'
         point = 'enaml.workbench.core.commands'
 
         Command:

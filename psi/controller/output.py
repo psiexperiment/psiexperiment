@@ -204,6 +204,9 @@ class QueuedEpochOutput(AnalogOutput):
         return waveform
 
     def add_setting(self, setting, averages=None, iti_duration=None):
+        # Make a copy to ensure that we don't accidentally modify in-place
+        setting = setting.copy()
+
         if averages is None:
             averages = setting['{}_averages'.format(self.name)]
         if iti_duration is None:
