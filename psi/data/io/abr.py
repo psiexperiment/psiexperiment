@@ -15,7 +15,8 @@ import numpy as np
 import pandas as pd
 from scipy import signal
 
-from .bcolz_tools import Dataset, load_ctable_as_df, repair_carray_size
+from .bcolz_tools import (BcolzRecording, BcolzSignal, load_ctable_as_df,
+                          repair_carray_size)
 
 
 MERGE_PATTERN = \
@@ -27,16 +28,45 @@ MERGE_PATTERN = \
     r'\g<experiment>*'
 
 
-class ABRFile(Dataset):
+def cache(f, name=None):
+    import inspect
+    s = inspect.signature(f)
+    if name is None:
+        name = f.__code__.co_name
+
+    def wrapper(self, *args, **kwargs):
+        bound_args = s.bind(self, *args, **kwargs)
+        bound_args.apply_defaults()
+        iterable = bound_args.arguments.items()
+        file_params = ', '.join(f'{k}={v}' for k, v in iterable if k != 'self')
+        file_name = f'{name} {file_params}.pkl'
+
+        cache_path = self.base_path / 'cache'
+        cache_path.mkdir(parents=True, exist_ok=True)
+        cache_file = cache_path / file_name
+
+        if cache_file.exists():
+            result = pd.read_pickle(cache_file)
+        else:
+            result = f(self, *args, **kwargs)
+            result.to_pickle(cache_file)
+
+        return result
+
+    return wrapper
+
+
+class ABRFile(BcolzRecording):
 
     def __init__(self, *args, **kw):
         super().__init__(*args, **kw)
         if 'eeg' not in self.carray_names:
             raise ValueError('Missing eeg data')
         if 'erp_metadata' not in self.ctable_names:
-            raise ValueError('Missing eeg data')
+            raise ValueError('Missing erp metadata')
 
     @property
+    @functools.lru_cache()
     def eeg(self):
         # Load and ensure that the EEG data is fine. If not, repair it and
         # reload the data.
@@ -45,47 +75,73 @@ class ABRFile(Dataset):
         if len(eeg) == 0:
             log.debug('EEG for %s is corrupt. Repairing.', self.base_folder)
             repair_carray_size(rootdir)
-            eeg = bcolz.carray(rootdir=rootdir)
-        return eeg
+        return BcolzSignal(rootdir)
 
-    def get_epochs(self, offset=0, duration=8.5e-3, padding_samples=0,
-                   detrend='constant', base_name='target_tone_',
-                   columns=['frequency', 'level', 'polarity']):
+    @property
+    @functools.lru_cache()
+    def erp_metadata(self):
+        data = self._load_bcolz('erp_metadata')
+        return data.rename(columns=lambda x: x.replace('target_tone_', ''))
 
-        if columns is None:
-            columns = []
-        names = columns
-        if base_name is not None:
-            columns = [f'{base_name}{c}' for c in columns]
-        result = super().get_epochs(self.eeg, self.erp_metadata, offset,
-                                    duration, padding_samples, columns)
-        result.index.names = names + ['t0']
-        if detrend is not None:
-            result[:] = signal.detrend(result.values, type=detrend, axis=1)
-        return result
+    @cache
+    def get_epochs(self, offset=0, duration=8.5e-3, detrend='constant',
+                   reject_threshold=None, reject_mode='absolute'):
+        fn = self.eeg.get_epochs
+        result = fn(self.erp_metadata, offset, duration, detrend)
+        return self._apply_reject(result, reject_threshold, reject_mode)
 
+    @cache
+    def get_random_segments(self, n, offset=0, duration=8.5e-3,
+                            detrend='constant', reject_threshold=None,
+                            reject_mode='absolute'):
+        fn = self.eeg.get_random_segments
+        result = fn(n, offset, duration, detrend)
+        return self._apply_reject(result, reject_threshold, reject_mode)
+
+    @cache
     def get_epochs_filtered(self, filter_lb=300, filter_ub=3000,
                             filter_order=1, offset=-1e-3, duration=10e-3,
                             detrend='constant', pad_duration=10e-3,
-                            base_name='target_tone_', columns=None):
+                            reject_threshold=None, reject_mode='absolute'):
+        fn = self.eeg.get_epochs_filtered
+        result = fn(self.erp_metadata, offset, duration, filter_lb, filter_ub,
+                    filter_order, detrend, pad_duration)
+        return self._apply_reject(result, reject_threshold, reject_mode)
 
-        fs = self.eeg.attrs['fs']
-        Wn = (filter_lb/fs, filter_ub/fs)
-        b, a = signal.iirfilter(filter_order, Wn, btype='band', ftype='butter')
-        padding_samples = round(pad_duration*fs)
-        df = self.get_epochs(offset, duration, padding_samples, detrend,
-                             base_name, columns)
+    @cache
+    def get_random_segments_filtered(self, n, filter_lb=300, filter_ub=3000,
+                                     filter_order=1, offset=-1e-3,
+                                     duration=10e-3, detrend='constant',
+                                     pad_duration=10e-3,
+                                     reject_threshold=None,
+                                     reject_mode='absolute'):
 
-        # The vectorized approach takes up too much memory on some of the older
-        # NI PXI systems. Hopefully someday we can move away from all this!
-        epochs_filtered = []
-        for epoch in df.values:
-            e = signal.filtfilt(b, a, epoch)
-            e = e[padding_samples:-padding_samples]
-            epochs_filtered.append(e)
+        fn = self.eeg.get_random_segments_filtered
+        result = fn(n, offset, duration, filter_lb, filter_ub, filter_order,
+                    detrend, pad_duration)
+        return self._apply_reject(result, reject_threshold, reject_mode)
 
-        columns = df.columns[padding_samples:-padding_samples]
-        return pd.DataFrame(epochs_filtered, index=df.index, columns=columns)
+    def _apply_reject(self, result, reject_threshold, reject_mode):
+        result = result.dropna()
+
+        if reject_threshold is None:
+            # 'reject_mode' wasn't added until a later version of the ABR
+            # program, so we set it to the default that was used before if not
+            # present.
+            row = self.erp_metadata.loc[0]
+            reject_threshold = row['reject_threshold']
+            reject_mode = row.get('reject_mode', 'absolute')
+
+        if reject_threshold is not np.inf:
+            # No point doing this if reject_threshold is infinite.
+            if reject_mode == 'absolute':
+                m = (result < reject_threshold).all(axis=1)
+                result = result.loc[m]
+            elif reject_mode == 'amplitude':
+                # TODO
+                raise NotImplementedError
+
+        return result
 
 
 class ABRSupersetFile:
@@ -96,9 +152,9 @@ class ABRSupersetFile:
     def get_epochs_filtered(self, *args, **kwargs):
         epoch_set = []
         keys = []
-        for fh in self._fh:
+        for i, fh in enumerate(self._fh):
             epochs = fh.get_epochs_filtered(*args, **kwargs)
-            keys.append(os.path.basename(fh._base_folder))
+            keys.append(i)
             epoch_set.append(epochs)
         return pd.concat(epoch_set, keys=keys, names=['file'])
 
