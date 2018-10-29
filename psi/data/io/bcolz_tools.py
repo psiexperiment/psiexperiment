@@ -75,12 +75,11 @@ class Signal:
     def _get_epochs(self, fn, md, *args, columns='auto', **kwargs):
         if columns == 'auto':
             columns = get_unique_columns(md, exclude=['t0'])
-
         t0 = md['t0'].values
         arrays = [md[c] for c in columns]
         arrays.append(t0)
-        index = pd.MultiIndex.from_arrays(arrays, names=columns + ['t0'])
         df = fn(t0, *args, **kwargs)
+        df.index = pd.MultiIndex.from_arrays(arrays, names=columns + ['t0'])
         return df
 
     def get_segments(self, times, offset, duration, detrend=None):
