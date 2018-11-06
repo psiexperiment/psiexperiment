@@ -301,7 +301,26 @@ class RandomSignalQueue(AbstractSignalQueue):
     def next_key(self):
         if len(self._ordering) == 0:
             raise QueueEmptyError
-        i = np.random.randint(0, self.count_waveforms())
+        i = np.random.randint(0, len(self._ordering))
+        return self._ordering[i]
+
+
+class BlockedRandomSignalQueue(InterleavedFIFOSignalQueue):
+
+    def __init__(self, seed=0, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._i = []
+        self._rng = np.random.RandomState(seed)
+
+    def next_key(self):
+        if self._complete:
+            raise QueueEmptyError
+        if not self._i:
+            # The blocked order is empty. Create a new set of random indices.
+            i = np.arange(len(self._ordering))
+            self._rng.shuffle(i)
+            self._i = i.tolist()
+        i = self._i.pop()
         return self._ordering[i]
 
 

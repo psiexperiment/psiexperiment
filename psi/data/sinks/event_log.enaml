@@ -27,7 +27,7 @@ enamldef EventLogManifest(PSIManifest): manifest:
                 DataFrameTable: event_log_table:
                     data << workbench.get_plugin('psi.data').event_log
                     columns = ['timestamp', 'event']
-                    column_info = { 
+                    column_info = {
                         'timestamp': {'label': 'Time (sec)'},
                         'event': {'label': 'Event'},
                     }

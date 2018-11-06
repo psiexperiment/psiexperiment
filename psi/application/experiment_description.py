@@ -55,6 +55,7 @@ temperature_mixin = PluginDescription(
     name='temperature',
     title='Temperature display',
     required=False,
+    selected=True,
     manifest='psi.application.experiment.cfts_mixins.TemperatureMixinManifest',
 )
 
@@ -63,6 +64,7 @@ eeg_view_mixin = PluginDescription(
     name='eeg_view',
     title='EEG display',
     required=False,
+    selected=True,
     manifest='psi.application.experiment.cfts_mixins.EEGViewMixinManifest',
 )
 
@@ -156,12 +158,52 @@ pistonphone_calibration = ParadigmDescription(
 )
 
 
+golay_controller = PluginDescription(
+    name='golay_controller',
+    title='Golay controller',
+    required=True,
+    selected=True,
+    manifest='psi.application.experiment.pt_calibration.GolayControllerManifest',
+)
+
+
+chirp_controller = PluginDescription(
+    name='chirp_controller',
+    title='Chirp controller',
+    required=True,
+    selected=True,
+    manifest='psi.application.experiment.pt_calibration.ChirpControllerManifest',
+)
+
+
+pt_calibration_chirp = ParadigmDescription(
+    name='pt_calibration_chirp',
+    title='Probe tube calibration (chirp)',
+    type='calibration',
+    plugins=[
+        chirp_controller,
+    ],
+)
+
+
+pt_calibration_golay = ParadigmDescription(
+    name='pt_calibration_golay',
+    title='Probe tube calibration (golay)',
+    type='calibration',
+    plugins=[
+        golay_controller,
+    ],
+)
+
+
 experiments = {
     'abr': abr_experiment,
     'speaker_calibration': speaker_calibration_experiment,
     'appetitive_gonogo_food': appetitive_experiment,
     'noise_exposure': noise_exposure_experiment,
     'pistonphone_calibration': pistonphone_calibration,
+    'pt_calibration_golay': pt_calibration_golay,
+    'pt_calibration_chirp': pt_calibration_chirp,
 }
 
 

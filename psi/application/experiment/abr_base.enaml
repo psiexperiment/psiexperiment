@@ -76,6 +76,8 @@ def configure_experiment(event):
             target.queue = queue.GroupedFIFOSignalQueue(group_size=2)
         else:
             target.queue = queue.FIFOSignalQueue()
+    elif ordering == 'random':
+        target.queue = queue.BlockedRandomSignalQueue()
     else:
         raise ValueError('Unrecognized ordering {}'.format(ordering))
 
@@ -89,14 +91,14 @@ def configure_experiment(event):
         for setting in context.iter_settings('default', 1):
             setting['target_tone_polarity'] = -1
             target.add_setting(setting, averages/2, iti)
-    elif ordering == 'sequential':
+    elif ordering in ('sequential', 'random'):
         for setting in context.iter_settings('default', 1):
             setting['target_tone_polarity'] = 1
             target.add_setting(setting, averages/2, iti)
             setting['target_tone_polarity'] = -1
             target.add_setting(setting, averages/2, iti)
     else:
-        raise ValueError('Unrecognized ordering')
+        raise ValueError('Unrecognized ordering {}'.format(ordering))
 
     # Now, identify the maximum level on a per-frequency setting
     max_level = {}
@@ -237,6 +239,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 choices = {
                     'interleaved': '"interleaved"',
                     'sequential': '"sequential"',
+                    'random': '"random"',
                 }
                 scope = 'experiment'
 
