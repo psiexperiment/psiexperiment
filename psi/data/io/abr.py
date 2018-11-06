@@ -85,9 +85,11 @@ class ABRFile(BcolzRecording):
 
     @cache
     def get_epochs(self, offset=0, duration=8.5e-3, detrend='constant',
-                   reject_threshold=None, reject_mode='absolute'):
+                   reject_threshold=None, reject_mode='absolute',
+                   columns='auto'):
         fn = self.eeg.get_epochs
-        result = fn(self.erp_metadata, offset, duration, detrend)
+        result = fn(self.erp_metadata, offset, duration, detrend,
+                    columns=columns)
         return self._apply_reject(result, reject_threshold, reject_mode)
 
     @cache
@@ -102,10 +104,11 @@ class ABRFile(BcolzRecording):
     def get_epochs_filtered(self, filter_lb=300, filter_ub=3000,
                             filter_order=1, offset=-1e-3, duration=10e-3,
                             detrend='constant', pad_duration=10e-3,
-                            reject_threshold=None, reject_mode='absolute'):
+                            reject_threshold=None, reject_mode='absolute',
+                            columns='auto'):
         fn = self.eeg.get_epochs_filtered
         result = fn(self.erp_metadata, offset, duration, filter_lb, filter_ub,
-                    filter_order, detrend, pad_duration)
+                    filter_order, detrend, pad_duration, columns=columns)
         return self._apply_reject(result, reject_threshold, reject_mode)
 
     @cache
