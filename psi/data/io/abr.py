@@ -19,6 +19,10 @@ from .bcolz_tools import (BcolzRecording, BcolzSignal, load_ctable_as_df,
                           repair_carray_size)
 
 
+# Max size of LRU cache
+MAXSIZE = 1024
+
+
 MERGE_PATTERN = \
     r'\g<date>-* ' \
     r'\g<experimenter> ' \
@@ -34,7 +38,7 @@ def cache(f, name=None):
     if name is None:
         name = f.__code__.co_name
 
-    def wrapper(self, *args, **kwargs):
+    def wrapper(self, *args, refresh_cache=False, **kwargs):
         bound_args = s.bind(self, *args, **kwargs)
         bound_args.apply_defaults()
         iterable = bound_args.arguments.items()
@@ -45,7 +49,7 @@ def cache(f, name=None):
         cache_path.mkdir(parents=True, exist_ok=True)
         cache_file = cache_path / file_name
 
-        if cache_file.exists():
+        if not refresh_cache and cache_file.exists():
             result = pd.read_pickle(cache_file)
         else:
             result = f(self, *args, **kwargs)
@@ -66,7 +70,7 @@ class ABRFile(BcolzRecording):
             raise ValueError('Missing erp metadata')
 
     @property
-    @lru_cache()
+    @lru_cache(maxsize=MAXSIZE)
     def eeg(self):
         # Load and ensure that the EEG data is fine. If not, repair it and
         # reload the data.
@@ -78,7 +82,7 @@ class ABRFile(BcolzRecording):
         return BcolzSignal(rootdir)
 
     @property
-    @lru_cache()
+    @lru_cache(maxsize=MAXSIZE)
     def erp_metadata(self):
         data = self._load_bcolz('erp_metadata')
         return data.rename(columns=lambda x: x.replace('target_tone_', ''))
@@ -88,8 +92,7 @@ class ABRFile(BcolzRecording):
                    reject_threshold=None, reject_mode='absolute',
                    columns='auto'):
         fn = self.eeg.get_epochs
-        result = fn(self.erp_metadata, offset, duration, detrend,
-                    columns=columns)
+        result = fn(self.erp_metadata, offset, duration, detrend, columns)
         return self._apply_reject(result, reject_threshold, reject_mode)
 
     @cache
@@ -108,7 +111,7 @@ class ABRFile(BcolzRecording):
                             columns='auto'):
         fn = self.eeg.get_epochs_filtered
         result = fn(self.erp_metadata, offset, duration, filter_lb, filter_ub,
-                    filter_order, detrend, pad_duration, columns=columns)
+                    filter_order, detrend, pad_duration, columns)
         return self._apply_reject(result, reject_threshold, reject_mode)
 
     @cache

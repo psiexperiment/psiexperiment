@@ -14,6 +14,10 @@ import pandas as pd
 from scipy import signal
 
 
+# Max size of LRU cache
+MAXSIZE = 1024
+
+
 def repair_carray_size(path):
     chunk_wildcard = os.path.join(path, 'data', '*.blp')
     sizes_filename = os.path.join(path, 'meta', 'sizes')
@@ -91,6 +95,7 @@ class Signal:
         if not m.all():
             i = np.flatnonzero(~m)
             log.warn('Missing epochs %d', i)
+            print(f'Missing epochs {i}')
 
         values = np.concatenate([self[i:i+samples][np.newaxis] \
                                  for i in indices[m]])
@@ -134,7 +139,7 @@ class BcolzSignal(Signal):
         self.base_path = base_path
 
     @property
-    @functools.lru_cache()
+    @functools.lru_cache(maxsize=MAXSIZE)
     def array(self):
         return bcolz.carray(rootdir=self.base_path)
 
@@ -175,7 +180,7 @@ class BcolzRecording(Recording):
         ctable = ', '.join(self.ctable_names)
         return f'<Dataset with {carray} signals and {ctable} tables>'
 
-    @functools.lru_cache()
+    @functools.lru_cache(maxsize=MAXSIZE)
     def _load_bcolz(self, name):
         if name in self.carray_names:
             return BcolzSignal(self.base_path / name)

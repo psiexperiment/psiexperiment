@@ -7,16 +7,6 @@ import numpy as np
 from psi.data.io import abr
 
 
-nofilter_template = 'ABR {:.1f}ms to {:.1f}ms {{}}.csv'
-
-filter_template = 'ABR {:.1f}ms to {:.1f}ms ' \
-    'with {:.0f}Hz to {:.0f}Hz filter ' \
-    '{{}}.csv'
-
-
-columns = ['frequency', 'level', 'polarity']
-
-
 def process_folder(folder, filter_settings=None):
     glob_pattern = os.path.join(folder, '*abr')
     filenames = glob(glob_pattern)
@@ -131,7 +121,7 @@ def process_file(filename, offset, duration, filter_settings, reprocess=False):
     epochs = _get_epochs(fh, offset, duration, filter_settings)
 
     # Apply the reject
-    reject_threshold = fh.erp_metadata.at[0, 'reject_threshold']
+    reject_threshold = fh.erp_metadata.iloc[0]['reject_threshold']
     m = np.abs(epochs) < reject_threshold
     m = m.all(axis=1)
     epochs = epochs.loc[m]
