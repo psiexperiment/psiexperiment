@@ -14,7 +14,8 @@ from psi.controller.calibration import InterpCalibration, FlatCalibration
 
 cal_root = get_config('CAL_ROOT')
 #mic_cal_filename = os.path.join(cal_root, '20180604-1539 PT02 377C10 secondary pt_calibration_chirp')
-mic_cal_filename = os.path.join(cal_root, '20180702-1054 Brad 377C10 - new speakers pt_calibration_golay')
+#mic_cal_filename = os.path.join(cal_root, '20180702-1054 Brad 377C10 - new speakers pt_calibration_golay')
+mic_cal_filename = os.path.join(cal_root, '20181107-0832 Brad 2W starship 2 377C10 primary long coupler pt_calibration_golay')
 mic_cal = InterpCalibration.from_psi_golay(mic_cal_filename)
 
 
