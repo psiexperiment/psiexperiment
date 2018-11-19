@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from scipy import signal
 from fractions import gcd
 
@@ -78,7 +79,10 @@ def csd(s, fs, window=None, waveform_averages=None):
     if window is not None:
         w = signal.get_window(window, n)
         s = w/w.mean()*s
-    return np.fft.rfft(s, axis=-1)/n
+
+    index = pd.Index(psd_freq(s, fs), name='frequency')
+    s = np.fft.rfft(s, axis=-1)/n
+    return pd.Series(s, index=index, name='CSD')
 
 
 def phase(s, fs, window=None, waveform_averages=None, unwrap=True):
@@ -86,11 +90,15 @@ def phase(s, fs, window=None, waveform_averages=None, unwrap=True):
     p = np.angle(c)
     if unwrap:
         p = np.unwrap(p)
+    p.name = 'phase'
     return p
+
 
 def psd(s, fs, window=None, waveform_averages=None):
     c = csd(s, fs, window, waveform_averages)
-    return 2*np.abs(c)/np.sqrt(2.0)
+    p = 2*np.abs(c)/np.sqrt(2.0)
+    p.name = 'PSD'
+    return p
 
 
 def psd_freq(s, fs):

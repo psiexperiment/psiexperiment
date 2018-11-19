@@ -5,7 +5,7 @@ import numpy as np
 from enaml.workbench.api import PluginManifest, Extension
 
 from psi import get_config
-from psi.controller.engines.nidaq import (NIDAQEngine, 
+from psi.controller.engines.nidaq import (NIDAQEngine,
                                           NIDAQHardwareAIChannel,
                                           NIDAQHardwareAOChannel,
                                           NIDAQSoftwareDOChannel)
