@@ -1,0 +1,16 @@
+from pathlib import Path
+import socket
+
+SYSTEM = socket.gethostname()
+
+BASE_DIRECTORY = Path('{}')
+
+LOG_ROOT = BASE_DIRECTORY / 'logs'
+DATA_ROOT = BASE_DIRECTORY / 'data'
+CAL_ROOT = BASE_DIRECTORY / 'calibration'
+SETTINGS_ROOT = BASE_DIRECTORY / 'settings'
+TEMP_ROOT = BASE_DIRECTORY / 'temp'
+PREFERENCES_ROOT = SETTINGS_ROOT / 'preferences'
+LAYOUT_ROOT = SETTINGS_ROOT / 'layout'
+IO_ROOT = BASE_DIRECTORY / 'io'
+EXPERIMENT_ROOT = BASE_DIRECTORY / 'experiment'
