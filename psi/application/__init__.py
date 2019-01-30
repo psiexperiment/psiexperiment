@@ -83,7 +83,6 @@ def _main(args):
     workbench = PSIWorkbench()
     plugins = [p.manifest for p in args.controller.plugins \
                if p.selected or p.required]
-    print(plugins)
     workbench.register_core_plugins(args.io, plugins)
 
     if args.pathname is None:
@@ -171,3 +170,27 @@ def add_default_options(parser):
     parser.add_argument('-p', '--preferences', type=str, nargs='?',
                         help='Preferences file')
     parser.add_argument('--profile', action='store_true', help='Profile app')
+
+
+def config():
+    import argparse
+    import psi
+
+    def show_config(args):
+        print(psi.get_config_path())
+
+    def create_config(args):
+        psi.create_config()
+        psi.create_config_dirs()
+
+    parser = argparse.ArgumentParser('psi-config')
+    subparsers = parser.add_subparsers()
+
+    show = subparsers.add_parser('show')
+    show.set_defaults(func=show_config)
+
+    create = subparsers.add_parser('create')
+    create.set_defaults(func=create_config)
+
+    args = parser.parse_args()
+    args.func(args)

@@ -18,7 +18,7 @@ columns = ['frequency', 'level', 'polarity']
 
 
 def process_folder(folder, filter_settings=None):
-    glob_pattern = os.path.join(folder, '*abr')
+    glob_pattern = os.path.join(folder, '*abr*')
     filenames = glob(glob_pattern)
     process_files(filenames, filter_settings=filter_settings)
 
@@ -32,10 +32,9 @@ def process_files(filenames, offset=-0.001, duration=0.01,
             if processed:
                 print(f'\nProcessed {filename}\n')
             else:
-                print('.', end='', flush=True)
+                print('*', end='', flush=True)
         except Exception as e:
             print(f'\nError processing {filename}\n{e}\n')
-            raise
 
 
 def _get_file_template(fh, offset, duration, filter_settings):
@@ -107,6 +106,8 @@ def process_file(filename, offset, duration, filter_settings, reprocess=False):
         the specified filter settings.
     '''
     fh = abr.load(filename)
+    if len(fh.erp_metadata) == 0:
+        raise IOError('No data in file')
 
     # Generate the filenames
     file_template = _get_file_template(fh, offset, duration, filter_settings)
