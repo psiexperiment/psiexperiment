@@ -105,13 +105,8 @@ def list_preferences(experiment):
 
 
 def list_io():
-    hostname = get_config('SYSTEM')
-    from . import io
-    from glob import iglob
-    base_path = os.path.dirname(io.__file__)
-    search_path = os.path.join(base_path, '*{}*'.format(hostname))
-    result = [os.path.basename(f)[:-6] for f in iglob(search_path)]
-    return sorted(result)
+    io_root = get_config('IO_ROOT')
+    return list(io_root.glob('*.enaml'))
 
 
 def launch_experiment(args):

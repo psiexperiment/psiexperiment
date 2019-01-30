@@ -1,6 +1,8 @@
 import os.path
 import subprocess
 
+from pathlib import Path
+
 from atom.api import Atom, Unicode, Bool, Enum, Typed
 import enaml
 from enaml.qt.qt_application import QtApplication
@@ -15,7 +17,7 @@ with enaml.imports():
 
 class SimpleLauncher(Atom):
 
-    io = Unicode()
+    io = Typed(Path)
     experiment = Typed(ParadigmDescription)
     settings = Unicode()
     save_data = Bool(True)
@@ -28,11 +30,8 @@ class SimpleLauncher(Atom):
 
     can_launch = Bool(False)
 
-    def _default_io(self):
-        return get_config('SYSTEM')
-
     def _default_root_folder(self):
-        return get_config('DATA_ROOT')
+        return str(get_config('DATA_ROOT'))
 
     def _observe_save_data(self, event):
         self._update()

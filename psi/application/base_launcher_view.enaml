@@ -22,6 +22,7 @@ enamldef LauncherView(Window): main:
             ObjectCombo:
                 items << list_io()
                 selected := launcher.io
+                to_string = lambda p: p.with_suffix('').name.replace('_', ' ')
 
             Label:
                 text = 'Experiment'
