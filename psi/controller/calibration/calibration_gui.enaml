@@ -1,0 +1,133 @@
+from pathlib import Path
+
+from enaml.application import deferred_call
+from enaml.core.api import DynamicTemplate, Looper
+from enaml.layout.api import align, hbox, vbox
+from enaml.stdlib.fields import FloatField
+from enaml.widgets.api import (Action, Container, FileDialogEx, Form, GroupBox, HGroup,
+                               Label, MainWindow, Menu, Notebook, ObjectCombo,
+                               Page, PopupView, PushButton, VGroup)
+
+from psi import get_config
+from psi.controller.calibration import (EPLCalibration, FlatCalibration,
+                                        GolayCalibration, UnityCalibration)
+from psi.controller.channel import HardwareAIChannel
+
+from psi.controller.calibration import util
+
+
+template CalibrationTemplate(calibration, MemberType: UnityCalibration):
+
+    Label:
+        text = 'Unity passthrough (e.g., no calibration applied)'
+
+
+template CalibrationTemplate(calibration, MemberType: EPLCalibration):
+
+    Label:
+        text << get_calibration_filename(calibrations[1], MemberType)
+
+
+template CalibrationTemplate(calibration, MemberType: FlatCalibration):
+
+    HGroup:
+        align_widths = False
+        padding = 0
+
+        FloatField:
+            value := calibration.mv_pa
+
+        Label:
+            text = 'mV/Pa'
+
+
+template CalibrationTemplate(calibration, MemberType: GolayCalibration):
+
+    HGroup:
+        padding = 0
+        align_widths = False
+
+        Label:
+            text << str(calibration.source.name)
+
+        PushButton:
+            text = 'Change'
+            clicked ::
+                cal_path = str(get_config('CAL_ROOT'))
+                path = FileDialogEx.get_existing_directory(current_path=cal_path)
+                if path:
+                    for k, v in calibration.load_psi_golay(path).items():
+                        setattr(calibration, k, v)
+                    calibration.source = Path(path)
+
+
+filename = r'C:\psi-dev\calibration\20181107-0832 Brad 2W starship 2 377C10 primary long coupler pt_calibration_golay'
+
+
+name_map = {
+    UnityCalibration: 'unity gain',
+    FlatCalibration: 'fixed sensitivity',
+    GolayCalibration: 'Golay calibration',
+    EPLCalibration: 'EPL calibration',
+}
+
+
+enamldef Main(MainWindow):
+
+    attr channels = [
+        HardwareAIChannel(name='temperature',
+                          label='Temperature',
+                          calibration=UnityCalibration(),
+                          ),
+        HardwareAIChannel(name='reference_microphone',
+                          label='Cal. microphone',
+                          calibration=FlatCalibration.from_mv_pa(1.0)
+                          ),
+        HardwareAIChannel(name='pt_microphone',
+                          label='PT microphone',
+                          calibration=GolayCalibration.from_psi_golay(filename)
+                          ),
+    ]
+
+    Container:
+        Notebook:
+            tab_style = 'preferences'
+            tabs_movable = False
+            tabs_closable = False
+
+            Looper:
+                iterable << channels[:]
+
+                Page:
+                    title = str(loop_item)
+
+                    Form:
+                        Label:
+                            text = 'Calibration type'
+
+                        HGroup:
+                            align_widths = False
+                            padding = 0
+
+                            ObjectCombo: cal_type:
+                                items = [UnityCalibration, FlatCalibration, GolayCalibration, EPLCalibration]
+                                selected << type(loop_item.calibration)
+                                to_string = name_map.get
+                                selected ::
+                                    loop_item.calibration = selected.as_attenuation()
+
+                            #PushButton:
+                            #    text = 'Modify'
+                            #    clicked ::
+                            #        calibration = prompt_map[cal_type.selected]()
+                            #        if calibration:
+                            #            loop_item.calibration = calibration
+
+                        Label:
+                            text = 'Calibration settings'
+
+                        VGroup:
+                            padding = 0
+                            DynamicTemplate:
+                                base = CalibrationTemplate
+                                args << (loop_item.calibration, type(loop_item.calibration))
