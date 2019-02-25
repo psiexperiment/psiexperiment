@@ -50,8 +50,8 @@ class Output(PSIContribution):
     filter_delay = Property().tag(metadata=True)
 
     # TODO: clean this up. it's sort of hackish.
-    token_name = d_(Unicode())
     token = d_(Typed(Declarative))
+    configurable = d_(Bool(True))
 
     def _get_engine(self):
         return self.channel.engine

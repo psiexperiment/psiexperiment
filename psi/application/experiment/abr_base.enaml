@@ -138,7 +138,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
         id = 'tokens'
         point = 'psi.token.tokens'
 
-        Cos2Envelope: cos2env:
+        Cos2Envelope: tone_burst:
             name = 'tone_burst'
             label = 'tone'
             Tone:
@@ -151,7 +151,8 @@ enamldef ControllerManifest(BaseManifest): manifest:
         QueuedEpochOutput: output:
             name = 'target'
             label = 'Target'
-            token = cos2env
+            token = tone_burst
+            configurable = False
 
         ContinuousInput:
             name = 'microphone'

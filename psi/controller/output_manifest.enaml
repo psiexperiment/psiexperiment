@@ -41,13 +41,11 @@ def toggle(event, output):
 
 
 def set_token(event, output, output_type):
-    if not event.parameters['token_name']:
+    if not event.parameters['token']:
+        log.warn('No token provided for %s.', output.name)
         return
-    token_plugin = event.workbench.get_plugin('psi.token')
-    factory = getattr(token_plugin, 'generate_{}_token'.format(output_type))
-    token = factory(event.parameters['token_name'], output.name, output.label)
-    output.token = token
-    output.token_name = event.parameters['token_name']
+
+    output.token = event.parameters['token']
 
     # TODO: This is a hack. Maybe?
     context_plugin = event.workbench.get_plugin('psi.context')
@@ -344,10 +342,12 @@ enamldef AnalogOutputManifest(PSIManifest): manifest:
     Extension:
         id = 'output_commands'
         point = 'enaml.workbench.core.commands'
-        Command:
-            id = manifest.contribution.name + '.set_token'
-            handler = partial(set_token, output=manifest.contribution,
-                              output_type=output_type)
+        Conditional:
+            condition << manifest.contribution.configurable
+            Command:
+                id = manifest.contribution.name + '.set_token'
+                handler = partial(set_token, output=manifest.contribution,
+                                output_type=output_type)
         Command:
             id = manifest.contribution.name + '.prepare'
             handler = partial(prepare_output, output=manifest.contribution)
@@ -358,34 +358,65 @@ enamldef AnalogOutputManifest(PSIManifest): manifest:
             id = manifest.contribution.name + '.clear'
             handler = partial(clear_output, output=manifest.contribution)
 
-    # TODO: Wrap in a conditional block to specify output is/isn't
-    # configurable?
-    Extension:
-        id = 'output_menu.' + manifest.contribution.name
-        point = 'enaml.workbench.ui.actions'
-        MenuItem: menu:
-            path = '/equipment/output/{}'.format(manifest.contribution.name)
-            label = '{} ({})'.format(manifest.contribution.label, output_type)
-            ItemGroup:
-                id = manifest.contribution.name + '_commands'
-            ItemGroup:
-                exclusive = True
-                id = manifest.contribution.name + '_tokens'
-        Looper:
-            # Generate the token menu so we can select the right token. Tokens
-            # is defined in the appropriate subclass (to point to continuous vs
-            # epoch-based waveforms).
-            iterable << tokens.values()
-            ActionItem:
-                path = '{}/{}'.format(menu.path, loop_item.name)
-                label << loop_item.label
-                group = manifest.contribution.name + '_tokens'
-                command = manifest.contribution.name + '.set_token'
-                checked << manifest.contribution.token_name == loop_item.name
-                checkable = True
-                parameters = {'token_name': loop_item.name}
-                enabled << workbench.get_plugin('psi.controller').experiment_state \
-                    in ('initialized', 'stopped')
+    Conditional:
+        condition << manifest.contribution.configurable
+
+        # Create a menu of the tokens available for the output if it's a
+        # configurable output.
+        Extension:
+            id = 'output_menu.' + manifest.contribution.name
+            point = 'enaml.workbench.ui.actions'
+            MenuItem: menu:
+                path = '/equipment/output/{}'.format(manifest.contribution.name)
+                label = '{} ({})'.format(manifest.contribution.label, output_type)
+                ItemGroup:
+                    id = manifest.contribution.name + '_commands'
+                ItemGroup:
+                    exclusive = True
+                    id = manifest.contribution.name + '_tokens'
+
+            Looper:
+                # This loops through all tokens available for selection and
+                # generates the token menu so we can select the right token. Tokens
+                # are an attribute defined in the appropriate manifest subclass (to
+                # point to continuous vs epoch-based waveforms).
+                iterable << tokens.values()
+                ActionItem:
+                    path = '{}/{}'.format(menu.path, loop_item.name)
+                    label << loop_item.label
+                    group = manifest.contribution.name + '_tokens'
+                    command = manifest.contribution.name + '.set_token'
+                    checked << getattr(manifest.contribution.token, 'name', None) \
+                        == loop_item.name
+                    checkable = True
+                    parameters = {'token': loop_item}
+                    enabled << workbench.get_plugin('psi.controller').experiment_state \
+                        in ('initialized', 'stopped')
+
+        # Save the selected token and restore it
+        Extension:
+            id = 'preferences.' +  manifest.contribution.name
+            point = 'psi.experiment.preferences'
+            rank = 10
+            ItemPreferences:
+                name = 'output.' + manifest.contribution.name
+                item = manifest.contribution
+
+                get_preferences => (workbench):
+                    obj = self.get_object(workbench)
+                    return {'token_name': obj.token.name}
+
+                set_preferences => (workbench, preferences):
+                    # Override the set_preferences since we need to loop into the
+                    # token generation machinery. The output does not have access
+                    # to this plugin. TODO This is a hack. I'm sure I'll figure out a
+                    # better approach eventually.
+                    token_plugin = workbench.get_plugin('psi.token')
+                    token = token_plugin.get_token(preferences['token_name'])
+
+                    core = workbench.get_plugin('enaml.workbench.core')
+                    command = manifest.contribution.name + '.set_token'
+                    core.invoke_command(command, parameters={'token': token})
 
     Extension:
         id = 'items.' + manifest.contribution.name
@@ -407,23 +438,6 @@ enamldef AnalogOutputManifest(PSIManifest): manifest:
             name = manifest.contribution.name
         ExperimentEvent:
             name = manifest.contribution.name + '_failure'
-
-    Extension:
-        id = 'preferences.' +  manifest.contribution.name
-        point = 'psi.experiment.preferences'
-        rank = 10
-        ItemPreferences:
-            name = 'output.' + manifest.contribution.name
-            item = manifest.contribution
-            auto_save = ['token_name']
-            set_preferences => (workbench, preferences):
-                # Override the set_preferences since we need to loop into the
-                # token generation machinery. The output does not have access
-                # to this plugin. TODO This is a hack. I'm sure I'll figure out a
-                # better approach eventually.
-                core = workbench.get_plugin('enaml.workbench.core')
-                command = manifest.contribution.name + '.set_token'
-                core.invoke_command(command, parameters=preferences)
 
 
 def get_tokens(workbench, ttype):
