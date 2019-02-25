@@ -1,11 +1,32 @@
 import os.path
 
+import enaml
 from enaml.core.api import Conditional, Looper
-from enaml.widgets.api import Window, ObjectCombo, Label, Field, Container, Form, HGroup, PushButton, VGroup, GroupBox, CheckBox
+from enaml.widgets.api import (Window, ObjectCombo, Label, Field, Container,
+                               Form, HGroup, PushButton, VGroup, GroupBox,
+                               CheckBox)
 
 from psi import get_config
+from psi.application import load_manifest_from_file
+from psi.controller.api import Channel
+from psi.controller.calibration.util import load_calibration
 
-from . import list_preferences, list_io
+
+def configure_calibration(io_file, cal_file):
+    manifest = load_manifest_from_file(io_file, 'IOManifest')
+    channels = [o for o in manifest().traverse() if isinstance(o, Channel)]
+    editable_channels = [c for c in channels if c.calibration_user_editable]
+
+    # Load the selected calibration
+    if cal_file is not None:
+        load_calibration(cal_file, editable_channels)
+
+    # Open the GUI for editing the calibration
+    with enaml.imports():
+        from psi.controller.calibration.calibration_gui import Main
+        window = Main(io_file=io_file, channels=editable_channels,
+                      modality='application_modal')
+        result = window.show()
 
 
 enamldef LauncherView(Window): main:
@@ -20,8 +41,26 @@ enamldef LauncherView(Window): main:
                 text = 'Hardware configuration'
 
             ObjectCombo:
-                items << list_io()
+                items << launcher.available_io[:]
                 selected := launcher.io
+                to_string = lambda x: x.stem.replace('_', ' ')
+
+            Label:
+                text = 'Calibration'
+
+            HGroup:
+                padding = 0
+                align_widths = False
+
+                ObjectCombo: select_calibration:
+                    items << launcher.available_calibrations[:]
+                    selected := launcher.calibration
+                    to_string = lambda x: x.stem.replace('_', ' ')
+
+                PushButton:
+                    text = '⚙'
+                    clicked ::
+                        configure_calibration(launcher.io, launcher.calibration)
 
             Label:
                 text = 'Experiment'
@@ -32,15 +71,15 @@ enamldef LauncherView(Window): main:
                 selected := launcher.experiment
 
         GroupBox:
-            title = 'Experiment settings'
+            title = 'Experiment preferences'
 
-            ObjectCombo: settings:
+            ObjectCombo: preferences:
                 constraints = [
                     width == 300
                 ]
-                items << list_preferences(experiment.selected) if experiment is not None else []
-                to_string = lambda x: os.path.splitext(os.path.basename(x))[0]
-                selected := launcher.settings
+                items << launcher.available_preferences[:]
+                to_string = lambda x: x.stem.replace('_', ' ')
+                selected := launcher.preferences
 
             VGroup:
                 Looper:
@@ -93,7 +132,7 @@ enamldef LauncherView(Window): main:
                 text = 'Base folder'
 
             Label: base_folder:
-                text << launcher.base_folder
+                text << str(launcher.base_folder)
 
         PushButton:
             text = 'Run experiment'

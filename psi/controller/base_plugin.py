@@ -13,6 +13,7 @@ from enaml.qt.QtCore import QTimer
 from enaml.workbench.api import Extension
 from enaml.workbench.plugin import Plugin
 
+from .calibration.util import load_calibration
 from .channel import Channel, OutputMixin, InputMixin
 from .engine import Engine
 from .output import Output, Synchronized
@@ -213,6 +214,9 @@ class BasePlugin(Plugin):
         self._outputs, self._supporting = find_outputs(self._channels, point)
         self._inputs = find_inputs(self._channels, point)
 
+        for c in self._channels.values():
+            c.load_manifest(self.workbench)
+
         for d in self._devices.values():
             d.load_manifest(self.workbench)
 
@@ -232,7 +236,9 @@ class BasePlugin(Plugin):
                 o.parent.add_output(o)
             elif o.target is None:
                 log.warn('Unconnected output %s', o.name)
+            print(o.name, o)
             o.load_manifest(self.workbench)
+            print('loaded')
 
         for i in self._inputs.values():
             # First, make sure the input is connected to a source
@@ -242,7 +248,6 @@ class BasePlugin(Plugin):
                 i.parent.add_input(i)
             elif i.source is None:
                 log.warn('Unconnected input %s', i.name)
-
             i.load_manifest(self.workbench)
 
     def connect_output(self, output_name, target_name):
@@ -381,6 +386,10 @@ class BasePlugin(Plugin):
             ec = engine.get_channels(mode, direction, timing, active)
             channels.extend(ec)
         return channels
+
+    def load_calibration(self, calibration_file):
+        channels = list(self._channels.values())
+        load_calibration(calibration_file, channels)
 
     def invoke_actions(self, event_name, timestamp=None, delayed=False,
                        cancel_existing=True, **kw):

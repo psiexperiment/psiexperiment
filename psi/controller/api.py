@@ -1,6 +1,6 @@
-from .channel import (HardwareAIChannel, HardwareAOChannel, SoftwareAIChannel,
-                      SoftwareAOChannel, HardwareDIChannel, HardwareDOChannel,
-                      SoftwareDIChannel, SoftwareDOChannel)
+from .channel import (Channel, HardwareAIChannel, HardwareAOChannel,
+                      SoftwareAIChannel, SoftwareAOChannel, HardwareDIChannel,
+                      HardwareDOChannel, SoftwareDIChannel, SoftwareDOChannel)
 
 from .engine import Engine
 

@@ -391,3 +391,30 @@ def truncated_ifft(spectrum, original_fs, truncated_fs):
     iir = signal.resample_poly(iir, up, down)
     iir *= truncated_fs/original_fs
     return iir
+
+
+def save_calibration(channels, filename):
+    from psi.util import get_tagged_values
+    from json_tricks import dump
+    settings = {}
+    for channel in channels:
+        metadata = get_tagged_values(channel.calibration, 'metadata')
+        metadata['calibration_type'] = channel.calibration.__class__.__name__
+        if 'source' in metadata:
+            metadata['source'] = str(metadata['source'])
+        settings[channel.name] = metadata
+    with open(filename, 'w') as fh:
+        dump(settings, fh, indent=4)
+
+
+def load_calibration(filename, channels):
+    from json_tricks import load
+    from psi.controller import calibration as cal_types
+    with open(filename, 'r') as fh:
+        settings = load(fh)
+    channels = {c.name: c for c in channels}
+    for c_name, c_calibration in settings.items():
+        calibration_type = c_calibration.pop('calibration_type')
+        calibration = getattr(cal_types, calibration_type)
+        calibration = calibration(**c_calibration)
+        channels[c_name].calibration = calibration

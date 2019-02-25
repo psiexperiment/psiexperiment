@@ -51,11 +51,12 @@ class PSIContribution(Declarative):
             manifest_class = self.find_manifest_class()
             manifest = manifest_class(contribution=self)
             workbench.register(manifest)
-            m = 'Loaded manifest for contribution {} (manifest type {})'
-            log.info(m.format(self.name, manifest_class))
+            m = 'Loaded manifest for contribution {} ({})'
+            log.info(m.format(self.name, manifest_class.__name__))
         except ImportError:
             m = 'No manifest defind for contribution {}'
             log.warn(m.format(self.name))
         except ValueError:
+            raise
             m = 'Plugin {} already registered'
             log.warn(m.format(self.name))

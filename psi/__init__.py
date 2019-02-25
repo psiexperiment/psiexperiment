@@ -43,11 +43,13 @@ def get_config_path():
     return user_path.expanduser()
 
 
-def create_config():
+def create_config(base_directory=None):
     config_template = Path(__file__).parent / 'templates' / 'config.txt'
     target = get_config_path()
     target.parent.mkdir(exist_ok=True, parents=True)
-    base_directory = str(target.parent)
+
+    if base_directory is None:
+        base_directory = str(target.parent)
 
     with open(target, 'w') as fh:
         config_text = config_template.read_text()

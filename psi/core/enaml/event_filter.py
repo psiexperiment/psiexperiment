@@ -12,8 +12,11 @@ class EventFilter(QObject):
             if event.key() == Qt.Key_Delete:
                 self.widget.remove_selected_rows()
                 return True
-            if event.key() == Qt.Key_Plus:
+            if event.key() in (Qt.Key_Plus, Qt.Key_Equal):
                 if (event.modifiers() & Qt.ControlModifier):
                     self.widget.insert_row()
                     return True
+            if event.key() == Qt.Key_Down:
+                if self.widget.last_row_current():
+                    self.widget.insert_row_at_end()
         return super().eventFilter(obj, event)

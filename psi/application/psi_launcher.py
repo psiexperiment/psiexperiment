@@ -1,6 +1,7 @@
 import argparse
 
-from psi.application import add_default_options, launch_experiment
+from psi.application import (add_default_options, launch_experiment,
+                             parse_args)
 from psi.application.experiment_description import experiments
 
 
@@ -11,7 +12,6 @@ def main():
             setattr(namespace, 'controller', experiments[value])
             for plugin in experiments[value].plugins:
                 plugin.selected = False
-
 
     class PluginAction(argparse.Action):
         def __call__(self, parser, namespace, value, option_string=None):
@@ -26,5 +26,5 @@ def main():
                         help='Plugins to load', action=PluginAction)
 
     add_default_options(parser)
-    args = parser.parse_args()
+    args = parse_args(parser)
     launch_experiment(args)

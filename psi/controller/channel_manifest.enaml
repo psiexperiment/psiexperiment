@@ -1,0 +1,27 @@
+from enaml.workbench.api import Extension
+from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
+
+from psi.core.enaml.api import PSIManifest
+
+
+enamldef ChannelManifest(PSIManifest): manifest:
+
+    attr channel_group = 'unknown'
+
+    #Extension:
+    #    id = 'channel_menu.' + manifest.contribution.name
+    #    point = 'enaml.workbench.ui.actions'
+
+    #    MenuItem: menu:
+    #        path = '/equipment/channel/{}/{}'.format(manifest.channel_group, manifest.contribution.name)
+    #        label = '{}'.format(manifest.contribution.label)
+
+
+enamldef HardwareAOChannelManifest(ChannelManifest): manifest:
+
+    attr channel_group = 'hardware_ao'
+
+
+enamldef HardwareAIChannelManifest(ChannelManifest): manifest:
+
+    attr channel_group = 'hardware_ai'

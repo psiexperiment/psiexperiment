@@ -5,7 +5,7 @@ import pandas as pd
 from atom.api import Atom, Typed, Event, List, Dict
 from enaml.widgets.api import Window, Container, PushButton, HGroup, VGroup
 
-from psi.core.enaml.editable_table_widget import DataFrameTable, ListDictTable
+from psi.core.enaml.editable_table_widget import DataFrameTable, ListDictTable, ListTable
 
 
 class TrialLog(Atom):
@@ -44,18 +44,47 @@ enamldef Main(Window): main:
 
     Container:
         VGroup:
-            DataFrameTable:
-                data << main.trial_log.table
-                column_info << main.column_info
-                get_cell_color => (row, col):
-                    ttype = data.iloc[row]['ttype']
-                    return ttype_map.get(ttype, 'white')
+            HGroup:
+                DataFrameTable:
+                    select_behavior = 'rows'
+                    select_mode = 'extended'
+                    data << main.trial_log.table
+                    column_info << main.column_info
+                    get_cell_color => (row, col):
+                        ttype = data.iloc[row]['ttype']
+                        return ttype_map.get(ttype, 'white')
 
-            ListDictTable:
-                editable = True
-                data << main.setting.values
-                column_info << main.column_info
-                columns = ['mod_depth', 'reward_volume']
+                ListDictTable:
+                    select_behavior = 'rows'
+                    select_mode = 'contiguous'
+                    editable = True
+                    data << main.setting.values
+                    column_info << main.column_info
+                    columns = ['mod_depth', 'reward_volume']
+
+            HGroup:
+                ListTable:
+                    select_behavior = 'rows'
+                    select_mode = 'single'
+                    editable = False
+                    data << ['temperature', 'speaker 1', 'speaker 2']
+                    column_name = 'Channel'
+                    show_row_labels = False
+                    show_column_labels = False
+                    show_grid = False
+                    selected << []
+                    selected ::
+                        print(selected)
+
+                ListTable:
+                    select_behavior = 'rows'
+                    select_mode = 'single'
+                    editable = True
+                    data << ['8000', '4000', '2000']
+                    column_name = 'Channel'
+                    show_row_labels = False
+                    show_column_labels = False
+                    show_grid = True
 
         HGroup:
             PushButton:

@@ -2,11 +2,12 @@ from pathlib import Path
 
 from enaml.application import deferred_call
 from enaml.core.api import DynamicTemplate, Looper
-from enaml.layout.api import align, hbox, vbox
+from enaml.layout.api import align, hbox, vbox, spacer
 from enaml.stdlib.fields import FloatField
-from enaml.widgets.api import (Action, Container, FileDialogEx, Form, GroupBox, HGroup,
-                               Label, MainWindow, Menu, Notebook, ObjectCombo,
-                               Page, PopupView, PushButton, VGroup)
+from enaml.widgets.api import (Action, Container, Field, FileDialogEx, Form,
+                               GroupBox, HGroup, Label, MainWindow, Menu,
+                               Notebook, ObjectCombo, Page, PopupView,
+                               PushButton, VGroup)
 
 from psi import get_config
 from psi.controller.calibration import (EPLCalibration, FlatCalibration,
@@ -16,16 +17,12 @@ from psi.controller.channel import HardwareAIChannel
 from psi.controller.calibration import util
 
 
+
+
 template CalibrationTemplate(calibration, MemberType: UnityCalibration):
 
     Label:
         text = 'Unity passthrough (e.g., no calibration applied)'
-
-
-template CalibrationTemplate(calibration, MemberType: EPLCalibration):
-
-    Label:
-        text << get_calibration_filename(calibrations[1], MemberType)
 
 
 template CalibrationTemplate(calibration, MemberType: FlatCalibration):
@@ -48,7 +45,7 @@ template CalibrationTemplate(calibration, MemberType: GolayCalibration):
         align_widths = False
 
         Label:
-            text << str(calibration.source.name)
+            text << str(calibration.source.name if calibration.source else 'No calibration loaded')
 
         PushButton:
             text = 'Change'
@@ -58,7 +55,25 @@ template CalibrationTemplate(calibration, MemberType: GolayCalibration):
                 if path:
                     for k, v in calibration.load_psi_golay(path).items():
                         setattr(calibration, k, v)
-                    calibration.source = Path(path)
+
+
+template CalibrationTemplate(calibration, MemberType: EPLCalibration):
+
+    HGroup:
+        padding = 0
+        align_widths = False
+
+        Label:
+            text << str(calibration.source.name if calibration.source else 'No calibration loaded')
+
+        PushButton:
+            text = 'Change'
+            clicked ::
+                cal_path = 'C:/Data/Probe Tube Calibrations'
+                path = FileDialogEx.get_open_file_name(current_path=cal_path)
+                if path:
+                    for k, v in calibration.load_epl(path).items():
+                        setattr(calibration, k, v)
 
 
 filename = r'C:\psi-dev\calibration\20181107-0832 Brad 2W starship 2 377C10 primary long coupler pt_calibration_golay'
@@ -72,62 +87,82 @@ name_map = {
 }
 
 
-enamldef Main(MainWindow):
+enamldef SavePopup(PopupView): popup:
 
-    attr channels = [
-        HardwareAIChannel(name='temperature',
-                          label='Temperature',
-                          calibration=UnityCalibration(),
-                          ),
-        HardwareAIChannel(name='reference_microphone',
-                          label='Cal. microphone',
-                          calibration=FlatCalibration.from_mv_pa(1.0)
-                          ),
-        HardwareAIChannel(name='pt_microphone',
-                          label='PT microphone',
-                          calibration=GolayCalibration.from_psi_golay(filename)
-                          ),
-    ]
+    attr file_name = 'default'
+    attr file_note = ''
+    attr io_file
+    attr channels
 
     Container:
-        Notebook:
-            tab_style = 'preferences'
-            tabs_movable = False
-            tabs_closable = False
+        Form:
+            Label:
+                text = 'Name'
 
-            Looper:
-                iterable << channels[:]
+            Field:
+                text := file_name
 
-                Page:
-                    title = str(loop_item)
+            PushButton:
+                text = 'Save'
+                clicked ::
+                    json_path = io_file.parent / io_file.stem
+                    json_path.mkdir(exist_ok=True, parents=True)
+                    json_file = (json_path / file_name).with_suffix('.json')
+                    util.save_calibration(channels, json_file)
+                    popup.close()
 
-                    Form:
-                        Label:
-                            text = 'Calibration type'
+            PushButton:
+                text = 'Cancel'
+                clicked ::
+                    popup.close()
 
-                        HGroup:
-                            align_widths = False
-                            padding = 0
 
-                            ObjectCombo: cal_type:
-                                items = [UnityCalibration, FlatCalibration, GolayCalibration, EPLCalibration]
-                                selected << type(loop_item.calibration)
-                                to_string = name_map.get
-                                selected ::
-                                    loop_item.calibration = selected.as_attenuation()
+enamldef Main(MainWindow): window:
 
-                            #PushButton:
-                            #    text = 'Modify'
-                            #    clicked ::
-                            #        calibration = prompt_map[cal_type.selected]()
-                            #        if calibration:
-                            #            loop_item.calibration = calibration
+    attr io_file
+    attr channels
+    attr selected_channel = channels[0]
 
-                        Label:
-                            text = 'Calibration settings'
+    Container:
 
-                        VGroup:
-                            padding = 0
-                            DynamicTemplate:
-                                base = CalibrationTemplate
-                                args << (loop_item.calibration, type(loop_item.calibration))
+        constraints = [
+            vbox(channel_list, calibration_view, hbox(save_button, spacer, close_button)),
+        ]
+
+        ObjectCombo: channel_list:
+            items << channels[:]
+            selected := selected_channel
+
+        Form: calibration_view:
+            Label:
+                text = 'Calibration type'
+
+            ObjectCombo: cal_type:
+                items = [UnityCalibration, FlatCalibration, GolayCalibration, EPLCalibration]
+                selected << type(selected_channel.calibration)
+                to_string = name_map.get
+                selected ::
+                    if not isinstance(selected_channel.calibration, selected):
+                        selected_channel.calibration = selected.as_attenuation()
+
+            Label:
+                text = 'Calibration settings'
+
+            VGroup:
+                padding = 0
+                DynamicTemplate:
+                    base = CalibrationTemplate
+                    args << (selected_channel.calibration, type(selected_channel.calibration))
+
+        PushButton: save_button:
+            text << 'Save'
+            clicked ::
+                popup = SavePopup(io_file=io_file, channels=channels,
+                                  anchor_mode='cursor')
+                popup.show()
+
+
+        PushButton: close_button:
+            text << 'Close'
+            clicked ::
+                window.close()

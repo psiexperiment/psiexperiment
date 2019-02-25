@@ -195,13 +195,17 @@ class FlatCalibration(Calibration):
         '''
         self.sensitivity = sensitivity
         self.fixed_gain = fixed_gain
-        self.source = source
+        if source is not None:
+            self.source = Path(source)
 
     def get_sens(self, frequency):
         return self.sensitivity-self.fixed_gain
 
 
 class UnityCalibration(FlatCalibration):
+
+    # For unity calibration, set the property so it doesn't get saved.
+    sensitivity = Float().tag(metadata=False)
 
     def __init__(self, fixed_gain=0, source=None):
         # This value gives us unity passthrough (because the core methods
@@ -244,7 +248,8 @@ class InterpCalibration(Calibration):
         self.fixed_gain = fixed_gain
         self._interp = interp1d(frequency, sensitivity, 'linear',
                                 bounds_error=False)
-        self.source = source
+        if source is not None:
+            self.source = Path(source)
 
     def get_sens(self, frequency):
         # Since sensitivity is in dB(V/Pa), subtracting fixed_gain from
@@ -266,7 +271,8 @@ class PointCalibration(Calibration):
         self.frequency = np.array(frequency)
         self.sensitivity = np.array(sensitivity)
         self.fixed_gain = fixed_gain
-        self.source = source
+        if source is not None:
+            self.source = Path(source)
 
     def get_sens(self, frequency):
         if np.iterable(frequency):
@@ -299,19 +305,33 @@ class PointCalibration(Calibration):
 
 class EPLCalibration(InterpCalibration):
 
+    source = Typed(Path).tag(metadata=True)
+
     @classmethod
-    def from_epl(cls, filename, **kwargs):
+    def load_epl(cls, filename):
+        filename = Path(filename)
         calibration = pd.io.parsers.read_csv(filename, skiprows=14,
                                              delimiter='\t')
         freq = calibration['Freq(Hz)']
         spl = calibration['Mag(dB)']
-        return cls.from_spl(freq, spl, source=filename, **kwargs)
+        return {
+            'freq': freq,
+            'spl': spl,
+            'source': filename,
+        }
+
+    @classmethod
+    def from_epl(cls, filename, **kwargs):
+        data = cls.load_epl(filename)
+        data.update(kwargs)
+        return cls.from_spl(**data)
 
 
 class GolayCalibration(InterpCalibration):
 
-    fs = Float()
-    phase = Typed(np.ndarray)
+    fs = Float().tag(metadata=True)
+    phase = Typed(np.ndarray).tag(metadata=True)
+    source = Typed(Path).tag(metadata=True)
 
     def __init__(self, frequency, sensitivity, fs=None, phase=None,
                  fixed_gain=0, **kwargs):
@@ -341,6 +361,7 @@ class GolayCalibration(InterpCalibration):
         carray = bcolz.carray(rootdir=folder / 'pt_epoch')
         fs = carray.attrs['fs']
         return {
+            'source': folder,
             'frequency': mic_freq,
             'sensitivity': mic_sens,
             'phase': mic_phase,
@@ -349,10 +370,9 @@ class GolayCalibration(InterpCalibration):
 
     @classmethod
     def from_psi_golay(cls, folder, n_bits=None, output_gain=None, **kwargs):
-        folder = Path(folder)
         data = cls.load_psi_golay(folder, n_bits, output_gain)
         data.update(kwargs)
-        return cls(source=folder, **data)
+        return cls(**data)
 
     def get_iir(self, fs, fl, fh, truncate=None):
         fs_ratio = self.fs/fs

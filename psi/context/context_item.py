@@ -180,6 +180,8 @@ class EnumParameter(Parameter):
                 raise ValueError(m)
 
     def _default_selected(self):
+        if self.default not in self.choices:
+            return next(iter(self.choices))
         return self.default
 
     @observe('selected')
