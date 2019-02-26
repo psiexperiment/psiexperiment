@@ -52,11 +52,74 @@ def set_token(event, output, output_type):
     context_plugin._refresh_items()
 
 
-def get_parameters(block):
-    parameters = list(block.context_name_map.keys())
+CONTEXT_MAP = {}
+
+
+def get_parameters(output, block):
+    parameters = list(CONTEXT_MAP[output, block].keys())
     for b in block.blocks:
-        parameters.extend(get_parameters(b))
+        parameters.extend(get_parameters(output, b))
     return parameters
+
+
+def load_items(output, block):
+    if block is None:
+        return []
+
+    from .output import ContinuousOutput
+    scope = 'experiment' if isinstance(output, ContinuousOutput) else 'trial'
+
+    block_map = {}
+    parameters = []
+    for parameter in block.parameters:
+        new_parameter = copy.copy(parameter)
+        new_parameter.name = '{}_{}_{}' \
+            .format(output.name, block.name, parameter.name)
+        new_parameter.label = '{} {}' \
+            .format(block.label, parameter.label)
+        new_parameter.compact_label = '{} {}' \
+            .format(block.compact_label, parameter.compact_label)
+        new_parameter.group = output.name
+        new_parameter.scope = scope
+        parameters.append(new_parameter)
+        block_map[new_parameter.name] = parameter.name
+
+    CONTEXT_MAP[output, block] = block_map
+
+    for block in block.blocks:
+        block_parameters = load_items(output, block)
+        parameters.extend(block_parameters)
+
+    return parameters
+
+
+def initialize_factory(output, block, context):
+    input_factories = [initialize_factory(output, b, context) \
+                       for b in block.blocks]
+
+    # Pull out list of params accepted by factory class so we can figure out if
+    # there's anything important that needs to be added to the context (e.g.,
+    # sampling rate).
+    code = block.factory.__init__.__code__
+    params = code.co_varnames[1:code.co_argcount]
+
+    # Now, pull out the block-specific context.
+    block_context = {bn: context[gn] for gn, bn in \
+                     CONTEXT_MAP[output, block].items()}
+
+    # TODO: Should this be included when we create the CONTEXT_MAP? 
+    if 'fs' in params:
+        block_context['fs'] = context['fs']
+    if 'calibration' in params:
+        block_context['calibration'] = context['calibration']
+    if 'input_factory' in params:
+        if len(input_factories) != 1:
+            raise ValueError('Incorrect number of inputs')
+        block_context['input_factory'] = input_factories[0]
+    if 'input_factories' in params:
+        block_context['input_factories'] = input_factories
+
+    return block.factory(**block_context)
 
 
 def prepare_output(event, output):
@@ -67,13 +130,13 @@ def prepare_output(event, output):
     '''
     log.debug('Preparing output %s', output.name)
     core = event.workbench.get_plugin('enaml.workbench.core')
-    parameters = {'context_names': get_parameters(output.token)}
+    parameters = {'context_names': get_parameters(output, output.token)}
     context = core.invoke_command('psi.context.get_values', parameters)
 
     context['fs'] = output.fs
     context['calibration'] = output.calibration
 
-    factory = output.token.initialize_factory(context)
+    factory = initialize_factory(output, output.token, context)
     if event.parameters.get('cache', False):
         log.debug('Pregenerating output %s', output.name)
         duration = factory.get_duration()
@@ -117,6 +180,11 @@ def start_synchronized(synchronized, event):
     ts = event.parameters['timestamp']
     start = event.parameters.get('start', ts)
     delay = event.parameters.get('delay', 0)
+
+    # Is this a hack? If no timestamp is defined, then assume that the start is
+    # 0 (e.g., in the case of experiment_prepare).
+    if start is None:
+        start = 0
 
     # For each engine involved in this synchronized output, store a list of the
     # offsets and channel names that need to be updated.
@@ -301,40 +369,6 @@ enamldef SynchronizedManifest(PSIManifest): manifest:
         Command:
             id = manifest.contribution.name + '.clear'
             handler = partial(clear_synchronized, manifest.contribution)
-
-
-def load_items(output, block):
-    from .output import ContinuousOutput
-    if isinstance(output, ContinuousOutput):
-        scope = 'experiment'
-    else:
-        scope = 'trial'
-
-    if block is None:
-        return []
-
-    block_map = {}
-    parameters = []
-    for parameter in block.parameters:
-        new_parameter = copy.copy(parameter)
-        new_parameter.name = '{}_{}_{}' \
-            .format(output.name, block.name, parameter.name)
-        new_parameter.label = '{} {}' \
-            .format(block.label, parameter.label)
-        new_parameter.compact_label = '{} {}' \
-            .format(block.compact_label, parameter.compact_label)
-        new_parameter.group = output.name
-        new_parameter.scope = scope
-        parameters.append(new_parameter)
-        block_map[new_parameter.name] = parameter.name
-
-    block.context_name_map = block_map
-
-    for block in block.blocks:
-        block_parameters = load_items(output, block)
-        parameters.extend(block_parameters)
-
-    return parameters
 
 
 enamldef AnalogOutputManifest(PSIManifest): manifest:

@@ -8,6 +8,7 @@ import numpy as np
 
 from atom.api import (Unicode, Enum, Typed, Property, Float, Int, Bool, List)
 
+import enaml
 from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
 from enaml.workbench.api import Extension
@@ -204,20 +205,26 @@ class QueuedEpochOutput(AnalogOutput):
         return waveform
 
     def add_setting(self, setting, averages=None, iti_duration=None):
+        with enaml.imports():
+            from .output_manifest import initialize_factory
+
         # Make a copy to ensure that we don't accidentally modify in-place
-        setting = setting.copy()
+        context = setting.copy()
 
         if averages is None:
-            averages = setting['{}_averages'.format(self.name)]
+            averages = context.pop(f'{self.name}_averages')
         if iti_duration is None:
-            iti_duration = setting['{}_iti_duration'.format(self.name)]
+            iti_duration = context.pop(f'{self.name}_iti_duration')
 
         # Somewhat surprisingly it appears to be faster to use factories in the
         # queue rather than creating the waveforms for ABR tone pips, even for
         # very short signal durations.
-        setting['fs'] = self.fs
-        setting['calibration'] = self.calibration
-        factory = self.token.initialize_factory(setting)
+        context['fs'] = self.fs
+        context['calibration'] = self.calibration
+
+        # I'm not in love with this since it requires hooking into the
+        # manifest system.
+        factory = initialize_factory(self, self.token, context)
         duration = factory.get_duration()
         self.queue.append(factory, averages, iti_duration, duration, setting)
 
