@@ -6,6 +6,8 @@ from functools import partial
 
 import numpy as np
 
+from enaml.application import deferred_call
+from enaml.widgets.api import Container, DockItem, Form, Label
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 
@@ -16,37 +18,46 @@ from psi.context.selector import CartesianProduct
 from psi.controller.api import ExperimentAction
 from psi.controller.base_manifest import BaseManifest
 from psi.controller.base_plugin import BasePlugin
-from psi.controller.input import ExtractEpochs, Accumulate, IIRFilter, Decimate, Blocked, ContinuousInput, IIRFilter, Capture, Callback, Discard, accumulate
+from psi.controller.input import (Accumulate, Blocked, Capture,
+                                  ContinuousInput, CustomInput, IIRFilter,
+                                  Callback, Discard)
+
 from psi.controller.output import EpochOutput, Synchronized
 from psi.token.primitives import Cos2Envelope, Tone
 
-from psi.data.plots import ViewBox, PlotContainer
+from psi.data.plots import ViewBox, PlotContainer, ListPlot
 
 
-def process_fft(fs, calibration, workbench, raw_data):
-    context = workbench.get_plugin('psi.context')
-    controller = workbench.get_plugin('psi.controller')
-    core = workbench.get_plugin('enaml.workbench.core')
-
+def process_fft(input, context, controller, core, raw_data, target):
     results = {}
     f1 = context.get_value('primary_tone_frequency')
     f2 = context.get_value('secondary_tone_frequency')
     dpoae = 2 * f1 - f2
-    data = np.mean(raw_data, axis=-1)
+    data = np.mean(raw_data, axis=-2)
 
-    for f in (f1, f2, dpoae):
-        nf_rms, f_rms = tone_power_conv_nf(data, fs, f)
-        nf_spl, f_spl = calibration.get_spl(f, [nf_rms.mean(), f_rms.mean()])
-        results[f] = { 'nf_spl': nf_spl, 'spl': f_spl, }
+    for label, freq in zip(('f1', 'f2', 'dpoae'), (f1, f2, dpoae)):
+        nf_rms, f_rms = tone_power_conv_nf(data, input.fs, freq)
+        nf_spl = input.calibration.get_spl(freq, nf_rms.mean())
+        f_spl = input.calibration.get_spl(freq, f_rms.mean())
+        results[label + '_spl'] = f_spl
+        results[label + '_noise_floor'] = nf_spl
+        results[label + '_frequency'] = freq
+
+    target(results)
+    #plot.append_data(data)
+
+    # In the for loop above the last one is dpoae, so this will be set to DPOAE
+    # noise floor.
+    #deferred_call(setattr, status_widget, 'dpoae_nf', nf_spl)
 
     context.next_setting('default')
-    ts = controller.get_ts()
     core.invoke_command('dpoae_capture.end')
+    ts = controller.get_ts()
     core.invoke_command('dpoae.clear', {'timestamp': ts, 'delay': 1.0})
     core.invoke_command('dpoae.start', {'timestamp': ts, 'delay': 1.0})
 
 
-def process_time(fs, calibration, context, target, raw_data):
+def process_time(input, context, raw_data, target):
     '''
     Accept data if DPOAE amplitude is greater than the noise floor or the noise
     floor is less than the specified value.
@@ -57,11 +68,12 @@ def process_time(fs, calibration, context, target, raw_data):
     dpoae = 2 * f2 - f1
 
     data = raw_data.mean(axis=0)
-    nf_rms, dp_rms = tone_power_conv_nf(data, fs, dpoae)
-    nf_spl, dp_spl = calibration.get_spl(dpoae, [nf_rms, dp_rms])
-    log.debug('DPOAE reject: DPOAE %.2f, noise floor %.2f', dp_spl, nf_spl)
+    nf_rms, dp_rms = tone_power_conv_nf(data, input.fs, dpoae)
+    nf_spl, dp_spl = input.calibration.get_spl(dpoae, [nf_rms, dp_rms])
     if (nf_spl < noise_floor) or (nf_spl < dp_spl):
         target(raw_data)
+    else:
+        log.debug('DPOAE reject: DPOAE %.2f, noise floor %.2f', dp_spl, nf_spl)
 
 
 def configure_hardware(event):
@@ -75,13 +87,18 @@ def configure_hardware(event):
 
     controller.set_input_attr('discard', 'duration', discard)
     controller.set_input_attr('segment', 'duration', resp_window)
-    controller.set_input_attr('segments', 'n', n_time)
+    controller.set_input_attr('time_segments', 'n', n_time)
+    controller.set_input_attr('fft_segments', 'n', n_fft)
 
-    input = controller.get_input('segments')
-    cb_fft = partial(process_fft, input.fs, input.calibration, event.workbench)
-    target = accumulate(n_fft, 0, True, cb_fft)
-    cb_time = partial(process_time, input.fs, input.calibration, context, target.send)
-    input.add_callback(cb_time)
+    #data = event.workbench.get_plugin('psi.data')
+    #plot = data.find_plot('results_plot')
+
+    ui = event.workbench.get_plugin('enaml.workbench.ui')
+    sw = ui.window.find('dpoae_status')
+    status_fft = lambda x, w=sw: deferred_call(setattr, w, 'n_fft', x)
+    status_time = lambda x, w=sw: deferred_call(setattr, w, 'n_time', x)
+    controller.set_input_attr('time_segments', 'status_cb', status_time)
+    controller.set_input_attr('fft_segments', 'status_cb', status_fft)
 
 
 enamldef ControllerManifest(BaseManifest): manifest:
@@ -128,25 +145,57 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 ftype = 'butter'
                 f_highpass = 100
 
-                Blocked:
-                    duration = 0.125
+                Capture:
+                    # Begin capturing microphone signal once DPOAE starts.
+                    # Linked using an ExperimentAction.
+                    name = 'dpoae_capture'
 
-                    Capture:
-                        name = 'dpoae_capture'
+                    Discard:
+                        # Discard the onset portion of the DPOAE (set in
+                        # configure_hardware).
+                        name = 'discard'
 
-                        Discard:
-                            name = 'discard'
+                        Blocked:
+                            # Duration (in seconds) of snippets to analyze
+                            # (set in configure_hardware)
+                            name = 'segment'
 
-                            Blocked:
-                                # Duration (in seconds) of snippets to analyze
-                                name = 'segment'
+                            Accumulate:
+                                # Number of time segments to accumulate and
+                                # average for a single FFT (set in
+                                # configure_hardware).
+                                name = 'time_segments'
+                                axis = 0
+                                newaxis = True
 
-                                Accumulate:
-                                    # Number of time segments to accumulate and
-                                    # average for a single FFT.
-                                    name = 'segments'
-                                    axis = 0
-                                    newaxis = True
+                                CustomInput:
+                                    # Accepts set of time segments if they
+                                    # don't exceed the DPOAE noise floor.
+                                    function = partial(process_time,
+                                                        self,
+                                                        workbench.get_plugin('psi.context'))
+
+                                    Accumulate:
+                                        # Number of FFT segments to
+                                        # accumulate and average for a
+                                        # single FFT (set in
+                                        # configure_hardware).
+                                        name = 'fft_segments'
+                                        axis = 0
+                                        newaxis = True
+
+                                        CustomInput:
+                                            # Computes the average level
+                                            # for the primaries and
+                                            # distortion products.
+                                            function = partial(process_fft,
+                                                               self,
+                                                               workbench.get_plugin('psi.context'),
+                                                               workbench.get_plugin('psi.controller'),
+                                                               workbench.get_plugin('enaml.workbench.core'))
+
+                                            Callback:
+                                                function = print
 
     Extension:
         id = 'selectors'
@@ -205,7 +254,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
             event = 'experiment_prepare'
             command = 'psi.context.next_setting'
             weight = 6
-            kwargs = {'selector': 'default'}
+            kwargs = {'selector': 'default', 'save_prior': False}
 
         ExperimentAction:
             event = 'experiment_prepare'
@@ -231,3 +280,33 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
             ViewBox:
                 pass
+                #ListPlot:
+                #    y_column = 'dpoae_level'
+                #    #group_names = ['f2_frequency']
+                #    name = 'results_plot'
+
+    Extension:
+        id = 'dpoae_status_view'
+        point = 'psi.experiment.workspace'
+
+        DockItem: di:
+            name = 'dpoae_status'
+            title = 'Acquisition'
+
+            attr n_fft = 0
+            attr n_time = 0
+            attr dpoae_nf = 0
+
+            Container:
+                Form:
+                    Label:
+                        text = 'status'
+
+                    Label:
+                        text << '{} time, {} FFT'.format(n_time, n_fft)
+
+                    Label:
+                        text = 'DPOAE noise floor'
+
+                    Label:
+                        text << '{:.2f} dB SPL'.format(dpoae_nf)
