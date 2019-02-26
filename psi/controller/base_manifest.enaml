@@ -77,100 +77,6 @@ def get_hw_ai_choices(workbench):
     return {str(c): '"{}"'.format(c.name) for c in channels}
 
 
-def tone_calibrate_channel(event):
-    '''
-    Calibrate the specified output using the specified input
-
-    Useful for in-ear calibrations. The calibration will be saved.
-
-    Parameters
-    ----------
-    output_name : string
-        Output to calibrate
-    input_name : string
-        Input to calibrate
-    selector_name : string (default='default')
-        Selector to use
-    parameter_name : string
-        Parameter name that contains set of frequencies to calibrate at.
-    gain : float
-        Gain to set on output channel
-    max_thd : {None, float}
-        Maximum total harmonic distortion (in percent) to allow. Anything above
-        this raises a calibration error.
-    min_snr : {None, float}
-        Minimum test level (re. noise floor). If the test tone is too close to
-        the noise floor, this raises a calibration error.
-    duration : float
-        Duration of test tone
-    iti : float
-        Intertrial interval between test tones
-    trim : float
-        Amount to trim off of start and end of test tone response before
-        analysis.
-    widget_name : {None, string}
-        Name of widget containing results set to update (for viewing).
-    attr_name : {None, string}
-        Name of attribute on widget to set.
-    store_name : {None, string}
-        Name of store to write data to.
-    '''
-    p = event.parameters
-    controller = event.workbench.get_plugin('psi.controller')
-
-    # Find the input and output to use for calibration
-    ao = controller.get_output(p['output_name'])
-    ai = controller.get_input(p['input_name'])
-
-    # Get a list of planned frequencies
-    core = event.workbench.get_plugin('enaml.workbench.core')
-    parameter_names = event.parameters.get('parameter_names')
-    selector_name = event.parameters.get('selector_name', 'default')
-
-    frequencies = set()
-    for parameter_name in parameter_names:
-        parameters = {'item_name': parameter_name, 'iterator': selector_name}
-        new = core.invoke_command('psi.context.unique_values', parameters)
-        frequencies.update(new)
-
-    frequencies = list(frequencies)
-
-    # Run the calibration and update the output with that calibration
-    result = tone_sens(ao.engine,
-                       frequencies,
-                       gain=p['gain'],
-                       ao_channel_name=ao.channel.name,
-                       ai_channel_names=[ai.channel.name],
-                       max_thd=p['max_thd'],
-                       min_snr=p['min_snr'],
-                       duration=p['duration'],
-                       iti=p['iti'],
-                       trim=p['trim'])
-
-    log.info('Calibration for output %s using input %s', ao.name, ai.name)
-    log.info('\n' + str(result))
-
-    result = result.reset_index()
-    calibration = PointCalibration(result['frequency'], result['sens'])
-    ao.channel.calibration = calibration
-
-    for parameter in ('gain', 'max_thd', 'min_snr'):
-        result[parameter] = p[parameter]
-
-    if p.get('store_name') is not None:
-        core = event.workbench.get_plugin('enaml.workbench.core')
-        command = '{}.create_table'.format(p['store_name'])
-        name = '{}_{}_calibration'.format(ao.name, ai.name)
-        parameters = {'name': name, 'dataframe': result}
-        core.invoke_command(command, parameters)
-
-    if p.get('widget_name') is not None:
-        ui = event.workbench.get_plugin('enaml.workbench.ui')
-        widget = ui.window.find(p['widget_name'])
-        attr_name = p.get('attr_name')
-        deferred_call(setattr, widget, attr_name, result)
-
-
 def configure_calibration(event):
     controller = event.workbench.get_plugin('psi.controller')
     channels = list(controller._channels.values())
@@ -233,9 +139,6 @@ enamldef BaseManifest(PluginManifest): manifest:
         Command:
             id = 'psi.controller.reset_engines'
             handler = rpc('psi.controller', 'reset_engines')
-        Command:
-            id = 'psi.controller.tone_calibrate_channel'
-            handler = tone_calibrate_channel
         Command:
             id = 'psi.controller.log_actions'
             handler = log_actions
