@@ -85,6 +85,7 @@ def _main(args):
         configure_logging(os.path.join(log_root, filename))
         log.debug('Logging configured')
         log.info('Logging information captured in {}'.format(filename))
+        log.info('Python executable: {}'.format(sys.executable))
         if args.debug_warning:
             warnings.showwarning = warn_with_traceback
 

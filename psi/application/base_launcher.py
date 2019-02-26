@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 import os.path
 from pathlib import Path
 import subprocess
@@ -69,6 +72,7 @@ class SimpleLauncher(Atom):
         self._update()
 
     def _observe_experiment(self, event):
+        self._update_choices()
         self._update()
 
     def _observe_experimenter(self, event):
@@ -110,6 +114,7 @@ class SimpleLauncher(Atom):
             args.extend(['--calibration', str(self.calibration)])
         for plugin in plugins:
             args.extend(['--plugins', plugin])
+        log.info('Launching subprocess: %s', ' '.join(args))
         subprocess.check_output(args)
         self._update_choices()
 
