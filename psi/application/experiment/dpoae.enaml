@@ -20,11 +20,7 @@ from psi.controller.input import ExtractEpochs, Accumulate, IIRFilter, Decimate,
 from psi.controller.output import EpochOutput, Synchronized
 from psi.token.primitives import Cos2Envelope, Tone
 
-from psi.util import copy_declarative
-
-from psi.data.plots import (ViewBox, FFTContainer, FFTChannelPlot, PlotContainer)
-
-from psi.data.sinks.trial_log import TrialLog
+from psi.data.plots import ViewBox, PlotContainer
 
 
 def process_fft(fs, calibration, workbench, raw_data):
@@ -46,8 +42,8 @@ def process_fft(fs, calibration, workbench, raw_data):
     context.next_setting('default')
     ts = controller.get_ts()
     core.invoke_command('dpoae_capture.end')
-    core.invoke_command('dpoae.clear', {'timestamp': ts, 'delay': 0.5})
-    core.invoke_command('dpoae.start', {'timestamp': ts, 'delay': 0.5})
+    core.invoke_command('dpoae.clear', {'timestamp': ts, 'delay': 1.0})
+    core.invoke_command('dpoae.start', {'timestamp': ts, 'delay': 1.0})
 
 
 def process_time(fs, calibration, context, target, raw_data):
@@ -88,24 +84,13 @@ def configure_hardware(event):
     input.add_callback(cb_time)
 
 
-class DPOAEController(BasePlugin):
-
-    def start_experiment(self):
-        super().start_experiment()
-        self.core.invoke_command('dpoae.prepare')
-        parameters = {'timestamp': self.get_ts(), 'delay': 0.5}
-        self.core.invoke_command('dpoae.start', parameters=parameters)
-
-
 enamldef ControllerManifest(BaseManifest): manifest:
-
-    factory = DPOAEController
 
     Extension:
         id = 'tokens'
         point = 'psi.token.tokens'
 
-        Cos2Envelope:
+        Cos2Envelope: tone:
             name = 'tone'
             label = 'tone'
             Tone:
@@ -122,35 +107,46 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 name = 'primary'
                 label = 'Primary'
                 target_name = 'speaker_0'
+                configurable = False
+                token = tone
 
             EpochOutput: secondary:
                 name = 'secondary'
                 label = 'Secondary'
                 target_name = 'speaker_1'
+                configurable = False
+                token = tone
 
         ContinuousInput:
             name = 'microphone'
             source_name = 'microphone_channel'
 
-            Blocked:
-                duration = 0.125
+            IIRFilter:
+                name = 'microphone_filtered'
+                N = 2
+                btype = 'highpass'
+                ftype = 'butter'
+                f_highpass = 100
 
-                Capture:
-                    name = 'dpoae_capture'
+                Blocked:
+                    duration = 0.125
 
-                    Discard:
-                        name = 'discard'
+                    Capture:
+                        name = 'dpoae_capture'
 
-                        Blocked:
-                            # Duration (in seconds) of snippets to analyze
-                            name = 'segment'
+                        Discard:
+                            name = 'discard'
 
-                            Accumulate:
-                                # Number of time segments to accumulate and
-                                # average for a single FFT.
-                                name = 'segments'
-                                axis = 0
-                                newaxis = True
+                            Blocked:
+                                # Duration (in seconds) of snippets to analyze
+                                name = 'segment'
+
+                                Accumulate:
+                                    # Number of time segments to accumulate and
+                                    # average for a single FFT.
+                                    name = 'segments'
+                                    axis = 0
+                                    newaxis = True
 
     Extension:
         id = 'selectors'
@@ -207,34 +203,19 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
         ExperimentAction:
             event = 'experiment_prepare'
+            command = 'psi.context.next_setting'
+            weight = 6
+            kwargs = {'selector': 'default'}
+
+        ExperimentAction:
+            event = 'experiment_prepare'
             command = 'psi.controller.configure_hardware'
-            weight = 10
+            weight = 9
 
         ExperimentAction:
-            weight = 15
-            event = 'experiment_prepare'
-            command = 'psi.controller.tone_calibrate_channel'
-            kwargs = {
-                'input_name': 'microphone',
-                'output_name': 'primary',
-                'parameter_names': ['primary_tone_frequency'],
-                'gain': -40,
-                'max_thd': None,
-                'min_snr': 6,
-            }
-
-        ExperimentAction:
-            weight = 15
-            event = 'experiment_prepare'
-            command = 'psi.controller.tone_calibrate_channel'
-            kwargs = {
-                'input_name': 'microphone',
-                'output_name': 'secondary',
-                'parameter_names': ['secondary_tone_frequency'],
-                'gain': -40,
-                'max_thd': None,
-                'min_snr': 6,
-            }
+            event = 'engines_configured'
+            command = 'dpoae.start'
+            kwargs = {'delay': 1}
 
         ExperimentAction:
             event = 'dpoae_start'
@@ -250,18 +231,3 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
             ViewBox:
                 pass
-
-        FFTContainer:
-            name = 'fft_plot_container'
-            label = 'FFT'
-            freq_lb = 5
-            freq_ub = 50000
-
-            ViewBox:
-                y_min = -120
-                y_max = 100
-
-                FFTChannelPlot:
-                    source_name = 'microphone'
-                    pen_color = 'k'
-                    time_span = 1

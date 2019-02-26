@@ -121,10 +121,10 @@ enamldef ContextManifest(PluginManifest): manifest:
         ExperimentEvent:
             name = 'context_changed'
 
+        # Set the following actions to a relatively low weight (default=100) so
+        # that we can ensure this is called before most initialization actions
+        # since many plugins will likely depend on this.
         ExperimentAction:
-            # Set this to a relatively low weight (default=100) so that we can
-            # ensure this is called before most initialization actions since
-            # many plugins will likely depend on this.
             event = 'experiment_prepare'
             command = 'psi.context.apply_changes'
             weight = 5

@@ -244,6 +244,7 @@ class ContextPlugin(Plugin):
         '''
         Shortcut for advancing to the next setting.
         '''
+        log.debug('Next')
         self.next_setting(save_prior)
         self.next_selector_setting(selector)
         self.set_values(results)
@@ -254,6 +255,7 @@ class ContextPlugin(Plugin):
         this essentially clears the namespace and allows expresssions to be
         recomputed.
         '''
+        log.debug('Loading next setting')
         if save_prior:
             prior_values = self._prior_values[:]
             prior_values.append(self.get_values())

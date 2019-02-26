@@ -3,8 +3,57 @@ from enaml.workbench.api import Extension, PluginManifest
 
 from psi.controller.api import Downsample, ExperimentAction, IIRFilter
 from psi.core.enaml.api import DataFrameTable
-from psi.data.plots import TimeContainer, ViewBox, ChannelPlot
+from psi.data.plots import (ChannelPlot, FFTChannelPlot, FFTContainer,
+                            TimeContainer, ViewBox)
 from psi.data.sinks.api import BColzStore, DisplayValue
+
+
+enamldef MicrophoneSignalViewMixinManifest(PluginManifest):
+
+    id = 'microphone_signal_view_mixin'
+
+    Extension:
+        id = 'plots'
+        point = 'psi.data.plots'
+
+        TimeContainer:
+            name = 'microphone_plot_container'
+            label = 'Microphone signal'
+            span = 2
+            delay = 0.125
+
+            ViewBox:
+                name = 'microphone_view'
+                y_min = -0.2
+                y_max = 0.2
+
+                ChannelPlot:
+                    pen_color = 'k'
+                    source_name = 'microphone_filtered'
+
+
+enamldef MicrophoneFFTViewMixinManifest(PluginManifest):
+
+    id = 'microphone_fft_view_mixin'
+
+    Extension:
+        id = 'plots'
+        point = 'psi.data.plots'
+
+        FFTContainer:
+            name = 'fft_plot_container'
+            label = 'FFT'
+            freq_lb = 5
+            freq_ub = 50000
+
+            ViewBox:
+                y_min = -120
+                y_max = 100
+
+                FFTChannelPlot:
+                    source_name = 'microphone_filtered'
+                    pen_color = 'k'
+                    time_span = 1
 
 
 enamldef EEGViewMixinManifest(PluginManifest): manifest:
