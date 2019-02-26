@@ -145,6 +145,22 @@ class Callback(Input):
 # Continuous input types
 ################################################################################
 @coroutine
+def custom_input(function, target):
+    while True:
+        data = (yield)
+        function(data, target)
+
+
+class CustomInput(Input):
+
+    function = d_(Callable())
+
+    def configure_callback(self):
+        cb = super().configure_callback()
+        return custom_input(self.function, cb).send
+
+
+@coroutine
 def calibrate(calibration, target):
     sens = dbi(calibration.get_sens(1000))
     while True:
@@ -291,7 +307,7 @@ class Blocked(ContinuousInput):
 
 
 @coroutine
-def accumulate(n, axis, newaxis, target):
+def accumulate(n, axis, newaxis, status_cb, target):
     data = []
     while True:
         d = (yield)
@@ -304,6 +320,8 @@ def accumulate(n, axis, newaxis, target):
             target(data)
             data = []
 
+        status_cb(len(data))
+
 
 class Accumulate(ContinuousInput):
     '''
@@ -313,9 +331,12 @@ class Accumulate(ContinuousInput):
     axis = d_(Int(-1)).tag(metadata=True)
     newaxis = d_(Bool(False)).tag(metadata=True)
 
+    status_cb = d_(Callable(lambda x: None))
+
     def configure_callback(self):
         cb = super().configure_callback()
-        return accumulate(self.n, self.axis, self.newaxis, cb).send
+        return accumulate(self.n, self.axis, self.newaxis, self.status_cb,
+                          cb).send
 
 
 @coroutine
