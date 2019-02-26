@@ -2,13 +2,12 @@ import logging
 log = logging.getLogger(__name__)
 
 from functools import partial
-import os.path
 import atexit
 import tempfile
 import shutil
 from pathlib import Path
 
-from atom.api import Unicode
+from atom.api import Typed
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 
@@ -20,21 +19,21 @@ class BaseStore(Sink):
     '''
     Implements functions for creating filenames
     '''
-    base_path = Unicode()
+    base_path = Typed(Path)
 
     def _default_base_path(self):
         # Create a temporary folder. Be sure to delete when the program exits.
         base_path = tempfile.mkdtemp()
         atexit.register(shutil.rmtree, base_path)
-        return base_path
+        return Path(base_path)
 
     def get_filename(self, name, suffix=''):
-        path = Path(self.base_path).joinpath(name).with_suffix(suffix)
+        path = (self.base_path / name).with_suffix(suffix)
         log.info('Saving %s to %s', name, path)
         return path
 
     def set_base_path(self, base_path):
-        self.base_path = base_path
+        self.base_path = Path(base_path)
 
 
 def create_table(sink, event):
