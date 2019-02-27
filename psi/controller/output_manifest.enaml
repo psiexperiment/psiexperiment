@@ -286,7 +286,7 @@ def start_output(event, output):
     # None once all samples have been generated.
     duration = output.get_duration()
 
-    notify_end = Fales
+    notify_end = False
 
     try:
         output.engine.lock.acquire()
