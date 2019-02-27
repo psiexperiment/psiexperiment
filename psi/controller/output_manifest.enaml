@@ -172,10 +172,6 @@ def prepare_synchronized(synchronized, event):
 
 def start_synchronized(synchronized, event):
     log.debug('Starting synchronized %s', synchronized.name)
-    for output in synchronized.outputs:
-        if not output.is_ready():
-            log.warn('Output %s is not ready', output.name)
-            prepare_output(event, output)
 
     ts = event.parameters['timestamp']
     start = event.parameters.get('start', ts)
@@ -196,9 +192,21 @@ def start_synchronized(synchronized, event):
     for engine in synchronized.engines:
         engine.lock.acquire()
 
+    notify_end = False
+
     # Activate the outputs
     for output in synchronized.outputs:
         offset = round((start+delay)*output.channel.fs)
+
+        if output.active:
+            output.deactivate(offset)
+            log.debug('Output %s was active. Deactivating first.', output.name)
+            notify_end = True
+
+        if not output.is_ready():
+            log.debug('Output %s is not ready.  Preparing.', output.name)
+            prepare_output(event, output)
+
         log.debug('Starting output %s', output.name)
         output.activate(offset)
 
@@ -215,6 +223,10 @@ def start_synchronized(synchronized, event):
         engine.lock.release()
 
     controller = event.workbench.get_plugin('psi.controller')
+    if notify_end:
+        controller.invoke_actions('{}_end'.format(synchronized.name),
+                                  start+delay)
+
     controller.invoke_actions('{}_start'.format(synchronized.name),
                               start+delay)
 
@@ -259,10 +271,6 @@ def clear_synchronized(synchronized, event):
 
 
 def start_output(event, output):
-    if not output.is_ready():
-        log.warn('Output %s is not ready', output.name)
-        prepare_output(event, output)
-
     ts = event.parameters['timestamp']
     start = event.parameters.get('start', ts)
     delay = event.parameters.get('delay', 0)
@@ -278,12 +286,23 @@ def start_output(event, output):
     # None once all samples have been generated.
     duration = output.get_duration()
 
+    notify_end = Fales
+
     try:
         output.engine.lock.acquire()
         buffered_ub = output._buffer.get_samples_ub()
         # Important to lock the engine when activating the output to prevent
         # race conditions
         log.debug('Starting output %s at %d', output.name, offset)
+        if output.active:
+            output.deactivate(offset)
+            log.debug('Output %s was active. Deactivating first.', output.name)
+            notify_end = True
+
+        if not output.is_ready():
+            log.debug('Output %s is not ready', output.name)
+            prepare_output(event, output)
+
         output.activate(offset)
         output.engine.update_hw_ao(offset, output.channel.name,
                                    method='write_position')
@@ -299,7 +318,6 @@ def start_output(event, output):
         output.engine.lock.release()
         log.exception(e)
         log.debug('Invalidated buffer at %d', offset)
-        raise
     else:
         filter_delay = output.channel.filter_delay
         log.debug('Compensating %s for filter delay %f', output.name,
@@ -311,6 +329,9 @@ def start_output(event, output):
             controller.invoke_actions('{}_end'.format(output.name),
                                       start+delay+duration, delayed=True)
 
+    if notify_end:
+        controller.invoke_actions('{}_end'.format(output.name),
+                                  start+delay+duration)
 
 def clear_output(event, output):
     end = event.parameters['timestamp']
