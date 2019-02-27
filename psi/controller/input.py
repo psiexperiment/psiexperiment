@@ -34,6 +34,7 @@ class Input(PSIContribution):
 
     name = d_(Unicode()).tag(metadata=True)
     label = d_(Unicode()).tag(metadata=True)
+    force_active = d_(Bool(False)).tag(metadata=True)
 
     source_name = d_(Unicode())
     source = Typed(Declarative).tag(metadata=True)
@@ -110,7 +111,7 @@ class Input(PSIContribution):
         self.add_input(callback)
 
     def _get_active(self):
-        return any(i.active for i in self.inputs)
+        return self.force_active or any(i.active for i in self.inputs)
 
 
 class ContinuousInput(Input):
