@@ -13,8 +13,6 @@ from enaml.workbench.ui.api import ActionItem, MenuItem
 
 from psi.experiment.api import Preferences
 from psi.context.api import ContextGroup
-from psi.controller.calibration.tone import tone_sens
-from psi.controller.calibration import PointCalibration
 
 from ..util import rpc
 
