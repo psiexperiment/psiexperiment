@@ -1,12 +1,18 @@
+import logging
+log = logging.getLogger(__name__)
+
+from enaml.application import deferred_call
 from enaml.widgets.api import Container, DockItem
 from enaml.workbench.api import Extension, PluginManifest
 from enaml.workbench.core.api import Command
 
 from psi.controller.api import Downsample, ExperimentAction, IIRFilter
+from psi.controller.calibration.tone import tone_sens
+from psi.controller.calibration import PointCalibration
 from psi.core.enaml.api import DataFrameTable
 from psi.data.plots import (ChannelPlot, FFTChannelPlot, FFTContainer,
                             TimeContainer, ViewBox)
-from psi.data.sinks.api import BColzStore, DisplayValue
+from psi.data.sinks.api import BColzStore, DisplayValue, TextStore
 
 
 enamldef MicrophoneSignalViewMixinManifest(PluginManifest):
@@ -30,7 +36,7 @@ enamldef MicrophoneSignalViewMixinManifest(PluginManifest):
 
                 ChannelPlot:
                     pen_color = 'k'
-                    source_name = 'microphone_filtered'
+                    source_name = 'microphone'
 
 
 enamldef MicrophoneFFTViewMixinManifest(PluginManifest):
@@ -52,7 +58,7 @@ enamldef MicrophoneFFTViewMixinManifest(PluginManifest):
                 y_max = 100
 
                 FFTChannelPlot:
-                    source_name = 'microphone_filtered'
+                    source_name = 'microphone'
                     pen_color = 'k'
                     time_span = 1
 
@@ -208,6 +214,22 @@ def tone_calibrate_channel(event):
         deferred_call(setattr, widget, attr_name, result)
 
 
+enamldef CalibrationDockItem(DockItem):
+
+    attr result = None
+
+    Container:
+        DataFrameTable:
+            column_info = {
+                'frequency': {'label': 'Frequency (Hz)'},
+                'snr': {'label': 'SNR (dB)'},
+                'thd': {'label': 'THD (%)'},
+                'norm_spl': {'label': 'SPL @ 1 Vrms'},
+            }
+            columns = ['frequency', 'norm_spl', 'snr', 'thd']
+            data << result
+
+
 enamldef InEarCalibrationMixinManifest(PluginManifest): manifest:
 
     id = 'inear_calibration_mixin'
@@ -219,6 +241,19 @@ enamldef InEarCalibrationMixinManifest(PluginManifest): manifest:
         Command:
             id = 'psi.controller.tone_calibrate_channel'
             handler = tone_calibrate_channel
+
+
+enamldef ABRInEarCalibrationMixinManifest(InEarCalibrationMixinManifest): manifest:
+
+    id = 'abr_inear_calibration_mixin'
+
+    Extension:
+        id = 'calibration_view'
+        point = 'psi.experiment.workspace'
+
+        CalibrationDockItem:
+            name = 'calibration_result'
+            title = 'Calibration result'
 
     Extension:
         id = 'actions'
@@ -244,21 +279,77 @@ enamldef InEarCalibrationMixinManifest(PluginManifest): manifest:
             }
 
     Extension:
+        id = manifest.id + '_calibration_store'
+        point = 'psi.data.sinks'
+
+        TextStore:
+            name = 'calibration_data'
+
+
+enamldef DPOAEInEarCalibrationMixinManifest(InEarCalibrationMixinManifest): manifest:
+
+    id = 'dpoae_inear_calibration_mixin'
+
+    Extension:
+        id = 'actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            weight = 10
+            event = 'experiment_prepare'
+            command = 'psi.controller.tone_calibrate_channel'
+            kwargs = {
+                'input_name': 'microphone',
+                'output_name': 'primary',
+                'parameter_names': ['primary_tone_frequency'],
+                'gain': -40,
+                'max_thd': None,
+                'min_snr': 5,
+                'duration': 0.1,
+                'trim': 0.01,
+                'iti': 0,
+                'widget_name': 'primary_calibration_result',
+                'attr_name': 'result',
+                'store_name': 'primary_calibration_data',
+            }
+
+        ExperimentAction:
+            weight = 10
+            event = 'experiment_prepare'
+            command = 'psi.controller.tone_calibrate_channel'
+            kwargs = {
+                'input_name': 'microphone',
+                'output_name': 'secondary',
+                'parameter_names': ['secondary_tone_frequency'],
+                'gain': -40,
+                'max_thd': None,
+                'min_snr': 5,
+                'duration': 0.1,
+                'trim': 0.01,
+                'iti': 0,
+                'widget_name': 'secondary_calibration_result',
+                'attr_name': 'result',
+                'store_name': 'secondary_calibration_data',
+            }
+
+    Extension:
         id = 'calibration_view'
         point = 'psi.experiment.workspace'
 
-        DockItem: di:
-            name = 'calibration_result'
-            title = 'Calibration result'
-            attr result = None
+        CalibrationDockItem:
+            name = 'primary_calibration_result'
+            title = 'Primary calibration result'
 
-            Container:
-                DataFrameTable:
-                    column_info = {
-                        'frequency': {'label': 'Frequency (Hz)'},
-                        'snr': {'label': 'SNR (dB)'},
-                        'thd': {'label': 'THD (%)'},
-                        'norm_spl': {'label': 'SPL @ 1 Vrms'},
-                    }
-                    columns = ['frequency', 'norm_spl', 'snr', 'thd']
-                    data << result
+        CalibrationDockItem:
+            name = 'secondary_calibration_result'
+            title = 'Secondary calibration result'
+
+    Extension:
+        id = manifest.id + '_calibration_store'
+        point = 'psi.data.sinks'
+
+        TextStore:
+            name = 'primary_calibration_data'
+
+        TextStore:
+            name = 'secondary_calibration_data'

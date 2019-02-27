@@ -19,7 +19,6 @@ from psi.controller.output import QueuedEpochOutput
 from psi.controller.calibration.util import db
 from psi.data.plots import (TimeContainer, ViewBox, StackedEpochAveragePlot)
 from psi.data.sinks.epoch_counter import GroupedEpochCounter
-from psi.data.sinks.text_store import TextStore
 from psi.data.sinks.bcolz_store import BColzStore
 from psi.token.primitives import Cos2Envelope, Tone
 
@@ -125,9 +124,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
     Extension:
         id = 'abr_base_text_store'
         point = 'psi.data.sinks'
-
-        TextStore:
-            name = 'calibration_data'
 
         BColzStore:
             name = 'erp_eeg'

@@ -77,12 +77,21 @@ eeg_view_mixin = PluginDescription(
 )
 
 
-in_ear_calibration_mixin = PluginDescription(
-    name='in_ear_calibration',
+abr_in_ear_calibration_mixin = PluginDescription(
+    name='abr_in_ear_calibration',
     title='In-ear calibration',
     required=False,
     selected=True,
-    manifest='psi.application.experiment.cfts_mixins.InEarCalibrationMixinManifest',
+    manifest='psi.application.experiment.cfts_mixins.ABRInEarCalibrationMixinManifest',
+)
+
+
+dpoae_in_ear_calibration_mixin = PluginDescription(
+    name='dpoae_in_ear_calibration',
+    title='In-ear calibration',
+    required=False,
+    selected=True,
+    manifest='psi.application.experiment.cfts_mixins.DPOAEInEarCalibrationMixinManifest',
 )
 
 
@@ -112,7 +121,7 @@ abr_experiment = ParadigmDescription(
         abr_controller,
         temperature_mixin,
         eeg_view_mixin,
-        in_ear_calibration_mixin,
+        abr_in_ear_calibration_mixin,
     ]
 )
 
@@ -125,7 +134,7 @@ dpoae_experiment = ParadigmDescription(
         dpoae_controller,
         temperature_mixin,
         eeg_view_mixin,
-        in_ear_calibration_mixin,
+        dpoae_in_ear_calibration_mixin,
         microphone_fft_view_mixin,
         microphone_signal_view_mixin,
     ]
