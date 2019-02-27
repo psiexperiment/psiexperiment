@@ -129,25 +129,15 @@ enamldef BasePlotManifest(PSIManifest): manifest:
             command = manifest.contribution.name + '_update'
 
 
-def set_data(manifest, event):
-    manifest.data = event.parameters['data']
-
-
-enamldef DataFramePlotManifest(PSIManifest): manifest:
-
+enamldef GroupedResultPlot(PSIManifest): manifest:
 
     Extension:
-        id = 'commands'
-        point = 'enaml.workbench.core.commands'
+        id = 'workspace'
+        point = 'psi.experiment.workspace'
 
-        Command:
-            id = manifest.contribution.name + '.set_data'
-            handler = partial(set_data, manifest.contribution)
-
-    Extension:
-        id = 'items'
-        point = 'psi.context.items'
-        OrderedContextMeta: meta:
+        DockItem:
             name << manifest.contribution.name
-            label << manifest.contribution.label
-            values >> manifest.contribution.groups
+            title << manifest.contribution.label
+
+            Container:
+                pass

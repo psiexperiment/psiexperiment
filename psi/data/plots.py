@@ -588,7 +588,7 @@ class GroupMixin(Declarative):
     source = Typed(object)
     group_meta = d_(Unicode())
     groups = d_(Typed(ContextMeta))
-    group_names = List()
+    group_names = d_(List())
 
     # Fucntion that takes the epoch metadata and decides whether to accept it
     # for plotting.  Useful to reduce the number of plots shown on a graph.
@@ -604,9 +604,10 @@ class GroupMixin(Declarative):
 
     plots = Dict()
 
-    _epoch_cache = Typed(object)
-    _epoch_count = Typed(object)
-    _epoch_updated = Typed(object)
+    _data_cache = Typed(object)
+    _data_count = Typed(object)
+    _data_updated = Typed(object)
+
     _pen_color_cycle = Typed(object)
     _plot_colors = Typed(object)
     _x = Typed(np.ndarray)
@@ -618,21 +619,6 @@ class GroupMixin(Declarative):
 
     def _default_group_filter(self):
         return lambda key: True
-
-    def _epochs_acquired(self, epochs):
-        for d in epochs:
-            md = d['info']['metadata']
-            if self.group_filter(md):
-                signal = d['signal']
-                key = tuple(md[n] for n in self.group_names)
-                self._epoch_cache[key].append(signal)
-                self._epoch_count[key] += 1
-
-        # Does at least one epoch need to be updated?
-        for key, count in self._epoch_count.items():
-            if count >= self._epoch_updated[key] + self.n_update:
-                self.update()
-                break
 
     def _default_pen_color_cycle(self):
         return ['k']
@@ -651,9 +637,9 @@ class GroupMixin(Declarative):
         for plot in self.plots.items():
             self.parent.viewbox.removeItem(plot)
         self.plots = {}
-        self._epoch_cache = defaultdict(list)
-        self._epoch_count = defaultdict(int)
-        self._epoch_updated = defaultdict(int)
+        self._data_cache = defaultdict(list)
+        self._data_count = defaultdict(int)
+        self._data_updated = defaultdict(int)
 
         if isinstance(self.pen_color_cycle, str):
             self._pen_color_cycle = get_color_cycle(self.pen_color_cycle)
@@ -697,25 +683,27 @@ class GroupMixin(Declarative):
             self._make_new_plot(key)
         return self.plots[key]
 
+
+class EpochGroupMixin(GroupMixin):
+
     def _y(self, epoch):
         return np.mean(epoch, axis=0) if len(epoch) \
             else np.full_like(self._x, np.nan)
 
-    def update(self, event=None):
-        # Update epochs that need updating
-        todo = []
-        for key, count in list(self._epoch_count.items()):
-            if count >= self._epoch_updated[key] + self.n_update:
-                epoch = self._epoch_cache[key]
-                plot = self.get_plot(key)
-                y = self._y(epoch)
-                todo.append((plot.setData, self._x, y))
-                self._epoch_updated[key] = len(epoch)
+    def _epochs_acquired(self, epochs):
+        for d in epochs:
+            md = d['info']['metadata']
+            if self.group_filter(md):
+                signal = d['signal']
+                key = tuple(md[n] for n in self.group_names)
+                self._data_cache[key].append(signal)
+                self._data_count[key] += 1
 
-        def update():
-            for setter, x, y in todo:
-                setter(x, y)
-        deferred_call(update)
+        # Does at least one epoch need to be updated?
+        for key, count in self._data_count.items():
+            if count >= self._data_updated[key] + self.n_update:
+                self.update()
+                break
 
     def _observe_source(self, event):
         if self.source is not None:
@@ -725,8 +713,24 @@ class GroupMixin(Declarative):
             self._reset_plots()
             self._cache_x()
 
+    def update(self, event=None):
+        # Update epochs that need updating
+        todo = []
+        for key, count in list(self._data_count.items()):
+            if count >= self._data_updated[key] + self.n_update:
+                data = self._data_cache[key]
+                plot = self.get_plot(key)
+                y = self._y(data)
+                todo.append((plot.setData, self._x, y))
+                self._data_updated[key] = len(data)
 
-class GroupedEpochAveragePlot(GroupMixin, BasePlot):
+        def update():
+            for setter, x, y in todo:
+                setter(x, y)
+        deferred_call(update)
+
+
+class GroupedEpochAveragePlot(EpochGroupMixin, BasePlot):
 
     def _cache_x(self, event=None):
         # Set up the new time axis
@@ -738,7 +742,7 @@ class GroupedEpochAveragePlot(GroupMixin, BasePlot):
         return self.source_name + '_grouped_epoch_average_plot'
 
 
-class GroupedEpochFFTPlot(GroupMixin, BasePlot):
+class GroupedEpochFFTPlot(EpochGroupMixin, BasePlot):
 
     def _default_name(self):
         return self.source_name + '_grouped_epoch_fft_plot'
@@ -754,7 +758,7 @@ class GroupedEpochFFTPlot(GroupMixin, BasePlot):
         return util.db(util.psd(y, self.source.fs))
 
 
-class GroupedEpochPhasePlot(GroupMixin, BasePlot):
+class GroupedEpochPhasePlot(EpochGroupMixin, BasePlot):
 
     unwrap = d_(Bool(True))
 
@@ -772,7 +776,7 @@ class GroupedEpochPhasePlot(GroupMixin, BasePlot):
         return util.phase(y, self.source.fs, unwrap=self.unwrap)
 
 
-class StackedEpochAveragePlot(GroupMixin, BasePlot):
+class StackedEpochAveragePlot(EpochGroupMixin, BasePlot):
 
     def _make_new_plot(self, key):
         super()._make_new_plot(key)
@@ -807,28 +811,46 @@ class StackedEpochAveragePlot(GroupMixin, BasePlot):
 ################################################################################
 # Simple plotters
 ################################################################################
-class DataFramePlot(GroupMixin, BasePlot):
+class GroupedResultPlot(GroupMixin, SinglePlot):
 
-    data = d_(Typed(pd.DataFrame))
     x_column = d_(Unicode())
     y_column = d_(Unicode())
 
-    def _observe_data(self, event):
-        self.update()
+    def _default_name(self):
+        return (self.source_name + self.x_column + self.y_column +
+                '_grouped_epoch_phase_plot')
+
+    def _observe_source(self, event):
+        if self.source is not None:
+            self.source.add_callback(self._data_acquired)
+            self._reset_plots()
+
+    def _data_acquired(self, data):
+        for d in data:
+            if self.group_filter(d):
+                x = d[self.x_column]
+                y = d[self.y_column]
+                key = tuple(d[n] for n in self.group_names)
+                self._data_cache[key].append((x, y))
+                self._data_count[key] += 1
+
+        # Does at least one group need to be updated?
+        for key, count in self._data_count.items():
+            if count >= self._data_updated[key] + self.n_update:
+                self.update()
+                break
 
     def update(self, event=None):
         todo = []
-        for key, group in self.data.groupby(self.group_names):
-            if len(self.group_names) == 1:
-                key = (key,)
-            plot = self.get_plot(key)
-            x = group[self.x_column]
-            y = group[self.y_column]
+        for key, data in self._data_cache.items():
+            x, y = zip(*data)
             x = np.array(x)
             y = np.array(y)
-            todo.append(plot.setData, x, y)
+            plot = self.get_plot(key)
+            todo.append((plot.setData, x, y))
 
         def update():
             for setter, x, y in todo:
                 setter(x, y)
+
         deferred_call(update)
