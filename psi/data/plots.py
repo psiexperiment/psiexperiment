@@ -668,7 +668,6 @@ class GroupMixin(Declarative):
         try:
             pen_color = self.get_pen_color(key)
             pen = pg.mkPen(pen_color, width=self.pen_width)
-
             plot = pg.PlotCurveItem(pen=pen, antialias=self.antialias)
             deferred_call(self.parent.viewbox.addItem, plot)
             self.plots[key] = plot
@@ -816,6 +815,16 @@ class GroupedResultPlot(GroupMixin, SinglePlot):
     x_column = d_(Unicode())
     y_column = d_(Unicode())
 
+    SYMBOL_MAP = {
+        'circle': 'o',
+        'square': 's',
+        'triangle': 't',
+        'diamond': 'd',
+    }
+    symbol = d_(Enum('circle', 'square', 'triangle', 'diamond'))
+    symbol_size = d_(Float(10))
+    symbol_size_unit = d_(Enum('screen', 'data'))
+
     def _default_name(self):
         return (self.source_name + self.x_column + self.y_column +
                 '_grouped_epoch_phase_plot')
@@ -854,3 +863,25 @@ class GroupedResultPlot(GroupMixin, SinglePlot):
                 setter(x, y)
 
         deferred_call(update)
+
+    def _make_new_plot(self, key):
+        log.info('Adding plot for key %r', key)
+        try:
+            symbol_code = self.SYMBOL_MAP[self.symbol]
+            pen_color = self.get_pen_color(key)
+            pen = pg.mkPen(pen_color, width=self.pen_width)
+            brush = pg.mkBrush(pen_color)
+            plot = pg.PlotDataItem(pen=pen,
+                                   antialias=self.antialias,
+                                   symbol=symbol_code,
+                                   symbolSize=self.symbol_size,
+                                   symbolPen=pen,
+                                   symbolBrush=brush,
+                                   pxMode=self.symbol_size_unit == 'screen')
+            deferred_call(self.parent.viewbox.addItem, plot)
+            self.plots[key] = plot
+        except KeyError as key_error:
+            key = key_error.args[0]
+            m = f'Cannot update plot since a field, {key}, ' \
+                 'required by the plot is missing.'
+            raise ConfigurationException(m) from key_error
