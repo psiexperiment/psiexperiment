@@ -15,6 +15,7 @@ from .context_item_view import ContextItem
 ################################################################################
 def get_context_items(context_items, group_name):
     subset = [i for i in context_items.values() if i.group == group_name]
+    subset = [i for i in subset if i.visible]
     return sorted(subset, key=operator.attrgetter('label'))
 
 

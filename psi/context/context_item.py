@@ -95,6 +95,9 @@ class ContextItem(Declarative):
     # heading for example).
     compact_label = d_(Unicode()).tag(preference=True)
 
+    # Is this visible via the standard configuration menus?
+    visible = d_(Bool(True)).tag(preference=True)
+
     updated = Event()
 
     def _default_label(self):

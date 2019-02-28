@@ -1,6 +1,6 @@
 import copy
 
-from atom.api import Unicode, Callable, Typed, Property
+from atom.api import Callable, List, Property, Typed, Unicode
 
 from enaml.core.api import Declarative, d_, d_func
 
@@ -17,6 +17,14 @@ class Block(Declarative):
 
     blocks = Property()
     parameters = Property()
+
+    hide = d_(List())
+
+    def initialize(self):
+        super().initialize()
+        for p in self.parameters:
+            if p.name in self.hide:
+                p.visible = False
 
     def get_children(self, child_type):
         return [c for c in self.children if isinstance(c, child_type)]
