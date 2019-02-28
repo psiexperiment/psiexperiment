@@ -3,7 +3,6 @@ log = logging.getLogger(__name__)
 
 from functools import partial
 
-
 import numpy as np
 
 from atom.api import Int, Value
@@ -25,7 +24,7 @@ from psi.controller.input import (Blocked, Capture, ContinuousInput, coroutine,
                                   CustomInput, Discard, Input)
 
 from psi.controller.output import EpochOutput, Synchronized
-from psi.token.primitives import Cos2Envelope, Tone
+from psi.token.primitives import Cos2Envelope, SquareWave, Tone
 
 from psi.data.plots import GroupedResultPlot, PlotContainer, ViewBox
 from psi.data.sinks.api import BColzStore
@@ -85,7 +84,6 @@ def process(n_time, n_fft, input, workbench, status_widget, target):
                     # Move to next level
                     # TODO this should be it's own callback
                     context.next_setting('default')
-                    print(context.get_value('secondary_tone_level'))
                     params = {'timestamp': controller.get_ts(), 'delay': 1}
                     core.invoke_command('dpoae.start', params)
 
@@ -154,6 +152,9 @@ enamldef ControllerManifest(BaseManifest): manifest:
             Tone:
                 hide = ['phase', 'polarity']
 
+        SquareWave: ttl:
+            name = 'TTL'
+
     Extension:
         id = 'io'
         point = 'psi.controller.io'
@@ -175,13 +176,20 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 configurable = False
                 token = tone
 
+        EpochOutput: trigger:
+            name = 'ttl_trigger'
+            label = 'TTL trigger'
+            target_name = 'ttl_output'
+            configurable = False
+            token = ttl
+
         ContinuousInput:
             name = 'microphone'
             source_name = 'microphone_channel'
 
             Capture:
-                # Begin capturing microphone signal once DPOAE starts.
-                # Linked using an ExperimentAction.
+                # Begin capturing microphone signal once DPOAE starts.  Linked
+                # using an ExperimentAction.
                 name = 'dpoae_capture'
 
                 Discard:
@@ -190,8 +198,8 @@ enamldef ControllerManifest(BaseManifest): manifest:
                     name = 'discard'
 
                     Blocked:
-                        # Duration (in seconds) of snippets to analyze
-                        # (set in configure_hardware)
+                        # Duration (in seconds) of snippets to analyze (set in
+                        # configure_hardware)
                         name = 'segment'
 
                         AnalyzeDPOAE:
@@ -273,6 +281,18 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 dtype = 'float'
                 default = 100e-3
 
+            Parameter:
+                name = 'ttl_start'
+                label = 'TTL start time (sec)'
+                dtype = 'float'
+                default = 5e3
+
+            Parameter:
+                name = 'ttl_duration'
+                label = 'TTL duration (sec)'
+                dtype = 'float'
+                default = 10
+
         OrderedContextMeta: dpoae_groups:
             name = 'dpoae_plot_groups'
 
@@ -317,11 +337,11 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
             ViewBox:
 
-                GroupedResultPlot:
+                GroupedResultPlot: grp:
                     group_names = ['secondary_tone_frequency']
                     source_name = 'analyze_dpoae'
-                    x_column = 'secondary_tone_level'
-                    #x_column = 'ts_end'
+                    #x_column = 'secondary_tone_level'
+                    x_column = 'ts_end'
                     y_column = 'f2_level'
                     pen_color_cycle = 'palettable.cartocolors.sequential.BluGrn_6'
                     pen_width = 2
@@ -329,8 +349,8 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 GroupedResultPlot:
                     group_names = ['secondary_tone_frequency']
                     source_name = 'analyze_dpoae'
-                    x_column = 'secondary_tone_level'
-                    #x_column = 'ts_end'
+                    #x_column = 'secondary_tone_level'
+                    x_column << grp.x_column
                     y_column = 'dpoae_noise_floor'
                     pen_color_cycle = 'palettable.cartocolors.sequential.Burg_6'
                     pen_width = 2

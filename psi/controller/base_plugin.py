@@ -231,7 +231,12 @@ class BasePlugin(Plugin):
             # to see if the target is named. If not, then check to see if it
             # has a parent one can use.
             if o.target is None and o.target_name:
-                self.connect_output(o.name, o.target_name)
+                try:
+                    self.connect_output(o.name, o.target_name)
+                except ValueError:
+                    if not o.optional:
+                        raise
+
             elif o.target is None and not isinstance(o.parent, Extension):
                 o.parent.add_output(o)
             elif o.target is None:

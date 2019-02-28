@@ -48,10 +48,11 @@ class Output(PSIContribution):
     # children or "equalize" something before passing it along).
     fs = Property().tag(metadata=True)
     calibration = Property().tag(metadata=True)
-    filter_delay = Property().tag(metadata=True)
 
     # TODO: clean this up. it's sort of hackish.
     token = d_(Typed(Declarative))
+
+    # Can the user configure properties (such as the token) via the GUI?
     configurable = d_(Bool(True))
 
     def _get_engine(self):
@@ -68,9 +69,6 @@ class Output(PSIContribution):
 
     def _get_fs(self):
         return self.channel.fs
-
-    def _get_filter_delay(self):
-        return self.channel.filter_delay
 
     def _get_calibration(self):
         return self.channel.calibration
@@ -191,7 +189,6 @@ class QueuedEpochOutput(BufferedOutput):
 
     def _update_queue(self):
         if self.queue is not None and self.target is not None:
-            self.queue.set_filter_delay(self.filter_delay)
             self.queue.set_fs(self.fs)
 
     def get_next_samples(self, samples):

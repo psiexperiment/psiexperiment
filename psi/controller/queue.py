@@ -97,7 +97,7 @@ class AbstractSignalQueue:
     def _notify(self, trial_info):
         for notifier in self._notifiers:
             notifier(trial_info)
-        self.uploaded.append(trial_info)
+        self.uploaded.extend(trial_info)
 
     def insert(self, source, trials, delays=None, duration=None, metadata=None):
         k = self._add_source(source, trials, delays, duration, metadata)

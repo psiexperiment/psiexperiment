@@ -336,18 +336,17 @@ def setup_hw_ao(channels, buffer_duration, callback_interval, callback,
 
     lines = get_channel_property(channels, 'channel', True)
     names = get_channel_property(channels, 'name', True)
-    log.debug('Configuring lines {}'.format(lines))
-
+    expected_ranges = get_channel_property(channels, 'expected_range', True)
     start_trigger = get_channel_property(channels, 'start_trigger')
-    expected_range = get_channel_property(channels, 'expected_range')
     terminal_mode = get_channel_property(channels, 'terminal_mode')
-
-    merged_lines = ','.join(lines)
     terminal_mode = NIDAQEngine.terminal_mode_map[terminal_mode]
-
     task = create_task(task_name)
-    mx.DAQmxCreateAOVoltageChan(task, merged_lines, '', expected_range[0],
-                                expected_range[1], mx.DAQmx_Val_Volts, '')
+    merged_lines = ','.join(lines)
+
+    for line, name, (vmin, vmax) in zip(lines, names, expected_ranges):
+        log.debug(f'Configuring line %s (%s)', line, name)
+        mx.DAQmxCreateAOVoltageChan(task, line, name, vmin, vmax,
+                                    mx.DAQmx_Val_Volts, '')
 
     setup_timing(task, channels)
     properties = get_timing_config(task)

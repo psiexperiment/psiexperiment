@@ -536,6 +536,31 @@ class SquareWaveFactory(Carrier):
         return waveform
 
 
+enamldef SquareWave(ContinuousBlock):
+
+    factory = SquareWaveFactory
+    name = 'square_wave'
+    label = 'square wave'
+
+    Parameter:
+        name = 'level'
+        label = 'level'
+        compact_label = 'level'
+        default = 5
+
+    Parameter:
+        name = 'frequency'
+        label = 'frequency (Hz)'
+        compact_label = 'frequency'
+        default = 5
+
+    Parameter:
+        name = 'duty_cycle'
+        label = 'duty cycle'
+        compact_label = 'duty_cycle'
+        default = 0.5
+
+
 ################################################################################
 # Chirp
 ################################################################################
