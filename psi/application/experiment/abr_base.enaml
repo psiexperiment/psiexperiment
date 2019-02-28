@@ -137,8 +137,9 @@ enamldef ControllerManifest(BaseManifest): manifest:
         Cos2Envelope: tone_burst:
             name = 'tone_burst'
             label = 'tone'
+            hide = ['start_time']
             Tone:
-                pass
+                hide = ['polarity', 'phase']
 
     Extension:
         id = 'io'
