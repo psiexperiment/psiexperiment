@@ -91,6 +91,7 @@ class BufferedOutput(Output):
         return self.channel.buffer_size
 
     def _default__buffer(self):
+        print(self.name, self.fs, self.buffer_size)
         return SignalBuffer(self.fs, self.buffer_size, 0, self.dtype)
 
     def get_samples(self, offset, samples, out):
@@ -99,6 +100,11 @@ class BufferedOutput(Output):
         buffered_lb = self._buffer.get_samples_lb()
         buffered_ub = self._buffer.get_samples_ub()
 
+        log.trace('Getting %d samples from %d to %d for %s', samples, lb, ub,
+                  self.name)
+        log.trace('Buffer has %d to %d for %s', buffered_lb, buffered_ub,
+                  self.name)
+
         if lb > buffered_ub:
             # This breaks an implicit software contract.
             raise SystemError('Mismatch between offsets')
@@ -106,6 +112,7 @@ class BufferedOutput(Output):
             log.trace('Generating new data')
             pass
         elif lb >= buffered_lb and ub <= buffered_ub:
+            print(self.name, lb, buffered_lb, ub, buffered_ub)
             log.trace('Extracting from buffer')
             out[:] = self._buffer.get_range_samples(lb, ub)
             samples = 0
@@ -126,11 +133,15 @@ class BufferedOutput(Output):
         raise NotImplementedError
 
     def activate(self, offset):
+        log.debug('Activating %s at %d', self.name, offset)
+        log.debug(self._buffer.get_samples_ub())
         self.active = True
         self._offset = offset
         self._buffer.invalidate_samples(offset)
+        log.debug(self._buffer.get_samples_ub())
 
     def deactivate(self, offset):
+        log.debug('Deactivating %s at %d', self.name, offset)
         self.active = False
         self.source = None
         self._buffer.invalidate_samples(offset)
@@ -145,6 +156,7 @@ class BufferedOutput(Output):
 class EpochOutput(BufferedOutput):
 
     def get_next_samples(self, samples):
+        log.debug('Getting %d samples for %s', samples, self.name)
         if self.active:
             buffered_ub = self._buffer.get_samples_ub()
 

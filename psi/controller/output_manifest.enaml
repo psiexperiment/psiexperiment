@@ -274,6 +274,9 @@ def start_output(event, output):
     ts = event.parameters['timestamp']
     start = event.parameters.get('start', ts)
     delay = event.parameters.get('delay', 0)
+    if isinstance(delay, str):
+        context = event.workbench.get_plugin('psi.context')
+        delay = context.get_value(delay)
 
     # Is this a hack? If no timestamp is defined, then assume that the start is
     # 0 (e.g., in the case of experiment_prepare).
@@ -281,10 +284,6 @@ def start_output(event, output):
         start = 0
 
     offset = round((start+delay)*output.channel.fs)
-
-    # This needs to be done before we update the engine since it gets set to
-    # None once all samples have been generated.
-    duration = output.get_duration()
 
     notify_end = False
 
@@ -302,6 +301,10 @@ def start_output(event, output):
         if not output.is_ready():
             log.debug('Output %s is not ready', output.name)
             prepare_output(event, output)
+
+        # This needs to be done before we update the engine since it gets set to
+        # None once all samples have been generated.
+        duration = output.get_duration()
 
         output.activate(offset)
         output.engine.update_hw_ao(offset, output.channel.name,
