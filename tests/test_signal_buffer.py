@@ -149,3 +149,32 @@ def test_buffer_invalidate(sb):
 
     result = sb.get_range()
     assert np.all(result == data4)
+
+
+def test_buffer_invalidate_past_end(sb):
+    assert sb.get_samples_lb() == 0
+    assert sb.get_samples_ub() == 0
+    sb.invalidate_samples(5000)
+    assert sb.get_samples_lb() == 0
+    assert sb.get_samples_ub() == 0
+
+    data = np.random.uniform(size=100)
+    sb.append_data(data)
+    assert sb.get_samples_lb() == 0
+    assert sb.get_samples_ub() == 100
+    sb.invalidate_samples(5000)
+    assert sb.get_samples_lb() == 0
+    assert sb.get_samples_ub() == 100
+
+    data = np.random.uniform(size=4900)
+    sb.append_data(data)
+    assert sb.get_samples_lb() == 4000
+    assert sb.get_samples_ub() == 5000
+
+    sb.invalidate_samples(5000)
+    assert sb.get_samples_lb() == 4000
+    assert sb.get_samples_ub() == 5000
+
+    sb.invalidate_samples(4999)
+    assert sb.get_samples_lb() == 4000
+    assert sb.get_samples_ub() == 4999
