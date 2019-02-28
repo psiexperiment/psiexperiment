@@ -51,9 +51,6 @@ class AbstractSignalQueue:
         self._notifiers = []
         self.uploaded = []
 
-    def set_filter_delay(self, filter_delay):
-        self._filter_delay = filter_delay
-
     def set_fs(self, fs):
         # Sampling rate at which samples will be generated.
         self._fs = fs
@@ -96,6 +93,11 @@ class AbstractSignalQueue:
         queue = deque()
         self.connect(queue.append)
         return queue
+
+    def _notify(self, trial_info):
+        for notifier in self._notifiers:
+            notifier(trial_info)
+        self.uploaded.append(trial_info)
 
     def insert(self, source, trials, delays=None, duration=None, metadata=None):
         k = self._add_source(source, trials, delays, duration, metadata)
@@ -162,7 +164,7 @@ class AbstractSignalQueue:
         complete = self._source.is_complete()
         return waveform, complete
 
-    def next_trial(self, decrement=True):
+    def _next_trial(self, decrement=True):
         '''
         Setup the next trial
 
@@ -184,15 +186,25 @@ class AbstractSignalQueue:
         if self._delay_samples < 0:
             raise ValueError('Invalid option for delay samples')
 
-        queue_t0 = (self._samples+self._filter_delay)/self._fs
+        queue_t0 = self._samples/self._fs
 
         return {
-            't0': self._t0 + queue_t0,       # Samples re. acq. start
+            't0': self._t0 + queue_t0,      # Samples re. acq. start
             'queue_t0': queue_t0,           # Samples re. queue start
             'duration': data['duration'],   # Duration of token
             'key': key,                     # Unique ID
             'metadata': data['metadata'],   # Metadata re. token
         }
+
+    def next_trial(self, decrement=True):
+        '''
+        Setup the next trial
+
+        This has immediate effect. If you call this (from external code), the
+        current trial will not finish.
+        '''
+        trial_info = self._next_trial(decrement)
+        self._notify([trial_info])
 
     def pop_buffer(self, samples, decrement=True):
         '''
@@ -206,8 +218,8 @@ class AbstractSignalQueue:
         # TODO: This is a bit complicated and I'm not happy with the structure.
         # It should be simplified quite a bit.  Cleanup?
         waveforms = []
-        uploaded = []
         queue_empty = False
+        uploaded = []
 
         # Load samples from current source
         if samples > 0 and self._source is not None:
@@ -232,7 +244,7 @@ class AbstractSignalQueue:
         # Get next source
         if (self._source is None) and (self._delay_samples == 0):
             try:
-                self.uploaded.append(self.next_trial(decrement))
+                uploaded.append(self._next_trial(decrement))
             except QueueEmptyError:
                 queue_empty = True
                 waveform = np.zeros(samples)
@@ -245,9 +257,8 @@ class AbstractSignalQueue:
             samples -= len(waveform)
 
         waveform = np.concatenate(waveforms, axis=-1)
-
-        for notifier in self._notifiers:
-            notifier(uploaded)
+        if uploaded:
+            self._notify(uploaded)
 
         return waveform, queue_empty
 

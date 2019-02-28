@@ -79,8 +79,9 @@ class Output(PSIContribution):
         raise NotImplementedError
 
 
-class AnalogOutput(Output):
+class BufferedOutput(Output):
 
+    dtype = Unicode('double')
     buffer_size = Property()
     active = Bool(False)
     source = Typed(object)
@@ -92,7 +93,7 @@ class AnalogOutput(Output):
         return self.channel.buffer_size
 
     def _default__buffer(self):
-        return SignalBuffer(self.fs, self.buffer_size, 0)
+        return SignalBuffer(self.fs, self.buffer_size, 0, self.dtype)
 
     def get_samples(self, offset, samples, out):
         lb = offset
@@ -143,7 +144,7 @@ class AnalogOutput(Output):
         return self.source.get_duration()
 
 
-class EpochOutput(AnalogOutput):
+class EpochOutput(BufferedOutput):
 
     def get_next_samples(self, samples):
         if self.active:
@@ -156,7 +157,7 @@ class EpochOutput(AnalogOutput):
 
             waveforms = []
             if zero_padding:
-                w = np.zeros(zero_padding, dtype=np.double)
+                w = np.zeros(zero_padding, dtype=self.dtype)
                 waveforms.append(w)
             if waveform_samples:
                 w = self.source.next(waveform_samples)
@@ -165,11 +166,11 @@ class EpochOutput(AnalogOutput):
                 self.deactivate(self._buffer.get_samples_ub())
             waveform = np.concatenate(waveforms, axis=-1)
         else:
-            waveform = np.zeros(samples, dtype=np.double)
+            waveform = np.zeros(samples, dtype=self.dtype)
         return waveform
 
 
-class QueuedEpochOutput(AnalogOutput):
+class QueuedEpochOutput(BufferedOutput):
 
     queue = d_(Typed(AbstractSignalQueue))
     auto_decrement = d_(Bool(False))
@@ -242,7 +243,7 @@ class SelectorQueuedEpochOutput(QueuedEpochOutput):
     selector_name = d_(Unicode())
 
 
-class ContinuousOutput(AnalogOutput):
+class ContinuousOutput(BufferedOutput):
 
     def get_next_samples(self, samples):
         if self.active:

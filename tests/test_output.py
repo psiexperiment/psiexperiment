@@ -3,7 +3,7 @@ import pytest
 import numpy as np
 
 from psi.controller.calibration import FlatCalibration
-from psi.controller.channel import AOChannel
+from psi.controller.channel import HardwareAOChannel
 from psi.controller.output import EpochOutput
 from psi.controller.engines.null import NullEngine
 from psi.token.primitives import Cos2EnvelopeFactory, ToneFactory
@@ -15,8 +15,8 @@ def engine():
 
 @pytest.fixture()
 def ao_channel(engine):
-    channel = AOChannel(fs=1000, calibration=FlatCalibration.as_attenuation(),
-                        parent=engine)
+    channel = HardwareAOChannel(
+        fs=1000, calibration=FlatCalibration.as_attenuation(), parent=engine)
     return channel
 
 
@@ -58,7 +58,7 @@ def test_epoch_output_buffer(epoch_output, tb1, tb2):
     full_waveform2 = tb2.next(s)
     tb2.reset()
 
-    epoch_output.factory = tb1
+    epoch_output.source = tb1
     epoch_output.activate(0)
 
     out = np.empty(1000)
@@ -86,7 +86,7 @@ def test_epoch_output_buffer(epoch_output, tb1, tb2):
     epoch_output.get_samples(2513, 13, out[:13])
     assert np.all(out[:13] == full_waveform1[2513:2526])
 
-    epoch_output.factory = tb2
+    epoch_output.source = tb2
     epoch_output.activate(2000)
 
     with pytest.raises(SystemError):

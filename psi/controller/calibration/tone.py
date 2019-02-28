@@ -74,21 +74,24 @@ def process_tone(fs, signal, frequency, min_snr=None, max_thd=None,
     # Compute the harmonic distortion as a percent
     thd = np.sqrt(np.sum(rms[1:]**2))/freq_rms * 100
 
-    silence = np.atleast_2d(silence)
-    noise_rms = tone_power_conv(silence, fs, frequency, 'flattop')
-    noise_rms = noise_rms.mean(axis=0)
-    freq_snr = db(freq_rms, noise_rms)
-
-    if min_snr is not None:
-        if np.any(freq_snr < min_snr):
-            raise CalibrationNFError(frequency, freq_snr)
+    # If a silent period has been provided, use this to estimat the signal to
+    # noise ratio. As an alternative, could we just use the "sidebands"?
+    if silence is not None:
+        silence = np.atleast_2d(silence)
+        noise_rms = tone_power_conv(silence, fs, frequency, 'flattop')
+        noise_rms = noise_rms.mean(axis=0)
+        freq_snr = db(freq_rms, noise_rms)
+        if min_snr is not None:
+            if np.any(freq_snr < min_snr):
+                raise CalibrationNFError(frequency, freq_snr)
+    else:
+        freq_snr = np.full_like(freq_rms, np.nan)
 
     if max_thd is not None and np.any(thd > max_thd):
         raise CalibrationTHDError(frequency, thd)
 
     # Concatenate and return as a record array
-    result = np.concatenate((freq_rms[np.newaxis],
-                             freq_snr[np.newaxis],
+    result = np.concatenate((freq_rms[np.newaxis], freq_snr[np.newaxis],
                              thd[np.newaxis]))
 
     data = {'rms': freq_rms, 'snr': freq_snr, 'thd': thd,

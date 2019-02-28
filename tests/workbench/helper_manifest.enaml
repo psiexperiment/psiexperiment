@@ -8,7 +8,8 @@ from psi.controller.base_manifest import BaseManifest
 from psi.controller.experiment_action import (ExperimentState, ExperimentEvent,
                                               ExperimentAction)
 from psi.controller.engines.null import NullEngine
-from psi.controller.channel import AIChannel, AOChannel, NIDAQAOChannel
+from psi.controller.channel import HardwareAIChannel, HardwareAOChannel
+from psi.controller.engines.nidaq import NIDAQHardwareAOChannel
 from psi.controller.input import Downsample, IIRFilter, Blocked
 from psi.controller.calibration import PointCalibration
 from psi.token.primitives import Cos2Envelope, Tone
@@ -32,7 +33,7 @@ enamldef HelperManifest(BaseManifest): manifest:
 
         NullEngine:
 
-            AIChannel:
+            HardwareAIChannel:
                 name = 'microphone'
                 fs = 200e3
                 calibration = PointCalibration([1000, 2000], [1, 1])
@@ -56,11 +57,11 @@ enamldef HelperManifest(BaseManifest): manifest:
                             N = 4
                             f_lowpass = 100
 
-            AOChannel:
+            HardwareAOChannel:
                 name = 'speaker_0'
                 fs = 200e3
 
-            NIDAQAOChannel:
+            NIDAQHardwareAOChannel:
                 name = 'speaker_1'
                 fs = 200e3
 

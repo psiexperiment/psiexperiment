@@ -76,33 +76,33 @@ def test_tone_util():
     assert util.tone_power_conv(t2, fs, f2) == pytest.approx(rms)
     assert util.tone_power_conv(t3, fs, f3) == pytest.approx(rms)
 
-    assert util.tone_phase_conv(t1, fs, f1) == pytest.approx(p1, 6)
-    assert util.tone_phase_conv(t2, fs, f2) == pytest.approx(p2, 6)
-    assert util.tone_phase_conv(t3, fs, f3) == pytest.approx(p3, 6)
+    assert util.tone_phase_conv(t1, fs, f1) == pytest.approx(p1, abs=6)
+    assert util.tone_phase_conv(t2, fs, f2) == pytest.approx(p2, abs=6)
+    assert util.tone_phase_conv(t3, fs, f3) == pytest.approx(p3, abs=6)
 
     assert util.tone_power_fft(t1, fs, f1) == pytest.approx(rms)
     assert util.tone_power_fft(t2, fs, f2) == pytest.approx(rms)
     assert util.tone_power_fft(t3, fs, f3) == pytest.approx(rms)
 
-    assert util.tone_phase_fft(t1, fs, f1) == pytest.approx(p1, 6)
-    assert util.tone_phase_fft(t2, fs, f2) == pytest.approx(p2, 6)
-    assert util.tone_phase_fft(t3, fs, f3) == pytest.approx(p3, 6)
+    assert util.tone_phase_fft(t1, fs, f1) == pytest.approx(p1, abs=6)
+    assert util.tone_phase_fft(t2, fs, f2) == pytest.approx(p2, abs=6)
+    assert util.tone_phase_fft(t3, fs, f3) == pytest.approx(p3, abs=6)
 
     assert util.tone_power_conv(t1, fs, f1, window='flattop') == pytest.approx(rms)
     assert util.tone_power_conv(t2, fs, f2, window='flattop') == pytest.approx(rms)
     assert util.tone_power_conv(t3, fs, f3, window='flattop') == pytest.approx(rms)
 
-    assert util.tone_phase_conv(t1, fs, f1, window='flattop') == pytest.approx(p1, 6)
-    assert util.tone_phase_conv(t2, fs, f2, window='flattop') == pytest.approx(p2, 6)
-    assert util.tone_phase_conv(t3, fs, f3, window='flattop') == pytest.approx(p3, 6)
+    assert util.tone_phase_conv(t1, fs, f1, window='flattop') == pytest.approx(p1, abs=6)
+    assert util.tone_phase_conv(t2, fs, f2, window='flattop') == pytest.approx(p2, abs=6)
+    assert util.tone_phase_conv(t3, fs, f3, window='flattop') == pytest.approx(p3, abs=6)
 
     assert util.tone_power_fft(t1, fs, f1, window='flattop') == pytest.approx(rms)
     assert util.tone_power_fft(t2, fs, f2, window='flattop') == pytest.approx(rms)
     assert util.tone_power_fft(t3, fs, f3, window='flattop') == pytest.approx(rms)
 
-    assert util.tone_phase_fft(t1, fs, f1, window='flattop') == pytest.approx(p1, 6)
-    assert util.tone_phase_fft(t2, fs, f2, window='flattop') == pytest.approx(p2, 6)
-    assert util.tone_phase_fft(t3, fs, f3, window='flattop') == pytest.approx(p3, 6)
+    assert util.tone_phase_fft(t1, fs, f1, window='flattop') == pytest.approx(p1, abs=6)
+    assert util.tone_phase_fft(t2, fs, f2, window='flattop') == pytest.approx(p2, abs=6)
+    assert util.tone_phase_fft(t3, fs, f3, window='flattop') == pytest.approx(p3, abs=6)
 
 
 
