@@ -401,7 +401,8 @@ class ChannelPlot(SinglePlot):
         self._update_buffer()
 
     def _update_buffer(self, event=None):
-        self._buffer = SignalBuffer(self.source.fs, self.parent.data_range.span*2)
+        self._buffer = SignalBuffer(self.source.fs,
+                                    self.parent.data_range.span*2)
 
     def _update_decimation(self, viewbox=None):
         try:
@@ -425,7 +426,8 @@ class ChannelPlot(SinglePlot):
             t = t[:len(d_min)]
             x = np.c_[t, t].ravel()
             y = np.c_[d_min, d_max].ravel()
-            deferred_call(self.plot.setData, x, y, connect='pairs')
+            if x.shape == y.shape:
+                deferred_call(self.plot.setData, x, y, connect='pairs')
         else:
             t = t[:len(data)]
             deferred_call(self.plot.setData, t, data)
@@ -855,8 +857,9 @@ class GroupedResultPlot(GroupMixin, SinglePlot):
             x, y = zip(*data)
             x = np.array(x)
             y = np.array(y)
-            plot = self.get_plot(key)
-            todo.append((plot.setData, x, y))
+            curve, scatter = self.get_plot(key)
+            todo.append((curve.setData, x, y))
+            todo.append((scatter.setData, x, y))
 
         def update():
             for setter, x, y in todo:
@@ -871,15 +874,17 @@ class GroupedResultPlot(GroupMixin, SinglePlot):
             pen_color = self.get_pen_color(key)
             pen = pg.mkPen(pen_color, width=self.pen_width)
             brush = pg.mkBrush(pen_color)
-            plot = pg.PlotDataItem(pen=pen,
-                                   antialias=self.antialias,
-                                   symbol=symbol_code,
-                                   symbolSize=self.symbol_size,
-                                   symbolPen=pen,
-                                   symbolBrush=brush,
-                                   pxMode=self.symbol_size_unit == 'screen')
-            deferred_call(self.parent.viewbox.addItem, plot)
-            self.plots[key] = plot
+
+            curve = pg.PlotCurveItem(pen=pen, antialias=self.antialias)
+            scatter = pg.ScatterPlotItem(pen=pen, antialias=self.antialias,
+                                         symbol=symbol_code,
+                                         symbolSize=self.symbol_size,
+                                         symbolPen=pen, symbolBrush=brush,
+                                         pxMode=self.symbol_size_unit=='screen')
+
+            deferred_call(self.parent.viewbox.addItem, curve)
+            deferred_call(self.parent.viewbox.addItem, scatter)
+            self.plots[key] = curve, scatter
         except KeyError as key_error:
             key = key_error.args[0]
             m = f'Cannot update plot since a field, {key}, ' \
