@@ -513,6 +513,28 @@ enamldef Silence(ContinuousBlock):
     label = 'silence'
 
 
+################################################################################
+# Square waveform
+################################################################################
+class SquareWaveFactory(Carrier):
+
+    def __init__(self, fs, level, frequency, duty_cycle):
+        self.sf = level
+        self.cycle_samples = int(round(fs/frequency))
+        self.on_samples = int(round(self.cycle_samples * duty_cycle))
+        self.reset()
+
+    def reset(self):
+        self.offset = 0
+
+    def next(self, samples):
+        waveform = np.zeros(samples)
+        o = self.offset % self.cycle_samples
+        while o < samples:
+            waveform[o:o+self.on_samples] = self.sf
+            o += self.cycle_samples
+        return waveform
+
 
 ################################################################################
 # Chirp

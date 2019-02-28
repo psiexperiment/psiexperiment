@@ -42,3 +42,21 @@ def test_sam_envelope(benchmark):
 
     actual = benchmark(primitives.sam_envelope, offset, samples, fs, depth, fm,
                        delay, eq_phase, eq_power)
+
+
+def test_square_wave(benchmark):
+    fs = 100e3
+    level = 5
+    frequency = 10
+    duty_cycle = 0.5
+    samples = round(fs / frequency)
+
+    #expected = np.zeros(samples)
+
+    for duty_cycle in np.arange(0, 1.0, 0.2):
+        factory = primitives.SquareWaveFactory(fs, level, frequency, duty_cycle)
+        waveform = factory.next(samples)
+        assert waveform.mean() == pytest.approx(level * duty_cycle)
+
+    factory = primitives.SquareWaveFactory(fs, level, frequency, duty_cycle)
+    actual = benchmark(factory.next, samples)
