@@ -105,6 +105,59 @@ class Modulator(Waveform):
         return self.input_factory.is_complete()
 
 
+class GateFactory(Modulator):
+
+    def __init__(self, fs, start_time, duration, input_factory):
+        vars(self).update(locals())
+        self.start_samples = int(round(start_time * fs))
+        self.duration_samples = int(round(self.duration * fs))
+        self.total_samples = self.start_samples + self.duration_samples
+        self.reset()
+
+    def get_duration(self):
+        return self.start_time + self.duration
+
+    def get_remaining_samples(self):
+        return max(self.total_samples - self.offset, 0)
+
+    def is_complete(self):
+        return self.offset >= self.total_samples
+
+    def reset(self):
+        self.offset = 0
+        self.input_factory.reset()
+
+    def next(self, samples):
+        token = self.input_factory.next(samples)
+        lb = self.start_samples - self.offset
+        ub = lb + self.duration_samples
+        if lb >= 0:
+            token[:lb] = 0
+        if ub > 0:
+            token[ub:] = 0
+        self.offset += samples
+        return token
+
+
+enamldef Gate(EpochBlock): block:
+
+    factory = GateFactory
+    name = 'envelope'
+    label = 'envelope'
+
+    Parameter:
+        name = 'duration'
+        label = 'duration (s)'
+        compact_label = 'dur'
+        default = 4.0
+
+    Parameter:
+        name = 'start_time'
+        label = 'start time (s)'
+        compact_label = 'start'
+        default = 0.0
+
+
 ################################################################################
 # Cos2Envelope
 ################################################################################
@@ -151,26 +204,11 @@ def cos2envelope(fs, offset, samples, start_time, rise_time, duration):
     return np.concatenate(concat, axis=-1)
 
 
-class Cos2EnvelopeFactory(Modulator):
+class Cos2EnvelopeFactory(GateFactory):
 
-    def __init__(self, fs, start_time, rise_time, duration, calibration,
-                 input_factory):
-        vars(self).update(locals())
-        self.total_samples = (self.duration + self.start_time)*fs
-        self.reset()
-
-    def get_duration(self):
-        return self.start_time + self.duration
-
-    def get_remaining_samples(self):
-        return max(self.total_samples - self.offset, 0)
-
-    def is_complete(self):
-        return self.offset >= self.total_samples
-
-    def reset(self):
-        self.offset = 0
-        self.input_factory.reset()
+    def __init__(self, fs, start_time, rise_time, duration, input_factory):
+        self.rise_time = rise_time
+        super().__init__(fs, start_time, duration, input_factory)
 
     def next(self, samples):
         token = self.input_factory.next(samples)
@@ -181,29 +219,17 @@ class Cos2EnvelopeFactory(Modulator):
         return waveform
 
 
-enamldef Cos2Envelope(EpochBlock): block:
+enamldef Cos2Envelope(Gate): block:
 
     factory = Cos2EnvelopeFactory
     name = 'envelope'
     label = 'envelope'
 
     Parameter:
-        name = 'duration'
-        label = 'duration (s)'
-        compact_label = 'dur'
-        default = 4.0
-
-    Parameter:
         name = 'rise_time'
         label = 'rise time (s)'
         compact_label = 'env rise'
         default = 1.0
-
-    Parameter:
-        name = 'start_time'
-        label = 'start time (s)'
-        compact_label = 'start'
-        default = 0.0
 
 
 ################################################################################
