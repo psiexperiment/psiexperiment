@@ -374,6 +374,8 @@ class SinglePlot(BasePlot):
 class ChannelPlot(SinglePlot):
 
     downsample = Int(0)
+    decimate_mode = d_(Enum('extremes', 'mean'))
+
     _cached_time = Typed(np.ndarray)
     _buffer = Typed(SignalBuffer)
 
@@ -422,22 +424,24 @@ class ChannelPlot(SinglePlot):
         t = self._cached_time[:len(data)] + low
         if self.downsample > 1:
             t = t[::self.downsample]
-            d_min, d_max = decimate_extremes(data, self.downsample)
-            t = t[:len(d_min)]
-            x = np.c_[t, t].ravel()
-            y = np.c_[d_min, d_max].ravel()
-            if x.shape == y.shape:
-                deferred_call(self.plot.setData, x, y, connect='pairs')
+            if self.decimate_mode == 'extremes':
+                d_min, d_max = decimate_extremes(data, self.downsample)
+                t = t[:len(d_min)]
+                x = np.c_[t, t].ravel()
+                y = np.c_[d_min, d_max].ravel()
+                if x.shape == y.shape:
+                    deferred_call(self.plot.setData, x, y, connect='pairs')
+            elif self.decimate_mode == 'mean':
+                d = decimate_mean(data, self.downsample)
+                t = t[:len(d)]
+                if t.shape == d.shape:
+                    deferred_call(self.plot.setData, t, d)
         else:
             t = t[:len(data)]
             deferred_call(self.plot.setData, t, data)
 
 
-def decimate_extremes(data, downsample):
-    # If data is empty, return imediately
-    if data.size == 0:
-        return np.array([]), np.array([])
-
+def _reshape_for_decimate(data, downsample):
     # Determine the "fragment" size that we are unable to decimate.  A
     # downsampling factor of 5 means that we perform the operation in chunks of
     # 5 samples.  If we have only 13 samples of data, then we cannot decimate
@@ -446,16 +450,28 @@ def decimate_extremes(data, downsample):
     offset = data.shape[-1] % downsample
     if offset > 0:
         data = data[..., :-offset]
+    shape = (len(data), -1, downsample) if data.ndim == 2 else (-1, downsample)
+    return data.reshape(shape)
+
+
+def decimate_mean(data, downsample):
+    # If data is empty, return imediately
+    if data.size == 0:
+        return np.array([]), np.array([])
+    data = _reshape_for_decimate(data, downsample).copy()
+    return data.mean(axis=-1)
+
+
+def decimate_extremes(data, downsample):
+    # If data is empty, return imediately
+    if data.size == 0:
+        return np.array([]), np.array([])
 
     # Force a copy to be made, which speeds up min()/max().  Apparently min/max
     # make a copy of a reshaped array before performing the operation, so we
     # force it now so the copy only occurs once.
-    if data.ndim == 2:
-        shape = (len(data), -1, downsample)
-    else:
-        shape = (-1, downsample)
-    data = data.reshape(shape).copy()
-    return data.min(last_dim), data.max(last_dim)
+    data = _reshape_for_decimate(data, downsample).copy()
+    return data.min(axis=-1), data.max(axis=-1)
 
 
 class FFTChannelPlot(ChannelPlot):
