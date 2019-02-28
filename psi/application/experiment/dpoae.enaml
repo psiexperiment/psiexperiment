@@ -35,10 +35,10 @@ from psi.data.sinks.api import BColzStore
 def process(n_time, n_fft, input, workbench, status_widget, target):
     context = workbench.get_plugin('psi.context')
     controller = workbench.get_plugin('psi.controller')
+    core = workbench.get_plugin('enaml.workbench.core')
 
     time_data = []
     fft_data = {}
-
     total_samples = 0
 
     while True:
@@ -82,6 +82,14 @@ def process(n_time, n_fft, input, workbench, status_widget, target):
                     target([context.get_values()])
                     fft_data = {}
 
+                    # Move to next level
+                    # TODO this should be it's own callback
+                    context.next_setting('default')
+                    print(context.get_value('secondary_tone_level'))
+                    params = {'timestamp': controller.get_ts(), 'delay': 1}
+                    core.invoke_command('dpoae.start', params)
+
+        # Post current status to the GUI
         def update(n_time, n_fft, status_widget):
             status_widget.n_time = n_time
             status_widget.n_fft = n_fft
@@ -142,8 +150,9 @@ enamldef ControllerManifest(BaseManifest): manifest:
         Cos2Envelope: tone:
             name = 'tone'
             label = 'tone'
+            hide = ['start_time']
             Tone:
-                pass
+                hide = ['phase', 'polarity']
 
     Extension:
         id = 'io'
@@ -281,13 +290,13 @@ enamldef ControllerManifest(BaseManifest): manifest:
         ExperimentAction:
             event = 'experiment_prepare'
             command = 'psi.context.next_setting'
-            weight = 6
+            weight = 11
             kwargs = {'selector': 'default', 'save_prior': False}
 
         ExperimentAction:
             event = 'experiment_prepare'
             command = 'psi.controller.configure_hardware'
-            weight = 9
+            weight = 12
 
         ExperimentAction:
             event = 'engines_configured'
@@ -311,37 +320,20 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 GroupedResultPlot:
                     group_names = ['secondary_tone_frequency']
                     source_name = 'analyze_dpoae'
-                    x_column = 'ts_end'
+                    x_column = 'secondary_tone_level'
+                    #x_column = 'ts_end'
                     y_column = 'f2_level'
                     pen_color_cycle = 'palettable.cartocolors.sequential.BluGrn_6'
+                    pen_width = 2
 
                 GroupedResultPlot:
                     group_names = ['secondary_tone_frequency']
                     source_name = 'analyze_dpoae'
-                    x_column = 'ts_end'
+                    x_column = 'secondary_tone_level'
+                    #x_column = 'ts_end'
                     y_column = 'dpoae_noise_floor'
                     pen_color_cycle = 'palettable.cartocolors.sequential.Burg_6'
-
-                #ResultPlot:
-                #    group_names = ['secondary_tone_frequency']
-                #    source_name = 'analyze_dpoae'
-                #    x_column = 'secondary_tone_level'
-                #    y_column = 'f1_level'
-                #    pen_color = 'crimson'
-
-                #ResultPlot:
-                #    group_names = ['secondary_tone_frequency']
-                #    source_name = 'analyze_dpoae'
-                #    x_column = 'secondary_tone_level'
-                #    y_column = 'dpoae_level'
-                #    pen_color = 'black'
-
-                #ResultPlot:
-                #    group_names = ['secondary_tone_frequency']
-                #    source_name = 'analyze_dpoae'
-                #    x_column = 'secondary_tone_level'
-                #    y_column = 'dpoae_noise_floor'
-                    pen_color = 'gray'
+                    pen_width = 2
 
     Extension:
         id = 'dpoae_status_view'
@@ -353,18 +345,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
             attr n_fft = 0
             attr n_time = 0
-            attr dpoae_nf = 0
 
             Container:
-                Form:
-                    Label:
-                        text = 'status'
-
-                    Label:
-                        text << '{} time, {} FFT'.format(n_time, n_fft)
-
-                    Label:
-                        text = 'DPOAE noise floor'
-
-                    Label:
-                        text << '{:.2f} dB SPL'.format(dpoae_nf)
+                Label:
+                    text << '{} time, {} FFT'.format(n_time, n_fft)
