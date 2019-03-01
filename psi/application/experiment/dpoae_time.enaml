@@ -1,0 +1,92 @@
+from enaml.workbench.api import Extension
+
+from psi.context.api import Parameter
+from psi.controller.api import EpochOutput, ExperimentAction
+from psi.data.plots import GroupedResultPlot, PlotContainer, ViewBox
+from psi.token.primitives import Gate, SquareWave
+
+from .dpoae_base import ControllerManifest as DPOAEBaseControllerManifest
+
+
+enamldef ControllerManifest(DPOAEBaseControllerManifest):
+
+    Extension:
+        id = 'dpoae_time_tokens'
+        point = 'psi.token.tokens'
+
+        Gate: ttl:
+            name = 'ttl'
+            hide = ['start_time']
+            SquareWave:
+                pass
+
+    Extension:
+        id = 'dpoae_time_io'
+        point = 'psi.controller.io'
+
+        EpochOutput: trigger:
+            name = 'trigger'
+            label = 'TTL'
+            target_name = 'ttl_output'
+            configurable = False
+            token = ttl
+
+    Extension:
+        id = 'dpoae_time_actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'dpoae_start'
+            command = 'trigger.start'
+            kwargs = {'delay': 'ttl_start'}
+
+        ExperimentAction:
+            event = 'dpoae_end'
+            command = 'dpoae_capture.end'
+
+        ExperimentAction:
+            event = 'dpoae_end'
+            command = 'psi.context.next_setting'
+            kwargs = {'selector': 'default', 'save_prior': False}
+
+        ExperimentAction:
+            event = 'dpoae_end'
+            command = 'dpoae.start'
+            kwargs = {'delay': 0.25}
+
+    Extension:
+        id = 'dpoae_time_context'
+        point = 'psi.context.items'
+
+        Parameter:
+            name = 'ttl_start'
+            label = 'TTL start time (sec)'
+            dtype = 'float'
+            default = 5e3
+            group = 'dpoae'
+
+    Extension:
+        id = 'dpoae_time_plots'
+        point = 'psi.data.plots'
+
+        PlotContainer:
+            name = 'results_plot_container'
+            label = 'Results'
+
+            ViewBox:
+
+                GroupedResultPlot: grp:
+                    group_names = ['secondary_tone_frequency']
+                    source_name = 'analyze_dpoae'
+                    x_column = 'ts_end'
+                    y_column = 'f2_level'
+                    pen_color_cycle = 'palettable.cartocolors.sequential.BluGrn_6'
+                    pen_width = 2
+
+                GroupedResultPlot:
+                    group_names = ['secondary_tone_frequency']
+                    source_name = 'analyze_dpoae'
+                    x_column << grp.x_column
+                    y_column = 'dpoae_noise_floor'
+                    pen_color_cycle = 'palettable.cartocolors.sequential.Burg_6'
+                    pen_width = 2

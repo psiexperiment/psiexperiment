@@ -356,12 +356,13 @@ def capture(fs, queue, target):
             # (indicating when next acquisition should begin).
             t_next = queue.get(block=False)
             if t_next is not None:
+                log.debug('Starting capture at %f', t_next)
                 t_next = round(t_next*fs)
         except Empty:
             pass
 
         if t_next is None:
-            pass
+            log.debug('Ending capture')
         elif t_next < t0:
             raise SystemError('Data lost')
         elif t_next >= t0:

@@ -43,11 +43,19 @@ abr_controller = PluginDescription(
 )
 
 
-dpoae_controller = PluginDescription(
+dpoae_time_controller = PluginDescription(
     name='controller',
     title='Controller',
     required=True,
-    manifest='psi.application.experiment.dpoae.ControllerManifest',
+    manifest='psi.application.experiment.dpoae_time.ControllerManifest',
+)
+
+
+dpoae_io_controller = PluginDescription(
+    name='controller',
+    title='Controller',
+    required=True,
+    manifest='psi.application.experiment.dpoae_io.ControllerManifest',
 )
 
 
@@ -126,12 +134,12 @@ abr_experiment = ParadigmDescription(
 )
 
 
-dpoae_experiment = ParadigmDescription(
-    name='dpoae',
-    title='DPOAE',
+dpoae_time_experiment = ParadigmDescription(
+    name='dpoae_time',
+    title='DPOAE (over time)',
     type='ear',
     plugins=[
-        dpoae_controller,
+        dpoae_time_controller,
         temperature_mixin,
         eeg_view_mixin,
         dpoae_in_ear_calibration_mixin,
@@ -140,6 +148,20 @@ dpoae_experiment = ParadigmDescription(
     ]
 )
 
+
+dpoae_io_experiment = ParadigmDescription(
+    name='dpoae_io',
+    title='DPOAE input-output',
+    type='ear',
+    plugins=[
+        dpoae_io_controller,
+        temperature_mixin,
+        eeg_view_mixin,
+        dpoae_in_ear_calibration_mixin,
+        microphone_fft_view_mixin,
+        microphone_signal_view_mixin,
+    ]
+)
 
 
 speaker_calibration_experiment = ParadigmDescription(
@@ -249,7 +271,8 @@ pt_calibration_golay = ParadigmDescription(
 
 experiments = {
     'abr': abr_experiment,
-    'dpoae': dpoae_experiment,
+    'dpoae_time': dpoae_time_experiment,
+    'dpoae_io': dpoae_io_experiment,
     'speaker_calibration': speaker_calibration_experiment,
     'appetitive_gonogo_food': appetitive_experiment,
     'noise_exposure': noise_exposure_experiment,

@@ -26,7 +26,7 @@ enamldef MicrophoneSignalViewMixinManifest(PluginManifest):
         TimeContainer:
             name = 'microphone_plot_container'
             label = 'Microphone signal'
-            span = 2
+            span = 10
             delay = 0.125
 
             ViewBox:
@@ -37,6 +37,17 @@ enamldef MicrophoneSignalViewMixinManifest(PluginManifest):
                 ChannelPlot:
                     pen_color = 'k'
                     source_name = 'microphone'
+
+            ViewBox:
+                name = 'ttl_view'
+                y_min = 0
+                y_max = 5
+
+                ChannelPlot:
+                    pen_color = 'r'
+                    pen_width = 2.5
+                    source_name = 'ttl_monitor'
+                    decimate_mode = 'mean'
 
 
 enamldef MicrophoneFFTViewMixinManifest(PluginManifest):

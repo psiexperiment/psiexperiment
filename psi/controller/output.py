@@ -134,7 +134,6 @@ class BufferedOutput(Output):
 
     def activate(self, offset):
         log.debug('Activating %s at %d', self.name, offset)
-        log.debug(self._buffer.get_samples_ub())
         self.active = True
         self._offset = offset
         self._buffer.invalidate_samples(offset)
@@ -156,7 +155,7 @@ class BufferedOutput(Output):
 class EpochOutput(BufferedOutput):
 
     def get_next_samples(self, samples):
-        log.debug('Getting %d samples for %s', samples, self.name)
+        log.trace('Getting %d samples for %s', samples, self.name)
         if self.active:
             buffered_ub = self._buffer.get_samples_ub()
 

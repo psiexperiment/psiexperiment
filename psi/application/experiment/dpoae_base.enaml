@@ -22,7 +22,7 @@ from psi.controller.input import (Blocked, Capture, ContinuousInput, coroutine,
                                   Discard, Input)
 
 from psi.controller.output import EpochOutput, Synchronized
-from psi.token.primitives import Cos2Envelope, Gate, SquareWave, Tone
+from psi.token.primitives import Cos2Envelope, Tone
 
 from psi.data.plots import GroupedResultPlot, PlotContainer, ViewBox
 from psi.data.sinks.api import BColzStore
@@ -91,9 +91,10 @@ def process(n_time, n_fft, input, workbench, status_widget, target):
             status_widget.n_time = n_time
             status_widget.n_fft = n_fft
 
-        nt = len(time_data)
-        nf = len(fft_data.get('f1_level', []))
-        deferred_call(update, nt, nf, status_widget)
+        if status_widget is not None:
+            nt = len(time_data)
+            nf = len(fft_data.get('f1_level', []))
+            deferred_call(update, nt, nf, status_widget)
 
 
 class AnalyzeDPOAE(Input):
@@ -151,12 +152,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
             Tone:
                 hide = ['phase', 'polarity']
 
-        Gate: ttl:
-            name = 'ttl'
-            hide = ['start_time']
-            SquareWave:
-                pass
-
     Extension:
         id = 'io'
         point = 'psi.controller.io'
@@ -177,17 +172,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 target_name = 'speaker_1'
                 configurable = False
                 token = tone
-
-        EpochOutput: trigger:
-            name = 'trigger'
-            label = 'TTL'
-            target_name = 'ttl_output'
-            configurable = False
-            token = ttl
-
-        ContinuousInput:
-            name = 'ttl_monitor'
-            source_name = 'ttl_monitor_channel'
 
         ContinuousInput:
             name = 'microphone'
@@ -287,12 +271,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 dtype = 'float'
                 default = 100e-3
 
-            Parameter:
-                name = 'ttl_start'
-                label = 'TTL start time (sec)'
-                dtype = 'float'
-                default = 5e3
-
         OrderedContextMeta: dpoae_groups:
             name = 'dpoae_plot_groups'
 
@@ -321,56 +299,8 @@ enamldef ControllerManifest(BaseManifest): manifest:
         ExperimentAction:
             event = 'engines_configured'
             command = 'dpoae.start'
-            kwargs = {'delay': 1}
+            kwargs = {'delay': 0.25}
 
         ExperimentAction:
             event = 'dpoae_start'
             command = 'dpoae_capture.start'
-
-        ExperimentAction:
-            event = 'dpoae_start'
-            command = 'trigger.start'
-            kwargs = {'delay': 'ttl_start'}
-
-    Extension:
-        id = 'plots'
-        point = 'psi.data.plots'
-
-        PlotContainer:
-            name = 'results_plot_container'
-            label = 'Results'
-
-            ViewBox:
-
-                GroupedResultPlot: grp:
-                    group_names = ['secondary_tone_frequency']
-                    source_name = 'analyze_dpoae'
-                    #x_column = 'secondary_tone_level'
-                    x_column = 'ts_end'
-                    y_column = 'f2_level'
-                    pen_color_cycle = 'palettable.cartocolors.sequential.BluGrn_6'
-                    pen_width = 2
-
-                GroupedResultPlot:
-                    group_names = ['secondary_tone_frequency']
-                    source_name = 'analyze_dpoae'
-                    #x_column = 'secondary_tone_level'
-                    x_column << grp.x_column
-                    y_column = 'dpoae_noise_floor'
-                    pen_color_cycle = 'palettable.cartocolors.sequential.Burg_6'
-                    pen_width = 2
-
-    Extension:
-        id = 'dpoae_status_view'
-        point = 'psi.experiment.workspace'
-
-        DockItem: di:
-            name = 'dpoae_status'
-            title = 'Acquisition'
-
-            attr n_fft = 0
-            attr n_time = 0
-
-            Container:
-                Label:
-                    text << '{} time, {} FFT'.format(n_time, n_fft)

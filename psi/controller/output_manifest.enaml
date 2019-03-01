@@ -194,6 +194,8 @@ def start_synchronized(synchronized, event):
 
     notify_end = False
 
+    durations = {}
+
     # Activate the outputs
     for output in synchronized.outputs:
         offset = round((start+delay)*output.channel.fs)
@@ -206,6 +208,8 @@ def start_synchronized(synchronized, event):
         if not output.is_ready():
             log.debug('Output %s is not ready.  Preparing.', output.name)
             prepare_output(event, output)
+
+        durations[output.name] = output.get_duration()
 
         log.debug('Starting output %s', output.name)
         output.activate(offset)
@@ -229,6 +233,18 @@ def start_synchronized(synchronized, event):
 
     controller.invoke_actions('{}_start'.format(synchronized.name),
                               start+delay)
+
+    duration = max(durations.values())
+    if duration is not np.inf:
+        print(duration)
+        print(duration)
+        print(duration)
+        print(duration)
+        print(duration)
+        print(duration)
+        print(duration)
+        controller.invoke_actions('{}_end'.format(synchronized.name),
+                                  start+delay+duration, delayed=True)
 
 
 def clear_synchronized(synchronized, event):

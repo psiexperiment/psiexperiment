@@ -1,0 +1,47 @@
+from enaml.workbench.api import Extension
+
+from .dpoae_base import ControllerManifest as DPOAEBaseControllerManifest
+
+
+enamldef ControllerManifest(DPOAEBaseControllerManifest):
+
+    Extension:
+        id = 'plots'
+        point = 'psi.data.plots'
+
+        PlotContainer:
+            name = 'results_plot_container'
+            label = 'Results'
+
+            ViewBox:
+
+                GroupedResultPlot: grp:
+                    group_names = ['secondary_tone_frequency']
+                    source_name = 'analyze_dpoae'
+                    x_column = 'secondary_tone_level'
+                    y_column = 'f2_level'
+                    pen_color_cycle = 'palettable.cartocolors.sequential.BluGrn_6'
+                    pen_width = 2
+
+                GroupedResultPlot:
+                    group_names = ['secondary_tone_frequency']
+                    source_name = 'analyze_dpoae'
+                    x_column << grp.x_column
+                    y_column = 'dpoae_noise_floor'
+                    pen_color_cycle = 'palettable.cartocolors.sequential.Burg_6'
+                    pen_width = 2
+
+    Extension:
+        id = 'dpoae_status_view'
+        point = 'psi.experiment.workspace'
+
+        DockItem: di:
+            name = 'dpoae_status'
+            title = 'Acquisition'
+
+            attr n_fft = 0
+            attr n_time = 0
+
+            Container:
+                Label:
+                    text << '{} time, {} FFT'.format(n_time, n_fft)
