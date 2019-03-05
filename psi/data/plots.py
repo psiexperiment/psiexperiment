@@ -873,8 +873,9 @@ class GroupedResultPlot(GroupMixin, SinglePlot):
             x, y = zip(*data)
             x = np.array(x)
             y = np.array(y)
-            plot = self.get_plot(key)
-            todo.append((plot.setData, x, y))
+            curve, scatter = self.get_plot(key)
+            todo.append((curve.setData, x, y))
+            todo.append((scatter.setData, x, y))
 
         def update():
             for setter, x, y in todo:
@@ -885,11 +886,21 @@ class GroupedResultPlot(GroupMixin, SinglePlot):
     def _make_new_plot(self, key):
         log.info('Adding plot for key %r', key)
         try:
+            symbol_code = self.SYMBOL_MAP[self.symbol]
             pen_color = self.get_pen_color(key)
             pen = pg.mkPen(pen_color, width=self.pen_width)
-            plot = pg.PlotCurveItem(pen=pen, antialias=self.antialias)
-            deferred_call(self.parent.viewbox.addItem, plot)
-            self.plots[key] = plot
+            brush = pg.mkBrush(pen_color)
+
+            curve = pg.PlotCurveItem(pen=pen, antialias=self.antialias)
+            scatter = pg.ScatterPlotItem(pen=pen, antialias=self.antialias,
+                                         symbol=symbol_code,
+                                         symbolSize=self.symbol_size,
+                                         symbolPen=pen, symbolBrush=brush,
+                                         pxMode=self.symbol_size_unit=='screen')
+
+            deferred_call(self.parent.viewbox.addItem, curve)
+            deferred_call(self.parent.viewbox.addItem, scatter)
+            self.plots[key] = curve, scatter
         except KeyError as key_error:
             key = key_error.args[0]
             m = f'Cannot update plot since a field, {key}, ' \
