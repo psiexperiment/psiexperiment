@@ -36,41 +36,27 @@ class BaseStore(Sink):
         self.base_path = Path(base_path)
 
 
-def create_table(sink, event):
-    return sink.create_table(event.parameters['name'],
-                             event.parameters['dataframe'])
+def save_mapping(sink, event):
+    return sink.save_mapping(event.parameters['name'],
+                             event.parameters['mapping'],
+                             event.parameters.get('overwrite', False))
 
 
-def update_table(sink, event):
-    return sink.update_table(event.parameters['name'],
-                             event.parameters['dataframe'])
-
-
-def create_mapping(sink, event):
-    return sink.create_mapping(event.parameters['name'],
-                               event.parameters['mapping'])
-
-
-def update_mapping(sink, event):
-    return sink.update_mapping(event.parameters['name'],
-                               event.parameters['mapping'])
+def save_dataframe(sink, event):
+    return sink.save_dataframe(event.parameters['name'],
+                               event.parameters['dataframe'],
+                               event.parameters.get('overwrite', False))
 
 
 enamldef BaseStoreManifest(PSIManifest): manifest:
 
     Extension:
-        id = 'commands'
+        id = manifest.id + '.base_commands'
         point = 'enaml.workbench.core.commands'
 
         Command:
-            id = manifest.id + '.create_table'
-            handler = partial(create_table, manifest.contribution)
+            id = manifest.id + '.save_dataframe'
+            handler = partial(save_dataframe, manifest.contribution)
         Command:
-            id = manifest.id + '.update_table'
-            handler = partial(update_table, manifest.contribution)
-        Command:
-            id = manifest.id + '.create_mapping'
-            handler = partial(create_mapping, manifest.contribution)
-        Command:
-            id = manifest.id + '.update_mapping'
-            handler = partial(update_mapping, manifest.contribution)
+            id = manifest.id + '.save_mapping'
+            handler = partial(save_mapping, manifest.contribution)

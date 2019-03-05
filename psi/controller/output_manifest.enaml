@@ -172,6 +172,7 @@ def prepare_synchronized(synchronized, event):
 
 def start_synchronized(synchronized, event):
     log.debug('Starting synchronized %s', synchronized.name)
+    controller = event.workbench.get_plugin('psi.controller')
 
     ts = event.parameters['timestamp']
     start = event.parameters.get('start', ts)
@@ -180,7 +181,8 @@ def start_synchronized(synchronized, event):
     # Is this a hack? If no timestamp is defined, then assume that the start is
     # 0 (e.g., in the case of experiment_prepare).
     if start is None:
-        start = 0
+        start = controller.get_ts()
+        log.debug('No starting time provided. Setting start to %f.', start)
 
     # For each engine involved in this synchronized output, store a list of the
     # offsets and channel names that need to be updated.
@@ -193,7 +195,6 @@ def start_synchronized(synchronized, event):
         engine.lock.acquire()
 
     notify_end = False
-
     durations = {}
 
     # Activate the outputs
@@ -201,12 +202,12 @@ def start_synchronized(synchronized, event):
         offset = round((start+delay)*output.channel.fs)
 
         if output.active:
+            log.debug('Output %s is active. Deactivating first.', output.name)
             output.deactivate(offset)
-            log.debug('Output %s was active. Deactivating first.', output.name)
             notify_end = True
 
         if not output.is_ready():
-            log.debug('Output %s is not ready.  Preparing.', output.name)
+            log.debug('Output %s is not ready. Preparing.', output.name)
             prepare_output(event, output)
 
         durations[output.name] = output.get_duration()
@@ -226,7 +227,6 @@ def start_synchronized(synchronized, event):
     for engine in synchronized.engines:
         engine.lock.release()
 
-    controller = event.workbench.get_plugin('psi.controller')
     if notify_end:
         controller.invoke_actions('{}_end'.format(synchronized.name),
                                   start+delay)
@@ -236,13 +236,6 @@ def start_synchronized(synchronized, event):
 
     duration = max(durations.values())
     if duration is not np.inf:
-        print(duration)
-        print(duration)
-        print(duration)
-        print(duration)
-        print(duration)
-        print(duration)
-        print(duration)
         controller.invoke_actions('{}_end'.format(synchronized.name),
                                   start+delay+duration, delayed=True)
 
@@ -290,6 +283,7 @@ def start_output(event, output):
     ts = event.parameters['timestamp']
     start = event.parameters.get('start', ts)
     delay = event.parameters.get('delay', 0)
+
     if isinstance(delay, str):
         context = event.workbench.get_plugin('psi.context')
         delay = context.get_value(delay)

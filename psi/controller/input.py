@@ -1,8 +1,9 @@
 import logging
 log = logging.getLogger(__name__)
 
-from functools import partial
+from collections import namedtuple
 from copy import copy
+from functools import partial
 from queue import Empty, Queue
 
 import numpy as np
@@ -20,6 +21,28 @@ from .queue import AbstractSignalQueue
 
 from psi.core.enaml.api import PSIContribution
 from psi.controller.calibration import FlatCalibration
+
+
+class InputData(np.ndarray):
+
+    def __new__(cls, input_array, metadata=None):
+        obj = np.asarray(input_array).view(cls)
+        obj.metadata = metadata if metadata else {}
+        return obj
+
+    def __array_finalize__(self, obj):
+        if obj is None: return
+        self.metadata = getattr(obj, 'metadata', None)
+
+
+def concatenate(input_data, axis=None):
+    b = input_data[0]
+    for d in input_data[1:]:
+        if d.metadata != b.metadata:
+            log.debug('%r vs %r', d.metadata, b.metadata)
+            raise ValueError('Cannot combine InputData set')
+    arrays = np.concatenate(input_data, axis=axis)
+    return InputData(arrays, b.metadata)
 
 
 @coroutine
@@ -279,12 +302,18 @@ class IIRFilter(ContinuousInput):
 def blocked(block_size, target):
     data = []
     n = 0
+
     while True:
         d = (yield)
+        if d is Ellipsis:
+            data = []
+            target(d)
+            continue
+
         n += d.shape[-1]
         data.append(d)
         if n >= block_size:
-            merged = np.concatenate(data, axis=-1)
+            merged = concatenate(data, axis=-1)
             while merged.shape[-1] >= block_size:
                 target(merged[..., :block_size])
                 merged = merged[..., block_size:]
@@ -312,16 +341,22 @@ def accumulate(n, axis, newaxis, status_cb, target):
     data = []
     while True:
         d = (yield)
+        if d is Ellipsis:
+            data = []
+            target(d)
+            continue
+
         if newaxis:
             data.append(d[np.newaxis])
         else:
             data.append(d)
         if len(data) == n:
-            data = np.concatenate(data, axis=axis)
+            data = concatenate(data, axis=axis)
             target(data)
             data = []
 
-        status_cb(len(data))
+        if status_cb is not None:
+            status_cb(len(data))
 
 
 class Accumulate(ContinuousInput):
@@ -343,6 +378,7 @@ class Accumulate(ContinuousInput):
 @coroutine
 def capture(fs, queue, target):
     t0 = 0
+    t_start = None  # track start of capture
     t_next = None
     active = False
 
@@ -358,17 +394,20 @@ def capture(fs, queue, target):
             if t_next is not None:
                 log.debug('Starting capture at %f', t_next)
                 t_next = round(t_next*fs)
+                t_start = t_next
+                target(Ellipsis)
+            elif t_next is None:
+                log.debug('Ending capture')
+            elif t_next < t0:
+                raise SystemError('Data lost')
         except Empty:
             pass
 
-        if t_next is None:
-            log.debug('Ending capture')
-        elif t_next < t0:
-            raise SystemError('Data lost')
-        elif t_next >= t0:
+        if (t_next is not None) and (t_next >= t0):
             i = t_next-t0
             if i < data.shape[-1]:
                 d = data[i:]
+                d.metadata['capture'] = t_start
                 target(d)
                 t_next += d.shape[-1]
 
@@ -446,8 +485,14 @@ class Decimate(ContinuousInput):
 
 @coroutine
 def discard(discard_samples, cb):
+    discarded = discard_samples
     while True:
         samples = (yield)
+        if samples is Ellipsis:
+            to_discard = discarded
+            cb(samples)
+            continue
+
         if discard_samples == 0:
             cb(samples)
         elif samples.shape[-1] <= discard_samples:

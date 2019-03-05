@@ -17,16 +17,6 @@ from .plugin import DataPlugin
 PLUGIN_ID = 'psi.data'
 
 
-def process_trials(event):
-    plugin = event.workbench.get_plugin(PLUGIN_ID)
-    return plugin.process_trials(**event.parameters)
-
-
-def process_event(event):
-    plugin = event.workbench.get_plugin(PLUGIN_ID)
-    return plugin.process_event(**event.parameters)
-
-
 def prepare(event):
     data = event.workbench.get_plugin('psi.data')
     data.prepare()
@@ -71,13 +61,6 @@ enamldef DataManifest(PluginManifest): manifest:
     Extension:
         id = 'commands'
         point = 'enaml.workbench.core.commands'
-
-        Command:
-            id = PLUGIN_ID + '.process_trials'
-            handler = process_trials
-        Command:
-            id = PLUGIN_ID + '.process_event'
-            handler = process_event
 
         # Commands to configure behavior
         Command:

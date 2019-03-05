@@ -215,8 +215,6 @@ class BColzStore(BaseStore):
     '''
     name = d_(Unicode('bcolz_store'))
 
-    trial_log = Typed(object)
-    event_log = Typed(object)
     continuous_inputs = d_(List())
     epoch_inputs = d_(List())
     _stores = Dict()
@@ -227,50 +225,11 @@ class BColzStore(BaseStore):
         except KeyError as e:
             raise AttributeError(source_name)
 
-    def _prepare_trial_log(self, context_info):
-        self.trial_log = self._create_trial_log(context_info)
-
-    def _prepare_event_log(self):
-        self.event_log = self._create_event_log()
-
-    def process_trials(self, results):
-        names = self.trial_log.dtype.names
-        columns = []
-        for name in names:
-            rows = [result[name] for result in results]
-            columns.append(rows)
-        self.trial_log.append(columns)
-
-    def process_event(self, event, timestamp):
-        self.event_log.append([timestamp, event])
-
     def process_ai_continuous(self, name, data):
         self._stores[name].append(data)
 
     def process_ai_epochs(self, name, data):
         self._stores[name].append(data)
-
-    def _create_trial_log(self, context_info):
-        '''
-        Create a table to hold the trial log.
-        '''
-        filename = self.get_filename('trial_log')
-        dtype = [(str(n), i.dtype) for n, i in context_info.items()]
-        mesg = ['Trial log data type'] + [str(m) for m in dtype]
-        log.info('\n'.join(mesg))
-        carray = bcolz.zeros(0, rootdir=filename, mode='w', dtype=dtype)
-        atexit.register(carray.flush)
-        return carray
-
-    def _create_event_log(self):
-        '''
-        Create a table to hold the event log.
-        '''
-        filename = self.get_filename('event_log')
-        dtype = [('timestamp', 'float32'), ('event', 'S512')]
-        carray = bcolz.zeros(0, rootdir=filename, mode='w', dtype=dtype)
-        atexit.register(carray.flush)
-        return carray
 
     def create_ai_continuous(self, name, fs, dtype, **metadata):
         n = int(fs*60*60)
@@ -336,9 +295,6 @@ def prepare(sink, event):
         cb = partial(sink.process_ai_continuous, i.name)
         i.add_callback(cb)
 
-    sink._prepare_event_log()
-    sink._prepare_trial_log(context.context_items)
-
 
 def flush(sink, event):
     for store in sink._stores.values():
@@ -348,8 +304,9 @@ def flush(sink, event):
 enamldef BColzStoreManifest(PSIManifest): manifest:
 
     Extension:
-        id = 'commands'
+        id = manifest.id + '.bcolz_commands'
         point = 'enaml.workbench.core.commands'
+
         Command:
             id = manifest.id + '.prepare'
             handler = partial(prepare, manifest.contribution)
@@ -359,8 +316,9 @@ enamldef BColzStoreManifest(PSIManifest): manifest:
             handler = partial(flush, manifest.contribution)
 
     Extension:
-        id = 'actions'
+        id = manifest.id + '.bcolz_actions'
         point = 'psi.controller.actions'
+
         ExperimentAction:
             event = 'experiment_prepare'
             command = manifest.id + '.prepare'

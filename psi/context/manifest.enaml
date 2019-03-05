@@ -52,6 +52,14 @@ def get_preferences(obj):
     return get_tagged_values(obj, 'preference')
 
 
+def next_setting(event):
+    controller = event.workbench.get_plugin('psi.controller')
+    context = event.workbench.get_plugin(PLUGIN_ID)
+    p = event.parameters
+    context.next_setting(selector=p['selector'], save_prior=p['save_prior'])
+    controller.invoke_actions('context_next_setting')
+
+
 enamldef ContextManifest(PluginManifest): manifest:
     '''Manifest for the plugin handling the sequence selector
     '''
@@ -106,7 +114,7 @@ enamldef ContextManifest(PluginManifest): manifest:
             handler = rpc(PLUGIN_ID, 'value_changed')
         Command:
             id = PLUGIN_ID + '.next_setting'
-            handler = rpc(PLUGIN_ID, 'next_setting')
+            handler = next_setting
         Command:
             id = PLUGIN_ID + '.get_parameters'
             handler = rpc(PLUGIN_ID, 'get_parameters')
@@ -120,6 +128,9 @@ enamldef ContextManifest(PluginManifest): manifest:
     Extension:
         id = 'context_actions'
         point = 'psi.controller.actions'
+
+        ExperimentEvent:
+            name = 'context_next_setting'
 
         ExperimentEvent:
             name = 'context_changed'

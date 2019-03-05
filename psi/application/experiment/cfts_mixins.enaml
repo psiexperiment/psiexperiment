@@ -213,7 +213,7 @@ def tone_calibrate_channel(event):
 
     if p.get('store_name') is not None:
         core = event.workbench.get_plugin('enaml.workbench.core')
-        command = '{}.create_table'.format(p['store_name'])
+        command = '{}.save_dataframe'.format(p['store_name'])
         name = '{}_{}_calibration'.format(ao.name, ai.name)
         parameters = {'name': name, 'dataframe': result}
         core.invoke_command(command, parameters)

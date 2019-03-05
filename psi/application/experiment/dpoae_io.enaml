@@ -1,12 +1,32 @@
+from enaml.widgets.api import Container, DockItem, Label
 from enaml.workbench.api import Extension
 
+from psi.controller.api import ExperimentAction
+from psi.data.plots import GroupedResultPlot, PlotContainer, ViewBox
+
 from .dpoae_base import ControllerManifest as DPOAEBaseControllerManifest
+
+EXPERIMENT = __name__.rsplit('.', 1)[-1]
 
 
 enamldef ControllerManifest(DPOAEBaseControllerManifest):
 
     Extension:
-        id = 'plots'
+        id = EXPERIMENT + '.actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'dpoae_acquired'
+            command = 'psi.context.next_setting'
+            kwargs = {'selector': 'default', 'save_prior': True}
+
+        ExperimentAction:
+            event = 'dpoae_acquired'
+            command = 'dpoae.start'
+            kwargs = {'delay': 1.0}
+
+    Extension:
+        id = EXPERIMENT + '.plots'
         point = 'psi.data.plots'
 
         PlotContainer:
@@ -32,7 +52,7 @@ enamldef ControllerManifest(DPOAEBaseControllerManifest):
                     pen_width = 2
 
     Extension:
-        id = 'dpoae_status_view'
+        id = EXPERIMENT + '.workspace'
         point = 'psi.experiment.workspace'
 
         DockItem: di:

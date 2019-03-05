@@ -28,8 +28,6 @@ class DataPlugin(Plugin):
 
     inputs = Typed(dict, {})
     context_info = Typed(dict, {})
-    trial_log = Typed(pd.DataFrame)
-    event_log = Typed(pd.DataFrame)
 
     base_path = Unicode()
 
@@ -37,13 +35,6 @@ class DataPlugin(Plugin):
         self._refresh_sinks()
         self._refresh_plots()
         self._bind_observers()
-
-        # Listen to changes on the context items so that we can update the
-        # trial log accordingly.
-        # TODO: Observing context_items seems a bit hackish since this is not
-        # the shadow copy but the live copy. What do we do?
-        context = self.workbench.get_plugin('psi.context')
-        context.observe('context_items', self._context_items_changed)
 
     def stop(self):
         self._unbind_observers()
@@ -83,18 +74,6 @@ class DataPlugin(Plugin):
         for sink in self._sinks:
             sink.context_info_updated(self.context_info)
 
-    def _default_trial_log(self):
-        ci = self.context_info.items()
-        arrays = dict((k, np.array([], dtype=i.dtype)) for k, i in ci)
-        return pd.DataFrame(arrays)
-
-    def _default_event_log(self):
-        arrays = dict([
-            ('timestamp', np.array([], dtype=np.dtype('float32'))),
-            ('event', np.array([], dtype=np.dtype('S512'))),
-        ])
-        return pd.DataFrame(arrays)
-
     def prepare(self):
         for sink in self._sinks:
             sink.prepare(self)
@@ -102,19 +81,6 @@ class DataPlugin(Plugin):
     def finalize(self):
         for sink in self._sinks:
             sink.finalize(self.workbench)
-
-    def process_trials(self, results):
-        self.trial_log = self.trial_log.append(results, ignore_index=True)
-        for sink in self._sinks:
-            sink.trial_log_updated(self.trial_log)
-            sink.process_trials(results)
-
-    def process_event(self, event, timestamp):
-        row = {'event': event, 'timestamp': timestamp}
-        self.event_log = self.event_log.append(row, ignore_index=True)
-        for sink in self._sinks:
-            sink.event_log_updated(self.event_log)
-            sink.process_event(event, timestamp)
 
     def set_base_path(self, base_path):
         self.base_path = base_path

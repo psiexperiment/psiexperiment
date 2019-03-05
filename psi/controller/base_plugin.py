@@ -397,7 +397,7 @@ class BasePlugin(Plugin):
         load_calibration(calibration_file, channels)
 
     def invoke_actions(self, event_name, timestamp=None, delayed=False,
-                       cancel_existing=True, **kw):
+                       cancel_existing=True, kw=None):
         if cancel_existing:
             self.stop_timer(event_name)
         if delayed:
@@ -406,7 +406,7 @@ class BasePlugin(Plugin):
                 cb = lambda: self._invoke_actions(event_name, timestamp)
                 self.start_timer(event_name, delay, cb)
                 return
-        self._invoke_actions(event_name, timestamp, **kw)
+        self._invoke_actions(event_name, timestamp, kw)
 
     def event_used(self, event_name):
         '''
@@ -433,13 +433,12 @@ class BasePlugin(Plugin):
                 return True
         return False
 
-    def _invoke_actions(self, event_name, timestamp=None, **kw):
-        log.trace('Triggering event {}'.format(event_name))
+    def _invoke_actions(self, event_name, timestamp=None, kw=None):
+        log.debug('Triggering event {}'.format(event_name))
 
         if timestamp is not None:
-            # The event is logged only if the timestamp is provided
-            params = {'event': event_name, 'timestamp': timestamp}
-            self.core.invoke_command('psi.data.process_event', params)
+            kw = {'event': event_name, 'timestamp': timestamp}
+            self.invoke_actions('experiment_event', kw=kw)
 
         # If this is a stateful event, update the associated state.
         if event_name.endswith('_start'):
@@ -457,15 +456,16 @@ class BasePlugin(Plugin):
 
         for action in self._actions:
             if action.match(context):
-                self._invoke_action(action, event_name, timestamp, **kw)
+                self._invoke_action(action, event_name, timestamp, kw)
 
-    def _invoke_action(self, action, event_name, timestamp, **kw):
+    def _invoke_action(self, action, event_name, timestamp, kw):
         # Add the event name and timestamp to the parameters passed to the
         # command.
         kwargs = action.kwargs.copy()
-        kwargs.update(kw)
         kwargs['timestamp'] = timestamp
         kwargs['event'] = event_name
+        if kw is not None:
+            kwargs.update(kw)
         self.core.invoke_command(action.command, parameters=kwargs)
 
     def request_apply(self):

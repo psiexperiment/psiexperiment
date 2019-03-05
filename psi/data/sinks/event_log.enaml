@@ -1,41 +1,92 @@
-from enaml.widgets.api import DockItem, Container
+from collections import Mapping
+from functools import partial
+
+from atom.api import Bool, ContainerList
+
+from enaml.core.api import Conditional, d_
+from enaml.widgets.api import Container, DockItem
 from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
 
-from psi.core.enaml.api import PSIManifest, DataFrameTable
-from psi.experiment.preferences import ItemPreferences
-from ..sink import Sink
-
-
-class EventLog(Sink):
-    name = 'event_log'
-    title = 'Event log'
-    manifest = __name__ + '.EventLogManifest'
+from psi.controller.api import ExperimentAction
+from psi.core.enaml.api import ListDictTable
+from psi.experiment.api import ItemPreferences
+from .text_store import TextStore, TextStoreManifest
 
 
-enamldef EventLogManifest(PSIManifest): manifest:
+class EventLog(TextStore):
+
+    show_widget = d_(Bool(False))
+    data = ContainerList()
+
+    def process_table(self, name, data, flush=False):
+        super().process_table(name, data, flush)
+        if self.show_widget:
+            if isinstance(data, Mapping):
+                self.data.append(data)
+            else:
+                self.data.extend(data)
+
+
+def prepare(sink, event):
+    sink.create_table('event_log')
+
+
+def save(sink, event):
+    sink.process_table('event_log', event.parameters)
+
+
+enamldef EventLogManifest(TextStoreManifest): manifest:
 
     Extension:
-        id = 'workspace'
-        point = 'psi.experiment.workspace'
+        id = manifest.id + '.event_log_commands'
+        point = 'enaml.workbench.core.commands'
 
-        DockItem:
-            closable = False
-            name << manifest.contribution.name
-            title << manifest.contribution.title
+        Command:
+            id = manifest.id + '.prepare'
+            handler = partial(prepare, manifest.contribution)
 
-            Container:
-                DataFrameTable: event_log_table:
-                    data << workbench.get_plugin('psi.data').event_log
-                    columns = ['timestamp', 'event']
-                    column_info = {
-                        'timestamp': {'label': 'Time (sec)'},
-                        'event': {'label': 'Event'},
-                    }
+        Command:
+            id = manifest.id + '.save'
+            handler = partial(save, manifest.contribution)
 
     Extension:
-        id = 'preferences'
-        point = 'psi.experiment.preferences'
-        ItemPreferences:
-            item << event_log_table
-            name << manifest.contribution.name
-            auto_save = ['column_widths']
+        id = manifest.id + '.event_log_actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = manifest.id + '.prepare'
+
+        ExperimentAction:
+            event = 'experiment_event'
+            command = manifest.id + '.save'
+
+    Conditional:
+        condition << manifest.contribution.show_widget
+
+        Extension:
+            id = manifest.id + '.event_log_workspace'
+            point = 'psi.experiment.workspace'
+
+            DockItem:
+                closable = False
+                name << manifest.contribution.name
+                title << manifest.contribution.label
+
+                Container:
+                    ListDictTable: event_log_table:
+                        data << manifest.contribution.data[:]
+                        columns = ['timestamp', 'event']
+                        column_info = {
+                            'timestamp': {'label': 'Time (sec)'},
+                            'event': {'label': 'Event'},
+                        }
+
+        Extension:
+            id = manifest.id + '.preferences'
+            point = 'psi.experiment.preferences'
+            ItemPreferences:
+                item << event_log_table
+                name << manifest.contribution.name
+                auto_save = ['column_widths']
