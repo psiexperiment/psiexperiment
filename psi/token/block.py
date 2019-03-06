@@ -35,17 +35,6 @@ class Block(Declarative):
     def _get_parameters(self):
         return self.get_children(Parameter)
 
-    def __copy__(self):
-        cls = self.__class__
-        result = cls.__new__(cls)
-        result.name = self.name
-        result.label = self.label
-        result.compact_label = self.compact_label
-        result.factory = self.factory
-        for c in self.children:
-            result.children.append(copy.copy(c))
-        return result
-
 
 class EpochBlock(Block):
     pass
