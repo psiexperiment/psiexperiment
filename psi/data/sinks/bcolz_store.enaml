@@ -320,7 +320,7 @@ enamldef BColzStoreManifest(PSIManifest): manifest:
         point = 'psi.controller.actions'
 
         ExperimentAction:
-            event = 'experiment_prepare'
+            event = 'experiment_initialize'
             command = manifest.id + '.prepare'
 
         ExperimentAction:

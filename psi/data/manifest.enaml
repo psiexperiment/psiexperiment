@@ -29,7 +29,7 @@ def finalize(event):
 
 def set_base_path(event):
     base_path = event.parameters['base_path']
-    dt_string = dt.datetime.now().strftime('%Y%m%d-%H%M')
+    dt_string = dt.datetime.now().strftime('%Y%m%d-%H%M%S')
     base_path = base_path.format(date_time=dt_string)
     data = event.workbench.get_plugin('psi.data')
     os.makedirs(base_path)

@@ -103,5 +103,5 @@ enamldef TextStoreManifest(BaseStoreManifest): manifest:
             id = manifest.id + '.text_actions'
             point = 'psi.controller.actions'
             ExperimentAction:
-                event = 'experiment_prepare'
+                event = 'experiment_initialize'
                 command = manifest.id + '.prepare'

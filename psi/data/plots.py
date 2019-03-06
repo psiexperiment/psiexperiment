@@ -99,7 +99,7 @@ class ChannelDataRange(Atom):
 ################################################################################
 # Containers (defines a shared set of containers across axes)
 ################################################################################
-class PlotContainer(PSIContribution):
+class BasePlotContainer(PSIContribution):
 
     label = d_(Unicode())
 
@@ -147,7 +147,18 @@ class PlotContainer(PSIContribution):
                 return child
 
 
-class TimeContainer(PlotContainer):
+class PlotContainer(BasePlotContainer):
+
+    x_min = d_(Float())
+    x_max = d_(Float())
+
+    def _default_container(self):
+        container = super()._default_container()
+        self.base_viewbox.setXRange(self.x_min, self.x_max, padding=0)
+        return container
+
+
+class TimeContainer(BasePlotContainer):
     '''
     Contains one or more viewboxes that share the same time-based X-axis
     '''
@@ -187,7 +198,7 @@ def format_log_ticks(values, scale, spacing):
     return ['{:.1f}'.format(v) for v in values]
 
 
-class FFTContainer(PlotContainer):
+class FFTContainer(BasePlotContainer):
     '''
     Contains one or more viewboxes that share the same frequency-based X-axis
     '''
@@ -224,37 +235,37 @@ class CustomGraphicsViewBox(pg.ViewBox):
         self.allow_zoom_y = allow_zoom_y
         super().__init__(*args, **kwargs)
 
-    def wheelEvent(self, ev, axis=None):
-        if axis == 0 and not self.allow_zoom_x:
-            return
-        if axis == 1 and not self.allow_zoom_y:
-            return
+    #def wheelEvent(self, ev, axis=None):
+    #    if axis == 0 and not self.allow_zoom_x:
+    #        return
+    #    if axis == 1 and not self.allow_zoom_y:
+    #        return
 
-        s = 1.02**(ev.delta() * self.state['wheelScaleFactor'])
+    #    s = 1.02**(ev.delta() * self.state['wheelScaleFactor'])
 
-        if axis == 0:
-            self.data_range.span *= s
-        elif axis == 1:
-            vr = self.targetRect()
-            if self.y_mode == 'symmetric':
-                self.y_min *= s
-                self.y_max *= s
-            elif self.y_mode == 'upper':
-                self.y_max *= s
-            self.setYRange(self.y_min, self.y_max)
+    #    if axis == 0:
+    #        self.data_range.span *= s
+    #    elif axis == 1:
+    #        vr = self.targetRect()
+    #        if self.y_mode == 'symmetric':
+    #            self.y_min *= s
+    #            self.y_max *= s
+    #        elif self.y_mode == 'upper':
+    #            self.y_max *= s
+    #        self.setYRange(self.y_min, self.y_max)
 
-        self.sigRangeChangedManually.emit(self.state['mouseEnabled'])
-        ev.accept()
+    #    self.sigRangeChangedManually.emit(self.state['mouseEnabled'])
+    #    ev.accept()
 
-    def mouseDragEvent(self, ev, axis=None):
-        ev.accept()
-        return
-        delta = ev.pos()-ev.lastPos()
-        tr = self.mapToView(delta)-self.mapToView(pg.Point(0, 0))
-        if axis == 0:
-            x = tr.x()
-            self.data_range.delay += x
-        ev.accept()
+    #def mouseDragEvent(self, ev, axis=None):
+    #    ev.accept()
+    #    return
+    #    delta = ev.pos()-ev.lastPos()
+    #    tr = self.mapToView(delta)-self.mapToView(pg.Point(0, 0))
+    #    if axis == 0:
+    #        x = tr.x()
+    #        self.data_range.delay += x
+    #    ev.accept()
 
 
 class ViewBox(PSIContribution):
@@ -292,6 +303,7 @@ class ViewBox(PSIContribution):
                                             enableMenu=False)
         except:
             viewbox = pg.ViewBox(enableMenu=False)
+            viewbox.setMouseEnabled(x=False, y=False)
         viewbox.setBackgroundColor('w')
 
         if (self.y_min != 0) or (self.y_max != 0):
@@ -873,9 +885,11 @@ class GroupedResultPlot(GroupMixin, SinglePlot):
             x, y = zip(*data)
             x = np.array(x)
             y = np.array(y)
-            curve, scatter = self.get_plot(key)
-            todo.append((curve.setData, x, y))
-            todo.append((scatter.setData, x, y))
+            plot = self.get_plot(key)
+            todo.append((plot.setData, x, y))
+            #curve, scatter = self.get_plot(key)
+            #todo.append((scatter.setData, x, y))
+            #todo.append((curve.setData, x, y))
 
         def update():
             for setter, x, y in todo:
@@ -891,16 +905,16 @@ class GroupedResultPlot(GroupMixin, SinglePlot):
             pen = pg.mkPen(pen_color, width=self.pen_width)
             brush = pg.mkBrush(pen_color)
 
-            curve = pg.PlotCurveItem(pen=pen, antialias=self.antialias)
-            scatter = pg.ScatterPlotItem(pen=pen, antialias=self.antialias,
-                                         symbol=symbol_code,
-                                         symbolSize=self.symbol_size,
-                                         symbolPen=pen, symbolBrush=brush,
-                                         pxMode=self.symbol_size_unit=='screen')
+            plot = pg.PlotDataItem(pen=pen,
+                                   antialias=self.antialias,
+                                   symbol=symbol_code,
+                                   symbolSize=self.symbol_size,
+                                   symbolPen=pen,
+                                   symbolBrush=brush,
+                                   pxMode=self.symbol_size_unit=='screen')
 
-            deferred_call(self.parent.viewbox.addItem, curve)
-            deferred_call(self.parent.viewbox.addItem, scatter)
-            self.plots[key] = curve, scatter
+            deferred_call(self.parent.viewbox.addItem, plot)
+            self.plots[key] = plot
         except KeyError as key_error:
             key = key_error.args[0]
             m = f'Cannot update plot since a field, {key}, ' \

@@ -5,6 +5,9 @@ from atom.api import (Unicode, Typed, Value, Enum, List, Event, Property,
                       observe, Bool, Dict, Coerced)
 
 
+################################################################################
+# ContextMeta
+################################################################################
 class ContextMeta(Declarative):
 
     name = d_(Unicode())
@@ -73,6 +76,38 @@ class OrderedContextMeta(ContextMeta):
         return [str(i+1) for i in range(n)]
 
 
+################################################################################
+# Expression
+################################################################################
+class Expression(Declarative):
+
+    # Parameter that is assigned the result of the expression
+    parameter = d_(Unicode())
+
+    # Expression to be evaluated
+    expression = d_(Unicode())
+
+
+################################################################################
+# ContextGroup
+################################################################################
+class ContextGroup(Declarative):
+    '''
+    Used to group together context items for management.
+    '''
+    # Group name
+    name = d_(Unicode())
+
+    # Label to use in the GUI
+    label = d_(Unicode())
+
+    # Are the parameters in this group visible?
+    visible = d_(Bool(True))
+
+
+################################################################################
+# ContextItem
+################################################################################
 class ContextItem(Declarative):
     '''
     Defines the core elements of a context item. These items are made available
@@ -97,6 +132,11 @@ class ContextItem(Declarative):
 
     # Is this visible via the standard configuration menus?
     visible = d_(Bool(True)).tag(preference=True)
+
+    # Can this be configured by the user? This will typically be False if the
+    # experiment configuration has contributed an Expression that assigns the
+    # value of this parameter.
+    configurable = Bool(True)
 
     updated = Event()
 

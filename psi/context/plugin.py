@@ -10,8 +10,10 @@ from enaml.layout.api import InsertItem, InsertTab
 from enaml.workbench.plugin import Plugin
 
 from ..util import get_tagged_values
-from .context_item import ContextItem, Parameter, ContextMeta
-from .context_group import ContextGroup
+from .context_item import (
+    ContextItem, ContextGroup, Expression, Parameter, ContextMeta
+)
+
 from .expression import ExpressionNamespace
 from .selector import BaseSelector
 from .symbol import Symbol
@@ -25,6 +27,17 @@ def get_preferences(obj):
     return deepcopy(get_tagged_values(obj, 'preference'))
 
 
+class ContextLookup:
+
+    def __init__(self, context_plugin):
+        self.__context_plugin = context_plugin
+
+    def __getattr__(self, name):
+        value = self.__context_plugin.get_value(name)
+        log.warning('%r %r', name, value)
+        return value
+
+
 class ContextPlugin(Plugin):
     '''
     Plugin that provides a sequence of values that can be used by a controller
@@ -33,6 +46,7 @@ class ContextPlugin(Plugin):
     context_groups = Typed(dict, {})
     context_items = Typed(dict, {})
     context_meta = Typed(dict, {})
+    context_expressions = Typed(list, [])
 
     selectors = Typed(dict, ())
     symbols = Typed(dict, ())
@@ -57,6 +71,11 @@ class ContextPlugin(Plugin):
 
     # Return all expressions, including those for roved parameters
     all_expressions = Property()
+
+    lookup = Typed(ContextLookup, ())
+
+    def _default_lookup(self):
+        return ContextLookup(self)
 
     def start(self):
         self._refresh_selectors()
@@ -92,15 +111,18 @@ class ContextPlugin(Plugin):
         context_groups = {}
         context_items = {}
         context_meta = {}
+        context_expressions = {}
         items = []
         groups = []
         metas = []
+        expressions = []
 
         point = self.workbench.get_extension_point(ITEMS_POINT)
         for extension in point.extensions:
             items.extend(extension.get_children(ContextItem))
             groups.extend(extension.get_children(ContextGroup))
             metas.extend(extension.get_children(ContextMeta))
+            expressions.extend(extension.get_children(Expression))
 
         for group in groups:
             log.debug('Adding context group {}'.format(group.name))
@@ -126,6 +148,22 @@ class ContextPlugin(Plugin):
         for meta in metas:
             context_meta[meta.name] = meta
 
+        for expression in expressions:
+            log.trace('Adding expression %s', expression.name)
+            try:
+                item = context_items.pop(expression.parameter)
+            except KeyError as e:
+                m = f'{expression.parameter} does not exist'
+                raise ValueError(m) from e
+
+        for group_name, group in list(context_groups.items()):
+            for item_name, item in context_items.items():
+                if (item.group == group_name) and item.visible:
+                    break
+            else:
+                context_groups.pop(group_name)
+
+        self.context_expressions = expressions
         self.context_items = context_items
         self.context_groups = context_groups
         self.context_meta = context_meta
@@ -187,21 +225,20 @@ class ContextPlugin(Plugin):
     def _observe_selector_updated(self, event):
         self._check_for_changes()
 
-    def _get_iterators(self):
-        return {k: v.get_iterator() for k, v in self.selectors.items()}
+    def _get_iterators(self, cycles=None):
+        return {k: v.get_iterator(cycles) for k, v in self.selectors.items()}
 
     def iter_settings(self, iterator='default', cycles=None):
         # Some paradigms may not actually have an iterator.
+        namespace = ExpressionNamespace(self.expressions, self.symbols)
         if iterator:
             selector = self.selectors[iterator].get_iterator(cycles=cycles)
             for setting in selector:
-                self._namespace.reset()
                 expressions = {i.name: i.to_expression(e) for i, e in setting.items()}
-                self._namespace.update_expressions(expressions)
-                yield self.get_values()
+                namespace.update_expressions(expressions)
+                yield namespace.get_values()
         else:
-            self._namespace.reset()
-            yield self.get_values()
+            yield namespace.get_values()
 
     def unique_values(self, item_name, iterator='default'):
         iterable = self.iter_settings(iterator, 1)
@@ -319,12 +356,12 @@ class ContextPlugin(Plugin):
                 return
         self.changes_pending = self.selectors != self._selectors
 
-    def apply_changes(self):
+    def apply_changes(self, cycles=None):
         self._apply_context_item_state()
         self._apply_selector_state()
         self._namespace.update_expressions(self.expressions)
         self._namespace.update_symbols(self.symbols)
-        self._iterators = self._get_iterators()
+        self._iterators = self._get_iterators(cycles)
         self.changes_pending = False
 
     def revert_changes(self):
@@ -340,8 +377,9 @@ class ContextPlugin(Plugin):
         return {n: i.expression for n, i in self.parameters.items()}
 
     def _get_expressions(self):
-        return {n: i.expression for n, i in self.parameters.items() \
-                if not i.rove}
+        e = {n: i.expression for n, i in self.parameters.items() if not i.rove}
+        e.update({n.parameter: n.expression for n in self.context_expressions})
+        return e
 
     def _apply_selector_state(self):
         state = {n: get_preferences(s) for n, s in self.selectors.items()}

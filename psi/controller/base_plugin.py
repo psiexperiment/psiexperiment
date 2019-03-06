@@ -488,10 +488,9 @@ class BasePlugin(Plugin):
     def apply_changes(self):
         raise NotImplementedError
 
-    def prepare_experiment(self):
-        self.invoke_actions('experiment_prepare')
-
     def start_experiment(self):
+        self.invoke_actions('experiment_initialize')
+        self.invoke_actions('experiment_prepare')
         self.invoke_actions('experiment_start')
         deferred_call(lambda: setattr(self, 'experiment_state', 'running'))
 

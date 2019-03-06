@@ -33,23 +33,44 @@ enamldef ControllerManifest(DPOAEBaseControllerManifest):
             name = 'results_plot_container'
             label = 'Results'
 
+            x_min = 0
+            x_max = 100
+
             ViewBox:
+                y_min = -20
+                y_max = 100
 
                 GroupedResultPlot: grp:
                     group_names = ['secondary_tone_frequency']
                     source_name = 'analyze_dpoae'
                     x_column = 'secondary_tone_level'
+                    pen_width = 2
                     y_column = 'f2_level'
                     pen_color_cycle = 'palettable.cartocolors.sequential.BluGrn_6'
-                    pen_width = 2
 
                 GroupedResultPlot:
-                    group_names = ['secondary_tone_frequency']
-                    source_name = 'analyze_dpoae'
+                    group_names << grp.group_names
+                    source_name << grp.source_name
+                    x_column << grp.x_column
+                    pen_width << grp.pen_width
+                    y_column = 'primary_tone_level'
+                    pen_color_cycle = 'palettable.cartocolors.sequential.BrwnYl_6'
+
+                GroupedResultPlot:
+                    group_names << grp.group_names
+                    source_name << grp.source_name
+                    pen_width << grp.pen_width
                     x_column << grp.x_column
                     y_column = 'dpoae_noise_floor'
                     pen_color_cycle = 'palettable.cartocolors.sequential.Burg_6'
-                    pen_width = 2
+
+                GroupedResultPlot:
+                    group_names << grp.group_names
+                    source_name << grp.source_name
+                    pen_width << grp.pen_width
+                    x_column << grp.x_column
+                    y_column = 'dpoae_level'
+                    pen_color_cycle = 'palettable.cartocolors.sequential.DarkMint_6'
 
     Extension:
         id = EXPERIMENT + '.workspace'

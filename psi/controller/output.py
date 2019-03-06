@@ -91,7 +91,6 @@ class BufferedOutput(Output):
         return self.channel.buffer_size
 
     def _default__buffer(self):
-        print(self.name, self.fs, self.buffer_size)
         return SignalBuffer(self.fs, self.buffer_size, 0, self.dtype)
 
     def get_samples(self, offset, samples, out):
@@ -112,7 +111,6 @@ class BufferedOutput(Output):
             log.trace('Generating new data')
             pass
         elif lb >= buffered_lb and ub <= buffered_ub:
-            print(self.name, lb, buffered_lb, ub, buffered_ub)
             log.trace('Extracting from buffer')
             out[:] = self._buffer.get_range_samples(lb, ub)
             samples = 0
@@ -137,7 +135,6 @@ class BufferedOutput(Output):
         self.active = True
         self._offset = offset
         self._buffer.invalidate_samples(offset)
-        log.debug(self._buffer.get_samples_ub())
 
     def deactivate(self, offset):
         log.debug('Deactivating %s at %d', self.name, offset)

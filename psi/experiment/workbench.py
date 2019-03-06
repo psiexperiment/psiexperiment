@@ -44,7 +44,12 @@ class PSIWorkbench(Workbench):
             self.register(DataManifest())
             self.register(TokenManifest())
 
+            # Required to bootstrap plugin loading
             self.get_plugin('psi.controller')
+
+            context = self.get_plugin('psi.context')
+            manifest = self.get_manifest('psi.controller')
+            manifest.C = context.lookup
 
             from psi.context.manifest import ContextViewManifest
             self.register(ContextViewManifest())

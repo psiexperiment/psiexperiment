@@ -72,7 +72,6 @@ def get_current_values(plugin, values):
     current_values = []
     for member in values.members().keys():
         l = plugin.context_items[member].label
-        print(values, member)
         v = getattr(values, member, 'UNDEFINED')
         current_values.append((l, v))
     return sorted(current_values)
@@ -92,7 +91,7 @@ enamldef CurrentValuesDockItem(DockItem):
             style_class = 'roving'
             Setter:
                 field = 'background-color'
-                value = 'white'
+                value = 'red'
 
     Container:
         VGroup:
@@ -106,10 +105,10 @@ enamldef CurrentValuesDockItem(DockItem):
                     spacing = 0
                     Label:
                         text << str(loop_item[0])
-                        #style_class << get_style_classes(context, loop_item[0])
+                        style_class << get_style_classes(context, loop_item[0])
                     Label:
-                        #style_class << get_style_classes(context, loop_item[0])
                         text << str(loop_item[1])
+                        style_class << get_style_classes(context, loop_item[0])
 
 
 def get_prior_values(prior_values):

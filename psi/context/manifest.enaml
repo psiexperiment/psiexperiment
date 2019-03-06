@@ -17,7 +17,7 @@ from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
 from enaml.layout.api import FloatItem
 from enaml.application import deferred_call
 
-from psi.controller.api import ExperimentAction, ExperimentEvent
+from psi.controller.api import ExperimentEvent
 from psi.experiment.api import Preferences
 
 from .plugin import ContextPlugin
@@ -52,12 +52,25 @@ def get_preferences(obj):
     return get_tagged_values(obj, 'preference')
 
 
+def initialize(event):
+    controller = event.workbench.get_plugin('psi.controller')
+    context = event.workbench.get_plugin(PLUGIN_ID)
+    context.apply_changes(cycles=event.parameters['cycles'])
+    context.next_setting(selector=event.parameters['selector'],
+                         save_prior=False)
+    controller.invoke_actions('context_initialized')
+
+
 def next_setting(event):
     controller = event.workbench.get_plugin('psi.controller')
     context = event.workbench.get_plugin(PLUGIN_ID)
     p = event.parameters
-    context.next_setting(selector=p['selector'], save_prior=p['save_prior'])
-    controller.invoke_actions('context_next_setting')
+    try:
+        context.next_setting(selector=p['selector'],
+                             save_prior=p['save_prior'])
+        controller.invoke_actions('context_next_setting')
+    except StopIteration:
+        controller.invoke_actions('context_complete')
 
 
 enamldef ContextManifest(PluginManifest): manifest:
@@ -107,6 +120,9 @@ enamldef ContextManifest(PluginManifest): manifest:
             id = PLUGIN_ID + '.apply_changes'
             handler = apply_changes
         Command:
+            id = PLUGIN_ID + '.initialize'
+            handler = initialize
+        Command:
             id = PLUGIN_ID + '.revert_changes'
             handler = revert_changes
         Command:
@@ -130,18 +146,16 @@ enamldef ContextManifest(PluginManifest): manifest:
         point = 'psi.controller.actions'
 
         ExperimentEvent:
-            name = 'context_next_setting'
-
-        ExperimentEvent:
             name = 'context_changed'
 
-        # Set the following actions to a relatively low weight (default=100) so
-        # that we can ensure this is called before most initialization actions
-        # since many plugins will likely depend on this.
-        ExperimentAction:
-            event = 'experiment_prepare'
-            command = 'psi.context.apply_changes'
-            weight = 5
+        ExperimentEvent:
+            name = 'context_complete'
+
+        ExperimentEvent:
+            name = 'context_initialized'
+
+        ExperimentEvent:
+            name = 'context_next_setting'
 
     Extension:
         id = 'preferences'

@@ -47,7 +47,6 @@ def log_io(event):
 def start_experiment(event):
     try:
         controller = event.workbench.get_plugin('psi.controller')
-        controller.prepare_experiment()
         controller.start_experiment()
     except Exception as e:
         log.exception(e)
@@ -82,6 +81,8 @@ enamldef BaseManifest(PluginManifest): manifest:
     '''
     id = 'psi.controller'
     factory = BasePlugin
+
+    attr C
 
     ExtensionPoint:
         id = 'psi.controller.io'
@@ -216,21 +217,14 @@ enamldef BaseManifest(PluginManifest): manifest:
         MenuItem:
             path = '/equipment/input'
             label = 'Inputs'
-        #MenuItem: menu:
-        #    path = '/equipment/channel'
-        #    label = 'Channels'
-        #MenuItem: menu:
-        #    path = '/equipment/channel/hardware_ao'
-        #    label = 'Hardware analog output'
-        #MenuItem: menu:
-        #    path = '/equipment/channel/hardware_ai'
-        #    label = 'Hardware analog input'
 
     Extension:
         id = 'base_actions'
         point = 'psi.controller.actions'
         rank = 10
 
+        ExperimentEvent:
+            name = 'experiment_initialize'
         ExperimentState:
             name = 'experiment'
         ExperimentEvent:
