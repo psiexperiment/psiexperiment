@@ -2,11 +2,16 @@ from enaml.widgets.api import Container, DockItem, Label
 from enaml.workbench.api import Extension
 
 from psi.controller.api import ExperimentAction
-from psi.data.plots import GroupedResultPlot, PlotContainer, ViewBox
+from psi.data.plots import ResultPlot, PlotContainer, ViewBox
 
 from .dpoae_base import ControllerManifest as DPOAEBaseControllerManifest
 
 EXPERIMENT = __name__.rsplit('.', 1)[-1]
+
+
+from enaml.core.api import Looper
+from enaml.widgets.api import Form, ObjectCombo
+from psi.data.plots import MultiPlotContainer
 
 
 enamldef ControllerManifest(DPOAEBaseControllerManifest):
@@ -29,48 +34,56 @@ enamldef ControllerManifest(DPOAEBaseControllerManifest):
         id = EXPERIMENT + '.plots'
         point = 'psi.data.plots'
 
-        PlotContainer:
-            name = 'results_plot_container'
-            label = 'Results'
+        MultiPlotContainer: mc:
+            name = 'dpoae_results'
+            label = 'DPOAE input-output functions'
+            group = 'f2_frequency'
 
-            x_min = 0
-            x_max = 100
+            PlotContainer:
+                name << str(loop_item)
+                x_min = 0
+                x_max = 100
 
-            ViewBox:
-                y_min = -20
-                y_max = 100
+                ViewBox:
+                    y_min = -20
+                    y_max = 100
+                    label = str(loop_item)
 
-                GroupedResultPlot: grp:
-                    group_names = ['secondary_tone_frequency']
-                    source_name = 'analyze_dpoae'
-                    x_column = 'secondary_tone_level'
-                    pen_width = 2
-                    y_column = 'f2_level'
-                    pen_color_cycle = 'palettable.cartocolors.sequential.BluGrn_6'
+                    ResultPlot: grp:
+                        source_name = 'analyze_dpoae'
+                        x_column = 'secondary_tone_level'
+                        label = 'F2'
+                        pen_width = 2
+                        y_column = 'f2_level'
+                        pen_color = 'indianred'
+                        data_filter = lambda x: x[mc.group] == loop_item
 
-                GroupedResultPlot:
-                    group_names << grp.group_names
-                    source_name << grp.source_name
-                    x_column << grp.x_column
-                    pen_width << grp.pen_width
-                    y_column = 'primary_tone_level'
-                    pen_color_cycle = 'palettable.cartocolors.sequential.BrwnYl_6'
+                    ResultPlot:
+                        source_name << grp.source_name
+                        x_column << grp.x_column
+                        pen_width << grp.pen_width
+                        data_filter << grp.data_filter
+                        y_column = 'primary_tone_level'
+                        label = 'F1'
+                        pen_color = 'lightsalmon'
 
-                GroupedResultPlot:
-                    group_names << grp.group_names
-                    source_name << grp.source_name
-                    pen_width << grp.pen_width
-                    x_column << grp.x_column
-                    y_column = 'dpoae_noise_floor'
-                    pen_color_cycle = 'palettable.cartocolors.sequential.Burg_6'
+                    ResultPlot:
+                        source_name << grp.source_name
+                        pen_width << grp.pen_width
+                        x_column << grp.x_column
+                        data_filter << grp.data_filter
+                        y_column = 'dpoae_noise_floor'
+                        label = 'Noise Floor'
+                        pen_color = 'lightsteelblue'
 
-                GroupedResultPlot:
-                    group_names << grp.group_names
-                    source_name << grp.source_name
-                    pen_width << grp.pen_width
-                    x_column << grp.x_column
-                    y_column = 'dpoae_level'
-                    pen_color_cycle = 'palettable.cartocolors.sequential.DarkMint_6'
+                    ResultPlot:
+                        source_name << grp.source_name
+                        pen_width << grp.pen_width
+                        x_column << grp.x_column
+                        data_filter << grp.data_filter
+                        y_column = 'dpoae_level'
+                        label = 'DPOAE'
+                        pen_color = 'darkred'
 
     Extension:
         id = EXPERIMENT + '.workspace'

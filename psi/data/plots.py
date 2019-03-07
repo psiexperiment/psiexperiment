@@ -13,8 +13,11 @@ import pyqtgraph as pg
 
 from atom.api import (Unicode, Float, Tuple, Int, Typed, Property, Atom, Bool,
                       Enum, List, Dict, Callable)
-from enaml.core.api import Declarative, d_, d_func
+
 from enaml.application import deferred_call, timed_call
+from enaml.colors import parse_color
+from enaml.core.api import Declarative, d_, d_func
+from enaml.qt.QtGui import QColor
 
 from psi.util import SignalBuffer, ConfigurationException
 from psi.core.enaml.api import PSIContribution
@@ -96,6 +99,25 @@ class ChannelDataRange(Atom):
         self.current_time = max(self.current_times.values())
 
 
+def create_container(children, x_axis=None):
+    container = pg.GraphicsLayout()
+    container.setSpacing(10)
+
+    # Add the x and y axes to the layout, along with the viewbox.
+    for i, child in enumerate(children):
+        container.addItem(child.y_axis, i, 0)
+        container.addItem(child.viewbox, i, 1)
+
+    if x_axis is not None:
+        container.addItem(x_axis, i+1, 1)
+
+    # Link the child viewboxes together
+    for child in children[1:]:
+        child.viewbox.setXLink(children[0].viewbox)
+
+    return container
+
+
 ################################################################################
 # Containers (defines a shared set of containers across axes)
 ################################################################################
@@ -109,20 +131,7 @@ class BasePlotContainer(PSIContribution):
     legend = Typed(pg.LegendItem)
 
     def _default_container(self):
-        container = pg.GraphicsLayout()
-        container.setSpacing(10)
-
-        # Add the x and y axes to the layout, along with the viewbox.
-        for i, child in enumerate(self.children):
-            container.addItem(child.y_axis, i, 0)
-            container.addItem(child.viewbox, i, 1)
-        container.addItem(self.x_axis, i+1, 1)
-
-        # Link the child viewboxes together
-        for child in self.children[1:]:
-            child.viewbox.setXLink(self.base_viewbox)
-
-        return container
+        return create_container(self.children, self.x_axis)
 
     def _default_legend(self):
         legend = pg.LegendItem()
@@ -156,6 +165,27 @@ class PlotContainer(BasePlotContainer):
         container = super()._default_container()
         self.base_viewbox.setXRange(self.x_min, self.x_max, padding=0)
         return container
+
+
+from enaml.core.api import Looper
+from atom.api import Value
+from psi.core.enaml.api import load_manifests
+
+
+class MultiPlotContainer(Looper, PSIContribution):
+
+    group = d_(Unicode())
+    containers = d_(Dict())
+    _workbench = Value()
+
+    def refresh_items(self):
+        super().refresh_items()
+        if not self.iterable:
+            return
+        self.containers = {i: c[0].container for i, c in zip(self.iterable, self.items)}
+        log.warn('Loading manifests for MultiPlotContainer')
+        for item in self.items:
+            load_manifests(item[0].children, self._workbench)
 
 
 class TimeContainer(BasePlotContainer):
@@ -282,6 +312,9 @@ class ViewBox(PSIContribution):
 
     data_range = Property()
 
+    def _default_name(self):
+        return self.label
+
     def _get_data_range(self):
         return self.parent.data_range
 
@@ -319,27 +352,10 @@ class ViewBox(PSIContribution):
         for child in self.children:
             child.update()
 
-    def add_plot(self, plot):
+    def add_plot(self, plot, label=None):
         self.viewbox.addItem(plot)
-
-    def plot(self, x, y, color='k', log_x=False, log_y=False, label=None,
-             kind='line'):
-        if log_x:
-            x = np.log10(x)
-        if log_y:
-            y = np.log10(y)
-        x = np.asarray(x)
-        y = np.asarray(y)
-
-        if kind == 'line':
-            item = pg.PlotCurveItem(pen=pg.mkPen(color))
-        elif kind == 'scatter':
-            item = pg.ScatterPlotItem(pen=pg.mkPen(color))
-        item.setData(x, y)
-        self.add_plot(item)
-
-        if label is not None:
-            self.parent.legend.addItem(item, label)
+        if label:
+            self.parent.legend.addItem(plot, label)
 
 
 ################################################################################
@@ -366,6 +382,7 @@ class SinglePlot(BasePlot):
     pen_color = d_(Typed(object))
     pen_width = d_(Float(0))
     antialias = d_(Bool(False))
+    label = d_(Unicode())
 
     pen = Typed(object)
     plot = Typed(object)
@@ -374,10 +391,11 @@ class SinglePlot(BasePlot):
         return [self.plot]
 
     def _default_pen_color(self):
-        return 'k'
+        return 'black'
 
     def _default_pen(self):
-        return pg.mkPen(self.pen_color, width=self.pen_width)
+        color = QColor(self.pen_color)
+        return pg.mkPen(color, width=self.pen_width)
 
     def _default_name(self):
         return self.source_name + '_plot'
@@ -660,7 +678,7 @@ class GroupMixin(Declarative):
     def get_pen_color(self, key):
         kw_key = {n: k for n, k in zip(self.group_names, key)}
         group_key = self.group_color_key(kw_key)
-        return self._plot_colors[group_key]
+        return QColor(self._plot_colors[group_key])
 
     def _reset_plots(self):
         # Clear any existing plots and reset color cycle
@@ -840,7 +858,7 @@ class StackedEpochAveragePlot(EpochGroupMixin, BasePlot):
 ################################################################################
 # Simple plotters
 ################################################################################
-class GroupedResultPlot(GroupMixin, SinglePlot):
+class ResultPlot(SinglePlot):
 
     x_column = d_(Unicode())
     y_column = d_(Unicode())
@@ -855,68 +873,56 @@ class GroupedResultPlot(GroupMixin, SinglePlot):
     symbol_size = d_(Float(10))
     symbol_size_unit = d_(Enum('screen', 'data'))
 
+    data_filter = d_(Callable())
+
+    _data_cache = Typed(list)
+
+    def _default_data_filter(self):
+        # By default, accept all data points
+        return lambda x: True
+
     def _default_name(self):
-        return (self.source_name + self.x_column + self.y_column +
-                '_grouped_epoch_phase_plot')
+        return '.'.join((self.parent.name, self.source_name, 'result_plot',
+                         self.x_column, self.y_column))
 
     def _observe_source(self, event):
         if self.source is not None:
+            log.warn('Adding data acquired callback for %s', self.name)
+            self._data_cache = []
             self.source.add_callback(self._data_acquired)
-            self._reset_plots()
 
     def _data_acquired(self, data):
+        update = False
         for d in data:
-            if self.group_filter(d):
+            if self.data_filter(d):
                 x = d[self.x_column]
                 y = d[self.y_column]
-                key = tuple(d[n] for n in self.group_names)
-                self._data_cache[key].append((x, y))
-                self._data_count[key] += 1
-
-        # Does at least one group need to be updated?
-        for key, count in self._data_count.items():
-            if count >= self._data_updated[key] + self.n_update:
-                self.update()
-                break
+                self._data_cache.append((x, y))
+                update = True
+        if update:
+            self.update()
 
     def update(self, event=None):
-        todo = []
-        for key, data in self._data_cache.items():
-            x, y = zip(*data)
-            x = np.array(x)
-            y = np.array(y)
-            plot = self.get_plot(key)
-            todo.append((plot.setData, x, y))
-            #curve, scatter = self.get_plot(key)
-            #todo.append((scatter.setData, x, y))
-            #todo.append((curve.setData, x, y))
+        if not self._data_cache:
+            return
+        x, y = zip(*self._data_cache)
+        x = np.array(x)
+        y = np.array(y)
+        deferred_call(self.plot.setData, x, y)
 
-        def update():
-            for setter, x, y in todo:
-                setter(x, y)
+    def _default_plot(self):
+        symbol_code = self.SYMBOL_MAP[self.symbol]
+        color = QColor(self.pen_color)
+        pen = pg.mkPen(color, width=self.pen_width)
+        brush = pg.mkBrush(color)
 
-        deferred_call(update)
+        plot = pg.PlotDataItem(pen=pen,
+                                antialias=self.antialias,
+                                symbol=symbol_code,
+                                symbolSize=self.symbol_size,
+                                symbolPen=pen,
+                                symbolBrush=brush,
+                                pxMode=self.symbol_size_unit=='screen')
 
-    def _make_new_plot(self, key):
-        log.info('Adding plot for key %r', key)
-        try:
-            symbol_code = self.SYMBOL_MAP[self.symbol]
-            pen_color = self.get_pen_color(key)
-            pen = pg.mkPen(pen_color, width=self.pen_width)
-            brush = pg.mkBrush(pen_color)
-
-            plot = pg.PlotDataItem(pen=pen,
-                                   antialias=self.antialias,
-                                   symbol=symbol_code,
-                                   symbolSize=self.symbol_size,
-                                   symbolPen=pen,
-                                   symbolBrush=brush,
-                                   pxMode=self.symbol_size_unit=='screen')
-
-            deferred_call(self.parent.viewbox.addItem, plot)
-            self.plots[key] = plot
-        except KeyError as key_error:
-            key = key_error.args[0]
-            m = f'Cannot update plot since a field, {key}, ' \
-                 'required by the plot is missing.'
-            raise ConfigurationException(m) from key_error
+        deferred_call(self.parent.add_plot, plot, self.label)
+        return plot

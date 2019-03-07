@@ -3,7 +3,7 @@ log = logging.getLogger(__name__)
 
 import importlib
 
-from atom.api import Unicode
+from atom.api import Bool, Unicode
 
 import enaml
 from enaml.core.api import Declarative, d_
@@ -47,6 +47,8 @@ class PSIContribution(Declarative):
         raise ImportError
 
     def load_manifest(self, workbench):
+        if not self.load_manifest:
+            return
         try:
             manifest_class = self.find_manifest_class()
             manifest = manifest_class(contribution=self)
@@ -55,8 +57,4 @@ class PSIContribution(Declarative):
             log.info(m.format(self.name, manifest_class.__name__))
         except ImportError:
             m = 'No manifest defind for contribution {}'
-            log.warn(m.format(self.name))
-        except ValueError:
-            raise
-            m = 'Plugin {} already registered'
             log.warn(m.format(self.name))

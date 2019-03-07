@@ -33,7 +33,6 @@ def tb1(epoch_output):
                        calibration=epoch_output.calibration)
     envelope = Cos2EnvelopeFactory(fs=epoch_output.fs, start_time=0,
                                    rise_time=0.5, duration=5,
-                                   calibration=epoch_output.calibration,
                                    input_factory=tone)
     return envelope
 
@@ -44,7 +43,6 @@ def tb2(epoch_output):
                        calibration=epoch_output.calibration)
     envelope = Cos2EnvelopeFactory(fs=epoch_output.fs, start_time=0,
                                    rise_time=0.25, duration=5,
-                                   calibration=epoch_output.calibration,
                                    input_factory=tone)
     return envelope
 

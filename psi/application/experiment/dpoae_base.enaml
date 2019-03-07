@@ -264,21 +264,18 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 label = 'F2 frequency'
                 compact_label = 'F2'
                 default = 8000
-                scope = 'experiment'
 
             Parameter:
                 name = 'f2_f1_ratio'
                 label = 'F2/F1 ratio'
                 compact_label = 'F2/F1'
                 default = 1.2
-                scope = 'experiment'
 
             Parameter:
                 name = 'l1_l2_difference'
                 label = 'L1-L2 (dB)'
                 compact_label = 'L1-L2'
                 default = 10
-                scope = 'experiment'
 
             Parameter:
                 name = 'n_fft'

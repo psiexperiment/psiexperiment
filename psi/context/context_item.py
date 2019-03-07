@@ -151,6 +151,12 @@ class ContextItem(Declarative):
         value = coerce_function(value)
         return np.asscalar(value)
 
+    def __repr__(self):
+        return f'<{self}>'
+
+    def __str__(self):
+        return f'{self.name} in {self.group}'
+
 
 class Result(ContextItem):
     '''

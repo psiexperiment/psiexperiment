@@ -7,11 +7,13 @@ from psi.token.primitives import Gate, SquareWave
 
 from .dpoae_base import ControllerManifest as DPOAEBaseControllerManifest
 
+EXPERIMENT = __name__.rsplit('.', 1)[-1]
+
 
 enamldef ControllerManifest(DPOAEBaseControllerManifest):
 
     Extension:
-        id = 'dpoae_time_tokens'
+        id = EXPERIMENT + '.tokens'
         point = 'psi.token.tokens'
 
         Gate: ttl:
@@ -21,7 +23,7 @@ enamldef ControllerManifest(DPOAEBaseControllerManifest):
                 pass
 
     Extension:
-        id = 'dpoae_time_io'
+        id = EXPERIMENT + '.io'
         point = 'psi.controller.io'
 
         EpochOutput: trigger:
@@ -32,7 +34,7 @@ enamldef ControllerManifest(DPOAEBaseControllerManifest):
             token = ttl
 
     Extension:
-        id = 'dpoae_time_actions'
+        id = EXPERIMENT + '.actions'
         point = 'psi.controller.actions'
 
         ExperimentAction:
@@ -50,23 +52,23 @@ enamldef ControllerManifest(DPOAEBaseControllerManifest):
             kwargs = {'selector': 'default', 'save_prior': False}
 
         ExperimentAction:
-            event = 'dpoae_end'
+            event = 'context_next_setting'
             command = 'dpoae.start'
             kwargs = {'delay': 0.25}
 
     Extension:
-        id = 'dpoae_time_context'
+        id = EXPERIMENT + '.items'
         point = 'psi.context.items'
 
         Parameter:
             name = 'ttl_start'
             label = 'TTL start time (sec)'
             dtype = 'float'
-            default = 5e3
+            default = 5
             group = 'dpoae'
 
     Extension:
-        id = 'dpoae_time_plots'
+        id = EXPERIMENT + '.plots'
         point = 'psi.data.plots'
 
         PlotContainer:

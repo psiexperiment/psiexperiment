@@ -4,6 +4,8 @@ log = logging.getLogger(__name__)
 import pickle as pickle
 from copy import deepcopy
 
+import numpy as np
+
 from atom.api import Typed, Bool, Str, observe, Property
 from enaml.application import deferred_call
 from enaml.layout.api import InsertItem, InsertTab
@@ -34,7 +36,6 @@ class ContextLookup:
 
     def __getattr__(self, name):
         value = self.__context_plugin.get_value(name)
-        log.warning('%r %r', name, value)
         return value
 
 
@@ -225,24 +226,31 @@ class ContextPlugin(Plugin):
     def _observe_selector_updated(self, event):
         self._check_for_changes()
 
-    def _get_iterators(self, cycles=None):
+    def _get_iterators(self, cycles=np.inf):
         return {k: v.get_iterator(cycles) for k, v in self.selectors.items()}
 
-    def iter_settings(self, iterator='default', cycles=None):
+    def iter_settings(self, iterator='default', cycles=np.inf):
+        log.debug('Iterating through settings for %s iterator', iterator)
         # Some paradigms may not actually have an iterator.
         namespace = ExpressionNamespace(self.expressions, self.symbols)
         if iterator:
             selector = self.selectors[iterator].get_iterator(cycles=cycles)
             for setting in selector:
+                log.debug('Selector returned %r', setting)
                 expressions = {i.name: i.to_expression(e) for i, e in setting.items()}
                 namespace.update_expressions(expressions)
                 yield namespace.get_values()
+                namespace.reset()
         else:
             yield namespace.get_values()
 
     def unique_values(self, item_name, iterator='default'):
         iterable = self.iter_settings(iterator, 1)
-        values = set(c[item_name] for c in iterable)
+        items = [c[item_name] for c in iterable]
+        values = set(items)
+        print(items)
+        print(item_name)
+        log.debug('Found %d unique values: %r', len(values), values)
         return values
 
     def get_item(self, item_name):
@@ -356,7 +364,7 @@ class ContextPlugin(Plugin):
                 return
         self.changes_pending = self.selectors != self._selectors
 
-    def apply_changes(self, cycles=None):
+    def apply_changes(self, cycles=np.inf):
         self._apply_context_item_state()
         self._apply_selector_state()
         self._namespace.update_expressions(self.expressions)

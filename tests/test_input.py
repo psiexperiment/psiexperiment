@@ -41,10 +41,6 @@ def test_input_data():
     assert expected_input.metadata == result.metadata
     assert np.array_equal(expected_input, result)
 
-    input_mean = np.mean(input_data, axis=0)
-    print(input_mean.metadata)
-    assert False
-
 
 def test_pipeline(data, pipeline):
     expected = []

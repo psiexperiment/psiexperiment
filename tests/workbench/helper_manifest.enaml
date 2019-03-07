@@ -136,7 +136,7 @@ enamldef HelperManifest(BaseManifest): manifest:
         id = 'helper_tokens'
         point = 'psi.token.tokens'
 
-        Cos2Envelope:
+        Cos2Envelope: tone_burst:
             name = 'tone_burst'
             Tone:
                 pass
