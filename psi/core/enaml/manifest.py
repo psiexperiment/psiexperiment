@@ -8,11 +8,8 @@ from .contribution import PSIContribution
 class PSIManifest(PluginManifest):
 
     contribution = Typed(PSIContribution)
-    base_id = Unicode()
     id = Property(cached=True)
 
     def _get_id(self):
-        if self.base_id:
-            return str('.'.join((self.base_id, self.contribution.name)))
-        else:
-            return str(self.contribution.name)
+        class_type = self.__class__.__name__
+        return f'{self.contribution.name}.{class_type}'

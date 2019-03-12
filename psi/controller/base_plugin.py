@@ -399,12 +399,12 @@ class BasePlugin(Plugin):
     def invoke_actions(self, event_name, timestamp=None, delayed=False,
                        cancel_existing=True, kw=None):
         if cancel_existing:
-            self.stop_timer(event_name)
+            deferred_call(self.stop_timer, event_name)
         if delayed:
             delay = timestamp-self.get_ts()
             if delay > 0:
                 cb = lambda: self._invoke_actions(event_name, timestamp)
-                self.start_timer(event_name, delay, cb)
+                deferred_call(self.start_timer, event_name, delay, cb)
                 return
         self._invoke_actions(event_name, timestamp, kw)
 

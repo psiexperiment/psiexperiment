@@ -58,3 +58,6 @@ class PSIContribution(Declarative):
         except ImportError:
             m = 'No manifest defind for contribution {}'
             log.warn(m.format(self.name))
+        except ValueError:
+            workbench.unregister(manifest.id)
+            workbench.register(manifest)

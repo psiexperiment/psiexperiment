@@ -14,7 +14,7 @@ from psi import get_config
 from psi.core.enaml.api import load_manifests
 
 from .sink import Sink
-from .plots import MultiPlotContainer, PlotContainer
+from .plots import BasePlotContainer, MultiPlotContainer
 
 
 SINK_POINT = 'psi.data.sinks'
@@ -51,9 +51,11 @@ class DataPlugin(Plugin):
         containers = []
         point = self.workbench.get_extension_point(PLOT_POINT)
         for extension in point.extensions:
-            containers.extend(extension.get_children(PlotContainer))
+            containers.extend(extension.get_children(BasePlotContainer))
             containers.extend(extension.get_children(MultiPlotContainer))
         load_manifests(containers, self.workbench)
+        log.debug('Found %d plot containers', len(containers))
+        print(containers)
         self._containers = containers
 
     def _bind_observers(self):

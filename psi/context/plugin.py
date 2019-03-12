@@ -11,6 +11,7 @@ from enaml.application import deferred_call
 from enaml.layout.api import InsertItem, InsertTab
 from enaml.workbench.plugin import Plugin
 
+from psi.core.enaml.api import load_manifests
 from ..util import get_tagged_values
 from .context_item import (
     ContextItem, ContextGroup, Expression, Parameter, ContextMeta
@@ -118,52 +119,57 @@ class ContextPlugin(Plugin):
         metas = []
         expressions = []
 
+        # First, find all ContextItem, ContextGroup, ContextMeta and
+        # Expressions.
         point = self.workbench.get_extension_point(ITEMS_POINT)
         for extension in point.extensions:
-            items.extend(extension.get_children(ContextItem))
             groups.extend(extension.get_children(ContextGroup))
+            items.extend(extension.get_children(ContextItem))
             metas.extend(extension.get_children(ContextMeta))
             expressions.extend(extension.get_children(Expression))
 
+        # Now, loop through the groups and find all ContextItems defined under
+        # the group. If the group has already been defined in another
+        # contribution, raise an error and exit.
         for group in groups:
-            log.debug('Adding context group {}'.format(group.name))
             if group.name in context_groups:
-                m = 'Context group {} already defined'.format(group.name)
-                raise ValueError(m)
+                raise ValueError(f'Context group {group.name} already defined')
+            log.debug('Adding context group %s', group.name)
             context_groups[group.name] = group
+            group.items = []
             for item in group.children:
-                item.group = group.name
-                items.append(item)
+                item.set_group(group)
 
+        # Now, go through all "orphan" context items where the group has not
+        # been assigned yet.
         for item in items:
-            log.trace('Adding context item {}'.format(item.name))
-            if item.group not in context_groups:
-                m = 'Group {} for {} does not exist'
-                m = m.format(item.group, item.name)
+            if item.group_name not in context_groups:
+                m = f'Missing {item.group_name} for item {item.name}'
                 raise ValueError(m)
-            if item.name in context_items:
-                m = 'Context item {} already defined'.format(item.name)
-                raise ValueError(m)
-            context_items[item.name] = item
+            item.set_group(context_groups[item.group_name])
+
+        # Now, create a dictionary of all context items. The groups are just
+        # for display purposes. Internally, all context items are treated
+        # equally.
+        for group in context_groups.values():
+            for item in group.items:
+                if item.name in context_items:
+                    m = f'Context item {item.name} already defined'
+                    raise ValueError(m)
+                context_items[item.name] = item
 
         for meta in metas:
             context_meta[meta.name] = meta
 
         for expression in expressions:
-            log.trace('Adding expression %s', expression.name)
             try:
                 item = context_items.pop(expression.parameter)
+                item.set_group(None)
             except KeyError as e:
-                m = f'{expression.parameter} does not exist'
-                raise ValueError(m) from e
+                log.warn('%s referenced by expression %s does not exist',
+                         expression.parameter, expression.expression)
 
-        for group_name, group in list(context_groups.items()):
-            for item_name, item in context_items.items():
-                if (item.group == group_name) and item.visible:
-                    break
-            else:
-                context_groups.pop(group_name)
-
+        load_manifests(context_groups.values(), self.workbench)
         self.context_expressions = expressions
         self.context_items = context_items
         self.context_groups = context_groups
@@ -248,8 +254,6 @@ class ContextPlugin(Plugin):
         iterable = self.iter_settings(iterator, 1)
         items = [c[item_name] for c in iterable]
         values = set(items)
-        print(items)
-        print(item_name)
         log.debug('Found %d unique values: %r', len(values), values)
         return values
 

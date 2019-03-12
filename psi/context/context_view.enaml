@@ -9,42 +9,6 @@ from enaml.widgets.api import (Field, Container, VGroup, HGroup, Label,
 
 from .context_item_view import ContextItem
 
-
-################################################################################
-# Parameter view
-################################################################################
-def get_context_items(context_items, group_name):
-    subset = [i for i in context_items.values() if i.group == group_name]
-    subset = [i for i in subset if i.visible]
-    return sorted(subset, key=operator.attrgetter('label'))
-
-
-enamldef ContextDockItem(DockItem):
-    # By taking the `context` as an attribute rather than a list of parameters,
-    # this ensures that the GUI is updated if the parameters list is ever
-    # overwritten (e.g., by the revert logic).
-    attr context_plugin = workbench.get_plugin('psi.context')
-    attr group_name
-    closable = False
-
-    # Define a style that grays out the field when it's been selected to be a #
-    # roving parameter.
-    StyleSheet:
-        Style:
-            element = 'Field'
-            style_class = 'disabled'
-            Setter:
-                field = 'background'
-                value = '#cccccc'
-
-    VGroup:
-        spacing = 0
-        Looper:
-            iterable << get_context_items(context_plugin.context_items, group_name)
-            ContextItem:
-                context_item = loop_item
-
-
 ################################################################################
 # Current values view
 ################################################################################

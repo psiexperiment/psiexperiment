@@ -79,7 +79,7 @@ def load_items(output, block):
             .format(block.label, parameter.label)
         new_parameter.compact_label = '{} {}' \
             .format(block.compact_label, parameter.compact_label)
-        new_parameter.group = output.name
+        new_parameter.group_name = output.name
         new_parameter.scope = scope
         parameters.append(new_parameter)
         block_map[new_parameter.name] = parameter.name
@@ -148,20 +148,12 @@ def prepare_output(event, output):
 
 def prepare_output_queue(event, output):
     log.info('Setting up queue for {}'.format(output.name))
-
     controller = event.workbench.get_plugin('psi.controller')
     context = event.workbench.get_plugin('psi.context')
-
     action_name = output.name + '_end'
     output.complete_cb = partial(controller.invoke_actions, action_name)
-
     for setting in context.iter_settings(output.selector_name, 1):
         output.add_setting(setting)
-
-
-def set_output_queue(event, output):
-    queue_class = event.parameters['queue_class']
-    output.queue = queue_class()
 
 
 def prepare_synchronized(synchronized, event):
@@ -279,6 +271,23 @@ def clear_synchronized(synchronized, event):
                               end+delay)
 
 
+def _get_start_delay(event):
+    ts = event.parameters['timestamp']
+    start = event.parameters.get('start', ts)
+    delay = event.parameters.get('delay', 0)
+
+    if isinstance(delay, str):
+        context = event.workbench.get_plugin('psi.context')
+        delay = context.get_value(delay)
+
+    # Is this a hack? If no timestamp is defined, then assume that the start is
+    # 0 (e.g., in the case of experiment_prepare).
+    if start is None:
+        start = 0
+
+    return start, delay
+
+
 def start_output(event, output):
     ts = event.parameters['timestamp']
     start = event.parameters.get('start', ts)
@@ -294,7 +303,6 @@ def start_output(event, output):
         start = 0
 
     offset = round((start+delay)*output.channel.fs)
-
     notify_end = False
 
     try:
@@ -333,8 +341,8 @@ def start_output(event, output):
         log.debug('Invalidated buffer at %d', offset)
     else:
         filter_delay = output.channel.filter_delay
-        log.debug('Compensating %s for filter delay %f', output.name,
-                  filter_delay)
+        log.debug('Compensating %s start event for filter delay %f',
+                  output.name, filter_delay)
         controller = event.workbench.get_plugin('psi.controller')
         controller.invoke_actions('{}_start'.format(output.name),
                                   start+delay+filter_delay)
@@ -386,13 +394,13 @@ def decrement_key(event, output):
 enamldef SynchronizedManifest(PSIManifest): manifest:
 
     Extension:
-        id = 'actions.' + manifest.contribution.name
+        id = manifest.id + '.actions'
         point = 'psi.controller.actions'
         ExperimentState:
             name = manifest.contribution.name
 
     Extension:
-        id = 'output_commands'
+        id = manifest.id + '.output_commands'
         point = 'enaml.workbench.core.commands'
         Command:
             id = manifest.contribution.name + '.prepare'
@@ -408,23 +416,22 @@ enamldef SynchronizedManifest(PSIManifest): manifest:
 enamldef AnalogOutputManifest(PSIManifest): manifest:
 
     Extension:
-        id = 'output_commands'
+        id = manifest.id + '.output_commands'
         point = 'enaml.workbench.core.commands'
         Conditional:
             condition << manifest.contribution.configurable
             Command:
                 id = manifest.contribution.name + '.set_token'
-                handler = partial(set_token, output=manifest.contribution,
-                                output_type=output_type)
+                handler = partial(set_token, output=contribution, output_type=output_type)
         Command:
             id = manifest.contribution.name + '.prepare'
-            handler = partial(prepare_output, output=manifest.contribution)
+            handler = partial(prepare_output, output=contribution)
         Command:
             id = manifest.contribution.name + '.start'
-            handler = partial(start_output, output=manifest.contribution)
+            handler = partial(start_output, output=contribution)
         Command:
             id = manifest.contribution.name + '.clear'
-            handler = partial(clear_output, output=manifest.contribution)
+            handler = partial(clear_output, output=contribution)
 
     Conditional:
         condition << manifest.contribution.configurable
@@ -432,7 +439,7 @@ enamldef AnalogOutputManifest(PSIManifest): manifest:
         # Create a menu of the tokens available for the output if it's a
         # configurable output.
         Extension:
-            id = 'output_menu.' + manifest.contribution.name
+            id = manifest.id + '.output_menu'
             point = 'enaml.workbench.ui.actions'
             MenuItem: menu:
                 path = '/equipment/output/{}'.format(manifest.contribution.name)
@@ -463,7 +470,7 @@ enamldef AnalogOutputManifest(PSIManifest): manifest:
 
         # Save the selected token and restore it
         Extension:
-            id = 'preferences.' +  manifest.contribution.name
+            id = manifest.id + '.preferences'
             point = 'psi.experiment.preferences'
             rank = 10
             ItemPreferences:
@@ -487,7 +494,7 @@ enamldef AnalogOutputManifest(PSIManifest): manifest:
                     core.invoke_command(command, parameters={'token': token})
 
     Extension:
-        id = 'items.' + manifest.contribution.name
+        id = manifest.id + '.items'
         point = 'psi.context.items'
 
         ContextGroup:
@@ -500,7 +507,7 @@ enamldef AnalogOutputManifest(PSIManifest): manifest:
                                   manifest.contribution.token)
 
     Extension:
-        id = 'actions.' + manifest.contribution.name
+        id = manifest.id + '.actions'
         point = 'psi.controller.actions'
         ExperimentState:
             name = manifest.contribution.name
@@ -528,23 +535,20 @@ enamldef EpochOutputManifest(AnalogOutputManifest): manifest:
 enamldef QueuedEpochOutputManifest(EpochOutputManifest): manifest:
 
     Extension:
-        id = 'commands'
+        id = manifest.id + '.commands'
         point = 'enaml.workbench.core.commands'
         Command:
             id = manifest.contribution.name + '.prepare_queue'
-            handler = partial(prepare_output_queue, output=manifest.contribution)
-        Command:
-            id = manifest.contribution.name + '.set_queue'
-            handler = partial(set_output_queue, output=manifest.contribution)
+            handler = partial(prepare_output_queue, output=contribution)
         Command:
             id = manifest.contribution.name + '.decrement_key'
-            handler = partial(decrement_key, output=manifest.contribution)
+            handler = partial(decrement_key, output=contribution)
 
 
 enamldef SelectorQueuedEpochOutputManifest(QueuedEpochOutputManifest): manifest:
 
     Extension:
-        id = 'epoch_output_menu.' + manifest.contribution.name
+        id = manifest.id + '.epoch_output_menu'
         point = 'enaml.workbench.ui.actions'
         MenuItem:
             path = '/equipment/output/{}/queue'.format(manifest.contribution.name)
@@ -568,7 +572,7 @@ enamldef SelectorQueuedEpochOutputManifest(QueuedEpochOutputManifest): manifest:
                     in ('initialized', 'stopped')
 
     Extension:
-        id = 'items'
+        id = manifest.id + '.epoch_output_items'
         point = 'psi.context.items'
 
         ContextGroup:
@@ -590,7 +594,7 @@ enamldef SelectorQueuedEpochOutputManifest(QueuedEpochOutputManifest): manifest:
                 scope = 'experiment'
 
     Extension:
-        id = 'epoch_output_actions'
+        id = manifest.id + '.epoch_output_actions'
         point = 'psi.controller.actions'
 
         ExperimentAction:
@@ -598,7 +602,7 @@ enamldef SelectorQueuedEpochOutputManifest(QueuedEpochOutputManifest): manifest:
             command = manifest.contribution.name + '.prepare_queue'
 
     Extension:
-        id = 'queued_epoch_output_preferences.' +  manifest.contribution.name
+        id = manifest.id + '.queued_epoch_output_preferences'
         point = 'psi.experiment.preferences'
         rank = 10
         Preferences:
@@ -634,7 +638,7 @@ enamldef ContinuousOutputManifest(AnalogOutputManifest): manifest:
 enamldef ToggleManifest(PSIManifest): manifest:
 
     Extension:
-        id = 'toggle_commands.' + manifest.contribution.name
+        id = manifest.id + '.toggle_commands'
         point = 'enaml.workbench.core.commands'
         Command:
             id = manifest.id + '.off'
@@ -647,7 +651,7 @@ enamldef ToggleManifest(PSIManifest): manifest:
             handler = partial(toggle, output=manifest.contribution)
 
     Extension:
-        id = 'toggle_actions.' + manifest.contribution.name
+        id = manifest.id + '.toggle_actions'
         point = 'enaml.workbench.ui.actions'
         ActionItem:
             path = '/equipment/{}'.format(manifest.contribution.name)
@@ -662,14 +666,14 @@ enamldef ToggleManifest(PSIManifest): manifest:
 enamldef TriggerManifest(PSIManifest): manifest:
 
     Extension:
-        id = 'trigger_commands'
+        id = manifest.id + '.trigger_commands'
         point = 'enaml.workbench.core.commands'
         Command:
             id = manifest.id + '.trigger'
             handler = partial(fire, output=manifest.contribution)
 
     Extension:
-        id = 'trigger_actions'
+        id = manifest.id + '.trigger_actions'
         point = 'enaml.workbench.ui.actions'
         ActionItem:
             path = '/equipment/{}'.format(manifest.contribution.name)

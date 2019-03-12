@@ -144,7 +144,8 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gain=0,
 
     factory = SilenceFactory(ao_fs, calibration)
     waveform = factory.next(samples)
-    queue.append(waveform, repetitions, iti)
+    md = {'gain': -400, 'frequency': 0}
+    queue.append(waveform, repetitions, iti, metadata=md)
 
     # Add the queue to the output channel
     output = ao_channel.add_queued_epoch_output(queue, auto_decrement=True)
@@ -155,6 +156,7 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gain=0,
     # Create a dictionary of lists. Each list maps to an individual input
     # channel and will be used to accumulate the epochs for that channel.
     data = {ai_channel.name: [] for ai_channel in ai_channels}
+    samples = {ai_channel.name: [] for ai_channel in ai_channels}
 
     def accumulate(epochs, epoch):
         epochs.extend(epoch)
@@ -164,6 +166,7 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gain=0,
         epoch_input = ExtractEpochs(queue=queue, epoch_size=duration)
         epoch_input.add_callback(cb)
         ai_channel.add_input(epoch_input)
+        ai_channel.add_callback(samples[ai_channel.name].append)
 
     cal_engine.start()
     while not epoch_input.complete:

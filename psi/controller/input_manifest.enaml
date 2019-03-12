@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 from functools import partial
 
 import numpy as np
@@ -27,12 +30,11 @@ def prepare_event_callback(input, event):
     controller = event.workbench.get_plugin('psi.controller')
     event_name = input.name + '_acquired'
     if controller.event_used(event_name):
-
         def cb(data):
             nonlocal controller
             nonlocal event_name
-            controller.invoke_actions(event_name, data=data)
-
+            kw = {'data': data}
+            controller.invoke_actions(event_name, kw=kw)
         input.add_callback(cb)
 
 

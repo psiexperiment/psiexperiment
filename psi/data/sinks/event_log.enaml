@@ -43,11 +43,11 @@ enamldef EventLogManifest(TextStoreManifest): manifest:
         point = 'enaml.workbench.core.commands'
 
         Command:
-            id = manifest.id + '.prepare'
+            id = contribution.name + '.prepare'
             handler = partial(prepare, manifest.contribution)
 
         Command:
-            id = manifest.id + '.save'
+            id = contribution.name + '.save'
             handler = partial(save, manifest.contribution)
 
     Extension:
@@ -56,11 +56,11 @@ enamldef EventLogManifest(TextStoreManifest): manifest:
 
         ExperimentAction:
             event = 'experiment_prepare'
-            command = manifest.id + '.prepare'
+            command = contribution.name + '.prepare'
 
         ExperimentAction:
             event = 'experiment_event'
-            command = manifest.id + '.save'
+            command = contribution.name + '.save'
 
     Conditional:
         condition << manifest.contribution.show_widget

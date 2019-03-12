@@ -12,17 +12,18 @@ import pandas as pd
 import pyqtgraph as pg
 
 from atom.api import (Unicode, Float, Tuple, Int, Typed, Property, Atom, Bool,
-                      Enum, List, Dict, Callable)
+                      Enum, List, Dict, Callable, Value)
 
 from enaml.application import deferred_call, timed_call
 from enaml.colors import parse_color
-from enaml.core.api import Declarative, d_, d_func
+from enaml.core.api import Looper, Declarative, d_, d_func
 from enaml.qt.QtGui import QColor
 
 from psi.util import SignalBuffer, ConfigurationException
-from psi.core.enaml.api import PSIContribution
+from psi.core.enaml.api import load_manifests, PSIContribution
 from psi.controller.calibration import util
 from psi.context.context_item import ContextMeta
+
 
 
 ################################################################################
@@ -119,6 +120,27 @@ def create_container(children, x_axis=None):
 
 
 ################################################################################
+# Pattern containers
+################################################################################
+class MultiPlotContainer(Looper, PSIContribution):
+
+    group = d_(Unicode())
+    containers = d_(Dict())
+    _workbench = Value()
+    selected_item = Value()
+
+    def refresh_items(self):
+        super().refresh_items()
+        if not self.iterable:
+            return
+        self.containers = {str(i): c[0].container for \
+                           i, c in zip(self.iterable, self.items)}
+        for item in self.items:
+            load_manifests(item[0].children, self._workbench)
+
+
+
+################################################################################
 # Containers (defines a shared set of containers across axes)
 ################################################################################
 class BasePlotContainer(PSIContribution):
@@ -165,27 +187,6 @@ class PlotContainer(BasePlotContainer):
         container = super()._default_container()
         self.base_viewbox.setXRange(self.x_min, self.x_max, padding=0)
         return container
-
-
-from enaml.core.api import Looper
-from atom.api import Value
-from psi.core.enaml.api import load_manifests
-
-
-class MultiPlotContainer(Looper, PSIContribution):
-
-    group = d_(Unicode())
-    containers = d_(Dict())
-    _workbench = Value()
-
-    def refresh_items(self):
-        super().refresh_items()
-        if not self.iterable:
-            return
-        self.containers = {i: c[0].container for i, c in zip(self.iterable, self.items)}
-        log.warn('Loading manifests for MultiPlotContainer')
-        for item in self.items:
-            load_manifests(item[0].children, self._workbench)
 
 
 class TimeContainer(BasePlotContainer):
@@ -265,37 +266,37 @@ class CustomGraphicsViewBox(pg.ViewBox):
         self.allow_zoom_y = allow_zoom_y
         super().__init__(*args, **kwargs)
 
-    #def wheelEvent(self, ev, axis=None):
-    #    if axis == 0 and not self.allow_zoom_x:
-    #        return
-    #    if axis == 1 and not self.allow_zoom_y:
-    #        return
+    def wheelEvent(self, ev, axis=None):
+        if axis == 0 and not self.allow_zoom_x:
+            return
+        if axis == 1 and not self.allow_zoom_y:
+            return
 
-    #    s = 1.02**(ev.delta() * self.state['wheelScaleFactor'])
+        s = 1.02**(ev.delta() * self.state['wheelScaleFactor'])
 
-    #    if axis == 0:
-    #        self.data_range.span *= s
-    #    elif axis == 1:
-    #        vr = self.targetRect()
-    #        if self.y_mode == 'symmetric':
-    #            self.y_min *= s
-    #            self.y_max *= s
-    #        elif self.y_mode == 'upper':
-    #            self.y_max *= s
-    #        self.setYRange(self.y_min, self.y_max)
+        if axis == 0:
+            self.data_range.span *= s
+        elif axis == 1:
+            vr = self.targetRect()
+            if self.y_mode == 'symmetric':
+                self.y_min *= s
+                self.y_max *= s
+            elif self.y_mode == 'upper':
+                self.y_max *= s
+            self.setYRange(self.y_min, self.y_max)
 
-    #    self.sigRangeChangedManually.emit(self.state['mouseEnabled'])
-    #    ev.accept()
+        self.sigRangeChangedManually.emit(self.state['mouseEnabled'])
+        ev.accept()
 
-    #def mouseDragEvent(self, ev, axis=None):
-    #    ev.accept()
-    #    return
-    #    delta = ev.pos()-ev.lastPos()
-    #    tr = self.mapToView(delta)-self.mapToView(pg.Point(0, 0))
-    #    if axis == 0:
-    #        x = tr.x()
-    #        self.data_range.delay += x
-    #    ev.accept()
+    def mouseDragEvent(self, ev, axis=None):
+        ev.accept()
+        return
+        delta = ev.pos()-ev.lastPos()
+        tr = self.mapToView(delta)-self.mapToView(pg.Point(0, 0))
+        if axis == 0:
+            x = tr.x()
+            self.data_range.delay += x
+        ev.accept()
 
 
 class ViewBox(PSIContribution):
@@ -678,7 +679,11 @@ class GroupMixin(Declarative):
     def get_pen_color(self, key):
         kw_key = {n: k for n, k in zip(self.group_names, key)}
         group_key = self.group_color_key(kw_key)
-        return QColor(self._plot_colors[group_key])
+        color = self._plot_colors[group_key]
+        if not isinstance(color, str):
+            return QColor(*color)
+        else:
+            return QColor(color)
 
     def _reset_plots(self):
         # Clear any existing plots and reset color cycle
@@ -825,14 +830,13 @@ class GroupedEpochPhasePlot(EpochGroupMixin, BasePlot):
 
 class StackedEpochAveragePlot(EpochGroupMixin, BasePlot):
 
+    _offset_update_needed = Bool(False)
+
     def _make_new_plot(self, key):
         super()._make_new_plot(key)
-        self._update_offsets()
+        self._offset_update_needed = True
 
     def _update_offsets(self, vb=None):
-        deferred_call(self.__update_offsets, vb)
-
-    def __update_offsets(self, vb=None):
         vb = self.parent.viewbox
         height = vb.height()
         n = len(self.plots)
@@ -846,6 +850,12 @@ class StackedEpochAveragePlot(EpochGroupMixin, BasePlot):
         if self.source.fs and self.source.duration:
             n_time = round(self.source.fs * self.source.duration)
             self._x = np.arange(n_time)/self.source.fs
+
+    def update(self):
+        super().update()
+        if self._offset_update_needed:
+            deferred_call(self._update_offsets)
+            self._offset_update_needed = False
 
     def _reset_plots(self):
         super()._reset_plots()
@@ -887,7 +897,6 @@ class ResultPlot(SinglePlot):
 
     def _observe_source(self, event):
         if self.source is not None:
-            log.warn('Adding data acquired callback for %s', self.name)
             self._data_cache = []
             self.source.add_callback(self._data_acquired)
 

@@ -107,6 +107,11 @@ class InputMixin(Declarative):
             log.debug('Configuring input {}'.format(input.name))
             input.configure()
 
+    def add_callback(self, cb):
+        from .input import Callback
+        callback = Callback(function=cb)
+        self.add_input(callback)
+
 
 class AnalogMixin(Declarative):
 

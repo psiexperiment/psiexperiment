@@ -4,6 +4,8 @@ from enaml.core.declarative import Declarative, d_
 from atom.api import (Unicode, Typed, Value, Enum, List, Event, Property,
                       observe, Bool, Dict, Coerced)
 
+from psi.core.enaml.api import PSIContribution
+
 
 ################################################################################
 # ContextMeta
@@ -91,7 +93,7 @@ class Expression(Declarative):
 ################################################################################
 # ContextGroup
 ################################################################################
-class ContextGroup(Declarative):
+class ContextGroup(PSIContribution):
     '''
     Used to group together context items for management.
     '''
@@ -103,6 +105,21 @@ class ContextGroup(Declarative):
 
     # Are the parameters in this group visible?
     visible = d_(Bool(True))
+
+    # Items in context
+    items = List()
+
+    def add_item(self, item):
+        if item not in self.items:
+            self.items = self.items[:] + [item]
+        else:
+            raise ValueError(f'Item {item.name} already in group')
+
+    def remove_item(self, item):
+        if item in self.items:
+            items = self.items[:]
+            items.remove(item)
+            self.items = items
 
 
 ################################################################################
@@ -123,8 +140,10 @@ class ContextItem(Declarative):
     # plugins (e.g., those that save data to a HDF5 file).
     dtype = d_(Unicode())
 
+    group = d_(Typed(ContextGroup))
+
     # Name of the group to display the item under.
-    group = d_(Unicode())
+    group_name = d_(Unicode())
 
     # Compact label where there is less space in the GUI (e.g., under a column
     # heading for example).
@@ -156,6 +175,17 @@ class ContextItem(Declarative):
 
     def __str__(self):
         return f'{self.name} in {self.group}'
+
+    def set_group(self, group):
+        if self.group is not None and self.group != group:
+            self.group.remove_item(self)
+
+        self.group = group
+        if self.group is not None:
+            self.group.add_item(self)
+            self.group_name = self.group.name
+        else:
+            self.group_name = ''
 
 
 class Result(ContextItem):

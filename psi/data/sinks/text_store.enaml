@@ -96,7 +96,7 @@ enamldef TextStoreManifest(BaseStoreManifest): manifest:
             id = manifest.id + '.text_commands'
             point = 'enaml.workbench.core.commands'
             Command:
-                id = manifest.id + '.prepare'
+                id = contribution.name + '.prepare'
                 handler = partial(prepare, manifest.contribution)
 
         Extension:
@@ -104,4 +104,4 @@ enamldef TextStoreManifest(BaseStoreManifest): manifest:
             point = 'psi.controller.actions'
             ExperimentAction:
                 event = 'experiment_prepare'
-                command = manifest.id + '.prepare'
+                command = contribution.name + '.prepare'

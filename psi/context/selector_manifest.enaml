@@ -85,7 +85,7 @@ enamldef SingleSettingManifest(BaseSelectorManifest): manifest:
         point = 'psi.experiment.workspace'
 
         DockItem:
-            name = manifest.contribution.name
+            name = manifest.contribution.name + '.selector'
             title = manifest.contribution.label
 
             SingleSettingContainer:
@@ -179,7 +179,7 @@ enamldef SequenceSelectorManifest(BaseSelectorManifest): manifest:
         point = 'psi.experiment.workspace'
 
         DockItem:
-            name = manifest.contribution.name
+            name = manifest.contribution.name + '.selector'
             title = manifest.contribution.label
 
             SequenceSelectorContainer:
@@ -218,7 +218,7 @@ enamldef CartesianProductManifest(BaseSelectorManifest): manifest:
         point = 'psi.experiment.workspace'
 
         DockItem:
-            name = manifest.contribution.name
+            name = manifest.contribution.name + '.selector'
             title = manifest.contribution.label
 
             CartesianProductContainer:

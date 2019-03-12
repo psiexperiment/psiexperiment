@@ -114,12 +114,26 @@ class BufferedOutput(Output):
             log.trace('Extracting from buffer')
             out[:] = self._buffer.get_range_samples(lb, ub)
             samples = 0
+            offset = ub
         elif lb >= buffered_lb and ub > buffered_ub:
             log.trace('Extracting from buffer and generating new data')
             b = self._buffer.get_range_samples(lb)
             s = b.shape[-1]
             out[:s] = b
             samples -= s
+            offset += s
+
+        # Don't generate new samples if occuring before activation.
+        if (samples > 0) and (offset < self._offset):
+            s = min(self._offset-offset, samples)
+            data = np.zeros(s)
+            self._buffer.append_data(data)
+            if (samples == s):
+                out[-samples:] = data
+            else:
+                out[-samples:-samples+s] = data
+            samples -= s
+            offset += s
 
         # Generate new samples
         if samples > 0:
@@ -181,7 +195,7 @@ class QueuedEpochOutput(BufferedOutput):
     queue = d_(Typed(AbstractSignalQueue))
     auto_decrement = d_(Bool(False))
     complete_cb = Typed(object)
-    queue = Property()
+    queue = d_(Property())
 
     def _get_queue(self):
         return self.source
@@ -235,6 +249,7 @@ class QueuedEpochOutput(BufferedOutput):
         self.queue.append(factory, averages, iti_duration, duration, setting)
 
     def activate(self, offset):
+        log.debug('Activating output at %d', offset)
         super().activate(offset)
         self.queue.set_t0(offset/self.fs)
 

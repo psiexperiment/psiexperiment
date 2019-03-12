@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 from .manifest import PSIManifest
 from .contribution import PSIContribution
 from .editable_table_widget import ListDictTable, DataFrameTable, EditableTable

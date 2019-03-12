@@ -35,6 +35,8 @@ class Engine(PSIContribution):
     master_clock = d_(Bool(False)).tag(metadata=True)
     lock = Value()
 
+    configured = Bool(False)
+
     # Poll period (in seconds). This defines how quickly acquired (analog input)
     # data is downloaded from the buffers (and made available to listeners). If
     # you want to see data as soon as possible, set the poll period to a small
@@ -118,6 +120,7 @@ class Engine(PSIContribution):
         for channel in self.get_channels():
             log.debug('Configuring channel {}'.format(channel.name))
             channel.configure()
+        self.configured = True
 
     def register_ai_callback(self, callback, channel_name=None):
         raise NotImplementedError

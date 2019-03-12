@@ -51,9 +51,6 @@ class PSIWorkbench(Workbench):
             manifest = self.get_manifest('psi.controller')
             manifest.C = context.lookup
 
-            from psi.context.manifest import ContextViewManifest
-            self.register(ContextViewManifest())
-
     def start_workspace(self,
                         experiment_name,
                         base_path=None,
@@ -92,6 +89,7 @@ class PSIWorkbench(Workbench):
                 deferred_call(core.invoke_command, command)
 
         controller = self.get_plugin('psi.controller')
+
         if base_path is not None:
             controller.register_action('experiment_prepare',
                                        'psi.data.set_base_path',

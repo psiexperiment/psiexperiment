@@ -2,29 +2,7 @@ import pytest
 
 import numpy as np
 
-from psi.controller.calibration import FlatCalibration
-from psi.controller.channel import HardwareAOChannel
-from psi.controller.output import EpochOutput
-from psi.controller.engines.null import NullEngine
 from psi.token.primitives import Cos2EnvelopeFactory, ToneFactory
-
-@pytest.fixture()
-def engine():
-    return NullEngine(buffer_size=10)
-
-
-@pytest.fixture()
-def ao_channel(engine):
-    channel = HardwareAOChannel(
-        fs=1000, calibration=FlatCalibration.as_attenuation(), parent=engine)
-    return channel
-
-
-@pytest.fixture()
-def epoch_output(ao_channel):
-    output = EpochOutput()
-    ao_channel.add_output(output)
-    return output
 
 
 @pytest.fixture()

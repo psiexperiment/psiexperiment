@@ -7,7 +7,7 @@ import numpy as np
 with enaml.imports():
     from psi.controller.calibration import FlatCalibration
     from psi.controller.queue import FIFOSignalQueue
-    from psi.token.primitives import ToneFactory
+    from psi.token.primitives import Cos2EnvelopeFactory, ToneFactory
 
 
 @pytest.fixture
@@ -34,6 +34,25 @@ def queue(tone1, tone2):
     queue.append(copy(tone1), 1)
     queue.append(copy(tone2), 1)
     return queue
+
+
+@pytest.fixture()
+def tone_pip():
+    calibration = FlatCalibration.as_attenuation()
+    tone = ToneFactory(100e3, 0, 250, 0, 1, calibration)
+    envelope = Cos2EnvelopeFactory(100e3, 0, 0.5e-3, 5e-3, tone)
+    return envelope
+
+
+def test_queue_uploaded_order(tone_pip):
+    queue = FIFOSignalQueue()
+    queue.append(tone_pip, 500)
+    queue.set_fs(100e3)
+    queue.set_t0(0)
+    queue.pop_buffer(200e3)
+
+    times = np.array([u['t0'] for u in queue.uploaded])
+    assert np.all(np.diff(times) > 0)
 
 
 def test_queue(queue, tone1, tone2):

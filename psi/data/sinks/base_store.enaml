@@ -55,8 +55,8 @@ enamldef BaseStoreManifest(PSIManifest): manifest:
         point = 'enaml.workbench.core.commands'
 
         Command:
-            id = manifest.id + '.save_dataframe'
+            id = contribution.name + '.save_dataframe'
             handler = partial(save_dataframe, manifest.contribution)
         Command:
-            id = manifest.id + '.save_mapping'
+            id = contribution.name + '.save_mapping'
             handler = partial(save_mapping, manifest.contribution)

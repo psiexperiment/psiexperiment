@@ -198,7 +198,7 @@ enamldef ContextItem(Container):
         text << 'C'
         clicked:: 
             context_meta = workbench.get_plugin('psi.context').context_meta
-            cm_popup = ContextMetaPopup(parent=self, 
+            cm_popup = ContextMetaPopup(parent=self,
                                         context_meta=context_meta,
                                         context_item=context_item)
             cm_popup.show()

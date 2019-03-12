@@ -893,7 +893,7 @@ class Detrend(EpochInput):
         linear least-squares fit is subtracted from the epoch. If 'constant',
         only the mean of the epoch is subtracted.
     '''
-    mode = Enum('constant', 'linear', None)
+    mode = d_(Enum('constant', 'linear', None))
 
     def configure_callback(self):
         cb = super().configure_callback()

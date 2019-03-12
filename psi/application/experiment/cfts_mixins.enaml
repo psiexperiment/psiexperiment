@@ -50,12 +50,12 @@ enamldef MicrophoneSignalViewMixinManifest(PluginManifest):
                     decimate_mode = 'mean'
 
 
-enamldef MicrophoneFFTViewMixinManifest(PluginManifest):
+enamldef MicrophoneFFTViewMixinManifest(PluginManifest): manifest:
 
     id = 'microphone_fft_view_mixin'
 
     Extension:
-        id = 'plots'
+        id = manifest.id  + '.plots'
         point = 'psi.data.plots'
 
         FFTContainer:
@@ -290,7 +290,7 @@ enamldef ABRInEarCalibrationMixinManifest(InEarCalibrationMixinManifest): manife
             }
 
     Extension:
-        id = manifest.id + '_calibration_store'
+        id = manifest.id + '.calibration_store'
         point = 'psi.data.sinks'
 
         TextStore:
@@ -344,7 +344,7 @@ enamldef DPOAEInEarCalibrationMixinManifest(InEarCalibrationMixinManifest): mani
             }
 
     Extension:
-        id = 'calibration_view'
+        id = manifest.id + '.calibration_view'
         point = 'psi.experiment.workspace'
 
         CalibrationDockItem:
@@ -356,7 +356,7 @@ enamldef DPOAEInEarCalibrationMixinManifest(InEarCalibrationMixinManifest): mani
             title = 'Secondary calibration result'
 
     Extension:
-        id = manifest.id + '_calibration_store'
+        id = manifest.id + '.calibration_store'
         point = 'psi.data.sinks'
 
         TextStore:
