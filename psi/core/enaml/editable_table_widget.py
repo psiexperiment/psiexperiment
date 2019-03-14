@@ -3,7 +3,7 @@
 #----------------------------------------------------------------------------
 import pandas as pd
 
-from atom.api import (Typed, set_default, observe, Event, Property,
+from atom.api import (Typed, set_default, observe, Enum, Event, Property,
                       Bool, Dict, Unicode, Atom, List, Value)
 from enaml.core.declarative import d_, d_func
 from enaml.widgets.api import RawWidget
@@ -33,9 +33,9 @@ class QEditableTableModel(QAbstractTableModel):
                 return str(self.interface.get_row_label(section))
 
     def flags(self, index):
-        flags = Qt.ItemIsEnabled
+        flags = Qt.ItemIsEnabled | Qt.ItemIsSelectable
         if self.interface.editable:
-            flags = flags | Qt.ItemIsEditable | Qt.ItemIsSelectable
+            flags = flags | Qt.ItemIsEditable
         return flags
 
     def data(self, index, role):
@@ -58,8 +58,9 @@ class QEditableTableModel(QAbstractTableModel):
             r = index.row()
             c = index.column()
             try:
-                self.interface.set_data(r, c, value)
+                self.interface._set_data(r, c, value)
             except:
+                raise
                 pass
             self.dataChanged.emit(index, index)
             return True
@@ -67,14 +68,14 @@ class QEditableTableModel(QAbstractTableModel):
     def removeRows(self, row, count, index):
         with self.interface.live_edit:
             self.beginRemoveRows(index, row, row)
-            self.interface.remove_row(row)
+            self.interface._remove_row(row)
             self.endRemoveRows()
             return True
 
     def insertRows(self, row, count, index):
         with self.interface.live_edit:
             self.beginInsertRows(index, row, row)
-            self.interface.insert_row(row)
+            self.interface._insert_row(row)
             self.endInsertRows()
             return True
 
@@ -105,6 +106,25 @@ class QEditableTableView(QTableView):
         self.setHorizontalScrollMode(QAbstractItemView.ScrollPerItem)
         self._set_default_column_widths()
 
+        select_mode = self.model.interface.select_mode
+        select_behavior = self.model.interface.select_behavior
+        if select_mode is None:
+            self.setSelectionMode(self.NoSelection)
+        else:
+            flag_name = '{}Selection'.format(select_mode.capitalize())
+            self.setSelectionMode(getattr(self, flag_name))
+        flag_name = 'Select{}'.format(select_behavior.capitalize())
+        self.setSelectionBehavior(getattr(self, flag_name))
+        self.selectionModel().selectionChanged.connect(self._selection_changed)
+        self.setShowGrid(self.model.interface.show_grid)
+
+    def _selection_changed(self, selected, deselected):
+        locations = []
+        selection_model = self.selectionModel()
+        for index in selection_model.selectedIndexes():
+            locations.append((index.row(), index.column()))
+        self.model.interface.selected_coords = locations
+
     def _set_default_column_widths(self):
         widths = self.model.interface.get_default_column_widths()
         self.set_column_widths(widths)
@@ -114,12 +134,14 @@ class QEditableTableView(QTableView):
         header.setSectionResizeMode(QHeaderView.Fixed)
         header.setDefaultSectionSize(20)
         header.setSectionsMovable(False)
+        if not self.model.interface.show_row_labels:
+            header.setVisible(False)
 
     def _setup_hheader(self):
         header = self.horizontalHeader()
         header.setSectionsMovable(True)
-        #header.setSortIndicatorShown(True)
-        #header.sortIndicatorChanged.connect(self.model.sort)
+        if not self.model.interface.show_column_labels:
+            header.setVisible(False)
 
     def remove_selected_rows(self):
         selection_model = self.selectionModel()
@@ -127,14 +149,22 @@ class QEditableTableView(QTableView):
         for row in sorted(rows, reverse=True):
             self.model.removeRow(row)
 
+    def get_selected_rows(self):
+        return sorted(r for r, c in self.model.interface.selected_coords)
+
+    def last_row_current(self):
+        selected_row = self.currentIndex().row()
+        return (selected_row + 1) == self.model.rowCount()
+
     def insert_row(self):
-        selection_model = self.selectionModel()
-        rows = [index.row() for index in selection_model.selectedRows()]
-        rows.sort()
+        rows = self.get_selected_rows()
         if len(rows) == 0:
             self.model.insertRow(0)
         for row in sorted(rows, reverse=True):
-            self.model.insertRow(row+1)
+            self.model.insertRow(row)
+
+    def insert_row_at_end(self):
+        self.model.insertRow(self.model.rowCount())
 
     def get_column_widths(self):
         widths = {}
@@ -181,6 +211,9 @@ class EditableTable(RawWidget):
 
     editable = d_(Bool(False))
     autoscroll = d_(Bool(False))
+    show_column_labels = d_(Bool(True))
+    show_row_labels = d_(Bool(True))
+    show_grid = d_(Bool(True))
 
     # Can include label, compact_label, default value (for adding
     # rows), coerce function (for editing data).
@@ -189,8 +222,15 @@ class EditableTable(RawWidget):
 
     data = d_(Typed(object))
     update = d_(Bool())
+    updated = d_(Event())
+
+    # List of row, col tuples of selections
+    selected_coords = d_(List(), [])
 
     live_edit = Typed(LiveEdit, {})
+
+    select_behavior = d_(Enum('items', 'rows', 'columns'))
+    select_mode = d_(Enum(None, 'single', 'contiguous', 'extended', 'multi'))
 
     def get_column_attribute(self, column_name, attribute, default,
                              raise_error=False):
@@ -321,6 +361,18 @@ class EditableTable(RawWidget):
     def insert_row(self, row=None):
         raise NotImplementedError
 
+    def _set_data(self, *args):
+        self.set_data(*args)
+        self.updated = True
+
+    def _remove_row(self, *args):
+        self.remove_row(*args)
+        self.updated = True
+
+    def _insert_row(self, *args):
+        self.insert_row(*args)
+        self.updated = True
+
     @d_func
     def sort_rows(self, column_index, ascending):
         raise NotImplementedError
@@ -448,3 +500,34 @@ class ListDictTable(EditableTable):
 
     def remove_row(self, row_index):
         self.data.pop(row_index)
+
+
+class ListTable(EditableTable):
+
+    data = d_(List())
+    column_name = d_(Unicode())
+    selected = d_(List())
+
+    def get_columns(self):
+        return [self.column_name]
+
+    def get_data(self, row_index, column_index):
+        return self.data[row_index]
+
+    def set_data(self, row_index, column_index, value):
+        value = self.coerce_to_type(column_index, value)
+        self.data[row_index] = value
+
+    def get_default_row(self):
+        values = super().get_default_row()
+        return values[0]
+
+    def insert_row(self, row_index):
+        value = self.get_default_row()
+        self.data.insert(row_index+1, value)
+
+    def remove_row(self, row_index):
+        self.data.pop(row_index)
+
+    def _observe_selected_coords(self, event):
+        self.selected = [self.data[r] for r, c in self.selected_coords]

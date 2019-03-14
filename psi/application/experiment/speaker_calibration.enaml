@@ -64,21 +64,6 @@ def configure_hardware(event):
     input_channel.gain = values['input_gain']
 
 
-def calculate_spl(event):
-    data = event.workbench.get_plugin('psi.data')
-    epoch = data.find_source('epoch')
-    epoch_md = data.find_source('epoch_metadata')
-    epoch_groups = get_epoch_groups(epoch, epoch_md, ['hw_ao_chirp_level'])
-
-    results = {}
-    for key, epoch in epoch_groups.items():
-        results[key] = {
-            'psd': util.psd(epoch, epoch.attrs['fs']),
-            'phase': util.phase(epoch, epoch.attrs['fs']),
-            'frequency': util.psd_freq(epoch, epoch.attrs['fs']),
-        }
-
-
 enamldef ControllerManifest(BaseManifest): manifest:
 
     Extension:
@@ -98,7 +83,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
         Cos2Envelope:
             label = 'tone pip'
-
             Tone:
                 pass
 
@@ -108,6 +92,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
         SelectorQueuedEpochOutput: hw_ao:
             name = 'hw_ao'
+            label = 'Output'
             auto_decrement = True
             selector_name = 'default'
 
@@ -182,15 +167,18 @@ enamldef ControllerManifest(BaseManifest): manifest:
         point = 'psi.controller.actions'
 
         ExperimentAction:
-            event = 'experiment_prepare'
-            command = 'psi.controller.configure_hardware'
-            weight = 10
+            event = 'experiment_initialize'
+            command = 'psi.context.initialize'
+            kwargs = {'selector': 'default', 'cycles': 1}
 
         ExperimentAction:
-            event = 'experiment_prepare'
+            event = 'experiment_initialize'
+            command = 'psi.controller.configure_hardware'
+
+        ExperimentAction:
+            event = 'engines_configured'
             command = 'hw_ao.start'
-            weight = 250
-            kwargs = {'delay': 1}
+            kwargs = {'delay': 0.25}
 
         ExperimentAction:
             event = 'epoch_queue_end and not hw_ao_active'
@@ -224,7 +212,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
                     name = 'epoch_average'
                     label = 'Signal'
                     source_name = 'epoch'
-                    pen_color_cycle = ['r', 'k']
+                    pen_color_cycle = ['red', 'black']
                     groups << epoch_group
 
         FFTContainer:

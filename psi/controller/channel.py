@@ -3,16 +3,17 @@ log = logging.getLogger(__name__)
 
 import numpy as np
 
-from atom.api import Unicode, Typed, Tuple, Property, List, Float, Int
+from atom.api import (Bool, Float, Int, List, Property, Tuple, Typed, Unicode)
 from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
 
-from .calibration import Calibration
+from .calibration import Calibration, UnityCalibration
 from .output import QueuedEpochOutput, ContinuousOutput, EpochOutput
+from ..core.enaml.api import PSIContribution
 from ..util import coroutine
 
 
-class Channel(Declarative):
+class Channel(PSIContribution):
 
     # Globally-unique name of channel used for identification
     name = d_(Unicode()).tag(metadata=True)
@@ -37,10 +38,17 @@ class Channel(Declarative):
     engine = Property()
 
     # Calibration of channel
-    calibration = d_(Typed(Calibration)).tag(metadata=True)
+    calibration = d_(Typed(Calibration, factory=UnityCalibration))
+    calibration.tag(metadata=True)
+
+    # Can the user modify the channel calibration?
+    calibration_user_editable = d_(Bool(False))
 
     # Is channel active during experiment?
     active = Property()
+
+    def _default_calibration(self):
+        return UnityCalibration()
 
     def __init__(self, *args, **kwargs):
         # This is a hack due to the fact that name is defined as a Declarative
@@ -98,6 +106,11 @@ class InputMixin(Declarative):
         for input in self.inputs:
             log.debug('Configuring input {}'.format(input.name))
             input.configure()
+
+    def add_callback(self, cb):
+        from .input import Callback
+        callback = Callback(function=cb)
+        self.add_input(callback)
 
 
 class AnalogMixin(Declarative):

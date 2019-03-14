@@ -4,7 +4,12 @@ from enaml.core.declarative import Declarative, d_
 from atom.api import (Unicode, Typed, Value, Enum, List, Event, Property,
                       observe, Bool, Dict, Coerced)
 
+from psi.core.enaml.api import PSIContribution
 
+
+################################################################################
+# ContextMeta
+################################################################################
 class ContextMeta(Declarative):
 
     name = d_(Unicode())
@@ -73,6 +78,53 @@ class OrderedContextMeta(ContextMeta):
         return [str(i+1) for i in range(n)]
 
 
+################################################################################
+# Expression
+################################################################################
+class Expression(Declarative):
+
+    # Parameter that is assigned the result of the expression
+    parameter = d_(Unicode())
+
+    # Expression to be evaluated
+    expression = d_(Unicode())
+
+
+################################################################################
+# ContextGroup
+################################################################################
+class ContextGroup(PSIContribution):
+    '''
+    Used to group together context items for management.
+    '''
+    # Group name
+    name = d_(Unicode())
+
+    # Label to use in the GUI
+    label = d_(Unicode())
+
+    # Are the parameters in this group visible?
+    visible = d_(Bool(True))
+
+    # Items in context
+    items = List()
+
+    def add_item(self, item):
+        if item not in self.items:
+            self.items = self.items[:] + [item]
+        else:
+            raise ValueError(f'Item {item.name} already in group')
+
+    def remove_item(self, item):
+        if item in self.items:
+            items = self.items[:]
+            items.remove(item)
+            self.items = items
+
+
+################################################################################
+# ContextItem
+################################################################################
 class ContextItem(Declarative):
     '''
     Defines the core elements of a context item. These items are made available
@@ -88,12 +140,22 @@ class ContextItem(Declarative):
     # plugins (e.g., those that save data to a HDF5 file).
     dtype = d_(Unicode())
 
+    group = d_(Typed(ContextGroup))
+
     # Name of the group to display the item under.
-    group = d_(Unicode())
+    group_name = d_(Unicode())
 
     # Compact label where there is less space in the GUI (e.g., under a column
     # heading for example).
     compact_label = d_(Unicode()).tag(preference=True)
+
+    # Is this visible via the standard configuration menus?
+    visible = d_(Bool(True)).tag(preference=True)
+
+    # Can this be configured by the user? This will typically be False if the
+    # experiment configuration has contributed an Expression that assigns the
+    # value of this parameter.
+    configurable = Bool(True)
 
     updated = Event()
 
@@ -107,6 +169,23 @@ class ContextItem(Declarative):
         coerce_function = np.dtype(self.dtype).type
         value = coerce_function(value)
         return np.asscalar(value)
+
+    def __repr__(self):
+        return f'<{self}>'
+
+    def __str__(self):
+        return f'{self.name} in {self.group}'
+
+    def set_group(self, group):
+        if self.group is not None and self.group != group:
+            self.group.remove_item(self)
+
+        self.group = group
+        if self.group is not None:
+            self.group.add_item(self)
+            self.group_name = self.group.name
+        else:
+            self.group_name = ''
 
 
 class Result(ContextItem):
@@ -180,6 +259,8 @@ class EnumParameter(Parameter):
                 raise ValueError(m)
 
     def _default_selected(self):
+        if self.default not in self.choices:
+            return next(iter(self.choices))
         return self.default
 
     @observe('selected')

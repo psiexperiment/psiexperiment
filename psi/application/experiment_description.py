@@ -43,6 +43,22 @@ abr_controller = PluginDescription(
 )
 
 
+dpoae_time_controller = PluginDescription(
+    name='controller',
+    title='Controller',
+    required=True,
+    manifest='psi.application.experiment.dpoae_time.ControllerManifest',
+)
+
+
+dpoae_io_controller = PluginDescription(
+    name='controller',
+    title='Controller',
+    required=True,
+    manifest='psi.application.experiment.dpoae_io.ControllerManifest',
+)
+
+
 speaker_calibration_controller = PluginDescription(
     name='controller',
     title='Controller',
@@ -69,12 +85,39 @@ eeg_view_mixin = PluginDescription(
 )
 
 
-in_ear_calibration_mixin = PluginDescription(
-    name='in_ear_calibration',
+abr_in_ear_calibration_mixin = PluginDescription(
+    name='abr_in_ear_calibration',
     title='In-ear calibration',
     required=False,
     selected=True,
-    manifest='psi.application.experiment.cfts_mixins.InEarCalibrationMixinManifest',
+    manifest='psi.application.experiment.cfts_mixins.ABRInEarCalibrationMixinManifest',
+)
+
+
+dpoae_in_ear_calibration_mixin = PluginDescription(
+    name='dpoae_in_ear_calibration',
+    title='In-ear calibration',
+    required=False,
+    selected=True,
+    manifest='psi.application.experiment.cfts_mixins.DPOAEInEarCalibrationMixinManifest',
+)
+
+
+microphone_signal_view_mixin = PluginDescription(
+    name='microphone_signal_view',
+    title='Microphone view (time)',
+    required=False,
+    selected=True,
+    manifest='psi.application.experiment.cfts_mixins.MicrophoneSignalViewMixinManifest',
+)
+
+
+microphone_fft_view_mixin = PluginDescription(
+    name='microphone_fft_view',
+    title='Microphone view (PSD)',
+    required=False,
+    selected=True,
+    manifest='psi.application.experiment.cfts_mixins.MicrophoneFFTViewMixinManifest',
 )
 
 
@@ -86,7 +129,37 @@ abr_experiment = ParadigmDescription(
         abr_controller,
         temperature_mixin,
         eeg_view_mixin,
-        in_ear_calibration_mixin,
+        abr_in_ear_calibration_mixin,
+    ]
+)
+
+
+dpoae_time_experiment = ParadigmDescription(
+    name='dpoae_time',
+    title='DPOAE (over time)',
+    type='ear',
+    plugins=[
+        dpoae_time_controller,
+        temperature_mixin,
+        eeg_view_mixin,
+        dpoae_in_ear_calibration_mixin,
+        microphone_fft_view_mixin,
+        microphone_signal_view_mixin,
+    ]
+)
+
+
+dpoae_io_experiment = ParadigmDescription(
+    name='dpoae_io',
+    title='DPOAE input-output',
+    type='ear',
+    plugins=[
+        dpoae_io_controller,
+        temperature_mixin,
+        eeg_view_mixin,
+        dpoae_in_ear_calibration_mixin,
+        microphone_fft_view_mixin,
+        microphone_signal_view_mixin,
     ]
 )
 
@@ -198,6 +271,8 @@ pt_calibration_golay = ParadigmDescription(
 
 experiments = {
     'abr': abr_experiment,
+    'dpoae_time': dpoae_time_experiment,
+    'dpoae_io': dpoae_io_experiment,
     'speaker_calibration': speaker_calibration_experiment,
     'appetitive_gonogo_food': appetitive_experiment,
     'noise_exposure': noise_exposure_experiment,

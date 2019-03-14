@@ -32,7 +32,7 @@ def workbench(app):
     context = workbench.get_plugin('psi.context')
     item = context.context_items['repetitions']
     item.rove = True
-    for r in (20, 15, 10, 2):
+    for r in (20, 15, 10, 2, 20):
         context.selectors['default'].add_setting({'repetitions': r})
     return workbench
 

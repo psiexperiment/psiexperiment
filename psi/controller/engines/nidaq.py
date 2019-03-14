@@ -37,6 +37,7 @@ from ..engine import Engine
 from ..channel import (CounterChannel,
                        HardwareAIChannel, HardwareAOChannel, HardwareDIChannel,
                        HardwareDOChannel, SoftwareDIChannel, SoftwareDOChannel)
+from ..input import InputData
 
 
 ################################################################################
@@ -243,6 +244,7 @@ def hw_ai_helper(cb, channels, discard, task, event_type=None, cb_samples=None,
 
     data = read_hw_ai(task, available_samples, channels, cb_samples)
     if data is not None:
+        data = InputData(data)
         cb(data)
     return 0
 
@@ -336,18 +338,17 @@ def setup_hw_ao(channels, buffer_duration, callback_interval, callback,
 
     lines = get_channel_property(channels, 'channel', True)
     names = get_channel_property(channels, 'name', True)
-    log.debug('Configuring lines {}'.format(lines))
-
+    expected_ranges = get_channel_property(channels, 'expected_range', True)
     start_trigger = get_channel_property(channels, 'start_trigger')
-    expected_range = get_channel_property(channels, 'expected_range')
     terminal_mode = get_channel_property(channels, 'terminal_mode')
-
-    merged_lines = ','.join(lines)
     terminal_mode = NIDAQEngine.terminal_mode_map[terminal_mode]
-
     task = create_task(task_name)
-    mx.DAQmxCreateAOVoltageChan(task, merged_lines, '', expected_range[0],
-                                expected_range[1], mx.DAQmx_Val_Volts, '')
+    merged_lines = ','.join(lines)
+
+    for line, name, (vmin, vmax) in zip(lines, names, expected_ranges):
+        log.debug(f'Configuring line %s (%s)', line, name)
+        mx.DAQmxCreateAOVoltageChan(task, line, name, vmin, vmax,
+                                    mx.DAQmx_Val_Volts, '')
 
     setup_timing(task, channels)
     properties = get_timing_config(task)
@@ -1060,7 +1061,11 @@ class NIDAQEngine(Engine):
     def _hw_ai_callback(self, samples):
         samples /= self._tasks['hw_ai']._sf
         for channel_name, s, cb in self._callbacks.get('ai', []):
-            cb(samples[s])
+            try:
+                cb(samples[s])
+            except Exception as e:
+                log.exception(e)
+                self.unregister_ai_callback(cb, channel_name)
 
     def _hw_di_callback(self, samples):
         for i, cb in self._callbacks.get('di', []):
@@ -1158,8 +1163,9 @@ class NIDAQEngine(Engine):
         generated = self.ao_sample_clock()
         log_ao.trace('AO samples generated %d', generated)
         if offset != 0 and (offset-generated) <= task._onboard_buffer_size*1.25:
-            log.debug('Samples generated %d, offset %d', generated, offset)
-            raise SystemError('Insufficient time to update output')
+            log_ao.debug('AO samples generated %d', generated)
+            log.debug('%d samples generated at offset %d', generated, offset)
+            #raise SystemError('Insufficient time to update output')
 
         mx.DAQmxWriteAnalogF64(task, data.shape[-1], False, timeout,
                                mx.DAQmx_Val_GroupByChannel,

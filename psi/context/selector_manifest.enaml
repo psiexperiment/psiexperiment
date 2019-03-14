@@ -6,8 +6,7 @@ from enaml.widgets.api import (PushButton, Field, Container, VGroup, Label,
                                ObjectCombo, DockItem)
 from enaml.validator import Validator
 
-from psi.core.enaml.editable_table_widget import EditableTable
-from psi.core.enaml.list_view import ListView
+from psi.core.enaml.editable_table_widget import EditableTable, ListTable
 from psi.core.enaml.api import PSIManifest
 
 from . import selector as selector_classes
@@ -86,7 +85,7 @@ enamldef SingleSettingManifest(BaseSelectorManifest): manifest:
         point = 'psi.experiment.workspace'
 
         DockItem:
-            name = manifest.contribution.name
+            name = manifest.contribution.name + '.selector'
             title = manifest.contribution.label
 
             SingleSettingContainer:
@@ -180,7 +179,7 @@ enamldef SequenceSelectorManifest(BaseSelectorManifest): manifest:
         point = 'psi.experiment.workspace'
 
         DockItem:
-            name = manifest.contribution.name
+            name = manifest.contribution.name + '.selector'
             title = manifest.contribution.label
 
             SequenceSelectorContainer:
@@ -200,10 +199,16 @@ enamldef CartesianProductContainer(Container):
             VGroup:
                 Label:
                     text = loop_item.label
-                ListView:
-                    items << selector.settings[loop_item.name]
+                ListTable:
+                    select_behavior = 'rows'
+                    select_mode = 'single'
+                    editable = True
+                    show_row_labels = False
+                    show_column_labels = False
+                    show_grid = True
+                    data << selector.settings[loop_item.name]
                     updated::
-                        selector.settings[loop_item.name] = items
+                        selector.settings[loop_item.name] = data
 
 
 enamldef CartesianProductManifest(BaseSelectorManifest): manifest:
@@ -213,7 +218,7 @@ enamldef CartesianProductManifest(BaseSelectorManifest): manifest:
         point = 'psi.experiment.workspace'
 
         DockItem:
-            name = manifest.contribution.name
+            name = manifest.contribution.name + '.selector'
             title = manifest.contribution.label
 
             CartesianProductContainer:

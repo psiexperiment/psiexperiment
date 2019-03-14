@@ -15,7 +15,6 @@ def test_token_generation():
     tone_factory = ToneFactory(fs=fs, level=0, frequency=100,
                                calibration=calibration)
     factory = Cos2EnvelopeFactory(fs=fs, start_time=0, rise_time=0, duration=1,
-                                  calibration=calibration,
                                   input_factory=tone_factory)
 
     assert tone_factory.get_duration() == np.inf

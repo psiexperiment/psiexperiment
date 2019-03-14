@@ -55,12 +55,13 @@ class ExperimentPlugin(Plugin):
             if extension.factory is not None:
                 extension.factory(ui.workbench, ui.workspace)
             for item in extension.get_children(DockItem):
-                if hasattr(item, 'plugin'):
-                    plugin = self.workbench.get_plugin(extension.parent.id)
-                    item.plugin = plugin
+                #if hasattr(item, 'plugin'):
+                #    plugin = self.workbench.get_plugin(extension.parent.id)
+                #    item.plugin = plugin
                 item.set_parent(ui.workspace.dock_area)
                 op = InsertItem(item=item.name)
                 ui.workspace.dock_area.update_layout(op)
+                log.debug('Added %s to dock area', item.name)
 
     def _refresh_toolbars(self, event=None):
         log.debug('Refreshing toolbars')

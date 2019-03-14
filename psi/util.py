@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger('__name__')
+
 import ast
 import inspect
 import threading
@@ -177,6 +180,7 @@ class SignalBuffer:
     def append_data(self, data):
         with self._lock:
             samples = data.shape[-1]
+            log.debug('Appending %r samples to signal buffer', samples)
             if samples > self._buffer_samples:
                 self._buffer[:] = data[-self._buffer_samples:]
                 self._ilb = 0
@@ -199,14 +203,12 @@ class SignalBuffer:
 
     def invalidate(self, t):
         with self._lock:
-            bi = self.time_to_index(t)
-            self._invalidate(bi)
-            dt = self.get_time_ub() - t
-            di = round(dt * self._buffer_fs)
-            self._samples -= di
+            self.invalidate_samples(self.time_to_samples(t))
 
     def invalidate_samples(self, i):
         with self._lock:
+            if i >= self._samples:
+                return
             bi = self.samples_to_index(i)
             self._invalidate(bi)
             di = self.get_samples_ub() - i

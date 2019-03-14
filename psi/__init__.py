@@ -43,11 +43,13 @@ def get_config_path():
     return user_path.expanduser()
 
 
-def create_config():
+def create_config(base_directory=None):
     config_template = Path(__file__).parent / 'templates' / 'config.txt'
     target = get_config_path()
     target.parent.mkdir(exist_ok=True, parents=True)
-    base_directory = str(target.parent)
+
+    if base_directory is None:
+        base_directory = str(target.parent)
 
     with open(target, 'w') as fh:
         config_text = config_template.read_text()
@@ -106,3 +108,16 @@ def get_config(setting=None):
         setting_names = [s for s in dir(_config) if s.upper() == s]
         setting_values = [getattr(_config, s) for s in setting_names]
         return dict(zip(setting_names, setting_values))
+
+
+# Monkeypatch built-in JSON library to better handle special types. The
+# json-tricks library handles quite a few different types of Python objects
+# fairly well. This ensures that third-party libraries (e.g., bcolz) that see
+# psiexperiment data structures can properly deal with them.
+import json
+import json_tricks
+
+for fn_name in ('dump', 'dumps', 'load', 'loads'):
+    fn = getattr(json_tricks, fn_name)
+    setattr(json, fn_name, fn)
+log.debug('Monkeypatched system JSON')

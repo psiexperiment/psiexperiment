@@ -62,7 +62,8 @@ def test_input_active(controller):
 
 
 def test_filter_delay(controller):
-    channel = controller.get_channel('speaker_0')
-    assert channel.filter_delay == 0
+    # Only the NIDAQ channels support the filter delay property right now. This
+    # is because only the NDIAQ engine makes provisions to correct for the
+    # filter delay.
     channel = controller.get_channel('speaker_1')
     assert channel.filter_delay == 32.0

@@ -13,6 +13,7 @@ from enaml.qt.QtCore import QTimer
 from enaml.workbench.api import Extension
 from enaml.workbench.plugin import Plugin
 
+from .calibration.util import load_calibration
 from .channel import Channel, OutputMixin, InputMixin
 from .engine import Engine
 from .output import Output, Synchronized
@@ -213,6 +214,9 @@ class BasePlugin(Plugin):
         self._outputs, self._supporting = find_outputs(self._channels, point)
         self._inputs = find_inputs(self._channels, point)
 
+        for c in self._channels.values():
+            c.load_manifest(self.workbench)
+
         for d in self._devices.values():
             d.load_manifest(self.workbench)
 
@@ -227,12 +231,19 @@ class BasePlugin(Plugin):
             # to see if the target is named. If not, then check to see if it
             # has a parent one can use.
             if o.target is None and o.target_name:
-                self.connect_output(o.name, o.target_name)
+                try:
+                    self.connect_output(o.name, o.target_name)
+                except ValueError:
+                    if not o.optional:
+                        raise
+
             elif o.target is None and not isinstance(o.parent, Extension):
                 o.parent.add_output(o)
             elif o.target is None:
                 log.warn('Unconnected output %s', o.name)
+            print(o.name, o)
             o.load_manifest(self.workbench)
+            print('loaded')
 
         for i in self._inputs.values():
             # First, make sure the input is connected to a source
@@ -242,7 +253,6 @@ class BasePlugin(Plugin):
                 i.parent.add_input(i)
             elif i.source is None:
                 log.warn('Unconnected input %s', i.name)
-
             i.load_manifest(self.workbench)
 
     def connect_output(self, output_name, target_name):
@@ -382,17 +392,21 @@ class BasePlugin(Plugin):
             channels.extend(ec)
         return channels
 
+    def load_calibration(self, calibration_file):
+        channels = list(self._channels.values())
+        load_calibration(calibration_file, channels)
+
     def invoke_actions(self, event_name, timestamp=None, delayed=False,
-                       cancel_existing=True, **kw):
+                       cancel_existing=True, kw=None):
         if cancel_existing:
-            self.stop_timer(event_name)
+            deferred_call(self.stop_timer, event_name)
         if delayed:
             delay = timestamp-self.get_ts()
             if delay > 0:
                 cb = lambda: self._invoke_actions(event_name, timestamp)
-                self.start_timer(event_name, delay, cb)
+                deferred_call(self.start_timer, event_name, delay, cb)
                 return
-        self._invoke_actions(event_name, timestamp, **kw)
+        self._invoke_actions(event_name, timestamp, kw)
 
     def event_used(self, event_name):
         '''
@@ -419,13 +433,12 @@ class BasePlugin(Plugin):
                 return True
         return False
 
-    def _invoke_actions(self, event_name, timestamp=None, **kw):
-        log.trace('Triggering event {}'.format(event_name))
+    def _invoke_actions(self, event_name, timestamp=None, kw=None):
+        log.debug('Triggering event {}'.format(event_name))
 
         if timestamp is not None:
-            # The event is logged only if the timestamp is provided
-            params = {'event': event_name, 'timestamp': timestamp}
-            self.core.invoke_command('psi.data.process_event', params)
+            kw = {'event': event_name, 'timestamp': timestamp}
+            self.invoke_actions('experiment_event', kw=kw)
 
         # If this is a stateful event, update the associated state.
         if event_name.endswith('_start'):
@@ -443,15 +456,16 @@ class BasePlugin(Plugin):
 
         for action in self._actions:
             if action.match(context):
-                self._invoke_action(action, event_name, timestamp, **kw)
+                self._invoke_action(action, event_name, timestamp, kw)
 
-    def _invoke_action(self, action, event_name, timestamp, **kw):
+    def _invoke_action(self, action, event_name, timestamp, kw):
         # Add the event name and timestamp to the parameters passed to the
         # command.
         kwargs = action.kwargs.copy()
-        kwargs.update(kw)
         kwargs['timestamp'] = timestamp
         kwargs['event'] = event_name
+        if kw is not None:
+            kwargs.update(kw)
         self.core.invoke_command(action.command, parameters=kwargs)
 
     def request_apply(self):
@@ -474,10 +488,9 @@ class BasePlugin(Plugin):
     def apply_changes(self):
         raise NotImplementedError
 
-    def prepare_experiment(self):
-        self.invoke_actions('experiment_prepare')
-
     def start_experiment(self):
+        self.invoke_actions('experiment_initialize')
+        self.invoke_actions('experiment_prepare')
         self.invoke_actions('experiment_start')
         deferred_call(lambda: setattr(self, 'experiment_state', 'running'))
 
