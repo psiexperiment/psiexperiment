@@ -45,9 +45,15 @@ def cache(f, name=None):
         cache_path.mkdir(parents=True, exist_ok=True)
         cache_file = cache_path / file_name
 
+        result = None
         if cache_file.exists():
-            result = pd.read_pickle(cache_file)
-        else:
+            try:
+                result = pd.read_pickle(cache_file)
+            except EOFError:
+                # The cache file is corrupt for some reason. Delete.
+                cache_file.unlink()
+
+        if result is None:
             result = f(self, *args, **kwargs)
             result.to_pickle(cache_file)
 
