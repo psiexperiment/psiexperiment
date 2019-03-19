@@ -274,7 +274,7 @@ class IIRFilter(ContinuousInput):
     # output of this block.
     passthrough = d_(Bool(False)).tag(metadata=True)
 
-    N = d_(Int()).tag(metadata=True)
+    N = d_(Int(1)).tag(metadata=True)
     btype = d_(Enum('bandpass', 'lowpass', 'highpass', 'bandstop')).tag(metadata=True)
     ftype = d_(Enum('butter', 'cheby1', 'cheby2', 'ellip', 'bessel')).tag(metadata=True)
     f_highpass = d_(Float()).tag(metadata=True)
@@ -283,10 +283,14 @@ class IIRFilter(ContinuousInput):
 
     def _get_wn(self):
         if self.btype == 'lowpass':
+            log.debug('Lowpass at %r (fs=%r)', self.f_lowpass, self.fs)
             return self.f_lowpass/(0.5*self.fs)
         elif self.btype == 'highpass':
+            log.debug('Highpass at %r (fs=%r)', self.f_lowpass, self.fs)
             return self.f_highpass/(0.5*self.fs)
         else:
+            log.debug('Bandpass %r to %r (fs=%r)', self.f_highpass,
+                      self.f_lowpass, self.fs)
             return (self.f_highpass/(0.5*self.fs),
                     self.f_lowpass/(0.5*self.fs))
 
