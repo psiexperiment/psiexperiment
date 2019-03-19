@@ -238,10 +238,15 @@ def config():
 
     def create_config(args):
         psi.create_config(base_directory=args.base_directory)
+        if args.base_directory:
+            psi.create_config_dirs()
+
+    def create_folders(args):
         psi.create_config_dirs()
 
     parser = argparse.ArgumentParser('psi-config')
-    subparsers = parser.add_subparsers()
+    subparsers = parser.add_subparsers(dest='cmd')
+    subparsers.required = True
 
     show = subparsers.add_parser('show')
     show.set_defaults(func=show_config)
@@ -249,6 +254,9 @@ def config():
     create = subparsers.add_parser('create')
     create.set_defaults(func=create_config)
     create.add_argument('--base-directory', type=str)
+
+    make = subparsers.add_parser('create-folders')
+    make.set_defaults(func=create_folders)
 
     args = parser.parse_args()
     args.func(args)
