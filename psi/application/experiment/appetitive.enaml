@@ -10,8 +10,7 @@ from psi.controller.api import (ContinuousOutput, EpochOutput,
                                 ExperimentAction)
 from psi.data.plots import (EventPlot, TimeContainer, 
                             ChannelPlot, ViewBox, TimeseriesPlot)
-#from psi.data.sinks.api import BColzStore, EventLog, SDTAnalysis, TrialLog
-from psi.data.sinks.api import BColzStore
+from psi.data.sinks.api import BColzStore, EventLog, TrialLog
 from psi.token.primitives import (BandlimitedNoise, Cos2Envelope, SAMEnvelope,
                                   Silence)
 from .behavior_base import BehaviorManifest
@@ -28,6 +27,15 @@ enamldef ControllerManifest(BehaviorManifest): manifest:
 
         BColzStore:
             continuous_inputs = ['nose_poke_analog', 'reward_contact_analog']
+
+        EventLog:
+            show_widget = True
+
+        TrialLog:
+            show_widget = True
+
+        #SDTAnalysis:
+        #    pass
 
     Extension:
         id = 'tokens'
@@ -46,6 +54,13 @@ enamldef ControllerManifest(BehaviorManifest): manifest:
             label = 'Bandlimited SAM noise'
             SAMEnvelope:
                 BandlimitedNoise:
+                    pass
+
+        Cos2Envelope:
+            name = 'bandlimited_sam_silence'
+            label = 'Bandlimited SAM silence'
+            SAMEnvelope:
+                Silence:
                     pass
 
     Extension:
@@ -87,6 +102,10 @@ enamldef ControllerManifest(BehaviorManifest): manifest:
             weight = 0
 
         ExperimentAction:
+            event = 'trial_end'
+            command = 'psi.controller.update_trial_log'
+
+        ExperimentAction:
             event = 'response_end'
             command = 'target.clear'
             kwargs = {'delay': 0.25}
@@ -118,19 +137,6 @@ enamldef ControllerManifest(BehaviorManifest): manifest:
             label = 'Target'
             target_name = 'speaker'
 
-    #Extension:
-    #    id = 'sinks'
-    #    point = 'psi.data.sinks'
-
-    #    SDTAnalysis:
-    #        pass
-
-    #    TrialLog:
-    #        pass
-
-    #    EventLog:
-    #        pass
-
     Extension:
         id = 'plots'
         point = 'psi.data.plots'
@@ -145,14 +151,12 @@ enamldef ControllerManifest(BehaviorManifest): manifest:
                 y_max = 5
 
                 ChannelPlot:
-                    name = 'plot1'
                     source_name = 'reward_contact_analog'
-                    pen_color = 'b'
+                    pen_color = 'blue'
 
                 ChannelPlot:
-                    name = 'plot2'
                     source_name = 'nose_poke_analog'
-                    pen_color = 'r'
+                    pen_color = 'orange'
 
                 EventPlot:
                     event = 'hold'
@@ -182,11 +186,10 @@ enamldef ControllerManifest(BehaviorManifest): manifest:
                     rect_center = 4.5
                     rect_height = 1
 
-            ViewBox:
-                y_min = -1
-                y_max = 1
+            #ViewBox:
+            #    y_min = -1
+            #    y_max = 1
 
-                ChannelPlot:
-                    name = 'plot3'
-                    source_name = 'microphone'
-                    pen_color = 'k'
+            #    ChannelPlot:
+            #        source_name = 'microphone'
+            #        pen_color = 'k'

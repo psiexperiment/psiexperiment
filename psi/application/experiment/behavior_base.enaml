@@ -229,10 +229,9 @@ class BehaviorPlugin(ControllerPlugin):
 
         self.context.set_values(self.trial_info)
         result = self.context.get_values()
-        parameters = {'results': [result]}
-        self.core.invoke_command('psi.data.process_trials', parameters)
+        # A bit of a hack here. What to do?
+        self.core.invoke_command('trial_log.save', result)
         self.prior_score = score
-
         self.invoke_actions('trial_end', ts)
 
         if score == TrialScore.false_alarm:
@@ -259,7 +258,7 @@ class BehaviorPlugin(ControllerPlugin):
         self.invoke_actions('trial_prepare', self.get_ts())
 
     def request_resume(self):
-        super(AppetitivePlugin, self).request_resume()
+        super().request_resume()
         self.trial_state = TrialState.waiting_for_np_start
 
     def request_remind(self):
@@ -707,20 +706,20 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
             name = 'remind'
             label = 'Remind sequence'
 
-    #Extension:
-    #    id = 'workspace'
-    #    point = 'psi.experiment.workspace'
+    Extension:
+        id = 'workspace'
+        point = 'psi.experiment.workspace'
 
-    #    DockItem:
-    #        attr plugin
-    #        name = 'controller_state'
-    #        title = 'Status'
-    #        Container:
-    #            Label:
-    #                text << get_status(plugin.trial, plugin.trial_type,
-    #                                   plugin.experiment_state)
-    #            Label:
-    #                text << get_state(plugin.trial_state)
+        DockItem:
+            attr plugin << workbench.get_plugin('psi.controller')
+            name = 'controller_state'
+            title = 'Status'
+            Container:
+                Label:
+                    text << get_status(plugin.trial, plugin.trial_type,
+                                       plugin.experiment_state)
+                Label:
+                    text << get_state(plugin.trial_state)
 
     Extension:
         id = 'appetitive_commands'
@@ -793,11 +792,11 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
             kwargs = {'value': False}
 
         ExperimentAction:
-            event = 'reward_contact_acquired'
+            event = 'reward_contact_digital_acquired'
             command = 'psi.controller.process_et'
             kwargs = {'name': 'reward_contact'}
 
         ExperimentAction:
-            event = 'nose_poke_acquired'
+            event = 'nose_poke_digital_acquired'
             command = 'psi.controller.process_et'
             kwargs = {'name': 'nose_poke'}

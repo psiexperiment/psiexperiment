@@ -34,7 +34,12 @@ def prepare_event_callback(input, event):
             nonlocal controller
             nonlocal event_name
             kw = {'data': data}
-            controller.invoke_actions(event_name, kw=kw)
+            try:
+                controller.invoke_actions(event_name, kw=kw)
+            except Exception as e:
+                log.warn(kw)
+                log.warn('Error with callback for %s', event_name)
+                log.exception(e)
         input.add_callback(cb)
 
 

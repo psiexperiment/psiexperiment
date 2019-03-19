@@ -26,12 +26,11 @@ from ..plugin import Sink
 from .text_store import TextStore
 
 
-class SDTAnalysis(Sink):
+class SDTAnalysis(TableStore):
 
     name = 'sdt_analysis'
     label = 'SDT Analysis'
 
-    trial_log = Typed(pd.DataFrame)
     results = Typed(pd.DataFrame)
     grouping = d_(Typed(list))
 

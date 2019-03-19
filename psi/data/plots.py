@@ -583,7 +583,14 @@ class BaseTimeseriesPlot(SinglePlot):
             if starts[-1] > ends[-1]:
                 ends = np.r_[ends, current_time]
 
-        epochs = np.c_[starts, ends]
+        try:
+            epochs = np.c_[starts, ends]
+        except ValueError as e:
+            log.exception(e)
+            log.warning('Unable to update %r, starts shape %r, ends shape %r',
+                        self, starts, ends)
+            return
+
         m = ((epochs >= lb) & (epochs < ub)) | np.isnan(epochs)
         epochs = epochs[m.any(axis=-1)]
 

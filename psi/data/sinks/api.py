@@ -6,4 +6,5 @@ with enaml.imports():
     from .event_log import EventLog
     from .epoch_counter import EpochCounter, GroupedEpochCounter
     from .text_store import TextStore
-    from .sdt_analysis import SDTAnalysis
+    from .trial_log import TrialLog
+    #from .sdt_analysis import SDTAnalysis

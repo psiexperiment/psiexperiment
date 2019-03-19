@@ -1,61 +1,71 @@
-from enaml.widgets.api import Container, DockItem, CheckBox, VGroup
+from enaml.core.api import Conditional, d_func
+from enaml.widgets.api import CheckBox, Container, DockItem, VGroup
 from enaml.workbench.api import Extension
 
-from psi.context.context_item import OrderedContextMeta
-from psi.core.enaml.api import PSIManifest
-from psi.core.enaml.editable_table_widget import DataFrameTable
+from psi.context.api import OrderedContextMeta
+from psi.core.enaml.api import ListDictTable
 from psi.experiment.api import ItemPreferences
 
-from ..sink import Sink
+from .table_store import TableStore, TableStoreManifest
 
 
-class TrialLog(EventLog):
+class TrialLog(TableStore):
 
     name = 'trial_log'
     label = 'Trial log'
 
+    @d_func
+    def get_cell_color(self, row, column):
+        return 'white'
 
-class TrialLogManifest(EventLogManifest):
 
-    Extension:
-        id = manifest.id + '.trial_log.items'
-        point = 'psi.context.items'
-        OrderedContextMeta: meta:
-            name << contribution.name
-            label << '{} columns'.format(contribution.label)
+enamldef TrialLogManifest(TableStoreManifest): manifest:
 
-    Extension:
-        id = manifest.id + '.trial_log_workspace'
-        point = 'psi.experiment.workspace'
-        DockItem: di:
-            name << manifest.contribution.name
-            title << manifest.contribution.label
-            closable = False
+    Conditional:
+        condition << manifest.contribution.show_widget
 
-            attr data_plugin = workbench.get_plugin('psi.data')
+        Extension:
+            id = manifest.id + '.trial_log.items'
+            point = 'psi.context.items'
+            OrderedContextMeta: meta:
+                link_rove = False
+                name << contribution.name
+                label << '{} columns'.format(contribution.label)
+                values ::
+                    table.columns = [v.name for v in values]
+                    table.column_info = {v.name: v for v in values}
 
-            Container:
-                VGroup:
-                    CheckBox:
-                        text = 'Autoscroll?'
-                        checked := table.autoscroll
-                DataFrameTable: table:
-                    name = 'trial_log_table'
-                    data << data_plugin.trial_log
-                    get_cell_color => (row, column):
-                        if 'trial_type' in data:
-                            tt = data.at[row, 'trial_type']
-                            if tt == 'go_remind':
-                                return 'forestgreen'
-                            elif tt == 'go':
-                                return 'lightgreen'
-                            elif tt == 'go_forced':
-                                return 'green'
-                            elif tt == 'nogo':
-                                return 'lightpink'
-                            elif tt == 'nogo_repeat':
-                                return 'pink'
-                        return 'white'
-                    columns << [v.name for v in meta.values]
-                    column_info << {v.name: v for v in meta.values}
-                    autoscroll = True
+        Extension:
+            id = manifest.id + '.trial_log_workspace'
+            point = 'psi.experiment.workspace'
+
+            DockItem: di:
+                closable = False
+                name << manifest.contribution.name
+                title << manifest.contribution.label
+
+                Container:
+                    VGroup:
+                        CheckBox:
+                            text = 'Autoscroll?'
+                            checked := table.autoscroll
+
+                    ListDictTable: table:
+                        data << manifest.contribution._data[:]
+                        get_cell_color => (row, column):
+                            return manifest.contribution.get_cell_color(row, column)
+
+                        #    if 'trial_type' in data:
+                        #        tt = data.at[row, 'trial_type']
+                        #        if tt == 'go_remind':
+                        #            return 'forestgreen'
+                        #        elif tt == 'go':
+                        #            return 'lightgreen'
+                        #        elif tt == 'go_forced':
+                        #            return 'green'
+                        #        elif tt == 'nogo':
+                        #            return 'lightpink'
+                        #        elif tt == 'nogo_repeat':
+                        #            return 'pink'
+                        #    return 'white'
+                        autoscroll = True
