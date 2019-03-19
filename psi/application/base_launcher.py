@@ -40,8 +40,16 @@ class SimpleLauncher(Atom):
         return list_io()
 
     def _update_choices(self):
+        self._update_available_calibrations()
+        self._update_available_preferences()
+
+
+    def _update_available_calibrations(self):
         self.available_calibrations = list_calibrations(self.io)
-        self.available_preferences = list_preferences(self.experiment)
+        if not self.available_calibrations:
+            self.calibration = None
+            return
+
         if self.calibration not in self.available_calibrations:
             for calibration in self.available_calibrations:
                 if calibration.stem == 'default':
@@ -49,6 +57,12 @@ class SimpleLauncher(Atom):
                     break
             else:
                 self.calibration = self.available_calibrations[0]
+
+    def _update_available_preferences(self):
+        self.available_preferences = list_preferences(self.experiment)
+        if not self.available_preferences:
+            self.preferences = None
+            return
 
         if self.preferences not in self.available_preferences:
             for preferences in self.available_preferences:
@@ -62,7 +76,7 @@ class SimpleLauncher(Atom):
         return sorted(list_io())[0]
 
     def _default_root_folder(self):
-        return str(get_config('DATA_ROOT'))
+        return get_config('DATA_ROOT')
 
     def _observe_io(self, event):
         self._update_choices()
