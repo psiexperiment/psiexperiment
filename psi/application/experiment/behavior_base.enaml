@@ -92,6 +92,25 @@ class Event(enum.Enum):
 
 
 ################################################################################
+# Handlers
+################################################################################
+def configure_state(event):
+    log.debug('Configuring controller')
+    core = event.workbench.get_plugin('enaml.workbench.core')
+    controller = event.workbench.get_plugin('psi.controller')
+
+    selector = controller.next_selector()
+    params = {'selector': selector, 'save_prior': False}
+    core.invoke_command('psi.context.next_setting', params)
+
+    controller.trial += 1
+    controller.rng = np.random.RandomState()
+    controller.trial_state = TrialState.waiting_for_np_start
+    controller.experiment_state = 'running'
+    log.debug('Done configuring controller')
+
+
+################################################################################
 # Plugin
 ################################################################################
 class BehaviorPlugin(ControllerPlugin):
@@ -172,20 +191,6 @@ class BehaviorPlugin(ControllerPlugin):
             else:
                 self.trial_type = 'nogo'
                 return 'nogo'
-
-    def start_experiment(self):
-        try:
-            self.trial += 1
-            self.rng = np.random.RandomState()
-            self.context.next_setting(self.next_selector(), save_prior=False)
-            self.experiment_state = 'running'
-            self.trial_state = TrialState.waiting_for_np_start
-            self.invoke_actions('experiment_start')
-            self.invoke_actions('trial_prepare', self.get_ts())
-        except Exception as e:
-            # TODO - provide user interface to notify of errors. How to
-            # recover?
-            raise
 
     def start_trial(self):
         # This is broken into a separate method to allow the toolbar to call
@@ -723,6 +728,9 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
         Command:
             id = 'psi.controller.process_et'
             handler = process_et
+        Command:
+            id = 'psi.controller.configure_state'
+            handler = configure_state
 
     Extension:
         id = 'appetitive_events'
