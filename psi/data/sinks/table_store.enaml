@@ -1,66 +1,100 @@
+import atexit
 from collections import Mapping
 from functools import partial
 
-from atom.api import Bool, ContainerList
-
+from atom.api import Bool, ContainerList, Value
 from enaml.core.api import Conditional, d_
 from enaml.widgets.api import Container, DockItem
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
+import pandas as pd
 
 from psi.controller.api import ExperimentAction
-from psi.core.enaml.api import ListDictTable
+from psi.core.enaml.api import ListDictTable, PSIManifest
 from psi.experiment.api import ItemPreferences
-from .text_store import TextStore, TextStoreManifest
+
+from .base_store import BaseStore
 
 
-class EventLog(TextStore):
+class TableStore(BaseStore):
 
+    # Show a widget in the GUI?
     show_widget = d_(Bool(False))
-    data = ContainerList()
 
-    def process_table(self, name, data, flush=False):
-        super().process_table(name, data, flush)
-        if self.show_widget:
-            if isinstance(data, Mapping):
-                self.data.append(data)
-            else:
-                self.data.extend(data)
+    # Save the data to a file?
+    save_data = d_(Bool(True))
+
+    _data = ContainerList()
+    _store = Value()
+    _columns = Value()
+
+    def prepare(self):
+        if not self.save_data:
+            return
+        self._store = self.get_filename(self.name, '.csv').open('w')
+        atexit.register(self._store.close)
+
+    def _save_data(self, data):
+        if isinstance(data, Mapping):
+            df = pd.DataFrame(pd.Series(data)).T
+        else:
+            df = pd.DataFrame(data)
+
+        # Ensure that ordering is preserved
+        try:
+            ordering = self._columns
+            if list(df.columns) != self._columns:
+                df = df[self._columns]
+            header = False
+        except KeyError:
+            self._columns = list(df.columns)
+            header = True
+
+        csv_string = df.to_csv(index=False, header=header)
+        self._store.write(csv_string)
+
+    def _update_widget(self, data):
+        if isinstance(data, Mapping):
+            self._data.append(data)
+        else:
+            self._data.extend(data)
+
+    def process_table(self, data):
+        if self.save_data: 
+            self._save_data(data)
+        if self.show_widget: 
+            self._update_widget(data)
 
 
 def prepare(sink, event):
-    sink.create_table('event_log')
+    sink.prepare()
 
 
 def save(sink, event):
-    sink.process_table('event_log', event.parameters)
+    sink.process_table(event.parameters)
 
 
-enamldef EventLogManifest(TextStoreManifest): manifest:
+enamldef TableStoreManifest(PSIManifest): manifest:
 
     Extension:
-        id = manifest.id + '.event_log_commands'
+        id = manifest.id + '.commands'
         point = 'enaml.workbench.core.commands'
 
         Command:
             id = contribution.name + '.prepare'
-            handler = partial(prepare, manifest.contribution)
+            handler = partial(prepare, contribution)
 
         Command:
             id = contribution.name + '.save'
-            handler = partial(save, manifest.contribution)
+            handler = partial(save, contribution)
 
     Extension:
-        id = manifest.id + '.event_log_actions'
+        id = manifest.id + '.actions'
         point = 'psi.controller.actions'
 
         ExperimentAction:
             event = 'experiment_prepare'
             command = contribution.name + '.prepare'
-
-        ExperimentAction:
-            event = 'experiment_event'
-            command = contribution.name + '.save'
 
     Conditional:
         condition << manifest.contribution.show_widget
@@ -75,8 +109,8 @@ enamldef EventLogManifest(TextStoreManifest): manifest:
                 title << manifest.contribution.label
 
                 Container:
-                    ListDictTable: event_log_table:
-                        data << manifest.contribution.data[:]
+                    ListDictTable: contribution_table:
+                        data << manifest.contribution._data[:]
                         columns = ['timestamp', 'event']
                         column_info = {
                             'timestamp': {'label': 'Time (sec)'},
@@ -87,6 +121,6 @@ enamldef EventLogManifest(TextStoreManifest): manifest:
             id = manifest.id + '.preferences'
             point = 'psi.experiment.preferences'
             ItemPreferences:
-                item << event_log_table
+                item << contribution_table
                 name << manifest.contribution.name
                 auto_save = ['column_widths']

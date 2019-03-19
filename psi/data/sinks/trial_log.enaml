@@ -1,5 +1,3 @@
-from atom.api import Typed
-from enaml.core.api import d_
 from enaml.widgets.api import Container, DockItem, CheckBox, VGroup
 from enaml.workbench.api import Extension
 
@@ -11,32 +9,23 @@ from psi.experiment.api import ItemPreferences
 from ..sink import Sink
 
 
-class TrialLog(Sink):
+class TrialLog(EventLog):
 
     name = 'trial_log'
     label = 'Trial log'
 
 
-enamldef TrialLogManifest(PSIManifest): manifest:
+class TrialLogManifest(EventLogManifest):
 
     Extension:
-        id = 'items'
+        id = manifest.id + '.trial_log.items'
         point = 'psi.context.items'
         OrderedContextMeta: meta:
-            name << manifest.contribution.name
-            label << '{} columns'.format(manifest.contribution.label)
+            name << contribution.name
+            label << '{} columns'.format(contribution.label)
 
     Extension:
-        id = 'preferences'
-        point = 'psi.experiment.preferences'
-        rank = 200
-        ItemPreferences:
-            item << table
-            name << manifest.contribution.name + '_table'
-            auto_save = ['column_widths']
-
-    Extension:
-        id = 'workspace'
+        id = manifest.id + '.trial_log_workspace'
         point = 'psi.experiment.workspace'
         DockItem: di:
             name << manifest.contribution.name

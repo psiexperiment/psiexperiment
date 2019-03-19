@@ -1,0 +1,21 @@
+from enaml.workbench.api import Extension
+
+from psi.controller.api import ExperimentAction
+from .table_store import TableStore, TableStoreManifest
+
+
+class EventLog(TableStore):
+    
+    name = 'event_log'
+    label= 'Event Log'
+
+
+enamldef EventLogManifest(TableStoreManifest): manifest:
+
+    Extension:
+        id = manifest.id + '.event_log_actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'experiment_event'
+            command = contribution.name + '.save'
