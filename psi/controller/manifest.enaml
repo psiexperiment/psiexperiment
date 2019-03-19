@@ -53,6 +53,13 @@ def start_experiment(event):
         critical(None, 'Error starting experiment', str(e))
 
 
+def invoke_actions(event):
+    controller = event.workbench.get_plugin('psi.controller')
+    event_name = event.parameters['event_name']
+    timestamp = event.parameters['timestamp']
+    controller.invoke_actions(event_name, timestamp)
+
+
 def get_hw_ao_choices(workbench):
     plugin = workbench.get_plugin('psi.controller')
     channels = plugin.get_channels('analog', 'output', 'hardware', False)
@@ -142,6 +149,9 @@ enamldef ControllerManifest(PluginManifest): manifest:
         Command:
             id = 'psi.controller.log_io'
             handler = log_io
+        Command:
+            id = 'psi.controller.invoke_actions'
+            handler = invoke_actions
 
         Command:
             id = 'psi.controller.configure_calibration'

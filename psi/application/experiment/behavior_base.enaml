@@ -757,18 +757,38 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
         ExperimentEvent:
             name = 'deliver_reward'
 
+        # This action is mandatory and must be executed before any other
+        # commands that require some information from context. By default, an
+        # infinite number of cycles are specified.
+        ExperimentAction:
+            event = 'experiment_initialize'
+            command = 'psi.context.initialize'
+            kwargs = {'selector': None}
+
+        ExperimentAction:
+            event = 'context_initialized'
+            command = 'psi.controller.configure_state'
+
+        ExperimentAction:
+            event = 'experiment_start'
+            command = 'psi.controller.invoke_actions'
+            kwargs = {'event_name': 'trial_start'}
+
         ExperimentAction:
             event = 'experiment_start'
             command = 'psi.controller.set_pause_ok'
             kwargs = {'value': True}
+
         ExperimentAction:
             event = 'experiment_end'
             command = 'psi.controller.set_pause_ok'
             kwargs = {'value': False}
+
         ExperimentAction:
             event = 'reward_contact_acquired'
             command = 'psi.controller.process_et'
             kwargs = {'name': 'reward_contact'}
+
         ExperimentAction:
             event = 'nose_poke_acquired'
             command = 'psi.controller.process_et'
