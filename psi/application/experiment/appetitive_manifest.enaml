@@ -1,19 +1,32 @@
-import enum
-from functools import partial
-
 import logging
 log = logging.getLogger(__name__)
 
-from atom.api import Int, Typed, Unicode, observe
+import enum
+from functools import partial
+
+from atom.api import Int, Typed, Unicode
+
 from enaml.application import deferred_call
-from enaml.core.api import d_func
-import numpy as np
+from enaml.layout.api import InsertItem
+from enaml.widgets.api import Action, DockItem, Container, Label, ToolBar
+from enaml.workbench.api import Extension, ExtensionPoint
+from enaml.workbench.core.api import Command
 
-from .base_plugin import BasePlugin
+from psi.context.api import (BoolParameter, ContextGroup, EnumParameter,
+                             SequenceSelector, Parameter, Result)
+
+from psi.controller.api import (ControllerManifest, ControllerPlugin,
+                                ExperimentAction, ExperimentEvent,
+                                ExperimentState)
 
 
+################################################################################
+# Supporting
+################################################################################
 class TrialScore(enum.Enum):
-
+    '''
+    Defines the different types of scores for each trial
+    '''
     hit = 'HIT'
     miss = 'MISS'
     correct_reject = 'CR'
@@ -78,11 +91,14 @@ class Event(enum.Enum):
     trial_end = 'trial end'
 
 
-class AppetitivePlugin(BasePlugin):
+################################################################################
+# Plugin
+################################################################################
+class AppetitivePlugin(ControllerPlugin):
     '''
     Plugin for controlling appetitive experiments that are based on a reward.
-    Eventually this may become generic enough that it can be used with aversive
-    experiments as well (it may already be sufficiently generic).
+    Eventually this should become generic enough that it can be used with
+    aversive experiments as well (it may already be sufficiently generic).
     '''
     # Current trial
     trial = Int(0)
@@ -117,7 +133,7 @@ class AppetitivePlugin(BasePlugin):
 
     def next_selector(self):
         '''
-        Determine next trial type
+        Determine next trial type (i.e., remind, warmup, nogo, go)
         '''
         n_remind = self.context.get_value('remind_trials')
         n_warmup = self.context.get_value('warmup_trials')
@@ -467,3 +483,294 @@ class AppetitivePlugin(BasePlugin):
 
     def stop_event_timer(self):
         deferred_call(self.stop_timer, 'event')
+
+
+################################################################################
+# Manifest
+################################################################################
+
+def get_status(trial, trial_type, experiment_state):
+    # Experiment not running
+    if experiment_state == 'paused':
+        return 'Experiment paused'
+    elif experiment_state == 'initialized':
+        return 'Waiting to start'
+    elif experiment_state == 'stopped':
+        return 'Experiment complete'
+
+    # Experiment running
+    if '_' in trial_type:
+        general, specific = trial_type.split('_')
+        label = '{} ({})'.format(general, specific)
+    else:
+        label = trial_type
+    return 'Trial {}: {}'.format(trial, label)
+
+
+def get_state(trial_state):
+    if trial_state is None:
+        return ''
+    else:
+        return trial_state.value.capitalize()
+
+
+def process_et(event):
+    plugin = event.workbench.get_plugin('psi.controller')
+    name = event.parameters['name']
+    for edge, ts in event.parameters['data']:
+        plugin.et_callback(name, edge, ts)
+
+
+enamldef AppetitiveManifest(ControllerManifest): manifest:
+    '''
+    Defines the core settings that any appetitive experiment may require. Does
+    not include timeout/reward settings as those are provided by plugins.
+    '''
+    factory = AppetitivePlugin
+
+    Extension:
+        id = 'debug_toolbar'
+        rank = 1000
+        point = 'psi.experiment.toolbar'
+
+        ToolBar:
+            name = 'debug_toolbar'
+            Action:
+                text = 'Remind'
+                triggered ::
+                    plugin = workbench.get_plugin(manifest.id)
+                    plugin.request_remind()
+                enabled <<  workbench.get_plugin(manifest.id).experiment_state \
+                    not in ('initialized', 'stopped')
+            Action:
+                text = 'Poke'
+                checkable = True
+                toggled ::
+                    plugin = workbench.get_plugin(manifest.id)
+                    if checked:
+                        plugin.handle_event(Event.digital_np_start)
+                    else:
+                        plugin.handle_event(Event.digital_np_end)
+                enabled <<  workbench.get_plugin(manifest.id).experiment_state \
+                    not in ('initialized', 'stopped')
+            Action:
+                text = 'Reward'
+                triggered ::
+                    plugin = workbench.get_plugin(manifest.id)
+                    plugin.handle_event(Event.digital_reward_start)
+                    plugin.handle_event(Event.digital_reward_end)
+                enabled << workbench.get_plugin(manifest.id).experiment_state \
+                    not in ('initialized', 'stopped')
+
+    # Parameters used by the appetitive Go-Nogo controller.
+    Extension:
+        id = 'items'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'trial'
+            label = 'Trial Settings'
+
+            Parameter:
+                name = 'iti_duration'
+                label = 'Intertrial interval (s)'
+                compact_label = 'ITI'
+                default = 0.1
+                expression = '0.1'
+            Parameter:
+                name = 'to_duration'
+                label = 'Timeout duration (s)'
+                compact_label = 'TO'
+                default = 1.0
+            Parameter:
+                name = 'hold_duration'
+                label = 'Hold duration (s)'
+                compact_label = 'Hold'
+                default = 0.0
+            Parameter:
+                name = 'response_duration'
+                label = 'Response duration (s)'
+                compact_label = 'Resp'
+                default = 3.0
+            Parameter:
+                name = 'np_duration'
+                label = 'Poke duration (s)'
+                compact_label = 'Poke'
+                default = 0.2
+            EnumParameter:
+                name = 'training_mode'
+                label = 'Mode'
+                compact_label = 'train'
+                scope = 'arbitrary'
+                default = 'testing'
+                choices = {'training': True, 'testing': False}
+
+        ContextGroup:
+            name = 'selector'
+            label = 'Next value'
+
+            Parameter:
+                name = 'go_probability'
+                label = 'Go probability'
+                compact_label = 'Pr'
+                default = 0.5
+                scope = 'arbitrary'
+            Parameter:
+                name = 'max_nogo'
+                label = 'Max. consecutive nogo trials'
+                compact_label = 'MG'
+                default = 5
+                scope = 'arbitrary'
+            EnumParameter:
+                name = 'repeat_fa'
+                label = 'Repeat FA?'
+                compact_label = 'RFA'
+                default = 'yes'
+                scope = 'arbitrary'
+                choices = {'yes': True, 'no': False}
+            Parameter:
+                name = 'remind_trials'
+                label = 'Remind trials'
+                compact_label = 'N remind'
+                scope = 'experiment'
+                default = 10
+            Parameter:
+                name = 'warmup_trials'
+                label = 'Warmup trials'
+                compact_label = 'N warmup'
+                scope = 'experiment'
+                default = 20
+
+        ContextGroup:
+            name = 'results'
+            label = 'Trial results'
+            visible = False
+
+            Result:
+                name = 'response'
+                compact_label = 'Resp.'
+                dtype = 'S32'
+            Result:
+                name = 'trial_type'
+                compact_label = 'Type'
+                dtype = 'S32'
+            Result:
+                name = 'score'
+                dtype = 'S32'
+            Result:
+                name = 'correct'
+                compact_label = 'C'
+                dtype = 'bool'
+            Result:
+                name = 'np_start'
+                label = 'Nose-poke start'
+                compact_label = 'NP/'
+                dtype = 'float64'
+            Result:
+                name = 'np_end'
+                label = 'Nose-poke end'
+                compact_label = 'NP\\'
+                dtype = 'float64'
+            Result:
+                name = 'response_ts'
+                label = 'Response timestamp'
+                compact_label = 'R|'
+                dtype = 'float64'
+            Result:
+                name = 'trial_start'
+                compact_label = 'T/'
+                dtype = 'float64'
+            Result:
+                name = 'reaction_time'
+                compact_label = 'React. time'
+                dtype = 'float64'
+            Result:
+                name = 'response_time'
+                compact_label = 'Resp. time'
+                dtype = 'float64'
+
+    # Sequences used by the appetitive Go-Nogo controller.
+    Extension:
+        id = 'selectors'
+        point = 'psi.context.selectors'
+        SequenceSelector:
+            name = 'go'
+            label = 'Go sequence'
+        SequenceSelector:
+            name = 'nogo'
+            label = 'Nogo sequence'
+        SequenceSelector:
+            name = 'remind'
+            label = 'Remind sequence'
+
+    #Extension:
+    #    id = 'workspace'
+    #    point = 'psi.experiment.workspace'
+
+    #    DockItem:
+    #        attr plugin
+    #        name = 'controller_state'
+    #        title = 'Status'
+    #        Container:
+    #            Label:
+    #                text << get_status(plugin.trial, plugin.trial_type,
+    #                                   plugin.experiment_state)
+    #            Label:
+    #                text << get_state(plugin.trial_state)
+
+    Extension:
+        id = 'appetitive_commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = 'psi.controller.process_et'
+            handler = process_et
+
+    Extension:
+        id = 'appetitive_events'
+        point = 'psi.controller.actions'
+
+        ExperimentState:
+            name = 'np'
+        ExperimentState:
+            name = 'digital_np'
+        ExperimentState:
+            name = 'digital_reward'
+        ExperimentState:
+            name = 'reward'
+        ExperimentState:
+            name = 'trial'
+        ExperimentState:
+            name = 'hold'
+        ExperimentState:
+            name = 'iti'
+        ExperimentState:
+            name = 'response'
+        ExperimentState:
+            name = 'to'
+        ExperimentEvent:
+            name = 'np_duration_elapsed'
+        ExperimentEvent:
+            name = 'response_duration_elapsed'
+        ExperimentEvent:
+            name = 'iti_duration_elapsed'
+        ExperimentEvent:
+            name = 'to_duration_elapsed'
+        ExperimentEvent:
+            name = 'deliver_reward'
+
+        ExperimentAction:
+            event = 'experiment_start'
+            command = 'psi.controller.set_pause_ok'
+            kwargs = {'value': True}
+        ExperimentAction:
+            event = 'experiment_end'
+            command = 'psi.controller.set_pause_ok'
+            kwargs = {'value': False}
+        ExperimentAction:
+            event = 'reward_contact_acquired'
+            command = 'psi.controller.process_et'
+            kwargs = {'name': 'reward_contact'}
+        ExperimentAction:
+            event = 'nose_poke_acquired'
+            command = 'psi.controller.process_et'
+            kwargs = {'name': 'nose_poke'}

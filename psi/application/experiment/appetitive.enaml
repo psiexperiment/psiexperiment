@@ -4,36 +4,23 @@ log = logging.getLogger(__name__)
 import numpy as np
 
 from enaml.workbench.api import Extension
-from enaml.workbench.core.api import Command
-from enaml.workbench.ui.api import Branding
-
-from psi.controller.input import Accumulate
-from psi.controller.appetitive_manifest import AppetitiveManifest
-from psi.controller.api import (ExperimentState, ExperimentAction,
-                                ContinuousOutput, EpochOutput)
-
-from psi.context.api import ContextGroup, Parameter
-from psi.data.plots import (EventPlot, TimeContainer, FFTContainer,
-                            ChannelPlot, ViewBox, TimeseriesPlot,
-                            FFTChannelPlot)
-
-from psi.data.sinks.bcolz_store import BColzStore
-from psi.data.sinks.event_log import EventLog
-from psi.data.sinks.trial_log import TrialLog
-from psi.data.sinks.sdt_analysis import SDTAnalysis
-
-from psi.token.primitives import BandlimitedNoise, Cos2Envelope, SAMEnvelope, Silence
 
 
-enamldef ControllerManifest(AppetitiveManifest): manifest:
+from psi.controller.api import (ContinuousOutput, EpochOutput,
+                                ExperimentAction)
+from psi.data.plots import (EventPlot, TimeContainer, 
+                            ChannelPlot, ViewBox, TimeseriesPlot)
+#from psi.data.sinks.api import BColzStore, EventLog, SDTAnalysis, TrialLog
+from psi.data.sinks.api import BColzStore
+from psi.token.primitives import (BandlimitedNoise, Cos2Envelope, SAMEnvelope,
+                                  Silence)
+from .behavior_base import BehaviorManifest
+
+
+enamldef ControllerManifest(BehaviorManifest): manifest:
 
     id = 'psi.controller'
-
-    Extension:
-        id = 'branding'
-        point = 'enaml.workbench.ui.branding'
-        Branding:
-            title = 'Appetitive Go-Nogo'
+    window_title = 'Appetitive Go-Nogo'
 
     Extension:
         id = 'data'
@@ -117,9 +104,6 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             event = 'deliver_reward'
             command = 'food_dispenser.dispense_pellet'
 
-        ExperimentAction:
-            event = 'target_failure'
-
     Extension:
         id = 'io'
         point = 'psi.controller.io'
@@ -134,38 +118,22 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             label = 'Target'
             target_name = 'speaker'
 
-    Extension:
-        id = 'sinks'
-        point = 'psi.data.sinks'
+    #Extension:
+    #    id = 'sinks'
+    #    point = 'psi.data.sinks'
 
-        SDTAnalysis:
-            pass
+    #    SDTAnalysis:
+    #        pass
 
-        TrialLog:
-            pass
+    #    TrialLog:
+    #        pass
 
-        EventLog:
-            pass
+    #    EventLog:
+    #        pass
 
     Extension:
         id = 'plots'
         point = 'psi.data.plots'
-
-        FFTContainer:
-            name = 'fft_plot_container'
-            label = 'FFT'
-            freq_lb = 5
-            freq_ub = 50000
-
-            ViewBox:
-                y_min = -120
-                y_max = 100
-                label = 'Level (dB)'
-
-                FFTChannelPlot:
-                    source_name = 'microphone'
-                    pen_color = (0, 0, 0)
-                    time_span = 1
 
         TimeContainer:
             name = 'trial_plot_container'

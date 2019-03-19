@@ -22,6 +22,6 @@ from .queue import FIFOSignalQueue
 
 import enaml
 with enaml.imports():
-    from .base_manifest import (BaseManifest, get_hw_ao_choices,
-                                get_hw_ai_choices)
-
+    # Not where ControllerPlugin is defined, but helps simplify imports.
+    from .manifest import (ControllerManifest, ControllerPlugin,
+                           get_hw_ao_choices, get_hw_ai_choices)
