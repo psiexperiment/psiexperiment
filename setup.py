@@ -1,7 +1,9 @@
 from setuptools import find_packages, setup
 
 requirements = [
+    'json_tricks',
     'palettable',
+    'pydaqmx',
 ]
 
 package_data = {
@@ -14,6 +16,7 @@ setup(
     version='0.01',
     author='Brad Buran',
     author_email='bburan@alum.mit.edu',
+    install_requires=requirements,
     packages=find_packages(),
     package_data=package_data,
     license='LICENSE.txt',
