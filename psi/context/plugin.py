@@ -323,7 +323,7 @@ class ContextPlugin(Plugin):
             log.debug(m)
             raise
 
-    def get_value(self, context_name, trial=None, fail_mode='error'):
+    def get_value(self, context_name, trial=None):
         if trial is not None:
             try:
                 return self._prior_values[trial][context_name]
@@ -331,15 +331,9 @@ class ContextPlugin(Plugin):
                 return None
         try:
             return self._namespace.get_value(context_name)
-        except KeyError:
-            if fail_mode == 'error':
-                raise
-            elif fail_mode == 'ignore':
-                return None
-            elif fail_mode == 'default':
-                return self.context_items[context_name].default
-            else:
-                raise ValueError('Unsupported fail mode {}'.format(fail_mode))
+        except KeyError as e:
+            m = f'{context_name} not defined. Perhaps context not initialized?'
+            raise ValueError(m) from e
 
     def get_values(self, context_names=None, trial=None):
         if trial is not None:

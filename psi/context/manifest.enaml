@@ -53,7 +53,8 @@ def get_preferences(obj):
 def initialize(event):
     controller = event.workbench.get_plugin('psi.controller')
     context = event.workbench.get_plugin(PLUGIN_ID)
-    context.apply_changes(cycles=event.parameters['cycles'])
+    cycles = event.parameters.get('cycles', np.inf)
+    context.apply_changes(cycles=cycles)
     context.next_setting(selector=event.parameters['selector'],
                          save_prior=False)
     controller.invoke_actions('context_initialized')
@@ -64,8 +65,7 @@ def next_setting(event):
     context = event.workbench.get_plugin(PLUGIN_ID)
     p = event.parameters
     try:
-        context.next_setting(selector=p['selector'],
-                             save_prior=p['save_prior'])
+        context.next_setting(selector=p['selector'], save_prior=p['save_prior'])
         controller.invoke_actions('context_next_setting')
     except StopIteration:
         controller.invoke_actions('context_complete')
