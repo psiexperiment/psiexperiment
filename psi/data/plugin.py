@@ -76,14 +76,6 @@ class DataPlugin(Plugin):
         for sink in self._sinks:
             sink.context_info_updated(self.context_info)
 
-    def prepare(self):
-        for sink in self._sinks:
-            sink.prepare(self)
-
-    def finalize(self):
-        for sink in self._sinks:
-            sink.finalize(self.workbench)
-
     def set_base_path(self, base_path):
         self.base_path = base_path
         for sink in self._sinks:
