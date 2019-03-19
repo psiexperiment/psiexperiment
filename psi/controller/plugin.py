@@ -236,14 +236,11 @@ class ControllerPlugin(Plugin):
                 except ValueError:
                     if not o.optional:
                         raise
-
             elif o.target is None and not isinstance(o.parent, Extension):
                 o.parent.add_output(o)
             elif o.target is None:
                 log.warn('Unconnected output %s', o.name)
-            print(o.name, o)
             o.load_manifest(self.workbench)
-            print('loaded')
 
         for i in self._inputs.values():
             # First, make sure the input is connected to a source
