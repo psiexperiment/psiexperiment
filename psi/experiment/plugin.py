@@ -55,9 +55,6 @@ class ExperimentPlugin(Plugin):
             if extension.factory is not None:
                 extension.factory(ui.workbench, ui.workspace)
             for item in extension.get_children(DockItem):
-                #if hasattr(item, 'plugin'):
-                #    plugin = self.workbench.get_plugin(extension.parent.id)
-                #    item.plugin = plugin
                 item.set_parent(ui.workspace.dock_area)
                 op = InsertItem(item=item.name)
                 ui.workspace.dock_area.update_layout(op)
@@ -131,8 +128,15 @@ class ExperimentPlugin(Plugin):
     def set_layout(self, layout):
         log.debug('Setting layout')
         ui = self.workbench.get_plugin('enaml.workbench.ui')
-        ui._window.set_geometry(layout['geometry'])
-        self._set_toolbar_layout(ui.workspace.toolbars, layout['toolbars'])
+        try:
+            ui._window.set_geometry(layout['geometry'])
+        except Exception as e:
+            log.exception(e)
+
+        try:
+            self._set_toolbar_layout(ui.workspace.toolbars, layout['toolbars'])
+        except Exception as e:
+            log.exception(e)
 
         available = [i.name for i in ui.workspace.dock_area.dock_items()]
         missing = MissingDockLayoutValidator(available)(layout['dock_layout'])
