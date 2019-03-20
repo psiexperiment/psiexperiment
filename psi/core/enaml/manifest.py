@@ -1,4 +1,4 @@
-from atom.api import Typed, Unicode, Property
+from atom.api import Typed, Property
 
 from enaml.workbench.api import PluginManifest
 

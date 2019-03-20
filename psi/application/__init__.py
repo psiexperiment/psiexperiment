@@ -1,6 +1,7 @@
 import logging.config
 log = logging.getLogger(__name__)
 
+
 import datetime as dt
 from glob import glob
 import importlib
@@ -12,8 +13,6 @@ import traceback
 import warnings
 
 import enaml
-from enaml.application import deferred_call
-from enaml.core import import_hooks
 
 from psi import get_config, set_config
 
@@ -23,51 +22,26 @@ def _exception_notifier(*args):
     sys.__excepthook__(*args)
 
 
-def configure_logging(filename=None):
-    time_format = '[%(relativeCreated)d %(thread)d %(name)s - %(levelname)s] %(message)s'
-    simple_format = '%(relativeCreated)8d %(thread)d %(name)s - %(message)s'
+def configure_logging(level, filename=None):
+    try:
+        # Install colored logging handler if installed
+        import coloredlogs
+        coloredlogs.install(milliseconds=True)
+    except ImportError:
+        pass
 
-    logging_config = {
-        'version': 1,
-        'formatters': {
-            'time': {'format': time_format},
-            'simple': {'format': simple_format},
-            },
-        'handlers': {
-            # This is what gets printed out to the console
-            'console': {
-                'class': 'psi.core.logging.colorstreamhandler.ColorStreamHandler',
-                'formatter': 'simple',
-                'level': 'DEBUG',
-                },
-            },
-        'loggers': {
-            '__main__': {'level': 'INFO'},
-            'psi': {'level': 'DEBUG'},
-            },
-        'root': {
-            'handlers': ['console'],
-            },
-        }
-
+    log = logging.getLogger()
+    log.setLevel(level)
     if filename is not None:
-        logging_config['handlers']['file'] = {
-            'class': 'logging.FileHandler',
-            'formatter': 'time',
-            'filename': filename,
-            'mode': 'w',
-            'encoding': 'UTF-8',
-            'level': 'DEBUG',
-        }
-        logging_config['root']['handlers'].append('file')
-    logging.config.dictConfig(logging_config)
+        file_handler = logging.FileHandler(filename, 'w', 'UTF-8')
+        log.addHandler(file_handler)
 
     sys.excepthook = _exception_notifier
 
 
 def warn_with_traceback(message, category, filename, lineno, file=None,
                         line=None):
-    traceback.print_stack()
+    #traceback.print_stack()
     log = file if hasattr(file,'write') else sys.stderr
     m = warnings.formatwarning(message, category, filename, lineno, line)
     log.write(m)
@@ -83,6 +57,7 @@ def _main(args):
         filename = '{} {}'.format(dt_string, args.experiment)
         log_root = get_config('LOG_ROOT')
         configure_logging(os.path.join(log_root, filename))
+
         log.debug('Logging configured')
         log.info('Logging information captured in {}'.format(filename))
         log.info('Python executable: {}'.format(sys.executable))
@@ -127,23 +102,6 @@ def list_calibrations(io_file):
     return list(calibration_path.glob('*.json'))
 
 
-def load_manifest(manifest_path):
-    module_name, manifest_name = manifest_path.rsplit('.', 1)
-    module = importlib.import_module(module_name)
-    return getattr(module, manifest_name)
-
-
-def load_enaml_module_from_file(path):
-    path = Path(path)
-    name = path.with_suffix('').name
-    file_info = import_hooks.make_file_info(str(path))
-    importer = import_hooks.EnamlImporter(file_info)
-    return importer.load_module(name)
-
-
-def load_manifest_from_file(path, manifest_name):
-    module = load_enaml_module_from_file(path)
-    return getattr(module, manifest_name)
 
 
 def launch_experiment(args):

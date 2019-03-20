@@ -1,10 +1,19 @@
 from setuptools import find_packages, setup
 
+
 requirements = [
     'json_tricks',
     'palettable',
     'pydaqmx',
 ]
+
+
+extras_require = {
+    # coloredlogs - Make logging pretty
+    # pyinstrument - Detailed performance information.
+    'debug': ['coloredlogs', 'pyinstrument'],
+}
+
 
 package_data = {
     '': ['*.enaml', '*.txt'],
@@ -17,6 +26,7 @@ setup(
     author='Brad Buran',
     author_email='bburan@alum.mit.edu',
     install_requires=requirements,
+    extras_require=extras_require,
     packages=find_packages(),
     package_data=package_data,
     license='LICENSE.txt',

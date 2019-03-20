@@ -18,7 +18,6 @@ from enaml.workbench.core.api import Command
 
 from psi.controller.api import ExperimentAction
 from psi.context.context_item import OrderedContextMeta
-from psi.core.utils import find_extension
 from psi.core.enaml.api import PSIManifest
 from psi.core.enaml.editable_table_widget import DataFrameTable
 from psi.experiment.api import ItemPreferences

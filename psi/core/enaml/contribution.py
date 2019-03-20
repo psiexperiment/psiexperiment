@@ -1,12 +1,10 @@
 import logging
 log = logging.getLogger(__name__)
 
-import importlib
-
-from atom.api import Bool, Unicode
-
-import enaml
+from atom.api import Unicode
 from enaml.core.api import Declarative, d_
+
+from .util import load_manifest
 
 
 class PSIContribution(Declarative):
@@ -21,30 +19,19 @@ class PSIContribution(Declarative):
 
     @classmethod
     def find_manifest_class(cls):
-        with enaml.imports():
-            for c in cls.mro():
-                class_name = c.__name__ + 'Manifest'
-                # First, check to see if the manifest is defined in the same
-                # module as the contribution.
-                try:
-                    module = importlib.import_module(c.__module__)
-                    return getattr(module, class_name)
-                except AttributeError:
-                    pass
+        potential_locations = [
+            f'{cls.__module__}.{cls.__name__}Manifest',
+            f'{cls.__module__}_manifest.{cls.__name__}Manifest',
+        ]
+        for location in potential_locations:
+            try:
+                print(location)
+                return load_manifest(location)
+            except ImportError:
+                pass
 
-                # Second, check to see if the manifest is defined in another,
-                # appropriately-named, module.
-                module_name = c.__module__ + '_manifest'
-                try:
-                    module = importlib.import_module(module_name)
-                    manifest_class = getattr(module, class_name)
-                    return manifest_class
-                except ImportError as e:
-                    pass
-                except AttributeError:
-                    pass
-
-        raise ImportError
+        m = f'Could not find manifest for {cls.__module__}.{cls.__name__}'
+        raise ImportError(m)
 
     def load_manifest(self, workbench):
         if not self.load_manifest:
