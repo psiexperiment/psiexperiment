@@ -34,7 +34,8 @@ class TableStore(BaseStore):
     def prepare(self):
         if not self.save_data:
             return
-        self._store = self.get_filename(self.name, '.csv').open('w')
+        path = self.get_filename(self.name, '.csv')
+        self._store = path.open('w', newline='\n')
         atexit.register(self._store.close)
 
     def _save_data(self, data):
@@ -53,7 +54,8 @@ class TableStore(BaseStore):
             self._columns = list(df.columns)
             header = True
 
-        csv_string = df.to_csv(index=False, header=header)
+        csv_string = df.to_csv(index=False, header=header,
+                               line_terminator='\n')
         self._store.write(csv_string)
 
     def _update_widget(self, data):

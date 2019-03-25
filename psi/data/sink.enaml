@@ -7,7 +7,9 @@ from psi.core.enaml.api import PSIContribution, PSIManifest
 
 
 class Sink(PSIContribution):
-    pass
+    
+    def set_base_path(self, path):
+        return
 
 
 class SinkWithSource(Sink):

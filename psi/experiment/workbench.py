@@ -9,7 +9,7 @@ with enaml.imports():
     from enaml.stdlib.message_box import critical
 
 from psi import set_config
-from psi.application import load_manifest, load_manifest_from_file
+from psi.core.enaml.api import load_manifest, load_manifest_from_file
 
 
 class PSIWorkbench(Workbench):

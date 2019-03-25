@@ -29,8 +29,6 @@ class DataPlugin(Plugin):
     inputs = Typed(dict, {})
     context_info = Typed(dict, {})
 
-    base_path = Unicode()
-
     def start(self):
         self._refresh_sinks()
         self._refresh_plots()
@@ -40,6 +38,7 @@ class DataPlugin(Plugin):
         self._unbind_observers()
 
     def _refresh_sinks(self, event=None):
+        log.debug('Refreshing sinks')
         sinks = []
         point = self.workbench.get_extension_point(SINK_POINT)
         for extension in point.extensions:
@@ -55,7 +54,6 @@ class DataPlugin(Plugin):
             containers.extend(extension.get_children(MultiPlotContainer))
         load_manifests(containers, self.workbench)
         log.debug('Found %d plot containers', len(containers))
-        print(containers)
         self._containers = containers
 
     def _bind_observers(self):
@@ -70,31 +68,9 @@ class DataPlugin(Plugin):
         self.workbench.get_extension_point(PLOT_POINT) \
             .unobserve('extensions', self._refresh_plots)
 
-    def _context_items_changed(self, items=None):
-        context = self.workbench.get_plugin('psi.context')
-        self.context_info = context.context_items.copy()
-        for sink in self._sinks:
-            sink.context_info_updated(self.context_info)
-
     def set_base_path(self, base_path):
-        self.base_path = base_path
         for sink in self._sinks:
-            sink.set_base_path(self.base_path)
-
-    def get_base_path(self):
-        return self.base_path
-
-    def find_source(self, source_name):
-        '''
-        Find the source by quering the sinks in order until one of them returns
-        the channel.
-        '''
-        for sink in self._sinks:
-            try:
-                return sink.get_source(source_name)
-            except AttributeError:
-                pass
-        raise AttributeError('Source {} not available'.format(source_name))
+            sink.set_base_path(base_path)
 
     def find_plot_container(self, plot_container_name):
         for container in self._containers:

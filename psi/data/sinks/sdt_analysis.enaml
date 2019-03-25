@@ -20,11 +20,11 @@ from psi.context.api import OrderedContextMeta
 from psi.core.enaml.api import DataFrameTable, PSIManifest
 from psi.experiment.api import ItemPreferences
 
-from .text_store import TextStore
+from .base_store import BaseStore
 from ..plugin import Sink
 
 
-class SDTAnalysis(Sink):
+class SDTAnalysis(BaseStore):
 
     name = 'sdt_analysis'
     label = 'SDT Analysis'
@@ -107,14 +107,12 @@ extra_column_info = {
 
 def save(sdt, event):
     core = event.workbench.get_plugin('enaml.workbench.core')
-
     sdt.limit = 0
     sdt.include_repeat_nogo = False
     sdt.include_go_remind = False
     if sdt.results is not None:
-        cmd = '{}_store.create_table'.format(sdt.name)
-        parameters = {'name': sdt.name, 'dataframe': sdt.results}
-        core.invoke_command(cmd, parameters)
+        filename = sdt.get_filename(sdt.name, '.csv')
+        sdt.results.to_csv(filename, index=False)
 
 
 def update(sdt, event):
@@ -122,12 +120,6 @@ def update(sdt, event):
 
 
 enamldef SDTAnalysisManifest(PSIManifest): manifest:
-
-    Extension:
-        id = manifest.id + '.FOO.sinks'
-        point = 'psi.data.sinks'
-        TextStore:
-            name = manifest.contribution.name + '_store'
 
     Extension:
         id = 'items'

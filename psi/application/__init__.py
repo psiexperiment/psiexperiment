@@ -26,7 +26,7 @@ def configure_logging(level, filename=None):
     try:
         # Install colored logging handler if installed
         import coloredlogs
-        coloredlogs.install(milliseconds=True)
+        coloredlogs.install(level=level, milliseconds=True)
     except ImportError:
         pass
 
@@ -56,7 +56,7 @@ def _main(args):
         dt_string = dt.datetime.now().strftime('%Y-%m-%d %H%M')
         filename = '{} {}'.format(dt_string, args.experiment)
         log_root = get_config('LOG_ROOT')
-        configure_logging(os.path.join(log_root, filename))
+        configure_logging('DEBUG', os.path.join(log_root, filename))
 
         log.debug('Logging configured')
         log.info('Logging information captured in {}'.format(filename))

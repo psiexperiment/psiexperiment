@@ -29,4 +29,5 @@ class BaseStore(Sink):
         return path
 
     def set_base_path(self, base_path):
+        print('SET')
         self.base_path = Path(base_path)

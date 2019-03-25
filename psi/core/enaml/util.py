@@ -24,3 +24,18 @@ def load_enaml_module_from_file(path):
 def load_manifest_from_file(path, manifest_name):
     module = load_enaml_module_from_file(path)
     return getattr(module, manifest_name)
+
+
+def load_manifests(objects, workbench):
+    '''
+    Recursively load manifests for all PSIConbtribution subclasses in hierarchy
+    '''
+    from .api import PSIContribution
+    for o in objects:
+        if isinstance(o, PSIContribution):
+            o.load_manifest(workbench)
+            load_manifests(o.children, workbench)
+        elif isinstance(o, list):
+            load_manifests(o, workbench)
+        elif hasattr(o, 'children'):
+            load_manifests(o.children, workbench)

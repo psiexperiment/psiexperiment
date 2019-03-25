@@ -1,5 +1,5 @@
 import logging
-log = logging.getLogger('__name__')
+log = logging.getLogger(__name__)
 
 import ast
 import inspect
@@ -180,7 +180,6 @@ class SignalBuffer:
     def append_data(self, data):
         with self._lock:
             samples = data.shape[-1]
-            log.debug('Appending %r samples to signal buffer', samples)
             if samples > self._buffer_samples:
                 self._buffer[:] = data[-self._buffer_samples:]
                 self._ilb = 0

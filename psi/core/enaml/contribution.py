@@ -19,17 +19,15 @@ class PSIContribution(Declarative):
 
     @classmethod
     def find_manifest_class(cls):
-        potential_locations = [
-            f'{cls.__module__}.{cls.__name__}Manifest',
-            f'{cls.__module__}_manifest.{cls.__name__}Manifest',
-        ]
-        for location in potential_locations:
+        search = []
+        for c in cls.mro():
+            search.append(f'{c.__module__}.{c.__name__}Manifest')
+            search.append(f'{c.__module__}_manifest.{c.__name__}Manifest')
+        for location in search:
             try:
-                print(location)
                 return load_manifest(location)
             except ImportError:
                 pass
-
         m = f'Could not find manifest for {cls.__module__}.{cls.__name__}'
         raise ImportError(m)
 
@@ -40,11 +38,11 @@ class PSIContribution(Declarative):
             manifest_class = self.find_manifest_class()
             manifest = manifest_class(contribution=self)
             workbench.register(manifest)
-            m = 'Loaded manifest for contribution {} ({})'
-            log.info(m.format(self.name, manifest_class.__name__))
+            m = 'Loaded manifest for contribution %s (%s)'
+            log.info(m, self.name, manifest_class.__name__)
         except ImportError:
-            m = 'No manifest defind for contribution {}'
-            log.warn(m.format(self.name))
-        except ValueError:
-            workbench.unregister(manifest.id)
-            workbench.register(manifest)
+            m = 'No manifest defind for contribution %s'
+            log.warn(m, self.name)
+        except ValueError as e:
+            m = 'Manifest already loaded for contribution %s'
+            log.debug(m, self.name)
