@@ -74,8 +74,7 @@ def prepare(sink, event):
 
 
 def save(sink, event):
-    print(event.parameters)
-    sink.process_table(event.parameters)
+    sink.process_table(event.parameters['data'])
 
 
 enamldef TableStoreManifest(PSIManifest): manifest:

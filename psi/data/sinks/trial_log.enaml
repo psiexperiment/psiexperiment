@@ -33,7 +33,13 @@ enamldef TrialLogManifest(TableStoreManifest): manifest:
                 label << '{} columns'.format(contribution.label)
                 values ::
                     table.columns = [v.name for v in values]
-                    table.column_info = {v.name: v for v in values}
+                    column_info = {}
+                    for v in values:
+                        column_info[v.name] = {
+                            'label': v.compact_label,
+                            'to_string': '{:.2f}'.format if 'f' in v.dtype else str,
+                        }
+                    table.column_info = column_info
 
         Extension:
             id = manifest.id + '.trial_log_workspace'
@@ -53,19 +59,18 @@ enamldef TrialLogManifest(TableStoreManifest): manifest:
                     ListDictTable: table:
                         data << manifest.contribution._data[:]
                         get_cell_color => (row, column):
-                            return manifest.contribution.get_cell_color(row, column)
-
-                        #    if 'trial_type' in data:
-                        #        tt = data.at[row, 'trial_type']
-                        #        if tt == 'go_remind':
-                        #            return 'forestgreen'
-                        #        elif tt == 'go':
-                        #            return 'lightgreen'
-                        #        elif tt == 'go_forced':
-                        #            return 'green'
-                        #        elif tt == 'nogo':
-                        #            return 'lightpink'
-                        #        elif tt == 'nogo_repeat':
-                        #            return 'pink'
-                        #    return 'white'
+                            try:
+                                tt = data[row]['trial_type']
+                                if tt == 'go_remind':
+                                    return 'forestgreen'
+                                elif tt == 'go':
+                                    return 'lightgreen'
+                                elif tt == 'go_forced':
+                                    return 'green'
+                                elif tt == 'nogo':
+                                    return 'lightpink'
+                                elif tt == 'nogo_repeat':
+                                    return 'pink'
+                            except KeyError:
+                                return 'white'
                         autoscroll = True

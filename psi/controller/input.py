@@ -621,8 +621,8 @@ def edges(initial_state, min_samples, fs, target):
                 initial_state = samples[tlb]
                 ts = t_prior + tlb
                 events.append((edge, ts/fs))
-        events.append(('processed', t_prior/fs))
-        target(events)
+        if events:
+            target(events)
         t_prior += new_samples.shape[-1]
         prior_samples = samples[..., -min_samples:]
 

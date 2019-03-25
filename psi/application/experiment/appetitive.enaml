@@ -10,7 +10,6 @@ from psi.controller.api import (ContinuousOutput, EpochOutput,
                                 ExperimentAction)
 from psi.data.plots import (EventPlot, TimeContainer, 
                             ChannelPlot, ViewBox, TimeseriesPlot)
-from psi.data.sinks.api import BColzStore, EventLog, TrialLog
 from psi.token.primitives import (BandlimitedNoise, Cos2Envelope, SAMEnvelope,
                                   Silence)
 from .behavior_base import BehaviorManifest
@@ -20,22 +19,6 @@ enamldef ControllerManifest(BehaviorManifest): manifest:
 
     id = 'psi.controller'
     window_title = 'Appetitive Go-Nogo'
-
-    Extension:
-        id = 'data'
-        point = 'psi.data.sinks'
-
-        BColzStore:
-            continuous_inputs = ['nose_poke_analog', 'reward_contact_analog']
-
-        EventLog:
-            show_widget = True
-
-        TrialLog:
-            show_widget = True
-
-        #SDTAnalysis:
-        #    pass
 
     Extension:
         id = 'tokens'
@@ -68,11 +51,6 @@ enamldef ControllerManifest(BehaviorManifest): manifest:
         point = 'psi.controller.actions'
         rank = 100
 
-        # Experiment-level actions
-        ExperimentAction:
-            event = 'experiment_prepare'
-            command = 'background.prepare'
-
         ExperimentAction:
             event = 'experiment_prepare'
             command = 'background.start'
@@ -102,10 +80,6 @@ enamldef ControllerManifest(BehaviorManifest): manifest:
             weight = 0
 
         ExperimentAction:
-            event = 'trial_end'
-            command = 'psi.controller.update_trial_log'
-
-        ExperimentAction:
             event = 'response_end'
             command = 'target.clear'
             kwargs = {'delay': 0.25}
@@ -119,9 +93,9 @@ enamldef ControllerManifest(BehaviorManifest): manifest:
             event = 'to_end'
             command = 'room_light_toggle.on'
 
-        ExperimentAction:
-            event = 'deliver_reward'
-            command = 'food_dispenser.dispense_pellet'
+        #ExperimentAction:
+        #    event = 'deliver_reward'
+        #    command = 'food_dispenser.dispense_pellet'
 
     Extension:
         id = 'io'

@@ -51,7 +51,7 @@ class QEditableTableModel(QAbstractTableModel):
         elif role in (Qt.DisplayRole, Qt.EditRole):
             r = index.row()
             c = index.column()
-            return self.interface.get_data(r, c)
+            return self.interface._get_data(r, c)
 
     def setData(self, index, value, role):
         with self.interface.live_edit:
@@ -361,6 +361,12 @@ class EditableTable(RawWidget):
     def insert_row(self, row=None):
         raise NotImplementedError
 
+    def _get_data(self, row_index, column_index):
+        value = self.get_data(row_index, column_index)
+        column = self.get_columns()[column_index]
+        formatter = self.column_info.get(column, {}).get('to_string', str)
+        return formatter(value)
+
     def _set_data(self, *args):
         self.set_data(*args)
         self.updated = True
@@ -453,7 +459,7 @@ class DataFrameTable(EditableTable):
     def get_data(self, row_index, column_index):
         row_label = self.data.index[row_index]
         column_label = self.get_columns()[column_index]
-        return str(self.data.at[row_label, column_label])
+        return self.data.at[row_label, column_label]
 
     def set_data(self, row_index, column_index, value):
         value = self.coerce_to_type(column_index, value)

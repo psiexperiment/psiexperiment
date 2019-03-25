@@ -432,10 +432,11 @@ class ControllerPlugin(Plugin):
 
     def _invoke_actions(self, event_name, timestamp=None, kw=None):
         log.debug('Triggering event {}'.format(event_name))
+        log.debug('%r %r', timestamp, kw)
 
         if timestamp is not None:
-            kw = {'event': event_name, 'timestamp': timestamp}
-            self.invoke_actions('experiment_event', kw=kw)
+            data = {'event': event_name, 'timestamp': timestamp}
+            self.invoke_actions('experiment_event', kw={'data': data})
 
         # If this is a stateful event, update the associated state.
         if event_name.endswith('_start'):

@@ -41,7 +41,7 @@ enamldef EventLogManifest(TableStoreManifest): manifest:
                         columns = ['event', 'timestamp']
                         column_info = {
                             'event': {'label': 'Event'}, 
-                            'timestamp': {'label': 'Time'}
+                            'timestamp': {'label': 'Time', 'to_string': '{:.2f}'.format}
                         }
 
         Extension:

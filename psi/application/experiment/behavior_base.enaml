@@ -19,6 +19,8 @@ from psi.controller.api import (ControllerManifest, ControllerPlugin,
                                 ExperimentAction, ExperimentEvent,
                                 ExperimentState)
 
+from psi.data.sinks.api import BColzStore, EventLog, TrialLog
+
 
 ################################################################################
 # Supporting
@@ -108,6 +110,44 @@ def configure_state(event):
     controller.trial_state = TrialState.waiting_for_np_start
     controller.experiment_state = 'running'
     log.debug('Done configuring controller')
+
+
+def update_trial_log(event):
+    core = event.workbench.get_plugin('enaml.workbench.core')
+    core.invoke_command('trial_log.save', 
+                        {'data': event.parameters['result']})
+
+
+def get_status(trial, trial_type, experiment_state):
+    # Experiment not running
+    if experiment_state == 'paused':
+        return 'Experiment paused'
+    elif experiment_state == 'initialized':
+        return 'Waiting to start'
+    elif experiment_state == 'stopped':
+        return 'Experiment complete'
+
+    # Experiment running
+    if '_' in trial_type:
+        general, specific = trial_type.split('_')
+        label = '{} ({})'.format(general, specific)
+    else:
+        label = trial_type
+    return 'Trial {}: {}'.format(trial, label)
+
+
+def get_state(trial_state):
+    if trial_state is None:
+        return ''
+    else:
+        return trial_state.value.capitalize()
+
+
+def process_et(event):
+    plugin = event.workbench.get_plugin('psi.controller')
+    name = event.parameters['name']
+    for edge, ts in event.parameters['data']:
+        plugin.et_callback(name, edge, ts)
 
 
 ################################################################################
@@ -229,10 +269,9 @@ class BehaviorPlugin(ControllerPlugin):
 
         self.context.set_values(self.trial_info)
         result = self.context.get_values()
-        # A bit of a hack here. What to do?
-        self.core.invoke_command('trial_log.save', result)
+
         self.prior_score = score
-        self.invoke_actions('trial_end', ts)
+        self.invoke_actions('trial_end', ts, kw={'result': result})
 
         if score == TrialScore.false_alarm:
             self.trial_state = TrialState.waiting_for_to
@@ -492,38 +531,6 @@ class BehaviorPlugin(ControllerPlugin):
 ################################################################################
 # Manifest
 ################################################################################
-def get_status(trial, trial_type, experiment_state):
-    # Experiment not running
-    if experiment_state == 'paused':
-        return 'Experiment paused'
-    elif experiment_state == 'initialized':
-        return 'Waiting to start'
-    elif experiment_state == 'stopped':
-        return 'Experiment complete'
-
-    # Experiment running
-    if '_' in trial_type:
-        general, specific = trial_type.split('_')
-        label = '{} ({})'.format(general, specific)
-    else:
-        label = trial_type
-    return 'Trial {}: {}'.format(trial, label)
-
-
-def get_state(trial_state):
-    if trial_state is None:
-        return ''
-    else:
-        return trial_state.value.capitalize()
-
-
-def process_et(event):
-    plugin = event.workbench.get_plugin('psi.controller')
-    name = event.parameters['name']
-    for edge, ts in event.parameters['data']:
-        plugin.et_callback(name, edge, ts)
-
-
 enamldef BehaviorManifest(ControllerManifest): manifest:
     '''
     Defines the core settings that any behavior experiment may require. Does
@@ -730,6 +737,9 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
         Command:
             id = 'psi.controller.configure_state'
             handler = configure_state
+        Command:
+            id = 'psi.controller.update_trial_log'
+            handler = update_trial_log
 
     Extension:
         id = 'appetitive_events'
@@ -778,11 +788,6 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
 
         ExperimentAction:
             event = 'experiment_start'
-            command = 'psi.controller.invoke_actions'
-            kwargs = {'event_name': 'trial_start'}
-
-        ExperimentAction:
-            event = 'experiment_start'
             command = 'psi.controller.set_pause_ok'
             kwargs = {'value': True}
 
@@ -800,3 +805,23 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
             event = 'nose_poke_digital_acquired'
             command = 'psi.controller.process_et'
             kwargs = {'name': 'nose_poke'}
+
+        ExperimentAction:
+            event = 'trial_end'
+            command = 'psi.controller.update_trial_log'
+
+    Extension:
+        id = manifest.id + '.data'
+        point = 'psi.data.sinks'
+
+        BColzStore:
+            continuous_inputs = ['nose_poke_analog', 'reward_contact_analog']
+
+        EventLog:
+            pass
+
+        TrialLog:
+            show_widget = True
+
+        #SDTAnalysis:
+        #    pass
