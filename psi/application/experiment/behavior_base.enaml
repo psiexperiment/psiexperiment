@@ -19,7 +19,7 @@ from psi.controller.api import (ControllerManifest, ControllerPlugin,
                                 ExperimentAction, ExperimentEvent,
                                 ExperimentState)
 
-from psi.data.sinks.api import BColzStore, EventLog, TrialLog
+from psi.data.sinks.api import BColzStore, EventLog, SDTAnalysis, TrialLog
 
 
 ################################################################################
@@ -115,6 +115,8 @@ def configure_state(event):
 def update_trial_log(event):
     core = event.workbench.get_plugin('enaml.workbench.core')
     core.invoke_command('trial_log.save', 
+                        {'data': event.parameters['result']})
+    core.invoke_command('sdt_analysis.update', 
                         {'data': event.parameters['result']})
 
 
@@ -823,5 +825,5 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
         TrialLog:
             show_widget = True
 
-        #SDTAnalysis:
-        #    pass
+        SDTAnalysis:
+            pass

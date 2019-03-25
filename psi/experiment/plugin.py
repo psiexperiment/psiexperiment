@@ -51,6 +51,7 @@ class ExperimentPlugin(Plugin):
         log.debug('Refreshing workspace')
         ui = self.workbench.get_plugin('enaml.workbench.ui')
         point = self.workbench.get_extension_point(WORKSPACE_POINT)
+        items_added = []
         for extension in point.extensions:
             if extension.factory is not None:
                 extension.factory(ui.workbench, ui.workspace)
@@ -58,7 +59,8 @@ class ExperimentPlugin(Plugin):
                 item.set_parent(ui.workspace.dock_area)
                 op = InsertItem(item=item.name)
                 ui.workspace.dock_area.update_layout(op)
-                log.debug('Added %s to dock area', item.name)
+                items_added.append(item.name)
+        log.debug('Added dock area items: %s', ', '.join(items_added))
 
     def _refresh_toolbars(self, event=None):
         log.debug('Refreshing toolbars')
@@ -77,12 +79,14 @@ class ExperimentPlugin(Plugin):
         preferences = []
         names = []
         point = self.workbench.get_extension_point(PREFERENCES_POINT)
+        preferences_added = []
         for extension in point.extensions:
             for preference in extension.get_children(Preferences):
                 if preference.name in names:
                     raise ValueError('Cannot reuse preference name')
                 preferences.append(preference)
-                log.debug('Registering preference {}'.format(preference.name))
+                preferences_added.append(preference.name)
+        log.debug('Registered preferences: %s', ', '.join(preferences_added))
         self._preferences = preferences
 
     def _bind_observers(self):

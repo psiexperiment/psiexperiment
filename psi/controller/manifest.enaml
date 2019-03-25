@@ -15,9 +15,7 @@ from .experiment_action import (ExperimentState, ExperimentEvent,
                                 ExperimentAction)
 
 
-def log_actions(event):
-    plugin = event.workbench.get_plugin('psi.controller')
-
+def accumulate_actions(plugin):
     accumulator = {}
     for action in plugin._actions:
         a = accumulator.setdefault(action.event, [])
@@ -29,11 +27,10 @@ def log_actions(event):
         lines.append(event)
         for action in actions:
             lines.append('\t' + action)
-    log.info('\n'.join(lines))
+    return '\n'.join(lines)
 
 
-def log_io(event):
-    plugin = event.workbench.get_plugin('psi.controller')
+def accumulate_io(plugin):
     accumulator = ['Configured IO']
     for channel in plugin._channels.values():
         accumulator.append(channel.name)
@@ -41,6 +38,17 @@ def log_io(event):
         accumulator.append(output.name)
     for input in plugin._inputs.values():
         accumulator.append(input.name)
+    return('\n\t'.join(accumulator))
+
+
+def log_info(event):
+    plugin = event.workbench.get_plugin('psi.controller')
+    log.info('\n' + accumulate_actions(plugin))
+    log.info('\n' + accumulate_io(plugin))
+
+
+def log_io(event):
+    plugin = event.workbench.get_plugin('psi.controller')
     log.info('\n\t'.join(accumulator))
 
 
@@ -144,11 +152,8 @@ enamldef ControllerManifest(PluginManifest): manifest:
             id = 'psi.controller.reset_engines'
             handler = rpc('psi.controller', 'reset_engines')
         Command:
-            id = 'psi.controller.log_actions'
-            handler = log_actions
-        Command:
-            id = 'psi.controller.log_io'
-            handler = log_io
+            id = 'psi.controller.log_info'
+            handler = log_info
         Command:
             id = 'psi.controller.invoke_actions'
             handler = invoke_actions
@@ -252,7 +257,4 @@ enamldef ControllerManifest(PluginManifest): manifest:
             command = 'psi.controller.stop_engines'
         ExperimentAction:
             event = 'plugins_started'
-            command = 'psi.controller.log_actions'
-        ExperimentAction:
-            event = 'plugins_started'
-            command = 'psi.controller.log_io'
+            command = 'psi.controller.log_info'
