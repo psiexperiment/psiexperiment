@@ -80,11 +80,11 @@ enamldef PelletDispenserManifest(PSIManifest): manifest:
         point = 'enaml.workbench.core.commands'
 
         Command:
-            id = manifest.id + '.dispense_pellet'
+            id = manifest.contribution.name + '.dispense_pellet'
             handler = partial(dispense_pellet, manifest.contribution)
 
         Command:
-            id = manifest.id + '.prepare_output'
+            id = manifest.contribution.name + '.prepare_output'
             handler = partial(prepare_output, manifest.contribution)
 
     Extension:
@@ -93,7 +93,7 @@ enamldef PelletDispenserManifest(PSIManifest): manifest:
 
         ExperimentAction:
             event = 'experiment_prepare'
-            command = manifest.id + '.prepare_output'
+            command = manifest.contribution.name + '.prepare_output'
 
     Extension:
         id = manifest.id + '.toolbar'

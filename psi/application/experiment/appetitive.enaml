@@ -93,9 +93,9 @@ enamldef ControllerManifest(BehaviorManifest): manifest:
             event = 'to_end'
             command = 'room_light_toggle.on'
 
-        #ExperimentAction:
-        #    event = 'deliver_reward'
-        #    command = 'food_dispenser.dispense_pellet'
+        ExperimentAction:
+            event = 'deliver_reward'
+            command = 'food_dispenser.dispense_pellet'
 
     Extension:
         id = 'io'
