@@ -1,6 +1,8 @@
 from atom.api import Atom, Bool, Enum, List, Unicode, Typed
 
-
+################################################################################
+# Core classes
+################################################################################
 class PluginDescription(Atom):
 
     name = Unicode()
@@ -35,6 +37,13 @@ class ExperimentDescription(Atom):
     paradigm = Typed(ParadigmDescription)
 
 
+def get_experiments(type):
+    return [e for e in experiments.values() if e.type == type]
+
+
+################################################################################
+# CFTS stuff
+################################################################################
 abr_controller = PluginDescription(
     name='controller',
     title='Controller',
@@ -164,6 +173,9 @@ dpoae_io_experiment = ParadigmDescription(
 )
 
 
+################################################################################
+# Calibration
+################################################################################
 speaker_calibration_experiment = ParadigmDescription(
     name='speaker_calibration',
     title='Speaker calibration',
@@ -174,50 +186,12 @@ speaker_calibration_experiment = ParadigmDescription(
 )
 
 
-noise_exposure_controller = PluginDescription(
-    name='noise_exposure_controller',
-    title='Noise exposure controller',
-    required=True,
-    selected=True,
-    manifest='psi.application.experiment.noise_exposure.ControllerManifest',
-)
-
-
-noise_exposure_experiment = ParadigmDescription(
-    name='noise_exposure',
-    title='Noise exposure',
-    type='cohort',
-    plugins=[
-        noise_exposure_controller,
-    ],
-)
-
-
-appetitive_gonogo_controller = PluginDescription(
-    name='appetitive_gonogo_controller',
-    title='Appetitive GO-NOGO controller',
-    required=True,
-    selected=True,
-    manifest='psi.application.experiment.appetitive.ControllerManifest',
-)
-
-
-appetitive_experiment = ParadigmDescription(
-    name='appetitive_gonogo_food',
-    title='Appetitive GO-NOGO food',
-    type='animal',
-    plugins=[
-        appetitive_gonogo_controller,
-    ],
-)
-
-
 pistonphone_controller = PluginDescription(
     name='pistonphone_controller',
     title='Pistonphone controller',
     required=True,
     selected=True,
-    manifest='psi.application.experiment.pistonphone_calibration.ControllerManifest',
+    manifest='psi.application.experiment.pistonphone_calibration.PistonphoneCalibrationManifest',
 )
 
 
@@ -269,6 +243,61 @@ pt_calibration_golay = ParadigmDescription(
 )
 
 
+################################################################################
+# Noise exposure
+################################################################################
+noise_exposure_controller = PluginDescription(
+    name='noise_exposure_controller',
+    title='Noise exposure controller',
+    required=True,
+    selected=True,
+    manifest='psi.application.experiment.noise_exposure.ControllerManifest',
+)
+
+
+noise_exposure_experiment = ParadigmDescription(
+    name='noise_exposure',
+    title='Noise exposure',
+    type='cohort',
+    plugins=[
+        noise_exposure_controller,
+    ],
+)
+
+
+################################################################################
+# Behavior
+################################################################################
+appetitive_gonogo_controller = PluginDescription(
+    name='appetitive_gonogo_controller',
+    title='Appetitive GO-NOGO controller',
+    required=True,
+    selected=True,
+    manifest='psi.application.experiment.appetitive.ControllerManifest',
+)
+
+
+appetitive_experiment = ParadigmDescription(
+    name='appetitive_gonogo_food',
+    title='Appetitive GO-NOGO food',
+    type='animal',
+    plugins=[
+        appetitive_gonogo_controller,
+    ],
+)
+
+
+pellet_dispenser_mixin = PluginDescription(
+    name='pellet_dispenser_mixin',
+    title='Pellet dispenser',
+    required=False,
+    selected=True,
+    manifest='psi.application.experiment.behavior_base.PelletDispenserMixinManifest',
+)
+
+################################################################################
+# Wrapup
+################################################################################
 experiments = {
     'abr': abr_experiment,
     'dpoae_time': dpoae_time_experiment,
@@ -280,7 +309,3 @@ experiments = {
     'pt_calibration_golay': pt_calibration_golay,
     'pt_calibration_chirp': pt_calibration_chirp,
 }
-
-
-def get_experiments(type):
-    return [e for e in experiments.values() if e.type == type]

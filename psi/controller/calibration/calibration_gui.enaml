@@ -10,8 +10,9 @@ from enaml.widgets.api import (Action, Container, Field, FileDialogEx, Form,
                                PushButton, VGroup)
 
 from psi import get_config
-from psi.controller.calibration import (EPLCalibration, FlatCalibration,
-                                        GolayCalibration, UnityCalibration)
+from psi.controller.calibration import (EPLCalibration, CochlearCalibration,
+                                        FlatCalibration, GolayCalibration,
+                                        UnityCalibration)
 from psi.controller.channel import HardwareAIChannel
 
 from psi.controller.calibration import util
@@ -57,6 +58,25 @@ template CalibrationTemplate(calibration, MemberType: GolayCalibration):
                         setattr(calibration, k, v)
 
 
+template CalibrationTemplate(calibration, MemberType: CochlearCalibration):
+
+    HGroup:
+        padding = 0
+        align_widths = False
+
+        Label:
+            text << str(calibration.source.name if calibration.source else 'No calibration loaded')
+
+        PushButton:
+            text = 'Change'
+            clicked ::
+                cal_path = str(get_config('CAL_ROOT'))
+                path = FileDialogEx.get_open_file_name(current_path=cal_path)
+                if path:
+                    for k, v in calibration.load_cochlear(path).items():
+                        setattr(calibration, k, v)
+
+
 template CalibrationTemplate(calibration, MemberType: EPLCalibration):
 
     HGroup:
@@ -84,6 +104,7 @@ name_map = {
     FlatCalibration: 'fixed sensitivity',
     GolayCalibration: 'Golay calibration',
     EPLCalibration: 'EPL calibration',
+    CochlearCalibration: 'Golay calibration (old Cochlear format)',
 }
 
 
@@ -121,7 +142,7 @@ enamldef Main(MainWindow): window:
 
     attr io_file
     attr channels
-    attr selected_channel
+    attr selected_channel << channels[0]
 
     Container:
 
@@ -142,7 +163,7 @@ enamldef Main(MainWindow): window:
                     text = 'Calibration type'
 
                 ObjectCombo: cal_type:
-                    items = [UnityCalibration, FlatCalibration, GolayCalibration, EPLCalibration]
+                    items << list(name_map.keys())
                     selected << type(selected_channel.calibration)
                     to_string = name_map.get
                     selected ::

@@ -7,8 +7,8 @@ from enaml.widgets.api import (Window, ObjectCombo, Label, Field, Container,
                                CheckBox)
 
 from psi import get_config
-from psi.application import load_manifest_from_file
 from psi.controller.api import Channel
+from psi.core.enaml.api import load_manifest_from_file
 from psi.controller.calibration.util import load_calibration
 
 

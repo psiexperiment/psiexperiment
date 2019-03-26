@@ -315,7 +315,7 @@ class EPLCalibration(InterpCalibration):
         freq = calibration['Freq(Hz)']
         spl = calibration['Mag(dB)']
         return {
-            'freq': freq,
+            'frequency': freq,
             'spl': spl,
             'source': filename,
         }
@@ -325,6 +325,27 @@ class EPLCalibration(InterpCalibration):
         data = cls.load_epl(filename)
         data.update(kwargs)
         return cls.from_spl(**data)
+
+
+class CochlearCalibration(InterpCalibration):
+
+    @classmethod
+    def load_cochlear(cls, filename):
+        import tables
+        with tables.open_file(filename, 'r') as fh:
+            mic_freq = np.asarray(fh.get_node('/frequency').read())
+            mic_sens = np.asarray(fh.get_node('/exp_mic_sens').read())
+            return {
+                'frequency': mic_freq,
+                'sensitivity': mic_sens,
+                'source': Path(filename)
+            }
+
+    @classmethod
+    def from_cochlear(cls, filename, **kwargs):
+        data = cls.load_cochlear(filename)
+        data.update(kwargs)
+        return cls(**kwargs)
 
 
 class GolayCalibration(InterpCalibration):
