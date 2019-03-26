@@ -17,7 +17,7 @@ from .output import (Synchronized, ContinuousOutput, EpochOutput,
 from .experiment_action import (ExperimentAction, ExperimentEvent,
                                 ExperimentState)
 
-from .queue import FIFOSignalQueue
+from .queue import FIFOSignalQueue, InterleavedFIFOSignalQueue
 
 
 import enaml

@@ -143,6 +143,9 @@ enamldef ControllerManifest(PluginManifest): manifest:
             id = 'psi.controller.configure_engines'
             handler = rpc('psi.controller', 'configure_engines')
         Command:
+            id = 'psi.controller.finalize_io'
+            handler = rpc('psi.controller', 'finalize_io')
+        Command:
             id = 'psi.controller.start_engines'
             handler = rpc('psi.controller', 'start_engines')
         Command:
@@ -246,6 +249,9 @@ enamldef ControllerManifest(PluginManifest): manifest:
         ExperimentEvent:
             name = 'experiment_event'
 
+        ExperimentAction:
+            event = 'context_initialized'
+            command = 'psi.controller.finalize_io'
         ExperimentAction:
             event = 'experiment_prepare'
             command = 'psi.controller.configure_engines'

@@ -60,7 +60,7 @@ class Input(PSIContribution):
     force_active = d_(Bool(False)).tag(metadata=True)
 
     source_name = d_(Unicode())
-    source = Typed(Declarative).tag(metadata=True)
+    source = d_(Typed(Declarative).tag(metadata=True), writable=False)
     channel = Property()
     engine = Property()
 

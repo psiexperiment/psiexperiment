@@ -838,7 +838,10 @@ class NIDAQEngine(Engine):
         # NIDAQmx but are unused.
         task._cb(task, None, 1, None)
 
-        if all(self._task_done.values()):
+        # Only check to see if hardware-timed tasks are complete.
+        # Software-timed tasks must be explicitly canceled by the user.
+        done = [v for t, v in self._task_done.items() if t.startswith('hw')]
+        if all(done):
             for cb in self._callbacks.get('done', []):
                 cb()
 

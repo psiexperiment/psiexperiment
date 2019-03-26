@@ -3,15 +3,14 @@ log = logging.getLogger(__name__)
 
 import numpy as np
 
+from enaml.core.api import Conditional
 from enaml.widgets.api import DockItem, Label, Form
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 
 from psi.context.api import ContextGroup, EnumParameter, Parameter, Result
-from psi.controller.api import ExperimentAction
-from psi.controller.base_manifest import (BaseManifest, get_hw_ai_choices)
-from psi.controller.calibration import FlatCalibration
-from psi.controller.input import Blocked
+from psi.controller.api import (Blocked, ControllerManifest, ExperimentAction,
+                                get_hw_ai_choices)
 from psi.controller.calibration import util
 from psi.data.plots import (TimeContainer, ChannelPlot, ViewBox, FFTContainer,
                             FFTChannelPlot)
@@ -24,32 +23,6 @@ from enaml.application import deferred_call
 import pyqtgraph as pg
 
 
-def configure_hardware(event):
-    '''
-    Set the HW AO calibration to attenuation
-    '''
-    context = event.workbench.get_plugin('psi.context')
-    input_channel = context.get_value('input_channel')
-    duration = context.get_value('sample_duration')
-    input_gain = context.get_value('input_gain')
-
-    # Link up the desired inputs and outputs for the calibration
-    controller = event.workbench.get_plugin('psi.controller')
-    controller.connect_input('hw_ai', input_channel)
-
-    # Since there's no output, disable the start trigger on the input channel.
-    # TODO: Perhaps make the engine smarter in the future to handle these sort
-    # of edge-cases?
-    input_channel = controller.get_channel(input_channel)
-    input_channel.start_trigger = ''
-    input_channel.samples = round(duration*input_channel.fs)
-    input_channel.gain = input_gain
-
-    complete_event = '{}_end'.format(input_channel.engine.name)
-    complete_action = 'psi.controller.stop'
-    controller.register_action(complete_event, complete_action)
-
-
 def calculate_sens(event):
     data = event.workbench.get_plugin('psi.data')
     context = event.workbench.get_plugin('psi.context')
@@ -60,7 +33,7 @@ def calculate_sens(event):
     level = context.get_value('reference_level')
     pa = util.dbtopa(level)
 
-    source = data.find_source('hw_ai')
+    source = data.find_sink('hw_ai').get_source('hw_ai')
     waveform = source[:]
     fs = source.attrs['fs']
 
@@ -90,10 +63,10 @@ def calculate_sens(event):
         'mic sens peak (mV/Pa)': mic_sens_peak,
     }
 
-    dock_item.results = results
+    deferred_call(setattr, dock_item, 'results', results)
 
     core = event.workbench.get_plugin('enaml.workbench.core')
-    command = 'pistonphone_data.create_mapping'
+    command = 'pistonphone_data.save_mapping'
     parameters = {'name': 'microphone_sensitivity',
                   'mapping': results}
     core.invoke_command(command, parameters)
@@ -123,13 +96,14 @@ def calculate_sens(event):
     deferred_call(plot_data)
 
 
-enamldef ControllerManifest(BaseManifest): manifest:
+enamldef PistonphoneCalibrationManifest(ControllerManifest): manifest:
 
     Extension:
         id = 'data'
         point = 'psi.data.sinks'
 
         BColzStore:
+            name = 'hw_ai'
             continuous_inputs = ['hw_ai']
 
         TextStore:
@@ -142,6 +116,18 @@ enamldef ControllerManifest(BaseManifest): manifest:
         Blocked: hw_ai:
             duration = 0.1
             name = 'hw_ai'
+            source_name = C.input_channel
+            source ::
+                # Since there's no output, disable the start trigger on the
+                # input channel.  TODO: Perhaps make the engine smarter in the
+                # future to handle these sort of edge-cases?
+                channel.start_trigger = ''
+                channel.samples = round(C.sample_duration * channel.fs)
+                channel.gain = C.input_gain
+                complete_event = '{}_end'.format(channel.engine.name)
+                complete_action = 'psi.controller.stop'
+                controller = workbench.get_plugin('psi.controller')
+                controller.register_action(complete_event, complete_action)
 
     Extension:
         id = 'context'
@@ -207,10 +193,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
         point = 'enaml.workbench.core.commands'
 
         Command:
-            id = 'psi.controller.configure_hardware'
-            handler = configure_hardware
-
-        Command:
             id = 'psi.controller.calculate_sens'
             handler = calculate_sens
 
@@ -218,10 +200,10 @@ enamldef ControllerManifest(BaseManifest): manifest:
         id = 'actions'
         point = 'psi.controller.actions'
 
-        ExperimentAction: foo:
-            event = 'experiment_prepare'
-            command = 'psi.controller.configure_hardware'
-            weight = 10
+        ExperimentAction:
+            event = 'experiment_initialize'
+            command = 'psi.context.initialize'
+            kwargs = {'selector': None}
 
         ExperimentAction:
             event = 'experiment_end'
@@ -234,31 +216,33 @@ enamldef ControllerManifest(BaseManifest): manifest:
             name = 'result'
             title = 'Result'
             attr results = {}
-            Form:
-                Label:
-                    text = 'Peak frequency (Hz)'
-                Label:
-                    text << str(results.get('peak frequency (Hz)', ''))
+            Conditional:
+                condition << bool(results)
+                Form:
+                    Label:
+                        text = 'Peak frequency (Hz)'
+                    Label:
+                        text << '{:.2f}'.format(results.get('peak frequency (Hz)', ''))
 
-                Label:
-                    text = 'Overall RMS (V)'
-                Label:
-                    text << str(results.get('rms overall (V)', ''))
+                    Label:
+                        text = 'Overall RMS (V)'
+                    Label:
+                        text << '{:.2f}'.format(results.get('rms overall (V)', ''))
 
-                Label:
-                    text = 'RMS at nominal frequency (V)'
-                Label:
-                    text << str(results.get('rms nominal (V)', ''))
+                    Label:
+                        text = 'RMS at nominal frequency (V)'
+                    Label:
+                        text << '{:.2f}'.format(results.get('rms nominal (V)', ''))
 
-                Label:
-                    text = 'RMS at peak frequency (V)'
-                Label:
-                    text << str(results.get('rms peak (V)', ''))
+                    Label:
+                        text = 'RMS at peak frequency (V)'
+                    Label:
+                        text << '{:.2f}'.format(results.get('rms peak (V)', ''))
 
-                Label:
-                    text = 'Mic. sens. (mV/Pa)'
-                Label:
-                    text << str(results.get('mic sens peak (mV/Pa)', ''))
+                    Label:
+                        text = 'Mic. sens. (mV/Pa)'
+                    Label:
+                        text << '{:.2f}'.format(results.get('mic sens peak (mV/Pa)', ''))
 
     Extension:
         id = 'plots'

@@ -227,6 +227,13 @@ class ControllerPlugin(Plugin):
             e.load_manifest(self.workbench)
 
         for o in self._outputs.values():
+            o.load_manifest(self.workbench)
+
+        for i in self._inputs.values():
+            i.load_manifest(self.workbench)
+
+    def _connect_outputs(self):
+        for o in self._outputs.values():
             # First, make sure that the output is connected to a target. Check
             # to see if the target is named. If not, then check to see if it
             # has a parent one can use.
@@ -240,8 +247,8 @@ class ControllerPlugin(Plugin):
                 o.parent.add_output(o)
             elif o.target is None:
                 log.warn('Unconnected output %s', o.name)
-            o.load_manifest(self.workbench)
 
+    def _connect_inputs(self):
         for i in self._inputs.values():
             # First, make sure the input is connected to a source
             if i.source is None and i.source_name:
@@ -250,7 +257,6 @@ class ControllerPlugin(Plugin):
                 i.parent.add_input(i)
             elif i.source is None:
                 log.warn('Unconnected input %s', i.name)
-            i.load_manifest(self.workbench)
 
     def connect_output(self, output_name, target_name):
         # Link up outputs with channels if needed.  TODO: Can another output be
@@ -326,6 +332,10 @@ class ControllerPlugin(Plugin):
         action = ExperimentAction(event=event, command=command, kwargs=kwargs)
         self._registered_actions.append(action)
 
+    def finalize_io(self):
+        self._connect_outputs()
+        self._connect_inputs()
+
     def configure_engines(self):
         log.debug('Configuring engines')
         for engine in self._engines.values():
@@ -395,6 +405,7 @@ class ControllerPlugin(Plugin):
 
     def invoke_actions(self, event_name, timestamp=None, delayed=False,
                        cancel_existing=True, kw=None):
+        log.debug('Invoking actions for %s', event_name)
         if cancel_existing:
             deferred_call(self.stop_timer, event_name)
         if delayed:
@@ -432,7 +443,6 @@ class ControllerPlugin(Plugin):
 
     def _invoke_actions(self, event_name, timestamp=None, kw=None):
         log.debug('Triggering event {}'.format(event_name))
-        log.debug('%r %r', timestamp, kw)
 
         if timestamp is not None:
             data = {'event': event_name, 'timestamp': timestamp}

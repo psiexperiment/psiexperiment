@@ -46,7 +46,6 @@ class PSIWorkbench(Workbench):
 
             # Required to bootstrap plugin loading
             self.get_plugin('psi.controller')
-
             context = self.get_plugin('psi.context')
             manifest = self.get_manifest('psi.controller')
             manifest.C = context.lookup

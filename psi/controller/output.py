@@ -39,7 +39,7 @@ class Output(PSIContribution):
     label = d_(Unicode()).tag(metadata=True)
 
     target_name = d_(Unicode())
-    target = Typed(Declarative).tag(metadata=True)
+    target = d_(Typed(Declarative).tag(metadata=True), writable=False)
     channel = Property()
     engine = Property()
 
@@ -56,13 +56,18 @@ class Output(PSIContribution):
     configurable = d_(Bool(True))
 
     def _get_engine(self):
-        return self.channel.engine
+        if self.channel is None:
+            return None
+        else:
+            return self.channel.engine
 
     def _get_channel(self):
         from .channel import Channel
         target = self.target
         while True:
-            if isinstance(target, Channel):
+            if target is None:
+                return None
+            elif isinstance(target, Channel):
                 return target
             else:
                 target = target.target
@@ -195,18 +200,12 @@ class QueuedEpochOutput(BufferedOutput):
     queue = d_(Typed(AbstractSignalQueue))
     auto_decrement = d_(Bool(False))
     complete_cb = Typed(object)
-    queue = d_(Property())
 
-    def _get_queue(self):
-        return self.source
-
-    def _set_queue(self, value):
-        self.source = value
-
-    def _observe_target(self, event):
+    def _observe_queue(self, event):
+        self.source = self.queue
         self._update_queue()
 
-    def _observe_source(self, event):
+    def _observe_target(self, event):
         self._update_queue()
 
     def _update_queue(self):
@@ -260,7 +259,7 @@ class QueuedEpochOutput(BufferedOutput):
 
 class SelectorQueuedEpochOutput(QueuedEpochOutput):
 
-    selector_name = d_(Unicode())
+    selector_name = d_(Unicode('default'))
 
 
 class ContinuousOutput(BufferedOutput):
@@ -290,7 +289,7 @@ class Toggle(DigitalOutput):
     state = Bool(False)
 
     def _observe_state(self, event):
-        if self.engine.configured:
+        if self.engine is not None and self.engine.configured:
             self.engine.set_sw_do(self.channel.name, event['value'])
 
     def set_high(self):

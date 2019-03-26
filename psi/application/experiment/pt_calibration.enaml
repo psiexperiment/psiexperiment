@@ -1,92 +1,42 @@
 import logging
 log = logging.getLogger(__name__)
 
-import os.path
-from atom.api import Typed
 import numpy as np
 from scipy import signal
 from palettable.colorbrewer import qualitative
 import itertools
-import pyqtgraph as pg
 import pandas as pd
 
 from enaml.application import deferred_call
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 
-from psi.context.api import ContextGroup, Parameter, EnumParameter
-from psi.context.context_item import OrderedContextMeta
-from psi.context.selector import SequenceSelector
+from psi.context.api import (ContextGroup, EnumParameter, OrderedContextMeta,
+                             Parameter, SequenceSelector)
+
 from psi.controller.api import ExperimentAction
 from psi.controller.calibration.util import (psd, psd_freq, db, dbi,
                                              golay_pair, summarize_golay,
                                              golay_tf)
 
-from psi.controller.api import (SelectorQueuedEpochOutput, QueuedEpochOutput,
-                                ExtractEpochs, Input, Blocked, Accumulate,
-                                IIRFilter, Decimate, FIFOSignalQueue,
-                                BaseManifest, get_hw_ao_choices,
+from psi.controller.api import (ControllerManifest, SelectorQueuedEpochOutput,
+                                QueuedEpochOutput, ExtractEpochs, Input,
+                                FIFOSignalQueue, get_hw_ao_choices,
                                 get_hw_ai_choices)
 
-from psi.controller.base_manifest import (BaseManifest, get_hw_ao_choices,
-                                          get_hw_ai_choices)
 from psi.controller.calibration.tone import tone_sens
 
 from psi.token.primitives import Chirp
 
-from psi.data.sinks.bcolz_store import BColzStore
-from psi.data.sinks.text_store import TextStore
+from psi.data.sinks.api import BColzStore, TextStore
 
-from psi.data.plots import (TimeContainer,
-                            ChannelPlot,
-                            GroupedEpochAveragePlot,
-                            ChannelPlot, ViewBox,
-                            FFTContainer,
-                            GroupedEpochFFTPlot)
+from psi.data.plots import (TimeContainer, ChannelPlot,
+                            GroupedEpochAveragePlot, ChannelPlot, ViewBox,
+                            FFTContainer, GroupedEpochFFTPlot)
 
 
 from psi.controller.calibration import FlatCalibration, InterpCalibration
 from psi.util import octave_space
-
-
-def configure_hardware(event):
-    '''
-    Set the HW AO calibration to attenuation
-    '''
-    context = event.workbench.get_plugin('psi.context')
-    controller = event.workbench.get_plugin('psi.controller')
-
-    # Link up the desired inputs and outputs for the calibration
-    values = context.get_values()
-    controller.connect_output('hw_ao', values['output_channel'])
-    controller.connect_input('pt_hw_ai', values['pt_channel'])
-    controller.connect_input('cal_hw_ai', values['cal_channel'])
-
-    # Set the input gains
-    pt_channel = controller.get_channel(values['pt_channel'])
-    pt_channel.gain = values['pt_input_gain']
-    cal_channel = controller.get_channel(values['cal_channel'])
-    cal_channel.gain = values['cal_input_gain']
-
-    # Set up the calibration. By setting fixed_gain to the attenuation, this
-    # will ensure that the waveform is scaled down to the desired attenuation.
-    output_channel = controller.get_channel(values['output_channel'])
-    output_channel.calibration = FlatCalibration.as_attenuation()
-
-
-def configure_hardware_chirp(event):
-    '''
-    Configure hardware for chirp
-
-    Generation of stimulus queue is handled automatically by the context/queue
-    system.
-    '''
-    configure_hardware(event)
-
-    controller = event.workbench.get_plugin('psi.controller')
-    output = controller.get_output('hw_ao')
-    controller.set_input_attr('pt_epoch', 'queue', output.queue)
-    controller.set_input_attr('cal_epoch', 'queue', output.queue)
 
 
 def configure_hardware_golay(event):
@@ -96,17 +46,8 @@ def configure_hardware_golay(event):
     Since ordering of stimuli for Golay is slightly more complicated, we
     manually generate the queue here.
     '''
-    configure_hardware(event)
-
     context = event.workbench.get_plugin('psi.context')
     controller = event.workbench.get_plugin('psi.controller')
-    values = context.get_values()
-
-    output_channel = controller.get_channel(values['output_channel'])
-    output = controller.get_output('hw_ao')
-    output.queue = FIFOSignalQueue()
-    controller.set_input_attr('pt_epoch', 'queue', output.queue)
-    controller.set_input_attr('cal_epoch', 'queue', output.queue)
 
     for setting in context.iter_settings('default', 1):
         n = setting['n_bits']
@@ -122,14 +63,14 @@ def configure_hardware_golay(event):
         delays = [iti] * n_trials
         delays[-1] = ab_delay
 
-        sf = output_channel.calibration.get_sf(None, gain)
+        sf = output.channel.calibration.get_sf(None, gain)
         a, b = golay_pair(n)
         a *= sf
         b *= sf
         output.queue.append(a, n_trials, delays, metadata=setting)
         output.queue.append(b, n_trials, delays, metadata=setting)
 
-    output.channel.expected_range = (-sf, sf)
+    output.channel.expected_range = (-sf*1.1, sf*1.1)
 
 
 def calculate_sens(event, grouping, filename, calc_sens):
@@ -137,8 +78,8 @@ def calculate_sens(event, grouping, filename, calc_sens):
     context = event.workbench.get_plugin('psi.context')
     data = event.workbench.get_plugin('psi.data')
 
-    pt_source = data.find_source('pt_epoch')
-    cal_source = data.find_source('cal_epoch')
+    pt_source = data.find_sink('mic_data').get_source('pt_epoch')
+    cal_source = data.find_sink('mic_data').get_source('cal_epoch')
     pt_groups = pt_source.get_epoch_groups(grouping)
     cal_groups = cal_source.get_epoch_groups(grouping)
 
@@ -160,7 +101,7 @@ def calculate_sens(event, grouping, filename, calc_sens):
 
     result = pd.concat(summaries, keys=keys, names=grouping)
     parameters = {'name': filename, 'dataframe': result}
-    core.invoke_command('calibration_data.create_table', parameters=parameters)
+    core.invoke_command('calibration_data.save_dataframe', parameters=parameters)
     return result
 
 
@@ -201,7 +142,6 @@ def calculate_group_sens_chirp(fs, pt_waveform, cal_waveform, color, context,
         w = signal.hamming(smoothing_window)
         w /= w.sum()
         sens = np.convolve(sens, w, mode='same')
-        #phase = np.convolve(phase, w, mode='same')
 
     pt_summary = {
         'frequency': freq,
@@ -276,7 +216,6 @@ def calculate_group_sens_golay(fs, pt_waveform, cal_waveform, color, context,
 
     def plot_data(data=data, pt_summary=pt_summary, cal_summary=cal_summary,
                   sens_summary=sens_summary, color=color, name=name):
-
         vb = data.find_viewbox('pt_fft')
         vb.plot(pt_summary['frequency'], db(pt_summary['psd']), color,
                 log_x=True)
@@ -312,7 +251,7 @@ def validate_sens(event, sens):
     try:
         freq_lb = context.get_value('hw_ao_chirp_start_frequency')
         freq_ub = context.get_value('hw_ao_chirp_end_frequency')
-    except KeyError:
+    except ValueError:
         freq_lb = 100
         freq_ub = 50000
 
@@ -336,14 +275,14 @@ def validate_sens(event, sens):
     core.invoke_command('calibration_data.create_table', parameters=parameters)
 
 
-enamldef ControllerManifest(BaseManifest): manifest:
+enamldef PTManifest(ControllerManifest): manifest:
 
     Extension:
         id = 'data'
         point = 'psi.data.sinks'
 
         BColzStore:
-            name = 'bcolz_store'
+            name = 'mic_data'
             continuous_inputs = ['pt_hw_ai', 'cal_hw_ai']
             epoch_inputs = ['pt_epoch', 'cal_epoch']
 
@@ -354,15 +293,20 @@ enamldef ControllerManifest(BaseManifest): manifest:
         id = 'io'
         point = 'psi.controller.io'
 
-        # TODO: Come up with a synchronized approach for this?
         Input:
             name = 'pt_hw_ai'
+            source_name = C.pt_channel
+            source ::
+                channel.gain = C.pt_input_gain
 
             ExtractEpochs:
                 name = 'pt_epoch'
 
         Input:
             name = 'cal_hw_ai'
+            source_name = C.cal_channel
+            source ::
+                channel.gain = C.cal_input_gain
 
             ExtractEpochs:
                 name = 'cal_epoch'
@@ -443,9 +387,9 @@ enamldef ControllerManifest(BaseManifest): manifest:
         point = 'psi.controller.actions'
 
         ExperimentAction:
-            event = 'experiment_prepare'
-            command = 'psi.controller.configure_hardware'
-            weight = 9
+            event = 'experiment_initialize'
+            command = 'psi.context.initialize'
+            kwargs = {'selector': 'default', 'cycles': 1}
 
         ExperimentAction:
             event = 'cal_epoch_queue_end'
@@ -477,7 +421,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 GroupedEpochAveragePlot:
                     label = 'PT epoch average plot'
                     source_name = 'pt_epoch'
-                    pen_color_cycle = ['k', 'r']
+                    pen_color_cycle = ['black', 'red']
                     groups << epoch_groups
 
             ViewBox:
@@ -488,34 +432,34 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 GroupedEpochAveragePlot:
                     label = 'Cal. epoch average plot'
                     source_name = 'cal_epoch'
-                    pen_color_cycle = ['k', 'r']
+                    pen_color_cycle = ['black', 'red']
                     groups << epoch_groups
 
-        FFTContainer:
-            name = 'epoch_container_psd'
-            label = 'Epoch average (PSD)'
-            freq_lb = 50.0
-            freq_ub = 50000
+        #FFTContainer:
+        #    name = 'epoch_container_psd'
+        #    label = 'Epoch average (PSD)'
+        #    freq_lb = 50.0
+        #    freq_ub = 50000
 
-            ViewBox:
-                label = 'Signal (dB re 1V)'
-                y_min = -160
-                y_max = -50
+        #    ViewBox:
+        #        label = 'Signal (dB re 1V)'
+        #        y_min = -160
+        #        y_max = -50
 
-                GroupedEpochFFTPlot:
-                    source_name = 'pt_epoch'
-                    pen_color_cycle = ['k', 'r']
-                    groups << epoch_groups
+        #        GroupedEpochFFTPlot:
+        #            source_name = 'pt_epoch'
+        #            pen_color_cycle = ['black', 'red']
+        #            groups << epoch_groups
 
-            ViewBox:
-                label = 'Signal (dB re 1V)'
-                y_min = -160
-                y_max = -50
+        #    ViewBox:
+        #        label = 'Signal (dB re 1V)'
+        #        y_min = -160
+        #        y_max = -50
 
-                GroupedEpochFFTPlot:
-                    source_name = 'cal_epoch'
-                    pen_color_cycle = ['k', 'r']
-                    groups << epoch_groups
+        #        GroupedEpochFFTPlot:
+        #            source_name = 'cal_epoch'
+        #            pen_color_cycle = ['black', 'red']
+        #            groups << epoch_groups
 
         FFTContainer:
             name = 'calibration_result'
@@ -540,7 +484,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 label = 'Probe tube sens (V/Pa)'
 
 
-enamldef ChirpControllerManifest(ControllerManifest): manifest:
+enamldef ChirpControllerManifest(PTManifest): manifest:
 
     Extension:
         id = 'signals'
@@ -556,22 +500,23 @@ enamldef ChirpControllerManifest(ControllerManifest): manifest:
         SelectorQueuedEpochOutput: hw_ao:
             name = 'hw_ao'
             auto_decrement = True
-            selector_name = 'default'
+            target_name = C.output_channel
+            target ::
+                controller = workbench.get_plugin('psi.controller')
+                channel.calibration = FlatCalibration.as_attenuation()
+                controller.set_input_attr('pt_epoch', 'queue', queue)
+                controller.set_input_attr('cal_epoch', 'queue', queue)
 
     Extension:
         id = 'calibration_commands'
         point = 'enaml.workbench.core.commands'
 
         Command:
-            id = 'psi.controller.configure_hardware'
-            handler = configure_hardware_chirp
-
-        Command:
             id = 'psi.controller.calculate_sens'
             handler = calculate_sens_chirp
 
 
-enamldef GolayControllerManifest(ControllerManifest): manifest:
+enamldef GolayControllerManifest(PTManifest): manifest:
 
     Extension:
         id = 'io_golay'
@@ -580,6 +525,14 @@ enamldef GolayControllerManifest(ControllerManifest): manifest:
         QueuedEpochOutput: hw_ao:
             name = 'hw_ao'
             auto_decrement = True
+            configurable = False
+            queue = FIFOSignalQueue()
+            target_name = C.output_channel
+            target ::
+                controller = workbench.get_plugin('psi.controller')
+                channel.calibration = FlatCalibration.as_attenuation()
+                controller.set_input_attr('pt_epoch', 'queue', queue)
+                controller.set_input_attr('cal_epoch', 'queue', queue)
 
     Extension:
         id = 'context_golay'
@@ -642,3 +595,12 @@ enamldef GolayControllerManifest(ControllerManifest): manifest:
         Command:
             id = 'psi.controller.calculate_sens'
             handler = calculate_sens_golay
+
+    Extension:
+        id = 'calibration_actions_golay'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'psi.controller.configure_hardware'
+            weight = 9

@@ -24,13 +24,6 @@ from psi.data.sinks.bcolz_store import BColzStore
 from psi.token.primitives import Cos2Envelope, Tone
 
 
-def configure_hardware(event):
-    context = event.workbench.get_plugin('psi.context')
-    controller = event.workbench.get_plugin('psi.controller')
-    output_channel = context.get_value('output_channel')
-    controller.connect_output('target', output_channel)
-
-
 def configure_experiment(event):
     context = event.workbench.get_plugin('psi.context')
     controller = event.workbench.get_plugin('psi.controller')
@@ -136,6 +129,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
             label = 'Target'
             token = tone_burst
             configurable = False
+            target_name = C.output_channel
 
         ContinuousInput:
             name = 'microphone'
@@ -302,10 +296,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
         point = 'enaml.workbench.core.commands'
 
         Command:
-            id = 'psi.controller.configure_hardware'
-            handler = configure_hardware
-
-        Command:
             id = 'psi.controller.configure_experiment'
             handler = configure_experiment
 
@@ -317,11 +307,6 @@ enamldef ControllerManifest(BaseManifest): manifest:
             event = 'experiment_initialize'
             command = 'psi.context.initialize'
             kwargs = {'selector': 'default', 'cycles': 1}
-
-        ExperimentAction:
-            event = 'experiment_prepare'
-            command = 'psi.controller.configure_hardware'
-            weight = 9
 
         ExperimentAction:
             event = 'experiment_prepare'

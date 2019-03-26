@@ -29,5 +29,5 @@ enamldef SinkWithSourceManifest(PSIManifest): manifest:
         ExperimentAction:
             event = 'experiment_prepare'
             command = 'psi.data.attach_source'
-            kwargs = {'contribution': manifest.contribution}
+            kwargs = {'obj': manifest.contribution}
             weight = 15

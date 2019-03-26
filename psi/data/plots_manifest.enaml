@@ -35,11 +35,6 @@ class PGCanvas(RawWidget):
         self.view.setCentralItem(event['value'])
 
 
-def attach_source(plot, event):
-    controller = event.workbench.get_plugin('psi.controller')
-    plot.source = controller.get_input(plot.source_name)
-
-
 def update_plot(plot, event):
     plot.update()
 
@@ -75,6 +70,7 @@ enamldef MultiPlotContainerManifest(PSIManifest): manifest:
         DockItem:
             name << manifest.contribution.name
             title << manifest.contribution.label
+            closable = False
             Container:
                 Notebook:
                     tab_style = 'preferences'
@@ -99,6 +95,7 @@ enamldef BasePlotContainerManifest(PSIManifest): manifest:
         DockItem:
             name << manifest.contribution.name
             title << manifest.contribution.label
+            closable = False
 
             Container:
                 PGCanvas: canvas:
@@ -114,8 +111,7 @@ enamldef TimeseriesPlotManifest(PSIManifest): manifest:
         ExperimentAction:
             event = 'experiment_prepare'
             command = 'psi.data.attach_source'
-            kwargs = {'contribution': manifest.contribution}
-            weight = 15
+            kwargs = {'obj': manifest.contribution}
 
 
 def process_event(plot, event):
@@ -158,17 +154,14 @@ enamldef BasePlotManifest(PSIManifest): manifest:
             id = manifest.contribution.name + '_update'
             handler = partial(update_plot, manifest.contribution)
 
-        Command:
-            id = manifest.contribution.name + '_attach_source'
-            handler = partial(attach_source, manifest.contribution)
-
     Extension:
         id = manifest.id + '.actions'
         point = 'psi.controller.actions'
 
         ExperimentAction:
             event = 'experiment_prepare'
-            command = manifest.contribution.name + '_attach_source'
+            command = 'psi.data.attach_source'
+            kwargs = {'obj': manifest.contribution}
             weight = 15
 
         ExperimentAction:

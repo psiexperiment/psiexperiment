@@ -26,6 +26,14 @@ def set_base_path(event):
     data.set_base_path(base_path)
 
 
+def attach_source(event):
+    controller = event.workbench.get_plugin('psi.controller')
+    obj = event.parameters['obj']
+    source_name_attr = event.parameters.get('source_name_attr', 'source_name')
+    source_name = getattr(obj, source_name_attr)
+    obj.source = controller.get_input(source_name)
+
+
 enamldef DataManifest(PluginManifest): manifest:
 
     id = PLUGIN_ID
@@ -43,3 +51,7 @@ enamldef DataManifest(PluginManifest): manifest:
         Command:
             id = PLUGIN_ID + '.set_base_path'
             handler = set_base_path
+
+        Command:
+            id = PLUGIN_ID + '.attach_source'
+            handler = attach_source

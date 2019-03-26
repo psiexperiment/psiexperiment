@@ -77,7 +77,7 @@ speaker_calibration_controller = PluginDescription(
     name='controller',
     title='Controller',
     required=True,
-    manifest='psi.application.experiment.speaker_calibration.ControllerManifest',
+    manifest='psi.application.experiment.speaker_calibration.SpeakerCalibrationManifest',
 )
 
 

@@ -95,3 +95,9 @@ class DataPlugin(Plugin):
                         return plot
         m = 'Plot {} not available'
         raise AttributeError(m.format(plot_name))
+
+    def find_sink(self, sink_name):
+        for sink in self._sinks:
+            if sink.name == sink_name:
+                return sink
+        raise AttributeError(f'Sink {sink_name} not available')
