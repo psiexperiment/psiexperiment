@@ -21,4 +21,3 @@ Now, open that file in your preferred Python editor and update the variables to 
 
 Now, go to where you defined `IO_ROOT` and create a file that ends with the extension `.enaml`. By convention, the file name should match the hostname of your computer (e.g., if your computer is called `bobcat`, then the file would be `bobcat.enaml`); however, this is not a requirement. Inside this file, you will describe the configuration of your system using Enaml (TODO: link to some example configurations). 
 
-
