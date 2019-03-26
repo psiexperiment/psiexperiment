@@ -281,7 +281,8 @@ class Trigger(DigitalOutput):
     duration = d_(Float(0.1))
 
     def fire(self):
-        self.engine.fire_sw_do(self.channel.name, duration=self.duration)
+        if self.engine.configured:
+            self.engine.fire_sw_do(self.channel.name, duration=self.duration)
 
 
 class Toggle(DigitalOutput):
@@ -289,11 +290,8 @@ class Toggle(DigitalOutput):
     state = Bool(False)
 
     def _observe_state(self, event):
-        try:
-            # TODO: Fixme
+        if self.engine.configured:
             self.engine.set_sw_do(self.channel.name, event['value'])
-        except:
-            pass
 
     def set_high(self):
         self.state = True

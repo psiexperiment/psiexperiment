@@ -531,6 +531,9 @@ class SilenceFactory(Carrier):
     def next(self, samples):
         return np.zeros(samples)
 
+    def reset(self):
+        pass
+
 
 enamldef Silence(ContinuousBlock):
 

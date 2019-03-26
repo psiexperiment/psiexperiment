@@ -21,25 +21,6 @@ from .experiment_action import ExperimentState, ExperimentEvent, ExperimentActio
 from .queue import queues
 
 
-def toggle_off(event, output):
-    output.set_low()
-
-
-def toggle_on(event, output):
-    output.set_high()
-
-
-def fire(event, output):
-    output.fire()
-
-
-def toggle(event, output):
-    if event.parameters['state']:
-        toggle_on(event, output)
-    else:
-        toggle_off(event, output)
-
-
 def set_token(event, output, output_type):
     if not event.parameters['token']:
         log.warn('No token provided for %s.', output.name)
@@ -635,19 +616,38 @@ enamldef ContinuousOutputManifest(AnalogOutputManifest): manifest:
     attr output_type = 'continuous'
 
 
+################################################################################
+# ToggleManifest
+################################################################################
+
+def toggle_off(event, output):
+    output.set_low()
+
+
+def toggle_on(event, output):
+    output.set_high()
+
+
+def toggle(event, output):
+    if event.parameters['state']:
+        toggle_on(event, output)
+    else:
+        toggle_off(event, output)
+
+
 enamldef ToggleManifest(PSIManifest): manifest:
 
     Extension:
         id = manifest.id + '.toggle_commands'
         point = 'enaml.workbench.core.commands'
         Command:
-            id = manifest.id + '.off'
+            id = manifest.contribution.name + '.off'
             handler = partial(toggle_off, output=manifest.contribution)
         Command:
-            id = manifest.id + '.on'
+            id = manifest.contribution.name + '.on'
             handler = partial(toggle_on, output=manifest.contribution)
         Command:
-            id = manifest.id + '.toggle'
+            id = manifest.contribution.name + '.toggle'
             handler = partial(toggle, output=manifest.contribution)
 
     Extension:
@@ -656,11 +656,18 @@ enamldef ToggleManifest(PSIManifest): manifest:
         ActionItem:
             path = '/equipment/{}'.format(manifest.contribution.name)
             label = '{}'.format(manifest.contribution.label)
-            command = manifest.id + '.toggle'
+            command = manifest.contribution.name + '.toggle'
             parameters << {'state': checked}
             checked << manifest.contribution.state
             checkable = True
             status_tip = command
+
+
+################################################################################
+# TriggerManifest
+################################################################################
+def fire(event, output):
+    output.fire()
 
 
 enamldef TriggerManifest(PSIManifest): manifest:

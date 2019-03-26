@@ -3,44 +3,43 @@ log = logging.getLogger(__name__)
 
 from functools import partial
 
-import numpy as np
 import pandas as pd
 from scipy.stats import norm
 
-from atom.api import ContainerList, Typed, Str, Int, observe, Bool
-from enaml.application import deferred_call
+from atom.api import Bool, ContainerList, Int, Value
+
 from enaml.core.api import d_
-from enaml.layout.api import InsertItem, hbox, vbox, spacer
-from enaml.widgets.api import (Container, DockItem, CheckBox, Label, HGroup)
-from enaml.stdlib.fields import FloatField
+from enaml.layout.api import hbox, vbox, spacer
+from enaml.widgets.api import CheckBox, Container, DockItem, Label
+from enaml.stdlib.fields import IntField
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 
 from psi.controller.api import ExperimentAction
-from psi.context.context_item import OrderedContextMeta
-from psi.core.utils import find_extension
-from psi.core.enaml.api import PSIManifest
-from psi.core.enaml.editable_table_widget import DataFrameTable
+from psi.context.api import OrderedContextMeta
+from psi.core.enaml.api import DataFrameTable, PSIManifest
 from psi.experiment.api import ItemPreferences
+
+from .base_store import BaseStore
 from ..plugin import Sink
-from .text_store import TextStore
 
 
-class SDTAnalysis(Sink):
+class SDTAnalysis(BaseStore):
 
     name = 'sdt_analysis'
     label = 'SDT Analysis'
 
-    trial_log = Typed(pd.DataFrame)
-    results = Typed(pd.DataFrame)
-    grouping = d_(Typed(list))
+    grouping = d_(ContainerList())
 
     limit = Int()
-    include_repeat_nogo = Bool()
-    include_go_remind = Bool()
+    include_repeat_nogo = Bool(True)
+    include_go_remind = Bool(True)
 
-    def trial_log_updated(self, trial_log):
-        self.trial_log = trial_log
+    _data = ContainerList()
+    results = Value()
+
+    def update(self, data):
+        self._data.append(data)
         self.update_results()
 
     def _observe_limit(self, event):
@@ -53,21 +52,23 @@ class SDTAnalysis(Sink):
         self.update_results()
 
     def update_results(self):
-        if self.trial_log is None:
+        # Exit if there's nothing to be done
+        if not self._data:
             return
         if not self.grouping:
             return
 
-        trial_log = self.trial_log.iloc[-self.limit:].copy()
+        # Pull out trials for analysis
+        data = self._data[-self.limit:]
+        valid_types = ['nogo', 'go']
         if self.include_repeat_nogo:
-            m = trial_log.trial_type == 'nogo_repeat'
-            trial_log.loc[m, 'trial_type'] = 'nogo'
+            valid_types.append('nogo_repeat')
         if self.include_go_remind:
-            m = trial_log.trial_type == 'go_remind'
-            trial_log.loc[m, 'trial_type'] = 'go'
+            valid_types.append('go_remind')
+        data = [d for d in data if d['trial_type'] in valid_types]
 
-        m = trial_log.trial_type.apply(lambda x: x in ('nogo', 'go'))
-        if not np.any(m):
+        # Exit if no data left
+        if not data:
             return
 
         agg = ['sum', 'size', 'mean']
@@ -75,8 +76,9 @@ class SDTAnalysis(Sink):
                   'size': 'n_trials',
                   'mean': 'fraction_correct'}
 
-        r = trial_log[m] \
-            .groupby(self.grouping)['correct'] \
+        r = pd.DataFrame(data) \
+            .groupby(self.grouping) \
+            ['correct'] \
             .agg(agg) \
             .rename(columns=rename)
 
@@ -90,80 +92,34 @@ class SDTAnalysis(Sink):
             r['z_score'] += r.loc['nogo', 'z_score'].iloc[0]
         except:
             r['z_score'] += norm.ppf(0.95)
-        self.results = r.astype(np.float32).reset_index()
+        self.results = r.astype('float32').reset_index()
 
 
-enamldef SDTAnalysisDockItem(DockItem):
+extra_columns = ['n_correct', 'n_trials', 'fraction_correct', 'z_score']
 
-    attr analysis
-    attr meta
-    closable = False
-
-    Container: sdt_container:
-        constraints = [
-            vbox(
-                hbox(
-                    limit_label,
-                    limit_field,
-                    spacer,
-                    repeat_nogo_field,
-                    go_remind_field,
-                ),
-                sdt_table,
-            )
-        ]
-
-        Label: limit_label:
-            text = 'Trial limit'
-            hug_width = 'strong'
-        FloatField: limit_field:
-            text << str(analysis.limit)
-            text ::
-                analysis.limit = int(text)
-        CheckBox: repeat_nogo_field:
-            checked := analysis.include_repeat_nogo
-            text = 'Include repeat NOGO?'
-        CheckBox: go_remind_field:
-            checked := analysis.include_go_remind
-            text = 'Include reminders?'
-
-        DataFrameTable: sdt_table:
-            name = 'sdt_table'
-            data << analysis.results
-            columns << [v.name for v in meta.values] + extra_columns
-            column_info << {**{v.name: v for v in meta.values}, **extra_column_info}
-
-
-extra_columns = ['n_trials', 'n_correct', 'fraction_correct', 'z_score']
 extra_column_info = {
-    'n_trials': {'compact_label': '# trials'},
-    'n_correct': {'compact_label': '# correct'},
-    'fraction_correct': {'compact_label': 'Frac.'},
-    'z_score': {'compact_label': 'd\''},
+    'n_trials': {'label': '# trials', 'to_string': lambda x: str(int(x))},
+    'n_correct': {'label': '# correct', 'to_string': lambda x: str(int(x))},
+    'fraction_correct': {'label': 'Frac.', 'to_string': '{:.2f}'.format},
+    'z_score': {'label': 'd\'', 'to_string': '{:.2f}'.format},
 }
 
 
 def save(sdt, event):
     core = event.workbench.get_plugin('enaml.workbench.core')
-
     sdt.limit = 0
     sdt.include_repeat_nogo = False
     sdt.include_go_remind = False
-
     if sdt.results is not None:
-        cmd = '{}_store.create_table'.format(sdt.name)
-        parameters = {'name': sdt.name, 'dataframe': sdt.results}
-        core.invoke_command(cmd, parameters)
+        filename = sdt.get_filename(sdt.name, '.csv')
+        sdt.results.to_csv(filename, index=False)
+
+
+def update(sdt, event):
+    sdt.update(event.parameters['data'])
 
 
 enamldef SDTAnalysisManifest(PSIManifest): manifest:
-
-    Extension:
-        id = manifest.contribution.name + '.sinks'
-        point = 'psi.data.sinks'
-
-        TextStore:
-            name = manifest.contribution.name + '_store'
 
     Extension:
         id = 'items'
@@ -174,18 +130,31 @@ enamldef SDTAnalysisManifest(PSIManifest): manifest:
             values::
                 manifest.contribution.grouping = [v.name for v in values]
 
-    Extension:
-        id = 'commands'
-        point = 'enaml.workbench.core.commands'
+                # Update SDT table
+                columns = [v.name for v in meta.values] + extra_columns
+                column_info = {}
+                for v in values:
+                    column_info[v.name] = {
+                        'label': v.compact_label,
+                        'to_string': '{:.2f}'.format if 'f' in v.dtype else str,
+                    }
+                column_info.update(extra_column_info)
+                sdt_table.columns = columns
+                sdt_table.column_info = column_info
 
+    Extension:
+        id = manifest.id + 'commands'
+        point = 'enaml.workbench.core.commands'
         Command:
-            id = manifest.id + '.save'
+            id = manifest.contribution.name + '.save'
             handler = partial(save, manifest.contribution)
+        Command:
+            id = manifest.contribution.name + '.update'
+            handler = partial(update, manifest.contribution)
 
     Extension:
         id = manifest.contribution.name + '.actions'
         point = 'psi.controller.actions'
-
         ExperimentAction:
             event = 'experiment_end'
             command = manifest.contribution.name + '.save'
@@ -194,17 +163,48 @@ enamldef SDTAnalysisManifest(PSIManifest): manifest:
         id = 'workspace'
         point = 'psi.experiment.workspace'
 
-        SDTAnalysisDockItem: di:
-            analysis << manifest.contribution
-            name << manifest.contribution.name
-            title << manifest.contribution.label
-            meta << meta
+        DockItem:
+            closable = False
+            name = manifest.contribution.name
+            title = manifest.contribution.label
+
+            Container: sdt_container:
+                constraints = [
+                    vbox(
+                        hbox(
+                            limit_label,
+                            limit_field,
+                            spacer,
+                            repeat_nogo_field,
+                            go_remind_field,
+                        ),
+                        sdt_table,
+                    )
+                ]
+
+                Label: limit_label:
+                    text = 'Trial limit'
+                    hug_width = 'strong'
+                IntField: limit_field:
+                    text << str(manifest.contribution.limit)
+                    text ::
+                        manifest.contribution.limit = int(text)
+                CheckBox: repeat_nogo_field:
+                    checked := manifest.contribution.include_repeat_nogo
+                    text = 'Include repeat NOGO?'
+                CheckBox: go_remind_field:
+                    checked := manifest.contribution.include_go_remind
+                    text = 'Include reminders?'
+
+                DataFrameTable: sdt_table:
+                    name = 'sdt_table'
+                    data << manifest.contribution.results
 
     Extension:
         id = 'preferences'
         point = 'psi.experiment.preferences'
         rank = 200
         ItemPreferences:
-            item << di.find('sdt_table')
+            item << sdt_table
             name << manifest.contribution.name
             auto_save = ['column_widths']

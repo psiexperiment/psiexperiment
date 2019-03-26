@@ -42,6 +42,15 @@ def get_color_cycle(name):
     return itertools.cycle(cmap.colors)
 
 
+def make_color(color):
+    if isinstance(color, tuple):
+        return QColor(*color)
+    elif isinstance(color, str):
+        return QColor(color)
+    else:
+        raise ValueError('Unknown color %r', color)
+
+
 ################################################################################
 # Supporting classes
 ################################################################################
@@ -395,7 +404,7 @@ class SinglePlot(BasePlot):
         return 'black'
 
     def _default_pen(self):
-        color = QColor(self.pen_color)
+        color = make_color(self.pen_color)
         return pg.mkPen(color, width=self.pen_width)
 
     def _default_name(self):
@@ -574,7 +583,14 @@ class BaseTimeseriesPlot(SinglePlot):
             if starts[-1] > ends[-1]:
                 ends = np.r_[ends, current_time]
 
-        epochs = np.c_[starts, ends]
+        try:
+            epochs = np.c_[starts, ends]
+        except ValueError as e:
+            log.exception(e)
+            log.warning('Unable to update %r, starts shape %r, ends shape %r',
+                        self, starts, ends)
+            return
+
         m = ((epochs >= lb) & (epochs < ub)) | np.isnan(epochs)
         epochs = epochs[m.any(axis=-1)]
 

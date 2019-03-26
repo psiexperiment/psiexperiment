@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from enaml.application import deferred_call
-from enaml.core.api import DynamicTemplate, Looper
+from enaml.core.api import Conditional, DynamicTemplate, Looper
 from enaml.layout.api import align, hbox, vbox, spacer
 from enaml.stdlib.fields import FloatField
 from enaml.widgets.api import (Action, Container, Field, FileDialogEx, Form,
@@ -121,7 +121,7 @@ enamldef Main(MainWindow): window:
 
     attr io_file
     attr channels
-    attr selected_channel = channels[0]
+    attr selected_channel
 
     Container:
 
@@ -134,30 +134,36 @@ enamldef Main(MainWindow): window:
             selected := selected_channel
 
         Form: calibration_view:
-            Label:
-                text = 'Calibration type'
 
-            ObjectCombo: cal_type:
-                items = [UnityCalibration, FlatCalibration, GolayCalibration, EPLCalibration]
-                selected << type(selected_channel.calibration)
-                to_string = name_map.get
-                selected ::
-                    if not isinstance(selected_channel.calibration, selected):
-                        selected_channel.calibration = selected.as_attenuation()
+            Conditional:
+                condition << selected_channel is not None
 
-            Label:
-                text = 'Calibration settings'
+                Label:
+                    text = 'Calibration type'
 
-            VGroup:
-                padding = 0
-                DynamicTemplate:
-                    base = CalibrationTemplate
-                    args << (selected_channel.calibration, type(selected_channel.calibration))
+                ObjectCombo: cal_type:
+                    items = [UnityCalibration, FlatCalibration, GolayCalibration, EPLCalibration]
+                    selected << type(selected_channel.calibration)
+                    to_string = name_map.get
+                    selected ::
+                        if type(selected_channel.calibration) != selected:
+                            selected_channel.calibration = selected.as_attenuation()
+
+                Label:
+                    text = 'Calibration settings'
+
+                VGroup:
+                    padding = 0
+                    DynamicTemplate:
+                        base = CalibrationTemplate
+                        args << (selected_channel.calibration,
+                                type(selected_channel.calibration))
 
         PushButton: save_button:
             text << 'Save'
             clicked ::
-                popup = SavePopup(io_file=io_file, channels=channels,
+                popup = SavePopup(io_file=io_file, 
+                                  channels=channels,
                                   anchor_mode='cursor')
                 popup.show()
 

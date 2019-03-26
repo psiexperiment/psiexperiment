@@ -2,34 +2,20 @@ import logging
 log = logging.getLogger(__name__)
 
 import atexit
-from collections import Mapping
 from functools import partial
 import json
-import os.path
-import shutil
-import tempfile
 
-import pandas as pd
-
-from atom.api import Dict, List, Unicode
-from enaml.core.api import Conditional, d_
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 
-from psi.controller.api import ExperimentAction
-from psi.util import declarative_to_dict
-from .base_store import BaseStore, BaseStoreManifest
+from psi.core.enaml.api import PSIManifest
+from .base_store import BaseStore
 
 
 class TextStore(BaseStore):
     '''
     Simple class for storing data in human-readable formats (CSV and text)
     '''
-    table_inputs = d_(List())
-
-    _columns = Dict()
-    _stores = Dict()
-
     def save_dataframe(self, name, dataframe, overwrite=False):
         path = self.get_filename(name, '.csv')
         if not overwrite and path.exists():
@@ -45,63 +31,27 @@ class TextStore(BaseStore):
             json.dump(mapping, fh, sort_keys=True, indent=4)
         return path
 
-    def create_table(self, name, **metadata):
-        self.save_mapping(name + '_metadata', metadata)
-        self._stores[name] = self.get_filename(name, '.csv').open('w')
-        atexit.register(self._stores[name].close)
 
-    def process_table(self, name, data, flush=False):
-        # Convert to a DataFrame for ease of creating CSV rows
-        if isinstance(data, Mapping):
-            df = pd.DataFrame(pd.Series(data)).T
-        else:
-            df = pd.DataFrame(data)
-
-        # Ensure that ordering is preserved
-        try:
-            ordering = self._columns[name]
-            if list(df.columns) != ordering:
-                df = df[ordering]
-            header = False
-        except KeyError:
-            self._columns[name] = list(df.columns)
-            header = True
-
-        csv_string = df.to_csv(index=False, header=header)
-        self._stores[name].write(csv_string)
-        if flush:
-            self._stores[name].flush()
+def save_mapping(sink, event):
+    return sink.save_mapping(event.parameters['name'],
+                             event.parameters['mapping'],
+                             event.parameters.get('overwrite', False))
 
 
-def prepare(sink, event):
-    log.debug('Preparing %s', sink.name)
-    controller = event.workbench.get_plugin('psi.controller')
-    context = event.workbench.get_plugin('psi.context')
-
-    for input_name in sink.table_inputs:
-        log.debug('\tCreating save file for table input %s', input_name)
-        i = controller.get_input(input_name)
-        md = declarative_to_dict(i, 'metadata')
-        sink.create_table(**md)
-        cb = partial(sink.process_table, i.name)
-        i.add_callback(cb)
+def save_dataframe(sink, event):
+    return sink.save_dataframe(event.parameters['name'],
+                               event.parameters['dataframe'],
+                               event.parameters.get('overwrite', False))
 
 
-enamldef TextStoreManifest(BaseStoreManifest): manifest:
+enamldef TextStoreManifest(PSIManifest): manifest:
 
-    Conditional:
-        condition << bool(manifest.contribution.table_inputs)
-
-        Extension:
-            id = manifest.id + '.text_commands'
-            point = 'enaml.workbench.core.commands'
-            Command:
-                id = contribution.name + '.prepare'
-                handler = partial(prepare, manifest.contribution)
-
-        Extension:
-            id = manifest.id + '.text_actions'
-            point = 'psi.controller.actions'
-            ExperimentAction:
-                event = 'experiment_prepare'
-                command = contribution.name + '.prepare'
+    Extension:
+        id = manifest.id + '.text_commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = contribution.name + '.save_dataframe'
+            handler = partial(save_dataframe, manifest.contribution)
+        Command:
+            id = contribution.name + '.save_mapping'
+            handler = partial(save_mapping, manifest.contribution)

@@ -109,7 +109,6 @@ class ContextPlugin(Plugin):
         self.symbols = symbols
 
     def _refresh_items(self, event=None):
-        log.debug('Refreshing context items')
         context_groups = {}
         context_items = {}
         context_meta = {}
@@ -131,14 +130,16 @@ class ContextPlugin(Plugin):
         # Now, loop through the groups and find all ContextItems defined under
         # the group. If the group has already been defined in another
         # contribution, raise an error and exit.
+        groups_added = []
         for group in groups:
             if group.name in context_groups:
                 raise ValueError(f'Context group {group.name} already defined')
-            log.debug('Adding context group %s', group.name)
+            groups_added.append(group.name)
             context_groups[group.name] = group
             group.items = []
             for item in group.children:
                 item.set_group(group)
+        log.debug('Added context groups: %s', ', '.join(groups_added))
 
         # Now, go through all "orphan" context items where the group has not
         # been assigned yet.
@@ -323,7 +324,7 @@ class ContextPlugin(Plugin):
             log.debug(m)
             raise
 
-    def get_value(self, context_name, trial=None, fail_mode='error'):
+    def get_value(self, context_name, trial=None):
         if trial is not None:
             try:
                 return self._prior_values[trial][context_name]
@@ -331,15 +332,9 @@ class ContextPlugin(Plugin):
                 return None
         try:
             return self._namespace.get_value(context_name)
-        except KeyError:
-            if fail_mode == 'error':
-                raise
-            elif fail_mode == 'ignore':
-                return None
-            elif fail_mode == 'default':
-                return self.context_items[context_name].default
-            else:
-                raise ValueError('Unsupported fail mode {}'.format(fail_mode))
+        except KeyError as e:
+            m = f'{context_name} not defined. Perhaps context not initialized?'
+            raise ValueError(m) from e
 
     def get_values(self, context_names=None, trial=None):
         if trial is not None:

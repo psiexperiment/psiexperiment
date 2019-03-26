@@ -15,8 +15,8 @@ import numpy as np
 import pandas as pd
 from scipy import signal
 
-from .bcolz_tools import (BcolzRecording, BcolzSignal, load_ctable_as_df,
-                          repair_carray_size)
+from . import Recording
+from .bcolz_tools import repair_carray_size
 
 
 MERGE_PATTERN = \
@@ -45,9 +45,15 @@ def cache(f, name=None):
         cache_path.mkdir(parents=True, exist_ok=True)
         cache_file = cache_path / file_name
 
+        result = None
         if cache_file.exists():
-            result = pd.read_pickle(cache_file)
-        else:
+            try:
+                result = pd.read_pickle(cache_file)
+            except EOFError:
+                # The cache file is corrupt for some reason. Delete.
+                cache_file.unlink()
+
+        if result is None:
             result = f(self, *args, **kwargs)
             result.to_pickle(cache_file)
 
@@ -56,7 +62,7 @@ def cache(f, name=None):
     return wrapper
 
 
-class ABRFile(BcolzRecording):
+class ABRFile(Recording):
 
     def __init__(self, *args, **kw):
         super().__init__(*args, **kw)
@@ -75,12 +81,13 @@ class ABRFile(BcolzRecording):
         if len(eeg) == 0:
             log.debug('EEG for %s is corrupt. Repairing.', self.base_folder)
             repair_carray_size(rootdir)
+        from .bcolz_tools import BcolzSignal
         return BcolzSignal(rootdir)
 
     @property
     @functools.lru_cache()
     def erp_metadata(self):
-        data = self._load_bcolz('erp_metadata')
+        data = self._load_bcolz_table('erp_metadata')
         return data.rename(columns=lambda x: x.replace('target_tone_', ''))
 
     @cache

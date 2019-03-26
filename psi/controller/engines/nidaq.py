@@ -75,8 +75,8 @@ class NIDAQHardwareAOChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
     # Not all terminal modes may be supported by a particular device
     TERMINAL_MODES = 'pseudodifferential', 'differential', 'RSE'
     terminal_mode = d_(Enum(*TERMINAL_MODES)).tag(metadata=True)
-
     filter_delay = Property().tag(metadata=True)
+    filter_delay_samples = Property().tag(metadata=True)
 
     # Filter delay lookup table for different sampling rates. The first column
     # is the lower bound (exclusive) of the sampling rate (in samples/sec) for
@@ -95,9 +95,12 @@ class NIDAQHardwareAOChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
         (102.4e3, 32.0),
     ])
 
-    def _get_filter_delay(self):
+    def _get_filter_delay_samples(self):
         i = np.flatnonzero(self.fs > self.FILTER_DELAY[:, 0])[-1]
         return self.FILTER_DELAY[i, 1]
+
+    def _get_filter_delay(self):
+        return self.filter_delay_samples / self.fs
 
 
 class NIDAQHardwareAIChannel(NIDAQGeneralMixin, NIDAQTimingMixin,

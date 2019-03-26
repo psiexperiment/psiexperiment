@@ -11,6 +11,7 @@ from enaml.qt.qt_application import QtApplication
 
 with enaml.imports():
     from psi.application.base_launcher_view import LauncherView
+
 from psi import get_config
 from psi.application import list_calibrations, list_io, list_preferences
 from psi.application.experiment_description import get_experiments, ParadigmDescription
@@ -40,8 +41,16 @@ class SimpleLauncher(Atom):
         return list_io()
 
     def _update_choices(self):
+        self._update_available_calibrations()
+        self._update_available_preferences()
+
+
+    def _update_available_calibrations(self):
         self.available_calibrations = list_calibrations(self.io)
-        self.available_preferences = list_preferences(self.experiment)
+        if not self.available_calibrations:
+            self.calibration = None
+            return
+
         if self.calibration not in self.available_calibrations:
             for calibration in self.available_calibrations:
                 if calibration.stem == 'default':
@@ -49,6 +58,12 @@ class SimpleLauncher(Atom):
                     break
             else:
                 self.calibration = self.available_calibrations[0]
+
+    def _update_available_preferences(self):
+        self.available_preferences = list_preferences(self.experiment)
+        if not self.available_preferences:
+            self.preferences = None
+            return
 
         if self.preferences not in self.available_preferences:
             for preferences in self.available_preferences:

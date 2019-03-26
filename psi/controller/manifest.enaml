@@ -1,0 +1,260 @@
+import logging
+log = logging.getLogger(__name__)
+
+import enaml
+from enaml.stdlib.message_box import critical
+from enaml.widgets.api import Action, ToolBar
+from enaml.workbench.api import Extension, ExtensionPoint, PluginManifest
+from enaml.workbench.core.api import Command
+from enaml.workbench.ui.api import ActionItem, Branding, MenuItem
+
+from ..util import rpc
+
+from .plugin import ControllerPlugin
+from .experiment_action import (ExperimentState, ExperimentEvent,
+                                ExperimentAction)
+
+
+def accumulate_actions(plugin):
+    accumulator = {}
+    for action in plugin._actions:
+        a = accumulator.setdefault(action.event, [])
+        info = '{} (weight={})'.format(action.command, action.weight)
+        a.append(info)
+
+    lines = ['Configured actions']
+    for event, actions in accumulator.items():
+        lines.append(event)
+        for action in actions:
+            lines.append('\t' + action)
+    return '\n'.join(lines)
+
+
+def accumulate_io(plugin):
+    accumulator = ['Configured IO']
+    for channel in plugin._channels.values():
+        accumulator.append(channel.name)
+    for output in plugin._outputs.values():
+        accumulator.append(output.name)
+    for input in plugin._inputs.values():
+        accumulator.append(input.name)
+    return('\n\t'.join(accumulator))
+
+
+def log_info(event):
+    plugin = event.workbench.get_plugin('psi.controller')
+    log.info('\n' + accumulate_actions(plugin))
+    log.info('\n' + accumulate_io(plugin))
+
+
+def log_io(event):
+    plugin = event.workbench.get_plugin('psi.controller')
+    log.info('\n\t'.join(accumulator))
+
+
+def start_experiment(event):
+    try:
+        controller = event.workbench.get_plugin('psi.controller')
+        controller.start_experiment()
+    except Exception as e:
+        log.exception(e)
+        critical(None, 'Error starting experiment', str(e))
+
+
+def invoke_actions(event):
+    controller = event.workbench.get_plugin('psi.controller')
+    event_name = event.parameters['event_name']
+    timestamp = event.parameters['timestamp']
+    controller.invoke_actions(event_name, timestamp)
+
+
+def get_hw_ao_choices(workbench):
+    plugin = workbench.get_plugin('psi.controller')
+    channels = plugin.get_channels('analog', 'output', 'hardware', False)
+    return {c.label: '"{}"'.format(c.name) for c in channels}
+
+
+def get_hw_ai_choices(workbench):
+    plugin = workbench.get_plugin('psi.controller')
+    channels = plugin.get_channels('analog', 'input', 'hardware', False)
+    return {str(c): '"{}"'.format(c.name) for c in channels}
+
+
+def configure_calibration(event):
+    controller = event.workbench.get_plugin('psi.controller')
+    channels = list(controller._channels.values())
+    with enaml.imports():
+        from psi.controller.calibration.calibration_gui import Main
+        window = Main(channels=channels, modality='application_modal')
+        result = window.show()
+
+
+enamldef ControllerManifest(PluginManifest): manifest:
+    '''
+    Defines the core functionality that most controller plugins will share
+    (start, stop, pause, apply/revert settings).
+    '''
+    id = 'psi.controller'
+    factory = ControllerPlugin
+
+    attr window_title = 'psiexperiment'
+    attr C
+
+    ExtensionPoint:
+        id = 'psi.controller.io'
+
+    ExtensionPoint:
+        id = 'psi.controller.actions'
+
+    Extension:
+        id = manifest.id + '.branding'
+        point = 'enaml.workbench.ui.branding'
+        Branding:
+            title << manifest.window_title
+
+    Extension:
+        id = 'commands'
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = 'psi.controller.start'
+            handler = start_experiment
+        Command:
+            id = 'psi.controller.stop'
+            handler = rpc('psi.controller', 'stop_experiment')
+
+        Command:
+            id = 'psi.controller.next_trial'
+            handler = rpc('psi.controller', 'end_trial')
+        Command:
+            id = 'psi.controller.request_apply'
+            handler = rpc('psi.controller', 'request_apply')
+        Command:
+            id = 'psi.controller.request_pause'
+            handler = rpc('psi.controller', 'request_pause')
+        Command:
+            id = 'psi.controller.request_resume'
+            handler = rpc('psi.controller', 'request_resume')
+        Command:
+            id = 'psi.controller.set_pause_ok'
+            handler = rpc('psi.controller', 'set_pause_ok')
+
+        Command:
+            id = 'psi.controller.configure_engines'
+            handler = rpc('psi.controller', 'configure_engines')
+        Command:
+            id = 'psi.controller.start_engines'
+            handler = rpc('psi.controller', 'start_engines')
+        Command:
+            id = 'psi.controller.stop_engines'
+            handler = rpc('psi.controller', 'stop_engines')
+        Command:
+            id = 'psi.controller.reset_engines'
+            handler = rpc('psi.controller', 'reset_engines')
+        Command:
+            id = 'psi.controller.log_info'
+            handler = log_info
+        Command:
+            id = 'psi.controller.invoke_actions'
+            handler = invoke_actions
+
+        Command:
+            id = 'psi.controller.configure_calibration'
+            handler = configure_calibration
+
+    # Uses unicode symbols as icons for sake of simplicity.
+    Extension:
+        id = 'toolbar'
+        rank = 1
+        point = 'psi.experiment.toolbar'
+
+        ToolBar:
+            Action:
+                text = 'Start'
+                tool_tip = 'Start experiment'
+                triggered ::
+                    plugin = workbench.get_plugin('enaml.workbench.core')
+                    plugin.invoke_command('psi.controller.start')
+                enabled << workbench.get_plugin('psi.controller').experiment_state \
+                    == 'initialized'
+            Action:
+                text = 'Stop'
+                tool_tip = 'Stop experiment'
+                triggered ::
+                    plugin = workbench.get_plugin('enaml.workbench.core')
+                    plugin.invoke_command('psi.controller.stop')
+                enabled <<  workbench.get_plugin('psi.controller').experiment_state \
+                    not in ('initialized', 'stopped')
+            Action:
+                separator = True
+            Action:
+                text << 'Resume' if checked else 'Pause'
+                checkable = True
+                enabled << workbench.get_plugin('psi.controller')._pause_ok
+                tool_tip << 'Resume' if checked else 'Pause'
+                toggled ::
+                    plugin = workbench.get_plugin('enaml.workbench.core')
+                    if checked:
+                        plugin.invoke_command('psi.controller.request_pause')
+                    else:
+                        plugin.invoke_command('psi.controller.request_resume')
+            Action:
+                separator = True
+
+            # Apply/Revert logic should pass through the controller so we can
+            # ensure that the changes occur at the appropriate time in a trial
+            # (i.e., in between trials). 
+            Action:
+                text = 'Apply'
+                enabled << workbench.get_plugin('psi.context').changes_pending \
+                    and not workbench.get_plugin('psi.controller')._apply_requested \
+                    and workbench.get_plugin('psi.controller').experiment_state \
+                    in ('running', 'paused')
+                triggered :: 
+                    plugin = workbench.get_plugin('enaml.workbench.core')
+                    plugin.invoke_command('psi.controller.request_apply')
+
+    Extension:
+        id = 'base_menu'
+        point = 'enaml.workbench.ui.actions'
+        MenuItem:
+            path = '/equipment'
+            label = 'Equipment'
+            after = 'configuration'
+        ActionItem:
+            path = '/equipment/calibration'
+            label = 'Calibration'
+            command = 'psi.controller.configure_calibration'
+        MenuItem:
+            path = '/equipment/output'
+            label = 'Outputs'
+        MenuItem:
+            path = '/equipment/input'
+            label = 'Inputs'
+
+    Extension:
+        id = 'base_actions'
+        point = 'psi.controller.actions'
+        rank = 10
+
+        ExperimentEvent:
+            name = 'experiment_initialize'
+        ExperimentState:
+            name = 'experiment'
+        ExperimentEvent:
+            name = 'engines_configured'
+        ExperimentEvent:
+            name = 'experiment_event'
+
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'psi.controller.configure_engines'
+        ExperimentAction:
+            event = 'experiment_start'
+            command = 'psi.controller.start_engines'
+        ExperimentAction:
+            event = 'experiment_end'
+            command = 'psi.controller.stop_engines'
+        ExperimentAction:
+            event = 'plugins_started'
+            command = 'psi.controller.log_info'

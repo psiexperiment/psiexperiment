@@ -11,15 +11,19 @@ from enaml.widgets.api import (Action, CheckBox, Container, Field, Form,
                                MenuBar, ObjectCombo, PushButton, VGroup)
 
 from psi import get_config, get_config_folder
-from psi.application import load_manifest_from_file
+from psi.core.enaml.api import load_manifest_from_file
 from psi.controller.api import Channel
 from psi.controller.calibration.util import load_calibration
 
 
-def configure_calibration(io_file, cal_file):
+def get_editable_channels(io_file):
     manifest = load_manifest_from_file(io_file, 'IOManifest')
     channels = [o for o in manifest().traverse() if isinstance(o, Channel)]
-    editable_channels = [c for c in channels if c.calibration_user_editable]
+    return [c for c in channels if c.calibration_user_editable]
+
+
+def configure_calibration(io_file, cal_file):
+    editable_channels = get_editable_channels(io_file)
 
     # Load the selected calibration
     if cal_file is not None:
@@ -105,6 +109,7 @@ enamldef LauncherView(MainWindow): main:
             HGroup:
                 padding = 0
                 align_widths = False
+                enabled << len(get_editable_channels(launcher.io)) > 0
 
                 ObjectCombo: select_calibration:
                     items << launcher.available_calibrations[:]

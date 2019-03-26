@@ -1,18 +1,14 @@
 import logging
 log = logging.getLogger(__name__)
 
-from functools import partial
 import atexit
-import tempfile
-import shutil
 from pathlib import Path
+import shutil
+import tempfile
 
 from atom.api import Typed
-from enaml.workbench.api import Extension
-from enaml.workbench.core.api import Command
 
 from ..sink import Sink
-from psi.core.enaml.api import PSIManifest
 
 
 class BaseStore(Sink):
@@ -33,30 +29,5 @@ class BaseStore(Sink):
         return path
 
     def set_base_path(self, base_path):
+        print('SET')
         self.base_path = Path(base_path)
-
-
-def save_mapping(sink, event):
-    return sink.save_mapping(event.parameters['name'],
-                             event.parameters['mapping'],
-                             event.parameters.get('overwrite', False))
-
-
-def save_dataframe(sink, event):
-    return sink.save_dataframe(event.parameters['name'],
-                               event.parameters['dataframe'],
-                               event.parameters.get('overwrite', False))
-
-
-enamldef BaseStoreManifest(PSIManifest): manifest:
-
-    Extension:
-        id = manifest.id + '.base_commands'
-        point = 'enaml.workbench.core.commands'
-
-        Command:
-            id = contribution.name + '.save_dataframe'
-            handler = partial(save_dataframe, manifest.contribution)
-        Command:
-            id = contribution.name + '.save_mapping'
-            handler = partial(save_mapping, manifest.contribution)

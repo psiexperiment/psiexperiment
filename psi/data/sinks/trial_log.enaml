@@ -1,72 +1,76 @@
-from atom.api import Typed
-from enaml.core.api import d_
-from enaml.widgets.api import Container, DockItem, CheckBox, VGroup
+from enaml.core.api import Conditional, d_func
+from enaml.widgets.api import CheckBox, Container, DockItem, VGroup
 from enaml.workbench.api import Extension
 
-from psi.context.context_item import OrderedContextMeta
-from psi.core.enaml.api import PSIManifest
-from psi.core.enaml.editable_table_widget import DataFrameTable
+from psi.context.api import OrderedContextMeta
+from psi.core.enaml.api import ListDictTable
 from psi.experiment.api import ItemPreferences
 
-from ..sink import Sink
+from .table_store import TableStore, TableStoreManifest
 
 
-class TrialLog(Sink):
+class TrialLog(TableStore):
 
     name = 'trial_log'
     label = 'Trial log'
 
+    @d_func
+    def get_cell_color(self, row, column):
+        return 'white'
 
-enamldef TrialLogManifest(PSIManifest): manifest:
 
-    Extension:
-        id = 'items'
-        point = 'psi.context.items'
-        OrderedContextMeta: meta:
-            name << manifest.contribution.name
-            label << '{} columns'.format(manifest.contribution.label)
+enamldef TrialLogManifest(TableStoreManifest): manifest:
 
-    Extension:
-        id = 'preferences'
-        point = 'psi.experiment.preferences'
-        rank = 200
-        ItemPreferences:
-            item << table
-            name << manifest.contribution.name + '_table'
-            auto_save = ['column_widths']
+    Conditional:
+        condition << manifest.contribution.show_widget
 
-    Extension:
-        id = 'workspace'
-        point = 'psi.experiment.workspace'
-        DockItem: di:
-            name << manifest.contribution.name
-            title << manifest.contribution.label
-            closable = False
+        Extension:
+            id = manifest.id + '.trial_log.items'
+            point = 'psi.context.items'
+            OrderedContextMeta: meta:
+                link_rove = False
+                name << contribution.name
+                label << '{} columns'.format(contribution.label)
+                values ::
+                    table.columns = [v.name for v in values]
+                    column_info = {}
+                    for v in values:
+                        column_info[v.name] = {
+                            'label': v.compact_label,
+                            'to_string': '{:.2f}'.format if 'f' in v.dtype else str,
+                        }
+                    table.column_info = column_info
 
-            attr data_plugin = workbench.get_plugin('psi.data')
+        Extension:
+            id = manifest.id + '.trial_log_workspace'
+            point = 'psi.experiment.workspace'
 
-            Container:
-                VGroup:
-                    CheckBox:
-                        text = 'Autoscroll?'
-                        checked := table.autoscroll
-                DataFrameTable: table:
-                    name = 'trial_log_table'
-                    data << data_plugin.trial_log
-                    get_cell_color => (row, column):
-                        if 'trial_type' in data:
-                            tt = data.at[row, 'trial_type']
-                            if tt == 'go_remind':
-                                return 'forestgreen'
-                            elif tt == 'go':
-                                return 'lightgreen'
-                            elif tt == 'go_forced':
-                                return 'green'
-                            elif tt == 'nogo':
-                                return 'lightpink'
-                            elif tt == 'nogo_repeat':
-                                return 'pink'
-                        return 'white'
-                    columns << [v.name for v in meta.values]
-                    column_info << {v.name: v for v in meta.values}
-                    autoscroll = True
+            DockItem: di:
+                closable = False
+                name << manifest.contribution.name
+                title << manifest.contribution.label
+
+                Container:
+                    VGroup:
+                        CheckBox:
+                            text = 'Autoscroll?'
+                            checked := table.autoscroll
+
+                    ListDictTable: table:
+                        data << manifest.contribution._data[:]
+                        get_cell_color => (row, column):
+                            try:
+                                tt = data[row]['trial_type']
+                                if tt == 'go_remind':
+                                    return 'forestgreen'
+                                elif tt == 'go':
+                                    return 'lightgreen'
+                                elif tt == 'go_forced':
+                                    return 'green'
+                                elif tt == 'nogo':
+                                    return 'lightpink'
+                                elif tt == 'nogo_repeat':
+                                    return 'pink'
+                            except KeyError:
+                                return 'white'
+                        autoscroll = True
