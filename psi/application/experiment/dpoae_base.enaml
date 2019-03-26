@@ -58,7 +58,7 @@ def process(n_time, n_fft, input, workbench, status_widget, target):
             f1 = context.get_value('primary_tone_frequency')
             f2 = context.get_value('secondary_tone_frequency')
             noise_floor = context.get_value('max_dpoae_noise_floor')
-            dpoae = 2 * f2 - f1
+            dpoae = 2 * f1 - f2
 
             resolution = input.fs / mean_time.shape[-1]
             nf_frequencies = [f*resolution+dpoae for f in range(-2, 3)]
