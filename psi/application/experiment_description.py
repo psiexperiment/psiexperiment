@@ -1,3 +1,8 @@
+import logging
+log = logging.getLogger(__name__)
+
+from copy import copy
+
 from atom.api import Atom, Bool, Enum, List, Unicode, Typed
 
 ################################################################################
@@ -136,9 +141,9 @@ abr_experiment = ParadigmDescription(
     type='ear',
     plugins=[
         abr_controller,
-        temperature_mixin,
-        eeg_view_mixin,
-        abr_in_ear_calibration_mixin,
+        copy(temperature_mixin),
+        copy(eeg_view_mixin),
+        copy(abr_in_ear_calibration_mixin),
     ]
 )
 
@@ -149,11 +154,11 @@ dpoae_time_experiment = ParadigmDescription(
     type='ear',
     plugins=[
         dpoae_time_controller,
-        temperature_mixin,
-        eeg_view_mixin,
-        dpoae_in_ear_calibration_mixin,
-        microphone_fft_view_mixin,
-        microphone_signal_view_mixin,
+        copy(temperature_mixin),
+        copy(eeg_view_mixin),
+        copy(dpoae_in_ear_calibration_mixin),
+        copy(microphone_fft_view_mixin),
+        copy(microphone_signal_view_mixin),
     ]
 )
 
@@ -164,11 +169,11 @@ dpoae_io_experiment = ParadigmDescription(
     type='ear',
     plugins=[
         dpoae_io_controller,
-        temperature_mixin,
-        eeg_view_mixin,
-        dpoae_in_ear_calibration_mixin,
-        microphone_fft_view_mixin,
-        microphone_signal_view_mixin,
+        copy(temperature_mixin),
+        copy(eeg_view_mixin),
+        copy(dpoae_in_ear_calibration_mixin),
+        copy(microphone_fft_view_mixin),
+        copy(microphone_signal_view_mixin),
     ]
 )
 

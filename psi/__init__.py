@@ -38,9 +38,13 @@ class SimpleState(object):
             setattr(self, key, value)
 
 
-def get_config_path():
-    user_path = Path('~') / 'psi' / 'config.py'
+def get_config_folder():
+    user_path = Path('~') / 'psi'
     return user_path.expanduser()
+
+
+def get_config_file():
+    return get_config_folder() / 'config.py'
 
 
 def create_config(base_directory=None):
@@ -70,7 +74,7 @@ def load_config():
     from os import environ
     from . import config
 
-    config_path = get_config_path()
+    config_path = get_config_file()
     if config_path.exists():
         try:
             spec = importlib.util.spec_from_file_location('settings', config_path)

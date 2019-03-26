@@ -6,8 +6,9 @@ from pathlib import Path
 import subprocess
 
 from atom.api import Atom, Bool, Enum, List, Typed, Unicode
-from enaml.qt.qt_application import QtApplication
 import enaml
+from enaml.qt.qt_application import QtApplication
+
 with enaml.imports():
     from psi.application.base_launcher_view import LauncherView
 
