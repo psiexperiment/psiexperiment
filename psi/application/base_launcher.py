@@ -6,12 +6,11 @@ from pathlib import Path
 import subprocess
 
 from atom.api import Atom, Bool, Enum, List, Typed, Unicode
-from enaml.qt.qt_application import QtApplication
 import enaml
+from enaml.qt.qt_application import QtApplication
+
 with enaml.imports():
     from psi.application.base_launcher_view import LauncherView
-
-
 from psi import get_config
 from psi.application import list_calibrations, list_io, list_preferences
 from psi.application.experiment_description import get_experiments, ParadigmDescription
