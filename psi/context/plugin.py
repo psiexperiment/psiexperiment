@@ -145,7 +145,7 @@ class ContextPlugin(Plugin):
         # been assigned yet.
         for item in items:
             if item.group_name not in context_groups:
-                m = f'Missing {item.group_name} for item {item.name}'
+                m = f'Missing group "{item.group_name}" for item {item.name}'
                 raise ValueError(m)
             item.set_group(context_groups[item.group_name])
 
