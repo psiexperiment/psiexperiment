@@ -54,7 +54,7 @@ enamldef ControllerManifest(DPOAEManifest):
         ExperimentAction:
             event = 'context_next_setting'
             command = 'dpoae.start'
-            kwargs = {'delay': 0.5}
+            kwargs = {'delay': 1.0}
 
     Extension:
         id = EXPERIMENT + '.items'

@@ -381,9 +381,9 @@ class Accumulate(ContinuousInput):
 
 @coroutine
 def capture(fs, queue, target):
-    t0 = 0
-    t_start = None  # track start of capture
-    t_next = None
+    s0 = 0
+    t_start = None  # Time, in seconds, of capture start
+    s_next = None   # Sample number fo rcapture
     active = False
 
     while True:
@@ -394,28 +394,28 @@ def capture(fs, queue, target):
             # We've recieved a new command. The command will either be None
             # (i.e., no more acquisition for a bit) or a floating-point value
             # (indicating when next acquisition should begin).
-            t_next = queue.get(block=False)
-            if t_next is not None:
-                log.debug('Starting capture at %f', t_next)
-                t_next = round(t_next*fs)
-                t_start = t_next
+            t_start = queue.get(block=False)
+            if t_start is not None:
+                log.debug('Starting capture at %f', t_start)
+                s_next = round(t_start*fs)
                 target(Ellipsis)
-            elif t_next is None:
+            elif t_start is None:
                 log.debug('Ending capture')
-            elif t_next < t0:
+                s_next = None
+            elif t_start < t0:
                 raise SystemError('Data lost')
         except Empty:
             pass
 
-        if (t_next is not None) and (t_next >= t0):
-            i = t_next-t0
+        if (s_next is not None) and (s_next >= s0):
+            i = s_next-s0
             if i < data.shape[-1]:
                 d = data[i:]
                 d.metadata['capture'] = t_start
                 target(d)
-                t_next += d.shape[-1]
+                s_next += d.shape[-1]
 
-        t0 += data.shape[-1]
+        s0 += data.shape[-1]
 
 
 class Capture(ContinuousInput):

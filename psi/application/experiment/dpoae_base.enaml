@@ -89,6 +89,8 @@ def process(n_time, n_fft, input, workbench, status_widget, target):
                     parameters = {'data': values}
                     core.invoke_command('dpoae_store.save',
                                         parameters=parameters)
+            else:
+                log.debug('DPOAE reject')
 
         # Post current status to the GUI
         def update(n_time, n_fft, status_widget):
