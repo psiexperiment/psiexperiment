@@ -163,7 +163,8 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gain=0,
 
     for ai_channel in ai_channels:
         cb = partial(accumulate, data[ai_channel.name])
-        epoch_input = ExtractEpochs(queue=queue, epoch_size=duration)
+        epoch_input = ExtractEpochs(epoch_size=duration)
+        queue.connect(epoch_input.queue.append)
         epoch_input.add_callback(cb)
         ai_channel.add_input(epoch_input)
         ai_channel.add_callback(samples[ai_channel.name].append)
@@ -195,6 +196,7 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gain=0,
             if debug:
                 f_result['waveform'] = s
             channel_result.append(f_result)
+
         df = pd.DataFrame(channel_result)
         df['channel_name'] = ai_channel.name
         result.append(df)
