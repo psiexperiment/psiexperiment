@@ -31,32 +31,35 @@ class TableStore(BaseStore):
     _store = Value()
     _columns = Value()
 
+    def get_filename(self):
+        return super().get_filename(self.name, '.csv')
+
     def prepare(self):
         if not self.save_data:
             return
-        path = self.get_filename(self.name, '.csv')
+        path = self.get_filename()
         self._store = path.open('w', newline='\n')
         atexit.register(self._store.close)
 
-    def _save_data(self, data):
+    def _save_data(self, data, flush=False):
         if isinstance(data, Mapping):
             df = pd.DataFrame(pd.Series(data)).T
         else:
             df = pd.DataFrame(data)
 
-        # Ensure that ordering is preserved
-        try:
-            ordering = self._columns
-            if list(df.columns) != self._columns:
-                df = df[self._columns]
+        if self._columns is not None:
+            # Ensure that ordering is preserved
+            df = df[self._columns]
             header = False
-        except KeyError:
+        else:
             self._columns = list(df.columns)
             header = True
 
         csv_string = df.to_csv(index=False, header=header,
                                line_terminator='\n')
         self._store.write(csv_string)
+        if flush:
+            self._store.flush()
 
     def _update_widget(self, data):
         if isinstance(data, Mapping):
@@ -64,9 +67,9 @@ class TableStore(BaseStore):
         else:
             self._data.extend(data)
 
-    def process_table(self, data):
+    def process_table(self, data, flush=False):
         if self.save_data: 
-            self._save_data(data)
+            self._save_data(data, flush)
         if self.show_widget: 
             self._update_widget(data)
 

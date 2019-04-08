@@ -39,4 +39,6 @@ def workbench(app):
 
 @pytest.fixture
 def controller(workbench):
-    return workbench.get_plugin('psi.controller')
+    controller = workbench.get_plugin('psi.controller')
+    controller.finalize_io()
+    return controller
