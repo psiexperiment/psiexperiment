@@ -47,6 +47,8 @@ class Channel(PSIContribution):
     # Is channel active during experiment?
     active = Property()
 
+    filter_delay = d_(Float(0).tag(metadata=True))
+
     def _default_calibration(self):
         return UnityCalibration()
 

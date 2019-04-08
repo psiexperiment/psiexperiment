@@ -53,7 +53,7 @@ abr_controller = PluginDescription(
     name='controller',
     title='Controller',
     required=True,
-    manifest='psi.application.experiment.abr_base.ControllerManifest',
+    manifest='psi.application.experiment.abr_base.ABRManifest',
 )
 
 

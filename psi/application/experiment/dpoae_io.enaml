@@ -4,7 +4,7 @@ from enaml.workbench.api import Extension
 from psi.controller.api import ExperimentAction
 from psi.data.plots import ResultPlot, PlotContainer, ViewBox
 
-from .dpoae_base import ControllerManifest as DPOAEBaseControllerManifest
+from .dpoae_base import DPOAEManifest
 
 EXPERIMENT = __name__.rsplit('.', 1)[-1]
 
@@ -14,7 +14,7 @@ from enaml.widgets.api import Form, ObjectCombo
 from psi.data.plots import MultiPlotContainer
 
 
-enamldef ControllerManifest(DPOAEBaseControllerManifest):
+enamldef ControllerManifest(DPOAEManifest):
 
     Extension:
         id = EXPERIMENT + '.actions'
