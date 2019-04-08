@@ -11,7 +11,7 @@ from enaml.workbench.core.api import Command
 from psi.context.api import ContextGroup, EnumParameter, Parameter, Result
 from psi.controller.api import (Blocked, ControllerManifest, ExperimentAction,
                                 get_hw_ai_choices)
-from psi.controller.calibration import util
+from psi.controller.calibration import UnityCalibration, util
 from psi.data.plots import (TimeContainer, ChannelPlot, ViewBox, FFTContainer,
                             FFTChannelPlot)
 
@@ -38,6 +38,7 @@ def calculate_sens(event):
     fs = source.attrs['fs']
 
     rms_overall = util.rms(waveform, detrend=True)
+    print(rms_overall)
     rms_nom = util.tone_power_conv(waveform, fs, frequency, 'flattop')
 
     frequencies = util.psd_freq(waveform, fs)
@@ -122,6 +123,7 @@ enamldef PistonphoneCalibrationManifest(ControllerManifest): manifest:
                 # input channel.  TODO: Perhaps make the engine smarter in the
                 # future to handle these sort of edge-cases?
                 channel.start_trigger = ''
+                channel.calibration = UnityCalibration()
                 channel.samples = round(C.sample_duration * channel.fs)
                 channel.gain = C.input_gain
                 complete_event = '{}_end'.format(channel.engine.name)
@@ -222,27 +224,27 @@ enamldef PistonphoneCalibrationManifest(ControllerManifest): manifest:
                     Label:
                         text = 'Peak frequency (Hz)'
                     Label:
-                        text << '{:.2f}'.format(results.get('peak frequency (Hz)', ''))
+                        text << '{:.4f}'.format(results.get('peak frequency (Hz)', ''))
 
                     Label:
                         text = 'Overall RMS (V)'
                     Label:
-                        text << '{:.2f}'.format(results.get('rms overall (V)', ''))
+                        text << '{:.4f}'.format(results.get('rms overall (V)', ''))
 
                     Label:
                         text = 'RMS at nominal frequency (V)'
                     Label:
-                        text << '{:.2f}'.format(results.get('rms nominal (V)', ''))
+                        text << '{:.4f}'.format(results.get('rms nominal (V)', ''))
 
                     Label:
                         text = 'RMS at peak frequency (V)'
                     Label:
-                        text << '{:.2f}'.format(results.get('rms peak (V)', ''))
+                        text << '{:.4f}'.format(results.get('rms peak (V)', ''))
 
                     Label:
                         text = 'Mic. sens. (mV/Pa)'
                     Label:
-                        text << '{:.2f}'.format(results.get('mic sens peak (mV/Pa)', ''))
+                        text << '{:.4f}'.format(results.get('mic sens peak (mV/Pa)', ''))
 
     Extension:
         id = 'plots'

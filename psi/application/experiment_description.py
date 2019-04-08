@@ -73,14 +73,6 @@ dpoae_io_controller = PluginDescription(
 )
 
 
-speaker_calibration_controller = PluginDescription(
-    name='controller',
-    title='Controller',
-    required=True,
-    manifest='psi.application.experiment.speaker_calibration.SpeakerCalibrationManifest',
-)
-
-
 temperature_mixin = PluginDescription(
     name='temperature',
     title='Temperature display',
@@ -181,6 +173,42 @@ dpoae_io_experiment = ParadigmDescription(
 ################################################################################
 # Calibration
 ################################################################################
+golay_mixin = PluginDescription(
+    name='golay',
+    title='golay',
+    required=True,
+    manifest='psi.application.experiment.golay_mixin.GolayMixin'
+)
+
+
+speaker_calibration_controller_golay = PluginDescription(
+    name='controller',
+    title='Controller',
+    required=True,
+    manifest='psi.application.experiment.speaker_calibration.BaseSpeakerCalibrationManifest',
+)
+
+
+speaker_calibration_golay_experiment = ParadigmDescription(
+    name='speaker_calibration_golay',
+    title='Speaker calibration (Golay)',
+    type='ear',
+    plugins=[
+        speaker_calibration_controller_golay,
+        golay_mixin,
+    ]
+)
+
+
+
+speaker_calibration_controller = PluginDescription(
+    name='controller',
+    title='Controller',
+    required=True,
+    manifest='psi.application.experiment.speaker_calibration.SpeakerCalibrationManifest',
+)
+
+
 speaker_calibration_experiment = ParadigmDescription(
     name='speaker_calibration',
     title='Speaker calibration',
@@ -308,6 +336,7 @@ experiments = {
     'dpoae_time': dpoae_time_experiment,
     'dpoae_io': dpoae_io_experiment,
     'speaker_calibration': speaker_calibration_experiment,
+    'speaker_calibration_golay': speaker_calibration_golay_experiment,
     'appetitive_gonogo_food': appetitive_experiment,
     'noise_exposure': noise_exposure_experiment,
     'pistonphone_calibration': pistonphone_calibration,
