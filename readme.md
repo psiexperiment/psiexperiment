@@ -1,9 +1,6 @@
-ψ<sub>experiment</sub>
-======================
+# Psiexperiment</sub>
 
-Psiexperiment is a plugin-based experiment controller that facilitates the
-process of writing experiments. There are four core plugins: context,
-experiment, controller and data.
+Psiexperiment is a plugin-based experiment controller that facilitates the process of writing experiments. There are four core plugins: context, experiment, controller and data.
 
 Terminology
 -----------
@@ -327,30 +324,3 @@ workspace as well as save/restore the preferences for each plugin.
 Provides basic management and analysis of data acquired during an experiment.
 
 ### Controller plugin
-
-TODO
-
-
-Roadmap
--------
-
-TODO
-
-Migrating from Neurobehavior 
-----------------------------
-
-This is a significant rewrite of Neurobehavior that leverages the strengths of
-the Atom/Enaml framework. The key change is that Psiexperiment is plugin-based.
-Writing experiments in Neurobehavior involved subclassing several classes
-(e.g., paradigm, experiment, controller, data) and incorporating various mixins
-(e.g., for the pump controller and pump data). Often this required some
-cumbersome hacks to get the GUI and experiment to behave the way you want.
-There were also some significant limitations with the context management system
-(i.e., adding new parameters required subclassing the paradigm class and
-possibly incorporating mixins for pumps, etc.). 
-
-In contrast, setting up new experiments in psiexperiment should be simpler. You
-decide the types of plugins you want loaded and write a manifest file that
-defines the specific extensions you want. If you have a specific type of
-analysis that you need done on the acquired data, you can write a new plugin
-and load it.

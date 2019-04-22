@@ -21,44 +21,86 @@ from .experiment_action import ExperimentState, ExperimentEvent, ExperimentActio
 from .queue import queues
 
 
-def toggle_off(event, output):
-    output.set_low()
-
-
-def toggle_on(event, output):
-    output.set_high()
-
-
-def fire(event, output):
-    output.fire()
-
-
-def toggle(event, output):
-    if event.parameters['state']:
-        toggle_on(event, output)
-    else:
-        toggle_off(event, output)
-
-
 def set_token(event, output, output_type):
-    if not event.parameters['token_name']:
+    if not event.parameters['token']:
+        log.warn('No token provided for %s.', output.name)
         return
-    token_plugin = event.workbench.get_plugin('psi.token')
-    factory = getattr(token_plugin, 'generate_{}_token'.format(output_type))
-    token = factory(event.parameters['token_name'], output.name, output.label)
-    output.token = token
-    output.token_name = event.parameters['token_name']
+
+    output.token = event.parameters['token']
 
     # TODO: This is a hack. Maybe?
     context_plugin = event.workbench.get_plugin('psi.context')
     context_plugin._refresh_items()
 
 
-def get_parameters(block):
-    parameters = list(block.context_name_map.keys())
+CONTEXT_MAP = {}
+
+
+def get_parameters(output, block):
+    parameters = list(CONTEXT_MAP[output, block].keys())
     for b in block.blocks:
-        parameters.extend(get_parameters(b))
+        parameters.extend(get_parameters(output, b))
     return parameters
+
+
+def load_items(output, block):
+    if block is None:
+        return []
+
+    from .output import ContinuousOutput
+    scope = 'experiment' if isinstance(output, ContinuousOutput) else 'trial'
+
+    block_map = {}
+    parameters = []
+    for parameter in block.parameters:
+        new_parameter = copy.copy(parameter)
+        new_parameter.name = '{}_{}_{}' \
+            .format(output.name, block.name, parameter.name)
+        new_parameter.label = '{} {}' \
+            .format(block.label, parameter.label)
+        new_parameter.compact_label = '{} {}' \
+            .format(block.compact_label, parameter.compact_label)
+        new_parameter.group_name = output.name
+        new_parameter.scope = scope
+        parameters.append(new_parameter)
+        block_map[new_parameter.name] = parameter.name
+
+    CONTEXT_MAP[output, block] = block_map
+
+    for block in block.blocks:
+        block_parameters = load_items(output, block)
+        parameters.extend(block_parameters)
+
+    return parameters
+
+
+def initialize_factory(output, block, context):
+    input_factories = [initialize_factory(output, b, context) \
+                       for b in block.blocks]
+
+    # Pull out list of params accepted by factory class so we can figure out if
+    # there's anything important that needs to be added to the context (e.g.,
+    # sampling rate).
+    code = block.factory.__init__.__code__
+    params = code.co_varnames[1:code.co_argcount]
+
+    # Now, pull out the block-specific context.
+    block_context = {bn: context[gn] for gn, bn in \
+                     CONTEXT_MAP[output, block].items()}
+
+    # TODO: Should this be included when we create the CONTEXT_MAP? 
+    if 'fs' in params:
+        block_context['fs'] = context['fs']
+    if 'calibration' in params:
+        block_context['calibration'] = context['calibration']
+    if 'input_factory' in params:
+        if len(input_factories) != 1:
+            raise ValueError('Incorrect number of inputs')
+        block_context['input_factory'] = input_factories[0]
+    if 'input_factories' in params:
+        block_context['input_factories'] = input_factories
+
+    return block.factory(**block_context)
 
 
 def prepare_output(event, output):
@@ -69,13 +111,13 @@ def prepare_output(event, output):
     '''
     log.debug('Preparing output %s', output.name)
     core = event.workbench.get_plugin('enaml.workbench.core')
-    parameters = {'context_names': get_parameters(output.token)}
+    parameters = {'context_names': get_parameters(output, output.token)}
     context = core.invoke_command('psi.context.get_values', parameters)
 
     context['fs'] = output.fs
     context['calibration'] = output.calibration
 
-    factory = output.token.initialize_factory(context)
+    factory = initialize_factory(output, output.token, context)
     if event.parameters.get('cache', False):
         log.debug('Pregenerating output %s', output.name)
         duration = factory.get_duration()
@@ -87,20 +129,12 @@ def prepare_output(event, output):
 
 def prepare_output_queue(event, output):
     log.info('Setting up queue for {}'.format(output.name))
-
     controller = event.workbench.get_plugin('psi.controller')
     context = event.workbench.get_plugin('psi.context')
-
     action_name = output.name + '_end'
     output.complete_cb = partial(controller.invoke_actions, action_name)
-
     for setting in context.iter_settings(output.selector_name, 1):
         output.add_setting(setting)
-
-
-def set_output_queue(event, output):
-    queue_class = event.parameters['queue_class']
-    output.queue = queue_class()
 
 
 def prepare_synchronized(synchronized, event):
@@ -111,14 +145,17 @@ def prepare_synchronized(synchronized, event):
 
 def start_synchronized(synchronized, event):
     log.debug('Starting synchronized %s', synchronized.name)
-    for output in synchronized.outputs:
-        if not output.is_ready():
-            log.warn('Output %s is not ready', output.name)
-            prepare_output(event, output)
+    controller = event.workbench.get_plugin('psi.controller')
 
     ts = event.parameters['timestamp']
     start = event.parameters.get('start', ts)
     delay = event.parameters.get('delay', 0)
+
+    # Is this a hack? If no timestamp is defined, then assume that the start is
+    # 0 (e.g., in the case of experiment_prepare).
+    if start is None:
+        start = controller.get_ts()
+        log.debug('No starting time provided. Setting start to %f.', start)
 
     # For each engine involved in this synchronized output, store a list of the
     # offsets and channel names that need to be updated.
@@ -130,9 +167,24 @@ def start_synchronized(synchronized, event):
     for engine in synchronized.engines:
         engine.lock.acquire()
 
+    notify_end = False
+    durations = {}
+
     # Activate the outputs
     for output in synchronized.outputs:
         offset = round((start+delay)*output.channel.fs)
+
+        if output.active:
+            log.debug('Output %s is active. Deactivating first.', output.name)
+            output.deactivate(offset)
+            notify_end = True
+
+        if not output.is_ready():
+            log.debug('Output %s is not ready. Preparing.', output.name)
+            prepare_output(event, output)
+
+        durations[output.name] = output.get_duration()
+
         log.debug('Starting output %s', output.name)
         output.activate(offset)
 
@@ -148,9 +200,17 @@ def start_synchronized(synchronized, event):
     for engine in synchronized.engines:
         engine.lock.release()
 
-    controller = event.workbench.get_plugin('psi.controller')
+    if notify_end:
+        controller.invoke_actions('{}_end'.format(synchronized.name),
+                                  start+delay)
+
     controller.invoke_actions('{}_start'.format(synchronized.name),
                               start+delay)
+
+    duration = max(durations.values())
+    if duration is not np.inf:
+        controller.invoke_actions('{}_end'.format(synchronized.name),
+                                  start+delay+duration, delayed=True)
 
 
 def clear_synchronized(synchronized, event):
@@ -192,14 +252,31 @@ def clear_synchronized(synchronized, event):
                               end+delay)
 
 
-def start_output(event, output):
-    if not output.is_ready():
-        log.warn('Output %s is not ready', output.name)
-        prepare_output(event, output)
-
+def _get_start_delay(event):
     ts = event.parameters['timestamp']
     start = event.parameters.get('start', ts)
     delay = event.parameters.get('delay', 0)
+
+    if isinstance(delay, str):
+        context = event.workbench.get_plugin('psi.context')
+        delay = context.get_value(delay)
+
+    # Is this a hack? If no timestamp is defined, then assume that the start is
+    # 0 (e.g., in the case of experiment_prepare).
+    if start is None:
+        start = 0
+
+    return start, delay
+
+
+def start_output(event, output):
+    ts = event.parameters['timestamp']
+    start = event.parameters.get('start', ts)
+    delay = event.parameters.get('delay', 0)
+
+    if isinstance(delay, str):
+        context = event.workbench.get_plugin('psi.context')
+        delay = context.get_value(delay)
 
     # Is this a hack? If no timestamp is defined, then assume that the start is
     # 0 (e.g., in the case of experiment_prepare).
@@ -207,10 +284,7 @@ def start_output(event, output):
         start = 0
 
     offset = round((start+delay)*output.channel.fs)
-
-    # This needs to be done before we update the engine since it gets set to
-    # None once all samples have been generated.
-    duration = output.get_duration()
+    notify_end = False
 
     try:
         output.engine.lock.acquire()
@@ -218,6 +292,19 @@ def start_output(event, output):
         # Important to lock the engine when activating the output to prevent
         # race conditions
         log.debug('Starting output %s at %d', output.name, offset)
+        if output.active:
+            output.deactivate(offset)
+            log.debug('Output %s was active. Deactivating first.', output.name)
+            notify_end = True
+
+        if not output.is_ready():
+            log.debug('Output %s is not ready', output.name)
+            prepare_output(event, output)
+
+        # This needs to be done before we update the engine since it gets set to
+        # None once all samples have been generated.
+        duration = output.get_duration()
+
         output.activate(offset)
         output.engine.update_hw_ao(offset, output.channel.name,
                                    method='write_position')
@@ -233,11 +320,10 @@ def start_output(event, output):
         output.engine.lock.release()
         log.exception(e)
         log.debug('Invalidated buffer at %d', offset)
-        raise
     else:
         filter_delay = output.channel.filter_delay
-        log.debug('Compensating %s for filter delay %f', output.name,
-                  filter_delay)
+        log.debug('Compensating %s start event for filter delay %f',
+                  output.name, filter_delay)
         controller = event.workbench.get_plugin('psi.controller')
         controller.invoke_actions('{}_start'.format(output.name),
                                   start+delay+filter_delay)
@@ -245,6 +331,9 @@ def start_output(event, output):
             controller.invoke_actions('{}_end'.format(output.name),
                                       start+delay+duration, delayed=True)
 
+    if notify_end:
+        controller.invoke_actions('{}_end'.format(output.name),
+                                  start+delay+duration)
 
 def clear_output(event, output):
     end = event.parameters['timestamp']
@@ -286,13 +375,13 @@ def decrement_key(event, output):
 enamldef SynchronizedManifest(PSIManifest): manifest:
 
     Extension:
-        id = 'actions.' + manifest.contribution.name
+        id = manifest.id + '.actions'
         point = 'psi.controller.actions'
         ExperimentState:
             name = manifest.contribution.name
 
     Extension:
-        id = 'output_commands'
+        id = manifest.id + '.output_commands'
         point = 'enaml.workbench.core.commands'
         Command:
             id = manifest.contribution.name + '.prepare'
@@ -305,90 +394,88 @@ enamldef SynchronizedManifest(PSIManifest): manifest:
             handler = partial(clear_synchronized, manifest.contribution)
 
 
-def load_items(output, block):
-    from .output import ContinuousOutput
-    if isinstance(output, ContinuousOutput):
-        scope = 'experiment'
-    else:
-        scope = 'trial'
-
-    if block is None:
-        return []
-
-    block_map = {}
-    parameters = []
-    for parameter in block.parameters:
-        new_parameter = copy.copy(parameter)
-        new_parameter.name = '{}_{}_{}' \
-            .format(output.name, block.name, parameter.name)
-        new_parameter.label = '{} {}' \
-            .format(block.label, parameter.label)
-        new_parameter.compact_label = '{} {}' \
-            .format(block.compact_label, parameter.compact_label)
-        new_parameter.group = output.name
-        new_parameter.scope = scope
-        parameters.append(new_parameter)
-        block_map[new_parameter.name] = parameter.name
-
-    block.context_name_map = block_map
-
-    for block in block.blocks:
-        block_parameters = load_items(output, block)
-        parameters.extend(block_parameters)
-
-    return parameters
-
-
 enamldef AnalogOutputManifest(PSIManifest): manifest:
 
     Extension:
-        id = 'output_commands'
+        id = manifest.id + '.output_commands'
         point = 'enaml.workbench.core.commands'
-        Command:
-            id = manifest.contribution.name + '.set_token'
-            handler = partial(set_token, output=manifest.contribution,
-                              output_type=output_type)
+        Conditional:
+            condition << manifest.contribution.configurable
+            Command:
+                id = manifest.contribution.name + '.set_token'
+                handler = partial(set_token, output=contribution, output_type=output_type)
         Command:
             id = manifest.contribution.name + '.prepare'
-            handler = partial(prepare_output, output=manifest.contribution)
+            handler = partial(prepare_output, output=contribution)
         Command:
             id = manifest.contribution.name + '.start'
-            handler = partial(start_output, output=manifest.contribution)
+            handler = partial(start_output, output=contribution)
         Command:
             id = manifest.contribution.name + '.clear'
-            handler = partial(clear_output, output=manifest.contribution)
+            handler = partial(clear_output, output=contribution)
 
-    # TODO: Wrap in a conditional block to specify output is/isn't
-    # configurable?
-    Extension:
-        id = 'output_menu.' + manifest.contribution.name
-        point = 'enaml.workbench.ui.actions'
-        MenuItem: menu:
-            path = '/equipment/output/{}'.format(manifest.contribution.name)
-            label = '{} ({})'.format(manifest.contribution.label, output_type)
-            ItemGroup:
-                id = manifest.contribution.name + '_commands'
-            ItemGroup:
-                exclusive = True
-                id = manifest.contribution.name + '_tokens'
-        Looper:
-            # Generate the token menu so we can select the right token. Tokens
-            # is defined in the appropriate subclass (to point to continuous vs
-            # epoch-based waveforms).
-            iterable << tokens.values()
-            ActionItem:
-                path = '{}/{}'.format(menu.path, loop_item.name)
-                label << loop_item.label
-                group = manifest.contribution.name + '_tokens'
-                command = manifest.contribution.name + '.set_token'
-                checked << manifest.contribution.token_name == loop_item.name
-                checkable = True
-                parameters = {'token_name': loop_item.name}
-                enabled << workbench.get_plugin('psi.controller').experiment_state \
-                    in ('initialized', 'stopped')
+    Conditional:
+        condition << manifest.contribution.configurable
+
+        # Create a menu of the tokens available for the output if it's a
+        # configurable output.
+        Extension:
+            id = manifest.id + '.output_menu'
+            point = 'enaml.workbench.ui.actions'
+            MenuItem: menu:
+                path = '/equipment/output/{}'.format(manifest.contribution.name)
+                label = '{} ({})'.format(manifest.contribution.label, output_type)
+                ItemGroup:
+                    id = manifest.contribution.name + '_commands'
+                ItemGroup:
+                    exclusive = True
+                    id = manifest.contribution.name + '_tokens'
+
+            Looper:
+                # This loops through all tokens available for selection and
+                # generates the token menu so we can select the right token. Tokens
+                # are an attribute defined in the appropriate manifest subclass (to
+                # point to continuous vs epoch-based waveforms).
+                iterable << tokens.values()
+                ActionItem:
+                    path = '{}/{}'.format(menu.path, loop_item.name)
+                    label << loop_item.label
+                    group = manifest.contribution.name + '_tokens'
+                    command = manifest.contribution.name + '.set_token'
+                    checked << getattr(manifest.contribution.token, 'name', None) \
+                        == loop_item.name
+                    checkable = True
+                    parameters = {'token': loop_item}
+                    enabled << workbench.get_plugin('psi.controller').experiment_state \
+                        in ('initialized', 'stopped')
+
+        # Save the selected token and restore it
+        Extension:
+            id = manifest.id + '.preferences'
+            point = 'psi.experiment.preferences'
+            rank = 10
+            ItemPreferences:
+                name = 'output.' + manifest.contribution.name
+                item = manifest.contribution
+
+                get_preferences => (workbench):
+                    obj = self.get_object(workbench)
+                    return {'token_name': obj.token.name}
+
+                set_preferences => (workbench, preferences):
+                    # Override the set_preferences since we need to loop into the
+                    # token generation machinery. The output does not have access
+                    # to this plugin. TODO This is a hack. I'm sure I'll figure out a
+                    # better approach eventually.
+                    token_plugin = workbench.get_plugin('psi.token')
+                    token = token_plugin.get_token(preferences['token_name'])
+
+                    core = workbench.get_plugin('enaml.workbench.core')
+                    command = manifest.contribution.name + '.set_token'
+                    core.invoke_command(command, parameters={'token': token})
 
     Extension:
-        id = 'items.' + manifest.contribution.name
+        id = manifest.id + '.items'
         point = 'psi.context.items'
 
         ContextGroup:
@@ -401,29 +488,12 @@ enamldef AnalogOutputManifest(PSIManifest): manifest:
                                   manifest.contribution.token)
 
     Extension:
-        id = 'actions.' + manifest.contribution.name
+        id = manifest.id + '.actions'
         point = 'psi.controller.actions'
         ExperimentState:
             name = manifest.contribution.name
         ExperimentEvent:
             name = manifest.contribution.name + '_failure'
-
-    Extension:
-        id = 'preferences.' +  manifest.contribution.name
-        point = 'psi.experiment.preferences'
-        rank = 10
-        ItemPreferences:
-            name = 'output.' + manifest.contribution.name
-            item = manifest.contribution
-            auto_save = ['token_name']
-            set_preferences => (workbench, preferences):
-                # Override the set_preferences since we need to loop into the
-                # token generation machinery. The output does not have access
-                # to this plugin. TODO This is a hack. I'm sure I'll figure out a
-                # better approach eventually.
-                core = workbench.get_plugin('enaml.workbench.core')
-                command = manifest.contribution.name + '.set_token'
-                core.invoke_command(command, parameters=preferences)
 
 
 def get_tokens(workbench, ttype):
@@ -446,23 +516,20 @@ enamldef EpochOutputManifest(AnalogOutputManifest): manifest:
 enamldef QueuedEpochOutputManifest(EpochOutputManifest): manifest:
 
     Extension:
-        id = 'commands'
+        id = manifest.id + '.commands'
         point = 'enaml.workbench.core.commands'
         Command:
             id = manifest.contribution.name + '.prepare_queue'
-            handler = partial(prepare_output_queue, output=manifest.contribution)
-        Command:
-            id = manifest.contribution.name + '.set_queue'
-            handler = partial(set_output_queue, output=manifest.contribution)
+            handler = partial(prepare_output_queue, output=contribution)
         Command:
             id = manifest.contribution.name + '.decrement_key'
-            handler = partial(decrement_key, output=manifest.contribution)
+            handler = partial(decrement_key, output=contribution)
 
 
 enamldef SelectorQueuedEpochOutputManifest(QueuedEpochOutputManifest): manifest:
 
     Extension:
-        id = 'epoch_output_menu.' + manifest.contribution.name
+        id = manifest.id + '.epoch_output_menu'
         point = 'enaml.workbench.ui.actions'
         MenuItem:
             path = '/equipment/output/{}/queue'.format(manifest.contribution.name)
@@ -486,7 +553,7 @@ enamldef SelectorQueuedEpochOutputManifest(QueuedEpochOutputManifest): manifest:
                     in ('initialized', 'stopped')
 
     Extension:
-        id = 'items'
+        id = manifest.id + '.epoch_output_items'
         point = 'psi.context.items'
 
         ContextGroup:
@@ -508,7 +575,7 @@ enamldef SelectorQueuedEpochOutputManifest(QueuedEpochOutputManifest): manifest:
                 scope = 'experiment'
 
     Extension:
-        id = 'epoch_output_actions'
+        id = manifest.id + '.epoch_output_actions'
         point = 'psi.controller.actions'
 
         ExperimentAction:
@@ -516,7 +583,7 @@ enamldef SelectorQueuedEpochOutputManifest(QueuedEpochOutputManifest): manifest:
             command = manifest.contribution.name + '.prepare_queue'
 
     Extension:
-        id = 'queued_epoch_output_preferences.' +  manifest.contribution.name
+        id = manifest.id + '.queued_epoch_output_preferences'
         point = 'psi.experiment.preferences'
         rank = 10
         Preferences:
@@ -549,45 +616,71 @@ enamldef ContinuousOutputManifest(AnalogOutputManifest): manifest:
     attr output_type = 'continuous'
 
 
+################################################################################
+# ToggleManifest
+################################################################################
+
+def toggle_off(event, output):
+    output.set_low()
+
+
+def toggle_on(event, output):
+    output.set_high()
+
+
+def toggle(event, output):
+    if event.parameters['state']:
+        toggle_on(event, output)
+    else:
+        toggle_off(event, output)
+
+
 enamldef ToggleManifest(PSIManifest): manifest:
 
     Extension:
-        id = 'toggle_commands.' + manifest.contribution.name
+        id = manifest.id + '.toggle_commands'
         point = 'enaml.workbench.core.commands'
         Command:
-            id = manifest.id + '.off'
+            id = manifest.contribution.name + '.off'
             handler = partial(toggle_off, output=manifest.contribution)
         Command:
-            id = manifest.id + '.on'
+            id = manifest.contribution.name + '.on'
             handler = partial(toggle_on, output=manifest.contribution)
         Command:
-            id = manifest.id + '.toggle'
+            id = manifest.contribution.name + '.toggle'
             handler = partial(toggle, output=manifest.contribution)
 
     Extension:
-        id = 'toggle_actions.' + manifest.contribution.name
+        id = manifest.id + '.toggle_actions'
         point = 'enaml.workbench.ui.actions'
         ActionItem:
             path = '/equipment/{}'.format(manifest.contribution.name)
             label = '{}'.format(manifest.contribution.label)
-            command = manifest.id + '.toggle'
+            command = manifest.contribution.name + '.toggle'
             parameters << {'state': checked}
             checked << manifest.contribution.state
             checkable = True
             status_tip = command
 
 
+################################################################################
+# TriggerManifest
+################################################################################
+def fire(event, output):
+    output.fire()
+
+
 enamldef TriggerManifest(PSIManifest): manifest:
 
     Extension:
-        id = 'trigger_commands'
+        id = manifest.id + '.trigger_commands'
         point = 'enaml.workbench.core.commands'
         Command:
             id = manifest.id + '.trigger'
             handler = partial(fire, output=manifest.contribution)
 
     Extension:
-        id = 'trigger_actions'
+        id = manifest.id + '.trigger_actions'
         point = 'enaml.workbench.ui.actions'
         ActionItem:
             path = '/equipment/{}'.format(manifest.contribution.name)

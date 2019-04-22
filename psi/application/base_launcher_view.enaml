@@ -1,17 +1,96 @@
+import logging
+log = logging.getLogger(__name__)
+
+import json
 import os.path
 
+import enaml
 from enaml.core.api import Conditional, Looper
-from enaml.widgets.api import Window, ObjectCombo, Label, Field, Container, Form, HGroup, PushButton, VGroup, GroupBox, CheckBox
+from enaml.widgets.api import (Action, CheckBox, Container, Field, Form,
+                               GroupBox, HGroup, Label, MainWindow, Menu,
+                               MenuBar, ObjectCombo, PushButton, VGroup)
 
-from psi import get_config
+from psi import get_config, get_config_folder
+from psi.controller.api import Channel
+from psi.core.enaml.api import load_manifest_from_file
+from psi.controller.calibration.util import load_calibration
 
-from . import list_preferences, list_io
+
+def get_editable_channels(io_file):
+    manifest = load_manifest_from_file(io_file, 'IOManifest')
+    channels = [o for o in manifest().traverse() if isinstance(o, Channel)]
+    return [c for c in channels if c.calibration_user_editable]
 
 
-enamldef LauncherView(Window): main:
+def configure_calibration(io_file, cal_file):
+    editable_channels = get_editable_channels(io_file)
+
+    # Load the selected calibration
+    if cal_file is not None:
+        load_calibration(cal_file, editable_channels)
+
+    # Open the GUI for editing the calibration
+    with enaml.imports():
+        from psi.controller.calibration.calibration_gui import Main
+        window = Main(io_file=io_file, channels=editable_channels,
+                      modality='application_modal')
+        result = window.show()
+
+
+def load_defaults(launcher, experiments):
+    path = get_config_folder() / 'experiment_launcher.txt'
+    try:
+        with path.open('r') as fh:
+            settings = json.load(fh)
+
+        es_settings = settings.get('experiment', {})
+        for experiment in experiments:
+            t_settings = es_settings.get(experiment.type, {})
+            e_settings = t_settings.get(experiment.name, {})
+            for plugin in experiment.plugins:
+                p_settings = e_settings.get(plugin.name, {})
+                plugin.selected = p_settings.get('selected', plugin.selected)
+        launcher.io = settings.get('io', launcher.io)
+    except:
+        log.warn('%s does not exist', path)
+
+
+def set_defaults(launcher, experiments):
+    path = get_config_folder() / 'experiment_launcher.txt'
+    try:
+        with path.open('r') as fh:
+            settings = json.load(fh)
+    except:
+        settings = {}
+
+    es_settings = settings.setdefault('experiment', {})
+    for experiment in experiments:
+        t_settings = es_settings.setdefault(experiment.type, {})
+        e_settings = t_settings.setdefault(experiment.name, {})
+        for plugin in experiment.plugins:
+            p_settings = e_settings.setdefault(plugin.name, {})
+            p_settings['selected'] = plugin.selected
+    settings['io'] = launcher.io
+
+    with path.open('w') as fh:
+        json.dump(settings, fh, indent=2)
+
+
+enamldef LauncherView(MainWindow): main:
 
     attr launcher
     attr experiments
+
+    initialized ::
+        load_defaults(launcher, experiments)
+
+    MenuBar:
+        Menu:
+            title = '&File'
+            Action:
+                text = 'Set as default\tCtrl+D'
+                triggered ::
+                    set_defaults(launcher, experiments)
 
     Container:
 
@@ -20,8 +99,27 @@ enamldef LauncherView(Window): main:
                 text = 'Hardware configuration'
 
             ObjectCombo:
-                items << list_io()
+                items << launcher.available_io[:]
                 selected := launcher.io
+                to_string = lambda x: x.stem.replace('_', ' ')
+
+            Label:
+                text = 'Calibration'
+
+            HGroup:
+                padding = 0
+                align_widths = False
+                enabled << len(get_editable_channels(launcher.io)) > 0
+
+                ObjectCombo: select_calibration:
+                    items << launcher.available_calibrations[:]
+                    selected := launcher.calibration
+                    to_string = lambda x: x.stem.replace('_', ' ')
+
+                PushButton:
+                    text = '⚙'
+                    clicked ::
+                        configure_calibration(launcher.io, launcher.calibration)
 
             Label:
                 text = 'Experiment'
@@ -32,15 +130,15 @@ enamldef LauncherView(Window): main:
                 selected := launcher.experiment
 
         GroupBox:
-            title = 'Experiment settings'
+            title = 'Experiment preferences'
 
-            ObjectCombo: settings:
+            ObjectCombo: preferences:
                 constraints = [
                     width == 300
                 ]
-                items << list_preferences(experiment.selected) if experiment is not None else []
-                to_string = lambda x: os.path.splitext(os.path.basename(x))[0]
-                selected := launcher.settings
+                items << launcher.available_preferences[:]
+                to_string = lambda x: x.stem.replace('_', ' ')
+                selected := launcher.preferences
 
             VGroup:
                 Looper:
@@ -93,7 +191,7 @@ enamldef LauncherView(Window): main:
                 text = 'Base folder'
 
             Label: base_folder:
-                text << launcher.base_folder
+                text << str(launcher.base_folder)
 
         PushButton:
             text = 'Run experiment'

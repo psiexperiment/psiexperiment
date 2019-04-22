@@ -1,9 +1,6 @@
 import logging
 log = logging.getLogger(__name__)
 
-import importlib
-import sys
-
 import enaml
 from enaml.application import deferred_call
 from enaml.workbench.api import Workbench
@@ -12,12 +9,7 @@ with enaml.imports():
     from enaml.stdlib.message_box import critical
 
 from psi import set_config
-
-
-def load_manifest(manifest_path):
-    module_name, manifest_name = manifest_path.rsplit('.', 1)
-    module = importlib.import_module(module_name)
-    return getattr(module, manifest_name)
+from psi.core.enaml.api import load_manifest, load_manifest_from_file
 
 
 class PSIWorkbench(Workbench):
@@ -37,12 +29,15 @@ class PSIWorkbench(Workbench):
             self.get_plugin('enaml.workbench.ui')
             self.get_plugin('enaml.workbench.core')
 
-            manifest_class = load_manifest(io_manifest)
+            manifest_class = load_manifest_from_file(io_manifest, 'IOManifest')
             self.register(manifest_class())
 
+            manifests = []
             for manifest in controller_manifests:
                 manifest_class = load_manifest(manifest)
-                self.register(manifest_class())
+                manifest = manifest_class()
+                manifests.append(manifest)
+                self.register(manifest)
 
             from psi.context.manifest import ContextManifest
             from psi.data.manifest import DataManifest
@@ -52,10 +47,16 @@ class PSIWorkbench(Workbench):
             self.register(DataManifest())
             self.register(TokenManifest())
 
+            # Required to bootstrap plugin loading
             self.get_plugin('psi.controller')
+            context = self.get_plugin('psi.context')
 
-            from psi.context.manifest import ContextViewManifest
-            self.register(ContextViewManifest())
+            # Now, bind context to any manifests that want it (TODO, I should
+            # have a core PSIManifest that everything inherits from so this
+            # check isn't necessary).
+            for manifest in manifests:
+                if hasattr(manifest, 'C'):
+                    manifest.C = context.lookup
 
     def start_workspace(self,
                         experiment_name,
@@ -65,7 +66,8 @@ class PSIWorkbench(Workbench):
                         load_preferences=True,
                         load_layout=True,
                         preferences_file=None,
-                        layout_file=None):
+                        layout_file=None,
+                        calibration_file=None):
 
         # TODO: Hack alert ... don't store this information in a shared config
         # file. It's essentially a global variable.
@@ -93,20 +95,17 @@ class PSIWorkbench(Workbench):
             for command in commands:
                 deferred_call(core.invoke_command, command)
 
+        controller = self.get_plugin('psi.controller')
+
         if base_path is not None:
-            controller = self.get_plugin('psi.controller')
             controller.register_action('experiment_prepare',
                                        'psi.data.set_base_path',
                                        {'base_path': base_path})
 
-        # Set up exception handler to capture all errors
-        sys.excepthook = self.exception_notifier
+        if calibration_file is not None:
+            controller.load_calibration(calibration_file)
 
         # Now, open workspace
         ui.select_workspace(workspace)
         ui.show_window()
         ui.start_application()
-
-    def exception_notifier(self, *args):
-        log.error("Uncaught exception", exc_info=args)
-        sys.__excepthook__(*args)

@@ -17,44 +17,21 @@ from .plugin import DataPlugin
 PLUGIN_ID = 'psi.data'
 
 
-def process_trials(event):
-    plugin = event.workbench.get_plugin(PLUGIN_ID)
-    return plugin.process_trials(**event.parameters)
-
-
-def process_event(event):
-    plugin = event.workbench.get_plugin(PLUGIN_ID)
-    return plugin.process_event(**event.parameters)
-
-
-def prepare(event):
-    data = event.workbench.get_plugin('psi.data')
-    data.prepare()
-
-
-def finalize(event):
-    data = event.workbench.get_plugin('psi.data')
-    data.finalize()
-
-
 def set_base_path(event):
     base_path = event.parameters['base_path']
-    dt_string = dt.datetime.now().strftime('%Y%m%d-%H%M')
+    dt_string = dt.datetime.now().strftime('%Y%m%d-%H%M%S')
     base_path = base_path.format(date_time=dt_string)
     data = event.workbench.get_plugin('psi.data')
     os.makedirs(base_path)
     data.set_base_path(base_path)
 
 
-def get_base_path(event):
-    data = event.workbench.get_plugin('psi.data')
-    return data.get_base_path()
-
-
 def attach_source(event):
-    contribution = event.parameters['contribution']
     controller = event.workbench.get_plugin('psi.controller')
-    contribution.source = controller.get_input(contribution.source_name)
+    obj = event.parameters['obj']
+    source_name_attr = event.parameters.get('source_name_attr', 'source_name')
+    source_name = getattr(obj, source_name_attr)
+    obj.source = controller.get_input(source_name)
 
 
 enamldef DataManifest(PluginManifest): manifest:
@@ -71,41 +48,10 @@ enamldef DataManifest(PluginManifest): manifest:
     Extension:
         id = 'commands'
         point = 'enaml.workbench.core.commands'
-
-        Command:
-            id = PLUGIN_ID + '.process_trials'
-            handler = process_trials
-        Command:
-            id = PLUGIN_ID + '.process_event'
-            handler = process_event
-
-        # Commands to configure behavior
-        Command:
-            id = PLUGIN_ID + '.prepare'
-            handler = prepare
-        Command:
-            id = PLUGIN_ID + '.finalize'
-            handler = finalize
         Command:
             id = PLUGIN_ID + '.set_base_path'
             handler = set_base_path
-        Command:
-            id = PLUGIN_ID + '.get_base_path'
-            handler = get_base_path
 
-        # Helper commands
         Command:
             id = PLUGIN_ID + '.attach_source'
             handler = attach_source
-
-    Extension:
-        id = 'actions'
-        point = 'psi.controller.actions'
-
-        ExperimentAction:
-            event = 'plugins_started'
-            command = 'psi.data.prepare'
-
-        ExperimentAction:
-            event = 'experiment_end'
-            command = 'psi.data.finalize'

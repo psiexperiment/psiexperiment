@@ -1,12 +1,10 @@
 import logging
 log = logging.getLogger(__name__)
 
-import importlib
-
 from atom.api import Unicode
-
-import enaml
 from enaml.core.api import Declarative, d_
+
+from .util import load_manifest
 
 
 class PSIContribution(Declarative):
@@ -21,41 +19,30 @@ class PSIContribution(Declarative):
 
     @classmethod
     def find_manifest_class(cls):
-        with enaml.imports():
-            for c in cls.mro():
-                class_name = c.__name__ + 'Manifest'
-                # First, check to see if the manifest is defined in the same
-                # module as the contribution.
-                try:
-                    module = importlib.import_module(c.__module__)
-                    return getattr(module, class_name)
-                except AttributeError:
-                    pass
-
-                # Second, check to see if the manifest is defined in another,
-                # appropriately-named, module.
-                module_name = c.__module__ + '_manifest'
-                try:
-                    module = importlib.import_module(module_name)
-                    manifest_class = getattr(module, class_name)
-                    return manifest_class
-                except ImportError as e:
-                    pass
-                except AttributeError:
-                    pass
-
-        raise ImportError
+        search = []
+        for c in cls.mro():
+            search.append(f'{c.__module__}.{c.__name__}Manifest')
+            search.append(f'{c.__module__}_manifest.{c.__name__}Manifest')
+        for location in search:
+            try:
+                return load_manifest(location)
+            except ImportError:
+                pass
+        m = f'Could not find manifest for {cls.__module__}.{cls.__name__}'
+        raise ImportError(m)
 
     def load_manifest(self, workbench):
+        if not self.load_manifest:
+            return
         try:
             manifest_class = self.find_manifest_class()
             manifest = manifest_class(contribution=self)
             workbench.register(manifest)
-            m = 'Loaded manifest for contribution {} (manifest type {})'
-            log.info(m.format(self.name, manifest_class))
+            m = 'Loaded manifest for contribution %s (%s)'
+            log.info(m, self.name, manifest_class.__name__)
         except ImportError:
-            m = 'No manifest defind for contribution {}'
-            log.warn(m.format(self.name))
-        except ValueError:
-            m = 'Plugin {} already registered'
-            log.warn(m.format(self.name))
+            m = 'No manifest defind for contribution %s'
+            log.warn(m, self.name)
+        except ValueError as e:
+            m = 'Manifest already loaded for contribution %s'
+            log.debug(m, self.name)

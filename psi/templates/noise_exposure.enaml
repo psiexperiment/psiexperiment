@@ -1,0 +1,53 @@
+from enaml.workbench.api import PluginManifest, Extension
+
+from psi.controller.engines.nidaq import (NIDAQEngine, 
+                                          NIDAQHardwareAIChannel,
+                                          NIDAQHardwareAOChannel,
+                                          NIDAQSoftwareDOChannel)
+
+
+enamldef IOManifest(PluginManifest): manifest:
+    '''
+    Example of a simple configuration for noise exposure
+    '''
+    Extension:
+        id = 'backend'
+        point = 'psi.controller.io'
+
+        NIDAQEngine:
+            name = 'NI'
+            master_clock = True
+
+            hw_ai_monitor_period = 0.1
+            hw_ao_monitor_period = 1
+
+            NIDAQHardwareAOChannel:
+                label = 'Noise exposure speaker'
+                name = 'speaker'
+                channel = 'Dev1/ao1'
+                fs = 25e3
+                expected_range = (-10, 10)
+                dtype = 'float64'
+                terminal_mode = 'RSE'
+
+            NIDAQHardwareAIChannel:
+                label = 'Experiment microphone'
+                name = 'experiment_microphone'
+                channel = 'Dev1/ai2'
+                start_trigger = 'ao/StartTrigger'
+                fs = 100e3
+                expected_range = (-10, 10)
+                dtype = 'float64'
+                terminal_mode = 'differential'
+                gain = 20
+
+            NIDAQHardwareAIChannel:
+                label = 'Calibration microphone'
+                name = 'calibration_microphone'
+                channel = 'Dev1/ai1'
+                start_trigger = 'ao/StartTrigger'
+                fs = 100e3
+                expected_range = (-10, 10)
+                dtype = 'float64'
+                terminal_mode = 'differential'
+                gain = 0

@@ -13,6 +13,8 @@ import numpy as np
 import pandas as pd
 from scipy import signal
 
+from . import Signal
+
 
 # Max size of LRU cache
 MAXSIZE = 1024
@@ -62,6 +64,7 @@ def get_unique_columns(df, exclude=None):
     return [c for c in df if (len(df[c].unique()) > 1) and (c not in exclude)]
 
 
+<<<<<<< HEAD
 class Signal:
 
     def get_epochs(self, md, offset, duration, detrend=None, columns='auto'):
@@ -133,32 +136,6 @@ class Signal:
         return self._get_segments_filtered(fn, *args, **kwargs)
 
 
-class BcolzSignal(Signal):
-
-    def __init__(self, base_path):
-        self.base_path = base_path
-
-    @property
-    @functools.lru_cache(maxsize=MAXSIZE)
-    def array(self):
-        return bcolz.carray(rootdir=self.base_path)
-
-    @property
-    def fs(self):
-        return self.array.attrs['fs']
-
-    @property
-    def duration(self):
-        return self.array.shape[-1]/self.fs
-
-    def __getitem__(self, slice):
-        return self.array[slice]
-
-    @property
-    def shape(self):
-        return self.array.shape
-
-
 class Recording:
     pass
 
@@ -188,23 +165,3 @@ class BcolzRecording(Recording):
             return load_ctable_as_df(self.base_path / name)
         else:
             raise AttributeError(name)
-
-
-def get_epoch_groups(epoch, epoch_md, groups):
-    # Used by speaker_calibration
-    fs = epoch.attrs['fs']
-    df = epoch_md.todataframe()
-    df['samples'] = np.round(df['duration']*fs).astype('i')
-    df['offset'] = df['samples'].cumsum() - df.loc[0, 'samples']
-
-    epochs = {}
-    for keys, g_df in df.groupby(groups):
-        data = []
-        for _, row in g_df.iterrows():
-            o = row['offset']
-            s = row['samples']
-            d = epoch[o:o+s][np.newaxis]
-            data.append(d)
-        epochs[keys] = np.concatenate(data, axis=0)
-
-    return epochs

@@ -42,9 +42,8 @@ def dispense_pellet(device, event):
 
     # Now save to the text store
     mapping = {'pellets_dispensed': device.pellets_dispensed}
-    cmd = '{}_store.update_mapping'.format(device.name)
-    parameters = {'name': device.name, 'mapping': mapping}
-    cmd = '{}_store.update_mapping'.format(device.name)
+    parameters = {'name': device.name, 'mapping': mapping, 'overwrite': True}
+    cmd = '{}_store.save_mapping'.format(device.name)
     core.invoke_command(cmd, parameters)
 
 
@@ -56,14 +55,14 @@ def prepare_output(device, event):
 enamldef PelletDispenserManifest(PSIManifest): manifest:
 
     Extension:
-        id = manifest.contribution.name + '.data'
+        id = manifest.id + '.data'
         point = 'psi.data.sinks'
 
         TextStore:
             name = manifest.contribution.name + '_store'
 
     Extension:
-        id = 'parameters'
+        id = manifest.id + '.parameters'
         point = 'psi.context.items'
 
         ContextGroup:
@@ -77,27 +76,27 @@ enamldef PelletDispenserManifest(PSIManifest): manifest:
                 default = 1
 
     Extension:
-        id = 'commands'
+        id = manifest.id + '.commands'
         point = 'enaml.workbench.core.commands'
 
         Command:
-            id = manifest.id + '.dispense_pellet'
+            id = manifest.contribution.name + '.dispense_pellet'
             handler = partial(dispense_pellet, manifest.contribution)
 
         Command:
-            id = manifest.id + '.prepare_output'
+            id = manifest.contribution.name + '.prepare_output'
             handler = partial(prepare_output, manifest.contribution)
 
     Extension:
-        id = 'actions'
+        id = manifest.id + '.actions'
         point = 'psi.controller.actions'
 
         ExperimentAction:
             event = 'experiment_prepare'
-            command = manifest.id + '.prepare_output'
+            command = manifest.contribution.name + '.prepare_output'
 
     Extension:
-        id = 'pellet_toolbar'
+        id = manifest.id + '.toolbar'
         point = 'psi.experiment.toolbar'
         rank = 2000
         Action:
@@ -110,7 +109,7 @@ enamldef PelletDispenserManifest(PSIManifest): manifest:
                 not in ('initialized', 'stopped')
 
     Extension:
-        id = 'pellet_workspace'
+        id = manifest.id + '.workspace'
         point = 'psi.experiment.workspace'
 
         DockItem:

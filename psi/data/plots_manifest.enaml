@@ -1,8 +1,12 @@
+import logging
+log = logging.getLogger(__name__)
+
 from functools import partial
 
 from atom.api import Typed, set_default
 from enaml.core.api import Include, d_, Looper
-from enaml.widgets.api import DockItem, Container, RawWidget, Label, Form, Field
+from enaml.widgets.api import (Container, DockItem, Field, Form, Label,
+                               Notebook, Page, RawWidget)
 from enaml.workbench.api import Extension, Workbench
 from enaml.workbench.core.api import Command
 
@@ -31,24 +35,67 @@ class PGCanvas(RawWidget):
         self.view.setCentralItem(event['value'])
 
 
-def attach_source(plot, event):
-    controller = event.workbench.get_plugin('psi.controller')
-    plot.source = controller.get_input(plot.source_name)
-
-
 def update_plot(plot, event):
     plot.update()
 
 
-enamldef PlotContainerManifest(PSIManifest): manifest:
+def set_groups(container, event):
+    container._workbench = event.workbench
+    context = event.workbench.get_plugin('psi.context')
+    container.iterable = sorted(context.unique_values(container.group))
+
+
+enamldef MultiPlotContainerManifest(PSIManifest): manifest:
 
     Extension:
-        id = 'workspace'
+        id = manifest.id + '.commands'
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = manifest.contribution.name + '.set_groups'
+            handler = partial(set_groups, manifest.contribution)
+
+    Extension:
+        id = manifest.id + 'actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'context_initialized'
+            command = manifest.contribution.name + '.set_groups'
+
+    Extension:
+        id = manifest.id + '.workspace'
         point = 'psi.experiment.workspace'
 
         DockItem:
             name << manifest.contribution.name
             title << manifest.contribution.label
+            closable = False
+            Container:
+                Notebook:
+                    tab_style = 'preferences'
+                    tabs_closable = False
+                    tabs_movable = False
+                    Looper:
+                        iterable << manifest.contribution.containers.items()
+                        Page:
+                            title << str(loop_item[0])
+                            Container:
+                                PGCanvas:
+                                    name << manifest.contribution.name + '.canvas'
+                                    component = loop_item[1]
+
+
+enamldef BasePlotContainerManifest(PSIManifest): manifest:
+
+    Extension:
+        id = manifest.id + 'workspace'
+        point = 'psi.experiment.workspace'
+
+        DockItem:
+            name << manifest.contribution.name
+            title << manifest.contribution.label
+            closable = False
 
             Container:
                 PGCanvas: canvas:
@@ -59,13 +106,12 @@ enamldef PlotContainerManifest(PSIManifest): manifest:
 enamldef TimeseriesPlotManifest(PSIManifest): manifest:
 
     Extension:
-        id = 'actions'
+        id = manifest.id + '.actions'
         point = 'psi.controller.actions'
         ExperimentAction:
             event = 'experiment_prepare'
             command = 'psi.data.attach_source'
-            kwargs = {'contribution': manifest.contribution}
-            weight = 15
+            kwargs = {'obj': manifest.contribution}
 
 
 def process_event(plot, event):
@@ -76,7 +122,7 @@ def process_event(plot, event):
 enamldef EventPlotManifest(PSIManifest): manifest:
 
     Extension:
-        id = 'commands'
+        id = manifest.id + '.commands'
         point = 'enaml.workbench.core.commands'
 
         Command:
@@ -84,7 +130,7 @@ enamldef EventPlotManifest(PSIManifest): manifest:
             handler = partial(process_event, manifest.contribution)
 
     Extension:
-        id = 'actions'
+        id = manifest.id + '.actions'
         point = 'psi.controller.actions'
 
         ExperimentAction:
@@ -101,24 +147,21 @@ enamldef EventPlotManifest(PSIManifest): manifest:
 enamldef BasePlotManifest(PSIManifest): manifest:
 
     Extension:
-        id = 'commands'
+        id = manifest.id + '.commands'
         point = 'enaml.workbench.core.commands'
 
         Command:
             id = manifest.contribution.name + '_update'
             handler = partial(update_plot, manifest.contribution)
 
-        Command:
-            id = manifest.contribution.name + '_attach_source'
-            handler = partial(attach_source, manifest.contribution)
-
     Extension:
-        id = 'actions'
+        id = manifest.id + '.actions'
         point = 'psi.controller.actions'
 
         ExperimentAction:
             event = 'experiment_prepare'
-            command = manifest.contribution.name + '_attach_source'
+            command = 'psi.data.attach_source'
+            kwargs = {'obj': manifest.contribution}
             weight = 15
 
         ExperimentAction:
@@ -127,27 +170,3 @@ enamldef BasePlotManifest(PSIManifest): manifest:
             # race conditions).
             event = 'experiment_end'
             command = manifest.contribution.name + '_update'
-
-
-def set_data(manifest, event):
-    manifest.data = event.parameters['data']
-
-
-enamldef DataFramePlotManifest(PSIManifest): manifest:
-
-
-    Extension:
-        id = 'commands'
-        point = 'enaml.workbench.core.commands'
-
-        Command:
-            id = manifest.contribution.name + '.set_data'
-            handler = partial(set_data, manifest.contribution)
-
-    Extension:
-        id = 'items'
-        point = 'psi.context.items'
-        OrderedContextMeta: meta:
-            name << manifest.contribution.name
-            label << manifest.contribution.label
-            values >> manifest.contribution.groups

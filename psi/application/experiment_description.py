@@ -1,6 +1,13 @@
+import logging
+log = logging.getLogger(__name__)
+
+from copy import copy
+
 from atom.api import Atom, Bool, Enum, List, Unicode, Typed
 
-
+################################################################################
+# Core classes
+################################################################################
 class PluginDescription(Atom):
 
     name = Unicode()
@@ -35,19 +42,34 @@ class ExperimentDescription(Atom):
     paradigm = Typed(ParadigmDescription)
 
 
+def get_experiments(type):
+    return [e for e in experiments.values() if e.type == type]
+
+
+################################################################################
+# CFTS stuff
+################################################################################
 abr_controller = PluginDescription(
     name='controller',
     title='Controller',
     required=True,
-    manifest='psi.application.experiment.abr_base.ControllerManifest',
+    manifest='psi.application.experiment.abr_base.ABRManifest',
 )
 
 
-speaker_calibration_controller = PluginDescription(
+dpoae_time_controller = PluginDescription(
     name='controller',
     title='Controller',
     required=True,
-    manifest='psi.application.experiment.speaker_calibration.ControllerManifest',
+    manifest='psi.application.experiment.dpoae_time.ControllerManifest',
+)
+
+
+dpoae_io_controller = PluginDescription(
+    name='controller',
+    title='Controller',
+    required=True,
+    manifest='psi.application.experiment.dpoae_io.ControllerManifest',
 )
 
 
@@ -69,12 +91,39 @@ eeg_view_mixin = PluginDescription(
 )
 
 
-in_ear_calibration_mixin = PluginDescription(
-    name='in_ear_calibration',
+abr_in_ear_calibration_mixin = PluginDescription(
+    name='abr_in_ear_calibration',
     title='In-ear calibration',
     required=False,
     selected=True,
-    manifest='psi.application.experiment.cfts_mixins.InEarCalibrationMixinManifest',
+    manifest='psi.application.experiment.cfts_mixins.ABRInEarCalibrationMixinManifest',
+)
+
+
+dpoae_in_ear_calibration_mixin = PluginDescription(
+    name='dpoae_in_ear_calibration',
+    title='In-ear calibration',
+    required=False,
+    selected=True,
+    manifest='psi.application.experiment.cfts_mixins.DPOAEInEarCalibrationMixinManifest',
+)
+
+
+microphone_signal_view_mixin = PluginDescription(
+    name='microphone_signal_view',
+    title='Microphone view (time)',
+    required=False,
+    selected=True,
+    manifest='psi.application.experiment.cfts_mixins.MicrophoneSignalViewMixinManifest',
+)
+
+
+microphone_fft_view_mixin = PluginDescription(
+    name='microphone_fft_view',
+    title='Microphone view (PSD)',
+    required=False,
+    selected=True,
+    manifest='psi.application.experiment.cfts_mixins.MicrophoneFFTViewMixinManifest',
 )
 
 
@@ -84,10 +133,79 @@ abr_experiment = ParadigmDescription(
     type='ear',
     plugins=[
         abr_controller,
-        temperature_mixin,
-        eeg_view_mixin,
-        in_ear_calibration_mixin,
+        copy(temperature_mixin),
+        copy(eeg_view_mixin),
+        copy(abr_in_ear_calibration_mixin),
     ]
+)
+
+
+dpoae_time_experiment = ParadigmDescription(
+    name='dpoae_time',
+    title='DPOAE (over time)',
+    type='ear',
+    plugins=[
+        dpoae_time_controller,
+        copy(temperature_mixin),
+        copy(eeg_view_mixin),
+        copy(dpoae_in_ear_calibration_mixin),
+        copy(microphone_fft_view_mixin),
+        copy(microphone_signal_view_mixin),
+    ]
+)
+
+
+dpoae_io_experiment = ParadigmDescription(
+    name='dpoae_io',
+    title='DPOAE input-output',
+    type='ear',
+    plugins=[
+        dpoae_io_controller,
+        copy(temperature_mixin),
+        copy(eeg_view_mixin),
+        copy(dpoae_in_ear_calibration_mixin),
+        copy(microphone_fft_view_mixin),
+        copy(microphone_signal_view_mixin),
+    ]
+)
+
+
+################################################################################
+# Calibration
+################################################################################
+golay_mixin = PluginDescription(
+    name='golay',
+    title='golay',
+    required=True,
+    manifest='psi.application.experiment.golay_mixin.GolayMixin'
+)
+
+
+speaker_calibration_controller_golay = PluginDescription(
+    name='controller',
+    title='Controller',
+    required=True,
+    manifest='psi.application.experiment.speaker_calibration.BaseSpeakerCalibrationManifest',
+)
+
+
+speaker_calibration_golay_experiment = ParadigmDescription(
+    name='speaker_calibration_golay',
+    title='Speaker calibration (Golay)',
+    type='ear',
+    plugins=[
+        speaker_calibration_controller_golay,
+        golay_mixin,
+    ]
+)
+
+
+
+speaker_calibration_controller = PluginDescription(
+    name='controller',
+    title='Controller',
+    required=True,
+    manifest='psi.application.experiment.speaker_calibration.SpeakerCalibrationManifest',
 )
 
 
@@ -101,50 +219,12 @@ speaker_calibration_experiment = ParadigmDescription(
 )
 
 
-noise_exposure_controller = PluginDescription(
-    name='noise_exposure_controller',
-    title='Noise exposure controller',
-    required=True,
-    selected=True,
-    manifest='psi.application.experiment.noise_exposure.ControllerManifest',
-)
-
-
-noise_exposure_experiment = ParadigmDescription(
-    name='noise_exposure',
-    title='Noise exposure',
-    type='cohort',
-    plugins=[
-        noise_exposure_controller,
-    ],
-)
-
-
-appetitive_gonogo_controller = PluginDescription(
-    name='appetitive_gonogo_controller',
-    title='Appetitive GO-NOGO controller',
-    required=True,
-    selected=True,
-    manifest='psi.application.experiment.appetitive.ControllerManifest',
-)
-
-
-appetitive_experiment = ParadigmDescription(
-    name='appetitive_gonogo_food',
-    title='Appetitive GO-NOGO food',
-    type='animal',
-    plugins=[
-        appetitive_gonogo_controller,
-    ],
-)
-
-
 pistonphone_controller = PluginDescription(
     name='pistonphone_controller',
     title='Pistonphone controller',
     required=True,
     selected=True,
-    manifest='psi.application.experiment.pistonphone_calibration.ControllerManifest',
+    manifest='psi.application.experiment.pistonphone_calibration.PistonphoneCalibrationManifest',
 )
 
 
@@ -196,16 +276,70 @@ pt_calibration_golay = ParadigmDescription(
 )
 
 
+################################################################################
+# Noise exposure
+################################################################################
+noise_exposure_controller = PluginDescription(
+    name='noise_exposure_controller',
+    title='Noise exposure controller',
+    required=True,
+    selected=True,
+    manifest='psi.application.experiment.noise_exposure.ControllerManifest',
+)
+
+
+noise_exposure_experiment = ParadigmDescription(
+    name='noise_exposure',
+    title='Noise exposure',
+    type='cohort',
+    plugins=[
+        noise_exposure_controller,
+    ],
+)
+
+
+################################################################################
+# Behavior
+################################################################################
+appetitive_gonogo_controller = PluginDescription(
+    name='appetitive_gonogo_controller',
+    title='Appetitive GO-NOGO controller',
+    required=True,
+    selected=True,
+    manifest='psi.application.experiment.appetitive.ControllerManifest',
+)
+
+
+appetitive_experiment = ParadigmDescription(
+    name='appetitive_gonogo_food',
+    title='Appetitive GO-NOGO food',
+    type='animal',
+    plugins=[
+        appetitive_gonogo_controller,
+    ],
+)
+
+
+pellet_dispenser_mixin = PluginDescription(
+    name='pellet_dispenser_mixin',
+    title='Pellet dispenser',
+    required=False,
+    selected=True,
+    manifest='psi.application.experiment.behavior_base.PelletDispenserMixinManifest',
+)
+
+################################################################################
+# Wrapup
+################################################################################
 experiments = {
     'abr': abr_experiment,
+    'dpoae_time': dpoae_time_experiment,
+    'dpoae_io': dpoae_io_experiment,
     'speaker_calibration': speaker_calibration_experiment,
+    'speaker_calibration_golay': speaker_calibration_golay_experiment,
     'appetitive_gonogo_food': appetitive_experiment,
     'noise_exposure': noise_exposure_experiment,
     'pistonphone_calibration': pistonphone_calibration,
     'pt_calibration_golay': pt_calibration_golay,
     'pt_calibration_chirp': pt_calibration_chirp,
 }
-
-
-def get_experiments(type):
-    return [e for e in experiments.values() if e.type == type]

@@ -1,8 +1,9 @@
 import logging
 log = logging.getLogger(__name__)
 
-from functools import partial
+from collections import deque, namedtuple
 from copy import copy
+from functools import partial
 from queue import Empty, Queue
 
 import numpy as np
@@ -22,6 +23,28 @@ from psi.core.enaml.api import PSIContribution
 from psi.controller.calibration import FlatCalibration
 
 
+class InputData(np.ndarray):
+
+    def __new__(cls, input_array, metadata=None):
+        obj = np.asarray(input_array).view(cls)
+        obj.metadata = metadata if metadata else {}
+        return obj
+
+    def __array_finalize__(self, obj):
+        if obj is None: return
+        self.metadata = getattr(obj, 'metadata', None)
+
+
+def concatenate(input_data, axis=None):
+    b = input_data[0]
+    for d in input_data[1:]:
+        if d.metadata != b.metadata:
+            log.debug('%r vs %r', d.metadata, b.metadata)
+            raise ValueError('Cannot combine InputData set')
+    arrays = np.concatenate(input_data, axis=axis)
+    return InputData(arrays, b.metadata)
+
+
 @coroutine
 def broadcast(*targets):
     while True:
@@ -34,9 +57,10 @@ class Input(PSIContribution):
 
     name = d_(Unicode()).tag(metadata=True)
     label = d_(Unicode()).tag(metadata=True)
+    force_active = d_(Bool(False)).tag(metadata=True)
 
     source_name = d_(Unicode())
-    source = Typed(Declarative).tag(metadata=True)
+    source = d_(Typed(Declarative).tag(metadata=True), writable=False)
     channel = Property()
     engine = Property()
 
@@ -110,7 +134,7 @@ class Input(PSIContribution):
         self.add_input(callback)
 
     def _get_active(self):
-        return any(i.active for i in self.inputs)
+        return self.force_active or any(i.active for i in self.inputs)
 
 
 class ContinuousInput(Input):
@@ -144,6 +168,22 @@ class Callback(Input):
 ################################################################################
 # Continuous input types
 ################################################################################
+@coroutine
+def custom_input(function, target):
+    while True:
+        data = (yield)
+        function(data, target)
+
+
+class CustomInput(Input):
+
+    function = d_(Callable())
+
+    def configure_callback(self):
+        cb = super().configure_callback()
+        return custom_input(self.function, cb).send
+
+
 @coroutine
 def calibrate(calibration, target):
     sens = dbi(calibration.get_sens(1000))
@@ -234,7 +274,7 @@ class IIRFilter(ContinuousInput):
     # output of this block.
     passthrough = d_(Bool(False)).tag(metadata=True)
 
-    N = d_(Int()).tag(metadata=True)
+    N = d_(Int(1)).tag(metadata=True)
     btype = d_(Enum('bandpass', 'lowpass', 'highpass', 'bandstop')).tag(metadata=True)
     ftype = d_(Enum('butter', 'cheby1', 'cheby2', 'ellip', 'bessel')).tag(metadata=True)
     f_highpass = d_(Float()).tag(metadata=True)
@@ -243,10 +283,14 @@ class IIRFilter(ContinuousInput):
 
     def _get_wn(self):
         if self.btype == 'lowpass':
+            log.debug('Lowpass at %r (fs=%r)', self.f_lowpass, self.fs)
             return self.f_lowpass/(0.5*self.fs)
         elif self.btype == 'highpass':
+            log.debug('Highpass at %r (fs=%r)', self.f_lowpass, self.fs)
             return self.f_highpass/(0.5*self.fs)
         else:
+            log.debug('Bandpass %r to %r (fs=%r)', self.f_highpass,
+                      self.f_lowpass, self.fs)
             return (self.f_highpass/(0.5*self.fs),
                     self.f_lowpass/(0.5*self.fs))
 
@@ -262,12 +306,18 @@ class IIRFilter(ContinuousInput):
 def blocked(block_size, target):
     data = []
     n = 0
+
     while True:
         d = (yield)
+        if d is Ellipsis:
+            data = []
+            target(d)
+            continue
+
         n += d.shape[-1]
         data.append(d)
         if n >= block_size:
-            merged = np.concatenate(data, axis=-1)
+            merged = concatenate(data, axis=-1)
             while merged.shape[-1] >= block_size:
                 target(merged[..., :block_size])
                 merged = merged[..., block_size:]
@@ -291,18 +341,26 @@ class Blocked(ContinuousInput):
 
 
 @coroutine
-def accumulate(n, axis, newaxis, target):
+def accumulate(n, axis, newaxis, status_cb, target):
     data = []
     while True:
         d = (yield)
+        if d is Ellipsis:
+            data = []
+            target(d)
+            continue
+
         if newaxis:
             data.append(d[np.newaxis])
         else:
             data.append(d)
         if len(data) == n:
-            data = np.concatenate(data, axis=axis)
+            data = concatenate(data, axis=axis)
             target(data)
             data = []
+
+        if status_cb is not None:
+            status_cb(len(data))
 
 
 class Accumulate(ContinuousInput):
@@ -313,15 +371,19 @@ class Accumulate(ContinuousInput):
     axis = d_(Int(-1)).tag(metadata=True)
     newaxis = d_(Bool(False)).tag(metadata=True)
 
+    status_cb = d_(Callable(lambda x: None))
+
     def configure_callback(self):
         cb = super().configure_callback()
-        return accumulate(self.n, self.axis, self.newaxis, cb).send
+        return accumulate(self.n, self.axis, self.newaxis, self.status_cb,
+                          cb).send
 
 
 @coroutine
 def capture(fs, queue, target):
-    t0 = 0
-    t_next = None
+    s0 = 0
+    t_start = None  # Time, in seconds, of capture start
+    s_next = None   # Sample number fo rcapture
     active = False
 
     while True:
@@ -332,24 +394,28 @@ def capture(fs, queue, target):
             # We've recieved a new command. The command will either be None
             # (i.e., no more acquisition for a bit) or a floating-point value
             # (indicating when next acquisition should begin).
-            t_next = queue.get(block=False)
-            if t_next is not None:
-                t_next = round(t_next*fs)
+            t_start = queue.get(block=False)
+            if t_start is not None:
+                log.debug('Starting capture at %f', t_start)
+                s_next = round(t_start*fs)
+                target(Ellipsis)
+            elif t_start is None:
+                log.debug('Ending capture')
+                s_next = None
+            elif t_start < t0:
+                raise SystemError('Data lost')
         except Empty:
             pass
 
-        if t_next is None:
-            pass
-        elif t_next < t0:
-            raise SystemError('Data lost')
-        elif t_next >= t0:
-            i = t_next-t0
+        if (s_next is not None) and (s_next >= s0):
+            i = s_next-s0
             if i < data.shape[-1]:
                 d = data[i:]
+                d.metadata['capture'] = t_start
                 target(d)
-                t_next += d.shape[-1]
+                s_next += d.shape[-1]
 
-        t0 += data.shape[-1]
+        s0 += data.shape[-1]
 
 
 class Capture(ContinuousInput):
@@ -423,8 +489,14 @@ class Decimate(ContinuousInput):
 
 @coroutine
 def discard(discard_samples, cb):
+    discarded = discard_samples
     while True:
         samples = (yield)
+        if samples is Ellipsis:
+            to_discard = discarded
+            cb(samples)
+            continue
+
         if discard_samples == 0:
             cb(samples)
         elif samples.shape[-1] <= discard_samples:
@@ -549,8 +621,8 @@ def edges(initial_state, min_samples, fs, target):
                 initial_state = samples[tlb]
                 ts = t_prior + tlb
                 events.append((edge, ts/fs))
-        events.append(('processed', t_prior/fs))
-        target(events)
+        if events:
+            target(events)
         t_prior += new_samples.shape[-1]
         prior_samples = samples[..., -min_samples:]
 
@@ -627,8 +699,6 @@ def extract_epochs(fs, queue, epoch_size, poststim_time, buffer_size, target,
     # How much historical data to keep (for retroactively capturing epochs)
     buffer_samples = int(buffer_size*fs)
 
-    trial_index = 0
-
     # Since we may capture very short, rapidly occuring epochs (at, say, 80 per
     # second), I find it best to accumulate as many epochs as possible before
     # calling the next target. This list will maintain the accumulated set.
@@ -652,9 +722,8 @@ def extract_epochs(fs, queue, epoch_size, poststim_time, buffer_size, target,
         # Check to see if more epochs have been requested. Information will be
         # provided in seconds, but we need to convert this to number of
         # samples.
-        while trial_index < len(queue.uploaded):
-            info = queue.uploaded[trial_index].copy()
-            trial_index += 1
+        while queue:
+            info = queue.popleft()
 
             # Figure out how many samples to capture for that epoch
             t0 = round(info['t0'] * fs)
@@ -701,18 +770,16 @@ def extract_epochs(fs, queue, epoch_size, poststim_time, buffer_size, target,
             else:
                 break
 
-        # Check to see if any more epochs are pending
-        if queue.is_empty() and \
-                (len(epoch_coroutines) == 0) and \
-                (trial_index == len(queue.uploaded)) and \
-                empty_queue_cb is not None:
+        if not (queue or epoch_coroutines) and empty_queue_cb:
+            # If queue and epoch coroutines are complete, call queue callback.
             empty_queue_cb()
             empty_queue_cb = None
 
 
 class ExtractEpochs(EpochInput):
 
-    queue = d_(Typed(AbstractSignalQueue))
+    queue = Typed(deque, {})
+
     buffer_size = d_(Float(0)).tag(metadata=True)
 
     # Defines the size of the epoch (if 0, this is automatically drawn from
@@ -728,10 +795,10 @@ class ExtractEpochs(EpochInput):
         self.complete = True
 
     def configure_callback(self):
-        if self.epoch_size <= 0:
-            self.epoch_size = self.queue.get_max_duration()
+        if self.epoch_size == 0:
+            raise ValueError('Epoch size not configured')
         if not np.isfinite(self.epoch_size):
-                raise SystemError('Cannot have an infinite epoch size')
+            raise ValueError('Cannot have an infinite epoch size')
         cb = super().configure_callback()
         return extract_epochs(self.fs, self.queue, self.epoch_size,
                               self.poststim_time, self.buffer_size, cb,
@@ -825,7 +892,7 @@ class Detrend(EpochInput):
         linear least-squares fit is subtracted from the epoch. If 'constant',
         only the mean of the epoch is subtracted.
     '''
-    mode = Enum('constant', 'linear', None)
+    mode = d_(Enum('constant', 'linear', None))
 
     def configure_callback(self):
         cb = super().configure_callback()

@@ -74,21 +74,24 @@ def process_tone(fs, signal, frequency, min_snr=None, max_thd=None,
     # Compute the harmonic distortion as a percent
     thd = np.sqrt(np.sum(rms[1:]**2))/freq_rms * 100
 
-    silence = np.atleast_2d(silence)
-    noise_rms = tone_power_conv(silence, fs, frequency, 'flattop')
-    noise_rms = noise_rms.mean(axis=0)
-    freq_snr = db(freq_rms, noise_rms)
-
-    if min_snr is not None:
-        if np.any(freq_snr < min_snr):
-            raise CalibrationNFError(frequency, freq_snr)
+    # If a silent period has been provided, use this to estimat the signal to
+    # noise ratio. As an alternative, could we just use the "sidebands"?
+    if silence is not None:
+        silence = np.atleast_2d(silence)
+        noise_rms = tone_power_conv(silence, fs, frequency, 'flattop')
+        noise_rms = noise_rms.mean(axis=0)
+        freq_snr = db(freq_rms, noise_rms)
+        if min_snr is not None:
+            if np.any(freq_snr < min_snr):
+                raise CalibrationNFError(frequency, freq_snr)
+    else:
+        freq_snr = np.full_like(freq_rms, np.nan)
 
     if max_thd is not None and np.any(thd > max_thd):
         raise CalibrationTHDError(frequency, thd)
 
     # Concatenate and return as a record array
-    result = np.concatenate((freq_rms[np.newaxis],
-                             freq_snr[np.newaxis],
+    result = np.concatenate((freq_rms[np.newaxis], freq_snr[np.newaxis],
                              thd[np.newaxis]))
 
     data = {'rms': freq_rms, 'snr': freq_snr, 'thd': thd,
@@ -141,7 +144,8 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gain=0,
 
     factory = SilenceFactory(ao_fs, calibration)
     waveform = factory.next(samples)
-    queue.append(waveform, repetitions, iti)
+    md = {'gain': -400, 'frequency': 0}
+    queue.append(waveform, repetitions, iti, metadata=md)
 
     # Add the queue to the output channel
     output = ao_channel.add_queued_epoch_output(queue, auto_decrement=True)
@@ -152,15 +156,18 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gain=0,
     # Create a dictionary of lists. Each list maps to an individual input
     # channel and will be used to accumulate the epochs for that channel.
     data = {ai_channel.name: [] for ai_channel in ai_channels}
+    samples = {ai_channel.name: [] for ai_channel in ai_channels}
 
     def accumulate(epochs, epoch):
         epochs.extend(epoch)
 
     for ai_channel in ai_channels:
         cb = partial(accumulate, data[ai_channel.name])
-        epoch_input = ExtractEpochs(queue=queue, epoch_size=duration)
+        epoch_input = ExtractEpochs(epoch_size=duration)
+        queue.connect(epoch_input.queue.append)
         epoch_input.add_callback(cb)
         ai_channel.add_input(epoch_input)
+        ai_channel.add_callback(samples[ai_channel.name].append)
 
     cal_engine.start()
     while not epoch_input.complete:
@@ -189,6 +196,7 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gain=0,
             if debug:
                 f_result['waveform'] = s
             channel_result.append(f_result)
+
         df = pd.DataFrame(channel_result)
         df['channel_name'] = ai_channel.name
         result.append(df)

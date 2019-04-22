@@ -4,14 +4,19 @@ log = logging.getLogger(__name__)
 import pickle as pickle
 from copy import deepcopy
 
+import numpy as np
+
 from atom.api import Typed, Bool, Str, observe, Property
 from enaml.application import deferred_call
 from enaml.layout.api import InsertItem, InsertTab
 from enaml.workbench.plugin import Plugin
 
+from psi.core.enaml.api import load_manifests
 from ..util import get_tagged_values
-from .context_item import ContextItem, Parameter, ContextMeta
-from .context_group import ContextGroup
+from .context_item import (
+    ContextItem, ContextGroup, Expression, Parameter, ContextMeta
+)
+
 from .expression import ExpressionNamespace
 from .selector import BaseSelector
 from .symbol import Symbol
@@ -25,6 +30,16 @@ def get_preferences(obj):
     return deepcopy(get_tagged_values(obj, 'preference'))
 
 
+class ContextLookup:
+
+    def __init__(self, context_plugin):
+        self.__context_plugin = context_plugin
+
+    def __getattr__(self, name):
+        value = self.__context_plugin.get_value(name)
+        return value
+
+
 class ContextPlugin(Plugin):
     '''
     Plugin that provides a sequence of values that can be used by a controller
@@ -33,6 +48,7 @@ class ContextPlugin(Plugin):
     context_groups = Typed(dict, {})
     context_items = Typed(dict, {})
     context_meta = Typed(dict, {})
+    context_expressions = Typed(list, [])
 
     selectors = Typed(dict, ())
     symbols = Typed(dict, ())
@@ -57,6 +73,11 @@ class ContextPlugin(Plugin):
 
     # Return all expressions, including those for roved parameters
     all_expressions = Property()
+
+    lookup = Typed(ContextLookup, ())
+
+    def _default_lookup(self):
+        return ContextLookup(self)
 
     def start(self):
         self._refresh_selectors()
@@ -88,44 +109,69 @@ class ContextPlugin(Plugin):
         self.symbols = symbols
 
     def _refresh_items(self, event=None):
-        log.debug('Refreshing context items')
         context_groups = {}
         context_items = {}
         context_meta = {}
+        context_expressions = {}
         items = []
         groups = []
         metas = []
+        expressions = []
 
+        # First, find all ContextItem, ContextGroup, ContextMeta and
+        # Expressions.
         point = self.workbench.get_extension_point(ITEMS_POINT)
         for extension in point.extensions:
-            items.extend(extension.get_children(ContextItem))
             groups.extend(extension.get_children(ContextGroup))
+            items.extend(extension.get_children(ContextItem))
             metas.extend(extension.get_children(ContextMeta))
+            expressions.extend(extension.get_children(Expression))
 
+        # Now, loop through the groups and find all ContextItems defined under
+        # the group. If the group has already been defined in another
+        # contribution, raise an error and exit.
+        groups_added = []
         for group in groups:
-            log.debug('Adding context group {}'.format(group.name))
             if group.name in context_groups:
-                m = 'Context group {} already defined'.format(group.name)
-                raise ValueError(m)
+                raise ValueError(f'Context group {group.name} already defined')
+            groups_added.append(group.name)
             context_groups[group.name] = group
+            group.items = []
             for item in group.children:
-                item.group = group.name
-                items.append(item)
+                item.set_group(group)
+        log.debug('Added context groups: %s', ', '.join(groups_added))
 
+        # Now, go through all "orphan" context items where the group has not
+        # been assigned yet.
         for item in items:
-            log.trace('Adding context item {}'.format(item.name))
-            if item.group not in context_groups:
-                m = 'Group {} for {} does not exist'
-                m = m.format(item.group, item.name)
+            if item.group_name not in context_groups:
+                m = f'Missing group "{item.group_name}" for item {item.name}'
                 raise ValueError(m)
-            if item.name in context_items:
-                m = 'Context item {} already defined'.format(item.name)
-                raise ValueError(m)
-            context_items[item.name] = item
+            item.set_group(context_groups[item.group_name])
+
+        # Now, create a dictionary of all context items. The groups are just
+        # for display purposes. Internally, all context items are treated
+        # equally.
+        for group in context_groups.values():
+            for item in group.items:
+                if item.name in context_items:
+                    m = f'Context item {item.name} already defined'
+                    raise ValueError(m)
+                context_items[item.name] = item
 
         for meta in metas:
             context_meta[meta.name] = meta
 
+        for expression in expressions:
+            try:
+                item = context_items.pop(expression.parameter)
+                item.set_group(None)
+            except KeyError as e:
+                log.warn('%s referenced by expression %s does not exist',
+                         expression.parameter, expression.expression)
+
+        load_manifests(context_groups.values(), self.workbench)
+        self.context_expressions = expressions
         self.context_items = context_items
         self.context_groups = context_groups
         self.context_meta = context_meta
@@ -187,25 +233,29 @@ class ContextPlugin(Plugin):
     def _observe_selector_updated(self, event):
         self._check_for_changes()
 
-    def _get_iterators(self):
-        return {k: v.get_iterator() for k, v in self.selectors.items()}
+    def _get_iterators(self, cycles=np.inf):
+        return {k: v.get_iterator(cycles) for k, v in self.selectors.items()}
 
-    def iter_settings(self, iterator='default', cycles=None):
+    def iter_settings(self, iterator='default', cycles=np.inf):
+        log.debug('Iterating through settings for %s iterator', iterator)
         # Some paradigms may not actually have an iterator.
+        namespace = ExpressionNamespace(self.expressions, self.symbols)
         if iterator:
             selector = self.selectors[iterator].get_iterator(cycles=cycles)
             for setting in selector:
-                self._namespace.reset()
+                log.debug('Selector returned %r', setting)
                 expressions = {i.name: i.to_expression(e) for i, e in setting.items()}
-                self._namespace.update_expressions(expressions)
-                yield self.get_values()
+                namespace.update_expressions(expressions)
+                yield namespace.get_values()
+                namespace.reset()
         else:
-            self._namespace.reset()
-            yield self.get_values()
+            yield namespace.get_values()
 
     def unique_values(self, item_name, iterator='default'):
         iterable = self.iter_settings(iterator, 1)
-        values = set(c[item_name] for c in iterable)
+        items = [c[item_name] for c in iterable]
+        values = set(items)
+        log.debug('Found %d unique values: %r', len(values), values)
         return values
 
     def get_item(self, item_name):
@@ -244,6 +294,7 @@ class ContextPlugin(Plugin):
         '''
         Shortcut for advancing to the next setting.
         '''
+        log.debug('Next')
         self.next_setting(save_prior)
         self.next_selector_setting(selector)
         self.set_values(results)
@@ -254,6 +305,7 @@ class ContextPlugin(Plugin):
         this essentially clears the namespace and allows expresssions to be
         recomputed.
         '''
+        log.debug('Loading next setting')
         if save_prior:
             prior_values = self._prior_values[:]
             prior_values.append(self.get_values())
@@ -272,7 +324,7 @@ class ContextPlugin(Plugin):
             log.debug(m)
             raise
 
-    def get_value(self, context_name, trial=None, fail_mode='error'):
+    def get_value(self, context_name, trial=None):
         if trial is not None:
             try:
                 return self._prior_values[trial][context_name]
@@ -280,15 +332,9 @@ class ContextPlugin(Plugin):
                 return None
         try:
             return self._namespace.get_value(context_name)
-        except KeyError:
-            if fail_mode == 'error':
-                raise
-            elif fail_mode == 'ignore':
-                return None
-            elif fail_mode == 'default':
-                return self.context_items[context_name].default
-            else:
-                raise ValueError('Unsupported fail mode {}'.format(fail_mode))
+        except KeyError as e:
+            m = f'{context_name} not defined. Perhaps context not initialized?'
+            raise ValueError(m) from e
 
     def get_values(self, context_names=None, trial=None):
         if trial is not None:
@@ -317,12 +363,12 @@ class ContextPlugin(Plugin):
                 return
         self.changes_pending = self.selectors != self._selectors
 
-    def apply_changes(self):
+    def apply_changes(self, cycles=np.inf):
         self._apply_context_item_state()
         self._apply_selector_state()
         self._namespace.update_expressions(self.expressions)
         self._namespace.update_symbols(self.symbols)
-        self._iterators = self._get_iterators()
+        self._iterators = self._get_iterators(cycles)
         self.changes_pending = False
 
     def revert_changes(self):
@@ -338,8 +384,9 @@ class ContextPlugin(Plugin):
         return {n: i.expression for n, i in self.parameters.items()}
 
     def _get_expressions(self):
-        return {n: i.expression for n, i in self.parameters.items() \
-                if not i.rove}
+        e = {n: i.expression for n, i in self.parameters.items() if not i.rove}
+        e.update({n.parameter: n.expression for n in self.context_expressions})
+        return e
 
     def _apply_selector_state(self):
         state = {n: get_preferences(s) for n, s in self.selectors.items()}

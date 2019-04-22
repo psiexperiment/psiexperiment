@@ -1,77 +1,32 @@
 import logging
 log = logging.getLogger(__name__)
 
-from functools import partial
-import os.path
 import atexit
-import tempfile
-import shutil
 from pathlib import Path
+import shutil
+import tempfile
 
-from atom.api import Unicode
-from enaml.workbench.api import Extension
-from enaml.workbench.core.api import Command
+from atom.api import Typed
 
 from ..sink import Sink
-from psi.core.enaml.api import PSIManifest
 
 
 class BaseStore(Sink):
     '''
     Implements functions for creating filenames
     '''
-    base_path = Unicode()
+    base_path = Typed(Path)
 
     def _default_base_path(self):
         # Create a temporary folder. Be sure to delete when the program exits.
         base_path = tempfile.mkdtemp()
         atexit.register(shutil.rmtree, base_path)
-        return base_path
+        return Path(base_path)
 
     def get_filename(self, name, suffix=''):
-        path = Path(self.base_path).joinpath(name).with_suffix(suffix)
+        path = (self.base_path / name).with_suffix(suffix)
         log.info('Saving %s to %s', name, path)
         return path
 
     def set_base_path(self, base_path):
-        self.base_path = base_path
-
-
-def create_table(sink, event):
-    return sink.create_table(event.parameters['name'],
-                             event.parameters['dataframe'])
-
-
-def update_table(sink, event):
-    return sink.update_table(event.parameters['name'],
-                             event.parameters['dataframe'])
-
-
-def create_mapping(sink, event):
-    return sink.create_mapping(event.parameters['name'],
-                               event.parameters['mapping'])
-
-
-def update_mapping(sink, event):
-    return sink.update_mapping(event.parameters['name'],
-                               event.parameters['mapping'])
-
-
-enamldef BaseStoreManifest(PSIManifest): manifest:
-
-    Extension:
-        id = 'commands'
-        point = 'enaml.workbench.core.commands'
-
-        Command:
-            id = manifest.id + '.create_table'
-            handler = partial(create_table, manifest.contribution)
-        Command:
-            id = manifest.id + '.update_table'
-            handler = partial(update_table, manifest.contribution)
-        Command:
-            id = manifest.id + '.create_mapping'
-            handler = partial(create_mapping, manifest.contribution)
-        Command:
-            id = manifest.id + '.update_mapping'
-            handler = partial(update_mapping, manifest.contribution)
+        self.base_path = Path(base_path)

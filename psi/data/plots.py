@@ -12,14 +12,18 @@ import pandas as pd
 import pyqtgraph as pg
 
 from atom.api import (Unicode, Float, Tuple, Int, Typed, Property, Atom, Bool,
-                      Enum, List, Dict, Callable)
-from enaml.core.api import Declarative, d_, d_func
+                      Enum, List, Dict, Callable, Value)
+
 from enaml.application import deferred_call, timed_call
+from enaml.colors import parse_color
+from enaml.core.api import Looper, Declarative, d_, d_func
+from enaml.qt.QtGui import QColor
 
 from psi.util import SignalBuffer, ConfigurationException
-from psi.core.enaml.api import PSIContribution
+from psi.core.enaml.api import load_manifests, PSIContribution
 from psi.controller.calibration import util
 from psi.context.context_item import ContextMeta
+
 
 
 ################################################################################
@@ -36,6 +40,15 @@ def get_color_cycle(name):
     module = importlib.import_module(module_name)
     cmap = getattr(module, cmap_name)
     return itertools.cycle(cmap.colors)
+
+
+def make_color(color):
+    if isinstance(color, tuple):
+        return QColor(*color)
+    elif isinstance(color, str):
+        return QColor(color)
+    else:
+        raise ValueError('Unknown color %r', color)
 
 
 ################################################################################
@@ -96,10 +109,50 @@ class ChannelDataRange(Atom):
         self.current_time = max(self.current_times.values())
 
 
+def create_container(children, x_axis=None):
+    container = pg.GraphicsLayout()
+    container.setSpacing(10)
+
+    # Add the x and y axes to the layout, along with the viewbox.
+    for i, child in enumerate(children):
+        container.addItem(child.y_axis, i, 0)
+        container.addItem(child.viewbox, i, 1)
+
+    if x_axis is not None:
+        container.addItem(x_axis, i+1, 1)
+
+    # Link the child viewboxes together
+    for child in children[1:]:
+        child.viewbox.setXLink(children[0].viewbox)
+
+    return container
+
+
+################################################################################
+# Pattern containers
+################################################################################
+class MultiPlotContainer(Looper, PSIContribution):
+
+    group = d_(Unicode())
+    containers = d_(Dict())
+    _workbench = Value()
+    selected_item = Value()
+
+    def refresh_items(self):
+        super().refresh_items()
+        if not self.iterable:
+            return
+        self.containers = {str(i): c[0].container for \
+                           i, c in zip(self.iterable, self.items)}
+        for item in self.items:
+            load_manifests(item[0].children, self._workbench)
+
+
+
 ################################################################################
 # Containers (defines a shared set of containers across axes)
 ################################################################################
-class PlotContainer(PSIContribution):
+class BasePlotContainer(PSIContribution):
 
     label = d_(Unicode())
 
@@ -109,20 +162,7 @@ class PlotContainer(PSIContribution):
     legend = Typed(pg.LegendItem)
 
     def _default_container(self):
-        container = pg.GraphicsLayout()
-        container.setSpacing(10)
-
-        # Add the x and y axes to the layout, along with the viewbox.
-        for i, child in enumerate(self.children):
-            container.addItem(child.y_axis, i, 0)
-            container.addItem(child.viewbox, i, 1)
-        container.addItem(self.x_axis, i+1, 1)
-
-        # Link the child viewboxes together
-        for child in self.children[1:]:
-            child.viewbox.setXLink(self.base_viewbox)
-
-        return container
+        return create_container(self.children, self.x_axis)
 
     def _default_legend(self):
         legend = pg.LegendItem()
@@ -147,7 +187,18 @@ class PlotContainer(PSIContribution):
                 return child
 
 
-class TimeContainer(PlotContainer):
+class PlotContainer(BasePlotContainer):
+
+    x_min = d_(Float())
+    x_max = d_(Float())
+
+    def _default_container(self):
+        container = super()._default_container()
+        self.base_viewbox.setXRange(self.x_min, self.x_max, padding=0)
+        return container
+
+
+class TimeContainer(BasePlotContainer):
     '''
     Contains one or more viewboxes that share the same time-based X-axis
     '''
@@ -187,7 +238,7 @@ def format_log_ticks(values, scale, spacing):
     return ['{:.1f}'.format(v) for v in values]
 
 
-class FFTContainer(PlotContainer):
+class FFTContainer(BasePlotContainer):
     '''
     Contains one or more viewboxes that share the same frequency-based X-axis
     '''
@@ -271,6 +322,9 @@ class ViewBox(PSIContribution):
 
     data_range = Property()
 
+    def _default_name(self):
+        return self.label
+
     def _get_data_range(self):
         return self.parent.data_range
 
@@ -292,6 +346,7 @@ class ViewBox(PSIContribution):
                                             enableMenu=False)
         except:
             viewbox = pg.ViewBox(enableMenu=False)
+            viewbox.setMouseEnabled(x=False, y=False)
         viewbox.setBackgroundColor('w')
 
         if (self.y_min != 0) or (self.y_max != 0):
@@ -307,11 +362,19 @@ class ViewBox(PSIContribution):
         for child in self.children:
             child.update()
 
-    def add_plot(self, plot):
+    def add_plot(self, plot, label=None):
         self.viewbox.addItem(plot)
+        if label:
+            self.parent.legend.addItem(plot, label)
 
     def plot(self, x, y, color='k', log_x=False, log_y=False, label=None,
              kind='line'):
+        '''
+        Convenience function used by plugins
+
+        This is typically used in post-processing routines to add static plots
+        to existing view boxes.
+        '''
         if log_x:
             x = np.log10(x)
         if log_y:
@@ -354,6 +417,7 @@ class SinglePlot(BasePlot):
     pen_color = d_(Typed(object))
     pen_width = d_(Float(0))
     antialias = d_(Bool(False))
+    label = d_(Unicode())
 
     pen = Typed(object)
     plot = Typed(object)
@@ -362,10 +426,11 @@ class SinglePlot(BasePlot):
         return [self.plot]
 
     def _default_pen_color(self):
-        return 'k'
+        return 'black'
 
     def _default_pen(self):
-        return pg.mkPen(self.pen_color, width=self.pen_width)
+        color = make_color(self.pen_color)
+        return pg.mkPen(color, width=self.pen_width)
 
     def _default_name(self):
         return self.source_name + '_plot'
@@ -374,6 +439,8 @@ class SinglePlot(BasePlot):
 class ChannelPlot(SinglePlot):
 
     downsample = Int(0)
+    decimate_mode = d_(Enum('extremes', 'mean'))
+
     _cached_time = Typed(np.ndarray)
     _buffer = Typed(SignalBuffer)
 
@@ -401,7 +468,8 @@ class ChannelPlot(SinglePlot):
         self._update_buffer()
 
     def _update_buffer(self, event=None):
-        self._buffer = SignalBuffer(self.source.fs, self.parent.data_range.span*2)
+        self._buffer = SignalBuffer(self.source.fs,
+                                    self.parent.data_range.span*2)
 
     def _update_decimation(self, viewbox=None):
         try:
@@ -421,21 +489,24 @@ class ChannelPlot(SinglePlot):
         t = self._cached_time[:len(data)] + low
         if self.downsample > 1:
             t = t[::self.downsample]
-            d_min, d_max = decimate_extremes(data, self.downsample)
-            t = t[:len(d_min)]
-            x = np.c_[t, t].ravel()
-            y = np.c_[d_min, d_max].ravel()
-            deferred_call(self.plot.setData, x, y, connect='pairs')
+            if self.decimate_mode == 'extremes':
+                d_min, d_max = decimate_extremes(data, self.downsample)
+                t = t[:len(d_min)]
+                x = np.c_[t, t].ravel()
+                y = np.c_[d_min, d_max].ravel()
+                if x.shape == y.shape:
+                    deferred_call(self.plot.setData, x, y, connect='pairs')
+            elif self.decimate_mode == 'mean':
+                d = decimate_mean(data, self.downsample)
+                t = t[:len(d)]
+                if t.shape == d.shape:
+                    deferred_call(self.plot.setData, t, d)
         else:
             t = t[:len(data)]
             deferred_call(self.plot.setData, t, data)
 
 
-def decimate_extremes(data, downsample):
-    # If data is empty, return imediately
-    if data.size == 0:
-        return np.array([]), np.array([])
-
+def _reshape_for_decimate(data, downsample):
     # Determine the "fragment" size that we are unable to decimate.  A
     # downsampling factor of 5 means that we perform the operation in chunks of
     # 5 samples.  If we have only 13 samples of data, then we cannot decimate
@@ -444,16 +515,28 @@ def decimate_extremes(data, downsample):
     offset = data.shape[-1] % downsample
     if offset > 0:
         data = data[..., :-offset]
+    shape = (len(data), -1, downsample) if data.ndim == 2 else (-1, downsample)
+    return data.reshape(shape)
+
+
+def decimate_mean(data, downsample):
+    # If data is empty, return imediately
+    if data.size == 0:
+        return np.array([]), np.array([])
+    data = _reshape_for_decimate(data, downsample).copy()
+    return data.mean(axis=-1)
+
+
+def decimate_extremes(data, downsample):
+    # If data is empty, return imediately
+    if data.size == 0:
+        return np.array([]), np.array([])
 
     # Force a copy to be made, which speeds up min()/max().  Apparently min/max
     # make a copy of a reshaped array before performing the operation, so we
     # force it now so the copy only occurs once.
-    if data.ndim == 2:
-        shape = (len(data), -1, downsample)
-    else:
-        shape = (-1, downsample)
-    data = data.reshape(shape).copy()
-    return data.min(last_dim), data.max(last_dim)
+    data = _reshape_for_decimate(data, downsample).copy()
+    return data.min(axis=-1), data.max(axis=-1)
 
 
 class FFTChannelPlot(ChannelPlot):
@@ -525,7 +608,14 @@ class BaseTimeseriesPlot(SinglePlot):
             if starts[-1] > ends[-1]:
                 ends = np.r_[ends, current_time]
 
-        epochs = np.c_[starts, ends]
+        try:
+            epochs = np.c_[starts, ends]
+        except ValueError as e:
+            log.exception(e)
+            log.warning('Unable to update %r, starts shape %r, ends shape %r',
+                        self, starts, ends)
+            return
+
         m = ((epochs >= lb) & (epochs < ub)) | np.isnan(epochs)
         epochs = epochs[m.any(axis=-1)]
 
@@ -588,7 +678,7 @@ class GroupMixin(Declarative):
     source = Typed(object)
     group_meta = d_(Unicode())
     groups = d_(Typed(ContextMeta))
-    group_names = List()
+    group_names = d_(List())
 
     # Fucntion that takes the epoch metadata and decides whether to accept it
     # for plotting.  Useful to reduce the number of plots shown on a graph.
@@ -604,9 +694,10 @@ class GroupMixin(Declarative):
 
     plots = Dict()
 
-    _epoch_cache = Typed(object)
-    _epoch_count = Typed(object)
-    _epoch_updated = Typed(object)
+    _data_cache = Typed(object)
+    _data_count = Typed(object)
+    _data_updated = Typed(object)
+
     _pen_color_cycle = Typed(object)
     _plot_colors = Typed(object)
     _x = Typed(np.ndarray)
@@ -619,21 +710,6 @@ class GroupMixin(Declarative):
     def _default_group_filter(self):
         return lambda key: True
 
-    def _epochs_acquired(self, epochs):
-        for d in epochs:
-            md = d['info']['metadata']
-            if self.group_filter(md):
-                signal = d['signal']
-                key = tuple(md[n] for n in self.group_names)
-                self._epoch_cache[key].append(signal)
-                self._epoch_count[key] += 1
-
-        # Does at least one epoch need to be updated?
-        for key, count in self._epoch_count.items():
-            if count >= self._epoch_updated[key] + self.n_update:
-                self.update()
-                break
-
     def _default_pen_color_cycle(self):
         return ['k']
 
@@ -644,16 +720,20 @@ class GroupMixin(Declarative):
     def get_pen_color(self, key):
         kw_key = {n: k for n, k in zip(self.group_names, key)}
         group_key = self.group_color_key(kw_key)
-        return self._plot_colors[group_key]
+        color = self._plot_colors[group_key]
+        if not isinstance(color, str):
+            return QColor(*color)
+        else:
+            return QColor(color)
 
     def _reset_plots(self):
         # Clear any existing plots and reset color cycle
         for plot in self.plots.items():
             self.parent.viewbox.removeItem(plot)
         self.plots = {}
-        self._epoch_cache = defaultdict(list)
-        self._epoch_count = defaultdict(int)
-        self._epoch_updated = defaultdict(int)
+        self._data_cache = defaultdict(list)
+        self._data_count = defaultdict(int)
+        self._data_updated = defaultdict(int)
 
         if isinstance(self.pen_color_cycle, str):
             self._pen_color_cycle = get_color_cycle(self.pen_color_cycle)
@@ -682,7 +762,6 @@ class GroupMixin(Declarative):
         try:
             pen_color = self.get_pen_color(key)
             pen = pg.mkPen(pen_color, width=self.pen_width)
-
             plot = pg.PlotCurveItem(pen=pen, antialias=self.antialias)
             deferred_call(self.parent.viewbox.addItem, plot)
             self.plots[key] = plot
@@ -697,25 +776,27 @@ class GroupMixin(Declarative):
             self._make_new_plot(key)
         return self.plots[key]
 
+
+class EpochGroupMixin(GroupMixin):
+
     def _y(self, epoch):
         return np.mean(epoch, axis=0) if len(epoch) \
             else np.full_like(self._x, np.nan)
 
-    def update(self, event=None):
-        # Update epochs that need updating
-        todo = []
-        for key, count in list(self._epoch_count.items()):
-            if count >= self._epoch_updated[key] + self.n_update:
-                epoch = self._epoch_cache[key]
-                plot = self.get_plot(key)
-                y = self._y(epoch)
-                todo.append((plot.setData, self._x, y))
-                self._epoch_updated[key] = len(epoch)
+    def _epochs_acquired(self, epochs):
+        for d in epochs:
+            md = d['info']['metadata']
+            if self.group_filter(md):
+                signal = d['signal']
+                key = tuple(md[n] for n in self.group_names)
+                self._data_cache[key].append(signal)
+                self._data_count[key] += 1
 
-        def update():
-            for setter, x, y in todo:
-                setter(x, y)
-        deferred_call(update)
+        # Does at least one epoch need to be updated?
+        for key, count in self._data_count.items():
+            if count >= self._data_updated[key] + self.n_update:
+                self.update()
+                break
 
     def _observe_source(self, event):
         if self.source is not None:
@@ -725,8 +806,24 @@ class GroupMixin(Declarative):
             self._reset_plots()
             self._cache_x()
 
+    def update(self, event=None):
+        # Update epochs that need updating
+        todo = []
+        for key, count in list(self._data_count.items()):
+            if count >= self._data_updated[key] + self.n_update:
+                data = self._data_cache[key]
+                plot = self.get_plot(key)
+                y = self._y(data)
+                todo.append((plot.setData, self._x, y))
+                self._data_updated[key] = len(data)
 
-class GroupedEpochAveragePlot(GroupMixin, BasePlot):
+        def update():
+            for setter, x, y in todo:
+                setter(x, y)
+        deferred_call(update)
+
+
+class GroupedEpochAveragePlot(EpochGroupMixin, BasePlot):
 
     def _cache_x(self, event=None):
         # Set up the new time axis
@@ -738,7 +835,7 @@ class GroupedEpochAveragePlot(GroupMixin, BasePlot):
         return self.source_name + '_grouped_epoch_average_plot'
 
 
-class GroupedEpochFFTPlot(GroupMixin, BasePlot):
+class GroupedEpochFFTPlot(EpochGroupMixin, BasePlot):
 
     def _default_name(self):
         return self.source_name + '_grouped_epoch_fft_plot'
@@ -754,7 +851,7 @@ class GroupedEpochFFTPlot(GroupMixin, BasePlot):
         return util.db(util.psd(y, self.source.fs))
 
 
-class GroupedEpochPhasePlot(GroupMixin, BasePlot):
+class GroupedEpochPhasePlot(EpochGroupMixin, BasePlot):
 
     unwrap = d_(Bool(True))
 
@@ -772,16 +869,15 @@ class GroupedEpochPhasePlot(GroupMixin, BasePlot):
         return util.phase(y, self.source.fs, unwrap=self.unwrap)
 
 
-class StackedEpochAveragePlot(GroupMixin, BasePlot):
+class StackedEpochAveragePlot(EpochGroupMixin, BasePlot):
+
+    _offset_update_needed = Bool(False)
 
     def _make_new_plot(self, key):
         super()._make_new_plot(key)
-        self._update_offsets()
+        self._offset_update_needed = True
 
     def _update_offsets(self, vb=None):
-        deferred_call(self.__update_offsets, vb)
-
-    def __update_offsets(self, vb=None):
         vb = self.parent.viewbox
         height = vb.height()
         n = len(self.plots)
@@ -796,6 +892,12 @@ class StackedEpochAveragePlot(GroupMixin, BasePlot):
             n_time = round(self.source.fs * self.source.duration)
             self._x = np.arange(n_time)/self.source.fs
 
+    def update(self):
+        super().update()
+        if self._offset_update_needed:
+            deferred_call(self._update_offsets)
+            self._offset_update_needed = False
+
     def _reset_plots(self):
         super()._reset_plots()
         self.parent.viewbox \
@@ -807,28 +909,70 @@ class StackedEpochAveragePlot(GroupMixin, BasePlot):
 ################################################################################
 # Simple plotters
 ################################################################################
-class DataFramePlot(GroupMixin, BasePlot):
+class ResultPlot(SinglePlot):
 
-    data = d_(Typed(pd.DataFrame))
     x_column = d_(Unicode())
     y_column = d_(Unicode())
 
-    def _observe_data(self, event):
-        self.update()
+    SYMBOL_MAP = {
+        'circle': 'o',
+        'square': 's',
+        'triangle': 't',
+        'diamond': 'd',
+    }
+    symbol = d_(Enum('circle', 'square', 'triangle', 'diamond'))
+    symbol_size = d_(Float(10))
+    symbol_size_unit = d_(Enum('screen', 'data'))
+
+    data_filter = d_(Callable())
+
+    _data_cache = Typed(list)
+
+    def _default_data_filter(self):
+        # By default, accept all data points
+        return lambda x: True
+
+    def _default_name(self):
+        return '.'.join((self.parent.name, self.source_name, 'result_plot',
+                         self.x_column, self.y_column))
+
+    def _observe_source(self, event):
+        if self.source is not None:
+            self._data_cache = []
+            self.source.add_callback(self._data_acquired)
+
+    def _data_acquired(self, data):
+        update = False
+        for d in data:
+            if self.data_filter(d):
+                x = d[self.x_column]
+                y = d[self.y_column]
+                self._data_cache.append((x, y))
+                update = True
+        if update:
+            self.update()
 
     def update(self, event=None):
-        todo = []
-        for key, group in self.data.groupby(self.group_names):
-            if len(self.group_names) == 1:
-                key = (key,)
-            plot = self.get_plot(key)
-            x = group[self.x_column]
-            y = group[self.y_column]
-            x = np.array(x)
-            y = np.array(y)
-            todo.append(plot.setData, x, y)
+        if not self._data_cache:
+            return
+        x, y = zip(*self._data_cache)
+        x = np.array(x)
+        y = np.array(y)
+        deferred_call(self.plot.setData, x, y)
 
-        def update():
-            for setter, x, y in todo:
-                setter(x, y)
-        deferred_call(update)
+    def _default_plot(self):
+        symbol_code = self.SYMBOL_MAP[self.symbol]
+        color = QColor(self.pen_color)
+        pen = pg.mkPen(color, width=self.pen_width)
+        brush = pg.mkBrush(color)
+
+        plot = pg.PlotDataItem(pen=pen,
+                                antialias=self.antialias,
+                                symbol=symbol_code,
+                                symbolSize=self.symbol_size,
+                                symbolPen=pen,
+                                symbolBrush=brush,
+                                pxMode=self.symbol_size_unit=='screen')
+
+        deferred_call(self.parent.add_plot, plot, self.label)
+        return plot

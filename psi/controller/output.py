@@ -8,6 +8,7 @@ import numpy as np
 
 from atom.api import (Unicode, Enum, Typed, Property, Float, Int, Bool, List)
 
+import enaml
 from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
 from enaml.workbench.api import Extension
@@ -38,7 +39,7 @@ class Output(PSIContribution):
     label = d_(Unicode()).tag(metadata=True)
 
     target_name = d_(Unicode())
-    target = Typed(Declarative).tag(metadata=True)
+    target = d_(Typed(Declarative).tag(metadata=True), writable=False)
     channel = Property()
     engine = Property()
 
@@ -50,26 +51,45 @@ class Output(PSIContribution):
     filter_delay = Property().tag(metadata=True)
 
     # TODO: clean this up. it's sort of hackish.
-    token_name = d_(Unicode())
     token = d_(Typed(Declarative))
 
+    # Can the user configure properties (such as the token) via the GUI?
+    configurable = d_(Bool(True))
+
+    callbacks = List()
+
+    def connect(self, cb):
+        self.callbacks.append(cb)
+
+    def notify(self, data):
+        # Correct for filter delay
+        d = data.copy()
+        d['t0'] += self.filter_delay
+        for cb in self.callbacks:
+            cb(d)
+
     def _get_engine(self):
-        return self.channel.engine
+        if self.channel is None:
+            return None
+        else:
+            return self.channel.engine
 
     def _get_channel(self):
         from .channel import Channel
         target = self.target
         while True:
-            if isinstance(target, Channel):
+            if target is None:
+                return None
+            elif isinstance(target, Channel):
                 return target
             else:
                 target = target.target
 
+    def _get_filter_delay(self):
+        return self.target.filter_delay
+
     def _get_fs(self):
         return self.channel.fs
-
-    def _get_filter_delay(self):
-        return self.channel.filter_delay
 
     def _get_calibration(self):
         return self.channel.calibration
@@ -78,8 +98,9 @@ class Output(PSIContribution):
         raise NotImplementedError
 
 
-class AnalogOutput(Output):
+class BufferedOutput(Output):
 
+    dtype = Unicode('double')
     buffer_size = Property()
     active = Bool(False)
     source = Typed(object)
@@ -91,13 +112,18 @@ class AnalogOutput(Output):
         return self.channel.buffer_size
 
     def _default__buffer(self):
-        return SignalBuffer(self.fs, self.buffer_size, 0)
+        return SignalBuffer(self.fs, self.buffer_size, 0, self.dtype)
 
     def get_samples(self, offset, samples, out):
         lb = offset
         ub = offset + samples
         buffered_lb = self._buffer.get_samples_lb()
         buffered_ub = self._buffer.get_samples_ub()
+
+        log.trace('Getting %d samples from %d to %d for %s', samples, lb, ub,
+                  self.name)
+        log.trace('Buffer has %d to %d for %s', buffered_lb, buffered_ub,
+                  self.name)
 
         if lb > buffered_ub:
             # This breaks an implicit software contract.
@@ -109,12 +135,26 @@ class AnalogOutput(Output):
             log.trace('Extracting from buffer')
             out[:] = self._buffer.get_range_samples(lb, ub)
             samples = 0
+            offset = ub
         elif lb >= buffered_lb and ub > buffered_ub:
             log.trace('Extracting from buffer and generating new data')
             b = self._buffer.get_range_samples(lb)
             s = b.shape[-1]
             out[:s] = b
             samples -= s
+            offset += s
+
+        # Don't generate new samples if occuring before activation.
+        if (samples > 0) and (offset < self._offset):
+            s = min(self._offset-offset, samples)
+            data = np.zeros(s)
+            self._buffer.append_data(data)
+            if (samples == s):
+                out[-samples:] = data
+            else:
+                out[-samples:-samples+s] = data
+            samples -= s
+            offset += s
 
         # Generate new samples
         if samples > 0:
@@ -126,11 +166,13 @@ class AnalogOutput(Output):
         raise NotImplementedError
 
     def activate(self, offset):
+        log.debug('Activating %s at %d', self.name, offset)
         self.active = True
         self._offset = offset
         self._buffer.invalidate_samples(offset)
 
     def deactivate(self, offset):
+        log.debug('Deactivating %s at %d', self.name, offset)
         self.active = False
         self.source = None
         self._buffer.invalidate_samples(offset)
@@ -142,9 +184,10 @@ class AnalogOutput(Output):
         return self.source.get_duration()
 
 
-class EpochOutput(AnalogOutput):
+class EpochOutput(BufferedOutput):
 
     def get_next_samples(self, samples):
+        log.trace('Getting %d samples for %s', samples, self.name)
         if self.active:
             buffered_ub = self._buffer.get_samples_ub()
 
@@ -155,7 +198,7 @@ class EpochOutput(AnalogOutput):
 
             waveforms = []
             if zero_padding:
-                w = np.zeros(zero_padding, dtype=np.double)
+                w = np.zeros(zero_padding, dtype=self.dtype)
                 waveforms.append(w)
             if waveform_samples:
                 w = self.source.next(waveform_samples)
@@ -164,33 +207,27 @@ class EpochOutput(AnalogOutput):
                 self.deactivate(self._buffer.get_samples_ub())
             waveform = np.concatenate(waveforms, axis=-1)
         else:
-            waveform = np.zeros(samples, dtype=np.double)
+            waveform = np.zeros(samples, dtype=self.dtype)
         return waveform
 
 
-class QueuedEpochOutput(AnalogOutput):
+class QueuedEpochOutput(BufferedOutput):
 
     queue = d_(Typed(AbstractSignalQueue))
     auto_decrement = d_(Bool(False))
     complete_cb = Typed(object)
-    queue = Property()
 
-    def _get_queue(self):
-        return self.source
-
-    def _set_queue(self, value):
-        self.source = value
+    def _observe_queue(self, event):
+        self.source = self.queue
+        self._update_queue()
 
     def _observe_target(self, event):
         self._update_queue()
 
-    def _observe_source(self, event):
-        self._update_queue()
-
     def _update_queue(self):
         if self.queue is not None and self.target is not None:
-            self.queue.set_filter_delay(self.filter_delay)
             self.queue.set_fs(self.fs)
+            self.queue.connect(self.notify)
 
     def get_next_samples(self, samples):
         if self.active:
@@ -204,24 +241,31 @@ class QueuedEpochOutput(AnalogOutput):
         return waveform
 
     def add_setting(self, setting, averages=None, iti_duration=None):
+        with enaml.imports():
+            from .output_manifest import initialize_factory
+
         # Make a copy to ensure that we don't accidentally modify in-place
-        setting = setting.copy()
+        context = setting.copy()
 
         if averages is None:
-            averages = setting['{}_averages'.format(self.name)]
+            averages = context.pop(f'{self.name}_averages')
         if iti_duration is None:
-            iti_duration = setting['{}_iti_duration'.format(self.name)]
+            iti_duration = context.pop(f'{self.name}_iti_duration')
 
         # Somewhat surprisingly it appears to be faster to use factories in the
         # queue rather than creating the waveforms for ABR tone pips, even for
         # very short signal durations.
-        setting['fs'] = self.fs
-        setting['calibration'] = self.calibration
-        factory = self.token.initialize_factory(setting)
+        context['fs'] = self.fs
+        context['calibration'] = self.calibration
+
+        # I'm not in love with this since it requires hooking into the
+        # manifest system.
+        factory = initialize_factory(self, self.token, context)
         duration = factory.get_duration()
         self.queue.append(factory, averages, iti_duration, duration, setting)
 
     def activate(self, offset):
+        log.debug('Activating output at %d', offset)
         super().activate(offset)
         self.queue.set_t0(offset/self.fs)
 
@@ -232,10 +276,10 @@ class QueuedEpochOutput(AnalogOutput):
 
 class SelectorQueuedEpochOutput(QueuedEpochOutput):
 
-    selector_name = d_(Unicode())
+    selector_name = d_(Unicode('default'))
 
 
-class ContinuousOutput(AnalogOutput):
+class ContinuousOutput(BufferedOutput):
 
     def get_next_samples(self, samples):
         if self.active:
@@ -253,7 +297,8 @@ class Trigger(DigitalOutput):
     duration = d_(Float(0.1))
 
     def fire(self):
-        self.engine.fire_sw_do(self.channel.name, duration=self.duration)
+        if self.engine.configured:
+            self.engine.fire_sw_do(self.channel.name, duration=self.duration)
 
 
 class Toggle(DigitalOutput):
@@ -261,11 +306,8 @@ class Toggle(DigitalOutput):
     state = Bool(False)
 
     def _observe_state(self, event):
-        try:
-            # TODO: Fixme
+        if self.engine is not None and self.engine.configured:
             self.engine.set_sw_do(self.channel.name, event['value'])
-        except:
-            pass
 
     def set_high(self):
         self.state = True

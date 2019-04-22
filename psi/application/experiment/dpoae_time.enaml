@@ -1,0 +1,114 @@
+from enaml.workbench.api import Extension
+
+from psi.context.api import Parameter
+from psi.controller.api import EpochOutput, ExperimentAction
+from psi.data.plots import ResultPlot, PlotContainer, ViewBox
+from psi.token.primitives import Gate, SquareWave
+
+from .dpoae_base import DPOAEManifest
+
+EXPERIMENT = __name__.rsplit('.', 1)[-1]
+
+
+enamldef ControllerManifest(DPOAEManifest):
+
+    Extension:
+        id = EXPERIMENT + '.tokens'
+        point = 'psi.token.tokens'
+
+        Gate: ttl:
+            name = 'ttl'
+            hide = ['start_time']
+            SquareWave:
+                pass
+
+    Extension:
+        id = EXPERIMENT + '.io'
+        point = 'psi.controller.io'
+
+        EpochOutput: trigger:
+            name = 'trigger'
+            label = 'TTL'
+            target_name = 'ttl_output'
+            configurable = False
+            token = ttl
+
+    Extension:
+        id = EXPERIMENT + '.actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'dpoae_start'
+            command = 'trigger.start'
+            kwargs = {'delay': 'ttl_start'}
+
+        ExperimentAction:
+            event = 'dpoae_end'
+            command = 'dpoae_capture.end'
+
+        ExperimentAction:
+            event = 'dpoae_end'
+            command = 'psi.context.next_setting'
+            kwargs = {'selector': 'default', 'save_prior': False}
+
+        ExperimentAction:
+            event = 'context_next_setting'
+            command = 'dpoae.start'
+            kwargs = {'delay': 1.0}
+
+    Extension:
+        id = EXPERIMENT + '.items'
+        point = 'psi.context.items'
+
+        Parameter:
+            name = 'ttl_start'
+            label = 'TTL start time (sec)'
+            dtype = 'float'
+            default = 5
+            group_name = 'dpoae'
+
+    Extension:
+        id = EXPERIMENT + '.plots'
+        point = 'psi.data.plots'
+
+        PlotContainer:
+            name = 'results_plot_container'
+            label = 'Results'
+            x_min = 0
+            x_max = 40
+
+            ViewBox:
+                y_min = -20
+                y_max = 100
+
+                ResultPlot: grp:
+                    source_name = 'analyze_dpoae'
+                    x_column = 'ts_end'
+                    label = 'F2'
+                    pen_width = 2
+                    y_column = 'f2_level'
+                    pen_color = 'indianred'
+
+                ResultPlot:
+                    source_name << grp.source_name
+                    x_column << grp.x_column
+                    pen_width << grp.pen_width
+                    y_column = 'primary_tone_level'
+                    label = 'F1'
+                    pen_color = 'lightsalmon'
+
+                ResultPlot:
+                    source_name << grp.source_name
+                    pen_width << grp.pen_width
+                    x_column << grp.x_column
+                    y_column = 'dpoae_noise_floor'
+                    label = 'Noise Floor'
+                    pen_color = 'lightsteelblue'
+
+                ResultPlot:
+                    source_name << grp.source_name
+                    pen_width << grp.pen_width
+                    x_column << grp.x_column
+                    y_column = 'dpoae_level'
+                    label = 'DPOAE'
+                    pen_color = 'darkred'

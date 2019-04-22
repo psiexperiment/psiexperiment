@@ -7,6 +7,7 @@ def test_eval(workbench):
         dict(repetitions=10, level=60, fc=32e3/10),
         dict(repetitions=15, level=60, fc=32e3/15),
         dict(repetitions=20, level=60, fc=32e3/20),
+        dict(repetitions=20, level=60, fc=32e3/20),
         dict(repetitions=2, level=60, fc=32e3/2),
         dict(repetitions=10, level=60, fc=32e3/10),
     ]
@@ -38,6 +39,13 @@ def test_eval(workbench):
         context.next_setting('default', save_prior=False)
         e['fc'] = 1e3
         assert e == context.get_values()
+
+
+def test_unique_values(workbench):
+    context = workbench.get_plugin('psi.context')
+    result = context.unique_values('repetitions')
+    expected = {2, 10, 15, 20}
+    assert result == expected
 
 
 def test_update(workbench):

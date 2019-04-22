@@ -1,6 +1,6 @@
-from .channel import (HardwareAIChannel, HardwareAOChannel, SoftwareAIChannel,
-                      SoftwareAOChannel, HardwareDIChannel, HardwareDOChannel,
-                      SoftwareDIChannel, SoftwareDOChannel)
+from .channel import (Channel, HardwareAIChannel, HardwareAOChannel,
+                      SoftwareAIChannel, SoftwareAOChannel, HardwareDIChannel,
+                      HardwareDOChannel, SoftwareDIChannel, SoftwareDOChannel)
 
 from .engine import Engine
 
@@ -8,7 +8,7 @@ from .input import (Input, ContinuousInput, EventInput, EpochInput, Callback,
                     CalibratedInput, RMS, SPL, IIRFilter, Blocked, Accumulate,
                     Capture, Downsample, Decimate, Discard, Threshold, Average,
                     Delay, Transform, Edges, ExtractEpochs, RejectEpochs,
-                    Detrend)
+                    Detrend, concatenate, coroutine)
 
 from .output import (Synchronized, ContinuousOutput, EpochOutput,
                      QueuedEpochOutput, SelectorQueuedEpochOutput,
@@ -17,11 +17,11 @@ from .output import (Synchronized, ContinuousOutput, EpochOutput,
 from .experiment_action import (ExperimentAction, ExperimentEvent,
                                 ExperimentState)
 
-from .queue import FIFOSignalQueue
+from .queue import FIFOSignalQueue, InterleavedFIFOSignalQueue
 
 
 import enaml
 with enaml.imports():
-    from .base_manifest import (BaseManifest, get_hw_ao_choices,
-                                get_hw_ai_choices)
-
+    # Not where ControllerPlugin is defined, but helps simplify imports.
+    from .manifest import (ControllerManifest, ControllerPlugin,
+                           get_hw_ao_choices, get_hw_ai_choices)

@@ -15,8 +15,8 @@ import numpy as np
 import pandas as pd
 from scipy import signal
 
-from .bcolz_tools import (BcolzRecording, BcolzSignal, load_ctable_as_df,
-                          repair_carray_size)
+from . import Recording
+from .bcolz_tools import repair_carray_size
 
 
 # Max size of LRU cache
@@ -60,7 +60,7 @@ def cache(f, name=None):
     return wrapper
 
 
-class ABRFile(BcolzRecording):
+class ABRFile(Recording):
 
     def __init__(self, *args, **kw):
         super().__init__(*args, **kw)
@@ -79,12 +79,13 @@ class ABRFile(BcolzRecording):
         if len(eeg) == 0:
             log.debug('EEG for %s is corrupt. Repairing.', self.base_folder)
             repair_carray_size(rootdir)
+        from .bcolz_tools import BcolzSignal
         return BcolzSignal(rootdir)
 
     @property
     @lru_cache(maxsize=MAXSIZE)
     def erp_metadata(self):
-        data = self._load_bcolz('erp_metadata')
+        data = self._load_bcolz_table('erp_metadata')
         return data.rename(columns=lambda x: x.replace('target_tone_', ''))
 
     @cache

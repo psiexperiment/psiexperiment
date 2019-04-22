@@ -16,6 +16,8 @@ class ListView(RawWidget):
 
     # The list being edited by the widget
     items = d_(List())
+    selected_rows = d_(List())
+    selected_items = d_(List())
 
     # Whether or not the items should be editable
     editable = d_(Bool(True))
@@ -24,17 +26,36 @@ class ListView(RawWidget):
     # Filter for capturing the delete key
     _event_filter = Typed(EventFilter)
 
+    selection_mode = Enum('single', 'contiguous', 'extended', 'multi', None)
+
+    SELECTION_MODE_MAP = {
+        'single': QAbstractItemView.SingleSelection,
+        'contiguous': QAbstractItemView.ContiguousSelection,
+        'extended': QAbstractItemView.ExtendedSelection,
+        'multi': QAbstractItemView.MultiSelection,
+        None: QAbstractItemView.NoSelection,
+    }
+
     def create_widget(self, parent):
         # Create the list model and accompanying controls:
-        #self.set_items(self.items)
         widget = QListWidget(parent)
         widget.itemChanged.connect(self.on_edit)
+        widget.currentItemChanged.connect(self._selected)
         widget.setEditTriggers(QAbstractItemView.AnyKeyPressed)
-        widget.setSelectionMode(QAbstractItemView.ExtendedSelection)
+        mode = self.SELECTION_MODE_MAP[self.selection_mode]
+        widget.setSelectionMode(mode)
         self._event_filter = EventFilter(self)
         widget.installEventFilter(self._event_filter)
-        self.set_items(self.items, widget)
+        self.set_items(self.items, widget, select_first=True)
         return widget
+
+    def get_selected_rows(self):
+        widget = self.get_widget()
+        return [widget.row(wi) for wi in widget.selectedItems()]
+
+    def _selected(self, selected=None, deselected=None):
+        self.selected_rows = self.get_selected_rows()
+        self.selected_items = [self.items[r] for r in self.selected_rows]
 
     def add_item(self, item='', widget=None):
         if widget is None:
@@ -45,6 +66,7 @@ class ListView(RawWidget):
             flags = wi.flags() | Qt.ItemIsEditable
             wi.setFlags(flags)
         widget.addItem(wi)
+        return wi
 
     def select_next(self):
         widget = self.get_widget()
@@ -58,7 +80,7 @@ class ListView(RawWidget):
 
     def remove_selected_rows(self):
         widget = self.get_widget()
-        rows = [widget.row(wi) for wi in widget.selectedItems()]
+        rows = self.get_selected_rows()
         for row in sorted(rows, reverse=True):
             if row < len(self.items):
                 del self.items[row]
@@ -79,13 +101,16 @@ class ListView(RawWidget):
         self.select_next()
         self.updated = True
 
-    def set_items(self, items, widget=None):
+    def set_items(self, items, widget=None, select_first=False):
         if widget is None:
             widget = self.get_widget()
         widget.clear()
-        for item in items:
-            self.add_item(item, widget)
-        self.add_item('', widget)
+        widget_items = [self.add_item(i, widget) for i in items]
+        if self.editable:
+            self.add_item('', widget)
+        if select_first:
+            widget_items[0].setSelected(True)
+            self._selected()
 
     @observe('items')
     def _update_proxy(self, change):

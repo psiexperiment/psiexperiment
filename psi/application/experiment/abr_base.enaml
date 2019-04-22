@@ -12,50 +12,31 @@ from psi.context.context_item import OrderedContextMeta
 from psi.context.selector import CartesianProduct
 from psi.controller import queue
 from psi.controller.api import ExperimentAction
-from psi.controller.base_manifest import BaseManifest, get_hw_ao_choices
-from psi.controller.api import (ContinuousInput, ExtractEpochs, RejectEpochs,
+from psi.controller.api import (ContinuousInput, ControllerManifest,
+                                ExtractEpochs, get_hw_ao_choices, RejectEpochs,
                                 IIRFilter, Input, Detrend)
 from psi.controller.output import QueuedEpochOutput
 from psi.controller.calibration.util import db
-from psi.data.plots import (TimeContainer, ViewBox, StackedEpochAveragePlot)
+from psi.data.plots import (MultiPlotContainer, StackedEpochAveragePlot,
+                            TimeContainer, ViewBox, StackedEpochAveragePlot)
 from psi.data.sinks.epoch_counter import GroupedEpochCounter
-from psi.data.sinks.text_store import TextStore
 from psi.data.sinks.bcolz_store import BColzStore
 from psi.token.primitives import Cos2Envelope, Tone
-
-
-def configure_hardware(event):
-    context = event.workbench.get_plugin('psi.context')
-    controller = event.workbench.get_plugin('psi.controller')
-    output_channel = context.get_value('output_channel')
-    controller.connect_output('target', output_channel)
 
 
 def configure_experiment(event):
     context = event.workbench.get_plugin('psi.context')
     controller = event.workbench.get_plugin('psi.controller')
 
-    reject_threshold = context.get_value('reject_threshold')
-    reject_mode = context.get_value('reject_mode')
-    detrend_mode = context.get_value('detrend_mode')
     ordering = context.get_value('ordering')
     alternate_polarity = context.get_value('alternate_polarity')
     tone_duration = context.get_value('target_tone_burst_duration')
     rate = context.get_value('rate')
     averages = context.get_value('averages')
 
-    if context.get_value('digital_filter'):
-        f_highpass = context.get_value('digital_highpass')
-        f_lowpass = context.get_value('digital_lowpass')
-        controller.set_input_attr('eeg_filtered', 'f_highpass', f_highpass)
-        controller.set_input_attr('eeg_filtered', 'f_lowpass', f_lowpass)
-        controller.set_input_attr('eeg_filtered', 'passthrough', False)
-    else:
-        controller.set_input_attr('eeg_filtered', 'passthrough', True)
-
     if alternate_polarity and (averages % 2):
         # Round to the nearest multiple of 2
-        averages = (int(averages/2) + 1) * 2
+        averages = (round(averages/2) + 1) * 2
 
     # Compensate for the tone duration. ITI is the time from tone offset to
     # tone offset.
@@ -63,9 +44,6 @@ def configure_experiment(event):
     if iti <= 0:
         raise ValueError('Repetition rate is too fast')
 
-    controller.set_input_attr('erp_detrend', 'mode', detrend_mode)
-    controller.set_input_attr('valid_erp', 'threshold', reject_threshold)
-    controller.set_input_attr('valid_erp', 'mode', reject_mode)
     target = controller.get_output('target')
 
     # Configure the queues
@@ -120,14 +98,11 @@ def configure_experiment(event):
     target.complete_cb = partial(controller.invoke_actions, action_name)
 
 
-enamldef ControllerManifest(BaseManifest): manifest:
+enamldef ABRManifest(ControllerManifest): manifest:
 
     Extension:
         id = 'abr_base_text_store'
         point = 'psi.data.sinks'
-
-        TextStore:
-            name = 'calibration_data'
 
         BColzStore:
             name = 'erp_eeg'
@@ -138,11 +113,12 @@ enamldef ControllerManifest(BaseManifest): manifest:
         id = 'tokens'
         point = 'psi.token.tokens'
 
-        Cos2Envelope:
+        Cos2Envelope: tone_burst:
             name = 'tone_burst'
             label = 'tone'
+            hide = ['start_time']
             Tone:
-                pass
+                hide = ['polarity', 'phase']
 
     Extension:
         id = 'io'
@@ -151,6 +127,13 @@ enamldef ControllerManifest(BaseManifest): manifest:
         QueuedEpochOutput: output:
             name = 'target'
             label = 'Target'
+            token = tone_burst
+            configurable = False
+            target_name = C.output_channel
+            queue ::
+                print('connecting')
+                print(extract.queue)
+                self.connect(extract.queue.append)
 
         ContinuousInput:
             name = 'microphone'
@@ -166,17 +149,22 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 btype = 'bandpass'
                 ftype = 'butter'
                 source_name = 'eeg_channel'
+                passthrough = not C.digital_filter
+                f_highpass = C.digital_highpass
+                f_lowpass = C.digital_lowpass
 
                 ExtractEpochs: extract:
                     name = 'erp'
-                    queue << output.queue
                     epoch_size = 8.5e-3
 
                     Detrend:
                         name = 'erp_detrend'
+                        mode = C.detrend_mode
 
                         RejectEpochs:
                             name = 'valid_erp'
+                            threshold = C.reject_threshold
+                            mode = C.reject_mode
 
     Extension:
         id = 'context'
@@ -224,7 +212,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
             Parameter:
                 name = 'rate'
                 label = 'Reps. per sec.'
-                default = 30
+                default = 80
                 scope = 'experiment'
 
             BoolParameter:
@@ -273,7 +261,8 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 name = 'output_channel'
                 label = 'Output channel'
                 compact_label = 'ao'
-                choices << get_hw_ao_choices(workbench)
+                choices = get_hw_ao_choices(workbench)
+                selected = next(iter(get_hw_ao_choices(workbench)))
                 scope = 'experiment'
 
             Parameter:
@@ -310,22 +299,17 @@ enamldef ControllerManifest(BaseManifest): manifest:
         point = 'enaml.workbench.core.commands'
 
         Command:
-            id = 'psi.controller.configure_hardware'
-            handler = configure_hardware
-
-        Command:
             id = 'psi.controller.configure_experiment'
             handler = configure_experiment
 
     Extension:
         id = 'actions'
         point = 'psi.controller.actions'
-        rank = 100
 
         ExperimentAction:
-            event = 'experiment_prepare'
-            command = 'psi.controller.configure_hardware'
-            weight = 9
+            event = 'experiment_initialize'
+            command = 'psi.context.initialize'
+            kwargs = {'selector': 'default', 'cycles': 1}
 
         ExperimentAction:
             event = 'experiment_prepare'
@@ -333,7 +317,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
             weight = 11
 
         ExperimentAction:
-            event = 'experiment_prepare'
+            event = 'engines_configured'
             command = 'target.start'
             kwargs = {'delay': 1}
 
@@ -359,22 +343,25 @@ enamldef ControllerManifest(BaseManifest): manifest:
         id = 'plots'
         point = 'psi.data.plots'
 
-        TimeContainer:
-            name = 'erp_container'
-            label = 'ERP average'
-            span = 8.5e-3
+        MultiPlotContainer: mc:
+            name = 'abr_results'
+            label = 'ABR waveforms'
+            group = 'target_tone_frequency'
 
-            ViewBox:
-                y_min = -5
-                y_max = 5
-                label = 'Signal (V)'
+            TimeContainer:
+                name = 'erp_container'
+                label = 'ERP average'
+                span = 8.5e-3
 
-                StackedEpochAveragePlot:
-                    label = 'ERP average plot'
-                    source_name = 'valid_erp'
-                    n_update = 8
-                    group_filter = lambda key: key['target_tone_level'] % 20 == 0
-                    group_color_key = lambda key: key['target_tone_frequency']
-                    pen_color_cycle = 'palettable.cartocolors.qualitative.Vivid_10'
-                    pen_width = 2
-                    groups << epoch_groups
+                ViewBox:
+                    y_min = -5
+                    y_max = 5
+                    label = 'Signal (V) {}'.format(loop_item)
+
+                    StackedEpochAveragePlot:
+                        label = 'ERP average plot'
+                        source_name = 'valid_erp'
+                        n_update = 8
+                        group_filter = lambda key: key['target_tone_frequency'] == loop_item
+                        pen_width = 2
+                        groups << epoch_groups

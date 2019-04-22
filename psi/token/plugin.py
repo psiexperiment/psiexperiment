@@ -1,14 +1,8 @@
-import os.path
-import importlib
-import copy
+from atom.api import Typed
 
-from atom.api import Typed, Unicode, Callable, Property
-import enaml
+from enaml.workbench.api import Plugin
 
-from psi.context.api import Parameter
 from psi.token.block import ContinuousBlock, EpochBlock
-from enaml.core.api import Declarative, d_
-from enaml.workbench.api import Plugin, PluginManifest
 
 
 TOKENS_POINT = 'psi.token.tokens'
@@ -48,10 +42,9 @@ class TokenPlugin(Plugin):
         self.workbench.get_extension_point(TOKENS_POINT) \
             .unobserve('extensions', self._refresh_tokens)
 
-    def generate_epoch_token(self, token_name, output_name, output_label):
-        t = self._epoch_tokens[token_name]
-        return copy.copy(t)
-
-    def generate_continuous_token(self, token_name, output_name, output_label):
-        t = self._continuous_tokens[token_name]
-        return copy.copy(t)
+    def get_token(self, token_name):
+        if token_name in self._epoch_tokens:
+            return self._epoch_tokens[token_name]
+        if token_name in self._continuous_tokens:
+            return self._continuous_tokens[token_name]
+        raise ValueError('%s token does not exist', token_name)
