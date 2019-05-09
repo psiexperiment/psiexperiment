@@ -13,8 +13,8 @@ from psi.context.selector import CartesianProduct
 from psi.controller import queue
 from psi.controller.api import ExperimentAction
 from psi.controller.api import (ContinuousInput, ControllerManifest,
-                                ExtractEpochs, get_hw_ao_choices, RejectEpochs,
-                                IIRFilter, Input, Detrend)
+                                ExtractEpochs, RejectEpochs, IIRFilter, Input,
+                                Detrend)
 from psi.controller.output import QueuedEpochOutput
 from psi.controller.calibration.util import db
 from psi.data.plots import (MultiPlotContainer, StackedEpochAveragePlot,
@@ -261,8 +261,8 @@ enamldef ABRManifest(ControllerManifest): manifest:
                 name = 'output_channel'
                 label = 'Output channel'
                 compact_label = 'ao'
-                choices = get_hw_ao_choices(workbench)
-                selected = next(iter(get_hw_ao_choices(workbench)))
+                choices = manifest.get_hw_ao_choices()
+                selected = next(iter(manifest.get_hw_ao_choices()))
                 scope = 'experiment'
 
             Parameter:

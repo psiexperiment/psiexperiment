@@ -1,4 +1,5 @@
 from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
 
 from psi.context.api import Parameter
 from psi.controller.api import EpochOutput, ExperimentAction
@@ -10,37 +11,42 @@ from .dpoae_base import DPOAEManifest
 EXPERIMENT = __name__.rsplit('.', 1)[-1]
 
 
+TRIAL = 1
+
+def next_trial(event):
+    global TRIAL
+    core = event.workbench.get_plugin('enaml.workbench.core')
+    context = event.workbench.get_plugin('psi.context')
+    controller = event.workbench.get_plugin('psi.controller')
+    repetitions = context.get_value('repetitions')
+
+    if TRIAL >= repetitions:
+        TRIAL = 1
+        parameters = {'selector': 'default', 'save_prior': False}
+        core.invoke_command('psi.context.next_setting', parameters)
+    else:
+        TRIAL += 1
+
+    iti = context.get_value('iti')
+    ts = controller.get_ts()
+    #parameters = {'delay': iti, 'timestamp': event.parameters['timestamp']}
+    parameters = {'delay': iti, 'timestamp': ts}
+    core.invoke_command('dpoae.start', parameters)
+
+
 enamldef ControllerManifest(DPOAEManifest):
 
     Extension:
-        id = EXPERIMENT + '.tokens'
-        point = 'psi.token.tokens'
+        id = EXPERIMENT + '.commands'
+        point = 'enaml.workbench.core.commands'
 
-        Gate: ttl:
-            name = 'ttl'
-            hide = ['start_time']
-            SquareWave:
-                pass
-
-    Extension:
-        id = EXPERIMENT + '.io'
-        point = 'psi.controller.io'
-
-        EpochOutput: trigger:
-            name = 'trigger'
-            label = 'TTL'
-            target_name = 'ttl_output'
-            configurable = False
-            token = ttl
+        Command:
+            id = 'dpoae_time.next_trial'
+            handler = next_trial
 
     Extension:
         id = EXPERIMENT + '.actions'
         point = 'psi.controller.actions'
-
-        ExperimentAction:
-            event = 'dpoae_start'
-            command = 'trigger.start'
-            kwargs = {'delay': 'ttl_start'}
 
         ExperimentAction:
             event = 'dpoae_end'
@@ -48,13 +54,7 @@ enamldef ControllerManifest(DPOAEManifest):
 
         ExperimentAction:
             event = 'dpoae_end'
-            command = 'psi.context.next_setting'
-            kwargs = {'selector': 'default', 'save_prior': False}
-
-        ExperimentAction:
-            event = 'context_next_setting'
-            command = 'dpoae.start'
-            kwargs = {'delay': 1.0}
+            command = 'dpoae_time.next_trial'
 
     Extension:
         id = EXPERIMENT + '.items'
@@ -67,6 +67,20 @@ enamldef ControllerManifest(DPOAEManifest):
             default = 5
             group_name = 'dpoae'
 
+        Parameter:
+            name = 'repetitions'
+            label = 'Repetitions'
+            dtype = float
+            default = 5
+            group_name = 'dpoae'
+
+        Parameter:
+            name = 'iti'
+            label = 'ITI'
+            dtype = float
+            default = 1
+            group_name = 'dpoae'
+
     Extension:
         id = EXPERIMENT + '.plots'
         point = 'psi.data.plots'
@@ -75,11 +89,11 @@ enamldef ControllerManifest(DPOAEManifest):
             name = 'results_plot_container'
             label = 'Results'
             x_min = 0
-            x_max = 40
+            x_max = 200
 
             ViewBox:
-                y_min = -20
-                y_max = 100
+                y_min = 0
+                y_max = 40
 
                 ResultPlot: grp:
                     source_name = 'analyze_dpoae'

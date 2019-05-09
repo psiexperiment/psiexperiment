@@ -365,3 +365,46 @@ enamldef DPOAEInEarCalibrationMixinManifest(InEarCalibrationMixinManifest): mani
 
         TextStore:
             name = 'secondary_calibration_data'
+
+
+enamldef MonoDPOAEInEarCalibrationMixinManifest(InEarCalibrationMixinManifest): manifest:
+
+    id = 'mono_dpoae_inear_calibration_mixin'
+
+    Extension:
+        id = 'actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            weight = 10
+            event = 'experiment_prepare'
+            command = 'psi.controller.tone_calibrate_channel'
+            kwargs = {
+                'input_name': 'microphone',
+                'output_name': 'primary',
+                'parameter_names': ['primary_tone_frequency', 'secondary_tone_frequency'],
+                'gain': -40,
+                'max_thd': None,
+                'min_snr': 5,
+                'duration': 0.1,
+                'trim': 0.01,
+                'iti': 0,
+                'widget_name': 'calibration_result',
+                'attr_name': 'result',
+                'store_name': 'calibration_data',
+            }
+
+    Extension:
+        id = manifest.id + '.calibration_view'
+        point = 'psi.experiment.workspace'
+
+        CalibrationDockItem:
+            name = 'calibration_result'
+            title = 'Calibration result'
+
+    Extension:
+        id = manifest.id + '.calibration_store'
+        point = 'psi.data.sinks'
+
+        TextStore:
+            name = 'calibration_data'

@@ -68,18 +68,6 @@ def invoke_actions(event):
     controller.invoke_actions(event_name, timestamp)
 
 
-def get_hw_ao_choices(workbench):
-    plugin = workbench.get_plugin('psi.controller')
-    channels = plugin.get_channels('analog', 'output', 'hardware', False)
-    return {c.label: '"{}"'.format(c.name) for c in channels}
-
-
-def get_hw_ai_choices(workbench):
-    plugin = workbench.get_plugin('psi.controller')
-    channels = plugin.get_channels('analog', 'input', 'hardware', False)
-    return {str(c): '"{}"'.format(c.name) for c in channels}
-
-
 def configure_calibration(event):
     controller = event.workbench.get_plugin('psi.controller')
     channels = list(controller._channels.values())
@@ -89,7 +77,20 @@ def configure_calibration(event):
         result = window.show()
 
 
-enamldef ControllerManifest(PluginManifest): manifest:
+class ControllerManifestBase(PluginManifest):
+
+    def get_hw_ao_choices(self):
+        plugin = self.workbench.get_plugin('psi.controller')
+        channels = plugin.get_channels('analog', 'output', 'hardware', False)
+        return {c.label: '"{}"'.format(c.name) for c in channels}
+
+    def get_hw_ai_choices(self):
+        plugin = self.workbench.get_plugin('psi.controller')
+        channels = plugin.get_channels('analog', 'input', 'hardware', False)
+        return {str(c): '"{}"'.format(c.name) for c in channels}
+
+
+enamldef ControllerManifest(ControllerManifestBase): manifest:
     '''
     Defines the core functionality that most controller plugins will share
     (start, stop, pause, apply/revert settings).

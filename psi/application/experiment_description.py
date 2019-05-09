@@ -109,6 +109,15 @@ dpoae_in_ear_calibration_mixin = PluginDescription(
 )
 
 
+mono_dpoae_in_ear_calibration_mixin = PluginDescription(
+    name='mono_dpoae_in_ear_calibration',
+    title='Monaural in-ear calibration',
+    required=False,
+    selected=True,
+    manifest='psi.application.experiment.cfts_mixins.MonoDPOAEInEarCalibrationMixinManifest',
+)
+
+
 microphone_signal_view_mixin = PluginDescription(
     name='microphone_signal_view',
     title='Microphone view (time)',
@@ -149,6 +158,21 @@ dpoae_time_experiment = ParadigmDescription(
         copy(temperature_mixin),
         copy(eeg_view_mixin),
         copy(dpoae_in_ear_calibration_mixin),
+        copy(microphone_fft_view_mixin),
+        copy(microphone_signal_view_mixin),
+    ]
+)
+
+
+mono_dpoae_time_experiment = ParadigmDescription(
+    name='mono_dpoae_time',
+    title='Monaural DPOAE (over time)',
+    type='ear',
+    plugins=[
+        dpoae_time_controller,
+        copy(temperature_mixin),
+        copy(eeg_view_mixin),
+        copy(mono_dpoae_in_ear_calibration_mixin),
         copy(microphone_fft_view_mixin),
         copy(microphone_signal_view_mixin),
     ]
@@ -334,6 +358,7 @@ pellet_dispenser_mixin = PluginDescription(
 experiments = {
     'abr': abr_experiment,
     'dpoae_time': dpoae_time_experiment,
+    'mono_dpoae_time': mono_dpoae_time_experiment,
     'dpoae_io': dpoae_io_experiment,
     'speaker_calibration': speaker_calibration_experiment,
     'speaker_calibration_golay': speaker_calibration_golay_experiment,

@@ -1,0 +1,34 @@
+from .dpoae_time import DPOAETimeManifest
+
+
+enamldef DPOAETimeTTLManifest(DPOAETimeManifest):
+
+    Extension:
+        id = EXPERIMENT + '.tokens'
+        point = 'psi.token.tokens'
+
+        Gate: ttl:
+            name = 'ttl'
+            hide = ['start_time']
+            SquareWave:
+                pass
+
+    Extension:
+        id = EXPERIMENT + '.io'
+        point = 'psi.controller.io'
+
+        EpochOutput: trigger:
+            name = 'trigger'
+            label = 'TTL'
+            target_name = 'ttl_output'
+            configurable = False
+            token = ttl
+
+    Extension:
+        id = EXPERIMENT + '.actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'dpoae_start'
+            command = 'trigger.start'
+            kwargs = {'delay': 'ttl_start'}

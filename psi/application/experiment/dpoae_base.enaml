@@ -9,10 +9,9 @@ from enaml.application import deferred_call
 from enaml.core.api import d_
 from enaml.widgets.api import Container, DockItem, Label
 from enaml.workbench.api import Extension
-from enaml.workbench.core.api import Command
 
-from psi.context.api import (CartesianProduct, ContextGroup, Expression,
-                             Parameter, Result)
+from psi.context.api import (CartesianProduct, ContextGroup, EnumParameter,
+                             Expression, Parameter, Result)
 
 from psi.controller.calibration.util import tone_power_conv
 from psi.controller.api import (Blocked, Capture, concatenate, ContinuousInput,
@@ -157,20 +156,20 @@ enamldef DPOAEManifest(ControllerManifest): manifest:
             EpochOutput: primary:
                 name = 'primary'
                 label = 'Primary'
-                target_name = 'speaker_0'
+                target_name = C.primary_channel
                 configurable = False
                 token = tone
 
             EpochOutput: secondary:
                 name = 'secondary'
                 label = 'Secondary'
-                target_name = 'speaker_1'
+                target_name = C.secondary_channel
                 configurable = False
                 token = tone
 
         ContinuousInput:
             name = 'microphone'
-            source_name = 'microphone_channel'
+            source_name = C.dpoae_microphone_channel
 
             Capture:
                 # Begin capturing microphone signal once DPOAE starts.  Linked
@@ -264,6 +263,26 @@ enamldef DPOAEManifest(ControllerManifest): manifest:
         ContextGroup:
             name = 'dpoae'
             label = 'DPOAE settings'
+
+            EnumParameter:
+                name = 'primary_channel'
+                label = 'Output channel (primary)'
+                choices = manifest.get_hw_ao_choices()
+                selected = next(iter(manifest.get_hw_ao_choices()))
+                scope = 'experiment'
+
+            EnumParameter:
+                name = 'secondary_channel'
+                label = 'Output channel (secondary)'
+                choices = manifest.get_hw_ao_choices()
+                selected = next(iter(manifest.get_hw_ao_choices()))
+                scope = 'experiment'
+
+            EnumParameter:
+                name = 'dpoae_microphone_channel'
+                label = 'DPOAE microphone'
+                choices = manifest.get_hw_ai_choices()
+                scope = 'experiment'
 
             Parameter:
                 name = 'f2_frequency'
