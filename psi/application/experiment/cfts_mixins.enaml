@@ -1,18 +1,26 @@
 import logging
 log = logging.getLogger(__name__)
 
+import pandas as pd
+
 from enaml.application import deferred_call
+from enaml.core.api import Conditional
 from enaml.widgets.api import Container, DockItem
 from enaml.workbench.api import Extension, PluginManifest
 from enaml.workbench.core.api import Command
 
-from psi.controller.api import Downsample, ExperimentAction, IIRFilter
+from psi.context.api import ContextGroup, EnumParameter, Parameter
+from psi.controller.api import (Downsample, EpochOutput, ExperimentAction,
+                                get_hw_ai_choices, get_hw_ao_choices,
+                                IIRFilter)
 from psi.controller.calibration.tone import tone_sens
-from psi.controller.calibration import PointCalibration
+from psi.controller.calibration.api import (chirp_sens, InterpCalibration,
+                                            PointCalibration, tone_sens)
 from psi.core.enaml.api import DataFrameTable
 from psi.data.plots import (ChannelPlot, FFTChannelPlot, FFTContainer,
                             TimeContainer, ViewBox)
 from psi.data.sinks.api import BColzStore, DisplayValue, TextStore
+from psi.token.api import Cos2Envelope, BandlimitedNoise
 
 
 enamldef MicrophoneSignalViewMixinManifest(PluginManifest):
@@ -172,58 +180,124 @@ def tone_calibrate_channel(event):
     p = event.parameters
     controller = event.workbench.get_plugin('psi.controller')
 
-    # Find the input and output to use for calibration
-    ao = controller.get_output(p['output_name'])
-    ai = controller.get_input(p['input_name'])
-
     # Get a list of planned frequencies
     core = event.workbench.get_plugin('enaml.workbench.core')
     parameter_names = event.parameters.get('parameter_names')
     selector_name = event.parameters.get('selector_name', 'default')
 
-    frequencies = set()
-    for parameter_name in parameter_names:
-        parameters = {'item_name': parameter_name, 'iterator': selector_name}
-        new = core.invoke_command('psi.context.unique_values', parameters)
-        frequencies.update(new)
+    # Generate a list of frequencies to calibrate for each channel
+    ao = {}
+    for output_name, parameter_names in p['outputs'].items():
+        output = controller.get_output(output_name)
+        frequencies = ao.setdefault(output.channel, set())
+        for parameter in parameter_names:
+            new = core.invoke_command('psi.context.unique_values', \
+                                      {'item_name': parameter})
+            frequencies.update(new)
+    ai = controller.get_input(p['input_name'])
 
-    frequencies = list(frequencies)
+    # Iter through the identified channels and calibrate them
+    results = {}
+    for ao_channel, frequencies in ao.items():
+        # Run the calibration and update the output with that calibration
+        result = tone_sens(ao_channel.engine,
+                           list(frequencies),
+                           gain=p['gain'],
+                           ao_channel_name=ao_channel.name,
+                           ai_channel_names=[ai.channel.name],
+                           max_thd=p['max_thd'],
+                           min_snr=p['min_snr'],
+                           duration=p['duration'],
+                           iti=p['iti'],
+                           trim=p['trim'])
 
-    # Run the calibration and update the output with that calibration
-    result = tone_sens(ao.engine,
-                       frequencies,
-                       gain=p['gain'],
-                       ao_channel_name=ao.channel.name,
-                       ai_channel_names=[ai.channel.name],
-                       max_thd=p['max_thd'],
-                       min_snr=p['min_snr'],
-                       duration=p['duration'],
-                       iti=p['iti'],
-                       trim=p['trim'])
+        results[ao_channel.name] = result.sort_index()
+        log.info('Calibration for channel %s using input %s\n%s',
+                 ao_channel.name, ai.name, result)
 
-    log.info('Calibration for output %s using input %s', ao.name, ai.name)
-    log.info('\n' + str(result))
+        result = result.reset_index()
+        calibration = PointCalibration(result['frequency'], result['sens'])
+        ao_channel.calibration = calibration
 
-    result = result.reset_index()
-    calibration = PointCalibration(result['frequency'], result['sens'])
-    ao.channel.calibration = calibration
-
+    # Merge the calibration data
+    results = pd.concat(results.values(), keys=results.keys(), names=['ao_channel'])
     for parameter in ('gain', 'max_thd', 'min_snr'):
-        result[parameter] = p[parameter]
+        results[parameter] = p[parameter]
+
+    results = results.sort_index().reset_index()
 
     if p.get('store_name') is not None:
-        log.warn(p.get('store_name'))
         core = event.workbench.get_plugin('enaml.workbench.core')
         command = '{}.save_dataframe'.format(p['store_name'])
-        name = '{}_{}_calibration'.format(ao.name, ai.name)
-        parameters = {'name': name, 'dataframe': result}
+        parameters = {'name': 'tone_calibration', 'dataframe': results}
         core.invoke_command(command, parameters)
 
     if p.get('widget_name') is not None:
         ui = event.workbench.get_plugin('enaml.workbench.ui')
         widget = ui.window.find(p['widget_name'])
         attr_name = p.get('attr_name')
-        deferred_call(setattr, widget, attr_name, result)
+        deferred_call(setattr, widget, attr_name, results)
+
+
+def chirp_calibrate_channel(event):
+    '''
+    Calibrate the specified output using the specified input
+
+    Useful for in-ear calibrations. The calibration will be saved.
+
+    Parameters
+    ----------
+    output_name : string
+        Output to calibrate
+    input_name : string
+        Input to calibrate
+    gain : float
+        Gain to set on output channel
+    duration : float
+        Duration of chirp
+    iti : float
+        Intertrial interval between chirps
+    widget_name : {None, string}
+        Name of widget containing results set to update (for viewing).
+    attr_name : {None, string}
+        Name of attribute on widget to set.
+    store_name : {None, string}
+        Name of store to write data to.
+    '''
+    p = event.parameters
+    controller = event.workbench.get_plugin('psi.controller')
+
+    # Create a list of channels that need to be calibrated
+    ao_channels = set()
+    for output_name in p['outputs']:
+        output = controller.get_output(output_name)
+        ao_channels.update([output.channel])
+
+    ai = controller.get_input(p['input_name'])
+
+    results = {}
+    for ao_channel in ao_channels:
+        log.debug('Running chirp calibration for %s', ao_channel.name)
+        result = chirp_sens(ao_channel.engine,
+                            gain=p['gain'],
+                            ao_channel_name=ao_channel.name,
+                            ai_channel_names=[ai.channel.name],
+                            duration=p['duration'],
+                            repetitions=p['repetitions'])
+        results[ao_channel.name] = result
+        calibration = InterpCalibration(result.index, result['sens'])
+        ao_channel.calibration = calibration
+
+    results = pd.concat(results.values(), keys=results.keys(),
+                        names=['ao_channel'])
+    for parameter in ('gain', 'duration', 'repetitions'):
+        results[parameter] = p[parameter]
+
+    if p.get('store_name') is not None:
+        core = event.workbench.get_plugin('enaml.workbench.core')
+        command = '{}.save_dataframe'.format(p['store_name'])
+        parameters = {'name': 'chirp_calibration', 'dataframe': results}
+        core.invoke_command(command, parameters)
 
 
 enamldef CalibrationDockItem(DockItem):
@@ -233,18 +307,22 @@ enamldef CalibrationDockItem(DockItem):
     Container:
         DataFrameTable:
             column_info = {
+                'ao_channel': {'label': 'Channel'},
                 'frequency': {'label': 'Frequency (Hz)'},
                 'snr': {'label': 'SNR (dB)'},
                 'thd': {'label': 'THD (%)'},
                 'norm_spl': {'label': 'SPL @ 1 Vrms'},
             }
-            columns = ['frequency', 'norm_spl', 'snr', 'thd']
+            columns = ['ao_channel', 'frequency', 'norm_spl', 'snr', 'thd']
             data << result
 
 
 enamldef InEarCalibrationMixinManifest(PluginManifest): manifest:
 
     id = 'inear_calibration_mixin'
+
+    attr tone_outputs = None
+    attr chirp_outputs = None
 
     Extension:
         id = manifest.id + '.commands'
@@ -253,11 +331,16 @@ enamldef InEarCalibrationMixinManifest(PluginManifest): manifest:
         Command:
             id = 'psi.controller.tone_calibrate_channel'
             handler = tone_calibrate_channel
+        Command:
+            id = 'psi.controller.chirp_calibrate_channel'
+            handler = chirp_calibrate_channel
 
+    Extension:
+        id = manifest.id + '.calibration_store'
+        point = 'psi.data.sinks'
 
-enamldef ABRInEarCalibrationMixinManifest(InEarCalibrationMixinManifest): manifest:
-
-    id = 'abr_inear_calibration_mixin'
+        TextStore:
+            name = 'calibration_data'
 
     Extension:
         id = 'calibration_view'
@@ -268,143 +351,133 @@ enamldef ABRInEarCalibrationMixinManifest(InEarCalibrationMixinManifest): manife
             title = 'Calibration result'
 
     Extension:
-        id = 'actions'
+        id = manifest.id + '.actions'
         point = 'psi.controller.actions'
 
-        ExperimentAction:
-            weight = 10
-            event = 'experiment_prepare'
-            command = 'psi.controller.tone_calibrate_channel'
-            kwargs = {
-                'input_name': 'microphone',
-                'output_name': 'target',
-                'parameter_names': ['target_tone_frequency'],
-                'gain': -40,
-                'max_thd': None,
-                'min_snr': 5,
-                'duration': 0.1,
-                'trim': 0.01,
-                'iti': 0,
-                'widget_name': 'calibration_result',
-                'attr_name': 'result',
-                'store_name': 'calibration_data',
-            }
+        Conditional:
+            condition = manifest.tone_outputs is not None
 
-    Extension:
-        id = manifest.id + '.calibration_store'
-        point = 'psi.data.sinks'
+            ExperimentAction:
+                weight = 10
+                event = 'experiment_prepare'
+                command = 'psi.controller.tone_calibrate_channel'
+                kwargs = {
+                    'input_name': 'microphone',
+                    'outputs': manifest.tone_outputs,
+                    'gain': -40,
+                    'max_thd': None,
+                    'min_snr': 5,
+                    'duration': 0.1,
+                    'trim': 0.01,
+                    'iti': 0,
+                    'widget_name': 'calibration_result',
+                    'attr_name': 'result',
+                    'store_name': 'calibration_data',
+                }
 
-        TextStore:
-            name = 'calibration_data'
+        Conditional:
+            condition = manifest.chirp_outputs is not None
+
+            ExperimentAction:
+                weight = 10
+                event = 'experiment_prepare'
+                command = 'psi.controller.chirp_calibrate_channel'
+                kwargs = {
+                    'input_name': 'microphone',
+                    'outputs': manifest.chirp_outputs,
+                    'gain': -30,
+                    'duration': 20e-3,
+                    'iti': 1e-3,
+                    'repetitions': 16,
+                    'widget_name': 'calibration_result',
+                    'attr_name': 'result',
+                    'store_name': 'calibration_data',
+                }
+
+
+enamldef ABRInEarCalibrationMixinManifest(InEarCalibrationMixinManifest): manifest:
+
+    id = 'abr_inear_calibration_mixin'
+
+    attr tone_outputs = {
+        'primary': ['target_tone_frequency'],
+    }
 
 
 enamldef DPOAEInEarCalibrationMixinManifest(InEarCalibrationMixinManifest): manifest:
 
     id = 'dpoae_inear_calibration_mixin'
 
+    attr chirp_outputs = ['elicitor']
+
+    attr tone_outputs = {
+        'primary': ['primary_tone_frequency'],
+        'secondary': ['secondary_tone_frequency'],
+    }
+
+
+enamldef DPOAETimeNoiseMixinManifest(PluginManifest): manifest:
+
+    id = 'dpoae_time_noise_mixin'
+
+    attr C
+
     Extension:
-        id = 'actions'
+        id = manifest.id + '.commands'
+        point = 'enaml.workbench.core.commands'
+
+    Extension:
+        id = manifest.id + '.tokens'
+        point = 'psi.token.tokens'
+
+        Cos2Envelope: noise:
+            name = 'noise_burst'
+            label = 'noise burst'
+            BandlimitedNoise:
+                pass
+
+    Extension:
+        id = manifest.id + '.io'
+        point = 'psi.controller.io'
+
+        EpochOutput:
+            name = 'elicitor'
+            label = 'Elicitor settings'
+            target_name = C.elicitor_ao_channel
+            configurable = False
+            token = noise
+
+    Extension:
+        id = manifest.id + '.context'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'elicitor_timing'
+            label = 'Elicitor timing'
+
+            Parameter:
+                name = 'elicitor_start'
+                label = 'Elicitor start time (sec)'
+                dtype = 'float'
+                default = 5
+
+            EnumParameter:
+                name = 'elicitor_ao_channel'
+                label = 'Elicitor speaker channel'
+                choices = get_hw_ao_choices(manifest.workbench)
+                scope = 'experiment'
+
+            EnumParameter:
+                name = 'elicitor_ai_channel'
+                label = 'Elicitor microphone channel'
+                choices = get_hw_ai_choices(manifest.workbench)
+                scope = 'experiment'
+
+    Extension:
+        id = manifest.id + '.actions'
         point = 'psi.controller.actions'
 
         ExperimentAction:
-            weight = 10
-            event = 'experiment_prepare'
-            command = 'psi.controller.tone_calibrate_channel'
-            kwargs = {
-                'input_name': 'microphone',
-                'output_name': 'primary',
-                'parameter_names': ['primary_tone_frequency'],
-                'gain': -40,
-                'max_thd': None,
-                'min_snr': 5,
-                'duration': 0.1,
-                'trim': 0.01,
-                'iti': 0,
-                'widget_name': 'primary_calibration_result',
-                'attr_name': 'result',
-                'store_name': 'primary_calibration_data',
-            }
-
-        ExperimentAction:
-            weight = 10
-            event = 'experiment_prepare'
-            command = 'psi.controller.tone_calibrate_channel'
-            kwargs = {
-                'input_name': 'microphone',
-                'output_name': 'secondary',
-                'parameter_names': ['secondary_tone_frequency'],
-                'gain': -40,
-                'max_thd': None,
-                'min_snr': 5,
-                'duration': 0.1,
-                'trim': 0.01,
-                'iti': 0,
-                'widget_name': 'secondary_calibration_result',
-                'attr_name': 'result',
-                'store_name': 'secondary_calibration_data',
-            }
-
-    Extension:
-        id = manifest.id + '.calibration_view'
-        point = 'psi.experiment.workspace'
-
-        CalibrationDockItem:
-            name = 'primary_calibration_result'
-            title = 'Primary calibration result'
-
-        CalibrationDockItem:
-            name = 'secondary_calibration_result'
-            title = 'Secondary calibration result'
-
-    Extension:
-        id = manifest.id + '.calibration_store'
-        point = 'psi.data.sinks'
-
-        TextStore:
-            name = 'primary_calibration_data'
-
-        TextStore:
-            name = 'secondary_calibration_data'
-
-
-enamldef MonoDPOAEInEarCalibrationMixinManifest(InEarCalibrationMixinManifest): manifest:
-
-    id = 'mono_dpoae_inear_calibration_mixin'
-
-    Extension:
-        id = 'actions'
-        point = 'psi.controller.actions'
-
-        ExperimentAction:
-            weight = 10
-            event = 'experiment_prepare'
-            command = 'psi.controller.tone_calibrate_channel'
-            kwargs = {
-                'input_name': 'microphone',
-                'output_name': 'primary',
-                'parameter_names': ['primary_tone_frequency', 'secondary_tone_frequency'],
-                'gain': -40,
-                'max_thd': None,
-                'min_snr': 5,
-                'duration': 0.1,
-                'trim': 0.01,
-                'iti': 0,
-                'widget_name': 'calibration_result',
-                'attr_name': 'result',
-                'store_name': 'calibration_data',
-            }
-
-    Extension:
-        id = manifest.id + '.calibration_view'
-        point = 'psi.experiment.workspace'
-
-        CalibrationDockItem:
-            name = 'calibration_result'
-            title = 'Calibration result'
-
-    Extension:
-        id = manifest.id + '.calibration_store'
-        point = 'psi.data.sinks'
-
-        TextStore:
-            name = 'calibration_data'
+            event = 'dpoae_start'
+            command = 'elicitor.start'
+            kwargs = {'delay': 'elicitor_start'}

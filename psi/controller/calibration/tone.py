@@ -256,11 +256,11 @@ def tone_sens(engine, frequencies, gain=-40, vrms=1, *args, **kwargs):
     kwargs.update(dict(gain=gain, vrms=vrms))
     result = tone_spl(engine, frequencies, *args, **kwargs)
     result['norm_spl'] = result['spl'] - gain - db(vrms)
-    result['sens'] = -result['norm_spl']-db(20e-6)
+    result['sens'] = -result['norm_spl'] - db(20e-6)
     return result
 
 
-def tone_calibration(engine, frequencies, *args, **kwargs):
+def tone_calibration(engine, frequencies, ai_channel_names, **kwargs):
     '''
     Single output calibration at a fixed frequency
     Returns
@@ -268,5 +268,11 @@ def tone_calibration(engine, frequencies, *args, **kwargs):
     sens : dB (V/Pa)
         Sensitivity of output in dB (V/Pa).
     '''
-    output_sens = tone_sens(engine, frequencies, *args, **kwargs)[0]
-    return PointCalibration(frequencies, output_sens)
+    kwargs.update({'engine': engine, 'frequencies': frequencies,
+                   'ai_channel_names': ai_channel_names})
+    output_sens = tone_sens(**kwargs)
+    calibrations = {}
+    for ai_channel in ai_channel_names:
+        data = output_sens.loc[ai_channel]
+        calibrations[ai_channel] = PointCalibration(data.index, data['sens'])
+    return calibrations

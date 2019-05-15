@@ -243,7 +243,6 @@ class ContextPlugin(Plugin):
         if iterator:
             selector = self.selectors[iterator].get_iterator(cycles=cycles)
             for setting in selector:
-                log.debug('Selector returned %r', setting)
                 expressions = {i.name: i.to_expression(e) for i, e in setting.items()}
                 namespace.update_expressions(expressions)
                 yield namespace.get_values()

@@ -77,17 +77,25 @@ def configure_calibration(event):
         result = window.show()
 
 
+def get_hw_ao_choices(workbench):
+    plugin = workbench.get_plugin('psi.controller')
+    channels = plugin.get_channels('analog', 'output', 'hardware', False)
+    return {c.label: '"{}"'.format(c.name) for c in channels}
+
+
+def get_hw_ai_choices(workbench):
+    plugin = workbench.get_plugin('psi.controller')
+    channels = plugin.get_channels('analog', 'input', 'hardware', False)
+    return {str(c): '"{}"'.format(c.name) for c in channels}
+
+
 class ControllerManifestBase(PluginManifest):
 
     def get_hw_ao_choices(self):
-        plugin = self.workbench.get_plugin('psi.controller')
-        channels = plugin.get_channels('analog', 'output', 'hardware', False)
-        return {c.label: '"{}"'.format(c.name) for c in channels}
+        return get_hw_ao_choices(self.workbench)
 
     def get_hw_ai_choices(self):
-        plugin = self.workbench.get_plugin('psi.controller')
-        channels = plugin.get_channels('analog', 'input', 'hardware', False)
-        return {str(c): '"{}"'.format(c.name) for c in channels}
+        return get_hw_ai_choices(self.workbench)
 
 
 enamldef ControllerManifest(ControllerManifestBase): manifest:

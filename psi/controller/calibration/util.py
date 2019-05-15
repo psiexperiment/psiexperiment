@@ -79,30 +79,34 @@ def csd(s, fs, window=None, waveform_averages=None):
     if window is not None:
         w = signal.get_window(window, n)
         s = w/w.mean()*s
-
-    index = pd.Index(psd_freq(s, fs), name='frequency')
-    s = np.fft.rfft(s, axis=-1)/n
-    return pd.Series(s, index=index, name='CSD')
-
+    return np.fft.rfft(s, axis=-1)/n
 
 def phase(s, fs, window=None, waveform_averages=None, unwrap=True):
     c = csd(s, fs, window, waveform_averages)
     p = np.angle(c)
     if unwrap:
         p = np.unwrap(p)
-    p.name = 'phase'
     return p
 
 
 def psd(s, fs, window=None, waveform_averages=None):
     c = csd(s, fs, window, waveform_averages)
-    p = 2*np.abs(c)/np.sqrt(2.0)
-    p.name = 'PSD'
-    return p
+    return 2*np.abs(c)/np.sqrt(2.0)
 
 
 def psd_freq(s, fs):
     return np.fft.rfftfreq(s.shape[-1], 1.0/fs)
+
+
+def psd_df(s, fs, *args, **kw):
+    p = psd(s, fs)
+    freqs = pd.Index(psd_freq(s, fs), name='frequency')
+    if p.ndim == 1:
+        name = s.name if isinstance(s, pd.Series) else 'psd'
+        return pd.Series(p, index=freqs, name=name)
+    else:
+        index = s.index if isinstance(s, pd.DataFrame) else None
+        return pd.DataFrame(p, columns=freqs, index=index)
 
 
 def tone_conv(s, fs, frequency, window=None):

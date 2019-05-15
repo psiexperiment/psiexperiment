@@ -1152,6 +1152,9 @@ class NIDAQEngine(Engine):
         return self._uint64.value
 
     def write_hw_ao(self, data, offset, timeout=1):
+        # TODO: add a safety-check to make sure waveform doesn't exceed limits.
+        # This is a recoverable error unless the DAQmx API catches it instead.
+
         # Due to historical limitations in the DAQmx API, the write offset is a
         # signed 32-bit integer. For long-running applications, we will have an
         # overflow if we attempt to set the offset relative to the first sample

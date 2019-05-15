@@ -1,6 +1,5 @@
 from enaml.widgets.api import Container, DockItem, Label
-from enaml.workbench.api import Extension
-
+from enaml.workbench.api import Extension 
 from psi.controller.api import ExperimentAction
 from psi.data.plots import ResultPlot, PlotContainer, ViewBox
 

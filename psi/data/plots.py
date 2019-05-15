@@ -186,16 +186,19 @@ class BasePlotContainer(PSIContribution):
             if child.name == name:
                 return child
 
+    def format_container(self):
+        pass
+
 
 class PlotContainer(BasePlotContainer):
 
     x_min = d_(Float())
     x_max = d_(Float())
 
-    def _default_container(self):
-        container = super()._default_container()
+    def format_container(self):
+        # If we want to specify values relative to a psi context variable, we
+        # cannot do it when initializing the plots.
         self.base_viewbox.setXRange(self.x_min, self.x_max, padding=0)
-        return container
 
 
 class TimeContainer(BasePlotContainer):
@@ -570,7 +573,7 @@ class FFTChannelPlot(ChannelPlot):
     def update(self, event=None):
         if self._buffer.get_time_ub() >= self.time_span:
             data = self._buffer.get_latest(-self.time_span, 0)
-            psd = util.patodb(util.psd(data, self.source.fs, self.window))
+            psd = util.patodb(util.psd(data, self.source.fs, self.window, flavor='array'))
             deferred_call(self.plot.setData, self._x, psd)
 
 
@@ -913,6 +916,7 @@ class ResultPlot(SinglePlot):
 
     x_column = d_(Unicode())
     y_column = d_(Unicode())
+    average = d_(Bool())
 
     SYMBOL_MAP = {
         'circle': 'o',
@@ -958,6 +962,11 @@ class ResultPlot(SinglePlot):
         x, y = zip(*self._data_cache)
         x = np.array(x)
         y = np.array(y)
+        if self.average:
+            d = pd.DataFrame({'x': x, 'y': y}).groupby('x')['y'].mean()
+            x = d.index.values
+            y = d.values
+
         deferred_call(self.plot.setData, x, y)
 
     def _default_plot(self):

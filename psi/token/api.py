@@ -1,5 +1,5 @@
 import enaml
 
-from .util import autoload_tokens
-from .block import Block
-from .token import ContinuousToken, DiscreteToken
+with enaml.imports():
+    from .primitives import (BandlimitedNoise, Chirp, Cos2Envelope, Gate,
+                            SAMEnvelope, Silence, SquareWave, Tone)
