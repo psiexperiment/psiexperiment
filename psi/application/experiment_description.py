@@ -115,6 +115,15 @@ dpoae_in_ear_calibration_mixin = PluginDescription(
 )
 
 
+dpoae_in_ear_noise_calibration_mixin = PluginDescription(
+    name='dpoae_in_ear_noise_calibration',
+    title='In-ear noise calibration',
+    required=False,
+    selected=True,
+    manifest='psi.application.experiment.cfts_mixins.DPOAEInEarNoiseCalibrationMixinManifest',
+)
+
+
 microphone_signal_view_mixin = PluginDescription(
     name='microphone_signal_view',
     title='Microphone view (time)',
@@ -167,6 +176,7 @@ dpoae_time_experiment = ParadigmDescription(
         microphone_fft_view_mixin.copy(),
         microphone_signal_view_mixin.copy(selected=False),
         dpoae_time_noise_mixin.copy(),
+        dpoae_in_ear_noise_calibration_mixin.copy(),
     ]
 )
 

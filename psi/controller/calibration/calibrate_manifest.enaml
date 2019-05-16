@@ -1,0 +1,40 @@
+from enaml.core.api import Conditional
+from enaml.widgets.api import Container, DockItem
+from enaml.workbench.api import Extension
+from psi.core.enaml.api import DataFrameTable, PSIManifest
+
+
+enamldef ToneCalibrateDockItem(DockItem):
+
+    attr contribution
+
+    Container:
+        DataFrameTable:
+            column_info = {
+                'ao_channel': {'label': 'Channel'},
+                'frequency': {'label': 'Frequency (Hz)'},
+                'snr': {'label': 'SNR (dB)'},
+                'thd': {'label': 'THD (%)'},
+                'norm_spl': {'label': 'SPL @ 1 Vrms'},
+            }
+            columns = ['ao_channel', 'frequency', 'norm_spl', 'snr', 'thd']
+            data << contribution.result
+
+
+enamldef ChirpCalibrateManifest(PSIManifest): manifest:
+    pass
+
+
+enamldef ToneCalibrateManifest(PSIManifest): manifest:
+
+    Extension:
+        id = manifest.id + '.view'
+        point = 'psi.experiment.workspace'
+
+        Conditional:
+            condition << manifest.contribution.show_widget
+
+            ToneCalibrateDockItem:
+                name = manifest.contribution.name + '.result'
+                title = manifest.contribution.label + ' calibration results'
+                contribution = manifest.contribution

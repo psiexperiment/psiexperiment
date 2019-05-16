@@ -42,13 +42,16 @@ class PSIWorkbench(Workbench):
             from psi.context.manifest import ContextManifest
             from psi.data.manifest import DataManifest
             from psi.token.manifest import TokenManifest
+            from psi.controller.calibration.api import CalibrationManifest
 
             self.register(ContextManifest())
             self.register(DataManifest())
             self.register(TokenManifest())
+            self.register(CalibrationManifest())
 
             # Required to bootstrap plugin loading
             self.get_plugin('psi.controller')
+            self.get_plugin('psi.controller.calibration')
             context = self.get_plugin('psi.context')
 
             # Now, bind context to any manifests that want it (TODO, I should
