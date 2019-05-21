@@ -8,11 +8,8 @@ import numpy as np
 import pandas as pd
 
 from .util import tone_power_conv, tone_phase_conv, db
-from . import (FlatCalibration, PointCalibration, CalibrationTHDError,
-               CalibrationNFError)
-from ..queue import FIFOSignalQueue
-from ..output import QueuedEpochOutput
-from ..input import ExtractEpochs
+from .calibration import (FlatCalibration, PointCalibration,
+                          CalibrationTHDError, CalibrationNFError)
 
 
 from psi.token.primitives import ToneFactory, SilenceFactory
@@ -119,6 +116,10 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gain=0,
         Dataframe will be indexed by output channel name and frequency. Columns
         will be rms (in V), snr (in DB) and thd (in percent).
     '''
+    from ..queue import FIFOSignalQueue
+    from ..output import QueuedEpochOutput
+    from ..input import ExtractEpochs
+
     frequencies = np.asarray(frequencies)
     calibration = FlatCalibration.as_attenuation(vrms=vrms)
 
@@ -131,6 +132,12 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gain=0,
 
     ao_fs = ao_channel.fs
     ai_fs = ai_channels[0].fs
+
+    # Ensure that input channels are synced to the output channel 
+    device_name = ao_channel.device_name
+    ao_channel.start_trigger = ''
+    for channel in ai_channels:
+        channel.start_trigger = f'/{device_name}/ao/StartTrigger'
 
     samples = int(ao_fs*duration)
 

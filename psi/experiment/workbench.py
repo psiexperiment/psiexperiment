@@ -42,7 +42,7 @@ class PSIWorkbench(Workbench):
             from psi.context.manifest import ContextManifest
             from psi.data.manifest import DataManifest
             from psi.token.manifest import TokenManifest
-            from psi.controller.calibration.api import CalibrationManifest
+            from psi.controller.calibration.manifest import CalibrationManifest
 
             self.register(ContextManifest())
             self.register(DataManifest())

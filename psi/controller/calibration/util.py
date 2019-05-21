@@ -421,7 +421,7 @@ def save_calibration(channels, filename):
 
 def load_calibration(filename, channels):
     from json_tricks import load
-    from psi.controller import calibration as cal_types
+    from psi.controller.calibration import calibration as cal_types
     with open(filename, 'r') as fh:
         settings = load(fh)
     channels = {c.name: c for c in channels}

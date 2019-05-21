@@ -29,7 +29,7 @@ from threading import Timer
 import numpy as np
 import PyDAQmx as mx
 from atom.api import (Float, Typed, Unicode, Int, Bool, Callable, Enum,
-                      Property, Unicode)
+                      Property, Value)
 from enaml.core.api import Declarative, d_
 
 from ..calibration.util import dbi
@@ -77,6 +77,7 @@ class NIDAQHardwareAOChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
     terminal_mode = d_(Enum(*TERMINAL_MODES)).tag(metadata=True)
     filter_delay = Property().tag(metadata=True)
     filter_delay_samples = Property().tag(metadata=True)
+    device_name = Property().tag(metadata=False)
 
     # Filter delay lookup table for different sampling rates. The first column
     # is the lower bound (exclusive) of the sampling rate (in samples/sec) for
@@ -94,6 +95,9 @@ class NIDAQHardwareAOChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
         ( 51.2e3, 48.0),
         (102.4e3, 32.0),
     ])
+
+    def _get_device_name(self):
+        return self.channel.strip('/').split('/')[0]
 
     def _get_filter_delay_samples(self):
         i = np.flatnonzero(self.fs > self.FILTER_DELAY[:, 0])[-1]
@@ -278,7 +282,7 @@ def setup_timing(task, channels, delay=0):
     reference_clock = get_channel_property(channels, 'reference_clock')
 
     if reference_clock:
-        mx.DAQmxSetRefClkSrc(task, 'PXI_Clk10')
+        mx.DAQmxSetRefClkSrc(task, reference_clock)
 
     if start_trigger:
         mx.DAQmxCfgDigEdgeStartTrig(task, start_trigger, mx.DAQmx_Val_Rising)
@@ -721,8 +725,11 @@ class NIDAQEngine(Engine):
     # This defines the function for the clock that synchronizes the tasks.
     sample_time = Callable()
 
+    instances = Value([])
+
     def __init__(self, *args, **kw):
         super().__init__(*args, **kw)
+        self.instances.append(self)
 
         # Use an OrderedDict to ensure that when we loop through the tasks
         # stored in the dictionary, we process them in the order they were
@@ -749,14 +756,18 @@ class NIDAQEngine(Engine):
         self._uint64 = ctypes.c_uint64()
         self._int32 = ctypes.c_int32()
 
-    def configure(self):
+    def configure(self, active=True):
         log.debug('Configuring {} engine'.format(self.name))
 
-        counter_channels = self.get_channels('counter')
-        sw_do_channels = self.get_channels('digital', 'output', 'software')
-        hw_ai_channels = self.get_channels('analog', 'input', 'hardware')
-        hw_di_channels = self.get_channels('digital', 'input', 'hardware')
-        hw_ao_channels = self.get_channels('analog', 'output', 'hardware')
+        counter_channels = self.get_channels('counter', active=active)
+        sw_do_channels = self.get_channels('digital', 'output', 'software',
+                                           active=active)
+        hw_ai_channels = self.get_channels('analog', 'input', 'hardware',
+                                           active=active)
+        hw_di_channels = self.get_channels('digital', 'input', 'hardware',
+                                           active=active)
+        hw_ao_channels = self.get_channels('analog', 'output', 'hardware',
+                                           active=active)
 
         if counter_channels:
             log.debug('Configuring counter channels')

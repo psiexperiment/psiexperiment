@@ -10,9 +10,9 @@ from enaml.workbench.api import Extension, PluginManifest
 from enaml.workbench.core.api import Command
 
 from psi.context.api import ContextGroup, EnumParameter, Parameter
-from psi.controller.api import (Downsample, EpochOutput, ExperimentAction,
-                                get_hw_ai_choices, get_hw_ao_choices,
-                                IIRFilter)
+from psi.controller.api import (ContinuousInput, Downsample, EpochOutput,
+                                ExperimentAction, get_hw_ai_choices,
+                                get_hw_ao_choices, IIRFilter)
 from psi.controller.calibration.api import (chirp_sens, ChirpCalibrate,
                                             InterpCalibration,
                                             PointCalibration, tone_sens,
@@ -265,8 +265,12 @@ enamldef DPOAETimeNoiseMixinManifest(PluginManifest): manifest:
     attr C
 
     Extension:
-        id = manifest.id + '.commands'
-        point = 'enaml.workbench.core.commands'
+        id = manifest.id + '.sinks'
+        point = 'psi.data.sinks'
+
+        BColzStore:
+            name = manifest.id + '.bcolz_store'
+            continuous_inputs = ['elicitor_microphone']
 
     Extension:
         id = manifest.id + '.tokens'
@@ -288,6 +292,10 @@ enamldef DPOAETimeNoiseMixinManifest(PluginManifest): manifest:
             target_name = C.elicitor_ao_channel
             configurable = False
             token = noise
+
+        ContinuousInput:
+            name = 'elicitor_microphone'
+            source_name = C.elicitor_ai_channel
 
     Extension:
         id = manifest.id + '.context'
@@ -323,3 +331,32 @@ enamldef DPOAETimeNoiseMixinManifest(PluginManifest): manifest:
             event = 'dpoae_start'
             command = 'elicitor.start'
             kwargs = {'delay': 'elicitor_start'}
+
+
+enamldef MicrophoneElicitorFFTViewMixinManifest(PluginManifest): manifest:
+
+    id = 'microphone_elicitor_fft_view_mixin'
+
+    Extension:
+        id = manifest.id  + '.plots'
+        point = 'psi.data.plots'
+
+        FFTContainer:
+            name = 'fft_plot_container'
+            label = 'FFT'
+            freq_lb = 5
+            freq_ub = 50000
+
+            ViewBox:
+                y_min = -120
+                y_max = 100
+
+                FFTChannelPlot:
+                    source_name = 'microphone'
+                    pen_color = 'k'
+                    time_span = 1
+
+                FFTChannelPlot:
+                    source_name = 'elicitor_microphone'
+                    pen_color = (255, 0, 0, 255)
+                    time_span = 1

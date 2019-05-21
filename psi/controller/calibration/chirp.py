@@ -4,11 +4,10 @@ import time
 import numpy as np
 import pandas as pd
 
-from psi.controller.api import ExtractEpochs, FIFOSignalQueue
-from psi.controller.calibration.api import FlatCalibration
+from psi.controller.calibration.calibration import FlatCalibration
 from psi.token.primitives import ChirpFactory, SilenceFactory
 
-from . import InterpCalibration
+from .calibration import InterpCalibration
 from . import util
 
 
@@ -29,6 +28,7 @@ def chirp_power(engine, ao_channel_name, ai_channel_names, start_frequency=500,
         Dataframe will be indexed by output channel name and frequency. Columns
         will be rms (in V), snr (in DB) and thd (in percent).
     '''
+    from psi.controller.api import ExtractEpochs, FIFOSignalQueue
     calibration = FlatCalibration.as_attenuation(vrms=vrms)
 
     # Create a copy of the engine containing only the channels required for
@@ -39,6 +39,12 @@ def chirp_power(engine, ao_channel_name, ai_channel_names, start_frequency=500,
     ai_channels = [cal_engine.get_channel(name) for name in ai_channel_names]
     ao_fs = ao_channel.fs
     ai_fs = ai_channels[0].fs
+
+    # Ensure that input channels are synced to the output channel 
+    device_name = ao_channel.device_name
+    ao_channel.start_trigger = ''
+    for channel in ai_channels:
+        channel.start_trigger = f'/{device_name}/ao/StartTrigger'
 
     samples = int(ao_fs*duration)
 

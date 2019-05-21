@@ -20,7 +20,7 @@ from .device import Device
 from .queue import AbstractSignalQueue
 
 from psi.core.enaml.api import PSIContribution
-from psi.controller.calibration import FlatCalibration
+from psi.controller.calibration.api import FlatCalibration
 
 
 class InputData(np.ndarray):

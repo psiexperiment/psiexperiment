@@ -171,11 +171,34 @@ dpoae_time_experiment = ParadigmDescription(
     plugins=[
         dpoae_time_controller,
         temperature_mixin.copy(),
-        eeg_view_mixin.copy(selected=False),
         dpoae_in_ear_calibration_mixin.copy(),
         microphone_fft_view_mixin.copy(),
         microphone_signal_view_mixin.copy(selected=False),
         dpoae_time_noise_mixin.copy(),
+        dpoae_in_ear_noise_calibration_mixin.copy(),
+    ]
+)
+
+
+microphone_fft_view_mixin = PluginDescription(
+    name='microphone_elicitor_fft_view',
+    title='Microphone view (PSD)',
+    required=False,
+    selected=True,
+    manifest='psi.application.experiment.cfts_mixins.MicrophoneElicitorFFTViewMixinManifest',
+)
+
+
+dpoae_contra_experiment = ParadigmDescription(
+    name='dpoae_contra',
+    title='DPOAE (contra noise)',
+    type='ear',
+    plugins=[
+        dpoae_time_controller,
+        temperature_mixin.copy(),
+        microphone_fft_view_mixin.copy(),
+        dpoae_time_noise_mixin.copy(required=True),
+        dpoae_in_ear_calibration_mixin.copy(),
         dpoae_in_ear_noise_calibration_mixin.copy(),
     ]
 )
@@ -359,7 +382,8 @@ pellet_dispenser_mixin = PluginDescription(
 ################################################################################
 experiments = {
     'abr': abr_experiment,
-    'dpoae_time': dpoae_time_experiment,
+    #'dpoae_time': dpoae_time_experiment,
+    'dpoae_contra': dpoae_contra_experiment,
     'dpoae_io': dpoae_io_experiment,
     'speaker_calibration': speaker_calibration_experiment,
     'speaker_calibration_golay': speaker_calibration_golay_experiment,

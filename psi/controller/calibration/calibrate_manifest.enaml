@@ -1,7 +1,13 @@
+import logging
+log = logging.getLogger(__name__)
+
+from functools import partial
+
 from enaml.core.api import Conditional
 from enaml.widgets.api import Container, DockItem
 from enaml.workbench.api import Extension
 from psi.core.enaml.api import DataFrameTable, PSIManifest
+from psi.data.api import FFTContainer, ResultPlot, ViewBox
 
 
 enamldef ToneCalibrateDockItem(DockItem):
@@ -21,8 +27,41 @@ enamldef ToneCalibrateDockItem(DockItem):
             data << contribution.result
 
 
+def plot_chirp_result(workbench, manifest, event):
+    log.debug(str(manifest))
+    log.debug(str(event))
+    data = workbench.get_plugin('psi.data')
+    vb = data.find_viewbox(manifest.contribution.name)
+    result = manifest.contribution.result
+    vb.plot(
+        result.index.get_level_values('frequency').values,
+        result['norm_spl'].values,
+        log_x=True,
+    )
+
+
 enamldef ChirpCalibrateManifest(PSIManifest): manifest:
-    pass
+
+    Extension:
+        id = manifest.id + '.plots'
+        point = 'psi.data.plots'
+
+        Conditional:
+            condition << manifest.contribution.show_widget
+
+            FFTContainer:
+                freq_lb = 500
+                freq_ub = 50000
+
+                initialized ::
+                    cb = partial(plot_chirp_result, workbench, manifest)
+                    manifest.contribution.observe('result', cb)
+
+                name = manifest.contribution.name + '.result'
+                label = manifest.contribution.label + ' calibration results'
+
+                ViewBox: vb:
+                    name = manifest.contribution.name
 
 
 enamldef ToneCalibrateManifest(PSIManifest): manifest:

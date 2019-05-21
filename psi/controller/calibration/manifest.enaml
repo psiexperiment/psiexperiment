@@ -6,10 +6,10 @@ import pandas as pd
 from enaml.workbench.api import PluginManifest, Extension, ExtensionPoint
 from enaml.workbench.core.api import Command
 
-from psi.controller.api import ExperimentAction
+from psi.controller.experiment_action import ExperimentAction
 from psi.data.sinks.api import TextStore
 
-from . import InterpCalibration, PointCalibration
+from .calibration import InterpCalibration, PointCalibration
 from .chirp import chirp_sens
 from .tone import tone_sens
 from .plugin import CalibrationPlugin
@@ -25,7 +25,6 @@ def run_calibration(event):
                                              tone.duration, tone.iti,
                                              tone.trim, tone.max_thd,
                                              tone.min_snr, tone.selector_name)
-        log.debug(str(tone.result))
         parameters = {'name': tone.name, 'dataframe': tone.result}
         core.invoke_command(save_command, parameters)
 
@@ -172,7 +171,8 @@ def chirp_calibrate_channel(workbench, outputs, input_name, gain, duration,
                             repetitions=repetitions)
 
         results[ao_channel.name] = result
-        calibration = InterpCalibration(result.index, result['sens'])
+        calibration = InterpCalibration(result.index.get_level_values('frequency'),
+                                        result['sens'])
         ao_channel.calibration = calibration
         log.info('%s: %s', ao_channel.name, ao_channel.calibration)
 

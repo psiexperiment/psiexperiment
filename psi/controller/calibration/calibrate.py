@@ -28,5 +28,6 @@ class ChirpCalibrate(PSIContribution):
     duration = d_(Float(20e-3))
     iti = d_(Float(1e-3))
     repetitions = d_(Int(64))
+    show_widget = d_(Bool(True))
 
     result = Value()

@@ -378,12 +378,17 @@ class ViewBox(PSIContribution):
         This is typically used in post-processing routines to add static plots
         to existing view boxes.
         '''
+        log.debug(x)
+        log.debug(y)
         if log_x:
             x = np.log10(x)
         if log_y:
             y = np.log10(y)
         x = np.asarray(x)
         y = np.asarray(y)
+        m = np.isfinite(x) & np.isfinite(y)
+        x = x[m]
+        y = y[m]
 
         if kind == 'line':
             item = pg.PlotCurveItem(pen=pg.mkPen(color))
@@ -573,7 +578,7 @@ class FFTChannelPlot(ChannelPlot):
     def update(self, event=None):
         if self._buffer.get_time_ub() >= self.time_span:
             data = self._buffer.get_latest(-self.time_span, 0)
-            psd = util.patodb(util.psd(data, self.source.fs, self.window, flavor='array'))
+            psd = util.patodb(util.psd(data, self.source.fs, self.window))
             deferred_call(self.plot.setData, self._x, psd)
 
 
