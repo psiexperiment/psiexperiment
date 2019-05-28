@@ -131,8 +131,6 @@ enamldef ABRManifest(ControllerManifest): manifest:
             configurable = False
             target_name = C.output_channel
             queue ::
-                print('connecting')
-                print(extract.queue)
                 self.connect(extract.queue.append)
 
         ContinuousInput:

@@ -704,6 +704,8 @@ def extract_epochs(fs, queue, epoch_size, poststim_time, buffer_size, target,
     # calling the next target. This list will maintain the accumulated set.
     epochs = []
 
+    log.debug('***** EXTRACTOR')
+
     while True:
         # Wait for new data to become available
         data = (yield)
@@ -724,6 +726,7 @@ def extract_epochs(fs, queue, epoch_size, poststim_time, buffer_size, target,
         # samples.
         while queue:
             info = queue.popleft()
+            log.debug('***** %r', info)
 
             # Figure out how many samples to capture for that epoch
             t0 = round(info['t0'] * fs)
@@ -775,10 +778,12 @@ def extract_epochs(fs, queue, epoch_size, poststim_time, buffer_size, target,
             empty_queue_cb()
             empty_queue_cb = None
 
+    log.debug('***** DONE')
+
 
 class ExtractEpochs(EpochInput):
 
-    queue = Typed(deque, {})
+    queue = d_(Typed(deque, {}))
 
     buffer_size = d_(Float(0)).tag(metadata=True)
 

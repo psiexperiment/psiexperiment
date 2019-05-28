@@ -22,15 +22,18 @@ from psi.data.plots import (TimeContainer,
                             GroupedEpochFFTPlot,
                             GroupedEpochPhasePlot)
 
-from psi.controller.calibration import FlatCalibration
+from psi.controller.calibration.api import FlatCalibration
 from psi.data.sinks.epoch_counter import GroupedEpochCounter
 from psi.token.primitives import Chirp, Cos2Envelope, Tone
+
+
+EXPERIMENT = 'base_speaker_calibration'
 
 
 enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
 
     Extension:
-        id = 'data'
+        id = EXPERIMENT + '.data'
         point = 'psi.data.sinks'
 
         BColzStore:
@@ -38,7 +41,7 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
             continuous_inputs = ['hw_ai']
 
     Extension:
-        id = 'io'
+        id = EXPERIMENT + '.io'
         point = 'psi.controller.io'
 
         Blocked: hw_ai:
@@ -53,7 +56,7 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
                 poststim_time = 10e-3
 
     Extension:
-        id = 'context'
+        id = EXPERIMENT + '.context'
         point = 'psi.context.items'
 
         ContextGroup:
@@ -95,7 +98,7 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
             label = 'Epoch groups'
 
     Extension:
-        id = 'selectors'
+        id = EXPERIMENT + '.selectors'
         point = 'psi.context.selectors'
 
         SequenceSelector:
@@ -103,7 +106,7 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
             label = 'Sequence'
 
     Extension:
-        id = 'actions'
+        id = EXPERIMENT + '.actions'
         point = 'psi.controller.actions'
 
         ExperimentAction:
@@ -121,7 +124,7 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
             command = 'psi.controller.stop'
 
     Extension:
-        id = 'sink'
+        id = EXPERIMENT + '.sink'
         point = 'psi.data.sinks'
 
         GroupedEpochCounter:
@@ -131,7 +134,7 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
             groups << epoch_group
 
     Extension:
-        id = 'plots'
+        id = EXPERIMENT + '.plots'
         point = 'psi.data.plots'
 
         TimeContainer:
@@ -190,7 +193,7 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
 enamldef SpeakerCalibrationManifest(BaseSpeakerCalibrationManifest):
 
     Extension:
-        id = 'tokens'
+        id = 'speaker_calibration' + '.tokens'
         point = 'psi.token.tokens'
 
         Chirp:
@@ -202,7 +205,7 @@ enamldef SpeakerCalibrationManifest(BaseSpeakerCalibrationManifest):
                 pass
 
     Extension:
-        id = 'io'
+        id = 'speaker_calibration' + '.io'
         point = 'psi.controller.io'
 
         SelectorQueuedEpochOutput: hw_ao:

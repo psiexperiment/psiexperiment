@@ -125,6 +125,7 @@ def create_container(children, x_axis=None):
     for child in children[1:]:
         child.viewbox.setXLink(children[0].viewbox)
 
+    #children[0].viewbox.setXRange(0, 100, padding=0)
     return container
 
 
@@ -144,8 +145,11 @@ class MultiPlotContainer(Looper, PSIContribution):
             return
         self.containers = {str(i): c[0].container for \
                            i, c in zip(self.iterable, self.items)}
+        load_manifests(self.items, self._workbench)
         for item in self.items:
+            load_manifests(item, self._workbench)
             load_manifests(item[0].children, self._workbench)
+            deferred_call(item[0].format_container)
 
 
 
@@ -199,6 +203,9 @@ class PlotContainer(BasePlotContainer):
         # If we want to specify values relative to a psi context variable, we
         # cannot do it when initializing the plots.
         self.base_viewbox.setXRange(self.x_min, self.x_max, padding=0)
+
+    def update(self, event=None):
+        deferred_call(self.format_container)
 
 
 class TimeContainer(BasePlotContainer):
@@ -578,8 +585,10 @@ class FFTChannelPlot(ChannelPlot):
     def update(self, event=None):
         if self._buffer.get_time_ub() >= self.time_span:
             data = self._buffer.get_latest(-self.time_span, 0)
-            psd = util.patodb(util.psd(data, self.source.fs, self.window))
-            deferred_call(self.plot.setData, self._x, psd)
+            #psd = util.patodb(util.psd(data, self.source.fs, self.window))
+            psd = util.psd(data, self.source.fs, self.window)
+            spl = self.source.calibration.get_spl(self._x, psd)
+            deferred_call(self.plot.setData, self._x, spl)
 
 
 class BaseTimeseriesPlot(SinglePlot):
@@ -856,7 +865,8 @@ class GroupedEpochFFTPlot(EpochGroupMixin, BasePlot):
 
     def _y(self, epoch):
         y = np.mean(epoch, axis=0) if epoch else np.full_like(self._x, np.nan)
-        return util.db(util.psd(y, self.source.fs))
+        return self.source.calibration.get_spl(self._x, util.psd(y, self.source.fs))
+        #return util.db(util.psd(y, self.source.fs))
 
 
 class GroupedEpochPhasePlot(EpochGroupMixin, BasePlot):

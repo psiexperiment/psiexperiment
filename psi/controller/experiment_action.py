@@ -37,7 +37,7 @@ def simple_match(key, context):
     return context[key]
 
 
-class ExperimentAction(Declarative):
+class ExperimentActionBase(Declarative):
 
     # Name of event that triggers command
     event = d_(Unicode())
@@ -46,16 +46,13 @@ class ExperimentAction(Declarative):
 
     match = Callable()
 
-    # Command to invoke
-    command = d_(Unicode())
-
-    # Arguments to pass to command by keywod
-    kwargs = d_(Dict())
-
     # Defines order of invocation. Less than 100 invokes before default. Higher
     # than 100 invokes after default. Note that if concurrent is True, then
     # order of execution is not guaranteed.
     weight = d_(Int(50))
+
+    # Arguments to pass to command by keyword
+    kwargs = d_(Dict())
 
     def _default_dependencies(self):
         return get_dependencies(self.event)
@@ -66,3 +63,19 @@ class ExperimentAction(Declarative):
             return partial(simple_match, self.dependencies[0])
         else:
             return partial(eval, code)
+
+
+class ExperimentAction(ExperimentActionBase):
+
+    # Command to invoke
+    command = d_(Unicode())
+
+    def invoke(self, core, kwargs):
+        kwargs = kwargs.copy()
+        kwargs.update(self.kwargs)
+        core.invoke_command(action.command, parameters=kwargs)
+
+
+class ExperimentCallback(ExperimentActionBase):
+
+    callback = d_(Callable())

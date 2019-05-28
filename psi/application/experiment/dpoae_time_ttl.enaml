@@ -7,22 +7,9 @@ enamldef DPOAETimeTTLManifest(DPOAETimeManifest):
         id = EXPERIMENT + '.tokens'
         point = 'psi.token.tokens'
 
-        Gate: ttl:
-            name = 'ttl'
-            hide = ['start_time']
-            SquareWave:
-                pass
-
     Extension:
         id = EXPERIMENT + '.io'
         point = 'psi.controller.io'
-
-        EpochOutput: trigger:
-            name = 'trigger'
-            label = 'TTL'
-            target_name = 'ttl_output'
-            configurable = False
-            token = ttl
 
     Extension:
         id = EXPERIMENT + '.actions'

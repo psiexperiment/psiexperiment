@@ -14,8 +14,8 @@ from .output import (Synchronized, ContinuousOutput, EpochOutput,
                      QueuedEpochOutput, SelectorQueuedEpochOutput,
                      DigitalOutput, Trigger, Toggle)
 
-from .experiment_action import (ExperimentAction, ExperimentEvent,
-                                ExperimentState)
+from .experiment_action import (ExperimentAction, ExperimentCallback,
+                                ExperimentEvent, ExperimentState)
 
 from .queue import FIFOSignalQueue, InterleavedFIFOSignalQueue
 

@@ -20,7 +20,8 @@ from .output import Output, Synchronized
 from .input import Input
 from .device import Device
 
-from .experiment_action import (ExperimentAction, ExperimentEvent,
+from .experiment_action import (ExperimentAction, ExperimentActionBase,
+                                ExperimentCallback, ExperimentEvent,
                                 ExperimentState)
 from .output import ContinuousOutput, EpochOutput
 
@@ -293,7 +294,7 @@ class ControllerPlugin(Plugin):
         for extension in point.extensions:
             found_states = extension.get_children(ExperimentState)
             found_events = extension.get_children(ExperimentEvent)
-            found_actions = extension.get_children(ExperimentAction)
+            found_actions = extension.get_children(ExperimentActionBase)
 
             for state in found_states:
                 if state.name in states:
@@ -325,7 +326,12 @@ class ControllerPlugin(Plugin):
     def register_action(self, event, command, kwargs=None):
         if kwargs is None:
             kwargs = {}
-        action = ExperimentAction(event=event, command=command, kwargs=kwargs)
+        if isinstance(command, str):
+            action = ExperimentAction(event=event, command=command,
+                                      kwargs=kwargs)
+        else:
+            action = ExperimentCallback(event=event, callback=command,
+                                        kwargs=kwargs)
         self._registered_actions.append(action)
 
     def finalize_io(self):
@@ -470,7 +476,10 @@ class ControllerPlugin(Plugin):
         kwargs['event'] = event_name
         if kw is not None:
             kwargs.update(kw)
-        self.core.invoke_command(action.command, parameters=kwargs)
+        if isinstance(action, ExperimentAction):
+            self.core.invoke_command(action.command, parameters=kwargs)
+        elif isinstance(action, ExperimentCallback):
+            action.callback(**kwargs)
 
     def request_apply(self):
         if not self.apply_changes():

@@ -9,10 +9,12 @@ from enaml.widgets.api import Container, DockItem
 from enaml.workbench.api import Extension, PluginManifest
 from enaml.workbench.core.api import Command
 
-from psi.context.api import ContextGroup, EnumParameter, Parameter
-from psi.controller.api import (ContinuousInput, Downsample, EpochOutput,
-                                ExperimentAction, get_hw_ai_choices,
-                                get_hw_ao_choices, IIRFilter)
+from psi.context.api import (BoolParameter, ContextGroup, EnumParameter,
+                             Parameter)
+from psi.controller.api import (ContinuousInput, Detrend, Downsample,
+                                EpochOutput, ExperimentAction, ExtractEpochs,
+                                get_hw_ai_choices, get_hw_ao_choices,
+                                IIRFilter, Input, RejectEpochs)
 from psi.controller.calibration.api import (chirp_sens, ChirpCalibrate,
                                             InterpCalibration,
                                             PointCalibration, tone_sens,
@@ -21,9 +23,11 @@ from psi.core.enaml.api import DataFrameTable
 from psi.data.plots import (ChannelPlot, FFTChannelPlot, FFTContainer,
                             TimeContainer, ViewBox)
 from psi.data.sinks.api import BColzStore, DisplayValue, TextStore
-from psi.token.api import Cos2Envelope, BandlimitedNoise
+from psi.token.api import BandlimitedNoise, Cos2Envelope, Gate, SquareWave
 
-
+################################################################################
+# Microphone mixins
+################################################################################
 enamldef MicrophoneSignalViewMixinManifest(PluginManifest):
 
     id = 'microphone_signal_view_mixin'
@@ -74,7 +78,7 @@ enamldef MicrophoneFFTViewMixinManifest(PluginManifest): manifest:
             freq_ub = 50000
 
             ViewBox:
-                y_min = -120
+                y_min = -10
                 y_max = 100
 
                 FFTChannelPlot:
@@ -83,6 +87,39 @@ enamldef MicrophoneFFTViewMixinManifest(PluginManifest): manifest:
                     time_span = 1
 
 
+enamldef MicrophoneElicitorFFTViewMixinManifest(PluginManifest): manifest:
+
+    id = 'microphone_elicitor_fft_view_mixin'
+
+    Extension:
+        id = manifest.id  + '.plots'
+        point = 'psi.data.plots'
+
+        FFTContainer:
+            name = 'fft_plot_container'
+            label = 'FFT'
+            freq_lb = 5
+            freq_ub = 50000
+
+            ViewBox:
+                y_min = 0
+                y_max = 100
+
+                FFTChannelPlot:
+                    source_name = 'elicitor_microphone'
+                    pen_color = (255, 0, 0, 255)
+                    time_span = 1
+
+                FFTChannelPlot:
+                    source_name = 'microphone'
+                    pen_color = 'k'
+                    time_span = 1
+
+
+
+################################################################################
+# EEG mixins
+################################################################################
 enamldef EEGViewMixinManifest(PluginManifest): manifest:
 
     id = 'eeg_view_mixin'
@@ -129,7 +166,7 @@ enamldef TemperatureMixinManifest(PluginManifest): manifest:
         point = 'psi.controller.io'
 
         IIRFilter:
-            source_name = 'temperature'
+            source_name = 'temperature_channel'
             f_lowpass = 0.5
             btype = 'lowpass'
             ftype = 'butter'
@@ -140,7 +177,9 @@ enamldef TemperatureMixinManifest(PluginManifest): manifest:
                 q = 50
 
 
-
+################################################################################
+# ABR and DPOAE calibration mixins
+################################################################################
 enamldef CalibrationPlugin(PluginManifest): manifest:
 
     id = 'inear_calibration_mixin'
@@ -258,6 +297,9 @@ enamldef DPOAEInEarNoiseCalibrationMixinManifest(PluginManifest): manifest:
             repetitions = 16
 
 
+################################################################################
+# Enhancements to DPOAE time
+################################################################################
 enamldef DPOAETimeNoiseMixinManifest(PluginManifest): manifest:
 
     id = 'dpoae_time_noise_mixin'
@@ -333,30 +375,226 @@ enamldef DPOAETimeNoiseMixinManifest(PluginManifest): manifest:
             kwargs = {'delay': 'elicitor_start'}
 
 
-enamldef MicrophoneElicitorFFTViewMixinManifest(PluginManifest): manifest:
+enamldef DPOAETimeTTLMixinManifest(PluginManifest): manifest:
 
-    id = 'microphone_elicitor_fft_view_mixin'
+    id = 'dpoae_time_ttl_mixin'
+
+    attr C
 
     Extension:
-        id = manifest.id  + '.plots'
-        point = 'psi.data.plots'
+        id = manifest.id + '.tokens'
+        point = 'psi.token.tokens'
 
-        FFTContainer:
-            name = 'fft_plot_container'
-            label = 'FFT'
-            freq_lb = 5
-            freq_ub = 50000
+        Gate: ttl:
+            name = 'ttl'
+            hide = ['start_time']
+            SquareWave:
+                pass
 
-            ViewBox:
-                y_min = -120
-                y_max = 100
+    Extension:
+        id = manifest.id + '.io'
+        point = 'psi.controller.io'
 
-                FFTChannelPlot:
-                    source_name = 'microphone'
-                    pen_color = 'k'
-                    time_span = 1
+        EpochOutput: trigger:
+            name = 'trigger'
+            label = 'TTL'
+            target_name = 'ttl_output'
+            configurable = False
+            token = ttl
 
-                FFTChannelPlot:
-                    source_name = 'elicitor_microphone'
-                    pen_color = (255, 0, 0, 255)
-                    time_span = 1
+        Input:
+            source_name = 'eeg_channel'
+            name = 'eeg'
+
+            IIRFilter:
+                name = 'eeg_filtered'
+                N = 2
+                btype = 'bandpass'
+                ftype = 'butter'
+                source_name = 'eeg_channel'
+                passthrough = not C.digital_filter
+                f_highpass = C.digital_highpass
+                f_lowpass = C.digital_lowpass
+
+                ExtractEpochs: extract:
+                    name = 'erp'
+                    epoch_size = 8.5e-3
+
+                    Detrend:
+                        name = 'erp_detrend'
+                        mode = C.detrend_mode
+
+                        RejectEpochs:
+                            name = 'valid_erp'
+                            threshold = C.reject_threshold
+                            mode = C.reject_mode
+
+    Extension:
+        id = manifest.id + '.context'
+        point = 'psi.context.items'
+
+        ExperimentAction:
+            event = 'dpoae_start'
+            command = 'trigger.start'
+            kwargs = {'delay': 'ttl_start'}
+
+        ContextGroup:
+            name = 'elicitor_timing'
+            label = 'Elicitor timing'
+
+            Parameter:
+                name = 'ttl_start'
+                label = 'TTL start time (sec)'
+                dtype = 'float'
+                default = 5
+
+    Extension:
+        id = manifest.id + '.actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'dpoae_start'
+            command = 'trigger.start'
+            kwargs = {'delay': 'ttl_start'}
+
+
+enamldef EEGMixinManifest(PluginManifest): manifest:
+
+    id = 'eeg_mixin'
+
+    attr C
+
+    Extension:
+        id = manifest.id + '.io'
+        point = 'psi.controller.io'
+
+        Input:
+            source_name = 'eeg_channel'
+            name = 'eeg'
+
+            IIRFilter:
+                name = 'eeg_filtered'
+                N = 2
+                btype = 'bandpass'
+                ftype = 'butter'
+                source_name = 'eeg_channel'
+                passthrough = not C.digital_filter
+                f_highpass = C.digital_highpass
+                f_lowpass = C.digital_lowpass
+
+                ExtractEpochs: extract:
+                    name = 'erp'
+                    epoch_size = C.eeg_epoch_size
+
+                    Detrend:
+                        name = 'erp_detrend'
+                        mode = C.detrend_mode
+
+                        RejectEpochs:
+                            name = 'valid_erp'
+                            threshold = C.reject_threshold
+                            mode = C.reject_mode
+
+    Extension:
+        id = manifest.id + '.context'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'eeg'
+            label = 'EEG settings'
+
+            EnumParameter:
+                name = 'detrend_mode'
+                label = 'Detrend mode'
+                choices = {
+                    'None': 'None',
+                    'constant': '"constant"',
+                    'linear': '"linear"',
+                }
+                default = 'None'
+                scope = 'experiment'
+
+            EnumParameter:
+                name = 'reject_mode'
+                label = 'Reject mode'
+                compact_label = 'Rej. mode'
+                choices = {
+                    'absolute value': '"absolute value"',
+                    'amplitude (max-min)': '"amplitude"',
+                }
+                default = 'absolute value'
+                scope = 'experiment'
+
+            Parameter:
+                name = 'reject_threshold'
+                label = 'Reject threshold'
+                compact_label = 'Th'
+                default = 2.5
+                scope = 'experiment'
+
+            Parameter:
+                name = 'eeg_epoch_size'
+                label = 'Epoch size (s)'
+                default = 8.5e-3
+                scope = 'experiment'
+
+        ContextGroup:
+            name = 'digital_filter'
+            label = 'Digital filter settings'
+
+            BoolParameter:
+                name = 'digital_filter'
+                label = 'Digital filter?'
+                scope = 'experiment'
+                default = True
+
+            Parameter:
+                name = 'digital_highpass'
+                label = 'Digital highpass filter cutoff'
+                default = 300
+                scope = 'experiment'
+
+            Parameter:
+                name = 'digital_lowpass'
+                label = 'Digital lowpass filter cutoff'
+                default = 3000
+                scope = 'experiment'
+
+        ContextGroup:
+            name = 'hardware_settings'
+            label = 'Hardware settings'
+
+            Parameter:
+                name = 'amplifier_highpass'
+                label = 'Amplifier highpass filter cutoff'
+                default = 10
+                scope = 'experiment'
+
+            Parameter:
+                name = 'amplifier_lowpass'
+                label = 'Amplifier lowpass filter cutoff'
+                default = 10e3
+                scope = 'experiment'
+
+            Parameter:
+                name = 'amplifier_gain'
+                label = 'Amplifier gain'
+                default = 100e3
+                scope = 'experiment'
+
+    Extension:
+        id = manifest.id + '.store'
+        point = 'psi.data.sinks'
+
+        BColzStore:
+            name = 'eeg'
+            continuous_inputs = ['eeg']
+            epoch_inputs = ['erp']
+
+    #Extension:
+    #    id = 'calibration_commands'
+    #    point = 'enaml.workbench.core.commands'
+
+    #    Command:
+    #        id = 'psi.controller.configure_experiment'
+    #        handler = configure_experiment

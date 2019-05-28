@@ -145,12 +145,22 @@ def add_default_options(parser):
 
     class IOAction(argparse.Action):
         def __call__(self, parser, namespace, value, option_string=None):
-            print('called')
-            setattr(namespace, self.dest, value)
+            path = Path(value)
+            if not path.exists():
+                path = get_config('IO_ROOT') / value
+                path = path.with_suffix('.enaml')
+                if not path.exists():
+                    raise ValueError('%s does not exist'.format(value))
+            setattr(namespace, self.dest, path)
 
     class CalibrationAction(argparse.Action):
         def __call__(self, parser, namespace, value, option_string=None):
-            print('called')
+            path = Path(value)
+            if not path.exists():
+                path = namespace.io / path
+                path = path.with_suffix('.json')
+                if not path.exists():
+                    raise ValueError('%s does not exist'.format(value))
             setattr(namespace, self.dest, value)
 
     parser.add_argument('pathname', type=str, help='Filename', nargs='?')

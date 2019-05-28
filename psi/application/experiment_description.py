@@ -164,6 +164,24 @@ dpoae_time_noise_mixin = PluginDescription(
 )
 
 
+dpoae_time_ttl_mixin = PluginDescription(
+    name='dpoae_ttl_noise',
+    title='TTL output',
+    required=False,
+    selected=False,
+    manifest='psi.application.experiment.cfts_mixins.DPOAETimeTTLMixinManifest',
+)
+
+
+eeg_mixin = PluginDescription(
+    name='eeg_mixin',
+    title='EEG',
+    required=False,
+    selected=False,
+    manifest='psi.application.experiment.cfts_mixins.EEGMixinManifest',
+)
+
+
 dpoae_time_experiment = ParadigmDescription(
     name='dpoae_time',
     title='DPOAE (over time)',
@@ -180,7 +198,7 @@ dpoae_time_experiment = ParadigmDescription(
 )
 
 
-microphone_fft_view_mixin = PluginDescription(
+microphone_elicitor_fft_view_mixin = PluginDescription(
     name='microphone_elicitor_fft_view',
     title='Microphone view (PSD)',
     required=False,
@@ -196,10 +214,26 @@ dpoae_contra_experiment = ParadigmDescription(
     plugins=[
         dpoae_time_controller,
         temperature_mixin.copy(),
-        microphone_fft_view_mixin.copy(),
+        microphone_elicitor_fft_view_mixin.copy(),
         dpoae_time_noise_mixin.copy(required=True),
         dpoae_in_ear_calibration_mixin.copy(),
         dpoae_in_ear_noise_calibration_mixin.copy(),
+    ]
+)
+
+
+dpoae_ttl_experiment = ParadigmDescription(
+    name='dpoae_ttl',
+    title='DPOAE (TTL output)',
+    type='ear',
+    plugins=[
+        dpoae_time_controller,
+        temperature_mixin.copy(),
+        microphone_fft_view_mixin.copy(),
+        dpoae_time_ttl_mixin.copy(required=True),
+        dpoae_in_ear_calibration_mixin.copy(),
+        eeg_mixin.copy(),
+        eeg_view_mixin.copy(),
     ]
 )
 
@@ -382,8 +416,8 @@ pellet_dispenser_mixin = PluginDescription(
 ################################################################################
 experiments = {
     'abr': abr_experiment,
-    #'dpoae_time': dpoae_time_experiment,
     'dpoae_contra': dpoae_contra_experiment,
+    'dpoae_ttl': dpoae_ttl_experiment,
     'dpoae_io': dpoae_io_experiment,
     'speaker_calibration': speaker_calibration_experiment,
     'speaker_calibration_golay': speaker_calibration_golay_experiment,
