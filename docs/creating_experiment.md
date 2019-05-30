@@ -124,7 +124,7 @@ When defining your own subclasses of `PSIManifest`, we recommend the following n
             id = contribution.name + '.do_action'
             ...
 
-All subclasses of `PSIManifest` have access to the attached `contribution` as an attribute.
+All subclasses of `PSIManifest` have access to the attached `contribution` (an instance of `PSIContribution`) as an attribute.
 
 
 # Common gotchas
