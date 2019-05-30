@@ -32,23 +32,34 @@ class PSIWorkbench(Workbench):
             manifest_class = load_manifest_from_file(io_manifest, 'IOManifest')
             self.register(manifest_class())
 
+            manifests = []
             for manifest in controller_manifests:
                 manifest_class = load_manifest(manifest)
-                self.register(manifest_class())
+                manifest = manifest_class()
+                manifests.append(manifest)
+                self.register(manifest)
 
             from psi.context.manifest import ContextManifest
             from psi.data.manifest import DataManifest
             from psi.token.manifest import TokenManifest
+            from psi.controller.calibration.manifest import CalibrationManifest
 
             self.register(ContextManifest())
             self.register(DataManifest())
             self.register(TokenManifest())
+            self.register(CalibrationManifest())
 
             # Required to bootstrap plugin loading
             self.get_plugin('psi.controller')
+            self.get_plugin('psi.controller.calibration')
             context = self.get_plugin('psi.context')
-            manifest = self.get_manifest('psi.controller')
-            manifest.C = context.lookup
+
+            # Now, bind context to any manifests that want it (TODO, I should
+            # have a core PSIManifest that everything inherits from so this
+            # check isn't necessary).
+            for manifest in manifests:
+                if hasattr(manifest, 'C'):
+                    manifest.C = context.lookup
 
     def start_workspace(self,
                         experiment_name,

@@ -27,7 +27,7 @@ from psi.data.sinks.epoch_counter import GroupedEpochCounter
 from psi.token.primitives import Chirp, Cos2Envelope, Tone
 
 
-enamldef SpeakerCalibrationManifest(ControllerManifest): manifest:
+enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
 
     Extension:
         id = 'data'
@@ -38,30 +38,8 @@ enamldef SpeakerCalibrationManifest(ControllerManifest): manifest:
             continuous_inputs = ['hw_ai']
 
     Extension:
-        id = 'tokens'
-        point = 'psi.token.tokens'
-
-        Chirp:
-            pass
-
-        Cos2Envelope:
-            label = 'tone pip'
-            Tone:
-                pass
-
-    Extension:
         id = 'io'
         point = 'psi.controller.io'
-
-        SelectorQueuedEpochOutput: hw_ao:
-            name = 'hw_ao'
-            label = 'Output'
-            auto_decrement = True
-            selector_name = 'default'
-            queue = InterleavedFIFOSignalQueue()
-            target_name << C.output_channel
-            target ::
-                channel.calibration = FlatCalibration.as_attenuation()
 
         Blocked: hw_ai:
             duration = 0.1
@@ -71,7 +49,6 @@ enamldef SpeakerCalibrationManifest(ControllerManifest): manifest:
                 channel.gain = C.input_gain
 
             ExtractEpochs: extract:
-                queue << hw_ao.queue
                 name = 'epoch'
                 poststim_time = 10e-3
 
@@ -208,3 +185,34 @@ enamldef SpeakerCalibrationManifest(ControllerManifest): manifest:
                     source_name = 'epoch'
                     pen_color_cycle := ea_plot.pen_color_cycle
                     groups << epoch_group
+
+
+enamldef SpeakerCalibrationManifest(BaseSpeakerCalibrationManifest):
+
+    Extension:
+        id = 'tokens'
+        point = 'psi.token.tokens'
+
+        Chirp:
+            pass
+
+        Cos2Envelope:
+            label = 'tone pip'
+            Tone:
+                pass
+
+    Extension:
+        id = 'io'
+        point = 'psi.controller.io'
+
+        SelectorQueuedEpochOutput: hw_ao:
+            name = 'hw_ao'
+            label = 'Output'
+            auto_decrement = True
+            selector_name = 'default'
+            queue = InterleavedFIFOSignalQueue()
+            target_name << C.output_channel
+            target ::
+                controller = workbench.get_plugin('psi.controller')
+                channel.calibration = FlatCalibration.as_attenuation()
+                controller.set_input_attr('epoch', 'queue', queue)

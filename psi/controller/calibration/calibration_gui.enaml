@@ -10,9 +10,10 @@ from enaml.widgets.api import (Action, Container, Field, FileDialogEx, Form,
                                PushButton, VGroup)
 
 from psi import get_config
-from psi.controller.calibration import (EPLCalibration, CochlearCalibration,
-                                        FlatCalibration, GolayCalibration,
-                                        UnityCalibration)
+from psi.controller.calibration.api import (EPLCalibration,
+                                            CochlearCalibration,
+                                            FlatCalibration, GolayCalibration,
+                                            UnityCalibration)
 from psi.controller.channel import HardwareAIChannel
 
 from psi.controller.calibration import util

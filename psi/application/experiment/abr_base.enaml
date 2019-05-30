@@ -12,9 +12,9 @@ from psi.context.context_item import OrderedContextMeta
 from psi.context.selector import CartesianProduct
 from psi.controller import queue
 from psi.controller.api import ExperimentAction
-from psi.controller.base_manifest import BaseManifest, get_hw_ao_choices
-from psi.controller.api import (ContinuousInput, ExtractEpochs, RejectEpochs,
-                                IIRFilter, Input, Detrend)
+from psi.controller.api import (ContinuousInput, ControllerManifest,
+                                ExtractEpochs, RejectEpochs, IIRFilter, Input,
+                                Detrend)
 from psi.controller.output import QueuedEpochOutput
 from psi.controller.calibration.util import db
 from psi.data.plots import (MultiPlotContainer, StackedEpochAveragePlot,
@@ -36,7 +36,7 @@ def configure_experiment(event):
 
     if alternate_polarity and (averages % 2):
         # Round to the nearest multiple of 2
-        averages = (int(averages/2) + 1) * 2
+        averages = (round(averages/2) + 1) * 2
 
     # Compensate for the tone duration. ITI is the time from tone offset to
     # tone offset.
@@ -98,7 +98,7 @@ def configure_experiment(event):
     target.complete_cb = partial(controller.invoke_actions, action_name)
 
 
-enamldef ControllerManifest(BaseManifest): manifest:
+enamldef ABRManifest(ControllerManifest): manifest:
 
     Extension:
         id = 'abr_base_text_store'
@@ -130,6 +130,10 @@ enamldef ControllerManifest(BaseManifest): manifest:
             token = tone_burst
             configurable = False
             target_name = C.output_channel
+            queue ::
+                print('connecting')
+                print(extract.queue)
+                self.connect(extract.queue.append)
 
         ContinuousInput:
             name = 'microphone'
@@ -145,23 +149,22 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 btype = 'bandpass'
                 ftype = 'butter'
                 source_name = 'eeg_channel'
-                passthrough << not C.digital_filter
-                f_highpass << C.digital_highpass
-                f_lowpass << C.digital_lowpass
+                passthrough = not C.digital_filter
+                f_highpass = C.digital_highpass
+                f_lowpass = C.digital_lowpass
 
                 ExtractEpochs: extract:
                     name = 'erp'
-                    queue << output.queue
                     epoch_size = 8.5e-3
 
                     Detrend:
                         name = 'erp_detrend'
-                        mode << C.detrend_mode
+                        mode = C.detrend_mode
 
                         RejectEpochs:
                             name = 'valid_erp'
-                            threshold << C.reject_threshold
-                            mode << C.reject_mode
+                            threshold = C.reject_threshold
+                            mode = C.reject_mode
 
     Extension:
         id = 'context'
@@ -258,8 +261,8 @@ enamldef ControllerManifest(BaseManifest): manifest:
                 name = 'output_channel'
                 label = 'Output channel'
                 compact_label = 'ao'
-                choices << get_hw_ao_choices(workbench)
-                selected << next(iter(get_hw_ao_choices(workbench)))
+                choices = manifest.get_hw_ao_choices()
+                selected = next(iter(manifest.get_hw_ao_choices()))
                 scope = 'experiment'
 
             Parameter:
@@ -360,7 +363,5 @@ enamldef ControllerManifest(BaseManifest): manifest:
                         source_name = 'valid_erp'
                         n_update = 8
                         group_filter = lambda key: key['target_tone_frequency'] == loop_item
-                        #group_color_key = lambda key: key['target_tone_frequency']
-                        #pen_color_cycle = 'palettable.cartocolors.qualitative.Vivid_10'
                         pen_width = 2
                         groups << epoch_groups

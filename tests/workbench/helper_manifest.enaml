@@ -2,16 +2,18 @@ import numpy as np
 
 from enaml.workbench.api import Extension, Plugin
 from enaml.workbench.core.api import Command
+
 from psi.context.api import (ContextGroup, Parameter, Result, Parameter,
                              SequenceSelector)
-from psi.controller.base_manifest import BaseManifest
-from psi.controller.experiment_action import (ExperimentState, ExperimentEvent,
-                                              ExperimentAction)
-from psi.controller.engines.null import NullEngine
-from psi.controller.channel import HardwareAIChannel, HardwareAOChannel
-from psi.controller.engines.nidaq import NIDAQHardwareAOChannel
-from psi.controller.input import Downsample, IIRFilter, Blocked
+from psi.controller.api import (ControllerManifest, Blocked, Downsample,
+                                ExperimentAction, ExperimentEvent,
+                                ExperimentState, ExtractEpochs,
+                                HardwareAIChannel, HardwareAOChannel,
+                                IIRFilter, QueuedEpochOutput)
+
 from psi.controller.calibration import PointCalibration
+from psi.controller.engines.null import NullEngine
+from psi.controller.engines.nidaq import NIDAQHardwareAOChannel
 from psi.token.primitives import Cos2Envelope, Tone
 
 
@@ -23,9 +25,7 @@ def store_result(event):
     EVENT_RESULTS.append(event.parameters['result'])
 
 
-enamldef HelperManifest(BaseManifest): manifest:
-
-    id = 'psi.controller'
+enamldef HelperManifest(ControllerManifest): manifest:
 
     Extension:
         id = 'helper_io'
@@ -57,6 +57,9 @@ enamldef HelperManifest(BaseManifest): manifest:
                             N = 4
                             f_lowpass = 100
 
+                            ExtractEpochs: extract:
+                                pass
+
             HardwareAOChannel:
                 name = 'speaker_0'
                 fs = 200e3
@@ -64,6 +67,15 @@ enamldef HelperManifest(BaseManifest): manifest:
             NIDAQHardwareAOChannel:
                 name = 'speaker_1'
                 fs = 200e3
+
+            HardwareAOChannel:
+                name = 'speaker_2'
+                fs = 200e3
+                filter_delay = 1e-3
+
+                QueuedEpochOutput:
+                    initialized ::
+
 
     Extension:
         id = 'helper_items'
@@ -74,16 +86,16 @@ enamldef HelperManifest(BaseManifest): manifest:
         Parameter:
             name = 'repetitions'
             default = 80
-            group = 'default'
+            group_name = 'default'
         Parameter:
             name = 'level'
             default = 60.0
-            group = 'default'
+            group_name = 'default'
         Parameter:
             name = 'fc'
             expression = '32e3/repetitions'
             dtype = 'float64'
-            group = 'default'
+            group_name = 'default'
 
     Extension:
         id = 'selectors'

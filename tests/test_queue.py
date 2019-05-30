@@ -1,3 +1,4 @@
+from collections import deque
 from copy import copy
 
 import pytest
@@ -59,7 +60,9 @@ def test_queue(queue, tone1, tone2):
     '''
     Test ability to work with continuous tones and move to next
     '''
-    conn = queue.create_connection()
+    conn = deque()
+    queue.connect(conn.append)
+
     assert queue.get_max_duration() is np.inf
 
     s1 = queue.pop_buffer(100e3)[0]

@@ -23,15 +23,10 @@ def _exception_notifier(*args):
 
 
 def configure_logging(level, filename=None):
-    try:
-        # Install colored logging handler if installed
-        import coloredlogs
-        coloredlogs.install(level=level, milliseconds=True)
-    except ImportError:
-        pass
-
     log = logging.getLogger()
     log.setLevel(level)
+    stream_handler = logging.StreamHandler()
+    log.addHandler(stream_handler)
     if filename is not None:
         file_handler = logging.FileHandler(filename, 'w', 'UTF-8')
         log.addHandler(file_handler)

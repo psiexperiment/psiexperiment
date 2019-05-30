@@ -8,7 +8,7 @@ from .input import (Input, ContinuousInput, EventInput, EpochInput, Callback,
                     CalibratedInput, RMS, SPL, IIRFilter, Blocked, Accumulate,
                     Capture, Downsample, Decimate, Discard, Threshold, Average,
                     Delay, Transform, Edges, ExtractEpochs, RejectEpochs,
-                    Detrend)
+                    Detrend, concatenate, coroutine)
 
 from .output import (Synchronized, ContinuousOutput, EpochOutput,
                      QueuedEpochOutput, SelectorQueuedEpochOutput,
@@ -24,4 +24,4 @@ import enaml
 with enaml.imports():
     # Not where ControllerPlugin is defined, but helps simplify imports.
     from .manifest import (ControllerManifest, ControllerPlugin,
-                           get_hw_ao_choices, get_hw_ai_choices)
+                           get_hw_ai_choices, get_hw_ao_choices)

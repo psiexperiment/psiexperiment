@@ -1,7 +1,7 @@
 import logging
 log = logging.getLogger(__name__)
 
-from collections import namedtuple
+from collections import deque, namedtuple
 from copy import copy
 from functools import partial
 from queue import Empty, Queue
@@ -20,7 +20,7 @@ from .device import Device
 from .queue import AbstractSignalQueue
 
 from psi.core.enaml.api import PSIContribution
-from psi.controller.calibration import FlatCalibration
+from psi.controller.calibration.api import FlatCalibration
 
 
 class InputData(np.ndarray):
@@ -381,9 +381,9 @@ class Accumulate(ContinuousInput):
 
 @coroutine
 def capture(fs, queue, target):
-    t0 = 0
-    t_start = None  # track start of capture
-    t_next = None
+    s0 = 0
+    t_start = None  # Time, in seconds, of capture start
+    s_next = None   # Sample number fo rcapture
     active = False
 
     while True:
@@ -394,28 +394,28 @@ def capture(fs, queue, target):
             # We've recieved a new command. The command will either be None
             # (i.e., no more acquisition for a bit) or a floating-point value
             # (indicating when next acquisition should begin).
-            t_next = queue.get(block=False)
-            if t_next is not None:
-                log.debug('Starting capture at %f', t_next)
-                t_next = round(t_next*fs)
-                t_start = t_next
+            t_start = queue.get(block=False)
+            if t_start is not None:
+                log.debug('Starting capture at %f', t_start)
+                s_next = round(t_start*fs)
                 target(Ellipsis)
-            elif t_next is None:
+            elif t_start is None:
                 log.debug('Ending capture')
-            elif t_next < t0:
+                s_next = None
+            elif t_start < t0:
                 raise SystemError('Data lost')
         except Empty:
             pass
 
-        if (t_next is not None) and (t_next >= t0):
-            i = t_next-t0
+        if (s_next is not None) and (s_next >= s0):
+            i = s_next-s0
             if i < data.shape[-1]:
                 d = data[i:]
                 d.metadata['capture'] = t_start
                 target(d)
-                t_next += d.shape[-1]
+                s_next += d.shape[-1]
 
-        t0 += data.shape[-1]
+        s0 += data.shape[-1]
 
 
 class Capture(ContinuousInput):
@@ -699,8 +699,6 @@ def extract_epochs(fs, queue, epoch_size, poststim_time, buffer_size, target,
     # How much historical data to keep (for retroactively capturing epochs)
     buffer_samples = int(buffer_size*fs)
 
-    trial_index = 0
-
     # Since we may capture very short, rapidly occuring epochs (at, say, 80 per
     # second), I find it best to accumulate as many epochs as possible before
     # calling the next target. This list will maintain the accumulated set.
@@ -724,9 +722,8 @@ def extract_epochs(fs, queue, epoch_size, poststim_time, buffer_size, target,
         # Check to see if more epochs have been requested. Information will be
         # provided in seconds, but we need to convert this to number of
         # samples.
-        while trial_index < len(queue.uploaded):
-            info = queue.uploaded[trial_index].copy()
-            trial_index += 1
+        while queue:
+            info = queue.popleft()
 
             # Figure out how many samples to capture for that epoch
             t0 = round(info['t0'] * fs)
@@ -773,18 +770,16 @@ def extract_epochs(fs, queue, epoch_size, poststim_time, buffer_size, target,
             else:
                 break
 
-        # Check to see if any more epochs are pending
-        if queue.is_empty() and \
-                (len(epoch_coroutines) == 0) and \
-                (trial_index == len(queue.uploaded)) and \
-                empty_queue_cb is not None:
+        if not (queue or epoch_coroutines) and empty_queue_cb:
+            # If queue and epoch coroutines are complete, call queue callback.
             empty_queue_cb()
             empty_queue_cb = None
 
 
 class ExtractEpochs(EpochInput):
 
-    queue = d_(Typed(AbstractSignalQueue))
+    queue = Typed(deque, {})
+
     buffer_size = d_(Float(0)).tag(metadata=True)
 
     # Defines the size of the epoch (if 0, this is automatically drawn from
@@ -800,10 +795,10 @@ class ExtractEpochs(EpochInput):
         self.complete = True
 
     def configure_callback(self):
-        if self.epoch_size <= 0:
-            self.epoch_size = self.queue.get_max_duration()
+        if self.epoch_size == 0:
+            raise ValueError('Epoch size not configured')
         if not np.isfinite(self.epoch_size):
-                raise SystemError('Cannot have an infinite epoch size')
+            raise ValueError('Cannot have an infinite epoch size')
         cb = super().configure_callback()
         return extract_epochs(self.fs, self.queue, self.epoch_size,
                               self.poststim_time, self.buffer_size, cb,

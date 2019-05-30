@@ -1,3 +1,5 @@
+import pytest
+
 import enaml
 with enaml.imports():
     from .helper_manifest import EVENT_RESULTS
@@ -66,4 +68,4 @@ def test_filter_delay(controller):
     # is because only the NDIAQ engine makes provisions to correct for the
     # filter delay.
     channel = controller.get_channel('speaker_1')
-    assert channel.filter_delay == 32.0
+    assert channel.filter_delay_samples == 32.0

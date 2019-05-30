@@ -7,7 +7,7 @@ from atom.api import (Bool, Float, Int, List, Property, Tuple, Typed, Unicode)
 from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
 
-from .calibration import Calibration, UnityCalibration
+from .calibration.api import Calibration, UnityCalibration
 from .output import QueuedEpochOutput, ContinuousOutput, EpochOutput
 from ..core.enaml.api import PSIContribution
 from ..util import coroutine
@@ -46,6 +46,8 @@ class Channel(PSIContribution):
 
     # Is channel active during experiment?
     active = Property()
+
+    filter_delay = d_(Float(0).tag(metadata=True))
 
     def _default_calibration(self):
         return UnityCalibration()

@@ -49,7 +49,6 @@ class AbstractSignalQueue:
         self._source = None
         self._samples = 0
         self._notifiers = []
-        self.uploaded = []
 
     def set_fs(self, fs):
         # Sampling rate at which samples will be generated.
@@ -89,15 +88,9 @@ class AbstractSignalQueue:
     def connect(self, callback):
         self._notifiers.append(callback)
 
-    def create_connection(self):
-        queue = deque()
-        self.connect(queue.append)
-        return queue
-
     def _notify(self, trial_info):
         for notifier in self._notifiers:
             notifier(trial_info)
-        self.uploaded.extend(trial_info)
 
     def insert(self, source, trials, delays=None, duration=None, metadata=None):
         k = self._add_source(source, trials, delays, duration, metadata)
@@ -195,7 +188,7 @@ class AbstractSignalQueue:
             'key': key,                     # Unique ID
             'metadata': data['metadata'],   # Metadata re. token
         }
-        self._notify([uploaded])
+        self._notify(uploaded)
 
     def pop_buffer(self, samples, decrement=True):
         '''

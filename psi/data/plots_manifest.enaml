@@ -89,6 +89,14 @@ enamldef MultiPlotContainerManifest(PSIManifest): manifest:
 enamldef BasePlotContainerManifest(PSIManifest): manifest:
 
     Extension:
+        id = manifest.id + '.actions'
+        point = 'psi.controller.actions'
+        ExperimentAction:
+            event = 'context_initialized'
+            command = 'psi.data.format_container'
+            kwargs = {'obj': manifest.contribution}
+
+    Extension:
         id = manifest.id + 'workspace'
         point = 'psi.experiment.workspace'
 

@@ -7,18 +7,8 @@ import numpy as np
 from psi.data.io import abr
 
 
-nofilter_template = 'ABR {:.1f}ms to {:.1f}ms {{}}.csv'
-
-filter_template = 'ABR {:.1f}ms to {:.1f}ms ' \
-    'with {:.0f}Hz to {:.0f}Hz filter ' \
-    '{{}}.csv'
-
-
-columns = ['frequency', 'level', 'polarity']
-
-
 def process_folder(folder, filter_settings=None):
-    glob_pattern = os.path.join(folder, '*abr*')
+    glob_pattern = os.path.join(folder, '*abr')
     filenames = glob(glob_pattern)
     process_files(filenames, filter_settings=filter_settings)
 
@@ -32,10 +22,10 @@ def process_files(filenames, offset=-0.001, duration=0.01,
             if processed:
                 print(f'\nProcessed {filename}\n')
             else:
-                print('*', end='', flush=True)
+                print('.', end='', flush=True)
         except Exception as e:
-            raise
             print(f'\nError processing {filename}\n{e}\n')
+            raise
 
 
 def _get_file_template(fh, offset, duration, filter_settings):
@@ -110,8 +100,6 @@ def process_file(filename, offset, duration, filter_settings, reprocess=False):
         the specified filter settings.
     '''
     fh = abr.load(filename)
-    if len(fh.erp_metadata) == 0:
-        raise IOError('No data in file')
 
     # Generate the filenames
     file_template = _get_file_template(fh, offset, duration, filter_settings)
@@ -133,7 +121,7 @@ def process_file(filename, offset, duration, filter_settings, reprocess=False):
     epochs = _get_epochs(fh, offset, duration, filter_settings)
 
     # Apply the reject
-    reject_threshold = fh.erp_metadata.at[0, 'reject_threshold']
+    reject_threshold = fh.erp_metadata.iloc[0]['reject_threshold']
     m = np.abs(epochs) < reject_threshold
     m = m.all(axis=1)
     epochs = epochs.loc[m]
