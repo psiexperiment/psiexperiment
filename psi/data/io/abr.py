@@ -76,7 +76,7 @@ class ABRFile(Recording):
     def eeg(self):
         # Load and ensure that the EEG data is fine. If not, repair it and
         # reload the data.
-        rootdir = self.base_folder / 'eeg'
+        rootdir = self.base_path / 'eeg'
         eeg = bcolz.carray(rootdir=rootdir)
         if len(eeg) == 0:
             log.debug('EEG for %s is corrupt. Repairing.', self.base_folder)

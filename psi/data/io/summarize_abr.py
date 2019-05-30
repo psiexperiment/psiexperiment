@@ -34,6 +34,7 @@ def process_files(filenames, offset=-0.001, duration=0.01,
             else:
                 print('*', end='', flush=True)
         except Exception as e:
+            raise
             print(f'\nError processing {filename}\n{e}\n')
 
 
