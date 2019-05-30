@@ -6,8 +6,8 @@ import enaml
 import numpy as np
 
 with enaml.imports():
-    from psi.controller.calibration import FlatCalibration
-    from psi.controller.queue import FIFOSignalQueue
+    from psi.controller.calibration.api import FlatCalibration
+    from psi.controller.api import FIFOSignalQueue
     from psi.token.primitives import Cos2EnvelopeFactory, ToneFactory
 
 

@@ -11,7 +11,7 @@ from psi.controller.api import (ControllerManifest, Blocked, Downsample,
                                 HardwareAIChannel, HardwareAOChannel,
                                 IIRFilter, QueuedEpochOutput)
 
-from psi.controller.calibration import PointCalibration
+from psi.controller.calibration.api import PointCalibration
 from psi.controller.engines.null import NullEngine
 from psi.controller.engines.nidaq import NIDAQHardwareAOChannel
 from psi.token.primitives import Cos2Envelope, Tone
@@ -72,10 +72,6 @@ enamldef HelperManifest(ControllerManifest): manifest:
                 name = 'speaker_2'
                 fs = 200e3
                 filter_delay = 1e-3
-
-                QueuedEpochOutput:
-                    initialized ::
-
 
     Extension:
         id = 'helper_items'

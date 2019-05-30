@@ -4,7 +4,7 @@ import numpy as np
 import enaml
 with enaml.imports():
     from psi.token.primitives import ToneFactory, Cos2EnvelopeFactory
-    from psi.controller.calibration import InterpCalibration
+    from psi.controller.calibration.api import InterpCalibration
 
 
 def test_token_generation():
