@@ -77,7 +77,7 @@ class ABRFile(Recording):
         rootdir = self.base_path / 'eeg'
         eeg = bcolz.carray(rootdir=rootdir)
         if len(eeg) == 0:
-            log.debug('EEG for %s is corrupt. Repairing.', self.base_folder)
+            log.debug('EEG for %s is corrupt. Repairing.', self.base_path)
             repair_carray_size(rootdir)
         from .bcolz_tools import BcolzSignal
         return BcolzSignal(rootdir)
@@ -153,12 +153,20 @@ class ABRFile(Recording):
 
 class ABRSupersetFile:
 
-    def __init__(self, *base_folders):
-        self._fh = [ABRFile(base_folder) for base_folder in base_folders]
+    def __init__(self, *base_paths):
+        self._fh = [ABRFile(base_path) for base_path in base_paths]
 
-    def _merge_results(self, fn_name, *args, **kwargs):
+    def _merge_results(self, fn_name, *args, merge_on_file=False, **kwargs):
         result_set = [getattr(fh, fn_name)(*args, **kwargs) for fh in self._fh]
-        return pd.concat(result_set, keys=range(len(self._fh)), names=['file'])
+        if merge_on_file:
+            return pd.concat(result_set, keys=range(len(self._fh)), names=['file'])
+        offset = 0
+        for result in result_set:
+            t0 = result.index.get_level_values('t0')
+            if offset > 0:
+                result.index = result.index.set_levels(t0 + offset, 't0')
+            offset += t0.max() + 1
+        return pd.concat(result_set)
 
     get_epochs = partialmethod(_merge_results, 'get_epochs')
     get_epochs_filtered = partialmethod(_merge_results, 'get_epochs_filtered')
@@ -167,21 +175,21 @@ class ABRSupersetFile:
         partialmethod(_merge_results, 'get_random_segments_filtered')
 
     @classmethod
-    def from_pattern(cls, base_folder):
-        head, tail = os.path.split(base_folder)
+    def from_pattern(cls, base_path):
+        head, tail = os.path.split(base_path)
         glob_tail = FILE_RE.sub(MERGE_PATTERN, tail)
         glob_pattern = os.path.join(head, glob_tail)
         folders = glob(glob_pattern)
         inst = cls(*folders)
-        inst._base_folder = base_folder
+        inst._base_path = base_path
         return inst
 
     @classmethod
-    def from_folder(cls, base_folder):
-        folders = [os.path.join(base_folder, f) \
-                   for f in os.listdir(base_folder)]
+    def from_folder(cls, base_path):
+        folders = [os.path.join(base_path, f) \
+                   for f in os.listdir(base_path)]
         inst = cls(*[f for f in folders if os.path.isdir(f)])
-        inst._base_folder = base_folder
+        inst._base_path = base_path
         return inst
 
     @property
@@ -190,12 +198,12 @@ class ABRSupersetFile:
         return pd.concat(result_set, keys=range(len(self._fh)), names=['file'])
 
 
-def load(base_folder):
-    check = os.path.join(base_folder, 'erp')
+def load(base_path):
+    check = os.path.join(base_path, 'erp')
     if os.path.exists(check):
-        return ABRFile(base_folder)
+        return ABRFile(base_path)
     else:
-        return ABRSupersetFile.from_folder(base_folder)
+        return ABRSupersetFile.from_folder(base_path)
 
 
 def is_abr_experiment(path):

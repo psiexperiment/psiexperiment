@@ -3,11 +3,12 @@ from glob import glob
 import os.path
 
 import numpy as np
+import pandas as pd
 
 from psi.data.io import abr
 
 
-nofilter_template = 'ABR {:.1f}ms to {:.1f}ms {{}}.csv'
+nofilter_template = 'ABR {:.1f}ms to {:.1f}ms {{}}{{}}.csv'
 
 filter_template = 'ABR {:.1f}ms to {:.1f}ms ' \
     'with {:.0f}Hz to {:.0f}Hz filter ' \
@@ -38,28 +39,35 @@ def process_files(filenames, offset=-0.001, duration=0.01,
             print(f'\nError processing {filename}\n{e}\n')
 
 
-def _get_file_template(fh, offset, duration, filter_settings):
-    template_args = [offset*1e3, (offset+duration)*1e3]
+def _get_file_template(fh, offset, duration, filter_settings, suffix=None):
+    base_string = f'ABR {offset*1e3:.1f}ms to {(offset+duration)*1e3:.1f}ms'
     if filter_settings == 'saved':
         settings = fh.erp_metadata.iloc[0]
         if not settings.get('digital_filter', True):
-            file_template = nofilter_template.format(*template_args)
+            filter_string = None
         else:
             lb = settings.get('digital_highpass', 300)
             ub = settings.get('digital_lowpass', 3000)
-            template_args += [lb, ub]
-            file_template = filter_template.format(*template_args)
+            filter_string = f'{lb:.0f}Hz to {ub:.0f}Hz filter'
     elif filter_settings is None:
-        file_template = nofilter_template.format(*template_args)
+        filter_string = None
     else:
         lb = filter_settings['lb']
         ub = filter_settings['ub']
-        template_args += [lb, ub]
-        file_template = filter_template.format(*template_args)
-    return file_template
+        filter_string = f'{lb:.0f}Hz to {ub:.0f}Hz filter'
+
+    if filter_string is None:
+        file_string = f'{base_string}'
+    else:
+        file_string = f'{base_string} with {filter_string}'
+
+    if suffix is not None:
+        file_string = f'{file_string} {suffix}'
+
+    return f'{file_string} {{}}.csv'
 
 
-def _get_epochs(fh, offset, duration, filter_settings):
+def _get_epochs(fh, offset, duration, filter_settings, reject_ratio=None):
     # We need to do the rejects in this code so that we can obtain the
     # information for generating the CSV files.
     kwargs = {'offset': offset, 'duration': duration, 'columns': columns,
@@ -83,7 +91,61 @@ def _get_epochs(fh, offset, duration, filter_settings):
     return epochs
 
 
-def process_file(filename, offset, duration, filter_settings, reprocess=False):
+def _match_epochs(*epochs):
+
+    def _match_n(df):
+        grouping = df.groupby(['dataset', 'polarity'])
+        n = grouping.size().unstack()
+        if len(n) < 2:
+            return None
+        n = n.values.ravel().min()
+        return pd.concat([g.iloc[:n] for _, g in grouping])
+
+    epochs = pd.concat(epochs, keys=range(len(epochs)), names=['dataset'])
+    matched = epochs.groupby(['frequency', 'level']).apply(_match_n)
+    return [d.reset_index('dataset', drop=True) for _, d in \
+              matched.groupby('dataset', group_keys=False)]
+
+def process_files_matched(filenames, offset, duration, filter_settings,
+                          reprocess=True, n_epochs=None, suffix=None):
+
+    epochs = []
+    for filename in filenames:
+        fh = abr.load(filename)
+        if len(fh.erp_metadata) == 0:
+            raise IOError('No data in file')
+        e = _get_epochs(fh, offset, duration, filter_settings)
+        epochs.append(e)
+
+    epochs = _match_epochs(*epochs)
+    for filename, e in zip(filenames, epochs):
+        # Generate the filenames
+        t = _get_file_template(fh, offset, duration, filter_settings, suffix)
+        file_template = os.path.join(filename, t)
+        raw_epoch_file = file_template.format('individual waveforms')
+        mean_epoch_file = file_template.format('average waveforms')
+        n_epoch_file = file_template.format('number of epochs')
+
+        # Check to see if all of them exist before reprocessing
+        if not reprocess and \
+                (os.path.exists(raw_epoch_file) and \
+                 os.path.exists(mean_epoch_file) and \
+                 os.path.exists(n_epoch_file)):
+            continue
+
+        epoch_n = e.groupby(columns[:-1]).size()
+        epoch_mean = e.groupby(columns).mean().groupby(columns[:-1]).mean()
+
+        # Write the data to CSV files
+        epoch_n.to_csv(n_epoch_file, header=True)
+        epoch_mean.columns.name = 'time'
+        epoch_mean.T.to_csv(mean_epoch_file)
+        e.columns.name = 'time'
+        e.T.to_csv(raw_epoch_file)
+
+
+def process_file(filename, offset, duration, filter_settings, reprocess=False,
+                 n_epochs=None, suffix=None):
     '''
     Extract ABR epochs, filter and save result to CSV files
 
@@ -108,14 +170,21 @@ def process_file(filename, offset, duration, filter_settings, reprocess=False):
     reprocess : bool
         If True, reprocess the file even if it already has been processed for
         the specified filter settings.
+    n_epochs : {None, int, dict}
+        If None, all epochs will be used. If integer, will limit the number of
+        epochs per frequency and level to this number. If dict, the key must be
+        a tuple of (frequency, level) and the value will indicate the number of
+        epochs to use.
+    suffix : {None, str}
+        Suffix to use when creating save filenames.
     '''
     fh = abr.load(filename)
     if len(fh.erp_metadata) == 0:
         raise IOError('No data in file')
 
     # Generate the filenames
-    file_template = _get_file_template(fh, offset, duration, filter_settings)
-    file_template = os.path.join(filename, file_template)
+    t = _get_file_template(fh, offset, duration, filter_settings, suffix)
+    file_template = os.path.join(filename, t)
     raw_epoch_file = file_template.format('individual waveforms')
     mean_epoch_file = file_template.format('average waveforms')
     n_epoch_file = file_template.format('number of epochs')
