@@ -14,6 +14,16 @@ from . import choice
 from .. import SimpleState
 
 
+def warn_empty(method):
+    def wrapper(self, *args, **kwargs):
+        try:
+            return method(self, *args, **kwargs)
+        except ValueError as e:
+            mesg = f'{self.label} sequence must have at least one value' 
+            raise ValueError(mesg) from e
+    return wrapper
+
+
 class BaseSelector(PSIContribution):
 
     context_items = Typed(list, [])
@@ -60,6 +70,7 @@ class SingleSetting(BaseSelector):
             self.setting[item.name] = item.default
         super(SingleSetting, self).append_item(item)
 
+    @warn_empty
     def get_iterator(self, cycles=None):
         setting = {i: self.setting[i.name] for i in self.context_items}
         if cycles is None:
@@ -91,6 +102,7 @@ class CartesianProduct(BaseSelector):
         values = [self.settings[i.name] for i in self.context_items]
         return [dict(zip(self.context_items, s)) for s in itertools.product(*values)]
 
+    @warn_empty
     def get_iterator(self, cycles=np.inf):
         settings = self.get_settings()
         return choice.exact_order(settings, cycles)
@@ -137,6 +149,7 @@ class SequenceSelector(BaseSelector):
     def _observe_order(self, event):
         self.updated = True
 
+    @warn_empty
     def get_iterator(self, cycles=np.inf):
         # Some selectors need to sort the settings. To make sure that the
         # selector sorts the parameters in the order the columns are specified,
