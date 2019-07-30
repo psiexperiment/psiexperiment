@@ -72,11 +72,6 @@ Now, go to where you defined `IO_ROOT` and create a file that ends with the exte
 
     psi-config create-io
 
-Inside this file, you will describe the configuration of your system using Enaml_ syntax.
-
-.. literalinclude:: ../../psi/templates/noise_exposure.enaml
-    :language: enaml
+Inside this file, you will describe the configuration of your system using Enaml_ syntax. 
 
 .. _Enaml: http://enaml.readthedocs.io/en/latest/
-
-

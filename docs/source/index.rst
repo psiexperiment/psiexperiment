@@ -17,6 +17,14 @@ A few highlights:
 -----------------
 Instructions on installing psiexperiment and configuring your system.
 
+:doc:`io_manifest`
+------------------
+Instructions on creating your input-output manifest which describes all equipment used for the experiment.
+
+:doc:`creating_experiment`
+--------------------------
+Instructions on how to create your own experiment.
+
 Indices and tables
 ==================
 
