@@ -1,4 +1,5 @@
 import logging
+import os
 from pathlib import Path
 
 from atom.api import Event
@@ -44,21 +45,32 @@ def get_config_folder():
 
 
 def get_config_file():
-    return get_config_folder() / 'config.py'
+    default = get_config_folder() / 'config.py'
+    return Path(os.environ.get('PSI_CONFIG', default))
 
 
 def create_config(base_directory=None):
     config_template = Path(__file__).parent / 'templates' / 'config.txt'
-    target = get_config_path()
+    target = get_config_file()
     target.parent.mkdir(exist_ok=True, parents=True)
 
     if base_directory is None:
         base_directory = str(target.parent)
 
-    with open(target, 'w') as fh:
-        config_text = config_template.read_text()
-        config_text = config_text.format(base_directory)
-        fh.write(config_text)
+    config_text = config_template.read_text()
+    config_text = config_text.format(base_directory)
+    target.write_text(config_text)
+
+
+def create_io_manifest():
+    io_template = Path(__file__).parent / 'templates' / 'io.txt'
+    system = get_config('SYSTEM')
+    io = Path(get_config('IO_ROOT')) / system
+    io = io.with_suffix('.enaml')
+    io.parent.mkdir(exist_ok=True, parents=True)
+
+    io_text = io_template.read_text().format(system)
+    io.write_text(io_text)
 
 
 def create_config_dirs():

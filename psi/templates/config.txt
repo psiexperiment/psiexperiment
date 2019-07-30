@@ -3,14 +3,11 @@ import socket
 
 SYSTEM = socket.gethostname()
 
-BASE_DIRECTORY = Path('{}')
+BASE_DIRECTORY = Path(r'{}')
 
 LOG_ROOT = BASE_DIRECTORY / 'logs'
 DATA_ROOT = BASE_DIRECTORY / 'data'
 CAL_ROOT = BASE_DIRECTORY / 'calibration'
-SETTINGS_ROOT = BASE_DIRECTORY / 'settings'
-TEMP_ROOT = BASE_DIRECTORY / 'temp'
-PREFERENCES_ROOT = SETTINGS_ROOT / 'preferences'
-LAYOUT_ROOT = SETTINGS_ROOT / 'layout'
+PREFERENCES_ROOT = BASE_DIRECTORY / 'settings' / 'preferences'
+LAYOUT_ROOT = BASE_DIRECTORY / 'settings' / 'layout'
 IO_ROOT = BASE_DIRECTORY / 'io'
-EXPERIMENT_ROOT = BASE_DIRECTORY / 'experiment'
