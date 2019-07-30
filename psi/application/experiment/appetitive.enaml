@@ -162,31 +162,3 @@ enamldef ControllerManifest(BehaviorManifest): manifest:
                 ChannelPlot:
                     source_name = 'nose_poke_analog'
                     pen_color = 'orange'
-
-                EventPlot:
-                    event = 'hold'
-                    pen_color = (192, 192, 192, 113)
-                    fill_color = (192, 192, 192, 68)
-                    rect_center = 4.5
-                    rect_height = 1
-
-                EventPlot:
-                    event = 'response'
-                    pen_color = (113, 113, 113, 113)
-                    fill_color = (113, 113, 113, 68)
-                    rect_center = 4.5
-                    rect_height = 1
-
-                EventPlot:
-                    event = 'to'
-                    fill_color = (64, 64, 64, 68)
-                    pen_color = (64, 64, 64, 113)
-                    rect_center = 4.5
-                    rect_height = 1
-
-                EventPlot:
-                    event = 'iti'
-                    fill_color = (0, 0, 0, 68)
-                    pen_color = (0, 0, 0, 113)
-                    rect_center = 4.5
-                    rect_height = 1

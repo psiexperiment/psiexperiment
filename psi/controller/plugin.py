@@ -82,8 +82,9 @@ def find_outputs(channels, point):
     # Find all the outputs already connected to a channel
     for c in channels.values():
         if isinstance(c, OutputMixin):
-            for o in c.outputs:
-                outputs[o.name] = o
+            for o in c.children:
+                for oi in get_outputs(o):
+                    outputs[oi.name] = oi
 
     # Find unconnected outputs and inputs (these are allowed so that we can
     # split processing hierarchies across multiple manifests).
@@ -231,6 +232,9 @@ class ControllerPlugin(Plugin):
 
         for i in self._inputs.values():
             i.load_manifest(self.workbench)
+
+        log.warn('***********************************************')
+        log.warn(str(self._outputs.keys()))
 
     def _connect_outputs(self):
         for o in self._outputs.values():
