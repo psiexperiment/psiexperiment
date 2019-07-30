@@ -178,7 +178,10 @@ def add_default_options(parser):
 def parse_args(parser):
     args = parser.parse_args()
     if args.calibration is None:
-        args.calibration = get_default_calibration(args.io)
+        try:
+            args.calibration = get_default_calibration(args.io)
+        except ValueError as e:
+            log.warn(str(e))
     return args
 
 
