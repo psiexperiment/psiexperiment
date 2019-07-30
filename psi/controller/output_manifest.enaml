@@ -74,6 +74,12 @@ def load_items(output, block):
     return parameters
 
 
+def generate_waveform(output, context):
+    factory = initialize_factory(output, output.token, context)
+    samples = factory.get_remaining_samples()
+    return factory.next(samples)
+
+
 def initialize_factory(output, block, context):
     input_factories = [initialize_factory(output, b, context) \
                        for b in block.blocks]
@@ -83,6 +89,11 @@ def initialize_factory(output, block, context):
     # sampling rate).
     code = block.factory.__init__.__code__
     params = code.co_varnames[1:code.co_argcount]
+
+    context = context.copy()
+    if 'fs' not in context:
+        context['fs'] = output.fs
+        context['calibration'] = output.calibration
 
     # Now, pull out the block-specific context.
     block_context = {bn: context[gn] for gn, bn in \
