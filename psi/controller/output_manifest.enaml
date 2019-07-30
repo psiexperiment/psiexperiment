@@ -155,6 +155,15 @@ def prepare_synchronized(synchronized, event):
 
 
 def start_synchronized(synchronized, event):
+    try:
+        _start_synchronized(synchronized, event)
+    except Exception as e:
+        raise
+        controller = event.workbench.get_plugin('psi.controller')
+        controller.invoke_actions('{}_failure'.format(synchronized.name))
+
+
+def _start_synchronized(synchronized, event):
     log.debug('Starting synchronized %s', synchronized.name)
     controller = event.workbench.get_plugin('psi.controller')
 
@@ -390,6 +399,8 @@ enamldef SynchronizedManifest(PSIManifest): manifest:
         point = 'psi.controller.actions'
         ExperimentState:
             name = manifest.contribution.name
+        ExperimentEvent:
+            name = manifest.contribution.name + '_failure'
 
     Extension:
         id = manifest.id + '.output_commands'

@@ -1,12 +1,12 @@
 import logging
 log = logging.getLogger(__name__)
 
-from copy import copy
+import copy
 
 from atom.api import Atom, Bool, Enum, List, Unicode, Typed
 
 ################################################################################
-# Core classes
+# Core classes and utility functions
 ################################################################################
 class PluginDescription(Atom):
 
@@ -15,6 +15,12 @@ class PluginDescription(Atom):
     required = Bool()
     selected = Bool()
     manifest = Unicode()
+
+    def copy(self, **kwargs):
+        other = copy.copy(self)
+        for k, v in kwargs.items():
+            setattr(other, k, v)
+        return other
 
 
 class ParadigmDescription(Atom):
@@ -53,7 +59,7 @@ abr_controller = PluginDescription(
     name='controller',
     title='Controller',
     required=True,
-    manifest='psi.application.experiment.abr_base.ControllerManifest',
+    manifest='psi.application.experiment.abr_base.ABRManifest',
 )
 
 
@@ -109,6 +115,15 @@ dpoae_in_ear_calibration_mixin = PluginDescription(
 )
 
 
+dpoae_in_ear_noise_calibration_mixin = PluginDescription(
+    name='dpoae_in_ear_noise_calibration',
+    title='In-ear noise calibration',
+    required=False,
+    selected=True,
+    manifest='psi.application.experiment.cfts_mixins.DPOAEInEarNoiseCalibrationMixinManifest',
+)
+
+
 microphone_signal_view_mixin = PluginDescription(
     name='microphone_signal_view',
     title='Microphone view (time)',
@@ -133,10 +148,19 @@ abr_experiment = ParadigmDescription(
     type='ear',
     plugins=[
         abr_controller,
-        copy(temperature_mixin),
-        copy(eeg_view_mixin),
-        copy(abr_in_ear_calibration_mixin),
+        temperature_mixin.copy(),
+        eeg_view_mixin.copy(),
+        abr_in_ear_calibration_mixin.copy(),
     ]
+)
+
+
+dpoae_time_noise_mixin = PluginDescription(
+    name='dpoae_time_noise',
+    title='Noise elicitor',
+    required=False,
+    selected=False,
+    manifest='psi.application.experiment.cfts_mixins.DPOAETimeNoiseMixinManifest',
 )
 
 
@@ -146,11 +170,36 @@ dpoae_time_experiment = ParadigmDescription(
     type='ear',
     plugins=[
         dpoae_time_controller,
-        copy(temperature_mixin),
-        copy(eeg_view_mixin),
-        copy(dpoae_in_ear_calibration_mixin),
-        copy(microphone_fft_view_mixin),
-        copy(microphone_signal_view_mixin),
+        temperature_mixin.copy(),
+        dpoae_in_ear_calibration_mixin.copy(),
+        microphone_fft_view_mixin.copy(),
+        microphone_signal_view_mixin.copy(selected=False),
+        dpoae_time_noise_mixin.copy(),
+        dpoae_in_ear_noise_calibration_mixin.copy(),
+    ]
+)
+
+
+microphone_fft_view_mixin = PluginDescription(
+    name='microphone_elicitor_fft_view',
+    title='Microphone view (PSD)',
+    required=False,
+    selected=True,
+    manifest='psi.application.experiment.cfts_mixins.MicrophoneElicitorFFTViewMixinManifest',
+)
+
+
+dpoae_contra_experiment = ParadigmDescription(
+    name='dpoae_contra',
+    title='DPOAE (contra noise)',
+    type='ear',
+    plugins=[
+        dpoae_time_controller,
+        temperature_mixin.copy(),
+        microphone_fft_view_mixin.copy(),
+        dpoae_time_noise_mixin.copy(required=True),
+        dpoae_in_ear_calibration_mixin.copy(),
+        dpoae_in_ear_noise_calibration_mixin.copy(),
     ]
 )
 
@@ -161,11 +210,11 @@ dpoae_io_experiment = ParadigmDescription(
     type='ear',
     plugins=[
         dpoae_io_controller,
-        copy(temperature_mixin),
-        copy(eeg_view_mixin),
-        copy(dpoae_in_ear_calibration_mixin),
-        copy(microphone_fft_view_mixin),
-        copy(microphone_signal_view_mixin),
+        temperature_mixin.copy(),
+        eeg_view_mixin.copy(),
+        dpoae_in_ear_calibration_mixin.copy(),
+        microphone_fft_view_mixin.copy(),
+        microphone_signal_view_mixin.copy(),
     ]
 )
 
@@ -333,7 +382,8 @@ pellet_dispenser_mixin = PluginDescription(
 ################################################################################
 experiments = {
     'abr': abr_experiment,
-    'dpoae_time': dpoae_time_experiment,
+    #'dpoae_time': dpoae_time_experiment,
+    'dpoae_contra': dpoae_contra_experiment,
     'dpoae_io': dpoae_io_experiment,
     #'speaker_calibration': speaker_calibration_experiment,
     'speaker_calibration_chirp': speaker_calibration_chirp_experiment,

@@ -34,6 +34,10 @@ def attach_source(event):
     obj.source = controller.get_input(source_name)
 
 
+def format_container(event):
+    event.parameters['obj'].format_container()
+
+
 enamldef DataManifest(PluginManifest): manifest:
 
     id = PLUGIN_ID
@@ -51,7 +55,9 @@ enamldef DataManifest(PluginManifest): manifest:
         Command:
             id = PLUGIN_ID + '.set_base_path'
             handler = set_base_path
-
         Command:
             id = PLUGIN_ID + '.attach_source'
             handler = attach_source
+        Command:
+            id = PLUGIN_ID + '.format_container'
+            handler = format_container

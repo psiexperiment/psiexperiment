@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from scipy import signal
 from fractions import gcd
 
@@ -80,13 +81,13 @@ def csd(s, fs, window=None, waveform_averages=None):
         s = w/w.mean()*s
     return np.fft.rfft(s, axis=-1)/n
 
-
 def phase(s, fs, window=None, waveform_averages=None, unwrap=True):
     c = csd(s, fs, window, waveform_averages)
     p = np.angle(c)
     if unwrap:
         p = np.unwrap(p)
     return p
+
 
 def psd(s, fs, window=None, waveform_averages=None):
     c = csd(s, fs, window, waveform_averages)
@@ -95,6 +96,17 @@ def psd(s, fs, window=None, waveform_averages=None):
 
 def psd_freq(s, fs):
     return np.fft.rfftfreq(s.shape[-1], 1.0/fs)
+
+
+def psd_df(s, fs, *args, **kw):
+    p = psd(s, fs)
+    freqs = pd.Index(psd_freq(s, fs), name='frequency')
+    if p.ndim == 1:
+        name = s.name if isinstance(s, pd.Series) else 'psd'
+        return pd.Series(p, index=freqs, name=name)
+    else:
+        index = s.index if isinstance(s, pd.DataFrame) else None
+        return pd.DataFrame(p, columns=freqs, index=index)
 
 
 def tone_conv(s, fs, frequency, window=None):
@@ -409,7 +421,7 @@ def save_calibration(channels, filename):
 
 def load_calibration(filename, channels):
     from json_tricks import load
-    from psi.controller import calibration as cal_types
+    from psi.controller.calibration import calibration as cal_types
     with open(filename, 'r') as fh:
         settings = load(fh)
     channels = {c.name: c for c in channels}

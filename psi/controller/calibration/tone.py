@@ -8,11 +8,8 @@ import numpy as np
 import pandas as pd
 
 from .util import tone_power_conv, tone_phase_conv, db
-from . import (FlatCalibration, PointCalibration, CalibrationTHDError,
-               CalibrationNFError)
-from ..queue import FIFOSignalQueue
-from ..output import QueuedEpochOutput
-from ..input import ExtractEpochs
+from .calibration import (FlatCalibration, PointCalibration,
+                          CalibrationTHDError, CalibrationNFError)
 
 
 from psi.token.primitives import ToneFactory, SilenceFactory
@@ -135,6 +132,12 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gains=0,
     ao_fs = ao_channel.fs
     ai_fs = ai_channels[0].fs
 
+    # Ensure that input channels are synced to the output channel 
+    device_name = ao_channel.device_name
+    ao_channel.start_trigger = ''
+    for channel in ai_channels:
+        channel.start_trigger = f'/{device_name}/ao/StartTrigger'
+
     samples = int(ao_fs*duration)
 
     if np.isscalar(gains):
@@ -170,7 +173,8 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gains=0,
 
     for ai_channel in ai_channels:
         cb = partial(accumulate, data[ai_channel.name])
-        epoch_input = ExtractEpochs(queue=queue, epoch_size=duration)
+        epoch_input = ExtractEpochs(epoch_size=duration)
+        queue.connect(epoch_input.queue.append)
         epoch_input.add_callback(cb)
         ai_channel.add_input(epoch_input)
         ai_channel.add_callback(samples[ai_channel.name].append)
@@ -202,6 +206,7 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gains=0,
             if debug:
                 f_result['waveform'] = s
             channel_result.append(f_result)
+
         df = pd.DataFrame(channel_result)
         df['channel_name'] = ai_channel.name
         result.append(df)
@@ -261,11 +266,11 @@ def tone_sens(engine, frequencies, gain=-40, vrms=1, *args, **kwargs):
     kwargs.update(dict(gain=gain, vrms=vrms))
     result = tone_spl(engine, frequencies, *args, **kwargs)
     result['norm_spl'] = result['spl'] - gain - db(vrms)
-    result['sens'] = -result['norm_spl']-db(20e-6)
+    result['sens'] = -result['norm_spl'] - db(20e-6)
     return result
 
 
-def tone_calibration(engine, frequencies, *args, **kwargs):
+def tone_calibration(engine, frequencies, ai_channel_names, **kwargs):
     '''
     Single output calibration at a fixed frequency
     Returns
@@ -273,5 +278,11 @@ def tone_calibration(engine, frequencies, *args, **kwargs):
     sens : dB (V/Pa)
         Sensitivity of output in dB (V/Pa).
     '''
-    output_sens = tone_sens(engine, frequencies, *args, **kwargs)[0]
-    return PointCalibration(frequencies, output_sens)
+    kwargs.update({'engine': engine, 'frequencies': frequencies,
+                   'ai_channel_names': ai_channel_names})
+    output_sens = tone_sens(**kwargs)
+    calibrations = {}
+    for ai_channel in ai_channel_names:
+        data = output_sens.loc[ai_channel]
+        calibrations[ai_channel] = PointCalibration(data.index, data['sens'])
+    return calibrations

@@ -34,9 +34,12 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
             epoch_inputs = ['epoch']
             continuous_inputs = ['hw_ai']
 
+<<<<<<< HEAD
         TextStore:
             name = 'cal_data'
 
+=======
+>>>>>>> 8d28b92c4b0091619164205ada14fa68a962ae83
     Extension:
         id = 'io'
         point = 'psi.controller.io'
@@ -202,3 +205,34 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
                     source_name = 'epoch'
                     pen_color_cycle := ea_plot.pen_color_cycle
                     groups << epoch_group
+
+
+enamldef SpeakerCalibrationManifest(BaseSpeakerCalibrationManifest):
+
+    Extension:
+        id = 'tokens'
+        point = 'psi.token.tokens'
+
+        Chirp:
+            pass
+
+        Cos2Envelope:
+            label = 'tone pip'
+            Tone:
+                pass
+
+    Extension:
+        id = 'io'
+        point = 'psi.controller.io'
+
+        SelectorQueuedEpochOutput: hw_ao:
+            name = 'hw_ao'
+            label = 'Output'
+            auto_decrement = True
+            selector_name = 'default'
+            queue = InterleavedFIFOSignalQueue()
+            target_name << C.output_channel
+            target ::
+                controller = workbench.get_plugin('psi.controller')
+                channel.calibration = FlatCalibration.as_attenuation()
+                controller.set_input_attr('epoch', 'queue', queue)

@@ -186,16 +186,19 @@ class BasePlotContainer(PSIContribution):
             if child.name == name:
                 return child
 
+    def format_container(self):
+        pass
+
 
 class PlotContainer(BasePlotContainer):
 
     x_min = d_(Float())
     x_max = d_(Float())
 
-    def _default_container(self):
-        container = super()._default_container()
+    def format_container(self):
+        # If we want to specify values relative to a psi context variable, we
+        # cannot do it when initializing the plots.
         self.base_viewbox.setXRange(self.x_min, self.x_max, padding=0)
-        return container
 
 
 class TimeContainer(BasePlotContainer):
@@ -375,12 +378,17 @@ class ViewBox(PSIContribution):
         This is typically used in post-processing routines to add static plots
         to existing view boxes.
         '''
+        log.debug(x)
+        log.debug(y)
         if log_x:
             x = np.log10(x)
         if log_y:
             y = np.log10(y)
         x = np.asarray(x)
         y = np.asarray(y)
+        m = np.isfinite(x) & np.isfinite(y)
+        x = x[m]
+        y = y[m]
 
         if kind == 'line':
             item = pg.PlotCurveItem(pen=pg.mkPen(color))
@@ -913,6 +921,7 @@ class ResultPlot(SinglePlot):
 
     x_column = d_(Unicode())
     y_column = d_(Unicode())
+    average = d_(Bool())
 
     SYMBOL_MAP = {
         'circle': 'o',
@@ -958,6 +967,11 @@ class ResultPlot(SinglePlot):
         x, y = zip(*self._data_cache)
         x = np.array(x)
         y = np.array(y)
+        if self.average:
+            d = pd.DataFrame({'x': x, 'y': y}).groupby('x')['y'].mean()
+            x = d.index.values
+            y = d.values
+
         deferred_call(self.plot.setData, x, y)
 
     def _default_plot(self):

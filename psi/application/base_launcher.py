@@ -129,6 +129,7 @@ class SimpleLauncher(Atom):
         for plugin in plugins:
             args.extend(['--plugins', plugin])
         log.info('Launching subprocess: %s', ' '.join(args))
+        print(' '.join(args))
         subprocess.check_output(args)
         self._update_choices()
 

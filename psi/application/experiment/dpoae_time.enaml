@@ -1,46 +1,51 @@
 from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
 
 from psi.context.api import Parameter
 from psi.controller.api import EpochOutput, ExperimentAction
-from psi.data.plots import GroupedResultPlot, PlotContainer, ViewBox
+from psi.data.plots import ResultPlot, PlotContainer, ViewBox
 from psi.token.primitives import Gate, SquareWave
 
-from .dpoae_base import ControllerManifest as DPOAEBaseControllerManifest
+from .dpoae_base import DPOAEManifest
 
 EXPERIMENT = __name__.rsplit('.', 1)[-1]
 
 
-enamldef ControllerManifest(DPOAEBaseControllerManifest):
+TRIAL = 1
+
+def next_trial(event):
+    global TRIAL
+    core = event.workbench.get_plugin('enaml.workbench.core')
+    context = event.workbench.get_plugin('psi.context')
+    controller = event.workbench.get_plugin('psi.controller')
+    repetitions = context.get_value('repetitions')
+
+    if TRIAL >= repetitions:
+        TRIAL = 1
+        parameters = {'selector': 'default', 'save_prior': False}
+        core.invoke_command('psi.context.next_setting', parameters)
+    else:
+        TRIAL += 1
+
+    iti = context.get_value('iti')
+    ts = controller.get_ts()
+    parameters = {'delay': iti, 'timestamp': ts}
+    core.invoke_command('dpoae.start', parameters)
+
+
+enamldef ControllerManifest(DPOAEManifest):
 
     Extension:
-        id = EXPERIMENT + '.tokens'
-        point = 'psi.token.tokens'
+        id = EXPERIMENT + '.commands'
+        point = 'enaml.workbench.core.commands'
 
-        Gate: ttl:
-            name = 'ttl'
-            hide = ['start_time']
-            SquareWave:
-                pass
-
-    Extension:
-        id = EXPERIMENT + '.io'
-        point = 'psi.controller.io'
-
-        EpochOutput: trigger:
-            name = 'trigger'
-            label = 'TTL'
-            target_name = 'ttl_output'
-            configurable = False
-            token = ttl
+        Command:
+            id = 'dpoae_time.next_trial'
+            handler = next_trial
 
     Extension:
         id = EXPERIMENT + '.actions'
         point = 'psi.controller.actions'
-
-        ExperimentAction:
-            event = 'dpoae_start'
-            command = 'trigger.start'
-            kwargs = {'delay': 'ttl_start'}
 
         ExperimentAction:
             event = 'dpoae_end'
@@ -48,24 +53,32 @@ enamldef ControllerManifest(DPOAEBaseControllerManifest):
 
         ExperimentAction:
             event = 'dpoae_end'
-            command = 'psi.context.next_setting'
-            kwargs = {'selector': 'default', 'save_prior': False}
-
-        ExperimentAction:
-            event = 'context_next_setting'
-            command = 'dpoae.start'
-            kwargs = {'delay': 0.25}
+            command = 'dpoae_time.next_trial'
 
     Extension:
         id = EXPERIMENT + '.items'
         point = 'psi.context.items'
 
+        #Parameter:
+        #    name = 'ttl_start'
+        #    label = 'TTL start time (sec)'
+        #    dtype = 'float'
+        #    default = 5
+        #    group_name = 'dpoae'
+
         Parameter:
-            name = 'ttl_start'
-            label = 'TTL start time (sec)'
-            dtype = 'float'
+            name = 'repetitions'
+            label = 'Repetitions'
+            dtype = float
             default = 5
-            group = 'dpoae'
+            group_name = 'dpoae'
+
+        Parameter:
+            name = 'iti'
+            label = 'ITI'
+            dtype = float
+            default = 1
+            group_name = 'dpoae'
 
     Extension:
         id = EXPERIMENT + '.plots'
@@ -74,21 +87,45 @@ enamldef ControllerManifest(DPOAEBaseControllerManifest):
         PlotContainer:
             name = 'results_plot_container'
             label = 'Results'
+            x_min = 0
+            x_max << C.secondary_tone_duration
 
             ViewBox:
+                y_min = -10
+                y_max = 80
 
-                GroupedResultPlot: grp:
-                    group_names = ['secondary_tone_frequency']
+                ResultPlot: grp:
                     source_name = 'analyze_dpoae'
                     x_column = 'ts_end'
-                    y_column = 'f2_level'
-                    pen_color_cycle = 'palettable.cartocolors.sequential.BluGrn_6'
+                    label = 'F2'
                     pen_width = 2
+                    y_column = 'f2_level'
+                    pen_color = 'indianred'
+                    average = True
 
-                GroupedResultPlot:
-                    group_names = ['secondary_tone_frequency']
-                    source_name = 'analyze_dpoae'
+                ResultPlot:
+                    source_name << grp.source_name
+                    x_column << grp.x_column
+                    pen_width << grp.pen_width
+                    y_column = 'primary_tone_level'
+                    label = 'F1'
+                    pen_color = 'lightsalmon'
+                    average = True
+
+                ResultPlot:
+                    source_name << grp.source_name
+                    pen_width << grp.pen_width
                     x_column << grp.x_column
                     y_column = 'dpoae_noise_floor'
-                    pen_color_cycle = 'palettable.cartocolors.sequential.Burg_6'
-                    pen_width = 2
+                    label = 'Noise Floor'
+                    pen_color = 'lightsteelblue'
+                    average = True
+
+                ResultPlot:
+                    source_name << grp.source_name
+                    pen_width << grp.pen_width
+                    x_column << grp.x_column
+                    y_column = 'dpoae_level'
+                    label = 'DPOAE'
+                    pen_color = 'darkred'
+                    average = True

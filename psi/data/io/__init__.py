@@ -1,8 +1,12 @@
+import logging
+log = logging.getLogger(__name__)
+
 import functools
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from scipy import signal
 
 
 class Recording:
@@ -24,7 +28,7 @@ class Recording:
 
     def __repr__(self):
         n_signals = len(self.carray_names)
-        n_tables = len(self.ctable_names)
+        n_tables = len(self.ctable_names) + len(self.ttable_names)
         return f'<Dataset with {n_signals} signals and {n_tables} tables>'
 
     @functools.lru_cache()
