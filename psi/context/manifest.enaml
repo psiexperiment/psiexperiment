@@ -144,9 +144,6 @@ enamldef ContextManifest(PluginManifest): manifest:
         point = 'psi.controller.actions'
 
         ExperimentEvent:
-            name = 'context_changed'
-
-        ExperimentEvent:
             name = 'context_complete'
 
         ExperimentEvent:

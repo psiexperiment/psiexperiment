@@ -312,12 +312,9 @@ class BehaviorPlugin(ControllerPlugin):
             log.debug('applied changes')
 
     def et_callback(self, name, edge, event_time):
-        # TODO: this should be refined. e.g., for edges create a better event
-        # system.
-        if edge != 'processed':
-            log.debug('Detected {} on {} at {}'.format(edge, name, event_time))
-            event = self.event_map[edge, name]
-            self.handle_event(event, event_time)
+        log.debug('Detected {} on {} at {}'.format(edge, name, event_time))
+        event = self.event_map[edge, name]
+        self.handle_event(event, event_time)
 
     def pause_experiment(self):
         if self.trial_state == TrialState.waiting_for_np_start:
