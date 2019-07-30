@@ -177,11 +177,19 @@ golay_mixin = PluginDescription(
     name='golay',
     title='golay',
     required=True,
-    manifest='psi.application.experiment.golay_mixin.GolayMixin'
+    manifest='psi.application.experiment.calibration_mixins.GolayMixin'
 )
 
 
-speaker_calibration_controller_golay = PluginDescription(
+chirp_mixin = PluginDescription(
+    name='chirp',
+    title='Chirp',
+    required=True,
+    manifest='psi.application.experiment.calibration_mixins.ChirpMixin'
+)
+
+
+speaker_calibration_controller = PluginDescription(
     name='controller',
     title='Controller',
     required=True,
@@ -192,29 +200,21 @@ speaker_calibration_controller_golay = PluginDescription(
 speaker_calibration_golay_experiment = ParadigmDescription(
     name='speaker_calibration_golay',
     title='Speaker calibration (Golay)',
-    type='ear',
+    type='calibration',
     plugins=[
-        speaker_calibration_controller_golay,
+        speaker_calibration_controller,
         golay_mixin,
     ]
 )
 
 
-
-speaker_calibration_controller = PluginDescription(
-    name='controller',
-    title='Controller',
-    required=True,
-    manifest='psi.application.experiment.speaker_calibration.SpeakerCalibrationManifest',
-)
-
-
-speaker_calibration_experiment = ParadigmDescription(
-    name='speaker_calibration',
-    title='Speaker calibration',
-    type='ear',
+speaker_calibration_chirp_experiment = ParadigmDescription(
+    name='speaker_calibration_chirp',
+    title='Speaker calibration (chirp)',
+    type='calibration',
     plugins=[
         speaker_calibration_controller,
+        chirp_mixin,
     ]
 )
 
@@ -335,7 +335,8 @@ experiments = {
     'abr': abr_experiment,
     'dpoae_time': dpoae_time_experiment,
     'dpoae_io': dpoae_io_experiment,
-    'speaker_calibration': speaker_calibration_experiment,
+    #'speaker_calibration': speaker_calibration_experiment,
+    'speaker_calibration_chirp': speaker_calibration_chirp_experiment,
     'speaker_calibration_golay': speaker_calibration_golay_experiment,
     'appetitive_gonogo_food': appetitive_experiment,
     'noise_exposure': noise_exposure_experiment,

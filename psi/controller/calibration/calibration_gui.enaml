@@ -11,7 +11,8 @@ from enaml.widgets.api import (Action, Container, Field, FileDialogEx, Form,
 
 from psi import get_config
 from psi.controller.calibration import (EPLCalibration, CochlearCalibration,
-                                        FlatCalibration, GolayCalibration,
+                                        ChirpCalibration, FlatCalibration,
+                                        GolayCalibration,
                                         UnityCalibration)
 from psi.controller.channel import HardwareAIChannel
 
@@ -55,6 +56,25 @@ template CalibrationTemplate(calibration, MemberType: GolayCalibration):
                 path = FileDialogEx.get_existing_directory(current_path=cal_path)
                 if path:
                     for k, v in calibration.load_psi_golay(path).items():
+                        setattr(calibration, k, v)
+
+
+template CalibrationTemplate(calibration, MemberType: ChirpCalibration):
+
+    HGroup:
+        padding = 0
+        align_widths = False
+
+        Label:
+            text << str(calibration.source.name if calibration.source else 'No calibration loaded')
+
+        PushButton:
+            text = 'Change'
+            clicked ::
+                cal_path = str(get_config('CAL_ROOT'))
+                path = FileDialogEx.get_existing_directory(current_path=cal_path)
+                if path:
+                    for k, v in calibration.load_psi_chirp(path).items():
                         setattr(calibration, k, v)
 
 
@@ -103,6 +123,7 @@ name_map = {
     UnityCalibration: 'unity gain',
     FlatCalibration: 'fixed sensitivity',
     GolayCalibration: 'Golay calibration',
+    ChirpCalibration: 'Chirp calibration',
     EPLCalibration: 'EPL calibration',
     CochlearCalibration: 'Golay calibration (old Cochlear format)',
 }
