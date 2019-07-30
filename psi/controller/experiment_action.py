@@ -33,8 +33,19 @@ class ExperimentEvent(Declarative):
     associated_state = Typed(ExperimentState)
 
 
+missing_event_mesg = '''
+Missing event "{key}".
+
+Perhaps an input, output or device is missing from the IO configuration?
+'''
+
+
 def simple_match(key, context):
-    return context[key]
+    try:
+        return context[key]
+    except Exception as e:
+        new_exc = KeyError(missing_event_mesg.format(key=key))
+        raise new_exc from e
 
 
 class ExperimentAction(Declarative):
