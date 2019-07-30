@@ -1,4 +1,5 @@
-Welcome to Psiexperiment
+=========================================
+ Welcome to Psiexperiment
 =========================================
 
 Psiexperiment is a framework for creating feature-rich data acquistion experiments with minimal effort. Psiexperiment can be run on any platform which supports Python and Qt.
@@ -12,10 +13,9 @@ A few highlights:
    :maxdepth: 2
    :caption: Contents:
 
-:doc:`getting_started.rst`
---------------------------
-
-Section to install.
+:doc:`installing`
+-----------------
+Instructions on installing psiexperiment and configuring your system.
 
 Indices and tables
 ==================
