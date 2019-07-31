@@ -79,10 +79,10 @@ def set_defaults(launcher, experiments):
 enamldef LauncherView(MainWindow): main:
 
     attr launcher
-    attr experiments
+    title << 'Psiexperiment: ' + launcher.experiment_type
 
     initialized ::
-        load_defaults(launcher, experiments)
+        load_defaults(launcher, launcher.experiment_choices)
 
     MenuBar:
         Menu:
@@ -90,7 +90,7 @@ enamldef LauncherView(MainWindow): main:
             Action:
                 text = 'Set as default\tCtrl+D'
                 triggered ::
-                    set_defaults(launcher, experiments)
+                    set_defaults(launcher, launcher.experiment_choices)
 
     Container:
 
@@ -125,7 +125,7 @@ enamldef LauncherView(MainWindow): main:
                 text = 'Experiment'
 
             ObjectCombo: experiment:
-                items << experiments
+                items << launcher.experiment_choices
                 to_string = lambda x: x.title
                 selected := launcher.experiment
 
