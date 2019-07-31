@@ -7,7 +7,6 @@ from psi.controller.engines.nidaq import (NIDAQEngine,
 
 from psi.controller.api import (CalibratedInput, Downsample, Edges, IIRFilter,
                                 Threshold, Trigger, Toggle)
-from psi.controller.devices.api import PelletDispenser
 
 
 enamldef AnalogToDigital(IIRFilter): atd:
@@ -31,11 +30,6 @@ enamldef IOManifest(PluginManifest): manifest:
     Extension:
         id = 'backend'
         point = 'psi.controller.io'
-
-        PelletDispenser:
-            name = 'food_dispenser'
-            label = 'Pellet dispenser'
-            output_name = 'food_dispense_trigger'
 
         NIDAQEngine: engine:
             name = 'NI'

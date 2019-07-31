@@ -830,7 +830,7 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
 ################################################################################
 # Useful plugins
 ################################################################################
-enamldef PelletDispenseMixinManifest(PluginManifest): manifest:
+enamldef PelletDispenserMixinManifest(PluginManifest): manifest:
 
     id = 'pellet_dispenser_mixin'
 
@@ -839,6 +839,6 @@ enamldef PelletDispenseMixinManifest(PluginManifest): manifest:
         point = 'psi.controller.io'
 
         PelletDispenser:
-            output_name = 'food_dispense_trigger'
             name = 'food_dispenser'
-            label = 'Food dispenser'
+            label = 'Pellet dispenser'
+            output_name = 'food_dispense_trigger'

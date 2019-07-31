@@ -359,23 +359,25 @@ appetitive_gonogo_controller = PluginDescription(
 )
 
 
+pellet_dispenser_mixin = PluginDescription(
+    name='pellet_dispenser',
+    title='Pellet dispenser',
+    required=False,
+    selected=True,
+    manifest='psi.application.experiment.behavior_base.PelletDispenserMixinManifest',
+)
+
+
 appetitive_experiment = ParadigmDescription(
     name='appetitive_gonogo_food',
     title='Appetitive GO-NOGO food',
     type='animal',
     plugins=[
         appetitive_gonogo_controller,
+        pellet_dispenser_mixin,
     ],
 )
 
-
-pellet_dispenser_mixin = PluginDescription(
-    name='pellet_dispenser_mixin',
-    title='Pellet dispenser',
-    required=False,
-    selected=True,
-    manifest='psi.application.experiment.behavior_base.PelletDispenserMixinManifest',
-)
 
 ################################################################################
 # Wrapup
