@@ -15,7 +15,9 @@ from psi.context.api import ContextGroup, Parameter
 from psi.controller.api import (ExperimentAction, FIFOSignalQueue,
                                 generate_waveform, InterleavedFIFOSignalQueue,
                                 SelectorQueuedEpochOutput, QueuedEpochOutput)
-from psi.controller.calibration import FlatCalibration, InterpCalibration, util
+from psi.controller.calibration.api import FlatCalibration, InterpCalibration
+from psi.controller.calibration import util
+
 from psi.core.enaml.api import PSIManifest
 from psi.token.primitives import Chirp
 from psi.util import octave_space

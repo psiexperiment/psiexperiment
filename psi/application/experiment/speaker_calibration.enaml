@@ -8,7 +8,7 @@ from psi.context.api import (ContextGroup, EnumParameter, OrderedContextMeta,
 
 from psi.controller.api import (ControllerManifest, Blocked, ExperimentAction,
                                 ExtractEpochs, get_hw_ai_choices,
-                                get_hw_ao_choices)
+                                get_hw_ao_choices, SelectorQueuedEpochOutput)
 
 from psi.data.sinks.api import BColzStore, TextStore
 
@@ -21,6 +21,7 @@ from psi.data.plots import (TimeContainer,
                             GroupedEpochPhasePlot)
 
 from psi.data.sinks.epoch_counter import GroupedEpochCounter
+from psi.token.primitives import Chirp, Cos2Envelope, Tone
 
 
 enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
@@ -34,12 +35,9 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
             epoch_inputs = ['epoch']
             continuous_inputs = ['hw_ai']
 
-<<<<<<< HEAD
         TextStore:
             name = 'cal_data'
 
-=======
->>>>>>> 8d28b92c4b0091619164205ada14fa68a962ae83
     Extension:
         id = 'io'
         point = 'psi.controller.io'
