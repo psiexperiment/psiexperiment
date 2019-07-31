@@ -11,7 +11,8 @@ from enaml.workbench.core.api import Command
 from psi.context.api import ContextGroup, EnumParameter, Parameter, Result
 from psi.controller.api import (Blocked, ControllerManifest, ExperimentAction,
                                 get_hw_ai_choices)
-from psi.controller.calibration import UnityCalibration, util
+from psi.controller.calibration.api import UnityCalibration
+from psi.controller.calibration import util
 from psi.data.plots import (TimeContainer, ChannelPlot, ViewBox, FFTContainer,
                             FFTChannelPlot)
 
@@ -38,7 +39,6 @@ def calculate_sens(event):
     fs = source.attrs['fs']
 
     rms_overall = util.rms(waveform, detrend=True)
-    print(rms_overall)
     rms_nom = util.tone_power_conv(waveform, fs, frequency, 'flattop')
 
     frequencies = util.psd_freq(waveform, fs)
