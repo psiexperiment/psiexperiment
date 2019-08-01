@@ -54,11 +54,20 @@ def find_devices(point):
     return devices
 
 
+engine_error = '''
+More than one engine named "{}"
+
+To fix this, please review the IO manifest (i.e., hardware configuration) you
+selected and verify that all engines have unique names.
+'''
+
 def find_engines(point):
     master_engine = None
     engines = {}
     for extension in point.extensions:
         for e in extension.get_children(Engine):
+            if e.name in engines:
+                raise ValueError(engine_error.strip().format(e.name))
             engines[e.name] = e
             if e.master_clock:
                 if master_engine is not None:

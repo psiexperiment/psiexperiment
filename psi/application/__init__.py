@@ -13,6 +13,8 @@ import traceback
 import warnings
 
 import enaml
+with enaml.imports():
+    from enaml.stdlib.message_box import critical
 
 from psi import get_config, set_config
 
@@ -97,8 +99,6 @@ def list_calibrations(io_file):
     return list(calibration_path.glob('*.json'))
 
 
-
-
 def launch_experiment(args):
     set_config('ARGS', args)
     if args.profile:
@@ -108,13 +108,14 @@ def launch_experiment(args):
 
     try:
         _main(args)
-    except:
+    except Exception as e:
         if args.pdb:
             type, value, tb = sys.exc_info()
             traceback.print_exc()
             pdb.post_mortem(tb)
         else:
-            raise
+            log.exception(e)
+            critical(None, 'Error starting experiment', str(e))
 
     if args.profile:
         profiler.stop()
