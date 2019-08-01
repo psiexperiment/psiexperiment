@@ -119,6 +119,8 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gains=0,
     if not isinstance(ao_channel_name, str):
         raise ValueError('Can only specify one output channel')
 
+    from psi.controller.api import ExtractEpochs, FIFOSignalQueue
+
     frequencies = np.asarray(frequencies)
     calibration = FlatCalibration.as_attenuation(vrms=vrms)
 
@@ -263,7 +265,7 @@ def tone_sens(engine, frequencies, gain=-40, vrms=1, *args, **kwargs):
         will be some equipment error. So, either average them together or
         choose the most trustworthy input.
     '''
-    kwargs.update(dict(gain=gain, vrms=vrms))
+    kwargs.update(dict(gains=gain, vrms=vrms))
     result = tone_spl(engine, frequencies, *args, **kwargs)
     result['norm_spl'] = result['spl'] - gain - db(vrms)
     result['sens'] = -result['norm_spl'] - db(20e-6)

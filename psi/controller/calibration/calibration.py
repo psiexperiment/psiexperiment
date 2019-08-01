@@ -204,6 +204,9 @@ class Calibration(Atom):
     def get_attenuation(self, frequency, voltage, level):
         return self.get_spl(frequency, voltage)-level
 
+    def get_gain(self, frequency, spl, attenuation=0):
+        return util.db(self.get_sf(frequency, spl, attenuation))
+
     def set_fixed_gain(self, fixed_gain):
         self.fixed_gain = fixed_gain
 

@@ -128,6 +128,8 @@ def compute_calibration_chirp(event):
     keys = []
     summaries = []
     for chirp_level, epochs in waveforms.items():
+        if chirp_level == -400:
+            continue
         freq = util.psd_freq(epochs, source.fs)
         resp_psd = util.psd(epochs, source.fs).mean(axis=0)
         resp_phase = util.phase(epochs, source.fs).mean(axis=0)
@@ -162,7 +164,7 @@ def compute_calibration_chirp(event):
 
     freq_lb = context.get_value('hw_ao_chirp_start_frequency')
     freq_ub = context.get_value('hw_ao_chirp_end_frequency')
-    frequencies = octave_space(freq_lb*1e-3, freq_ub*1e-3, 0.125)*1e3
+    frequencies = octave_space(freq_lb*1e-3, freq_ub*1e-3, 0.25)*1e3
 
     # Save the calibration
     summary = pd.concat(summaries, keys=keys, names=grouping)
@@ -179,6 +181,13 @@ def validate_spl(event, ao_channel, ai_channel, frequencies, spl):
     core = event.workbench.get_plugin('enaml.workbench.core')
 
     gains = [ao_channel.calibration.get_gain(f, spl) for f in frequencies]
+    gains = np.array(gains)
+
+    mask = (gains <= -3) & np.isfinite(gains)
+    gains = gains[mask]
+    frequencies = frequencies[mask]
+    log.debug('Removed %d frequencies', (~mask).sum())
+
     result = tone_spl(ao_channel.engine, frequencies, gains=gains,
                       ao_channel_name=ao_channel.name,
                       ai_channel_names=[ai_channel.name])
@@ -302,10 +311,14 @@ enamldef ChirpMixin(PluginManifest): manifest:
             queue = InterleavedFIFOSignalQueue()
             token = chirp
             target_name << C.output_channel
-            target ::
+            queue ::
+                log.debug('Connecting to epoch')
                 controller = workbench.get_plugin('psi.controller')
+                epoch = controller.get_input('epoch')
+                epoch.poststim_time = 0.01
+                self.connect(epoch.queue.append)
+            target ::
                 channel.calibration = FlatCalibration.as_attenuation()
-                controller.set_input_attr('epoch', 'queue', queue)
 
     Extension:
         id = 'commands_chirp_mixin'

@@ -39,6 +39,12 @@ class ParadigmDescription(Atom):
         raise ValueError(f'Plugin {plugin_name} does not exist. ' \
                          f'Valid options are {valid_plugins}')
 
+    def copy(self, **kwargs):
+        other = copy.copy(self)
+        for k, v in kwargs.items():
+            setattr(other, k, v)
+        return other
+
 
 class ExperimentDescription(Atom):
 
@@ -421,8 +427,8 @@ experiments = {
     'dpoae_contra': dpoae_contra_experiment,
     'dpoae_ttl': dpoae_ttl_experiment,
     'dpoae_io': dpoae_io_experiment,
-    #'speaker_calibration': speaker_calibration_experiment,
     'speaker_calibration_chirp': speaker_calibration_chirp_experiment,
+    'speaker_calibration_chirp_inear': speaker_calibration_chirp_experiment.copy(type='ear'),
     'speaker_calibration_golay': speaker_calibration_golay_experiment,
     'appetitive_gonogo_food': appetitive_experiment,
     'noise_exposure': noise_exposure_experiment,
