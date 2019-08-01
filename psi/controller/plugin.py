@@ -521,7 +521,10 @@ class ControllerPlugin(Plugin):
         deferred_call(lambda: setattr(self, 'experiment_state', 'running'))
 
     def stop_experiment(self):
-        self.invoke_actions('experiment_end', self.get_ts())
+        try:
+            self.invoke_actions('experiment_end', self.get_ts())
+        except:
+            pass
         deferred_call(lambda: setattr(self, 'experiment_state', 'stopped'))
 
     def pause_experiment(self):
