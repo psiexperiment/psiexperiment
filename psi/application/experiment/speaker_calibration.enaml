@@ -2,17 +2,15 @@ import logging
 log = logging.getLogger(__name__)
 
 from enaml.workbench.api import Extension
-from enaml.workbench.core.api import Command
 
 from psi.context.api import (ContextGroup, EnumParameter, OrderedContextMeta,
                              Parameter, SequenceSelector)
+
 from psi.controller.api import (ControllerManifest, Blocked, ExperimentAction,
                                 ExtractEpochs, get_hw_ai_choices,
-                                get_hw_ao_choices, InterleavedFIFOSignalQueue,
-                                SelectorQueuedEpochOutput)
+                                get_hw_ao_choices, SelectorQueuedEpochOutput)
 
-from psi.data.sinks.bcolz_store import BColzStore
-
+from psi.data.sinks.api import BColzStore, TextStore
 
 from psi.data.plots import (TimeContainer,
                             ChannelPlot,
@@ -37,8 +35,12 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
         point = 'psi.data.sinks'
 
         BColzStore:
+            name = 'mic_data'
             epoch_inputs = ['epoch']
             continuous_inputs = ['hw_ai']
+
+        TextStore:
+            name = 'cal_data'
 
     Extension:
         id = EXPERIMENT + '.io'
@@ -53,7 +55,6 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
 
             ExtractEpochs: extract:
                 name = 'epoch'
-                poststim_time = 10e-3
 
     Extension:
         id = EXPERIMENT + '.context'
@@ -120,7 +121,7 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
             kwargs = {'delay': 0.25}
 
         ExperimentAction:
-            event = 'epoch_queue_end and not hw_ao_active'
+            event = 'epoch_queue_end'
             command = 'psi.controller.stop'
 
     Extension:
@@ -153,6 +154,24 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
                     source_name = 'epoch'
                     pen_color_cycle = ['red', 'black']
                     groups << epoch_group
+
+        FFTContainer:
+            name = 'calibration_result'
+            label = 'Speaker calibration'
+            freq_lb = 50.0
+            freq_ub = 50000
+
+            ViewBox:
+                name = 'spl_result'
+                y_min = 0
+                y_max = 120
+                label = 'Speaker output (dB SPL)'
+
+            ViewBox:
+                name = 'sens_result'
+                y_min = -40
+                y_max = 40
+                label = 'Speaker sensitivity (dB SPL/V)'
 
         FFTContainer:
             name = 'epoch_psd_container'

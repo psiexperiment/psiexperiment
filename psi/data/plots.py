@@ -556,7 +556,7 @@ def decimate_extremes(data, downsample):
 
 class FFTChannelPlot(ChannelPlot):
 
-    time_span = d_(Float())
+    time_span = d_(Float(1))
     window = d_(Enum('hamming', 'flattop'))
     _x = Typed(np.ndarray)
     _buffer = Typed(SignalBuffer)

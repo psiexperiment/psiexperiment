@@ -1,18 +1,20 @@
-# Designing a new experiment
+==========================
+Designing a new experiment
+==========================
 
-## Getting started
+Getting started
+---------------
 
 Psiexperiment is a plugin-based system where the plugins determine the experiment workflow. At a minimum, an experiment must provide the following:
 
 * A list of parameters and/or results
-
 * The inputs and outputs that will be used
-
 * The stimuli (i.e., tokens) that will be generated
-
 * Actions to take when certain events occur.
  
 Your experiment configuration file will define `EXPERIMENT`, which is the name of the experiment and will typically contain the following extensions:
+
+.. highlight:: enaml
 
     enamldef ControllerManifest(BaseManifest): manifest:
 
@@ -48,9 +50,10 @@ Your experiment configuration file will define `EXPERIMENT`, which is the name o
 
 Let's take a closer look at each of the extensions.
 
-### Actions
+Actions
+.......
 
-At a minimum, you will typically define the following two actions (customized for your needs):
+At a minimum, you will typically define the following two actions (customized for your needs)::
 
     Extension:
         id = EXPERIMENT + '.actions'
@@ -70,7 +73,8 @@ When you press the `start` button on the toolbar, this fires a sequence of three
 
 Under the hood, the controller will configure the engines during the `experiment_prepare` phase. If you want to configure one of the outputs (in this case, `dpoae`) during this phase, be sure to bind it to the `engine_configured` event to ensure it gets executed after the engine is configured (the engine must be configured before it can properly receive waveform samples from the outputs).
 
-#### Sequence of events during an experiment
+Sequence of events during an experiment
+.......................................
 
 * `plugins_started` - All plugins have finished loading. Now, you can perform actions that may require access to another plugin; however, do not assume that the plugins have finished initializing.
 
@@ -93,28 +97,32 @@ The actions allow you to insert your own code or invoke commands at any point in
 * The `pistonphone_calibration.enaml` file calls a custom function, `calculate_sens` once the experiment is complete to calculate the sensitivity of the microphone. Note that the callback for the custom function is defined inside the extension to the `psi.controller.io` point.
 
 
-### Input/Output
+Input/Output
+............
 
-        Extension:
-            id = EXPERIMENT + '.io'
-            point = 'psi.controller.io'
+Example of an input-output plugin::
 
-            Blocked: hw_ai:
-                duration = 0.1
-                name = 'hw_ai'
-                source_name = C.input_channel
-                source ::
-                    # Once the channel is linked
-                    channel.start_trigger = ''
-                    channel.samples = round(C.sample_duration * channel.fs)
-                    channel.input_gain = C.input_gain
+    Extension:
+        id = EXPERIMENT + '.io'
+        point = 'psi.controller.io'
+
+        Blocked: hw_ai:
+            duration = 0.1
+            name = 'hw_ai'
+            source_name = C.input_channel
+            source ::
+                # Once the channel is linked
+                channel.start_trigger = ''
+                channel.samples = round(C.sample_duration * channel.fs)
+                channel.input_gain = C.input_gain
 
 `C` is a controller manifest-level variable that allows for lookup of values defined via the context.
 
 
-### Creating your own custom plugins
+Creating your own custom plugins
+................................
 
-When defining your own subclasses of `PSIManifest`, we recommend the following naming convetions to minimize name collisions:
+When defining your own subclasses of `PSIManifest`, we recommend the following naming convetions to minimize name collisions::
 
     Extension:
         id = manifest.id + '.commands'
@@ -127,6 +135,6 @@ When defining your own subclasses of `PSIManifest`, we recommend the following n
 All subclasses of `PSIManifest` have access to the attached `contribution` (an instance of `PSIContribution`) as an attribute.
 
 
-# Common gotchas
-
+Common gotchas
+--------------
 * Outputs and inputs are configured *only if they are deemed active*. If the output of a particular processing chain (e.g., microphone to IIR filter to extract epochs) is not saved to a data store or plotted, then it's assumed it is not used. The controller will then opmit this particular processing chain from the configuration to alleviate system load. This allows us to design intensive processing chains but allow the user to disable them easily by not plotting the result. However, this can be a bit tricky when defining your own custom sinks For example, there's no target for `AnalyzeDPOAE` in `dpoae_base.enaml` (TODO finish).

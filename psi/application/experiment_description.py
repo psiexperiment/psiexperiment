@@ -260,11 +260,19 @@ golay_mixin = PluginDescription(
     name='golay',
     title='golay',
     required=True,
-    manifest='psi.application.experiment.golay_mixin.GolayMixin'
+    manifest='psi.application.experiment.calibration_mixins.GolayMixin'
 )
 
 
-speaker_calibration_controller_golay = PluginDescription(
+chirp_mixin = PluginDescription(
+    name='chirp',
+    title='Chirp',
+    required=True,
+    manifest='psi.application.experiment.calibration_mixins.ChirpMixin'
+)
+
+
+speaker_calibration_controller = PluginDescription(
     name='controller',
     title='Controller',
     required=True,
@@ -275,29 +283,21 @@ speaker_calibration_controller_golay = PluginDescription(
 speaker_calibration_golay_experiment = ParadigmDescription(
     name='speaker_calibration_golay',
     title='Speaker calibration (Golay)',
-    type='ear',
+    type='calibration',
     plugins=[
-        speaker_calibration_controller_golay,
+        speaker_calibration_controller,
         golay_mixin,
     ]
 )
 
 
-
-speaker_calibration_controller = PluginDescription(
-    name='controller',
-    title='Controller',
-    required=True,
-    manifest='psi.application.experiment.speaker_calibration.SpeakerCalibrationManifest',
-)
-
-
-speaker_calibration_experiment = ParadigmDescription(
-    name='speaker_calibration',
-    title='Speaker calibration',
-    type='ear',
+speaker_calibration_chirp_experiment = ParadigmDescription(
+    name='speaker_calibration_chirp',
+    title='Speaker calibration (chirp)',
+    type='calibration',
     plugins=[
         speaker_calibration_controller,
+        chirp_mixin,
     ]
 )
 
@@ -393,23 +393,25 @@ appetitive_gonogo_controller = PluginDescription(
 )
 
 
+pellet_dispenser_mixin = PluginDescription(
+    name='pellet_dispenser',
+    title='Pellet dispenser',
+    required=False,
+    selected=True,
+    manifest='psi.application.experiment.behavior_base.PelletDispenserMixinManifest',
+)
+
+
 appetitive_experiment = ParadigmDescription(
     name='appetitive_gonogo_food',
     title='Appetitive GO-NOGO food',
     type='animal',
     plugins=[
         appetitive_gonogo_controller,
+        pellet_dispenser_mixin,
     ],
 )
 
-
-pellet_dispenser_mixin = PluginDescription(
-    name='pellet_dispenser_mixin',
-    title='Pellet dispenser',
-    required=False,
-    selected=True,
-    manifest='psi.application.experiment.behavior_base.PelletDispenserMixinManifest',
-)
 
 ################################################################################
 # Wrapup
@@ -419,7 +421,8 @@ experiments = {
     'dpoae_contra': dpoae_contra_experiment,
     'dpoae_ttl': dpoae_ttl_experiment,
     'dpoae_io': dpoae_io_experiment,
-    'speaker_calibration': speaker_calibration_experiment,
+    #'speaker_calibration': speaker_calibration_experiment,
+    'speaker_calibration_chirp': speaker_calibration_chirp_experiment,
     'speaker_calibration_golay': speaker_calibration_golay_experiment,
     'appetitive_gonogo_food': appetitive_experiment,
     'noise_exposure': noise_exposure_experiment,

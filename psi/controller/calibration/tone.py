@@ -100,7 +100,7 @@ def process_tone(fs, signal, frequency, min_snr=None, max_thd=None,
         return pd.DataFrame(data)
 
 
-def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gain=0,
+def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gains=0,
                vrms=1, repetitions=2, min_snr=None, max_thd=None, thd_harmonics=3,
                duration=0.1, trim=0.01, iti=0.01, debug=False):
     '''
@@ -116,9 +116,8 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gain=0,
         Dataframe will be indexed by output channel name and frequency. Columns
         will be rms (in V), snr (in DB) and thd (in percent).
     '''
-    from ..queue import FIFOSignalQueue
-    from ..output import QueuedEpochOutput
-    from ..input import ExtractEpochs
+    if not isinstance(ao_channel_name, str):
+        raise ValueError('Can only specify one output channel')
 
     frequencies = np.asarray(frequencies)
     calibration = FlatCalibration.as_attenuation(vrms=vrms)
@@ -141,9 +140,13 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gain=0,
 
     samples = int(ao_fs*duration)
 
+    if np.isscalar(gains):
+        gains = [gains] * len(frequencies)
+
     # Build the signal queue
     queue = FIFOSignalQueue()
-    for frequency in frequencies:
+    queue.set_fs(ao_fs)
+    for frequency, gain in zip(frequencies, gains):
         factory = ToneFactory(ao_fs, gain, frequency, 0, 1, calibration)
         waveform = factory.next(samples)
         md = {'gain': gain, 'frequency': frequency}

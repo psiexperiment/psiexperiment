@@ -2,16 +2,19 @@ from setuptools import find_packages, setup
 
 
 requirements = [
+    'bcolz',
+    'enaml',
     'json_tricks',
+    'numpy',
     'palettable',
-    'pydaqmx',
+    'pyqtgraph',
+    'scipy',
 ]
 
 
 extras_require = {
-    # coloredlogs - Make logging pretty
-    # pyinstrument - Detailed performance information.
-    'debug': ['coloredlogs', 'pyinstrument'],
+    'ni': ['pydaqmx'],
+    'docs': ['sphinx', 'sphinx_rtd_theme', 'pygments-enaml'],
 }
 
 

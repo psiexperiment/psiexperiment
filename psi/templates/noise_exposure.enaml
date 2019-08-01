@@ -15,20 +15,40 @@ enamldef IOManifest(PluginManifest): manifest:
         point = 'psi.controller.io'
 
         NIDAQEngine:
+            # Each engine must have a unique name.
             name = 'NI'
+
             master_clock = True
 
             hw_ai_monitor_period = 0.1
             hw_ao_monitor_period = 1
 
             NIDAQHardwareAOChannel:
+                # Label as shown in the GUI
                 label = 'Noise exposure speaker'
+
+                # Label as used in the code
                 name = 'speaker'
-                channel = 'Dev1/ao1'
+
+                # Sampling rate the channel runs at. The engine may impose some
+                # constraints on this sampling rate. For example, all analog
+                # output channels configured on a particular NIDAQmx engine
+                # must run at the same sampling rate.
                 fs = 25e3
-                expected_range = (-10, 10)
+
+                # The data type required by the channel.
                 dtype = 'float64'
-                terminal_mode = 'RSE'
+
+                # This is a NIDAQmx-specific feature and is the channel
+                # identifier used by the NIDAQmx library. Channels that
+                # interface with other types of hardware will have their own
+                # method for identifying channels.
+                channel = 'Dev1/ao1'
+
+                # Also a NIDAQmx-specific feature. This allows the NIDAQmx
+                # library to optimize the channel configuration based on the
+                # expected output range. 
+                expected_range = (-10, 10)
 
             NIDAQHardwareAIChannel:
                 label = 'Experiment microphone'

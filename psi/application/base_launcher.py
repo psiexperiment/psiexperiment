@@ -1,6 +1,7 @@
 import logging
 log = logging.getLogger(__name__)
 
+from functools import partial
 import os.path
 from pathlib import Path
 import subprocess
@@ -27,6 +28,9 @@ class SimpleLauncher(Atom):
     experimenter = Unicode()
     note = Unicode()
 
+    experiment_type = Unicode()
+    experiment_choices = List()
+
     root_folder = Typed(Path)
     base_folder = Typed(Path)
     template = '{{date_time}} {experimenter} {note} {experiment}'
@@ -36,6 +40,12 @@ class SimpleLauncher(Atom):
     available_io = List()
     available_calibrations = List()
     available_preferences = List()
+
+    def _default_experiment(self):
+        return self.experiment_choices[0]
+
+    def _default_experiment_choices(self):
+        return get_experiments(self.experiment_type)
 
     def _default_available_io(self):
         return list_io()
@@ -60,6 +70,8 @@ class SimpleLauncher(Atom):
                 self.calibration = self.available_calibrations[0]
 
     def _update_available_preferences(self):
+        if not self.experiment:
+            return
         self.available_preferences = list_preferences(self.experiment)
         if not self.available_preferences:
             self.preferences = None
@@ -154,43 +166,18 @@ class EarLauncher(AnimalLauncher):
         self._update()
 
 
-def main_calibration():
-    experiments = get_experiments('calibration')
+def _launch(klass, experiment_type, root_folder=None):
     app = QtApplication()
-    launcher = SimpleLauncher(root_folder=get_config('CAL_ROOT'),
-                              experiment=experiments[0])
-    view = LauncherView(launcher=launcher, experiments=experiments)
+    if root_folder is None:
+        root_folder = get_config('DATA_ROOT')
+    launcher = klass(root_folder=root_folder, experiment_type=experiment_type)
+    view = LauncherView(launcher=launcher)
     view.show()
     app.start()
 
 
-def main_cohort():
-    experiments = get_experiments('cohort')
-    app = QtApplication()
-    launcher = SimpleLauncher(experiment=experiments[0])
-    view = LauncherView(launcher=launcher, experiments=experiments)
-    view.show()
-    app.start()
-
-
-def main_animal():
-    experiments = get_experiments('animal')
-    app = QtApplication()
-    launcher = AnimalLauncher(experiment=experiments[0])
-    view = LauncherView(launcher=launcher, experiments=experiments)
-    view.show()
-    app.start()
-
-
-def main_ear():
-    experiments = get_experiments('ear')
-    app = QtApplication()
-    launcher = EarLauncher(experiment=experiments[0])
-    view = LauncherView(launcher=launcher, experiments=experiments)
-    view.show()
-    app.start()
-    app.stop()
-
-
-if __name__ == '__main__':
-    main_calibration()
+main_calibration = partial(_launch, SimpleLauncher, 'calibration',
+                           get_config('CAL_ROOT'))
+main_cohort = partial(_launch, SimpleLauncher, 'cohort')
+main_animal = partial(_launch, AnimalLauncher, 'animal')
+main_ear = partial(_launch, EarLauncher, 'ear')

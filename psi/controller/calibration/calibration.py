@@ -498,6 +498,35 @@ class GolayCalibration(InterpCalibration):
         return iir
 
 
+class ChirpCalibration(InterpCalibration):
+
+    source = Typed(Path).tag(metadata=True)
+
+    @staticmethod
+    def load_psi_chirp(folder, output_gain=None):
+        folder = Path(folder)
+        sensitivity = pd.io.parsers.read_csv(folder / 'chirp_summary.csv')
+        if output_gain is None:
+            output_gain = sensitivity['hw_ao_chirp_level'].max()
+
+        m = sensitivity['hw_ao_chirp_level'] == output_gain
+        mic_freq = sensitivity.loc[m, 'frequency'].values
+        mic_sens = sensitivity.loc[m, 'sens'].values
+        mic_phase = sensitivity.loc[m, 'phase'].values
+        source = 'psi_chirp', folder, output_gain
+        return {
+            'source': folder,
+            'frequency': mic_freq,
+            'sensitivity': mic_sens,
+        }
+
+    @classmethod
+    def from_psi_chirp(cls, folder, n_bits=None, output_gain=None, **kwargs):
+        data = cls.load_psi_golay(folder, n_bits, output_gain)
+        data.update(kwargs)
+        return cls(**data)
+
+
 if __name__ == '__main__':
     import doctest
     doctest.testmod()

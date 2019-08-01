@@ -25,3 +25,4 @@ with enaml.imports():
     # Not where ControllerPlugin is defined, but helps simplify imports.
     from .manifest import (ControllerManifest, ControllerPlugin,
                            get_hw_ai_choices, get_hw_ao_choices)
+    from .output_manifest import generate_waveform

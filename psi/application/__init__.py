@@ -188,7 +188,10 @@ def add_default_options(parser):
 def parse_args(parser):
     args = parser.parse_args()
     if args.calibration is None:
-        args.calibration = get_default_calibration(args.io)
+        try:
+            args.calibration = get_default_calibration(args.io)
+        except ValueError as e:
+            log.warn(str(e))
     return args
 
 
@@ -197,7 +200,7 @@ def config():
     import psi
 
     def show_config(args):
-        print(psi.get_config_path())
+        print(psi.get_config_file())
 
     def create_config(args):
         psi.create_config(base_directory=args.base_directory)
@@ -206,6 +209,9 @@ def config():
 
     def create_folders(args):
         psi.create_config_dirs()
+
+    def create_io(args):
+        psi.create_io_manifest()
 
     parser = argparse.ArgumentParser('psi-config')
     subparsers = parser.add_subparsers(dest='cmd')
@@ -220,6 +226,9 @@ def config():
 
     make = subparsers.add_parser('create-folders')
     make.set_defaults(func=create_folders)
+
+    io = subparsers.add_parser('create-io')
+    io.set_defaults(func=create_io)
 
     args = parser.parse_args()
     args.func(args)
