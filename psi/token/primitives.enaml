@@ -483,7 +483,6 @@ class ToneFactory(Carrier):
         # Note. At least for 5 msec tones it's faster to just compute the array
         # rather than cache the result.
         t = (np.arange(samples, dtype=np.double) + self.offset)/self.fs
-        print(self.polarity, self.sf, self.frequency, self.phase)
         waveform = self.polarity*self.sf*np.cos(2*np.pi*t*self.frequency + self.phase)
         self.offset += samples
         return waveform
