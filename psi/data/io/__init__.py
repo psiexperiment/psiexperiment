@@ -9,6 +9,10 @@ import pandas as pd
 from scipy import signal
 
 
+def get_unique_columns(df, exclude=None):
+    return [c for c in df if (len(df[c].unique()) > 1) and (c not in exclude)]
+
+
 class Recording:
 
     def __init__(self, base_path):
