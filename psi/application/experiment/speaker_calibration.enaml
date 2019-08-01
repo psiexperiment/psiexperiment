@@ -12,7 +12,7 @@ from psi.controller.api import (ControllerManifest, Blocked, ExperimentAction,
 
 from psi.data.sinks.api import BColzStore, TextStore
 
-from psi.data.plots import (TimeContainer,
+from psi.data.plots import (EpochTimeContainer,
                             ChannelPlot,
                             GroupedEpochAveragePlot,
                             ChannelPlot, ViewBox,
@@ -138,14 +138,11 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
         id = EXPERIMENT + '.plots'
         point = 'psi.data.plots'
 
-        TimeContainer:
+        EpochTimeContainer:
             name = 'epoch_container'
             label = 'Signal'
-            span = 1/50.0
 
             ViewBox:
-                y_min = -0.6
-                y_max = 0.6
                 label = 'Signal (V)'
 
                 GroupedEpochAveragePlot: ea_plot:
@@ -163,14 +160,10 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
 
             ViewBox:
                 name = 'spl_result'
-                y_min = 0
-                y_max = 120
                 label = 'Speaker output (dB SPL)'
 
             ViewBox:
                 name = 'sens_result'
-                y_min = -40
-                y_max = 40
                 label = 'Speaker sensitivity (dB SPL/V)'
 
         FFTContainer:
@@ -180,9 +173,6 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
             freq_ub = 50000
 
             ViewBox:
-                y_min = -160
-                y_max = -40
-
                 GroupedEpochFFTPlot:
                     name = 'epoch_psd_average'
                     label = 'PSD'

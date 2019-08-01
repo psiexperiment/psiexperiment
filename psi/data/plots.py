@@ -54,7 +54,7 @@ def make_color(color):
 ################################################################################
 # Supporting classes
 ################################################################################
-class ChannelDataRange(Atom):
+class BaseDataRange(Atom):
 
     container = Typed(object)
 
@@ -64,15 +64,12 @@ class ChannelDataRange(Atom):
     # Delay before clearing window once data has "scrolled off" the window.
     delay = Float(0)
 
-    # Automatically updated. Indicates last "seen" time based on all data
-    # sources reporting to this range.
-    current_time = Float(0)
-
     # Current visible data range
     current_range = Tuple(Float(), Float())
 
-    current_samples = Typed(defaultdict, (int,))
-    current_times = Typed(defaultdict, (float,))
+    def add_source(self, source):
+        cb = partial(self.source_added, source=source)
+        source.add_callback(cb)
 
     def _default_current_range(self):
         return 0, self.span
@@ -80,20 +77,44 @@ class ChannelDataRange(Atom):
     def _observe_delay(self, event):
         self._update_range()
 
-    def _observe_current_time(self, event):
+    def _observe_span(self, event):
         self._update_range()
 
-    def _observe_span(self, event):
+    def _update_range(self):
+        raise NotImplementedError
+
+class EpochDataRange(BaseDataRange):
+
+    max_duration = Float()
+
+    def source_added(self, data, source):
+        n = [len(d['signal']) for d in data]
+        max_duration = max(n) / source.fs
+        self.max_duration = max(max_duration, self.max_duration)
+
+    def _observe_max_duration(self, event):
+        self._update_range()
+
+    def _update_range(self):
+        self.current_range = 0, self.max_duration
+
+
+class ChannelDataRange(BaseDataRange):
+
+    # Automatically updated. Indicates last "seen" time based on all data
+    # sources reporting to this range.
+    current_time = Float(0)
+
+    current_samples = Typed(defaultdict, (int,))
+    current_times = Typed(defaultdict, (float,))
+
+    def _observe_current_time(self, event):
         self._update_range()
 
     def _update_range(self):
         low_value = (self.current_time//self.span)*self.span - self.delay
         high_value = low_value+self.span
         self.current_range = low_value, high_value
-
-    def add_source(self, source):
-        cb = partial(self.source_added, source=source)
-        source.add_callback(cb)
 
     def add_event_source(self, source):
         cb = partial(self.event_source_added, source=source)
@@ -208,15 +229,13 @@ class PlotContainer(BasePlotContainer):
         deferred_call(self.format_container)
 
 
-class TimeContainer(BasePlotContainer):
+class BaseTimeContainer(BasePlotContainer):
     '''
     Contains one or more viewboxes that share the same time-based X-axis
     '''
-    data_range = Typed(ChannelDataRange)
+    data_range = Typed(BaseDataRange)
     span = d_(Float(1))
     delay = d_(Float(0.25))
-
-    pixel_width = Float()
 
     def _default_container(self):
         container = super()._default_container()
@@ -225,10 +244,6 @@ class TimeContainer(BasePlotContainer):
         self.data_range.observe('current_range', self.update)
         return container
 
-    def _default_data_range(self):
-        return ChannelDataRange(container=self, span=self.span,
-                                delay=self.delay)
-
     def _default_x_axis(self):
         x_axis = super()._default_x_axis()
         x_axis.setLabel('Time', unitPrefix='sec.')
@@ -236,11 +251,26 @@ class TimeContainer(BasePlotContainer):
 
     def update(self, event=None):
         low, high = self.data_range.current_range
-        current_time = self.data_range.current_time
-        for child in self.children:
-            child.update()
         deferred_call(self.base_viewbox.setXRange, low, high, padding=0)
         super().update()
+
+
+class TimeContainer(BaseTimeContainer):
+
+    def _default_data_range(self):
+        return ChannelDataRange(container=self, span=self.span,
+                                delay=self.delay)
+
+    def update(self, event=None):
+        for child in self.children:
+            child.update()
+        super().update()
+
+
+class EpochTimeContainer(BaseTimeContainer):
+
+    def _default_data_range(self):
+        return EpochDataRange(container=self, span=self.span, delay=self.delay)
 
 
 def format_log_ticks(values, scale, spacing):
@@ -303,7 +333,6 @@ class CustomGraphicsViewBox(pg.ViewBox):
             elif self.y_mode == 'upper':
                 self.y_max *= s
             self.setYRange(self.y_min, self.y_max)
-
         self.sigRangeChangedManually.emit(self.state['mouseEnabled'])
         ev.accept()
 
@@ -324,6 +353,7 @@ class ViewBox(PSIContribution):
     y_axis = Typed(pg.AxisItem)
 
     y_mode = d_(Enum('symmetric', 'upper'))
+
     y_min = d_(Float())
     y_max = d_(Float())
 
@@ -385,8 +415,6 @@ class ViewBox(PSIContribution):
         This is typically used in post-processing routines to add static plots
         to existing view boxes.
         '''
-        log.debug(x)
-        log.debug(y)
         if log_x:
             x = np.log10(x)
         if log_y:
@@ -714,6 +742,7 @@ class GroupMixin(Declarative):
     _data_cache = Typed(object)
     _data_count = Typed(object)
     _data_updated = Typed(object)
+    _data_n_samples = Typed(object)
 
     _pen_color_cycle = Typed(object)
     _plot_colors = Typed(object)
@@ -751,6 +780,7 @@ class GroupMixin(Declarative):
         self._data_cache = defaultdict(list)
         self._data_count = defaultdict(int)
         self._data_updated = defaultdict(int)
+        self._data_n_samples = defaultdict(int)
 
         if isinstance(self.pen_color_cycle, str):
             self._pen_color_cycle = get_color_cycle(self.pen_color_cycle)
@@ -796,9 +826,14 @@ class GroupMixin(Declarative):
 
 class EpochGroupMixin(GroupMixin):
 
+    duration = Float()
+
     def _y(self, epoch):
         return np.mean(epoch, axis=0) if len(epoch) \
             else np.full_like(self._x, np.nan)
+
+    def _update_duration(self, event=None):
+        self.duration = self.source.duration
 
     def _epochs_acquired(self, epochs):
         for d in epochs:
@@ -809,17 +844,24 @@ class EpochGroupMixin(GroupMixin):
                 self._data_cache[key].append(signal)
                 self._data_count[key] += 1
 
+                # Track number of samples
+                n = max(self._data_n_samples[key], len(signal))
+                self._data_n_samples[key] = n
+
         # Does at least one epoch need to be updated?
         for key, count in self._data_count.items():
             if count >= self._data_updated[key] + self.n_update:
+                n = max(self._data_n_samples.values())
+                self.duration = n / self.source.fs
                 self.update()
                 break
 
     def _observe_source(self, event):
         if self.source is not None:
             self.source.add_callback(self._epochs_acquired)
+            self.source.observe('duration', self._update_duration)
             self.source.observe('fs', self._cache_x)
-            self.source.observe('duration', self._cache_x)
+            self.observe('duration', self._cache_x)
             self._reset_plots()
             self._cache_x()
 
@@ -844,12 +886,17 @@ class GroupedEpochAveragePlot(EpochGroupMixin, BasePlot):
 
     def _cache_x(self, event=None):
         # Set up the new time axis
-        if self.source.fs and self.source.duration:
-            n_time = round(self.source.fs * self.source.duration)
+        if self.source.fs and self.duration:
+            n_time = round(self.source.fs * self.duration)
             self._x = np.arange(n_time)/self.source.fs
 
     def _default_name(self):
         return self.source_name + '_grouped_epoch_average_plot'
+
+    def _observe_source(self, event):
+        super()._observe_source(event)
+        if self.source is not None:
+            self.parent.data_range.add_source(self.source)
 
 
 class GroupedEpochFFTPlot(EpochGroupMixin, BasePlot):
@@ -860,13 +907,12 @@ class GroupedEpochFFTPlot(EpochGroupMixin, BasePlot):
     def _cache_x(self, event=None):
         # Cache the frequency points. Must be in units of log for PyQtGraph.
         # TODO: This could be a utility function stored in the parent?
-        if self.source.fs and self.source.duration:
-            self._x = get_x_fft(self.source.fs, self.source.duration)
+        if self.source.fs and self.duration:
+            self._x = get_x_fft(self.source.fs, self.duration)
 
     def _y(self, epoch):
         y = np.mean(epoch, axis=0) if epoch else np.full_like(self._x, np.nan)
         return self.source.calibration.get_spl(self._x, util.psd(y, self.source.fs))
-        #return util.db(util.psd(y, self.source.fs))
 
 
 class GroupedEpochPhasePlot(EpochGroupMixin, BasePlot):
@@ -879,8 +925,8 @@ class GroupedEpochPhasePlot(EpochGroupMixin, BasePlot):
     def _cache_x(self, event=None):
         # Cache the frequency points. Must be in units of log for PyQtGraph.
         # TODO: This could be a utility function stored in the parent?
-        if self.source.fs and self.source.duration:
-            self._x = get_x_fft(self.source.fs, self.source.duration)
+        if self.source.fs and self.duration:
+            self._x = get_x_fft(self.source.fs, self.duration)
 
     def _y(self, epoch):
         y = np.mean(epoch, axis=0) if epoch else np.full_like(self._x, np.nan)
