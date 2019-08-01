@@ -33,11 +33,11 @@ def accumulate_actions(plugin):
 def accumulate_io(plugin):
     accumulator = ['Configured IO']
     for channel in plugin._channels.values():
-        accumulator.append(channel.name)
+        accumulator.append('Channel: {}'.format(channel.name))
     for output in plugin._outputs.values():
-        accumulator.append(output.name)
+        accumulator.append('Output: {}'.format(output.name))
     for input in plugin._inputs.values():
-        accumulator.append(input.name)
+        accumulator.append('Input: {}'.format(input.name))
     return('\n\t'.join(accumulator))
 
 
