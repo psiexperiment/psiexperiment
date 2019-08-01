@@ -155,9 +155,15 @@ class Engine(PSIContribution):
     def get_offset(self, channel_name):
         raise NotImplementedError
 
+    def update_hw_ao_multiple(self, offsets, channel_names, method):
+        raise NotImplementedError
+
+    def update_hw_ao(self, offsets, channel_name, method):
+        raise NotImplementedError
+
     def clone(self, channel_names=None):
         '''
-        Return a copy of this engine with specified channels incldued
+        Return a copy of this engine with specified channels included
 
         This is intended as a utility function to assist various routines that
         may need to do a quick operation before starting the experiment. For
