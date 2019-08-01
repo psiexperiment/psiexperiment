@@ -98,6 +98,8 @@ enamldef SingleSettingManifest(BaseSelectorManifest): manifest:
 class SequenceTable(EditableTable):
 
     selector = d_(Typed(selector_classes.SequenceSelector))
+    select_behavior = 'rows'
+    select_mode = 'extended'
 
     def _observe_selector(self, event):
         self.selector.observe('updated', self._check_and_reset_model)
@@ -140,7 +142,6 @@ enamldef SequenceSelectorContainer(Container): container:
     attr selector
 
     Container:
-
         constraints = [
             vbox(
                 hbox(order_label, order, spacer, add, sort),

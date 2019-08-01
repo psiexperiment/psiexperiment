@@ -1,6 +1,9 @@
 #----------------------------------------------------------------------------
 #  Adapted from BSD-licensed module used by Enthought, Inc.
 #----------------------------------------------------------------------------
+import logging
+log = logging.getLogger(__name__)
+
 import pandas as pd
 
 from atom.api import (Typed, set_default, observe, Enum, Event, Property,
@@ -230,7 +233,7 @@ class EditableTable(RawWidget):
     live_edit = Typed(LiveEdit, {})
 
     select_behavior = d_(Enum('items', 'rows', 'columns'))
-    select_mode = d_(Enum(None, 'single', 'contiguous', 'extended', 'multi'))
+    select_mode = d_(Enum('single', 'contiguous', 'extended', 'multi', None))
 
     def get_column_attribute(self, column_name, attribute, default,
                              raise_error=False):
