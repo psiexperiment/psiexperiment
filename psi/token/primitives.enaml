@@ -255,7 +255,7 @@ def sam_envelope(offset, samples, fs, depth, fm, delay, eq_phase, eq_power):
     sam_n = samples-delay_n
 
     sam_offset = offset-delay_n
-    t = (np.arange(sam_n, dtype=np.float32) + sam_offset)/fs
+    t = (np.arange(sam_n, dtype=np.double) + sam_offset)/fs
     sam_envelope = depth/2.0*np.cos(2.0*np.pi*fm*t+eq_phase)+1.0-depth/2.0
 
     # Ensure that we scale the waveform so that the total power remains equal
@@ -482,7 +482,8 @@ class ToneFactory(Carrier):
     def next(self, samples):
         # Note. At least for 5 msec tones it's faster to just compute the array
         # rather than cache the result.
-        t = (np.arange(samples, dtype=np.float32) + self.offset)/self.fs
+        t = (np.arange(samples, dtype=np.double) + self.offset)/self.fs
+        print(self.polarity, self.sf, self.frequency, self.phase)
         waveform = self.polarity*self.sf*np.cos(2*np.pi*t*self.frequency + self.phase)
         self.offset += samples
         return waveform
