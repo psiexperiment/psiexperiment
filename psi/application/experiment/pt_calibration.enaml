@@ -30,12 +30,12 @@ from psi.token.primitives import Chirp
 
 from psi.data.sinks.api import BColzStore, TextStore
 
-from psi.data.plots import (TimeContainer, ChannelPlot,
+from psi.data.plots import (EpochTimeContainer, ChannelPlot,
                             GroupedEpochAveragePlot, ChannelPlot, ViewBox,
                             FFTContainer, GroupedEpochFFTPlot)
 
 
-from psi.controller.calibration import FlatCalibration, InterpCalibration
+from psi.controller.calibration.api import FlatCalibration, InterpCalibration
 from psi.util import octave_space
 
 
@@ -48,6 +48,7 @@ def configure_hardware_golay(event):
     '''
     context = event.workbench.get_plugin('psi.context')
     controller = event.workbench.get_plugin('psi.controller')
+    output = controller.get_output('hw_ao')
 
     for setting in context.iter_settings('default', 1):
         n = setting['n_bits']
@@ -108,7 +109,8 @@ def calculate_sens(event, grouping, filename, calc_sens):
 def calculate_sens_chirp(event):
     result = calculate_sens(event, ['hw_ao_chirp_level'], 'chirp_sensitivity',
                    calculate_group_sens_chirp)
-    validate_sens(event, result.loc[-40].reset_index())
+    max_gain = result.index.get_level_values('hw_ao_chirp_level').max()
+    validate_sens(event, result.loc[max_gain].reset_index())
 
 
 def calculate_sens_golay(event):
@@ -255,7 +257,7 @@ def validate_sens(event, sens):
         freq_lb = 100
         freq_ub = 50000
 
-    frequencies = octave_space(freq_lb*1e-3, freq_ub*1e-3, 0.5)*1e3
+    frequencies = octave_space(freq_lb*1e-3, freq_ub*1e-3, 0.125)*1e3
 
     ai_channels = [pt_channel, cal_channel]
     result = tone_sens(ao.engine, frequencies, gain=-50,
@@ -272,7 +274,7 @@ def validate_sens(event, sens):
 
     deferred_call(plot_data)
     parameters = {'name': 'tone_sensitivity', 'dataframe': result}
-    core.invoke_command('calibration_data.create_table', parameters=parameters)
+    core.invoke_command('calibration_data.save_dataframe', parameters=parameters)
 
 
 enamldef PTManifest(ControllerManifest): manifest:
@@ -408,7 +410,7 @@ enamldef PTManifest(ControllerManifest): manifest:
         id = 'plots'
         point = 'psi.data.plots'
 
-        TimeContainer:
+        EpochTimeContainer:
             name = 'epoch_container_signal'
             label = 'Epoch average (signal)'
             span = 0.01
@@ -434,32 +436,6 @@ enamldef PTManifest(ControllerManifest): manifest:
                     source_name = 'cal_epoch'
                     pen_color_cycle = ['black', 'red']
                     groups << epoch_groups
-
-        #FFTContainer:
-        #    name = 'epoch_container_psd'
-        #    label = 'Epoch average (PSD)'
-        #    freq_lb = 50.0
-        #    freq_ub = 50000
-
-        #    ViewBox:
-        #        label = 'Signal (dB re 1V)'
-        #        y_min = -160
-        #        y_max = -50
-
-        #        GroupedEpochFFTPlot:
-        #            source_name = 'pt_epoch'
-        #            pen_color_cycle = ['black', 'red']
-        #            groups << epoch_groups
-
-        #    ViewBox:
-        #        label = 'Signal (dB re 1V)'
-        #        y_min = -160
-        #        y_max = -50
-
-        #        GroupedEpochFFTPlot:
-        #            source_name = 'cal_epoch'
-        #            pen_color_cycle = ['black', 'red']
-        #            groups << epoch_groups
 
         FFTContainer:
             name = 'calibration_result'
@@ -504,8 +480,10 @@ enamldef ChirpControllerManifest(PTManifest): manifest:
             target ::
                 controller = workbench.get_plugin('psi.controller')
                 channel.calibration = FlatCalibration.as_attenuation()
-                controller.set_input_attr('pt_epoch', 'queue', queue)
-                controller.set_input_attr('cal_epoch', 'queue', queue)
+                pt_epoch = controller.get_input('pt_epoch')
+                cal_epoch = controller.get_input('cal_epoch')
+                self.connect(pt_epoch.queue.append)
+                self.connect(cal_epoch.queue.append)
 
     Extension:
         id = 'calibration_commands'
@@ -531,8 +509,10 @@ enamldef GolayControllerManifest(PTManifest): manifest:
             target ::
                 controller = workbench.get_plugin('psi.controller')
                 channel.calibration = FlatCalibration.as_attenuation()
-                controller.set_input_attr('pt_epoch', 'queue', queue)
-                controller.set_input_attr('cal_epoch', 'queue', queue)
+                pt_epoch = controller.get_input('pt_epoch')
+                cal_epoch = controller.get_input('cal_epoch')
+                self.connect(pt_epoch.queue.append)
+                self.connect(cal_epoch.queue.append)
 
     Extension:
         id = 'context_golay'
