@@ -240,8 +240,8 @@ enamldef ABRInEarCalibrationMixinManifest(PluginManifest): manifest:
         ToneCalibrate:
             name = 'abr_tone_calibration'
             label = 'ABR tones'
-            input_name = 'microphone'
-            outputs = {'primary': ['target_tone_frequency']}
+            input_name = 'microphone_channel'
+            outputs = {'target': ['target_tone_frequency']}
             gain = -40
             max_thd = None
             min_snr = 5
