@@ -315,7 +315,7 @@ enamldef ChirpMixin(PluginManifest): manifest:
                 log.debug('Connecting to epoch')
                 controller = workbench.get_plugin('psi.controller')
                 epoch = controller.get_input('epoch')
-                epoch.poststim_time = 0.01
+                epoch.poststim_time = 0
                 self.connect(epoch.queue.append)
             target ::
                 channel.calibration = FlatCalibration.as_attenuation()
