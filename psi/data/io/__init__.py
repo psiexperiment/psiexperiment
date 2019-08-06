@@ -55,7 +55,8 @@ class Signal:
 
     def get_epochs(self, md, offset, duration, detrend=None, columns='auto'):
         fn = self.get_segments
-        return self._get_epochs(fn, md, offset, duration, columns=columns)
+        return self._get_epochs(fn, md, offset, duration, detrend=detrend,
+                                columns=columns)
 
     def get_epochs_filtered(self, md, offset, duration, filter_lb, filter_ub,
                             filter_order=1, detrend='constant',

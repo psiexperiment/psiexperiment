@@ -69,7 +69,8 @@ def _get_file_template(fh, offset, duration, filter_settings, suffix=None):
 
 def _get_epochs(fh, offset, duration, filter_settings, reject_ratio=None):
     # We need to do the rejects in this code so that we can obtain the
-    # information for generating the CSV files.
+    # information for generating the CSV files. Set reject_threshold to np.inf
+    # to ensure that nothing gets rejected.
     kwargs = {'offset': offset, 'duration': duration, 'columns': columns,
               'reject_threshold': np.inf}
     if filter_settings == 'saved':
