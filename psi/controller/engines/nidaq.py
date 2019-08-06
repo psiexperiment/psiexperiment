@@ -12,7 +12,7 @@ ways. In general, the only portion of the code you should use in third-party
 modules is the `Engine` class. This will serve as the sole communication layer
 between the NI hardware and your application. By doing so, this ensures a
 sufficient layer of abstraction that helps switch between DAQ hardware from
-different vendors (including Measurement Computing and OpenElec).
+different vendors provided that the appropriate interface is written.
 '''
 
 import logging
