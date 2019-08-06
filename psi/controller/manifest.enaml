@@ -58,7 +58,7 @@ def start_experiment(event):
         controller.start_experiment()
     except Exception as e:
         log.exception(e)
-        critical(None, 'Error starting experiment', e.args[0].strip())
+        critical(None, 'Error starting experiment', str(e).strip())
 
 
 def invoke_actions(event):
