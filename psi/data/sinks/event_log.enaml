@@ -1,41 +1,53 @@
-from enaml.widgets.api import DockItem, Container
+from enaml.core.api import Conditional
+from enaml.widgets.api import Container, DockItem
 from enaml.workbench.api import Extension
 
-from psi.core.enaml.api import PSIManifest, DataframeTable
-from psi.experiment.preferences import ItemPreferences
-from ..sink import Sink
+from psi.controller.api import ExperimentAction
+from psi.core.enaml.api import ListDictTable
+from psi.experiment.api import ItemPreferences
+from .table_store import TableStore, TableStoreManifest
 
-
-class EventLog(Sink):
+class EventLog(TableStore):
+    
     name = 'event_log'
-    title = 'Event log'
-    manifest = __name__ + '.EventLogManifest'
+    label= 'Event Log'
 
 
-enamldef EventLogManifest(PSIManifest): manifest:
-
-    Extension:
-        id = 'workspace'
-        point = 'psi.experiment.workspace'
-
-        DockItem:
-            closable = False
-            name << manifest.contribution.name
-            title << manifest.contribution.title
-
-            Container:
-                DataframeTable: event_log_table:
-                    dataframe << workbench.get_plugin('psi.data').event_log
-                    columns = ['timestamp', 'event']
-                    column_info = { 
-                        'timestamp': 'Time (sec)',
-                        'event': 'Event',
-                    }
+enamldef EventLogManifest(TableStoreManifest): manifest:
 
     Extension:
-        id = 'preferences'
-        point = 'psi.experiment.preferences'
-        ItemPreferences:
-            item << event_log_table
-            name << manifest.contribution.name
-            auto_save = ['column_widths']
+        id = manifest.id + '.event_log_actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'experiment_event'
+            command = contribution.name + '.save'
+
+    Conditional:
+        condition << manifest.contribution.show_widget
+
+        Extension:
+            id = manifest.id + '.event_log_workspace'
+            point = 'psi.experiment.workspace'
+
+            DockItem:
+                closable = False
+                name << manifest.contribution.name
+                title << manifest.contribution.label
+
+                Container:
+                    ListDictTable: table:
+                        data << manifest.contribution._data[:]
+                        columns = ['event', 'timestamp']
+                        column_info = {
+                            'event': {'label': 'Event'}, 
+                            'timestamp': {'label': 'Time', 'to_string': '{:.2f}'.format}
+                        }
+
+        Extension:
+            id = manifest.id + '.preferences'
+            point = 'psi.experiment.preferences'
+            ItemPreferences:
+                item << table
+                name << manifest.contribution.name
+                auto_save = ['column_widths']

@@ -1,0 +1,150 @@
+import numpy as np
+
+from enaml.workbench.api import Extension, Plugin
+from enaml.workbench.core.api import Command
+
+from psi.context.api import (ContextGroup, Parameter, Result, Parameter,
+                             SequenceSelector)
+from psi.controller.api import (ControllerManifest, Blocked, Downsample,
+                                ExperimentAction, ExperimentEvent,
+                                ExperimentState, ExtractEpochs,
+                                HardwareAIChannel, HardwareAOChannel,
+                                IIRFilter, QueuedEpochOutput)
+
+from psi.controller.calibration.api import PointCalibration
+from psi.controller.engines.null import NullEngine
+from psi.controller.engines.nidaq import NIDAQHardwareAOChannel
+from psi.token.primitives import Cos2Envelope, Tone
+
+
+EVENT_RESULTS = []
+
+
+def store_result(event):
+    global EVENT_RESULTS
+    EVENT_RESULTS.append(event.parameters['result'])
+
+
+enamldef HelperManifest(ControllerManifest): manifest:
+
+    Extension:
+        id = 'helper_io'
+        point = 'psi.controller.io'
+
+        NullEngine:
+
+            HardwareAIChannel:
+                name = 'microphone'
+                fs = 200e3
+                calibration = PointCalibration([1000, 2000], [1, 1])
+                expected_range = (-5, 5)
+                dtype = 'float32'
+
+                Blocked:
+                    duration = 0.25
+
+                    Downsample:
+                        q = 2
+
+                        IIRFilter:
+                            name = 'microphone_filtered'
+                            N = 4
+                            f_lowpass = 40000
+                            f_highpass = 400
+
+                        IIRFilter:
+                            name = 'microphone_dc'
+                            N = 4
+                            f_lowpass = 100
+
+                            ExtractEpochs: extract:
+                                pass
+
+            HardwareAOChannel:
+                name = 'speaker_0'
+                fs = 200e3
+
+            NIDAQHardwareAOChannel:
+                name = 'speaker_1'
+                fs = 200e3
+
+            HardwareAOChannel:
+                name = 'speaker_2'
+                fs = 200e3
+                filter_delay = 1e-3
+
+    Extension:
+        id = 'helper_items'
+        point = 'psi.context.items'
+        ContextGroup:
+            name = 'default'
+
+        Parameter:
+            name = 'repetitions'
+            default = 80
+            group_name = 'default'
+        Parameter:
+            name = 'level'
+            default = 60.0
+            group_name = 'default'
+        Parameter:
+            name = 'fc'
+            expression = '32e3/repetitions'
+            dtype = 'float64'
+            group_name = 'default'
+
+    Extension:
+        id = 'selectors'
+        point = 'psi.context.selectors'
+        SequenceSelector:
+            name = 'default'
+            order = 'ascending'
+
+    Extension:
+        id = 'helper_commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = 'store_result'
+            handler = store_result
+
+    Extension:
+        id = 'helper_actions'
+        point = 'psi.controller.actions'
+        ExperimentState:
+            name = 'trial'
+        ExperimentEvent:
+            name = 'dispense'
+
+        ExperimentAction:
+            event = 'dispense'
+            command = 'store_result'
+            kwargs = {'result': event}
+
+        ExperimentAction:
+            event = 'trial_start'
+            command = 'store_result'
+            kwargs = {'result': event}
+
+        ExperimentAction:
+            event = 'trial_end'
+            command = 'store_result'
+            kwargs = {'result': event}
+
+        ExperimentAction:
+            event = 'trial_active and dispense'
+            command = 'store_result'
+            kwargs = {'result': event}
+
+        ExperimentAction:
+            event = 'not trial_active and dispense'
+            command = 'store_result'
+            kwargs = {'result': event}
+
+    Extension:
+        id = 'helper_tokens'
+        point = 'psi.token.tokens'
+
+        Cos2Envelope: tone_burst:
+            name = 'tone_burst'
+            Tone:
+                pass

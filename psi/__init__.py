@@ -1,4 +1,7 @@
 import logging
+import os
+from pathlib import Path
+
 from atom.api import Event
 
 
@@ -36,25 +39,69 @@ class SimpleState(object):
             setattr(self, key, value)
 
 
+def get_config_folder():
+    user_path = Path('~') / 'psi'
+    return user_path.expanduser()
+
+
+def get_config_file():
+    default = get_config_folder() / 'config.py'
+    return Path(os.environ.get('PSI_CONFIG', default))
+
+
+def create_config(base_directory=None):
+    config_template = Path(__file__).parent / 'templates' / 'config.txt'
+    target = get_config_file()
+    target.parent.mkdir(exist_ok=True, parents=True)
+
+    if base_directory is None:
+        base_directory = str(target.parent)
+
+    config_text = config_template.read_text()
+    config_text = config_text.format(base_directory)
+    target.write_text(config_text)
+
+
+def create_io_manifest():
+    io_template = Path(__file__).parent / 'templates' / 'io.txt'
+    system = get_config('SYSTEM')
+    io = Path(get_config('IO_ROOT')) / system
+    io = io.with_suffix('.enaml')
+    io.parent.mkdir(exist_ok=True, parents=True)
+
+    io_text = io_template.read_text().format(system)
+    io.write_text(io_text)
+
+
+def create_config_dirs():
+    config = load_config()
+    for name, value in vars(config).items():
+        if name.endswith('_ROOT'):
+            Path(value).mkdir(exist_ok=True, parents=True)
+
+
 def load_config():
     # Load the default settings
+    import importlib.util
     from os import environ
     from . import config
-    try:
-        # Load the computer-specific settings
-        path = environ['PSIEXPERIMENT_SETTINGS']
-        import imp
-        from os.path import dirname
-        extra_settings = imp.load_module('settings', open(path), dirname(path),
-                                         ('.py', 'r', imp.PY_SOURCE))
-        # Update the setting defaults with the computer-specific settings
-        for setting in dir(extra_settings):
-            value = getattr(extra_settings, setting)
-            setattr(config, setting, value)
-    except KeyError:
-        log.debug('No PSIEXPERIMENT_SETTINGS defined')
-    except IOError:
-        log.debug('%s file defined by PSIEXPERIMENT_SETTINGS is missing', path)
+
+    config_path = get_config_file()
+    if config_path.exists():
+        try:
+            spec = importlib.util.spec_from_file_location('settings', config_path)
+            module = importlib.util.module_from_spec(spec)
+            spec.loader.exec_module(module)
+            for name, value in vars(module).items():
+                if name == name.upper():
+                    setattr(config, name, value)
+        except Exception as e:
+            log.exception(e)
+
+    for name, value in vars(config).items():
+        if name == name.upper():
+            log.debug('CONFIG %s : %r', name, value)
+
     return config
 
 _config = load_config()
@@ -77,3 +124,16 @@ def get_config(setting=None):
         setting_names = [s for s in dir(_config) if s.upper() == s]
         setting_values = [getattr(_config, s) for s in setting_names]
         return dict(zip(setting_names, setting_values))
+
+
+# Monkeypatch built-in JSON library to better handle special types. The
+# json-tricks library handles quite a few different types of Python objects
+# fairly well. This ensures that third-party libraries (e.g., bcolz) that see
+# psiexperiment data structures can properly deal with them.
+import json
+import json_tricks
+
+for fn_name in ('dump', 'dumps', 'load', 'loads'):
+    fn = getattr(json_tricks, fn_name)
+    setattr(json, fn_name, fn)
+log.debug('Monkeypatched system JSON')

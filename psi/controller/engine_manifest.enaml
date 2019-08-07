@@ -1,0 +1,13 @@
+from enaml.workbench.api import Extension
+
+from psi.core.enaml.api import PSIManifest
+from .experiment_action import ExperimentState
+
+
+enamldef EngineManifest(PSIManifest): manifest:
+
+    Extension:
+        id = 'actions.' + manifest.contribution.name
+        point = 'psi.controller.actions'
+        ExperimentState:
+            name = manifest.contribution.name

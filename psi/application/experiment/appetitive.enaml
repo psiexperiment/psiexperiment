@@ -4,49 +4,56 @@ log = logging.getLogger(__name__)
 import numpy as np
 
 from enaml.workbench.api import Extension
-from enaml.workbench.core.api import Command
-from enaml.workbench.ui.api import Branding
-
-from psi.controller.appetitive_manifest import AppetitiveManifest
-from psi.controller.api import (ExperimentState, ExperimentAction,
-                                ContinuousOutput, EpochOutput)
-
-from psi.context.api import ContextGroup, Parameter
-from psi.data.plots import (TimeContainer, ChannelPlot, TimeseriesPlot,
-                            ExtremesChannelPlot, FFTContainer, FFTChannelPlot)
-
-from psi.data.sinks.event_log import EventLog
-from psi.data.sinks.trial_log import TrialLog
-from psi.data.sinks.sdt_analysis import SDTAnalysis
 
 
-enamldef ControllerManifest(AppetitiveManifest): manifest:
+from psi.controller.api import (CalibratedInput, ContinuousOutput, EpochOutput,
+                                ExperimentAction, IIRFilter)
+from psi.data.plots import (EventPlot, FFTContainer, FFTChannelPlot, TimeContainer,
+                            ChannelPlot, ViewBox, TimeseriesPlot)
+from psi.token.primitives import (BandlimitedNoise, Cos2Envelope, SAMEnvelope,
+                                  Silence)
+from .behavior_base import BehaviorManifest
+
+
+enamldef ControllerManifest(BehaviorManifest): manifest:
 
     id = 'psi.controller'
+    window_title = 'Appetitive Go-Nogo'
 
     Extension:
-        id = 'branding'
-        point = 'enaml.workbench.ui.branding'
-        Branding:
-            title = 'Appetitive Go-Nogo'
+        id = 'tokens'
+        point = 'psi.token.tokens'
+
+        Silence:
+            name = 'silence'
+            label = 'Silence'
+
+        BandlimitedNoise:
+            name = 'continuous_bandlimited_noise'
+            label = 'Continuous bandlimited noise'
+
+        Cos2Envelope:
+            name = 'bandlimited_sam_noise'
+            label = 'Bandlimited SAM noise'
+            SAMEnvelope:
+                BandlimitedNoise:
+                    pass
+
+        Cos2Envelope:
+            name = 'bandlimited_sam_silence'
+            label = 'Bandlimited SAM silence'
+            SAMEnvelope:
+                Silence:
+                    pass
 
     Extension:
         id = 'actions'
         point = 'psi.controller.actions'
         rank = 100
-        
-        # Experiment-level actions
-        ExperimentAction:
-            event = 'experiment_prepare'
-            command = 'background.prepare'
 
         ExperimentAction:
             event = 'experiment_prepare'
-            command = 'pupil_camera.start'
-
-        ExperimentAction:
-            event = 'experiment_prepare'
-            command = 'behavior_camera.start'
+            command = 'background.start'
 
         ExperimentAction:
             event = 'experiment_start'
@@ -56,20 +63,13 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             event = 'experiment_end'
             command = 'room_light_toggle.on'
 
-        ExperimentAction:
-            event = 'experiment_end'
-            command = 'pupil_camera.stop'
-
-        ExperimentAction:
-            event = 'experiment_end'
-            command = 'behavior_camera.stop'
-
         # Trial-level actions
         ExperimentAction:
             # Since generating the token can be expensive in terms of
             # computation, prepare this in advance as soon as possible. 
-            event = 'trial_prepare'
+            event = 'experiment_prepare or trial_prepare'
             command = 'target.prepare'
+            kwargs = {'cache': True}
 
         ExperimentAction:
             # The operations required to actually generate and upload the token
@@ -77,27 +77,12 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             event = 'trial_start'
             command = 'target.start'
             kwargs = {'delay': 0.25}
-            #concurrent = True
             weight = 0
-
-        # By the time this happens, the animal may already have pulled out of
-        # the nose-poke, so we are going to capture a series of images at
-        # various timeponits and see which one gives us the cleanest image..
-        ExperimentAction:
-            event = 'np_start'
-            command = 'pupil_camera.capture_image'
-            concurrent = True
-
-        ExperimentAction:
-            event = 'np_duration_elapsed'
-            command = 'pupil_camera.capture_image'
-            concurrent = True
 
         ExperimentAction:
             event = 'response_end'
             command = 'target.clear'
-            kwargs = {'delay': 1}
-            #concurrent = True
+            kwargs = {'delay': 0.25}
             weight = 0
 
         ExperimentAction:
@@ -112,10 +97,17 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             event = 'deliver_reward'
             command = 'food_dispenser.dispense_pellet'
 
-
     Extension:
         id = 'io'
         point = 'psi.controller.io'
+
+        CalibratedInput:
+            source_name = 'microphone'
+
+            IIRFilter:
+                f_lowpass = 40e3
+                f_highpass = 200
+                name = 'microphone_filtered'
 
         ContinuousOutput:
             name = 'background'
@@ -128,125 +120,45 @@ enamldef ControllerManifest(AppetitiveManifest): manifest:
             target_name = 'speaker'
 
     Extension:
-        id = 'sinks'
-        point = 'psi.data.sinks'
-
-        SDTAnalysis:
-            pass
-
-        TrialLog:
-            pass
-
-        EventLog:
-            pass
-
-    Extension:
         id = 'plots'
         point = 'psi.data.plots'
 
         FFTContainer:
-            name = 'fft_plot_container'
-            title = 'FFT'
-            freq_lb = 0.1e3 
-            freq_ub = 10e3
+            name = 'microphone_fft_container'
+            label = 'Microphone FFT'
+            freq_lb = 5
+            freq_ub = 50000
 
-            FFTChannelPlot:
-                source = 'microphone'
-                line_color = (0, 0, 0)
-                value_range = (0, 100)
-                time_span = 1
-                axis_label = 'Level (dB SPL)'
-                reference = 20e-6
+            ViewBox:
+                y_min = -120
+                y_max = 100
+
+                FFTChannelPlot:
+                    source_name = 'microphone_filtered'
+                    pen_color = 'k'
+                    time_span = 1
 
         TimeContainer:
-            name = 'trial_plot_container' 
-            title = 'Trial timing'
-            trig_delay = 0
-            span = 20
+            name = 'trial_plot_container'
+            label = 'Trial timing'
+            span = 10
 
-            ChannelPlot:
-                source = 'reward_contact_analog'
-                line_color = (1, 0, 1)
-                value_range = (-20, 6)
+            ViewBox:
+                y_min = -1
+                y_max = 1
 
-            ChannelPlot:
-                source = 'nose_poke_analog'
-                line_color = (0, 0, 1)
-                value_range = (-20, 6)
+                ChannelPlot:
+                    source_name = 'microphone_filtered'
+                    pen_color = 'k'
 
-            ExtremesChannelPlot:
-               source = 'microphone'
-               line_color = (0, 0, 0)
-               value_range = (-1, 1)
+            ViewBox:
+                y_min = 0
+                y_max = 5
 
-            TimeseriesPlot:
-                source = 'event_log'
-                rising_event = 'reward_start'
-                falling_event = 'reward_end'
-                fill_color = (0.25, 0.41, 0.88, 0.25)
-                line_color = (0.25, 0.41, 0.88, 0.5)
-                rect_center = 0.25
-                rect_height = 0.2
+                ChannelPlot:
+                    source_name = 'reward_contact_analog'
+                    pen_color = 'blue'
 
-            TimeseriesPlot:
-                source = 'event_log'
-                rising_event = 'np_start'
-                falling_event = 'np_end'
-                fill_color = (.17, .54, .34, 0.25)
-                line_color = (.17, .54, .34, 0.5)
-                rect_center = 0.5
-                rect_height = 0.2
-
-            TimeseriesPlot:
-                source = 'event_log'
-                rising_event = 'digital_np_start'
-                falling_event = 'digital_np_end'
-                fill_color = (.17, .54, .34, 0.25)
-                line_color = (.17, .54, .34, 0.5)
-                rect_center = 0.5
-                rect_height = 0.1
-
-            TimeseriesPlot:
-                source = 'event_log'
-                rising_event = 'token_start'
-                falling_event = 'token_stop'
-                fill_color = (.5, .5, .5, 0.25)
-                line_color = (.5, .5, .5, 0.5)
-                rect_center = 0.7
-                rect_height = 0.1
-
-            TimeseriesPlot:
-                source = 'event_log'
-                rising_event = 'hold_start'
-                falling_event = 'hold_end'
-                fill_color = (.75, .75, .75, 0.25)
-                line_color = (.75, .75, .75, 0.5)
-                rect_center = 0.8
-                rect_height = 0.1
-
-            TimeseriesPlot:
-                source = 'event_log'
-                rising_event = 'response_start'
-                falling_event = 'response_end'
-                fill_color = (.5, .5, .5, 0.25)
-                line_color = (.5, .5, .5, 0.5)
-                rect_center = 0.8
-                rect_height = 0.1
-
-            TimeseriesPlot:
-                source = 'event_log'
-                rising_event = 'to_start'
-                falling_event = 'to_end'
-                fill_color = (.25, .25, .25, 0.25)
-                line_color = (.25, .25, .25, 0.5)
-                rect_center = 0.8
-                rect_height = 0.1
-
-            TimeseriesPlot:
-                source = 'event_log'
-                rising_event = 'iti_start'
-                falling_event = 'iti_end'
-                fill_color = (0, 0, 0, 0.25)
-                line_color = (0, 0, 0, 0.5)
-                rect_center = 0.8
-                rect_height = 0.1
+                ChannelPlot:
+                    source_name = 'nose_poke_analog'
+                    pen_color = 'orange'

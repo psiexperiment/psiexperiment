@@ -1,0 +1,191 @@
+import logging
+log = logging.getLogger(__name__)
+
+
+import numpy as np
+
+from enaml.workbench.api import Extension
+
+from psi.context import choice
+from psi.context.api import ContextGroup, Parameter, Result
+from psi.context.selector import CartesianProduct
+
+from psi.controller.api import ExperimentAction
+from psi.controller.base_manifest import BaseManifest
+from psi.controller.input import ExtractEpochs, Accumulate, IIRFilter, Decimate, Blocked, ContinuousInput, IIRFilter
+from psi.controller.output import QueuedEpochOutput
+from psi.controller.queue import InterleavedFIFOSignalQueue
+from psi.token.primitives import Cos2Envelope, SAMEnvelope, Tone
+
+from psi.util import copy_declarative
+
+from psi.data.plots import (TimeContainer, ViewBox, ChannelPlot, FFTContainer, FFTChannelPlot)
+
+from psi.data.sinks.trial_log import TrialLog
+
+
+enamldef ControllerManifest(BaseManifest): manifest:
+
+    Extension:
+        id = 'tokens'
+        point = 'psi.token.tokens'
+
+        Cos2Envelope:
+            name = 'sam_tone'
+            label = 'SAM tone'
+            SAMEnvelope:
+                Tone:
+                    pass
+
+    Extension:
+        id = 'io'
+        point = 'psi.controller.io'
+
+        QueuedEpochOutput: output_0:
+            name = 'carrier'
+            label = 'Carrier'
+            target_name = 'speaker_0'
+            selector_name = 'default'
+            queue = InterleavedFIFOSignalQueue(fs=output_0.fs, initial_delay=1)
+            auto_decrement = True
+
+        ContinuousInput:
+            name = 'microphone'
+            source_name = 'microphone_channel'
+            IIRFilter:
+                name = 'microphone_filtered'
+                N = 2
+                btype = 'highpass'
+                ftype = 'butter'
+                f_highpass = 100
+                save = True
+
+        Blocked:
+            duration = 0.25
+            name = 'eeg'
+            save = True
+            source_name = 'eeg_channel'
+
+            ExtractEpochs: extract:
+                save = True
+                buffer_size = 300
+                epoch_size = 30
+                queue = output_0.queue
+                delay = 47.5/extract.fs
+                name = 'erp'
+
+    Extension:
+        id = 'selectors'
+        point = 'psi.context.selectors'
+
+        CartesianProduct:
+            name = 'default'
+            label = 'EFR sequence'
+
+    Extension:
+        id = 'context'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'fm'
+            label = 'FM'
+
+            Parameter:
+                name = 'fm'
+                label = 'Modulation frequency (Hz)'
+                compact_label = 'FM (Hz)'
+                dtype = 'float'
+                default = 1000
+
+            Parameter:
+                name = 'depth'
+                label = 'Modulation depth (frac)'
+                compact_label = 'Mod. depth (frac)'
+                dtype = 'float'
+                default = 1
+
+            Result:
+                name = 'erp_start'
+                label = 'ERP start'
+                dtype = 'float'
+
+    Extension:
+        id = 'actions'
+        point = 'psi.controller.actions'
+        rank = 100
+
+        # The order of actions for experiment_prepare is important. We need to
+        # make sure that the calibration is run before the queue is prepared.
+        # Once the queue is prepared, the calibration has been set for those
+        # stimuli.
+        ExperimentAction:
+            weight = 15
+            event = 'experiment_prepare'
+            command = 'psi.controller.tone_calibrate_channel'
+            kwargs = {
+                'input_name': 'microphone',
+                'output_name': 'carrier',
+                'parameter_names': ['carrier_tone_frequency'],
+                'gain': -40,
+                'max_thd': 2,
+                'min_snr': 6,
+            }
+
+        ExperimentAction:
+            event = 'erp_acquired'
+            command = 'psi.controller.save_epoch_as_trial'
+
+        ExperimentAction:
+            event = 'erp_queue_empty and not carrier_active'
+            command = 'psi.controller.stop'
+
+    Extension:
+        id = 'data'
+        point = 'psi.data.sinks'
+
+        TrialLog:
+            pass
+
+
+    Extension:
+        id = 'plots'
+        point = 'psi.data.plots'
+
+        TimeContainer:
+            name = 'trial_plot_container'
+            label = 'Trial timing'
+            span = 5
+            delay = 0.5
+
+            ViewBox:
+                y_min = -5
+                y_max = 5
+
+                ChannelPlot:
+                    name = 'eeg_plot'
+                    source_name = 'eeg'
+                    pen_color = 'k'
+
+            ViewBox:
+                y_min = -1
+                y_max = 1
+
+                ChannelPlot:
+                    name = 'microphone_plot'
+                    source_name = 'microphone_filtered'
+                    pen_color = 'k'
+
+        #FFTContainer:
+        #    name = 'fft_plot_container'
+        #    label = 'FFT'
+        #    freq_lb = 5
+        #    freq_ub = 50000
+
+        #    ViewBox:
+        #        y_min = -120
+        #        y_max = 100
+
+        #        FFTChannelPlot:
+        #            source_name = 'microphone_filtered'
+        #            pen_color = 'k'
+        #            time_span = 5

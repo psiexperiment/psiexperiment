@@ -1,0 +1,118 @@
+import random
+
+import pandas as pd
+
+from atom.api import Atom, Typed, Event, List, Dict
+from enaml.widgets.api import Window, Container, PushButton, HGroup, VGroup
+
+from psi.core.enaml.editable_table_widget import DataFrameTable, ListDictTable, ListTable
+
+
+class TrialLog(Atom):
+
+    table = Typed(pd.DataFrame)
+    updated = Event()
+
+    def _default_table(self):
+        return pd.DataFrame({
+            'ttype': ['go_remind', 'nogo', 'nogo', 'nogo', 'go'],
+            'mod_depth': [0.5, 0, 0, 0, 1],
+        })
+
+
+class Setting(Atom):
+
+    values = List(Dict())
+
+
+enamldef Main(Window): main:
+
+    attr trial_log = TrialLog()
+    attr ttype_map = {'go_remind': 'lightgreen', 'go': 'lightblue', 'nogo': 'pink'}
+    attr column_info = {
+        'ttype': {'label': 'Trial type', 'default': 'nogo'},
+        'mod_depth': {'label': 'Mod. depth (frac.)', 'coerce': float},
+        'reward_volume': {'label': 'Reward (ul)', 'default': -1},
+    }
+
+
+    attr setting = Setting(values=[
+        {'mod_depth': 0, 'reward_volume': 2},
+        {'mod_depth': 1, 'reward_volume': 4},
+        {'mod_depth': 2, 'reward_volume': 8},
+    ])
+
+    Container:
+        VGroup:
+            HGroup:
+                DataFrameTable:
+                    select_behavior = 'rows'
+                    select_mode = 'extended'
+                    data << main.trial_log.table
+                    column_info << main.column_info
+                    get_cell_color => (row, col):
+                        ttype = data.iloc[row]['ttype']
+                        return ttype_map.get(ttype, 'white')
+
+                ListDictTable:
+                    select_behavior = 'rows'
+                    select_mode = 'contiguous'
+                    editable = True
+                    data << main.setting.values
+                    column_info << main.column_info
+                    columns = ['mod_depth', 'reward_volume']
+
+            HGroup:
+                ListTable:
+                    select_behavior = 'rows'
+                    select_mode = 'single'
+                    editable = False
+                    data << ['temperature', 'speaker 1', 'speaker 2']
+                    column_name = 'Channel'
+                    show_row_labels = False
+                    show_column_labels = False
+                    show_grid = False
+                    selected << []
+                    selected ::
+                        print(selected)
+
+                ListTable:
+                    select_behavior = 'rows'
+                    select_mode = 'single'
+                    editable = True
+                    data << ['8000', '4000', '2000']
+                    column_name = 'Channel'
+                    show_row_labels = False
+                    show_column_labels = False
+                    show_grid = True
+
+        HGroup:
+            PushButton:
+                text = 'Print trial log'
+                clicked ::
+                    print(main.trial_log.table)
+
+            PushButton:
+                text = 'Print setting'
+                clicked ::
+                    print(id(main.setting.values))
+                    print(main.setting.values)
+
+            PushButton:
+                text = 'Reset trial log'
+                clicked ::
+                    print('reset trial log')
+                    main.trial_log.table = pd.DataFrame({
+                        'ttype': ['go_remind', 'nogo', 'nogo', 'nogo', 'go'],
+                        'mod_depth': [0.5, 0, 0, 0, 1],
+                    })
+
+            PushButton:
+                text = 'Reset setting'
+                clicked ::
+                    print('reset setting')
+                    main.setting.values = [
+                        {'mod_depth': 0, 'reward_volume': 2},
+                        {'mod_depth': 1, 'reward_volume': 4},
+                        {'mod_depth': 2, 'reward_volume': 8},
+                    ]

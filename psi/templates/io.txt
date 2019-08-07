@@ -1,0 +1,13 @@
+from enaml.workbench.api import PluginManifest, Extension
+
+
+enamldef IOManifest(PluginManifest): manifest:
+    '''
+    Template for configuring IO of system
+    '''
+    Extension:
+        id = r'{}_io'
+        point = 'psi.controller.io'
+
+        # Insert the engines, channels and devices that are available on your
+        # system.

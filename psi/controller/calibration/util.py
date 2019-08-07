@@ -1,15 +1,19 @@
 import numpy as np
+import pandas as pd
 from scipy import signal
 from fractions import gcd
 
+from psi.util import as_numeric
+
 
 def db(target, reference=1):
-    target = np.asarray(target, dtype=np.double)
+    target = as_numeric(target)
+    reference = as_numeric(reference)
     return 20*np.log10(target/reference)
 
 
 def dbi(db, reference=1):
-    db = np.asarray(db, dtype=np.double)
+    db = as_numeric(db)
     return (10**(db/20))*reference
 
 
@@ -53,13 +57,6 @@ def patodb(pa):
     return db(pa, 20e-6)
 
 
-def rms(waveform):
-    '''
-    Compute root mean square power of waveform
-    '''
-    return (waveform**2).mean()**0.5
-
-
 def normalize_rms(waveform, out=None):
     '''
     Normalize RMS power to 1 (typically used when generating a noise waveform
@@ -84,10 +81,12 @@ def csd(s, fs, window=None, waveform_averages=None):
         s = w/w.mean()*s
     return np.fft.rfft(s, axis=-1)/n
 
-
-def phase(s, fs, window=None, waveform_averages=None):
+def phase(s, fs, window=None, waveform_averages=None, unwrap=True):
     c = csd(s, fs, window, waveform_averages)
-    return np.unwrap(np.angle(c))
+    p = np.angle(c)
+    if unwrap:
+        p = np.unwrap(p)
+    return p
 
 
 def psd(s, fs, window=None, waveform_averages=None):
@@ -99,7 +98,18 @@ def psd_freq(s, fs):
     return np.fft.rfftfreq(s.shape[-1], 1.0/fs)
 
 
-def tone_power_conv(s, fs, frequency, window=None):
+def psd_df(s, fs, *args, **kw):
+    p = psd(s, fs)
+    freqs = pd.Index(psd_freq(s, fs), name='frequency')
+    if p.ndim == 1:
+        name = s.name if isinstance(s, pd.Series) else 'psd'
+        return pd.Series(p, index=freqs, name=name)
+    else:
+        index = s.index if isinstance(s, pd.DataFrame) else None
+        return pd.DataFrame(p, columns=freqs, index=index)
+
+
+def tone_conv(s, fs, frequency, window=None):
     frequency_shape = tuple([Ellipsis] + [np.newaxis]*s.ndim)
     frequency = np.asarray(frequency)[frequency_shape]
     s = signal.detrend(s, type='linear', axis=-1)
@@ -109,15 +119,33 @@ def tone_power_conv(s, fs, frequency, window=None):
         s = w/w.mean()*s
     t = np.arange(n)/fs
     r = 2.0*s*np.exp(-1.0j*(2.0*np.pi*t*frequency))
-    return np.abs(np.mean(r, axis=-1))/np.sqrt(2.0)
+    return np.mean(r, axis=-1)
+
+
+def tone_power_conv(s, fs, frequency, window=None):
+    r = tone_conv(s, fs, frequency, window)
+    return np.abs(r)/np.sqrt(2.0)
+
+
+def tone_phase_conv(s, fs, frequency, window=None):
+    r = tone_conv(s, fs, frequency, window)
+    return np.angle(r)
 
 
 def tone_power_fft(s, fs, frequency, window=None):
     power = psd(s, fs, window)
-    freqs = psd_freqs(s, fs)
+    freqs = psd_freq(s, fs)
     flb, fub = freqs*0.9, freqs*1.1
     mask = (freqs >= flb) & (freqs < fub)
     return power[..., mask].max(axis=-1)
+
+
+def tone_phase_fft(s, fs, frequency, window=None):
+    p = phase(s, fs, window, unwrap=False)
+    freqs = psd_freq(s, fs)
+    flb, fub = freqs*0.9, freqs*1.1
+    mask = (freqs >= flb) & (freqs < fub)
+    return p[..., mask].max(axis=-1)
 
 
 def tone_power_conv_nf(s, fs, frequency, window=None):
@@ -240,8 +268,8 @@ def golay_tf(a, b, a_signal, b_signal, fs):
     Estimate system transfer function from golay sequence as described in Zhou
     et al. 1992.
     '''
-    a_signal = a_signal[:len(a)]
-    b_signal = b_signal[:len(b)]
+    a_signal = a_signal[..., :len(a)]
+    b_signal = b_signal[..., :len(b)]
     ah_psd = np.fft.rfft(a_signal, axis=-1)
     bh_psd = np.fft.rfft(b_signal, axis=-1)
     a_psd = np.fft.rfft(a)
@@ -259,6 +287,26 @@ def golay_ir(n, a, b, a_signal, b_signal):
     a_conv = np.apply_along_axis(np.convolve, 1, a_signal, a[::-1], 'full')
     b_conv = np.apply_along_axis(np.convolve, 1, b_signal, b[::-1], 'full')
     return 1.0/(2.0*n)*(a_conv+b_conv)[..., -len(a):]
+
+
+def summarize_golay(fs, a, b, a_response, b_response, waveform_averages=None):
+
+    if waveform_averages is not None:
+        n_epochs, n_time = a_response.shape
+        new_shape = (waveform_averages, -1, n_time)
+        a_response = a_response.reshape(new_shape).mean(axis=0)
+        b_response = b_response.reshape(new_shape).mean(axis=0)
+
+    time = np.arange(a_response.shape[-1])/fs
+    freq, tf_psd, tf_phase = golay_tf(a, b, a_response, b_response, fs)
+    tf_psd = tf_psd.mean(axis=0)
+    tf_phase = tf_phase.mean(axis=0)
+
+    return {
+        'psd': tf_psd,
+        'phase': tf_phase,
+        'frequency': freq,
+    }
 
 
 def freq_smooth(frequency, power, bandwidth=20):
@@ -355,3 +403,30 @@ def truncated_ifft(spectrum, original_fs, truncated_fs):
     iir = signal.resample_poly(iir, up, down)
     iir *= truncated_fs/original_fs
     return iir
+
+
+def save_calibration(channels, filename):
+    from psi.util import get_tagged_values
+    from json_tricks import dump
+    settings = {}
+    for channel in channels:
+        metadata = get_tagged_values(channel.calibration, 'metadata')
+        metadata['calibration_type'] = channel.calibration.__class__.__name__
+        if 'source' in metadata:
+            metadata['source'] = str(metadata['source'])
+        settings[channel.name] = metadata
+    with open(filename, 'w') as fh:
+        dump(settings, fh, indent=4)
+
+
+def load_calibration(filename, channels):
+    from json_tricks import load
+    from psi.controller.calibration import calibration as cal_types
+    with open(filename, 'r') as fh:
+        settings = load(fh)
+    channels = {c.name: c for c in channels}
+    for c_name, c_calibration in settings.items():
+        calibration_type = c_calibration.pop('calibration_type')
+        calibration = getattr(cal_types, calibration_type)
+        calibration = calibration(**c_calibration)
+        channels[c_name].calibration = calibration

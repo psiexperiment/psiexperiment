@@ -1,9 +1,6 @@
-from enaml.workbench.api import PluginManifest, Extension, ExtensionPoint
+from enaml.workbench.api import PluginManifest, ExtensionPoint
 
 from .plugin import TokenPlugin
-from .token import ContinuousToken, EpochToken
-from .primitives import (Cos2Envelope, BandlimitedNoise, Tone, Silence,
-                         SAMEnvelope)
 
 
 enamldef TokenManifest(PluginManifest):
@@ -13,44 +10,3 @@ enamldef TokenManifest(PluginManifest):
 
     ExtensionPoint:
         id = 'psi.token.tokens'
-
-    Extension:
-        id = 'default_tokens'
-        point = 'psi.token.tokens'
-
-        ContinuousToken:
-            name = 'continuous_bandlimited_noise'
-            label = 'continuous bandlimited noise'
-            BandlimitedNoise:
-                pass
-
-        ContinuousToken:
-            name = 'continuous_tone'
-            label = 'continuous tone'
-            Tone:
-                pass
-
-        ContinuousToken:
-            name = 'silence'
-            label = 'silence'
-            Silence:
-                pass
-
-        EpochToken:
-            name = 'bandlimited_noise_burst'
-            label = 'bandlimited noise burst'
-            BandlimitedNoise:
-                pass
-
-        EpochToken:
-            name = 'bandlimited_sam_noise'
-            label = 'bandlimited SAM noise'
-            SAMEnvelope:
-                BandlimitedNoise:
-                    pass
-
-        EpochToken:
-            name = 'tone_burst'
-            label = 'tone'
-            Tone:
-                pass

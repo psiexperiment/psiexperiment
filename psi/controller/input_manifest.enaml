@@ -1,36 +1,159 @@
+import logging
+log = logging.getLogger(__name__)
+
+from functools import partial
+
+import numpy as np
+
 from atom.api import Property
 from enaml.core.api import Conditional
 from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
+from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
+from enaml.widgets.api import DockItem, Container, Label, Form
 
-from .device_manifest import DeviceManifest
-from .experiment_action import ExperimentEvent, ExperimentAction
+from .experiment_action import (ExperimentEvent, ExperimentState,
+                                ExperimentAction)
 
+from psi.context.api import Parameter, ContextGroup
 from psi.core.enaml.api import PSIManifest
+from psi.util import declarative_to_dict, get_dependencies
 
 
-class _InputManifest(PSIManifest): 
-
-    input = Property()
-
-    def _get_input(self):
-        return self.contribution
-
-    def _set_input(self, value):
-        self.contribution = value
+def get_metadata(contribution):
+    return declarative_to_dict(contribution, 'metadata')
 
 
-enamldef InputManifest(_InputManifest): manifest:
+def prepare_event_callback(input, event):
+    # Check to see if we need to configure this callback. Don't configure
+    # unecessary callbacks as this slows down the system.
+    controller = event.workbench.get_plugin('psi.controller')
+    event_name = input.name + '_acquired'
+    if controller.event_used(event_name):
+        def cb(data):
+            nonlocal controller
+            nonlocal event_name
+            kw = {'data': data}
+            try:
+                controller.invoke_actions(event_name, kw=kw)
+            except Exception as e:
+                log.warn(kw)
+                log.warn('Error with callback for %s', event_name)
+                log.exception(e)
+        input.add_callback(cb)
+
+
+def configure_epoch_input(input, event):
+    controller = event.workbench.get_plugin('psi.controller')
+    context = event.workbench.get_plugin('psi.context')
+    controller.invoke_actions(input.name + '_queue_start')
+    def empty_queue_cb(event):
+        nonlocal controller
+        nonlocal input
+        controller.invoke_actions(input.name + '_queue_end')
+    input.observe('complete', empty_queue_cb)
+
+    #def queue_cb(**kw):
+    #    nonlocal context
+    #    nonlocal input
+    #    kw['t0'] = kw['timestamp']
+    #    kw['metadata'] = {}
+    #controller.register_action('dpoae_start', queue_cb)
+
+
+enamldef InputManifest(PSIManifest): manifest:
 
     Extension:
-        id = 'actions'
+        id = 'input_menu.' + manifest.contribution.name
+        point = 'enaml.workbench.ui.actions'
+        MenuItem:
+            path = '/equipment/input/{}'.format(manifest.contribution.name)
+            label = ' {}'.format(manifest.contribution.label)
+
+    Extension:
+        id = 'input_commands.' + manifest.contribution.name
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = manifest.contribution.name + '.prepare_event_callback'
+            handler = partial(prepare_event_callback, manifest.contribution)
+
+    Extension:
+        id = 'actions.' + manifest.contribution.name
         point = 'psi.controller.actions'
 
-        ExperimentEvent: event:
-            name = manifest.input.name + '_acquired'
+        ExperimentEvent:
+            name = manifest.contribution.name + '_acquired'
 
-        Conditional:
-            condition << manifest.input.save
-            ExperimentAction:
-                event = event.name
-                command = 'psi.data.process_ai_' + manifest.input.mode
-                kwargs = {'name': manifest.input.name}
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = manifest.contribution.name + '.prepare_event_callback'
+
+
+def capture_start(input, event):
+    input.queue.put(event.parameters['timestamp'])
+
+
+def capture_end(input, event):
+    input.queue.put(None)
+
+
+enamldef CaptureManifest(InputManifest): manifest:
+
+    Extension:
+        id = 'capture_commands.' + manifest.contribution.name
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = manifest.contribution.name + '.start'
+            handler = partial(capture_start, manifest.contribution)
+
+        Command:
+            id = manifest.contribution.name + '.end'
+            handler = partial(capture_end, manifest.contribution)
+
+
+enamldef ExtractEpochsManifest(InputManifest): manifest:
+
+    Extension:
+        id = manifest.contribution.name + 'extract_epochs_manifest.commands'
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = manifest.contribution.name + '.prepare'
+            handler = partial(configure_epoch_input, manifest.contribution)
+
+    Extension:
+        id = 'extract_epochs_actions.' + manifest.contribution.name
+        point = 'psi.controller.actions'
+
+        ExperimentState:
+            name = manifest.contribution.name + '_queue'
+
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = manifest.contribution.name + '.prepare'
+
+
+enamldef RejectEpochsManifest(InputManifest): manifest:
+
+    Extension:
+        id = 'reject_epochs_workspace.' + manifest.contribution.name
+        point = 'psi.experiment.workspace'
+
+        DockItem:
+            name = manifest.contribution.name
+            title = 'Epoch reject'
+            Form:
+                Label:
+                    text = 'Total epochs'
+                Label:
+                    text << str(manifest.contribution.total)
+                Label:
+                    text = 'Rejects'
+                Label:
+                    text << str(manifest.contribution.rejects)
+                Label:
+                    text = 'Reject ratio'
+                Label:
+                    text << '{:.2f}'.format(manifest.contribution.reject_ratio)

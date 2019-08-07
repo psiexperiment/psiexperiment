@@ -2,43 +2,129 @@ import numpy as np
 
 from enaml.core.declarative import Declarative, d_
 from atom.api import (Unicode, Typed, Value, Enum, List, Event, Property,
-                      observe, Bool)
+                      observe, Bool, Dict, Coerced)
+
+from psi.core.enaml.api import PSIContribution
 
 
+################################################################################
+# ContextMeta
+################################################################################
 class ContextMeta(Declarative):
 
     name = d_(Unicode())
     label = d_(Unicode())
+    link_rove = d_(Bool(True))
+
+
+class UnorderedContextMeta(ContextMeta):
+
+    values = d_(Coerced(set))
+
+    def add_item(self, item):
+        if item not in self.values:
+            values = self.values.copy()
+            values.add(item)
+            self.values = values
+
+    def remove_item(self, item):
+        if item in self.values:
+            values = self.values.copy()
+            values.remove(item)
+            self.values = values
 
 
 class OrderedContextMeta(ContextMeta):
 
-    values = d_(Typed(list, ()))
-    default_value = None
+    values = d_(List())
 
-    def set_value(self, position, context_item):
+    def add_item(self, item):
+        if item not in self.values:
+            values = self.values.copy()
+            values.append(item)
+            self.values = values
+
+    def remove_item(self, item):
+        if item in self.values:
+            values = self.values.copy()
+            values.remove(item)
+            self.values = values
+
+    def _default_values(self):
+        return []
+
+    # TODO: move most of this stuff to the enaml interface
+    def set_choice(self, choice, context_item):
         values = self.values[:]
-        if position is None:
+        if choice is None:
             values.remove(context_item)
         else:
+            position = int(choice)-1
             if context_item in values:
                 values.remove(context_item)
             values.insert(position, context_item)
         self.values = values
 
-    def get_index(self, context_item):
+    def get_choice(self, context_item):
         try:
-            return self.values.index(context_item)
+            return str(self.values.index(context_item) + 1)
         except ValueError:
             return None
 
-    def get_valid_indices(self, context_item):
+    def get_choices(self, context_item):
         n = len(self.values)
         if context_item not in self.values:
             n += 1
-        return list(range(n))
+        return [str(i+1) for i in range(n)]
 
 
+################################################################################
+# Expression
+################################################################################
+class Expression(Declarative):
+
+    # Parameter that is assigned the result of the expression
+    parameter = d_(Unicode())
+
+    # Expression to be evaluated
+    expression = d_(Unicode())
+
+
+################################################################################
+# ContextGroup
+################################################################################
+class ContextGroup(PSIContribution):
+    '''
+    Used to group together context items for management.
+    '''
+    # Group name
+    name = d_(Unicode())
+
+    # Label to use in the GUI
+    label = d_(Unicode())
+
+    # Are the parameters in this group visible?
+    visible = d_(Bool(True))
+
+    # Items in context
+    items = List()
+
+    def add_item(self, item):
+        if item not in self.items:
+            self.items = self.items[:] + [item]
+        else:
+            raise ValueError(f'Item {item.name} already in group')
+
+    def remove_item(self, item):
+        if item in self.items:
+            items = self.items[:]
+            items.remove(item)
+            self.items = items
+
+
+################################################################################
+# ContextItem
+################################################################################
 class ContextItem(Declarative):
     '''
     Defines the core elements of a context item. These items are made available
@@ -54,12 +140,22 @@ class ContextItem(Declarative):
     # plugins (e.g., those that save data to a HDF5 file).
     dtype = d_(Unicode())
 
+    group = d_(Typed(ContextGroup))
+
     # Name of the group to display the item under.
-    group = d_(Unicode())
+    group_name = d_(Unicode())
 
     # Compact label where there is less space in the GUI (e.g., under a column
     # heading for example).
-    compact_label = d_(Unicode())
+    compact_label = d_(Unicode()).tag(preference=True)
+
+    # Is this visible via the standard configuration menus?
+    visible = d_(Bool(True)).tag(preference=True)
+
+    # Can this be configured by the user? This will typically be False if the
+    # experiment configuration has contributed an Expression that assigns the
+    # value of this parameter.
+    configurable = Bool(True)
 
     updated = Event()
 
@@ -73,6 +169,23 @@ class ContextItem(Declarative):
         coerce_function = np.dtype(self.dtype).type
         value = coerce_function(value)
         return np.asscalar(value)
+
+    def __repr__(self):
+        return f'<{self}>'
+
+    def __str__(self):
+        return f'{self.name} in {self.group}'
+
+    def set_group(self, group):
+        if self.group is not None and self.group != group:
+            self.group.remove_item(self)
+
+        self.group = group
+        if self.group is not None:
+            self.group.add_item(self)
+            self.group_name = self.group.name
+        else:
+            self.group_name = ''
 
 
 class Result(ContextItem):
@@ -114,6 +227,12 @@ class Parameter(ContextItem):
     def _default_dtype(self):
         return np.array(self.default).dtype.str
 
+    def _default_label(self):
+        return self.name
+
+    def to_expression(self, value):
+        return str(value)
+
 
 class EnumParameter(Parameter):
 
@@ -123,7 +242,8 @@ class EnumParameter(Parameter):
     default = d_(Unicode()).tag(preference=True)
 
     def _default_dtype(self):
-        return np.array(self.choices.values()).dtype.str
+        values = list(self.choices.values())
+        return np.array(values).dtype.str
 
     def _get_expression(self):
         return self.choices.get(self.selected, None)
@@ -139,11 +259,19 @@ class EnumParameter(Parameter):
                 raise ValueError(m)
 
     def _default_selected(self):
+        if self.default not in self.choices:
+            return next(iter(self.choices))
         return self.default
 
     @observe('selected')
     def _notify_update(self, event):
         self.notify('expression', self.expression)
+
+    def to_expression(self, value):
+        return str(self.choices.get(value, None))
+
+    def coerce_to_type(self, value):
+        return str(value)
 
 
 class FileParameter(Parameter):

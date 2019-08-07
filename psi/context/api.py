@@ -1,4 +1,6 @@
-from .context_item import (Result, Parameter, EnumParameter, BoolParameter,
-                           FileParameter)
-from .context_group import ContextGroup
-from .selector import SingleSetting, SequenceSelector
+from .context_item import (
+    BoolParameter, ContextGroup, ContextMeta, EnumParameter, Expression,
+    FileParameter, OrderedContextMeta, Parameter, Result, UnorderedContextMeta
+)
+
+from .selector import CartesianProduct, SingleSetting, SequenceSelector

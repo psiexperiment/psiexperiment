@@ -1,80 +1,76 @@
-from atom.api import ContainerList, Typed, Dict
-from enaml.application import deferred_call
-from enaml.core.api import Looper
-from enaml.layout.api import InsertItem
-from enaml.widgets.api import (Container, Menu, Action, DockItem, PopupView,
-                               Form, CheckBox, Label, HGroup)
+from enaml.core.api import Conditional, d_func
+from enaml.widgets.api import CheckBox, Container, DockItem, VGroup
 from enaml.workbench.api import Extension
 
-import pandas as pd
-
-from psi.context.context_item import OrderedContextMeta
-from psi.core.enaml.api import DataframeTable, PSIManifest
+from psi.context.api import OrderedContextMeta
+from psi.core.enaml.api import ListDictTable
 from psi.experiment.api import ItemPreferences
 
-from ..sink import Sink
+from .table_store import TableStore, TableStoreManifest
 
 
-class TrialLog(Sink):
+class TrialLog(TableStore):
 
     name = 'trial_log'
-    title = 'Trial log'
-    manifest = __name__ + '.TrialLogManifest'
+    label = 'Trial log'
+
+    @d_func
+    def get_cell_color(self, row, column):
+        return 'white'
 
 
-enamldef TrialLogDockItem(DockItem):
+enamldef TrialLogManifest(TableStoreManifest): manifest:
 
-    attr data_plugin = workbench.get_plugin('psi.data')
-    attr meta
-    closable = False
+    Conditional:
+        condition << manifest.contribution.show_widget
 
-    Container:
-        DataframeTable:
-            name = 'table'
-            dataframe << data_plugin.trial_log
-            columns << [i.name for i in meta.values]
-            column_info << {k: i.compact_label for \
-                            k, i in data_plugin.context_info.items()}
+        Extension:
+            id = manifest.id + '.trial_log.items'
+            point = 'psi.context.items'
+            OrderedContextMeta: meta:
+                link_rove = False
+                name << contribution.name
+                label << '{} columns'.format(contribution.label)
+                values ::
+                    table.columns = [v.name for v in values]
+                    column_info = {}
+                    for v in values:
+                        column_info[v.name] = {
+                            'label': v.compact_label,
+                            'to_string': '{:.2f}'.format if 'f' in v.dtype else str,
+                        }
+                    table.column_info = column_info
 
-            cell_color => (row, column):
-                # TODO: A bit of a hack here ...
-                if 'trial_type' in dataframe:
-                    tt = dataframe.at[row, 'trial_type']
-                    if tt == 'go_remind':
-                        return 'forestgreen'
-                    elif tt == 'go':
-                        return 'lightgreen'
-                    elif tt == 'go_forced':
-                        return 'green'
-                    elif tt == 'nogo':
-                        return 'lightpink'
-                    elif tt == 'nogo_repeat':
-                        return 'pink'
-                return 'white'
+        Extension:
+            id = manifest.id + '.trial_log_workspace'
+            point = 'psi.experiment.workspace'
 
+            DockItem: di:
+                closable = False
+                name << manifest.contribution.name
+                title << manifest.contribution.label
 
-enamldef TrialLogManifest(PSIManifest): manifest:
+                Container:
+                    VGroup:
+                        CheckBox:
+                            text = 'Autoscroll?'
+                            checked := table.autoscroll
 
-    Extension:
-        id = 'items'
-        point = 'psi.context.items'
-        OrderedContextMeta: meta:
-            name << manifest.contribution.name
-            label << '{} column'.format(manifest.contribution.title)
-
-    Extension:
-        id = 'preferences'
-        point = 'psi.experiment.preferences'
-        rank = 200
-        ItemPreferences:
-            item << di.find('table')
-            name << manifest.contribution.name
-            auto_save = ['column_widths']
-
-    Extension:
-        id = 'workspace'
-        point = 'psi.experiment.workspace'
-        TrialLogDockItem: di:
-            name << manifest.contribution.name
-            title << manifest.contribution.title
-            meta << meta
+                    ListDictTable: table:
+                        data << manifest.contribution._data[:]
+                        get_cell_color => (row, column):
+                            try:
+                                tt = data[row]['trial_type']
+                                if tt == 'go_remind':
+                                    return 'forestgreen'
+                                elif tt == 'go':
+                                    return 'lightgreen'
+                                elif tt == 'go_forced':
+                                    return 'green'
+                                elif tt == 'nogo':
+                                    return 'lightpink'
+                                elif tt == 'nogo_repeat':
+                                    return 'pink'
+                            except KeyError:
+                                return 'white'
+                        autoscroll = True

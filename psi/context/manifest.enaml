@@ -1,6 +1,7 @@
 import logging
 log = logging.getLogger(__name__)
 
+import numpy as np
 import pickle
 import os.path
 from copy import deepcopy
@@ -16,15 +17,12 @@ from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
 from enaml.layout.api import FloatItem
 from enaml.application import deferred_call
 
-from psi.controller.api import ExperimentAction
+from psi.controller.api import ExperimentEvent
 from psi.experiment.api import Preferences
 
 from .plugin import ContextPlugin
-from .symbol import ImportedSymbol
+from .symbol import ImportedSymbol, Function
 from .context_item import Parameter
-
-from .context_view import ContextDockItem, CurrentValuesDockItem
-from .selector_view import SequenceDockItem
 
 from ..util import rpc, get_tagged_values
 from .. import get_config
@@ -50,8 +48,29 @@ def revert_changes(event):
 
 def get_preferences(obj):
     return get_tagged_values(obj, 'preference')
-    
-    
+
+
+def initialize(event):
+    controller = event.workbench.get_plugin('psi.controller')
+    context = event.workbench.get_plugin(PLUGIN_ID)
+    cycles = event.parameters.get('cycles', np.inf)
+    context.apply_changes(cycles=cycles)
+    context.next_setting(selector=event.parameters['selector'],
+                         save_prior=False)
+    controller.invoke_actions('context_initialized')
+
+
+def next_setting(event):
+    controller = event.workbench.get_plugin('psi.controller')
+    context = event.workbench.get_plugin(PLUGIN_ID)
+    p = event.parameters
+    try:
+        context.next_setting(selector=p['selector'], save_prior=p['save_prior'])
+        controller.invoke_actions('context_next_setting')
+    except StopIteration:
+        controller.invoke_actions('context_complete')
+
+
 enamldef ContextManifest(PluginManifest): manifest:
     '''Manifest for the plugin handling the sequence selector
     '''
@@ -76,6 +95,12 @@ enamldef ContextManifest(PluginManifest): manifest:
         ImportedSymbol:
             name = 'sp'
             module = 'scipy'
+        Function:
+            name = 'db'
+            function = lambda x: 20*np.log10(x)
+        Function:
+            name = 'imul'
+            function = lambda x, y: np.round(np.asarray(x)/y) * y
 
     Extension:
         id = 'commands'
@@ -93,6 +118,9 @@ enamldef ContextManifest(PluginManifest): manifest:
             id = PLUGIN_ID + '.apply_changes'
             handler = apply_changes
         Command:
+            id = PLUGIN_ID + '.initialize'
+            handler = initialize
+        Command:
             id = PLUGIN_ID + '.revert_changes'
             handler = revert_changes
         Command:
@@ -100,24 +128,29 @@ enamldef ContextManifest(PluginManifest): manifest:
             handler = rpc(PLUGIN_ID, 'value_changed')
         Command:
             id = PLUGIN_ID + '.next_setting'
-            handler = rpc(PLUGIN_ID, 'next_setting')
+            handler = next_setting
         Command:
             id = PLUGIN_ID + '.get_parameters'
             handler = rpc(PLUGIN_ID, 'get_parameters')
         Command:
             id = PLUGIN_ID + '.changes_pending'
             handler = changes_pending
+        Command:
+            id = PLUGIN_ID + '.unique_values'
+            handler = rpc(PLUGIN_ID, 'unique_values')
 
     Extension:
         id = 'context_actions'
         point = 'psi.controller.actions'
-        ExperimentAction:
-            # Set this to a relatively low weight (default=100) so that we can
-            # ensure this is called before most initialization actions since
-            # many plugins will likely depend on this.
-            event = 'experiment_prepare'
-            command = 'psi.context.apply_changes'
-            weight = 10
+
+        ExperimentEvent:
+            name = 'context_complete'
+
+        ExperimentEvent:
+            name = 'context_initialized'
+
+        ExperimentEvent:
+            name = 'context_next_setting'
 
     Extension:
         id = 'preferences'
@@ -131,9 +164,8 @@ enamldef ContextManifest(PluginManifest): manifest:
                 # Build the context item state
                 parameter_state = {}
                 for i in plugin.context_items.values():
-                    if isinstance(i, Parameter):
-                        group_state = parameter_state.setdefault(i.group, {})
-                        group_state[i.name] = get_preferences(i)
+                    group_state = parameter_state.setdefault(i.group_name, {})
+                    group_state[i.name] = get_preferences(i)
 
                 # Build the selector state
                 selector_state = {}
@@ -157,42 +189,30 @@ enamldef ContextManifest(PluginManifest): manifest:
 
                 log.debug('Setting context item states')
                 for item in plugin.context_items.values():
-                    group_state = parameter_state.get(item.group, {})
-                    state = group_state.get(item.name, {})
-                    item.__setstate__(state)
+                    try:
+                        group_state = parameter_state.get(item.group_name, {})
+                        state = group_state.get(item.name, {})
+                        item.__setstate__(state)
+                    except Exception as e:
+                        log.exception(e)
 
                 log.debug('Setting selector states')
                 for selector in plugin.selectors.values():
-                    state = selector_state.get(selector.name, {})
-                    selector.__setstate__(state)
+                    try:
+                        state = selector_state.get(selector.name, {})
+                        selector.__setstate__(state)
+                    except Exception as e:
+                        log.exception(e)
 
                 log.debug('Setting meta states')
                 for meta in plugin.context_meta.values():
                     state = meta_state.get(meta.name, {})
                     items = [plugin.context_items[n] for n in state]
-                    meta.values = items
-
-
-enamldef ContextViewManifest(PluginManifest): manifest:
-
-    id = 'psi.context.view'
-
-    attr context_plugin << workbench.get_plugin('psi.context')
-
-    Extension:
-        id = 'context_view'
-        point = 'psi.experiment.workspace'
-
-        Looper:
-            iterable << context_plugin.context_groups.values()
-            ContextDockItem:
-                group_name << loop_item.name
-                name << loop_item.name
-                title << loop_item.label
-
-        Looper:
-            iterable << context_plugin.selectors.values()
-            SequenceDockItem:
-                name << loop_item.name
-                title << loop_item.name
-                selector << loop_item
+                    try:
+                        # This is a hack. By forcing a getattr of meta.values,
+                        # we force a creation event. Then, when we assign items
+                        # we can force a change notification.
+                        meta.values
+                        meta.values = items
+                    except Exception as e:
+                        log.exception(e)

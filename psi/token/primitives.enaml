@@ -5,53 +5,173 @@ log = logging.getLogger(__name__)
 
 import numpy as np
 from scipy import signal
-from joblib import Memory
 
 from psi import get_config
 from psi.context.api import Parameter, EnumParameter
-
-from .block import Block
-
-# NOTE: For some functions, it's better not to cache as there is a "hit" from
-# checking whether to load the results from disk or not.
-cachedir = get_config('TEMP_ROOT')
-memory = Memory(cachedir=cachedir, mmap_mode='r')
+from .block import EpochBlock, ContinuousBlock
 
 
-################################################################################
-# Utility
-################################################################################
-def single_input(function):
-    def wrapper(*args, **kwargs):
-        input_factories = kwargs.pop('input_factories')
-        if len(input_factories) == 0:
-            raise ValueError('Cannot deal with zero input factories')
-        elif len(input_factories) > 1:
-            raise ValueError('Cannot deal with more than one input factory')
-        return function(*args, input_factory=input_factories[0], **kwargs)
+def fast_cache(f):
+    cache = {}
+    kwd_marker = object()
+    def wrapper(*args, **kw):
+        key = args + (kwd_marker,) + tuple(sorted(kw.items()))
+        if key not in cache:
+            cache[key] = f(*args, **kw)
+        return cache[key]
     return wrapper
 
 
-def no_inputs(function):
-    def wrapper(*args, **kwargs):
-        input_factories = kwargs.pop('input_factories')
-        if len(input_factories) != 0:
-            raise ValueError('Cannot accept any input factories')
-        return function(*args, **kwargs)
-    return wrapper
+################################################################################
+# Base classes
+################################################################################
+class Waveform:
+
+    def reset(self):
+        raise NotImplementedError
+
+    def next(self, samples):
+        raise NotImplementedError
+
+    def get_remaining_samples(self):
+        raise NotImplementedError
+
+    def get_duration(self):
+        raise NotImplementedException
+
+    def is_complete(self):
+        raise NotImplementedException
+
+
+class FixedWaveform(Waveform):
+
+    def __init__(self, fs, waveform):
+        self.fs = fs
+        self.waveform = waveform
+        self.reset()
+
+    def reset(self):
+        self.offset = 0
+        self.complete = False
+
+    def next(self, samples):
+        samples = int(samples)
+        waveform = self.waveform[self.offset:self.offset+samples]
+        waveform_samples = waveform.shape[-1]
+        if waveform_samples < samples:
+            padding = samples-waveform_samples
+            pad = np.zeros(padding)
+            waveform = np.concatenate((waveform, pad), axis=-1)
+        self.offset += samples
+        return waveform
+
+    def get_remaining_samples(self):
+        remaining = len(self.waveform)-self.offset
+        return np.clip(remaining, 0, np.inf)
+
+    def get_duration(self):
+        return len(self.waveform)/self.fs
+
+    def is_complete(self):
+        return self.offset >= len(self.waveform)
+
+
+class Carrier(Waveform):
+    '''
+    A continuous waveform
+    '''
+
+    def get_duration(self):
+        return np.inf
+
+    def get_remaining_samples(self):
+        return np.inf
+
+    def is_complete(self):
+        return False
+
+
+class Modulator(Waveform):
+    '''
+    Modulates an input waveform
+    '''
+    def get_duration(self):
+        return self.input_factory.get_duration()
+
+    def get_remaining_samples(self):
+        return self.input_factory.get_remaining_samples()
+
+    def is_complete(self):
+        return self.input_factory.is_complete()
+
+
+class GateFactory(Modulator):
+
+    def __init__(self, fs, start_time, duration, input_factory):
+        vars(self).update(locals())
+        self.start_samples = int(round(start_time * fs))
+        self.duration_samples = int(round(self.duration * fs))
+        self.total_samples = self.start_samples + self.duration_samples
+        self.reset()
+
+    def get_duration(self):
+        return self.start_time + self.duration
+
+    def get_remaining_samples(self):
+        return max(self.total_samples - self.offset, 0)
+
+    def is_complete(self):
+        return self.offset >= self.total_samples
+
+    def reset(self):
+        self.offset = 0
+        self.input_factory.reset()
+
+    def next(self, samples):
+        token = self.input_factory.next(samples)
+        lb = self.start_samples - self.offset
+        ub = lb + self.duration_samples
+        if lb >= 0:
+            token[:lb] = 0
+        if ub > 0:
+            token[ub:] = 0
+        self.offset += samples
+        return token
+
+
+enamldef Gate(EpochBlock): block:
+
+    factory = GateFactory
+    name = 'envelope'
+    label = 'envelope'
+
+    Parameter:
+        name = 'duration'
+        label = 'duration (s)'
+        compact_label = 'dur'
+        default = 4.0
+
+    Parameter:
+        name = 'start_time'
+        label = 'start time (s)'
+        compact_label = 'start'
+        default = 0.0
 
 
 ################################################################################
 # Cos2Envelope
 ################################################################################
+def cos2ramp(t, rise_time, phi=0):
+    return np.sin(2*np.pi*t*1.0/rise_time*0.25+phi)**2
+
+
+@fast_cache
 def cos2envelope(fs, offset, samples, start_time, rise_time, duration):
     '''
     Generates cosine-squared envelope. Can handle generating fragments.
     '''
-    def env_func(t, phi=0):
-        return np.sin(2*np.pi*t*1.0/rise_time*0.25+phi)**2
-
-    t = (np.arange(samples, dtype=np.float32) + offset)/fs
+    #t = np.linspace(0, samples*fs, samples, endpoint=False)
+    t = (np.arange(samples, dtype=np.double) + offset)/fs
 
     m_null_pre = (t < start_time)
     m_onset = (t >= start_time) & (t < rise_time)
@@ -75,63 +195,35 @@ def cos2envelope(fs, offset, samples, start_time, rise_time, duration):
     t_null_post = t[m_null_post]
 
     f_null_pre = np.zeros(len(t_null_pre))
-    f_lower = env_func(t_onset, 0)
-    f_upper = env_func(t_offset-(duration-rise_time), np.pi/2)
+    f_lower = cos2ramp(t_onset, rise_time, 0)
+    f_upper = cos2ramp(t_offset-(duration-rise_time), rise_time, np.pi/2)
     f_middle = np.ones(len(t_ss))
+    f_null_post = np.zeros(len(t_null_post))
 
-    concat = [f_null_pre, f_lower, f_middle, f_upper]
+    concat = [f_null_pre, f_lower, f_middle, f_upper, f_null_post]
     return np.concatenate(concat, axis=-1)
 
 
-@single_input
-def cos2envelope_factory(fs, start_time, rise_time, duration, calibration,
-                         input_factory):
-    # Initialize some variables 
-    waveform = None
-    epoch_samples = int(duration*fs)
-    offset = 0
-    complete = False
+class Cos2EnvelopeFactory(GateFactory):
 
-    # Initialize the inputs
-    input_generator = input_factory()
-    next(input_generator)
+    def __init__(self, fs, start_time, rise_time, duration, input_factory):
+        self.rise_time = rise_time
+        super().__init__(fs, start_time, duration, input_factory)
 
-    while True:
-        # Provide waveform and wait on instructions for next waveform
-        kwargs = (yield waveform, complete)
-
-        # Ensure we don't produce more samples than needed to complete waveform
-        samples = kwargs['samples']
-        samples = min(epoch_samples-offset, samples)
-        kwargs['samples'] = samples
-
-        # Generate the waveform
-        envelope = cos2envelope(fs, offset, samples, start_time, rise_time,
-                                duration)
-        token = input_generator.send(kwargs)
+    def next(self, samples):
+        token = self.input_factory.next(samples)
+        envelope = cos2envelope(self.fs, self.offset, samples, self.start_time,
+                                self.rise_time, self.duration)
         waveform = envelope*token
-        offset += len(waveform)
-
-        # Check if we're done
-        if offset == epoch_samples:
-            complete = True
-        elif offset > epoch_samples:
-            raise ValueError('Algorithm mistake!!')
-        else:
-            complete = False
+        self.offset += samples
+        return waveform
 
 
-enamldef Cos2Envelope(Block): block:
+enamldef Cos2Envelope(Gate): block:
 
-    factory = cos2envelope_factory
+    factory = Cos2EnvelopeFactory
     name = 'envelope'
     label = 'envelope'
-
-    Parameter:
-        name = 'duration'
-        label = 'duration (s)'
-        compact_label = 'dur'
-        default = 4.0
 
     Parameter:
         name = 'rise_time'
@@ -139,22 +231,16 @@ enamldef Cos2Envelope(Block): block:
         compact_label = 'env rise'
         default = 1.0
 
-    Parameter:
-        name = 'start_time'
-        label = 'start time (s)'
-        compact_label = 'start'
-        default = 0.0
-
 
 ################################################################################
 # SAM envelope
 ################################################################################
-@memory.cache
+@fast_cache
 def sam_eq_power(depth):
     return (3.0/8.0*depth**2.0-depth+1.0)**0.5
 
 
-@memory.cache
+@fast_cache
 def sam_eq_phase(delay, depth, direction):
     if depth == 0:
         return 0
@@ -163,16 +249,13 @@ def sam_eq_phase(delay, depth, direction):
     return 2.0*np.pi-phi if direction == 1 else phi
 
 
-@memory.cache
-def sam_envelope(offset, samples, fs, depth, fm, delay, direction):
-    eq_phase = sam_eq_phase(delay, depth, direction)
-    eq_power = sam_eq_power(depth)
-
+@fast_cache
+def sam_envelope(offset, samples, fs, depth, fm, delay, eq_phase, eq_power):
     delay_n = np.clip(int(delay*fs)-offset, 0, samples)
     sam_n = samples-delay_n
 
     sam_offset = offset-delay_n
-    t = (np.arange(sam_n, dtype=np.float32) + sam_offset)/fs
+    t = (np.arange(sam_n, dtype=np.double) + sam_offset)/fs
     sam_envelope = depth/2.0*np.cos(2.0*np.pi*fm*t+eq_phase)+1.0-depth/2.0
 
     # Ensure that we scale the waveform so that the total power remains equal
@@ -183,28 +266,31 @@ def sam_envelope(offset, samples, fs, depth, fm, delay, direction):
     return np.concatenate((delay_envelope, sam_envelope))
 
 
-@single_input
-def samenvelope_factory(fs, depth, fm, delay, direction, calibration,
-                        input_factory):
-    waveform = None
-    offset = 0
+class SAMEnvelopeFactory(Modulator):
 
-    # Initialize the inputs
-    input_generator = input_factory()
-    next(input_generator)
+    def __init__(self, fs, depth, fm, delay, direction, calibration,
+                 input_factory):
+        vars(self).update(locals())
+        self.eq_phase = sam_eq_phase(delay, depth, direction)
+        self.eq_power = sam_eq_power(depth)
+        self.reset()
 
-    while True:
-        kwargs = (yield waveform)
-        samples = kwargs['samples']
-        env = sam_envelope(offset, samples, fs, depth, fm, delay, direction)
-        token = input_generator.send(kwargs)
+    def reset(self):
+        self.offset = 0
+        self.input_factory.reset()
+
+    def next(self, samples):
+        env = sam_envelope(self.offset, samples, self.fs, self.depth, self.fm,
+                           self.delay, self.eq_phase, self.eq_power)
+        token = self.input_factory.next(samples)
         waveform = env*token
-        offset += len(waveform)
+        self.offset += len(waveform)
+        return waveform
 
 
-enamldef SAMEnvelope(Block): block:
+enamldef SAMEnvelope(ContinuousBlock): block:
 
-    factory = samenvelope_factory
+    factory = SAMEnvelopeFactory
     name = 'SAM'
     label = 'SAM'
 
@@ -237,71 +323,90 @@ enamldef SAMEnvelope(Block): block:
 ################################################################################
 # Bandlimited noise
 ################################################################################
-@memory.cache
-def _calculate_bandlimited_noise_filter(fs, center_frequency, pass_bandwidth,
-                                        stop_bandwidth, passband_attenuation,
+@fast_cache
+def _calculate_bandlimited_noise_filter(fs, fl, fh, fls, fhs,
+                                        passband_attenuation,
                                         stopband_attenuation):
-    fl = center_frequency-0.5*pass_bandwidth
-    fh = center_frequency+0.5*pass_bandwidth
     Wp = np.array([fl, fh])/(0.5*fs)
-    fl = center_frequency-0.5*stop_bandwidth
-    fh = center_frequency+0.5*stop_bandwidth
-    Ws = np.array([fl, fh])/(0.5*fs)
+    Ws = np.array([fls, fhs])/(0.5*fs)
     b, a = signal.iirdesign(Wp, Ws, passband_attenuation, stopband_attenuation) 
+    if np.any(np.abs(np.roots(a)) >= 1):
+        raise ValueError('Unstable filter coefficients')
     zi = signal.lfilter_zi(b, a)
     return b, a, zi
 
 
-@memory.cache
-def _calculate_bandlimited_noise_iir(fs, calibration, center_frequency,
-                                     pass_bandwidth):
-    fl = center_frequency-0.5*pass_bandwidth
-    fh = center_frequency+0.5*pass_bandwidth
+@fast_cache
+def _calculate_bandlimited_noise_iir(fs, calibration, fl, fh):
     duration = 2.0/fl
     iir = calibration.get_iir(fs, fl, fh, duration)
     zi = signal.lfilter_zi(iir, [1])
     return iir, zi
 
 
-@no_inputs
-def bandlimited_noise_factory(fs, seed, level, center_frequency,
-                              pass_bandwidth, stop_bandwidth,
-                              passband_attenuation, stopband_attenuation,
-                              calibration):
-    waveform = None
-    state = np.random.RandomState(seed)
+class BandlimitedNoiseFactory(Carrier):
 
-    sf = calibration.get_sf(center_frequency, level)
-    
-    b, a, bp_zi = _calculate_bandlimited_noise_filter(
-        fs, center_frequency, pass_bandwidth, stop_bandwidth,
-        passband_attenuation, stopband_attenuation)
+    def __init__(self, fs, seed, level, fl, fh, filter_rolloff,
+                 passband_attenuation, stopband_attenuation, equalize,
+                 calibration):
+        vars(self).update(locals())
 
-    iir, iir_zi = _calculate_bandlimited_noise_iir(
-        fs, calibration, center_frequency, pass_bandwidth)
+        # Calculate the scaling factor for the noise
+        center_frequency = (fl+fh)*0.5
+        pass_bandwidth = fh-fl
+        sf = calibration.get_sf(center_frequency, level)
 
-    # This was copied from the EPL CFT. Need to figure out how this equation
-    # works so we can document this better. But it works as intended to scale
-    # the noise back to RMS=1.
-    filter_sf = 1.0/np.sqrt(pass_bandwidth*2/fs/3.0)
+        # This was copied from the EPL CFT. Need to figure out how this
+        # equation works so we can document this better. But it works as
+        # intended to scale the noise back to RMS=1.
+        filter_sf = 1.0/np.sqrt(pass_bandwidth*2/fs/3.0)
 
-    # The RMS value of noise drawn from a uniform distribution is
-    # amplitude/sqrt(3). By setting the low and high to sqrt(3) and multiplying
-    # by the scaling factors, we can ensure that the noise is initially
-    # generated with the desired RMS.
-    low, high = -np.sqrt(3)*filter_sf*sf, np.sqrt(3)*filter_sf*sf
+        # The RMS value of noise drawn from a uniform distribution is
+        # amplitude/sqrt(3). By setting the low and high to sqrt(3) and
+        # multiplying by the scaling factors, we can ensure that the noise is
+        # initially generated with the desired RMS.
+        self.low = -np.sqrt(3)*filter_sf*sf
+        self.high = np.sqrt(3)*filter_sf*sf
 
-    while True:
-        kwargs = (yield waveform)
-        samples = kwargs['samples']
-        waveform = state.uniform(low=low, high=high, size=samples)
-        waveform, iir_zi = signal.lfilter(iir, [1], waveform, zi=iir_zi)
-        waveform, bp_zi = signal.lfilter(b, a, waveform, zi=bp_zi)
+        # Calculate the stop bandwidth as octaves above and below the passband.
+        # Precompute the filter settings.
+        fls, fhs = fl*(2**-filter_rolloff), fh*(2**filter_rolloff)
+        b, a, bp_zi = _calculate_bandlimited_noise_filter(fs, fl, fh, fls, fhs,
+                                                          passband_attenuation,
+                                                          stopband_attenuation)
+        self.b = b
+        self.a = a
+        self.initial_bp_zi = bp_zi
+
+        # Calculate the IIR filter if we are equalizing the noise.
+        if equalize:
+            iir, iir_zi = _calculate_bandlimited_noise_iir(fs, calibration, fl, fh)
+            self.iir = iir
+            self.initial_iir_zi = iir_zi
+        else:
+            self.iir = None
+            self.initial_iir_zi = None
+
+        self.reset()
+
+    def reset(self):
+        self.iir_zi = self.initial_iir_zi
+        self.bp_zi = self.initial_bp_zi
+        self.state = np.random.RandomState(self.seed)
+
+    def next(self, samples):
+        waveform = self.state.uniform(low=self.low, high=self.high, size=samples)
+        if self.equalize:
+            waveform, self.iir_zi = signal.lfilter(self.iir, [1], waveform,
+                                                   zi=self.iir_zi)
+        waveform, self.bp_zi = signal.lfilter(self.b, self.a, waveform,
+                                              zi=self.bp_zi)
+        return waveform
 
 
-enamldef BandlimitedNoise(Block):
-    
-    factory = bandlimited_noise_factory
+enamldef BandlimitedNoise(ContinuousBlock):
+
+    factory = BandlimitedNoiseFactory
     name = 'bandlimited_noise'
     label = 'bandlimited noise'
 
@@ -318,57 +423,74 @@ enamldef BandlimitedNoise(Block):
         default = 1
 
     Parameter:
-        name = 'center_frequency'
-        label = 'center frequency (Hz)'
-        compact_label = 'fc'
-        default = 8000.0
+        name = 'fl'
+        label = 'highpass cutoff (Hz)'
+        compact_label = 'fl'
+        default = 0.1e3
 
     Parameter:
-        name = 'pass_bandwidth'
-        label = 'pass bandwidth (Hz)'
-        compact_label = 'pass bw'
-        default = 6000.0
+        name = 'fh'
+        label = 'lowpass cutoff (Hz)'
+        compact_label = 'fh'
+        default = 20e3
 
     Parameter:
-        name = 'stop_bandwidth'
-        label = 'stop bandwidth (Hz)'
-        compact_label = 'stop bw'
-        default = 4000.0
+        name = 'filter_rolloff'
+        label = 'filter rolloff (octaves)'
+        compact_label = 'fr'
+        default = 3
 
     Parameter:
         name = 'passband_attenuation'
         label = 'passband attenuation (dB)'
         compact_label = 'pass. atten.'
-        default = 10.0
+        default = 0.1
 
     Parameter:
         name = 'stopband_attenuation'
         label = 'stopband attenuation (dB)'
         compact_label = 'stop. atten.'
-        default = 60.0
+        default = 90.0
+
+    EnumParameter:
+        name = 'equalize'
+        default = 'yes'
+        choices = {'yes': True, 'no': False}
 
 
 ################################################################################
 # Tone
 ################################################################################
-@no_inputs
-def tone_factory(fs, level, frequency, calibration):
-    sf = calibration.get_sf(frequency, level)
-    waveform = None
-    offset = 0
-    while True:
+class ToneFactory(Carrier):
+
+    def __init__(self, fs, level, frequency, phase=0, polarity=1,
+                 calibration=None):
+
+        vars(self).update(locals())
+
+        # Since the scaling factor is based on Vrms, we need to convert this to
+        # the peak-to-peak scaling factor.
+        if calibration is None:
+            self.sf = level
+        else:
+            self.sf = calibration.get_sf(frequency, level)*np.sqrt(2)
+        self.reset()
+
+    def reset(self):
+        self.offset = 0
+
+    def next(self, samples):
         # Note. At least for 5 msec tones it's faster to just compute the array
         # rather than cache the result.
-        kwargs = (yield waveform)
-        samples = kwargs['samples']
-        t = (np.arange(samples, dtype=np.float32) + offset)/fs
-        waveform = sf*np.cos(2*np.pi*t*frequency)
-        offset += len(waveform)
+        t = (np.arange(samples, dtype=np.double) + self.offset)/self.fs
+        waveform = self.polarity*self.sf*np.cos(2*np.pi*t*self.frequency + self.phase)
+        self.offset += samples
+        return waveform
 
 
-enamldef Tone(Block):
+enamldef Tone(ContinuousBlock):
 
-    factory = tone_factory
+    factory = ToneFactory
     name = 'tone'
     label = 'tone'
 
@@ -384,21 +506,140 @@ enamldef Tone(Block):
         compact_label = 'fc'
         default = 1000.0
 
+    EnumParameter:
+        name = 'polarity'
+        label = 'polarity (radians)'
+        compact_label = 'pol'
+        default = 'positive'
+        choices = {'positive': 1, 'negative': -1}
 
-@no_inputs
-def silence_factory(fs, calibration):
-    waveform = None
-    while True:
-        kwargs = (yield waveform)
-        samples = kwargs['samples']
-        waveform = np.zeros(samples)
+    Parameter:
+        name = 'phase'
+        label = 'phase'
+        compact_label = 'Θ'
+        default = 0
 
 
 ################################################################################
 # Silence
 ################################################################################
-enamldef Silence(Block):
+class SilenceFactory(Carrier):
 
-    factory = silence_factory
+    def __init__(self, fs, calibration):
+        pass
+
+    def next(self, samples):
+        return np.zeros(samples)
+
+    def reset(self):
+        pass
+
+
+enamldef Silence(ContinuousBlock):
+
+    factory = SilenceFactory
     name = 'silence'
     label = 'silence'
+
+
+################################################################################
+# Square waveform
+################################################################################
+class SquareWaveFactory(Carrier):
+
+    def __init__(self, fs, level, frequency, duty_cycle):
+        self.sf = level
+        self.cycle_samples = int(round(fs/frequency))
+        self.on_samples = int(round(self.cycle_samples * duty_cycle))
+        self.reset()
+
+    def reset(self):
+        self.offset = 0
+
+    def next(self, samples):
+        waveform = np.zeros(samples)
+        o = self.offset % self.cycle_samples
+        while o < samples:
+            waveform[o:o+self.on_samples] = self.sf
+            o += self.cycle_samples
+        return waveform
+
+
+enamldef SquareWave(ContinuousBlock):
+
+    factory = SquareWaveFactory
+    name = 'square_wave'
+    label = 'square wave'
+
+    Parameter:
+        name = 'level'
+        label = 'level'
+        compact_label = 'level'
+        default = 5
+
+    Parameter:
+        name = 'frequency'
+        label = 'frequency (Hz)'
+        compact_label = 'frequency'
+        default = 5
+
+    Parameter:
+        name = 'duty_cycle'
+        label = 'duty cycle'
+        compact_label = 'duty_cycle'
+        default = 0.5
+
+
+################################################################################
+# Chirp
+################################################################################
+class ChirpFactory(FixedWaveform):
+
+    def __init__(self, fs, start_frequency, end_frequency, duration, level,
+                 calibration):
+
+        vars(self).update(locals())
+
+        f0 = start_frequency
+        f1 = end_frequency
+
+        n = int(fs*duration)
+        t = np.arange(n, dtype=np.double) / fs
+        k = (end_frequency-start_frequency)/duration
+
+        # Compute instantaneous frequency, which can be used to compute the
+        # instantaneous scaling factor for each timepoint (thereby compensating
+        # for nonlinearities in the output).
+        ifreq = t*k + start_frequency
+        sf = calibration.get_sf(ifreq, level)*np.sqrt(2)
+
+        # Now, compute the chirp
+        self.waveform = sf*np.sin(2*np.pi*(start_frequency*t + k/2 * t**2))
+        self.reset()
+
+
+enamldef Chirp(EpochBlock):
+
+    factory = ChirpFactory
+    name = 'chirp'
+    label = 'chirp'
+
+    Parameter:
+        name = 'level'
+        label = 'level (dB)'
+        default = -40
+
+    Parameter:
+        name = 'start_frequency'
+        label = 'start frequency (Hz)'
+        default = 250.0
+
+    Parameter:
+        name = 'end_frequency'
+        label = 'end frequency (Hz)'
+        default = 50e3
+
+    Parameter:
+        name = 'duration'
+        label = 'duration (sec)'
+        default = 1/50.0

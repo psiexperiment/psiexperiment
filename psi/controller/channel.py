@@ -3,33 +3,61 @@ log = logging.getLogger(__name__)
 
 import numpy as np
 
-from atom.api import Unicode, Enum, Typed, Tuple, Property
+from atom.api import (Bool, Float, Int, List, Property, Tuple, Typed, Unicode)
+from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
 
-from .calibration import Calibration
-from .output import ContinuousOutput, EpochOutput, NullOutput
+from psi.controller.calibration.api import Calibration, UnityCalibration
+from .output import QueuedEpochOutput, ContinuousOutput, EpochOutput
+from ..core.enaml.api import PSIContribution
+from ..util import coroutine
 
 
-class Channel(Declarative):
+class Channel(PSIContribution):
 
+    # Globally-unique name of channel used for identification
+    name = d_(Unicode()).tag(metadata=True)
+
+    # Lable of channel used in GUI
     label = d_(Unicode()).tag(metadata=True)
 
-    # Device-specific channel identifier.
-    channel = d_(Unicode()).tag(metadata=True)
+    # Is channel active during experiment?
+    active = Property()
 
-    # For software-timed channels, set sampling frequency to 0.
-    fs = d_(Typed(object)).tag(metadata=True)
+    # SI unit (e.g., V)
+    unit = d_(Unicode()).tag(metadata=True)
 
-    # Can be blank for no start trigger (i.e., acquisition begins as soon as
-    # task begins)
-    start_trigger = d_(Unicode()).tag(metadata=True)
+    # Number of samples to acquire before task ends. Typically will be set to
+    # 0 to indicate continuous acquisition.
+    samples = d_(Int(0)).tag(metadata=True)
 
     # Used to properly configure data storage.
-    dtype = d_(Typed(np.dtype))
+    dtype = d_(Unicode()).tag(metadata=True)
 
+    # Parent engine (automatically derived by Enaml hierarchy)
     engine = Property()
 
-    calibration = d_(Typed(Calibration))
+    # Calibration of channel
+    calibration = d_(Typed(Calibration, factory=UnityCalibration))
+    calibration.tag(metadata=True)
+
+    # Can the user modify the channel calibration?
+    calibration_user_editable = d_(Bool(False))
+
+    # Is channel active during experiment?
+    active = Property()
+
+    filter_delay = d_(Float(0).tag(metadata=True))
+
+    def _default_calibration(self):
+        return UnityCalibration()
+
+    def __init__(self, *args, **kwargs):
+        # This is a hack due to the fact that name is defined as a Declarative
+        # member and each Mixin will overwrite whether or not the name is
+        # tagged.
+        super().__init__(*args, **kwargs)
+        self.members()['name'].tag(metadata=True)
 
     def _get_engine(self):
         return self.parent
@@ -37,77 +65,149 @@ class Channel(Declarative):
     def _set_engine(self, engine):
         self.set_parent(engine)
 
-    def configure(self, plugin):
+    def configure(self):
         pass
 
+    def _get_active(self):
+        raise NotImplementedError
 
-class InputChannel(Channel):
-
-    inputs = Property().tag(transient=True)
-
-    def _get_inputs(self):
-        return self.children
-
-    def configure(self, plugin):
-        for input in self.inputs:
-            log.debug('Configuring input {}'.format(input.name))
-            input.configure(plugin)
+    def __str__(self):
+        return self.label
 
 
-class OutputChannel(Channel):
+class HardwareMixin(Declarative):
 
-    outputs = Property().tag(transient=True)
-
-    def _get_outputs(self):
-        return self.children
-
-    def configure(self, plugin):
-        for output in self.outputs:
-            log.debug('Configuring output {}'.format(output.name))
-            output.configure(plugin)
+    fs = d_(Float()).tag(metadata=True)
 
 
-class AIChannel(InputChannel):
-
-    TERMINAL_MODES = 'pseudodifferential', 'differential', 'RSE', 'NRSE'
-    expected_range = d_(Tuple()).tag(metadata=True)
-    terminal_mode = d_(Enum(*TERMINAL_MODES)).tag(metadata=True)
-    terminal_coupling = d_(Enum(None, 'AC', 'DC', 'ground')).tag(metadata=True)
-
-
-class AOChannel(OutputChannel):
-    '''
-    An analog output channel supports one continuous and multiple epoch
-    outputs.
-    '''
-    TERMINAL_MODES = 'pseudodifferential', 'differential', 'RSE'
-
-    epoch_outputs = Property()
-    continuous_output = Property()
-
-    expected_range = d_(Tuple()).tag(metadata=True)
-    terminal_mode = d_(Enum(*TERMINAL_MODES)).tag(metadata=True)
-
-    def _get_continuous_output(self):
-        for o in self.outputs:
-            if isinstance(o, ContinuousOutput):
-                return o
-        return None
-
-    def _get_epoch_outputs(self):
-        return [o for o in self.outputs if isinstance(o, EpochOutput)]
-
-    def configure(self, plugin):
-        # Hack?
-        if self.continuous_output is None:
-            null_output = NullOutput()
-            null_output.target = self
-        super(AOChannel, self).configure(plugin)
-
-
-class DIChannel(InputChannel):
+class SoftwareMixin(Declarative):
     pass
 
 
-class DOChannel(Channel):
+class InputMixin(Declarative):
+
+    inputs = List()
+
+    def _get_active(self):
+        active = [i.active for i in self.inputs]
+        return any(active)
+
+    def add_input(self, i):
+        if i in self.inputs:
+            return
+        self.inputs.append(i)
+        i.source = self
+
+    def remove_input(self, i):
+        if i not in self.inputs:
+            return
+        self.inputs.remove(i)
+        i.source = None
+
+    def configure(self):
+        for input in self.inputs:
+            log.debug('Configuring input {}'.format(input.name))
+            input.configure()
+
+    def add_callback(self, cb):
+        from .input import Callback
+        callback = Callback(function=cb)
+        self.add_input(callback)
+
+
+class AnalogMixin(Declarative):
+
+    # Expected input range (min/max)
+    expected_range = d_(Tuple()).tag(metadata=True)
+
+
+class DigitalMixin(Declarative):
+
+    dtype = 'bool'
+
+
+class CounterMixin(Declarative):
+
+    def _get_active(self):
+        return True
+
+
+class OutputMixin(Declarative):
+
+    outputs = List()
+    buffer_size = Property()
+
+    def _get_active(self):
+        return len(self.outputs) > 0
+
+    def add_output(self, o):
+        if o in self.outputs:
+            return
+        self.outputs.append(o)
+        o.target = self
+
+    def remove_output(self, o):
+        if o not in self.outputs:
+            return
+        self.outputs.remove(o)
+        o.target = None
+
+    def add_queued_epoch_output(self, queue, auto_decrement=True):
+        # Subclasses of Enaml Declarative will automatically insert themselves
+        # as children of the parent when initialized.
+        o = QueuedEpochOutput(queue=queue, auto_decrement=auto_decrement)
+        self.add_output(o)
+        return o
+
+    def _get_buffer_size(self):
+        return self.engine.get_buffer_size(self.name)
+
+
+class CounterChannel(CounterMixin, Channel):
+    pass
+
+
+class HardwareAOChannel(AnalogMixin, OutputMixin, HardwareMixin, Channel):
+
+    def get_samples(self, offset, samples, out=None):
+        if out is None:
+            out = np.empty(samples, dtype=np.double)
+        n_outputs = len(self.outputs)
+        waveforms = np.empty((n_outputs, samples))
+        for output, waveform in zip(self.outputs, waveforms):
+            output.get_samples(offset, samples, out=waveform)
+        return np.sum(waveforms, axis=0, out=out)
+
+
+class SoftwareAOChannel(AnalogMixin, OutputMixin, SoftwareMixin, Channel):
+    pass
+
+
+class HardwareAIChannel(AnalogMixin, InputMixin, HardwareMixin, Channel):
+
+    # Gain in dB of channel (e.g., due to a microphone preamp). The signal will
+    # be scaled down before further processing.
+    gain = d_(Float()).tag(metadata=True)
+
+
+class SoftwareAIChannel(AnalogMixin, InputMixin, SoftwareMixin, Channel):
+
+    # Gain in dB of channel (e.g., due to a microphone preamp). The signal will
+    # be scaled down before further processing.
+    gain = d_(Float()).tag(metadata=True)
+
+
+class HardwareDOChannel(DigitalMixin, OutputMixin, HardwareMixin, Channel):
+    pass
+
+
+class SoftwareDOChannel(DigitalMixin, OutputMixin, SoftwareMixin, Channel):
+    pass
+
+
+class HardwareDIChannel(DigitalMixin, InputMixin, HardwareMixin, Channel):
+    pass
+
+
+class SoftwareDIChannel(DigitalMixin, InputMixin, SoftwareMixin, Channel):
     pass

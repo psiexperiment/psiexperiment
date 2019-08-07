@@ -6,14 +6,25 @@ import operator
 import collections
 from copy import deepcopy
 
-from atom.api import ContainerList, Typed, Enum, Event, Bool, Property
+from atom.api import Atom, ContainerList, Typed, Enum, Event, Bool, Property, Float
 from enaml.core.declarative import Declarative, d_
+from psi.core.enaml.api import PSIContribution
 
 from . import choice
 from .. import SimpleState
 
 
-class BaseSelector(SimpleState, Declarative):
+def warn_empty(method):
+    def wrapper(self, *args, **kwargs):
+        try:
+            return method(self, *args, **kwargs)
+        except ValueError as e:
+            mesg = f'{self.label} sequence must have at least one value' 
+            raise ValueError(mesg) from e
+    return wrapper
+
+
+class BaseSelector(PSIContribution):
 
     context_items = Typed(list, [])
     updated = Event()
@@ -59,6 +70,7 @@ class SingleSetting(BaseSelector):
             self.setting[item.name] = item.default
         super(SingleSetting, self).append_item(item)
 
+    @warn_empty
     def get_iterator(self, cycles=None):
         setting = {i: self.setting[i.name] for i in self.context_items}
         if cycles is None:
@@ -70,23 +82,48 @@ class SingleSetting(BaseSelector):
         return self.setting[item.name]
 
     def set_value(self, item, value):
-        self.setting[item.name] = item.coerce_to_type(value)
+        value = item.coerce_to_type(value)
+        self.setting[item.name] = value
         self.updated = True
+
+
+class CartesianProduct(BaseSelector):
+
+    settings = Typed(dict, {}).tag(preference=True)
+
+    def append_item(self, item):
+        self.settings.setdefault(item.name, [])
+        super().append_item(item)
+
+    def add_setting(self, item, value):
+        self.settings[item.name].append(value)
+
+    def get_settings(self):
+        values = [self.settings[i.name] for i in self.context_items]
+        return [dict(zip(self.context_items, s)) for s in itertools.product(*values)]
+
+    @warn_empty
+    def get_iterator(self, cycles=np.inf):
+        settings = self.get_settings()
+        return choice.exact_order(settings, cycles)
 
 
 class SequenceSelector(BaseSelector):
 
-    settings = Typed(list, {}).tag(preference=True)
+    settings = Typed(list, []).tag(preference=True)
     order = d_(Enum(*choice.options.keys())).tag(preference=True)
 
-    def add_setting(self, values=None):
+    def add_setting(self, values=None, index=None):
         if values is None:
             values = {}
         for item in self.context_items:
             if item.name not in values:
                 values[item.name] = item.default
         settings = self.settings[:]
-        settings.append(values)
+        if index is None:
+            settings.append(values)
+        else:
+            settings.insert(index, values)
         self.settings = settings
         self.updated = True
 
@@ -103,12 +140,16 @@ class SequenceSelector(BaseSelector):
         super(SequenceSelector, self).append_item(item)
 
     def sort_settings(self):
-        self.settings.sort()
+        key = lambda x: [x[i.name] for i in self.context_items]
+        settings = self.settings.copy()
+        settings.sort(key=key)
+        self.settings = settings
         self.updated = True
 
     def _observe_order(self, event):
         self.updated = True
 
+    @warn_empty
     def get_iterator(self, cycles=np.inf):
         # Some selectors need to sort the settings. To make sure that the
         # selector sorts the parameters in the order the columns are specified,
@@ -121,6 +162,8 @@ class SequenceSelector(BaseSelector):
         return selector(settings, cycles, key=key)
 
     def set_value(self, setting_index, item, value):
+        # TODO: It's weird that some methods take the index of the setting,
+        # while others take the setting object. Need to sanitize this.
         value = item.coerce_to_type(value)
         self.settings[setting_index][item.name] = value
         self.updated = True

@@ -1,0 +1,13 @@
+from psi.core.enaml.api import PSIContribution, PSIManifest
+
+
+enamldef PSITestContribution2Manifest(PSIManifest):
+    pass
+
+
+class PSITestContribution3(PSIContribution):
+    pass
+
+
+class PSITestContribution3Manifest(PSIManifest):
+    pass

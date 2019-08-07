@@ -6,278 +6,311 @@ from functools import partial
 
 import numpy as np
 
-from atom.api import (Unicode, Enum, Typed, Property, Float, Int, Bool)
+from atom.api import (Unicode, Enum, Event, Typed, Property, Float, Int, Bool,
+                      List)
 
+import enaml
+from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
 from enaml.workbench.api import Extension
 
-from ..util import coroutine
+from ..util import coroutine, SignalBuffer
 from .queue import AbstractSignalQueue
 
 from psi.core.enaml.api import PSIContribution
 
+import time
+
+
+class Synchronized(PSIContribution):
+
+    outputs = Property()
+    engines = Property()
+
+    def _get_outputs(self):
+        return self.children
+
+    def _get_engines(self):
+        return set(o.engine for o in self.outputs)
+
 
 class Output(PSIContribution):
 
-    visible = d_(Bool(False))
+    name = d_(Unicode()).tag(metadata=True)
+    label = d_(Unicode()).tag(metadata=True)
 
     target_name = d_(Unicode())
-
+    target = d_(Typed(Declarative).tag(metadata=True), writable=False)
     channel = Property()
-    target = Property()
     engine = Property()
-    fs = Property()
+
+    # These two are defined as properties because it's theoretically possible
+    # for the output to transform these (e.g., an output could upsample
+    # children or "equalize" something before passing it along).
+    fs = Property().tag(metadata=True)
+    calibration = Property().tag(metadata=True)
+    filter_delay = Property().tag(metadata=True)
 
     # TODO: clean this up. it's sort of hackish.
-    token_name = d_(Unicode())
-    token = Typed(Declarative)
+    token = d_(Typed(Declarative))
 
-    def _observe_parent(self, event):
-        self.target_name = event['value'].name
+    # Can the user configure properties (such as the token) via the GUI?
+    configurable = d_(Bool(True))
 
-    def _get_target(self):
-        if isinstance(self.parent, Extension):
-            return None
-        return self.parent
+    callbacks = List()
 
-    def _set_target(self, target):
-        self.set_parent(target)
+    def connect(self, cb):
+        self.callbacks.append(cb)
+
+    def notify(self, data):
+        # Correct for filter delay
+        d = data.copy()
+        d['t0'] += self.filter_delay
+        for cb in self.callbacks:
+            cb(d)
 
     def _get_engine(self):
-        return self.channel.parent
+        if self.channel is None:
+            return None
+        else:
+            return self.channel.engine
 
     def _get_channel(self):
         from .channel import Channel
-        parent = self.parent
+        target = self.target
         while True:
-            if isinstance(parent, Channel):
-                return parent
+            if target is None:
+                return None
+            elif isinstance(target, Channel):
+                return target
             else:
-                parent = parent.parent
+                target = target.target
+
+    def _get_filter_delay(self):
+        return self.target.filter_delay
 
     def _get_fs(self):
         return self.channel.fs
 
+    def _get_calibration(self):
+        return self.channel.calibration
 
-class AnalogOutput(Output):
-
-    # This determines how many samples will be requested from the generator on
-    # each iteration. While we can request an arbitrary number of samples, this
-    # helps some caching mechanisms better cache the results for future calls.
-    block_size = d_(Float(2))
-    visible = d_(Bool(True))
-
-    _generator = Typed(GeneratorType)
-    _offset = Int()
-    _block_samples = Int()
-
-    def configure(self, plugin):
-        pass
-
-    def initialize_factory(self, context):
-        context = context.copy()
-        context['fs'] = self.channel.fs
-        context['calibration'] = self.channel.calibration
-        return self.token.initialize_factory(context)
-
-    def initialize_generator(self, context):
-        factory = self.initialize_factory(context)
-        generator = factory()
-        next(generator)
-        return generator
+    def is_ready(self):
+        raise NotImplementedError
 
 
-class EpochCallback(object):
+class BufferedOutput(Output):
 
-    def __init__(self, output, generator):
-        self.output = output
-        self.engine = output.engine
-        self.channel = output.channel
-        self.active = False
-        self.generator = generator
+    dtype = Unicode('double')
+    buffer_size = Property()
+    active = Bool(False)
+    source = Typed(object)
 
-    def start(self, start, delay):
-        self.offset = int((start+delay)*self.channel.fs)
+    _buffer = Typed(SignalBuffer)
+    _offset = Int(0)
+
+    def _get_buffer_size(self):
+        return self.channel.buffer_size
+
+    def _default__buffer(self):
+        return SignalBuffer(self.fs, self.buffer_size, 0, self.dtype)
+
+    def get_samples(self, offset, samples, out):
+        lb = offset
+        ub = offset + samples
+        buffered_lb = self._buffer.get_samples_lb()
+        buffered_ub = self._buffer.get_samples_ub()
+
+        log.trace('Getting %d samples from %d to %d for %s', samples, lb, ub,
+                  self.name)
+        log.trace('Buffer has %d to %d for %s', buffered_lb, buffered_ub,
+                  self.name)
+
+        if lb > buffered_ub:
+            # This breaks an implicit software contract.
+            raise SystemError('Mismatch between offsets')
+        elif lb == buffered_ub:
+            log.trace('Generating new data')
+            pass
+        elif lb >= buffered_lb and ub <= buffered_ub:
+            log.trace('Extracting from buffer')
+            out[:] = self._buffer.get_range_samples(lb, ub)
+            samples = 0
+            offset = ub
+        elif lb >= buffered_lb and ub > buffered_ub:
+            log.trace('Extracting from buffer and generating new data')
+            b = self._buffer.get_range_samples(lb)
+            s = b.shape[-1]
+            out[:s] = b
+            samples -= s
+            offset += s
+
+        # Don't generate new samples if occuring before activation.
+        if (samples > 0) and (offset < self._offset):
+            s = min(self._offset-offset, samples)
+            data = np.zeros(s)
+            self._buffer.append_data(data)
+            if (samples == s):
+                out[-samples:] = data
+            else:
+                out[-samples:-samples+s] = data
+            samples -= s
+            offset += s
+
+        # Generate new samples
+        if samples > 0:
+            data = self.get_next_samples(samples)
+            self._buffer.append_data(data)
+            out[-samples:] = data
+
+    def get_next_samples(self, samples):
+        raise NotImplementedError
+
+    def activate(self, offset):
+        log.debug('Activating %s at %d', self.name, offset)
         self.active = True
-        next(self)
+        self._offset = offset
+        self._buffer.invalidate_samples(offset)
 
-    def __next__(self):
-        if not self.active:
-            raise StopIteration
-        with self.engine.lock:
-            samples = self.engine.get_buffered_samples(self.channel.name,
-                                                       self.offset)
-            samples = min(self.output._block_samples, samples)
-            if samples == 0:
-                return
-            waveform, complete = self.generator.send({'samples': samples})
-            self.engine.modify_hw_ao(waveform, self.offset, self.output.name)
-            self.offset += len(waveform)
-            if complete:
-                raise StopIteration
+    def deactivate(self, offset):
+        log.debug('Deactivating %s at %d', self.name, offset)
+        self.active = False
+        self.source = None
+        self._buffer.invalidate_samples(offset)
 
-    def clear(self, end, delay):
-        with self.engine.lock:
-            offset = int((end+delay)*self.channel.fs)
-            samples = self.engine.get_buffered_samples(self.channel.name,
-                                                       offset)
-            waveform = np.zeros(samples)
-            self.engine.modify_hw_ao(waveform, offset, self.output.name)
-            self.active = False
+    def is_ready(self):
+        return self.source is not None
+
+    def get_duration(self):
+        return self.source.get_duration()
 
 
-class EpochOutput(AnalogOutput):
+class EpochOutput(BufferedOutput):
 
-    method = d_(Enum('merge', 'replace', 'multiply'))
-    manifest = 'psi.controller.output_manifest.EpochOutputManifest'
+    def get_next_samples(self, samples):
+        log.trace('Getting %d samples for %s', samples, self.name)
+        if self.active:
+            buffered_ub = self._buffer.get_samples_ub()
 
-    _cb = Typed(object)
-    _duration = Typed(object)
+            # Pad with zero
+            zero_padding = max(self._offset-buffered_ub, 0)
+            zero_padding = min(zero_padding, samples)
+            waveform_samples = samples - zero_padding
 
-    def setup(self, context):
-        '''
-        Set up the generator in preparation for producing the signal. This
-        allows the generator to cache some potentially expensive computations
-        in advance rather than just before we actually want the signal played.
-        '''
-        generator = self.initialize_generator(context)
-        cb = EpochCallback(self, generator)
-        self._cb = cb
-        self._duration = self.token.get_duration(context)
-
-    def start(self, start, delay):
-        '''
-        Actually start the generator. It must have been initialized first.
-        '''
-        if self._cb is None:
-            m = '{} was not initialized'.format(self.name)
-            raise SystemError(m)
-        self._cb.start(start, delay)
-        self.engine.register_ao_callback(self._cb.__next__, self.channel.name)
-        return self._duration
-
-    def clear(self, end, delay):
-        self._cb.clear(end, delay)
-
-    def configure(self, plugin):
-        self._block_samples = int(self.channel.fs*self.block_size)
+            waveforms = []
+            if zero_padding:
+                w = np.zeros(zero_padding, dtype=self.dtype)
+                waveforms.append(w)
+            if waveform_samples:
+                w = self.source.next(waveform_samples)
+                waveforms.append(w)
+            if self.source.is_complete():
+                self.deactivate(self._buffer.get_samples_ub())
+            waveform = np.concatenate(waveforms, axis=-1)
+        else:
+            waveform = np.zeros(samples, dtype=self.dtype)
+        return waveform
 
 
-@coroutine
-def queued_epoch_callback(output, queue, auto_decrement, complete_cb=None):
-    offset = 0
-    engine = output.engine
-    channel = output.channel
-    while True:
-        yield
-        samples = engine.get_buffered_samples(channel.name, offset)
-        log.debug('Generating %d samples at %d from queue', samples, offset)
-        waveform, empty = queue.pop_buffer(samples, decrement=auto_decrement)
-        engine.modify_hw_ao(waveform, offset, output.name)
-        offset += len(waveform)
-        if empty:
-            break
-    if complete_cb is not None:
-        complete_cb()
+class QueuedEpochOutput(BufferedOutput):
 
-
-class QueuedEpochOutput(EpochOutput):
-
-    manifest = 'psi.controller.output_manifest.QueuedEpochOutputManifest'
-    selector_name = d_(Unicode())
     queue = d_(Typed(AbstractSignalQueue))
     auto_decrement = d_(Bool(False))
+    complete_cb = Typed(object)
+    complete = d_(Event(), writable=False)
 
-    def setup(self, context, complete_cb=None):
-        for setting in context:
-            averages = setting['{}_averages'.format(self.name)]
-            iti_duration = setting['{}_iti_duration'.format(self.name)]
-            factory = self.initialize_factory(setting)
-            iti_samples = int(iti_duration*self.fs)
-            self.queue.append(factory, averages, iti_samples, setting)
-        cb = queued_epoch_callback(self, self.queue, self.auto_decrement,
-                                   complete_cb)
-        self.engine.register_ao_callback(cb.__next__, self.channel.name)
+    def _observe_queue(self, event):
+        self.source = self.queue
+        self._update_queue()
+
+    def _observe_target(self, event):
+        self._update_queue()
+
+    def _update_queue(self):
+        if self.queue is not None and self.target is not None:
+            self.queue.set_fs(self.fs)
+            self.queue.connect(self.notify)
+
+    def get_next_samples(self, samples):
+        if self.active:
+            waveform, empty = self.queue.pop_buffer(samples, self.auto_decrement)
+            if empty and self.complete_cb is not None:
+                self.complete = True
+                log.debug('Queue empty. Calling complete callback.')
+                deferred_call(self.complete_cb)
+                self.active = False
+        else:
+            waveform = np.zeros(samples, dtype=np.double)
+        return waveform
+
+    def add_setting(self, setting, averages=None, iti_duration=None):
+        with enaml.imports():
+            from .output_manifest import initialize_factory
+
+        # Make a copy to ensure that we don't accidentally modify in-place
+        context = setting.copy()
+
+        if averages is None:
+            averages = context.pop(f'{self.name}_averages')
+        if iti_duration is None:
+            iti_duration = context.pop(f'{self.name}_iti_duration')
+
+        # Somewhat surprisingly it appears to be faster to use factories in the
+        # queue rather than creating the waveforms for ABR tone pips, even for
+        # very short signal durations.
+        #context['fs'] = self.fs
+        #context['calibration'] = self.calibration
+
+        # I'm not in love with this since it requires hooking into the
+        # manifest system.
+        factory = initialize_factory(self, self.token, context)
+        duration = factory.get_duration()
+        self.queue.append(factory, averages, iti_duration, duration, setting)
+
+    def activate(self, offset):
+        log.debug('Activating output at %d', offset)
+        super().activate(offset)
+        self.queue.set_t0(offset/self.fs)
+
+    def get_duration(self):
+        # TODO: add a method to get actual duration from queue.
+        return np.inf
 
 
-@coroutine
-def continuous_callback(output, generator):
-    offset = 0
-    engine = output.engine
-    channel = output.channel
-    while True:
-        yield
-        with engine.lock:
-            samples = engine.get_space_available(channel.name, offset)
-            log.debug('Generating {} samples for {}'.format(samples,
-                                                            channel.name))
-            waveform = generator.send({'samples': samples})
-            engine.append_hw_ao(waveform)
-            offset += len(waveform)
+class SelectorQueuedEpochOutput(QueuedEpochOutput):
+
+    selector_name = d_(Unicode('default'))
 
 
-class ContinuousOutput(AnalogOutput):
+class ContinuousOutput(BufferedOutput):
 
-    manifest = 'psi.controller.output_manifest.ContinuousOutputManifest'
-
-    def setup(self, context):
-        log.debug('Configuring continuous output {}'.format(self.name))
-        generator = self.initialize_generator(context)
-        cb = continuous_callback(self, generator)
-        self.engine.register_ao_callback(cb.__next__, self.channel.name)
-
-
-@coroutine
-def null_callback(output):
-    offset = 0
-    engine = output.engine
-    channel = output.channel
-    while True:
-        yield
-        with engine.lock:
-            samples = engine.get_space_available(channel.name, offset)
-            waveform = np.zeros(samples)
-            engine.append_hw_ao(waveform)
-            offset += samples
-
-
-class NullOutput(AnalogOutput):
-    # Used in the event where a channel does not have a continuous output
-    # defined.
-
-    def configure(self, plugin):
-        cb = null_callback(self)
-        self.engine.register_ao_callback(cb.__next__, self.channel.name)
+    def get_next_samples(self, samples):
+        if self.active:
+            return self.source.next(samples)
+        else:
+            return np.zeros(samples, dtype=np.double)
 
 
 class DigitalOutput(Output):
-
-    def configure(self, plugin):
-        pass
+    pass
 
 
 class Trigger(DigitalOutput):
 
-    manifest = 'psi.controller.output_manifest.TriggerManifest'
-
     duration = d_(Float(0.1))
 
     def fire(self):
-        self.engine.fire_sw_do(self.channel.name, duration=self.duration)
+        if self.engine.configured:
+            self.engine.fire_sw_do(self.channel.name, duration=self.duration)
 
 
 class Toggle(DigitalOutput):
 
-    manifest = 'psi.controller.output_manifest.ToggleManifest'
-
     state = Bool(False)
 
     def _observe_state(self, event):
-        try:
-            # TODO: Fixme
+        if self.engine is not None and self.engine.configured:
             self.engine.set_sw_do(self.channel.name, event['value'])
-        except:
-            pass
 
     def set_high(self):
         self.state = True

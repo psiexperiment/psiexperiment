@@ -1,10 +1,14 @@
 import logging
 log = logging.getLogger(__name__)
 
+import datetime as dt
+import os
+
 import enaml
 from enaml.workbench.api import Extension, PluginManifest, ExtensionPoint
 from enaml.workbench.core.api import Command
 
+from psi import get_config
 from psi.controller.api import ExperimentAction
 
 from .plugin import DataPlugin
@@ -13,50 +17,25 @@ from .plugin import DataPlugin
 PLUGIN_ID = 'psi.data'
 
 
-def process_trials(event):
-    plugin = event.workbench.get_plugin(PLUGIN_ID)
-    return plugin.process_trials(**event.parameters)
-
-
-def process_event(event):
-    plugin = event.workbench.get_plugin(PLUGIN_ID)
-    return plugin.process_event(**event.parameters)
-
-
-def process_ai_continuous(event):
-    plugin = event.workbench.get_plugin(PLUGIN_ID)
-    return plugin.process_ai_continuous(**event.parameters)
-
-
-def process_ai_epochs(event):
-    plugin = event.workbench.get_plugin(PLUGIN_ID)
-    return plugin.process_ai_epochs(**event.parameters)
-
-
-def process_ai_events(event):
-    #log.warn('PROCESS AI EVENTS NOT IMPLEMENTED')
-    # TODO:  implement this!
-    pass
-
-
-def prepare(event):
-    data = event.workbench.get_plugin('psi.data')
-    data.prepare()
-
-
-def finalize(event):
-    data = event.workbench.get_plugin('psi.data')
-    data.finalize()
-
-
-def set_current_time(event):
-    data = event.workbench.get_plugin('psi.data')
-    data.set_current_time(**event.parameters)
-
-
 def set_base_path(event):
+    base_path = event.parameters['base_path']
+    dt_string = dt.datetime.now().strftime('%Y%m%d-%H%M%S')
+    base_path = base_path.format(date_time=dt_string)
     data = event.workbench.get_plugin('psi.data')
-    data.set_base_path(**event.parameters)
+    os.makedirs(base_path)
+    data.set_base_path(base_path)
+
+
+def attach_source(event):
+    controller = event.workbench.get_plugin('psi.controller')
+    obj = event.parameters['obj']
+    source_name_attr = event.parameters.get('source_name_attr', 'source_name')
+    source_name = getattr(obj, source_name_attr)
+    obj.source = controller.get_input(source_name)
+
+
+def format_container(event):
+    event.parameters['obj'].format_container()
 
 
 enamldef DataManifest(PluginManifest): manifest:
@@ -74,39 +53,11 @@ enamldef DataManifest(PluginManifest): manifest:
         id = 'commands'
         point = 'enaml.workbench.core.commands'
         Command:
-            id = PLUGIN_ID + '.process_trials'
-            handler = process_trials
-        Command:
-            id = PLUGIN_ID + '.process_event'
-            handler = process_event
-        Command:
-            id = PLUGIN_ID + '.process_ai_continuous'
-            handler = process_ai_continuous
-        Command:
-            id = PLUGIN_ID + '.process_ai_epochs'
-            handler = process_ai_epochs
-        Command:
-            id = PLUGIN_ID + '.process_ai_events'
-            handler = process_ai_events
-        Command:
-            id = PLUGIN_ID + '.prepare'
-            handler = prepare
-        Command:
-            id = PLUGIN_ID + '.finalize'
-            handler = finalize
-        Command:
-            id = PLUGIN_ID + '.set_current_time'
-            handler = set_current_time
-        Command:
             id = PLUGIN_ID + '.set_base_path'
             handler = set_base_path
-
-    Extension:
-        id = 'actions'
-        point = 'psi.controller.actions'
-        ExperimentAction:
-            event = 'experiment_prepare'
-            command = 'psi.data.prepare'
-        ExperimentAction:
-            event = 'experiment_end'
-            command = 'psi.data.finalize'
+        Command:
+            id = PLUGIN_ID + '.attach_source'
+            handler = attach_source
+        Command:
+            id = PLUGIN_ID + '.format_container'
+            handler = format_container

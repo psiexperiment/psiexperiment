@@ -1,0 +1,230 @@
+import logging
+log = logging.getLogger(__name__)
+
+from enaml.workbench.api import Extension
+
+from psi.context.api import (ContextGroup, EnumParameter, OrderedContextMeta,
+                             Parameter, SequenceSelector)
+
+from psi.controller.api import (ControllerManifest, Blocked, ExperimentAction,
+                                ExtractEpochs, get_hw_ai_choices,
+                                get_hw_ao_choices, SelectorQueuedEpochOutput)
+
+from psi.data.sinks.api import BColzStore, TextStore
+
+from psi.data.plots import (EpochTimeContainer,
+                            ChannelPlot,
+                            GroupedEpochAveragePlot,
+                            ChannelPlot, ViewBox,
+                            FFTContainer,
+                            GroupedEpochFFTPlot,
+                            GroupedEpochPhasePlot)
+
+from psi.controller.calibration.api import FlatCalibration
+from psi.data.sinks.epoch_counter import GroupedEpochCounter
+from psi.token.primitives import Chirp, Cos2Envelope, Tone
+
+
+EXPERIMENT = 'base_speaker_calibration'
+
+
+enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
+
+    Extension:
+        id = EXPERIMENT + '.data'
+        point = 'psi.data.sinks'
+
+        BColzStore:
+            name = 'mic_data'
+            epoch_inputs = ['epoch']
+            continuous_inputs = ['hw_ai']
+
+        TextStore:
+            name = 'cal_data'
+
+    Extension:
+        id = EXPERIMENT + '.io'
+        point = 'psi.controller.io'
+
+        Blocked: hw_ai:
+            duration = 0.1
+            name = 'hw_ai'
+            source_name << C.input_channel
+            source ::
+                channel.gain = C.input_gain
+
+            ExtractEpochs: extract:
+                name = 'epoch'
+
+    Extension:
+        id = EXPERIMENT + '.context'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'calibration'
+            label = 'Calibration'
+
+            EnumParameter:
+                name = 'output_channel'
+                label = 'Output channel'
+                compact_label = 'ao'
+                choices << get_hw_ao_choices(workbench)
+                scope = 'experiment'
+
+            EnumParameter:
+                name = 'input_channel'
+                label = 'Input channel'
+                compact_label = 'input'
+                choices << get_hw_ai_choices(workbench)
+                scope = 'experiment'
+
+            Parameter:
+                name = 'input_gain'
+                label = 'Input gain (dB)'
+                compact_label = 'ai_gain'
+                dtype = 'float64'
+                default = 40
+                scope = 'experiment'
+
+            Parameter:
+                name = 'input_range'
+                label = 'Expected input range (Vpp)'
+                compact_label = 'ai_range'
+                dtype = 'float64'
+                default = 10
+                scope = 'experiment'
+
+        OrderedContextMeta: epoch_group:
+            name = 'epoch_group'
+            label = 'Epoch groups'
+
+    Extension:
+        id = EXPERIMENT + '.selectors'
+        point = 'psi.context.selectors'
+
+        SequenceSelector:
+            name = 'default'
+            label = 'Sequence'
+
+    Extension:
+        id = EXPERIMENT + '.actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'experiment_initialize'
+            command = 'psi.context.initialize'
+            kwargs = {'selector': 'default', 'cycles': 1}
+
+        ExperimentAction:
+            event = 'engines_configured'
+            command = 'hw_ao.start'
+            kwargs = {'delay': 0.25}
+
+        ExperimentAction:
+            event = 'epoch_queue_end'
+            command = 'psi.controller.stop'
+
+    Extension:
+        id = EXPERIMENT + '.sink'
+        point = 'psi.data.sinks'
+
+        GroupedEpochCounter:
+            name = 'epoch_counter'
+            label = 'N epochs'
+            source_name = 'epoch'
+            groups << epoch_group
+
+    Extension:
+        id = EXPERIMENT + '.plots'
+        point = 'psi.data.plots'
+
+        EpochTimeContainer:
+            name = 'epoch_container'
+            label = 'Signal'
+
+            ViewBox:
+                label = 'Signal (V)'
+
+                GroupedEpochAveragePlot: ea_plot:
+                    name = 'epoch_average'
+                    label = 'Signal'
+                    source_name = 'epoch'
+                    pen_color_cycle = ['red', 'black']
+                    groups << epoch_group
+
+        FFTContainer:
+            name = 'calibration_result'
+            label = 'Speaker calibration'
+            freq_lb = 50.0
+            freq_ub = 50000
+
+            ViewBox:
+                name = 'spl_result'
+                label = 'Speaker output (dB SPL)'
+
+            ViewBox:
+                name = 'sens_result'
+                label = 'Speaker sensitivity (dB SPL/V)'
+
+        FFTContainer:
+            name = 'epoch_psd_container'
+            label = 'PSD'
+            freq_lb = 50.0
+            freq_ub = 50000
+
+            ViewBox:
+                GroupedEpochFFTPlot:
+                    name = 'epoch_psd_average'
+                    label = 'PSD'
+                    source_name = 'epoch'
+                    pen_color_cycle := ea_plot.pen_color_cycle
+                    groups << epoch_group
+
+        FFTContainer:
+            name = 'epoch_phase_container'
+            label = 'Phase'
+            freq_lb = 50.0
+            freq_ub = 50000
+
+            ViewBox:
+                y_min = 100
+                y_max = -800
+
+                GroupedEpochPhasePlot:
+                    unwrap = True
+                    name = 'epoch_phase_average_unwrap'
+                    label = 'Phase (unwrapped)'
+                    source_name = 'epoch'
+                    pen_color_cycle := ea_plot.pen_color_cycle
+                    groups << epoch_group
+
+
+enamldef SpeakerCalibrationManifest(BaseSpeakerCalibrationManifest):
+
+    Extension:
+        id = 'speaker_calibration' + '.tokens'
+        point = 'psi.token.tokens'
+
+        Chirp:
+            pass
+
+        Cos2Envelope:
+            label = 'tone pip'
+            Tone:
+                pass
+
+    Extension:
+        id = 'speaker_calibration' + '.io'
+        point = 'psi.controller.io'
+
+        SelectorQueuedEpochOutput: hw_ao:
+            name = 'hw_ao'
+            label = 'Output'
+            auto_decrement = True
+            selector_name = 'default'
+            queue = InterleavedFIFOSignalQueue()
+            target_name << C.output_channel
+            target ::
+                controller = workbench.get_plugin('psi.controller')
+                channel.calibration = FlatCalibration.as_attenuation()
+                controller.set_input_attr('epoch', 'queue', queue)

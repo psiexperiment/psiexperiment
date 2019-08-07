@@ -1,85 +1,57 @@
 import pytest
-
 import numpy as np
 
 import enaml
-from enaml.workbench.api import Workbench
-
-from psi.controller.calibration import InterpCalibration
-from psi.controller.queue import InterleavedFIFOSignalQueue
-
 with enaml.imports():
-    from psi.token.manifest import TokenManifest
+    from psi.token.primitives import ToneFactory, Cos2EnvelopeFactory
+    from psi.controller.calibration.api import InterpCalibration
 
 
-@pytest.fixture
-def workbench():
-    workbench = Workbench()
-    workbench.register(TokenManifest())
-    return workbench
-
-
-@pytest.fixture
-def tone_token(workbench):
-    plugin = workbench.get_plugin('psi.token')
-    return plugin.generate_epoch_token('tone_burst', 'target', 'target')
-
-
-@pytest.fixture
-def tone_context():
+def test_token_generation():
     calibration = InterpCalibration.as_attenuation()
+
     fs = 100e3
-    frequency = 100
-    context = {
-        'target_tone_frequency': frequency,
-        'target_tone_level': 0,
-        'target_tone_burst_start_time': 0,
-        'target_tone_burst_rise_time': 0,
-        'target_tone_burst_duration': 1,
-        'fs': fs,
-        'calibration': calibration,
-    }
-    return context
 
+    tone_factory = ToneFactory(fs=fs, level=0, frequency=100,
+                               calibration=calibration)
+    factory = Cos2EnvelopeFactory(fs=fs, start_time=0, rise_time=0, duration=1,
+                                  input_factory=tone_factory)
 
-def test_token_generation(tone_token, tone_context):
-    # Request 2x as many samples as needed. Be sure it gets chopped down to the
-    # actual length.
-    fs = tone_context['fs']
-    frequency = tone_context['target_tone_frequency']
+    assert tone_factory.get_duration() == np.inf
+    assert factory.get_duration() == 1
 
-    generator = tone_token.initialize_generator(tone_context)
-    waveform, complete = generator.send({'samples': int(fs)*2})
+    samples = int(fs)
+
+    # test what happens when we get more samples than are required to generate
+    # the token (should be zero-padded).
+    waveform = factory.next(samples*2)
+    assert tone_factory.is_complete() is False
+    assert factory.is_complete() is True
+    assert waveform.shape == (samples*2,)
+    rms1 = np.mean(waveform[:samples]**2)**0.5
+    rms2 = np.mean(waveform[samples:]**2)**0.5
+    assert rms1 == pytest.approx(1)
+    assert rms2 == 0
+
+    # test what happens when we request even more samples (should continue to
+    # be zero-padded)
+    waveform = factory.next(samples*2)
+    rms1 = np.mean(waveform[:samples]**2)**0.5
+    rms2 = np.mean(waveform[samples:]**2)**0.5
+    assert rms1 == 0
+    assert rms2 == 0
+
+    # now reset the token and start over
+    factory.reset()
+    assert tone_factory.is_complete() is False
+    assert factory.is_complete() is False
+    waveform = factory.next(samples)
+    assert tone_factory.is_complete() is False
+    assert factory.is_complete() is True
+    assert waveform.shape == (samples,)
+    rms = np.mean(waveform**2)**0.5
+    assert rms == pytest.approx(1)
+
     t = np.arange(fs, dtype=np.float32)/fs
-    expected = np.cos(2*np.pi*t*frequency)
+    expected = np.cos(2*np.pi*t*100)*np.sqrt(2)
     np.testing.assert_array_equal(waveform, expected)
-    assert complete == True
-
-
-def test_queue_generation(tone_token, tone_context):
-    queue = InterleavedFIFOSignalQueue()
-
-    fs = tone_context['fs']
-    iti_samples = int(fs*0.1)
-    tone_context['target_tone_burst_rise_time'] = 0.25
-    tone_context['target_tone_burst_duration'] = 1
-    factory = tone_token.initialize_factory(tone_context)
-    queue.append(factory, 1, iti_samples)
-
-    tone_context['target_tone_burst_duration'] = 2
-    factory = tone_token.initialize_factory(tone_context)
-    queue.append(factory, 2, iti_samples+13)
-
-    w, empty = queue.pop_buffer(50e3)
-    waveforms = [w]
-    while not empty:
-        w, empty = queue.pop_buffer(10e3)
-        waveforms.append(w)
-
-    import pylab as pl
-    offset = 0
-    for w in waveforms:
-        i = np.arange(len(w)) + offset
-        pl.plot(i, w)
-        offset += len(w)
-    pl.show()

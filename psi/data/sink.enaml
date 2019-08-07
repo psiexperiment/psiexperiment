@@ -1,0 +1,33 @@
+from atom.api import Unicode, Value
+from enaml.core.api import d_
+from enaml.workbench.api import Extension
+
+from psi.controller.api import ExperimentAction
+from psi.core.enaml.api import PSIContribution, PSIManifest
+
+
+class Sink(PSIContribution):
+    
+    def set_base_path(self, path):
+        return
+
+
+class SinkWithSource(Sink):
+    source_name = d_(Unicode())
+    source = Value()
+
+    def _observe_source(self, event):
+        if self.source is not None:
+            self.source.add_callback(self._update_data)
+
+
+enamldef SinkWithSourceManifest(PSIManifest): manifest:
+
+    Extension:
+        id = 'actions'
+        point = 'psi.controller.actions'
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'psi.data.attach_source'
+            kwargs = {'obj': manifest.contribution}
+            weight = 15

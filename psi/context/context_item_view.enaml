@@ -1,34 +1,71 @@
+from atom.api import Typed
 from enaml.core.api import DynamicTemplate, Looper
 from enaml.layout.api import hbox, spacer, horizontal
 from enaml.widgets.api import (Container, Field, CheckBox, Label, HGroup,
-                               PushButton, PopupView, Form, ObjectCombo)
+                               PushButton, PopupView, Form, ObjectCombo, VGroup)
+from enaml.validator import Validator
 
 from .context_item import (Result, Parameter, EnumParameter, FileParameter,
-                           BoolParameter, OrderedContextMeta)
+                           BoolParameter, OrderedContextMeta,
+                           UnorderedContextMeta)
 
-from enaml.widgets.api import ObjectCombo
+from .expression import ExpressionNamespace
+
+
+class ContextItemValidator(Validator):
+
+    plugin = Typed(object)
+    item = Typed(object)
+
+    def validate(self, text):
+        try:
+            namespace = ExpressionNamespace()
+            expressions = self.plugin.all_expressions
+            expressions[self.item.name] = text
+            namespace.update_expressions(expressions)
+            namespace.update_symbols(self.plugin.symbols)
+            namespace.get_value(self.item.name)
+            return True
+        except:
+            return False
+
+
+enamldef ContextItemField(Field):
+    text := context_item.expression
+    validator << ContextItemValidator(
+        plugin=workbench.get_plugin('psi.context'),
+        item=context_item)
+
 
 ################################################################################
 # ContextMetaPopup
+# 
+# Defines the view that appears when configuring details regarding the
+# parameter.
 ################################################################################
-enamldef ContextMetaDynamicTemplate(DynamicTemplate):
-    attr meta
-    base = ContextMetaTemplate
-    args = (meta, type(meta))
+template ContextMetaTemplate(context_meta, context_item,
+                             MemberType: OrderedContextMeta):
+    ObjectCombo:
+        items = [None] + context_meta.get_choices(context_item)
+        to_string = lambda i: '' if i is None else str(i)
+        selected << context_meta.get_choice(context_item)
+        selected::
+            context_meta.set_choice(selected, context_item)
 
 
-template ContextMetaTemplate(meta, MemberType: OrderedContextMeta):
+template ContextMetaTemplate(context_meta, context_item,
+                             MemberType: UnorderedContextMeta):
 
-    HGroup:
-        padding = 0
-        Label:
-            text << meta.label
-        ObjectCombo:
-            items = [None] + meta.get_valid_indices(context_item)
-            to_string = lambda i: '' if i is None else str(i+1)
-            selected = meta.get_index(context_item)
-            selected::
-                meta.set_value(selected, context_item)
+    CheckBox:
+        checked << context_item in context_meta.values
+        checked ::
+            if checked:
+                values = context_meta.values.copy()
+                values.add(context_item)
+            else:
+                values = context_meta.values.copy()
+                values.remove(context_item)
+            context_meta.values = values
 
 
 enamldef ContextMetaPopup(PopupView): cm_popup:
@@ -36,21 +73,26 @@ enamldef ContextMetaPopup(PopupView): cm_popup:
     attr context_item
     attr context_meta
 
-    Container:
+    VGroup:
+        Form:
+            Label:
+                text = 'Short name'
+            Field:
+                text := context_item.compact_label
         Looper:
-            iterable << context_meta.values()
-            ContextMetaDynamicTemplate:
-                meta = loop_item
+            iterable << [c for c in context_meta.values() if not c.link_rove]
+            HGroup:
+                padding = 0
+                Label:
+                    text = loop_item.label
+                DynamicTemplate:
+                    base = ContextMetaTemplate
+                    args = (loop_item, context_item, type(loop_item))
 
 
 ################################################################################
 # ContextItemTemplate
 ################################################################################
-enamldef ContextItemDynamicTemplate(DynamicTemplate):
-    base = ContextItemTemplate
-    args = (context_item, type(context_item))
-
-
 template ContextItemTemplate(context_item, MemberType: Result):
     HGroup: group:
         spacing = 0
@@ -60,16 +102,10 @@ template ContextItemTemplate(context_item, MemberType: Result):
 
 
 template ContextItemTemplate(context_item, MemberType: Parameter):
-    ParameterDynamicTemplate:
-        pass
-
-
-################################################################################
-# ParameterTemplate
-################################################################################
-enamldef ParameterDynamicTemplate(DynamicTemplate):
-    base = ParameterTemplate
-    args = (context_item, type(context_item), context_item.scope)
+    DynamicTemplate:
+        base = ParameterTemplate
+        args = (context_item, type(context_item),
+                context_item.scope if workbench.get_plugin('psi.context').has_selectors else 'experiment')
 
 
 template ParameterTemplate(context_item, MemberType, scope):
@@ -104,9 +140,10 @@ template ParameterTemplate(context_item, MemberType, scope: 'trial'):
             status_tip << context_item.name
             text << context_item.label
             checked := context_item.rove
+            checked ::
+                pass
         WidgetDynamicTemplate:
             pass
-
 
 
 ################################################################################
@@ -118,8 +155,8 @@ enamldef WidgetDynamicTemplate(DynamicTemplate):
 
 
 template WidgetTemplate(context_item, MemberType):
-    Field: widget:
-        text := context_item.expression
+    ContextItemField: widget:
+        pass
 
 
 template WidgetTemplate(context_item, MemberType: EnumParameter):
@@ -153,14 +190,15 @@ enamldef ContextItem(Container):
 
     Container: c:
         padding = 0
-        ContextItemDynamicTemplate: t:
-            pass
+        DynamicTemplate: t:
+            base = ContextItemTemplate
+            args = (context_item, type(context_item))
 
     PushButton: pb:
         text << 'C'
         clicked:: 
             context_meta = workbench.get_plugin('psi.context').context_meta
-            cm_popup = ContextMetaPopup(parent=self, 
+            cm_popup = ContextMetaPopup(parent=self,
                                         context_meta=context_meta,
                                         context_item=context_item)
             cm_popup.show()

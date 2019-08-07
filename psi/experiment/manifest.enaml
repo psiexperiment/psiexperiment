@@ -1,10 +1,12 @@
 import logging
 log = logging.getLogger(__name__)
 
-import pickle
-import yaml
 
 import os
+import pickle
+from pathlib import Path
+import yaml
+
 import numpy as np
 
 from enaml.widgets.api import FileDialogEx
@@ -13,6 +15,7 @@ from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
 from enaml.workbench.ui.api import Workspace
 
+from psi.controller.experiment_action import ExperimentEvent
 from .. import get_config
 from .workspace import ExperimentWorkspace
 from .workbench_window import ExperimentWorkbenchWindow
@@ -33,97 +36,147 @@ preferences_fd_kwargs = {
 }
 
 
+def get_default_path(which):
+    root = get_config('{}_ROOT'.format(which.upper()))
+    experiment = get_config('EXPERIMENT')
+    default_path = os.path.join(root, experiment)
+    if not os.path.exists(default_path):
+        os.makedirs(default_path)
+    return default_path
+
+
+def get_default_filename(which):
+    default_path = get_default_path(which)
+    return os.path.join(default_path, 'default.{}'.format(which))
+
+
 def save_layout(event):
-    file_name = FileDialogEx.get_save_file_name(**layout_fd_kwargs)
-    if file_name:
-        _save_layout(event, file_name)
+    filename = FileDialogEx.get_save_file_name(
+        name_filters=[get_config('LAYOUT_WILDCARD')],
+        current_path=get_default_path('layout')
+    )
+    if filename:
+        _save_layout(event, filename)
 
 
-def _save_layout(event, file_name):
-    if not file_name.endswith('.layout'):
-        file_name += '.layout'
+def _save_layout(event, filename):
+    if not filename.endswith('.layout'):
+        filename += '.layout'
     plugin = event.workbench.get_plugin('psi.experiment')
     layout = plugin.get_layout()
-    with open(file_name, 'wb') as fh:
+    with open(filename, 'wb') as fh:
         pickle.dump(layout, fh)
 
 
 def load_layout(event):
-    file_name = FileDialogEx.get_open_file_name(**layout_fd_kwargs)
-    if file_name:
-        _load_layout(event, file_name)
+    filename = FileDialogEx.get_open_file_name(
+        name_filters=[get_config('LAYOUT_WILDCARD')],
+        current_path=get_default_path('layout')
+    )
+    if filename:
+        _load_layout(event, filename)
 
 
-def _load_layout(event, file_name):
+def _load_layout(event, filename):
     plugin = event.workbench.get_plugin('psi.experiment')
-    with open(file_name, 'rb') as fh:
+    with open(filename, 'rb') as fh:
         layout = pickle.load(fh)
         plugin.set_layout(layout)
 
 
 def set_default_layout(event):
-    layout_root = get_config('LAYOUT_ROOT')
-    file_name = os.path.join(layout_root, 'default.layout')
-    _save_layout(event, file_name)
-    
+    filename = get_default_filename('layout')
+    _save_layout(event, filename)
+
 
 def get_default_layout(event):
     try:
-        layout_root = get_config('LAYOUT_ROOT')
-        file_name = os.path.join(layout_root, 'default.layout')
-        _load_layout(event, file_name)
+        filename = get_default_filename('layout')
+        _load_layout(event, filename)
     except IOError:
         pass
-    #import pdb
-    #pdb.set_trace()
 
 
 def save_preferences(event):
     filename = event.parameters.get('filename', None)
     if filename is None:
-        filename = FileDialogEx.get_save_file_name(**preferences_fd_kwargs)
+        filename = FileDialogEx.get_save_file_name(
+            name_filters=[get_config('PREFERENCES_WILDCARD')],
+            current_path=get_default_path('preferences')
+        )
     if filename:
         _save_preferences(event, filename)
 
 
-def _save_preferences(event, file_name):
+def _save_preferences(event, filename):
+    filename = Path(filename).with_suffix('.preferences')
     plugin = event.workbench.get_plugin('psi.experiment')
-    if not file_name.endswith('.preferences'):
-        file_name += '.preferences'
     preferences = plugin.get_preferences()
-    with open(file_name, 'w') as fh:
+    with open(filename, 'w') as fh:
         yaml.dump(preferences, fh, default_flow_style=False)
 
 
 def load_preferences(event):
     filename = event.parameters.get('filename', None)
     if filename is None:
-        filename = FileDialogEx.get_open_file_name(**preferences_fd_kwargs)
+        filename = FileDialogEx.get_open_file_name(
+            name_filters=[get_config('PREFERENCES_WILDCARD')],
+            current_path=get_default_path('preferences')
+        )
     if filename:
         _load_preferences(event, filename)
 
 
-def _load_preferences(event, file_name):
-    log.debug('Loading preferences from {}'.format(file_name))
-    with open(file_name, 'r') as fh:
+def _load_preferences(event, filename):
+    log.debug('Loading preferences from {}'.format(filename))
+    with open(filename, 'r') as fh:
         preferences = yaml.load(fh)
     plugin = event.workbench.get_plugin('psi.experiment')
     plugin.set_preferences(preferences)
 
 
 def set_default_preferences(event):
-    preferences_root = get_config('PREFERENCES_ROOT')
-    file_name = os.path.join(preferences_root, 'default.preferences')
-    _save_preferences(event, file_name)
-    
+    filename = get_default_filename('preferences')
+    _save_preferences(event, filename)
+
 
 def get_default_preferences(event):
     try:
-        preferences_root = get_config('PREFERENCES_ROOT')
-        file_name = os.path.join(preferences_root, 'default.preferences')
-        _load_preferences(event, file_name)
+        filename = get_default_filename('preferences')
+        _load_preferences(event, filename)
     except IOError:
         pass
+
+
+def open_shell(event):
+    from IPython.frontend.qt.console.rich_ipython_widget import RichIPythonWidget
+    from IPython.frontend.qt.inprocess import QtInProcessKernelManager
+    from IPython.lib import guisupport
+
+    kernel_manager = QtInProcessKernelManager()
+    kernel_manager.start_kernel()
+    kernel = kernel_manager.kernel
+    kernel.gui = 'qt'
+
+    kernel_client = kernel_manager.client()
+    kernel_client.start_channels()
+
+    def stop():
+        kernel_client.stop_channels()
+        kernel_manager.shutdown_kernel()
+        # here you should exit your application with a suitable call
+        sys.exit()
+
+    widget = RichIPythonWidget()
+    widget.kernel_manager = kernel_manager
+    widget.kernel_client = kernel_client
+    widget.exit_requested.connect(stop)
+    widget.setWindowTitle("IPython shell")
+
+    kernel.shell.push({'workbench': event.workbench})
+
+    ipython_widget = widget
+    ipython_widget.show()
 
 
 enamldef ExperimentManifest(PluginManifest):
@@ -144,6 +197,12 @@ enamldef ExperimentManifest(PluginManifest):
         id = 'window'
         point = 'enaml.workbench.ui.window_factory'
         factory = lambda workbench: ExperimentWorkbenchWindow()
+
+    Extension:
+        id = 'controller_actions'
+        point = 'psi.controller.actions'
+        ExperimentEvent:
+            name = 'plugins_started'
 
     Extension:
         id = 'commands'
@@ -172,6 +231,9 @@ enamldef ExperimentManifest(PluginManifest):
         Command:
             id = 'psi.get_default_preferences'
             handler = get_default_preferences
+        Command:
+            id = 'psi.open_shell'
+            handler = open_shell
 
     Extension:
         id = 'actions'
@@ -179,7 +241,7 @@ enamldef ExperimentManifest(PluginManifest):
         MenuItem:
             path = '/configuration'
             label = 'Configuration'
-        
+
         MenuItem:
             path = '/configuration/layout'
             label = 'Layout'
@@ -237,6 +299,11 @@ enamldef ExperimentManifest(PluginManifest):
             label = 'Revert to default'
             command = 'psi.get_default_preferences'
             group = 'preferences_default'
+
+        ActionItem:
+            path = '/configuration/load_shell'
+            label = 'Open IPython shell'
+            command = 'psi.open_shell'
 
     ExtensionPoint:
         id = 'toolbar'

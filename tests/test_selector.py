@@ -35,23 +35,6 @@ class TestSettingSequence(unittest.TestCase):
         expected_names.pop(which)
         self.assertEqual(expected_names, self.selector.context_items)
 
-    @pytest.mark.skip(reason='Implementation was removed')
-    def test_selector_move(self):
-        self.selector.move_parameter(self.parameters[1])
-        names = [p.name for p in self.selector.parameters]
-        expected_names = ['b', 'a', 'c', 'd', 'e']
-        self.assertEqual(expected_names, names)
-
-        self.selector.move_parameter(self.parameters[0], self.parameters[-1])
-        names = [p.name for p in self.selector.parameters]
-        expected_names = ['b', 'c', 'd', 'e', 'a']
-        self.assertEqual(expected_names, names)
-
-        self.selector.move_parameter(self.parameters[0], self.parameters[1])
-        names = [p.name for p in self.selector.parameters]
-        expected_names = ['b', 'a', 'c', 'd', 'e']
-        self.assertEqual(expected_names, names)
-
     @pytest.mark.skip(reason='requires context plugin to be present')
     def test_deepcopy_equality(self):
         c1 = deepcopy(self.selector.__getstate__())

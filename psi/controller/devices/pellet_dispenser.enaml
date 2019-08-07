@@ -1,80 +1,122 @@
 from functools import partial
 
-from atom.api import Int, Unicode
-from enaml.application import deferred_call, timed_call
+from atom.api import Float, Int, Unicode, Typed
+from enaml.application import timed_call
 from enaml.core.api import d_
-from enaml.layout.api import InsertItem
 from enaml.widgets.api import Action, DockItem, Container, Label
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 
+from psi.controller.api import ExperimentAction
 from psi.context.api import ContextGroup, Parameter
+from psi.core.enaml.api import PSIManifest
+from psi.data.sinks.text_store import TextStore
 
+from ..output import Trigger
 from ..device import Device
-from ..device_manifest import DeviceManifest
 
 
 class PelletDispenser(Device):
 
-    manifest = __name__ + '.PelletDispenserManifest'
     output_name = d_(Unicode())
+    inter_pellet_delay = d_(Float(0.5))
+
     pellets_dispensed = Int(0)
+    output = Typed(Trigger)
 
-    def dispense_pellet(self, event):
-        core = event.workbench.get_plugin('enaml.workbench.core')
-
-        parameters = {'context_name': '{}_pellets'.format(self.name)}
-        pellets = core.invoke_command('psi.context.get_value', parameters)
+    def dispense_pellets(self, pellets):
         command = '{}.trigger'.format(self.output_name)
         for pellet in range(pellets):
-            timed_call(pellet*1e3*0.5, core.invoke_command, command)
+            delay_ms = pellet*self.inter_pellet_delay*1e3
+            timed_call(delay_ms, self.output.fire)
             self.pellets_dispensed += 1
 
 
-enamldef PelletDispenserManifest(DeviceManifest): manifest:
+def dispense_pellet(device, event):
+    core = event.workbench.get_plugin('enaml.workbench.core')
+    pellets = event.parameters.get('pellets', None)
+    if pellets is None:
+        parameters = {'context_name': '{}_pellets'.format(device.name)}
+        pellets = core.invoke_command('psi.context.get_value', parameters)
+    device.dispense_pellets(pellets)
+
+    # Now save to the text store
+    mapping = {'pellets_dispensed': device.pellets_dispensed}
+    parameters = {'name': device.name, 'mapping': mapping, 'overwrite': True}
+    cmd = '{}_store.save_mapping'.format(device.name)
+    core.invoke_command(cmd, parameters)
+
+
+def prepare_output(device, event):
+    controller = event.workbench.get_plugin('psi.controller')
+    device.output = controller.get_output(device.output_name)
+
+
+enamldef PelletDispenserManifest(PSIManifest): manifest:
 
     Extension:
-        id = 'parameters'
+        id = manifest.id + '.data'
+        point = 'psi.data.sinks'
+
+        TextStore:
+            name = manifest.contribution.name + '_store'
+
+    Extension:
+        id = manifest.id + '.parameters'
         point = 'psi.context.items'
 
         ContextGroup:
-            name = manifest.device.name
-            label = manifest.device.label
+            name = manifest.contribution.name
+            label = manifest.contribution.label
 
             Parameter:
-                name = manifest.device.name + '_pellets'
+                name = manifest.contribution.name + '_pellets'
                 label = 'Pellets'
                 compact_label = 'P'
                 default = 1
 
     Extension:
-        id = 'commands'
+        id = manifest.id + '.commands'
         point = 'enaml.workbench.core.commands'
+
         Command:
-            id = manifest.id + '.dispense_pellet'
-            handler = manifest.device.dispense_pellet
+            id = manifest.contribution.name + '.dispense_pellet'
+            handler = partial(dispense_pellet, manifest.contribution)
+
+        Command:
+            id = manifest.contribution.name + '.prepare_output'
+            handler = partial(prepare_output, manifest.contribution)
 
     Extension:
-        id = 'pellet_toolbar'
+        id = manifest.id + '.actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = manifest.contribution.name + '.prepare_output'
+
+    Extension:
+        id = manifest.id + '.toolbar'
         point = 'psi.experiment.toolbar'
         rank = 2000
         Action:
             text = 'Dispense pellet'
             triggered ::
                 core = workbench.get_plugin('enaml.workbench.core')
-                core.invoke_command(manifest.id + '.dispense_pellet')
+                cmd = manifest.id + '.dispense_pellet'
+                core.invoke_command(cmd, {'pellets': 1})
             enabled <<  workbench.get_plugin('psi.controller').experiment_state \
                 not in ('initialized', 'stopped')
 
     Extension:
-        id = 'pump_workspace'
+        id = manifest.id + '.workspace'
         point = 'psi.experiment.workspace'
 
         DockItem:
-            name << manifest.device.name + '.workspace'
-            title << manifest.device.label
+            name << manifest.contribution.name + '.workspace'
+            title << manifest.contribution.label
             closable = False
             Container:
                 Label:
                     text << 'Pellets dispensed: {:d}' \
-                        .format(manifest.device.pellets_dispensed)
+                        .format(manifest.contribution.pellets_dispensed)

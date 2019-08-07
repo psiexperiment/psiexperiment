@@ -1,163 +1,180 @@
+import logging
+log = logging.getLogger(__name__)
+
 from functools import partial
 
-from enaml.core.api import Conditional
-from enaml.widgets.api import DockItem, Container
-from enaml.workbench.api import Extension
+from atom.api import Typed, set_default
+from enaml.core.api import Include, d_, Looper
+from enaml.widgets.api import (Container, DockItem, Field, Form, Label,
+                               Notebook, Page, RawWidget)
+from enaml.workbench.api import Extension, Workbench
 from enaml.workbench.core.api import Command
-from traits_enaml.widgets.enable_canvas import EnableCanvas
+
+import pyqtgraph as pg
+pg.setConfigOption('foreground', 'k')
 
 from psi.core.enaml.api import PSIManifest
 from psi.controller.api import ExperimentAction
+from psi.context.context_item import OrderedContextMeta
 
 
-def prepare(event, container):
-    plugin = event.workbench.get_plugin('psi.data')
-    container.prepare(plugin)
-
-
-enamldef PlotContainerManifest(PSIManifest): manifest:
-
-    Extension:
-        id = 'command'
-        point = 'enaml.workbench.core.commands'
-        Command:
-            id = manifest.contribution.name + '_prepare'
-            handler = partial(prepare, container=manifest.contribution)
-
-    Extension:
-        id = 'actions'
-        point = 'psi.controller.actions'
-        rank = 200
-        ExperimentAction:
-            event = 'experiment_prepare'
-            command = manifest.contribution.name + '_prepare'
-
-    Extension:
-        id = 'workspace'
-        point = 'psi.experiment.workspace'
-
-        DockItem:
-            closable = False
-            name << manifest.contribution.name
-            title << manifest.contribution.title
-
-            Container:
-                EnableCanvas:
-                    component << manifest.contribution.container
-
-
-from atom.api import Typed, set_default
-from enaml.core.api import Include, d_
-from enaml.widgets.api import RawWidget
-import pyqtgraph as pg
-pg.setConfigOption('background', 'w')
-pg.setConfigOption('foreground', 'k')
-
-
-class PyQtGraphCanvas(RawWidget):
-
-    components = d_(Typed(object))
+class PGCanvas(RawWidget):
 
     hug_width = set_default('ignore')
     hug_height = set_default('ignore')
 
+    view = Typed(pg.GraphicsView)
+    component = d_(Typed(pg.GraphicsWidget))
+
     def create_widget(self, parent):
-        w = pg.GraphicsLayoutWidget(parent, border=(100, 100, 100))
-        component = self.components[0]
-        rows, cols = component.get_gridsize()
-        for r in range(rows):
-            w.nextRow()
-            for c in range(cols):
-                w.addPlot(title='plot {} {}'.format(r, c))
+        self.view = pg.GraphicsView(parent, background=(240, 240, 240))
+        self.view.setCentralItem(self.component)
+        return self.view
 
-            #w.nextRow()
-            #w.addPlot(labels={'left': ('Foobar',), 'bottom': ('Foz',)})
-
-        #w.addLabel('SIDEBAR', angle=90, rowspan=4)
-        #w.addPlot(row=2, col=2)
-        #w.addPlot(row=2, col=3)
-        #w.nextRow()
-        #w.nextRow()
-        #w.addPlot('ABR 1')
-        #w.addPlot('ABR 2')
-        #w.addPlot('ABR 3')
-        return w
-        #self.component.set_parent(parent)
-        #return self.component
-        #if self.component is not None:
-        #    self._window = Window(parent, component=self.component,
-        #                          bgcolor=self.component.bgcolor)
-        #    enable_widget = self._window.control
-        #else:
-        #    self._window = None
-        #    enable_widget = None
-
-        #return enable_widget
-
-    def _component_updated(self, event):
-        print('component updated', event)
-
-    def _observe_components(self, event):
-        for c in event.get('oldvalue', []):
-            c.unobserve('updated', self._component_updated)
-        for c in event.get('value', []):
-            c.observe('updated', self._component_updated)
+    def observe_component(self, event):
+        self.view.setCentralItem(event['value'])
 
 
-enamldef PyQtGraphPlotContainerManifest(PSIManifest): manifest:
+def update_plot(plot, event):
+    plot.update()
 
-    #Extension:
-    #    id = 'command'
-    #    point = 'enaml.workbench.core.commands'
-    #    Command:
-    #        id = manifest.contribution.name + '_prepare'
-    #        handler = partial(prepare, container=manifest.contribution)
 
-    #Extension:
-    #    id = 'actions'
-    #    point = 'psi.controller.actions'
-    #    rank = 200
-    #    ExperimentAction:
-    #        event = 'experiment_prepare'
-    #        command = manifest.contribution.name + '_prepare'
+def set_groups(container, event):
+    container._workbench = event.workbench
+    context = event.workbench.get_plugin('psi.context')
+    container.iterable = sorted(context.unique_values(container.group))
+
+
+enamldef MultiPlotContainerManifest(PSIManifest): manifest:
 
     Extension:
-        id = 'workspace'
+        id = manifest.id + '.commands'
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = manifest.contribution.name + '.set_groups'
+            handler = partial(set_groups, manifest.contribution)
+
+    Extension:
+        id = manifest.id + 'actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'context_initialized'
+            command = manifest.contribution.name + '.set_groups'
+
+    Extension:
+        id = manifest.id + '.workspace'
         point = 'psi.experiment.workspace'
 
         DockItem:
-            closable = False
             name << manifest.contribution.name
-            title << manifest.contribution.title
-
+            title << manifest.contribution.label
+            closable = False
             Container:
-                PyQtGraphCanvas:
-                    components << manifest.contribution.children
+                Notebook:
+                    tab_style = 'preferences'
+                    tabs_closable = False
+                    tabs_movable = False
+                    Looper:
+                        iterable << manifest.contribution.containers.items()
+                        Page:
+                            title << str(loop_item[0])
+                            Container:
+                                PGCanvas:
+                                    name << manifest.contribution.name + '.canvas'
+                                    component = loop_item[1]
 
 
-from psi.context.context_item import OrderedContextMeta
-
-enamldef GriddedEpochAveragePlotManifest(PSIManifest): manifest:
+enamldef BasePlotContainerManifest(PSIManifest): manifest:
 
     Extension:
-        id = 'items'
-        point = 'psi.context.items'
-        OrderedContextMeta: meta:
+        id = manifest.id + '.actions'
+        point = 'psi.controller.actions'
+        ExperimentAction:
+            event = 'context_initialized'
+            command = 'psi.data.format_container'
+            kwargs = {'obj': manifest.contribution}
+
+    Extension:
+        id = manifest.id + 'workspace'
+        point = 'psi.experiment.workspace'
+
+        DockItem:
             name << manifest.contribution.name
-            label << 'Epoch average plot'
-            values >> manifest.contribution.items
+            title << manifest.contribution.label
+            closable = False
 
-    #Extension:
-    #    id = 'command'
-    #    point = 'enaml.workbench.core.commands'
-    #    Command:
-    #        id = manifest.contribution.name + '_prepare'
-    #        handler = partial(prepare, container=manifest.contribution)
+            Container:
+                PGCanvas: canvas:
+                    name << manifest.contribution.name + '_canvas'
+                    component << manifest.contribution.container
 
-    #Extension:
-    #    id = 'actions'
-    #    point = 'psi.controller.actions'
-    #    rank = 200
-    #    ExperimentAction:
-    #        event = 'experiment_prepare'
-    #        command = manifest.contribution.name + '_prepare'
+
+enamldef TimeseriesPlotManifest(PSIManifest): manifest:
+
+    Extension:
+        id = manifest.id + '.actions'
+        point = 'psi.controller.actions'
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'psi.data.attach_source'
+            kwargs = {'obj': manifest.contribution}
+
+
+def process_event(plot, event):
+    p = event.parameters
+    plot._append_data(p['type'], p['timestamp'])
+
+
+enamldef EventPlotManifest(PSIManifest): manifest:
+
+    Extension:
+        id = manifest.id + '.commands'
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = manifest.contribution.name + '.process'
+            handler = partial(process_event, manifest.contribution)
+
+    Extension:
+        id = manifest.id + '.actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event << manifest.contribution.event + '_start'
+            command = manifest.contribution.name + '.process'
+            kwargs = {'type': 'start'}
+
+        ExperimentAction:
+            event << manifest.contribution.event + '_end'
+            command = manifest.contribution.name + '.process'
+            kwargs = {'type': 'end'}
+
+
+enamldef BasePlotManifest(PSIManifest): manifest:
+
+    Extension:
+        id = manifest.id + '.commands'
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = manifest.contribution.name + '_update'
+            handler = partial(update_plot, manifest.contribution)
+
+    Extension:
+        id = manifest.id + '.actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'psi.data.attach_source'
+            kwargs = {'obj': manifest.contribution}
+            weight = 15
+
+        ExperimentAction:
+            # This final update ensures that we always plot new data (otherwise
+            # sometimes the final segment doesn't get plotted due to thread
+            # race conditions).
+            event = 'experiment_end'
+            command = manifest.contribution.name + '_update'

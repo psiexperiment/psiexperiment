@@ -1,16 +1,28 @@
 import numpy as np
 
 from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import Branding
 
-from psi.context.api import Parameter
-from psi.controller.base_manifest import BaseManifest
+from psi.context.api import ContextGroup, EnumParameter
+from psi.controller.base_manifest import BaseManifest, get_hw_ai_choices
+from psi.controller.api import ExperimentAction
+
 from psi.controller.api import EpochOutput, ExperimentAction, ExperimentState
-from psi.controller.input import (Downsample, IIRFilter, Threshold, Edges,
-                                  CalibratedInput, RMS, SPL)
+from psi.controller.input import (Input, IIRFilter, CalibratedInput, RMS, SPL)
 
 from psi.data.plots import (TimeContainer, ChannelPlot, FFTContainer,
-                            FFTChannelPlot)
+                            FFTChannelPlot, ViewBox)
+
+from psi.data.sinks.bcolz_store import BColzStore
+from psi.token.primitives import Cos2Envelope, BandlimitedNoise
+
+
+def configure_hardware(event):
+    controller = event.workbench.get_plugin('psi.controller')
+    context = event.workbench.get_plugin('psi.context')
+    values = context.get_values()
+    controller.connect_input('microphone', values['microphone_channel'])
 
 
 enamldef ControllerManifest(BaseManifest): manifest:
@@ -18,10 +30,27 @@ enamldef ControllerManifest(BaseManifest): manifest:
     id = 'psi.controller'
 
     Extension:
+        id = 'noise_exposure_stores'
+        point = 'psi.data.sinks'
+
+        BColzStore:
+            continuous_inputs = ['microphone', 'noise_level']
+
+    Extension:
         id = 'branding'
         point = 'enaml.workbench.ui.branding'
         Branding:
             title = 'Noise exposure'
+
+    Extension:
+        id = 'tokens'
+        point = 'psi.token.tokens'
+
+        Cos2Envelope:
+            name = 'bandlimited_noise_burst'
+            label = 'Bandlimited noise'
+            BandlimitedNoise:
+                pass
 
     Extension:
         id = 'io'
@@ -32,20 +61,45 @@ enamldef ControllerManifest(BaseManifest): manifest:
             label = 'Exposure'
             target_name = 'speaker'
 
-        IIRFilter:
-            source_name = 'microphone'
-            btype = 'highpass'
-            ftype = 'butter'
-            N = 2
-            f_highpass = 100
-            name = 'filtered_microphone'
-            save = True
-            RMS:
-                name = 'RMS'
-                duration = 1
-                SPL:
-                    name = 'noise_level'
-                    save = True
+        Input:
+            name = 'microphone'
+
+            CalibratedInput:
+                name = 'calibrated_microphone'
+
+                IIRFilter:
+                    btype = 'highpass'
+                    ftype = 'butter'
+                    N = 2
+                    f_highpass = 100
+                    name = 'filtered_microphone'
+                    RMS:
+                        name = 'RMS'
+                        duration = 1
+                        SPL: spl:
+                            name = 'noise_level'
+
+    Extension:
+        id = 'calibration_commands'
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = 'psi.controller.configure_hardware'
+            handler = configure_hardware
+
+    Extension:
+        id = 'context'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'hardware'
+            label = 'Hardware settings'
+
+            EnumParameter:
+                name = 'microphone_channel'
+                label = 'Microphone channel'
+                choices << get_hw_ai_choices(workbench)
+                scope = 'experiment'
 
     Extension:
         id = 'actions'
@@ -54,11 +108,18 @@ enamldef ControllerManifest(BaseManifest): manifest:
 
         ExperimentAction:
             event = 'experiment_prepare'
+            command = 'psi.controller.configure_hardware'
+            weight = 10
+
+        ExperimentAction:
+            event = 'experiment_prepare'
             command = 'exposure.prepare'
+
         ExperimentAction:
             event = 'experiment_start'
             command = 'exposure.start'
             kwargs = {'start': 2}
+
         ExperimentAction:
             event = 'exposure_end'
             command = 'psi.controller.stop'
@@ -68,29 +129,44 @@ enamldef ControllerManifest(BaseManifest): manifest:
         point = 'psi.data.plots'
 
         TimeContainer:
-            name = 'trial_plot_container' 
-            title = 'Trial timing'
-            trig_delay = 0
-            span = 600
-            major_grid_index = 60
-            minor_grid_index = 10
+            name = 'microphone_container'
+            label = 'Microphone'
+            delay = 1
+            span = 10
 
-            ChannelPlot:
-                source = 'noise_level'
-                line_color = (0, 0, 0)
-                value_range = (90, 120)
-                axis_label = 'Noise level (dB SPL)' 
+            ViewBox:
+                label = 'Microphone (Pa)'
+                y_min = -10
+                y_max = 10
+                 
+                ChannelPlot:
+                    source_name = 'filtered_microphone'
+
+        TimeContainer:
+            name = 'noise_level_container'
+            label = 'Noise level'
+            delay = 0
+            span = 600
+
+            ViewBox:
+                label = 'Noise level (dB SPL)'
+                y_min = 108
+                y_max = 118
+                 
+                ChannelPlot:
+                    source_name = 'noise_level'
 
         FFTContainer:
             name = 'fft_plot_container'
-            title = 'FFT'
+            label = 'FFT'
             freq_lb = 0.1e3 
             freq_ub = 10e3
 
-            FFTChannelPlot:
-                source = 'filtered_microphone'
-                line_color = (0, 0, 0)
-                value_range = (0, 100)
-                time_span = 1
-                axis_label = 'Level (dB SPL)'
-                reference = 20e-6
+            ViewBox:
+                label = 'PSD (dB SPL)'
+                y_min = 0
+                y_max = 100
+
+                FFTChannelPlot:
+                    source_name = 'filtered_microphone'
+                    time_span = 2

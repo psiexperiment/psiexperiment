@@ -1,0 +1,60 @@
+from enaml.workbench.api import Extension
+from enaml.workbench.ui.api import Branding
+
+from psi.context.api import SequenceSelector
+from psi.controller.base_manifest import BaseManifest
+from psi.controller.api import EpochOutput, ContinuousOutput
+
+from psi.context.api import ContextGroup, Parameter
+from psi.token.primitives import BandlimitedNoise, Cos2Envelope, SAMEnvelope
+
+
+enamldef ControllerManifest(BaseManifest): manifest:
+
+    id = 'psi.controller'
+
+    Extension:
+        id = 'branding'
+        point = 'enaml.workbench.ui.branding'
+        Branding:
+            title = 'Demo'
+
+    Extension:
+        id = 'tokens'
+        point = 'psi.token.tokens'
+
+        BandlimitedNoise:
+            name = 'continuous_bandlimited_noise'
+            label = 'Continuous bandlimited noise'
+            compact_label = 'cont. noise'
+
+        Cos2Envelope:
+            name = 'bandlimited_sam_noise'
+            label = 'SAM cosine envelope'
+            compact_label = 'SAM cos. env.'
+            SAMEnvelope:
+                label = 'SAM envelope'
+                compact_label = 'SAM env.'
+                BandlimitedNoise:
+                    label = 'SAM carrier'
+
+    Extension:
+        id = 'io'
+        point = 'psi.controller.io'
+
+        ContinuousOutput:
+            name = 'background'
+            label = 'Background'
+            target_name = 'speaker'
+
+        EpochOutput:
+            name = 'target'
+            label = 'Target'
+            target_name = 'speaker'
+
+    Extension:
+        id = 'selector'
+        point = 'psi.context.selectors'
+
+        SequenceSelector:
+            name = 'default'

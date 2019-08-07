@@ -1,0 +1,329 @@
+import logging
+log = logging.getLogger(__name__)
+
+import atexit
+from functools import partial
+from pathlib import Path
+
+import bcolz
+from atom.api import Atom, Typed, List, Dict, Unicode, Float, Property
+from enaml.core.api import d_
+from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
+import numpy as np
+import pandas as pd
+
+from psi.core.enaml.api import PSIManifest
+from psi.controller.api import ExperimentAction
+from psi.util import declarative_to_dict
+
+from .base_store import BaseStore
+
+
+class DataSource(Atom):
+
+    data = Typed(object)
+
+
+class DataChannel(DataSource):
+    '''
+    Base class for dealing with a continuous stream of data sampled at a fixed
+    rate, fs (cycles per time unit), starting at time t0 (time unit).  This
+    class is not meant to be used directly since it does not implement a
+    backend for storing the data.
+
+    fs
+        Sampling frequency
+    t0
+        Time offset (i.e. time of first sample) relative to the start of
+        acquisition.  This typically defaults to zero; however, some subclasses
+        may discard old data (e.g.  :class:`RAMChannel`), so we need to factor
+        in the time offset when attempting to extract a given segment of the
+        waveform for analysis.
+    added
+        New data has been added. If listeners have been caching the results of
+        prior computations, they can assume that older data in the cache is
+        valid.
+    '''
+    # Sampling frequency of the data stored in the buffer
+    fs = Float()
+
+    # Time of first sample in the buffer.  Typically this is 0, but if we delay
+    # acquisition or discard "old" data (e.g. via a RAMBuffer), then we need to
+    # update t0.
+    t0 = Float(0)
+    shape = Property()
+
+    def _get_shape(self):
+        return self.data.shape
+
+    def __getitem__(self, slice):
+        '''
+        Delegates to the __getitem__ method on the underlying buffer
+
+        Subclasses can add additional data preprocessing by overriding this
+        method.  See `ProcessedFileMultiChannel` for an example.
+        '''
+        return self.data[slice]
+
+    def to_index(self, time):
+        '''
+        Convert time to the corresponding index in the waveform.  Note that the
+        index may be negative if the time is less than t0.  Since Numpy allows
+        negative indices, be sure to check the value.
+        '''
+        return int((time-self.t0)*self.fs)
+
+    def to_samples(self, time):
+        '''
+        Convert time to number of samples.
+        '''
+        time = np.asanyarray(time)
+        samples = time*self.fs
+        return samples.astype('i')
+
+    def get_range_index(self, start, end, reference=0, check_bounds=False):
+        '''
+        Returns a subset of the range specified in samples
+
+        The samples must be speficied relative to start of data acquisition.
+
+        Parameters
+        ----------
+        start : num samples (int)
+            Start index in samples
+        end : num samples (int)
+            End index in samples
+        reference : num samples (int), optional
+            Time of trigger to reference start and end to
+        check_bounds : bool
+            Check that start and end fall within the valid data range
+        '''
+        t0_index = int(self.t0*self.fs)
+        lb = start-t0_index+reference
+        ub = end-t0_index+reference
+
+        if check_bounds:
+            if lb < 0:
+                raise ValueError("start must be >= 0")
+            if ub >= len(self.data):
+                raise ValueError("end must be <= signal length")
+
+        if np.iterable(lb):
+            return [self[lb:ub] for lb, ub in zip(lb, ub)]
+        else:
+            return self[lb:ub]
+
+    def get_index(self, index, reference=0):
+        t0_index = int(self.t0*self.fs)
+        index = max(0, index-t0_index+reference)
+        return self[:, index]
+
+    def _to_bounds(self, start, end, reference=None):
+        if start > end:
+            raise ValueError("Start time must be < end time")
+        if reference is not None:
+            ref_idx = self.to_index(reference)
+        else:
+            ref_idx = 0
+        lb = max(0, self.to_index(start)+ref_idx)
+        ub = max(0, self.to_index(end)+ref_idx)
+        return lb, ub
+
+    def get_range(self, start, end, reference=None):
+        '''
+        Returns a subset of the range.
+
+        Parameters
+        ----------
+        start : float, sec
+            Start time.
+        end : float, sec
+            End time.
+        reference : float, optional
+            Set to -1 to get the most recent range
+        '''
+        lb, ub = self._to_bounds(start, end, reference)
+        return self[lb:ub]
+
+    def get_size(self):
+        return self.data.shape[-1]
+
+    def get_bounds(self):
+        '''
+        Returns valid range of times as a tuple (lb, ub)
+        '''
+        return self.t0, self.t0 + self.get_size()/self.fs
+
+    def latest(self):
+        if self.get_size() > 0:
+            return self.data[-1]/self.fs
+        else:
+            return self.t0
+
+    @property
+    def n_samples(self):
+        return self.data.shape[-1]
+
+
+class EpochData(DataChannel):
+
+    metadata = Typed(object)
+    epoch_size = Typed(float)
+
+    def append(self, data):
+        epochs = []
+        metadata = []
+        for d in data:
+            epochs.append(d['signal'])
+            md = d['info']['metadata'].copy()
+            md['t0'] = d['info']['t0']
+            md['duration'] = d['info']['duration']
+            if 'calibration' in md:
+                del md['calibration']
+            metadata.append(md)
+
+        md_records = pd.DataFrame(metadata).to_records()
+        epochs = np.concatenate(epochs, axis=0)
+
+        self.data.append(epochs)
+        self.metadata.append(md_records)
+
+    def get_epoch_groups(self, groups):
+        df = self.metadata.todataframe()
+        df['samples'] = np.round(df['duration']*self.fs).astype('i')
+        df['offset'] = df['samples'].cumsum() - df.iloc[0]['samples']
+        epochs = {}
+        for keys, g_df in df.groupby(groups):
+            data = []
+            for _, row in g_df.iterrows():
+                o = row['offset']
+                s = row['samples']
+                d = self.data[o:o+s][np.newaxis]
+                data.append(d)
+            epochs[keys] = np.concatenate(data, axis=0)
+        return epochs
+
+    def flush(self):
+        self.data.flush()
+        self.metadata.flush()
+
+
+class BColzStore(BaseStore):
+    '''
+    Simple class for storing acquired trial data in hierarchy of bcolz folders.
+    '''
+    name = d_(Unicode('bcolz_store'))
+
+    continuous_inputs = d_(List())
+    epoch_inputs = d_(List())
+    _stores = Dict()
+
+    def get_source(self, source_name):
+        try:
+            return self._stores[source_name]
+        except KeyError as e:
+            raise AttributeError(source_name)
+
+    def process_ai_continuous(self, name, data):
+        self._stores[name].append(data)
+
+    def process_ai_epochs(self, name, data):
+        self._stores[name].append(data)
+
+    def create_ai_continuous(self, name, fs, dtype, **metadata):
+        n = int(fs*60*60)
+        filename = self.get_filename(name)
+        log.debug('Saving %s to %s', name, filename)
+        carray = bcolz.carray([], rootdir=filename, mode='w', dtype=dtype,
+                              expectedlen=n)
+        carray.attrs['fs'] = fs
+        for key, value in metadata.items():
+            carray.attrs[key] = value
+
+        self._stores[name] = carray
+        atexit.register(carray.flush)
+
+    def create_ai_epochs(self, name, fs, epoch_size, dtype, context_items,
+                         **metadata):
+        # Create signal data store
+        n = int(fs*60*60)
+        base = self.get_filename(name)
+        log.debug('Saving %s to %s', name, base)
+        carray = bcolz.carray([], rootdir=base, mode='w', dtype=dtype,
+                              expectedlen=n)
+        carray.attrs['fs'] = fs
+        for key, value in metadata.items():
+            carray.attrs[key] = value
+
+        # Create metadata store
+        filename = self.get_filename(name + '_metadata')
+        dtype = [(str(n), i.dtype) for n, i in context_items.items()]
+        dtype += [('t0', 'float64'), ('duration', 'float64')]
+        ctable = bcolz.zeros(0, rootdir=filename, mode='w', dtype=dtype)
+        self._stores[name] = EpochData(fs=fs, data=carray, metadata=ctable)
+        atexit.register(carray.flush)
+        atexit.register(ctable.flush)
+
+    def finalize(self, workbench):
+        # Save the settings file
+        cmd = 'psi.save_preferences'
+        filename = self.base_path / 'final'
+        params = {'filename': filename}
+        core = workbench.get_plugin('enaml.workbench.core')
+        core.invoke_command(cmd, params)
+
+
+def prepare(sink, event):
+    log.debug('Preparing %s', sink.name)
+    controller = event.workbench.get_plugin('psi.controller')
+    context = event.workbench.get_plugin('psi.context')
+
+    for input_name in sink.epoch_inputs:
+        log.debug('\tCreating save file for epoch input %s', input_name)
+        i = controller.get_input(input_name)
+        md = declarative_to_dict(i, 'metadata')
+        sink.create_ai_epochs(context_items=context.context_items, **md)
+        cb = partial(sink.process_ai_epochs, i.name)
+        i.add_callback(cb)
+
+    for input_name in sink.continuous_inputs:
+        log.debug('\tCreating save file for continuous input %s', input_name)
+        i = controller.get_input(input_name)
+        md = declarative_to_dict(i, 'metadata')
+        sink.create_ai_continuous(**md)
+        cb = partial(sink.process_ai_continuous, i.name)
+        i.add_callback(cb)
+
+
+def flush(sink, event):
+    for store in sink._stores.values():
+        store.flush()
+
+
+enamldef BColzStoreManifest(PSIManifest): manifest:
+
+    Extension:
+        id = manifest.id + '.bcolz_commands'
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = manifest.id + '.prepare'
+            handler = partial(prepare, manifest.contribution)
+
+        Command:
+            id = manifest.id + '.flush'
+            handler = partial(flush, manifest.contribution)
+
+    Extension:
+        id = manifest.id + '.bcolz_actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = manifest.id + '.prepare'
+
+        ExperimentAction:
+            weight = 1000
+            event = 'experiment_end'
+            command = manifest.id + '.flush'

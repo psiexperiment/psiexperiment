@@ -1,20 +1,21 @@
 import logging
 log = logging.getLogger(__name__)
 
-from atom.api import Unicode, Int, Dict, Bool, Typed
+from functools import partial
+
+from atom.api import Unicode, Int, Dict, Bool, Typed, Callable, List
 from enaml.core.api import Declarative, d_
-from enaml.qt.QtCore import QRunnable
-import code
+
+from psi.util import get_dependencies
 
 
 class ExperimentState(Declarative):
     '''
     Allows for indication of a state (e.g., `experiment_active`, `iti_active`).
     Automatically contributes the start/end events associataed with the state
-    (e.g., `experiment_start`, `experiment_stop`).
+    (e.g., `experiment_start`, `experiment_end`).
     '''
     name = d_(Unicode())
-    active = Bool(False)
     events = ['prepare', 'start', 'end']
 
     def _generate_events(self):
@@ -29,50 +30,63 @@ class ExperimentState(Declarative):
 class ExperimentEvent(Declarative):
 
     name = d_(Unicode())
-    active = Bool(False)
     associated_state = Typed(ExperimentState)
 
-    def __enter__(self):
-        if self.associated_state is not None:
-            if self.name.endswith('start'):
-                self.associated_state.active = True
-            elif self.name.endswith('end'):
-                self.associated_state.active = False
-        self.active = True
 
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.active = False
+missing_event_mesg = '''
+Missing event "{key}".
+
+Perhaps an input, output or device is missing from the IO configuration?
+'''
 
 
-class ExperimentAction(Declarative):
+def simple_match(key, context):
+    try:
+        return context[key]
+    except Exception as e:
+        new_exc = KeyError(missing_event_mesg.format(key=key))
+        raise new_exc from e
+
+
+class ExperimentActionBase(Declarative):
 
     # Name of event that triggers command
     event = d_(Unicode())
 
-    # Command to invoke
-    command = d_(Unicode())
+    dependencies = List()
 
-    # Arguments to pass to command
-    kwargs = d_(Dict())
-
-    # Should the action be invoked in its own thread?
-    concurrent = d_(Bool(False))
+    match = Callable()
 
     # Defines order of invocation. Less than 100 invokes before default. Higher
     # than 100 invokes after default. Note that if concurrent is True, then
     # order of execution is not guaranteed.
-    weight = d_(Int(100))
+    weight = d_(Int(50))
 
-    def match(self, context):
-        return eval(self.event, context)
+    # Arguments to pass to command by keyword
+    kwargs = d_(Dict())
+
+    def _default_dependencies(self):
+        return get_dependencies(self.event)
+
+    def _default_match(self):
+        code = compile(self.event, 'dynamic', 'eval')
+        if len(self.dependencies) == 1:
+            return partial(simple_match, self.dependencies[0])
+        else:
+            return partial(eval, code)
 
 
-class QExperimentActionTask(QRunnable):
+class ExperimentAction(ExperimentActionBase):
 
-    def __init__(self, method):
-        super(QExperimentActionTask, self).__init__()
-        self.method = method
+    # Command to invoke
+    command = d_(Unicode())
 
-    def run(self):
-        log.debug('Running action in remote thread')
-        self.method()
+    def invoke(self, core, kwargs):
+        kwargs = kwargs.copy()
+        kwargs.update(self.kwargs)
+        core.invoke_command(action.command, parameters=kwargs)
+
+
+class ExperimentCallback(ExperimentActionBase):
+
+    callback = d_(Callable())

@@ -1,16 +1,8 @@
-import os.path
-import importlib
-import copy
+from atom.api import Typed
 
-from atom.api import Typed, Unicode, Callable, Property
-import enaml
+from enaml.workbench.api import Plugin
 
-from psi.context.api import Parameter
-from enaml.core.api import Declarative, d_
-from enaml.workbench.api import Plugin, PluginManifest
-
-with enaml.imports():
-    from .token import ContinuousToken, EpochToken
+from psi.token.block import ContinuousBlock, EpochBlock
 
 
 TOKENS_POINT = 'psi.token.tokens'
@@ -35,9 +27,9 @@ class TokenPlugin(Plugin):
         for extension in point.extensions:
             if extension.factory:
                 extension.factory()
-            for token in extension.get_children(EpochToken):
+            for token in extension.get_children(EpochBlock):
                 etokens[token.name] = token
-            for token in extension.get_children(ContinuousToken):
+            for token in extension.get_children(ContinuousBlock):
                 ctokens[token.name] = token
         self._epoch_tokens = etokens
         self._continuous_tokens = ctokens
@@ -50,17 +42,9 @@ class TokenPlugin(Plugin):
         self.workbench.get_extension_point(TOKENS_POINT) \
             .unobserve('extensions', self._refresh_tokens)
 
-    def _generate_token(self, token, output_name, output_label, scope):
-        token = copy.copy(token)
-        token.configure_context_items(output_name, output_label, scope) 
-        return token
-
-    def generate_epoch_token(self, token_name, output_name, output_label):
-        t = self._epoch_tokens[token_name]
-        return self._generate_token(t, output_name, output_label,
-                                    scope='trial')
-
-    def generate_continuous_token(self, token_name, output_name, output_label):
-        t = self._continuous_tokens[token_name]
-        return self._generate_token(t, output_name, output_label,
-                                    scope='experiment')
+    def get_token(self, token_name):
+        if token_name in self._epoch_tokens:
+            return self._epoch_tokens[token_name]
+        if token_name in self._continuous_tokens:
+            return self._continuous_tokens[token_name]
+        raise ValueError('%s token does not exist', token_name)

@@ -1,4 +1,6 @@
-from enaml.widgets.api import Container, DockArea
+from enaml.core.api import Include
+from enaml.widgets.api import Container, DockArea, StatusBar, HGroup
+from enaml.layout.api import DockLayout
 
 
 enamldef ExperimentView(Container): experiment:

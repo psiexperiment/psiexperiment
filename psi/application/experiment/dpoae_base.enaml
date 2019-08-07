@@ -1,0 +1,366 @@
+import logging
+log = logging.getLogger(__name__)
+
+import numpy as np
+
+from atom.api import Int, Value
+
+from enaml.application import deferred_call
+from enaml.core.api import d_
+from enaml.widgets.api import Container, DockItem, Label
+from enaml.workbench.api import Extension
+
+from psi.context.api import (CartesianProduct, ContextGroup, EnumParameter,
+                             Expression, Parameter, Result)
+
+from psi.controller.calibration.util import tone_power_conv
+from psi.controller.api import (Blocked, Capture, concatenate, ContinuousInput,
+                                ControllerManifest, coroutine, Discard,
+                                EpochOutput, ExperimentAction, ExperimentEvent,
+                                Input, Synchronized)
+
+from psi.token.primitives import Cos2Envelope, Tone
+
+from psi.data.sinks.api import BColzStore, EventLog, TableStore
+
+EXPERIMENT = __name__.rsplit('.', 1)[-1]
+
+
+@coroutine
+def process(n_time, n_fft, input, workbench, status_widget, target):
+    context = workbench.get_plugin('psi.context')
+    controller = workbench.get_plugin('psi.controller')
+    core = workbench.get_plugin('enaml.workbench.core')
+
+    time_data = []
+    fft_data = {}
+    total_samples = 0
+
+    while True:
+        data = (yield)
+        if data is Ellipsis:
+            time_data = []
+            fft_data = {}
+            total_samples = 0
+            continue
+
+        time_data.append(data)
+        total_samples += data.shape[-1]
+
+        # Process acquired time segments once we have what we need
+        if len(time_data) == n_time:
+            mean_time = concatenate(time_data, axis=0)
+            time_data = []
+
+            f1 = context.get_value('primary_tone_frequency')
+            f2 = context.get_value('secondary_tone_frequency')
+            noise_floor = context.get_value('max_dpoae_noise_floor')
+            dpoae = 2 * f1 - f2
+
+            resolution = input.fs / mean_time.shape[-1]
+            nf_frequencies = [f*resolution+dpoae for f in range(-2, 3)]
+            frequencies = [f1, f2, dpoae] + nf_frequencies
+
+            rms = tone_power_conv(mean_time, input.fs, frequencies)
+            level = input.calibration.get_spl(frequencies, rms)
+            nf_level = np.mean(level[3:])
+            f1_level, f2_level, dpoae_level = level[:3]
+
+            # If criterion met, store results
+            if (nf_level < noise_floor) or (nf_level < dpoae_level):
+                fft_data.setdefault('f1_level', []).append(f1_level)
+                fft_data.setdefault('f2_level', []).append(f2_level)
+                fft_data.setdefault('dpoae_level', []).append(dpoae_level)
+                fft_data.setdefault('dpoae_noise_floor', []).append(nf_level)
+
+                # Once we have n_fft, process results
+                if len(fft_data['f1_level']) == n_fft:
+                    for key in ('f1_level', 'f2_level', 'dpoae_level',
+                                'dpoae_noise_floor'):
+                        value = np.mean(fft_data[key])
+                        context.set_value(key, value)
+
+                    context.set_value('ts_end',
+                                      total_samples / input.fs)
+
+                    values = context.get_values()
+                    target([values])
+                    fft_data = {}
+                    controller.invoke_actions('dpoae_acquired')
+                    parameters = {'data': values}
+                    core.invoke_command('dpoae_store.save',
+                                        parameters=parameters)
+            else:
+                log.debug('DPOAE reject')
+
+        # Post current status to the GUI
+        def update(n_time, n_fft, status_widget):
+            status_widget.n_time = n_time
+            status_widget.n_fft = n_fft
+
+        if status_widget is not None:
+            nt = len(time_data)
+            nf = len(fft_data.get('f1_level', []))
+            deferred_call(update, nt, nf, status_widget)
+
+
+class AnalyzeDPOAE(Input):
+
+    n_fft = d_(Int(-1)).tag(metadata=True)
+    n_time = d_(Int(-1)).tag(metadata=True)
+
+    wb = d_(Value())
+    status_widget = d_(Value())
+
+    # Required to ensure that the entire processing chain is activated.
+    force_active = True
+
+    def configure_callback(self):
+        cb = super().configure_callback()
+        return process(self.n_time, self.n_fft, self, self.wb,
+                       self.status_widget, cb).send
+
+
+enamldef DPOAEManifest(ControllerManifest): manifest:
+    '''
+    All subclasses must do the following:
+
+        Define an experiment action that determines when the experiment is complete
+    '''
+
+    Extension:
+        id = EXPERIMENT + '.sinks'
+        point = 'psi.data.sinks'
+
+        BColzStore:
+            name = EXPERIMENT + '.bcolz_store'
+            continuous_inputs = ['microphone']
+
+        TableStore:
+            name = 'dpoae_store'
+
+        EventLog:
+            show_widget = True
+
+    Extension:
+        id = 'tokens'
+        point = 'psi.token.tokens'
+
+        Cos2Envelope: tone:
+            name = 'tone'
+            label = 'tone'
+            hide = ['start_time']
+            Tone:
+                hide = ['phase', 'polarity']
+
+    Extension:
+        id = EXPERIMENT + '.io'
+        point = 'psi.controller.io'
+
+        Synchronized:
+            name = 'dpoae'
+
+            EpochOutput: primary:
+                name = 'primary'
+                label = 'Primary'
+                target_name = C.primary_channel
+                configurable = False
+                token = tone
+
+            EpochOutput: secondary:
+                name = 'secondary'
+                label = 'Secondary'
+                target_name = C.secondary_channel
+                configurable = False
+                token = tone
+
+        ContinuousInput:
+            name = 'microphone'
+            source_name = C.dpoae_microphone_channel
+
+            Capture:
+                # Begin capturing microphone signal once DPOAE starts. Linked
+                # using an ExperimentAction.
+                name = 'dpoae_capture'
+
+                Discard:
+                    # Discard the onset portion of the DPOAE
+                    name = 'discard'
+                    duration << C.secondary_tone_rise_time * 2
+
+                    Blocked:
+                        # Duration (in seconds) of snippets to analyze
+                        name = 'segment'
+                        duration << C.response_window
+
+                        AnalyzeDPOAE:
+                            name = 'analyze_dpoae'
+                            wb = workbench
+                            n_fft = C.n_fft
+                            n_time = C.n_time
+                            status_widget = workbench\
+                                .get_plugin('enaml.workbench.ui')\
+                                .window.find('dpoae_status')
+
+    Extension:
+        id = EXPERIMENT + '.selectors'
+        point = 'psi.context.selectors'
+
+        CartesianProduct:
+            name = 'default'
+            label = 'DPOAE'
+
+    Extension:
+        id = EXPERIMENT + '.context'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'result'
+            label = 'Results'
+            visible = False
+
+            Result:
+                name = 'f2_spl'
+                dtype = 'float64'
+
+            Result:
+                name = 'f1_spl'
+                dtype = 'float64'
+
+            Result:
+                name = 'dpoae_spl'
+                dtype = 'float64'
+
+            Result:
+                name = 'f2_noise_floor'
+                dtype = 'float64'
+
+            Result:
+                name = 'f1_noise_floor'
+                dtype = 'float64'
+
+            Result:
+                name = 'dpoae_noise_floor'
+                dtype = 'float64'
+
+            Result:
+                name = 'ts_end'
+                dtype = 'float64'
+
+        Expression:
+            parameter = 'secondary_tone_frequency'
+            expression = 'imul(f2_frequency, 1/response_window)'
+
+        Expression:
+            parameter = 'primary_tone_frequency'
+            expression = 'imul(secondary_tone_frequency / f2_f1_ratio, 1/response_window)'
+
+        Expression:
+            parameter = 'primary_tone_level'
+            expression = 'secondary_tone_level + l1_l2_difference'
+
+        Expression:
+            parameter = 'primary_tone_duration'
+            expression = 'secondary_tone_duration'
+
+        Expression:
+            parameter = 'primary_tone_rise_time'
+            expression = 'secondary_tone_rise_time'
+
+        ContextGroup:
+            name = 'dpoae'
+            label = 'DPOAE settings'
+
+            EnumParameter:
+                name = 'primary_channel'
+                label = 'Output channel (primary)'
+                choices = manifest.get_hw_ao_choices()
+                selected = next(iter(manifest.get_hw_ao_choices()))
+                scope = 'experiment'
+
+            EnumParameter:
+                name = 'secondary_channel'
+                label = 'Output channel (secondary)'
+                choices = manifest.get_hw_ao_choices()
+                selected = next(iter(manifest.get_hw_ao_choices()))
+                scope = 'experiment'
+
+            EnumParameter:
+                name = 'dpoae_microphone_channel'
+                label = 'DPOAE microphone'
+                choices = manifest.get_hw_ai_choices()
+                scope = 'experiment'
+
+            Parameter:
+                name = 'f2_frequency'
+                label = 'F2 frequency'
+                compact_label = 'F2'
+                default = 8000
+
+            Parameter:
+                name = 'f2_f1_ratio'
+                label = 'F2/F1 ratio'
+                compact_label = 'F2/F1'
+                default = 1.2
+
+            Parameter:
+                name = 'l1_l2_difference'
+                label = 'L1-L2 (dB)'
+                compact_label = 'L1-L2'
+                default = 10
+
+            Parameter:
+                name = 'n_fft'
+                label = 'Spectrum avg. (decr. variablity)'
+                compact_label = 'N FFT'
+                default = 8
+                scope = 'experiment'
+
+            Parameter:
+                name = 'n_time'
+                label = 'Time avg. (decr. noise floor)'
+                compact_label = 'N time'
+                default = 16
+                scope = 'experiment'
+
+            Parameter:
+                name = 'max_dpoae_noise_floor'
+                label = 'DPOAE noise floor (db SPL)'
+                compact_label = 'DPOAE NF'
+                dtype = 'float'
+                default = 0.0
+                scope = 'experiment'
+
+            Parameter:
+                name = 'response_window'
+                label = 'Response window (sec)'
+                compact_label = 'Resp. Window'
+                dtype = 'float'
+                default = 100e-3
+                scope = 'experiment'
+
+    Extension:
+        id = EXPERIMENT + '.actions'
+        point = 'psi.controller.actions'
+
+        ExperimentEvent:
+            name = 'dpoae_acquired'
+
+        # This action is mandatory and must be executed before any other
+        # commands that require some information from context (including the
+        # in-ear calibrqation mixins).
+        ExperimentAction:
+            event = 'experiment_initialize'
+            command = 'psi.context.initialize'
+            kwargs = {'selector': 'default', 'cycles': 1}
+
+        # Once engines are configured, start the experiment!
+        ExperimentAction:
+            event = 'engines_configured'
+            command = 'dpoae.start'
+            kwargs = {'delay': 0.5}
+
+        # Start acquiring microphone data when the DPOAE begins.
+        ExperimentAction:
+            event = 'dpoae_start'
+            command = 'dpoae_capture.start'

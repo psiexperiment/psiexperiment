@@ -1,0 +1,121 @@
+import logging
+log = logging.getLogger(__name__)
+
+import operator
+from collections import defaultdict
+
+from atom.api import Typed, Event, Unicode, Int, List, Dict
+from enaml.application import deferred_call
+from enaml.core.api import d_
+from enaml.workbench.api import Extension
+from enaml.widgets.api import Container, DockItem, Form, Label, VGroup
+
+from ..sink import SinkWithSource, SinkWithSourceManifest
+
+from psi.core.enaml.api import PSIManifest
+from psi.context.context_item import ContextMeta
+from psi.controller.api import ExperimentAction
+
+
+class EpochCounter(SinkWithSource):
+
+    total_n = Int()
+
+    def _update_data(self, epochs):
+        n = len(epochs)
+        deferred_call(lambda: setattr(self, 'total_n', self.total_n + n))
+
+
+class GroupedEpochCounter(EpochCounter):
+
+    min_n = Int()
+    max_n = Int()
+    groups_n = Int()
+    groups = d_(Typed(ContextMeta))
+
+    counts = Typed(defaultdict, (int,))
+    get_key = Typed(object)
+
+    def _observe_groups(self, event):
+        if self.groups is not None:
+            self.groups.observe('values', self._update_get_key)
+            self._update_get_key()
+
+    def _update_get_key(self, event=None):
+        if len(self.groups.values):
+            group_names = [v.name for v in self.groups.values]
+            self.get_key = operator.itemgetter(*group_names)
+
+    def _update_data(self, epochs):
+        for e in epochs:
+            md = e['info']['metadata']
+            key = self.get_key(md)
+            self.counts[key] += 1
+        counts = self.counts.values()
+
+        min_n = min(counts)
+        max_n = max(counts)
+        total_n = sum(counts)
+        groups_n = len(counts)
+
+        def update():
+            self.min_n = min_n
+            self.max_n = max_n
+            self.total_n = total_n
+            self.groups_n = groups_n
+
+        deferred_call(update)
+
+
+enamldef EpochCounterManifest(SinkWithSourceManifest): manifest:
+
+    Extension:
+        id = 'workspace'
+        point = 'psi.experiment.workspace'
+        DockItem: di:
+            name << manifest.contribution.name
+            title << manifest.contribution.label
+            Form:
+                Label:
+                    text = 'Epochs acquired'
+                Label:
+                    text << str(manifest.contribution.total_n)
+
+
+def group_label_format(groups):
+    if not groups:
+        return 'No groups specified'
+    t = 'Grouped by {}'
+    groups = ', '.join(g.compact_label for g in groups)
+    return t.format(groups.lower())
+
+
+enamldef GroupedEpochCounterManifest(SinkWithSourceManifest): manifest:
+
+    Extension:
+        id = 'workspace'
+        point = 'psi.experiment.workspace'
+        DockItem: di:
+            name << manifest.contribution.name
+            title << manifest.contribution.label
+            VGroup:
+                Label:
+                    text << group_label_format(manifest.contribution.groups.values)
+                Form:
+                    padding = 0
+                    Label:
+                        text = 'Max epochs acquired'
+                    Label:
+                        text << str(manifest.contribution.max_n)
+                    Label:
+                        text = 'Min epochs acquired'
+                    Label:
+                        text << str(manifest.contribution.min_n)
+                    Label:
+                        text = 'N groups'
+                    Label:
+                        text << str(manifest.contribution.groups_n)
+                    Label:
+                        text = 'Total epochs acquired'
+                    Label:
+                        text << str(manifest.contribution.total_n)

@@ -5,8 +5,7 @@ import numpy as np
 
 from atom.api import Atom, Bool
 
-from psi.context.expression import Expr, ExpressionNamespace, \
-    _RecursiveAttrDict
+from psi.context.expression import Expr, ExpressionNamespace
 
 
 class TestExpression(unittest.TestCase):
@@ -32,21 +31,21 @@ class TestExpression(unittest.TestCase):
 class TestExpressionNamespace(unittest.TestCase):
 
     EXPRESSIONS = {
-        'd.x':  Expr('10'),
-        'a':    Expr('10*5'),
-        'b':    Expr('a+1'),
-        'c':    Expr('b*a'),
-        'e':    Expr('d.x*2'),
-        'f':    Expr('d.x*data.channel.bar'),
-        'g':    Expr('random.randint(b)'),
+        'd': '10',
+        'a': '10*5',
+        'b': 'a+1',
+        'c': 'b*a',
+        'e': 'd*2',
+        'f': 'd*bar',
+        'g': 'random.randint(b)',
     }
 
     def test_evaluation(self):
         ns = ExpressionNamespace(self.EXPRESSIONS)
         self.assertEqual(ns.get_value('c'), 2550)
         self.assertEqual(ns.get_value('e'), 20)
-        self.assertEqual(ns.get_value('d.x'), 10)
-        self.assertEqual(ns.get_value('f', {'data.channel.bar': 1.5}), 15)
+        self.assertEqual(ns.get_value('d'), 10)
+        self.assertEqual(ns.get_value('f', {'bar': 1.5}), 15)
 
     def test_evaluation_override(self):
         ns = ExpressionNamespace(self.EXPRESSIONS)
@@ -67,45 +66,13 @@ class TestExpressionNamespace(unittest.TestCase):
     def test_extra_context(self):
         random = np.random.RandomState(seed=1)
         ns = ExpressionNamespace(self.EXPRESSIONS, {'random': random})
-        ns.set_values({'data.channel.bar': 3.1})
+        ns.set_values({'bar': 3.1})
         ns.set_value('z', 32)
         values = ns.get_values()
         self.assertTrue('z' in values)
-        self.assertTrue('data.channel.bar' in values)
+        self.assertTrue('bar' in values)
         self.assertEqual(values['z'], 32)
         self.assertEqual(values['f'], 31)
-
-
-class TestRecursiveAttrDict(unittest.TestCase):
-
-    INITIAL = {'bigbang': {'stars': {'planet': 'earth'}, 'center': 'sol'}}
-
-    def test_init(self):
-        life = _RecursiveAttrDict(self.INITIAL)
-        self.assertEqual(life.bigbang.stars.planet, 'earth')
-        self.assertEqual(life.bigbang.center, 'sol')
-        self.assertEqual(life.bigbang, life['bigbang'])
-
-    def test_getsetattr(self):
-        life = _RecursiveAttrDict(self.INITIAL)
-        life['universe.galaxy'] = 'milky way'
-        self.assertEqual(life.universe.galaxy, 'milky way')
-        life['universe.a.b.c.d.e'] = 4
-        self.assertEqual(life.universe.a.b.c.d.e, 4)
-        self.assertEqual(life.universe.a.b.c.d, {'e': 4})
-        self.assertEqual(life['universe.a.b.c.d.e'], 4)
-
-    def test_builtin_getsetattr(self):
-        life = _RecursiveAttrDict(self.INITIAL)
-        self.assertEqual(getattr(life.bigbang.stars, 'planet'), 'earth')
-        setattr(life, 'planet.stars', 'sol')
-        self.assertEqual(getattr(life, 'planet.stars'), 'sol')
-
-    def test_contains(self):
-        life = _RecursiveAttrDict(self.INITIAL)
-        self.assertTrue('bigbang.stars.planet' in life)
-        self.assertFalse('bigbang.stars.planet.earth' in life)
-        self.assertFalse('bigbang.d.x' in life)
 
 
 class ANT(Atom):

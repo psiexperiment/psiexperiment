@@ -1,0 +1,226 @@
+from atom.api import Typed
+from enaml.core.api import Include, Looper, d_
+from enaml.layout.api import vbox, hbox, spacer, align
+from enaml.workbench.api import Extension
+from enaml.widgets.api import (PushButton, Field, Container, VGroup, Label,
+                               ObjectCombo, DockItem)
+from enaml.validator import Validator
+
+from psi.core.enaml.editable_table_widget import EditableTable, ListTable
+from psi.core.enaml.api import PSIManifest
+
+from . import selector as selector_classes
+
+
+enamldef BaseSelectorManifest(PSIManifest): manifest:
+    pass
+
+
+class SettingFieldValidator(Validator):
+
+    item = Typed(object)
+
+    def validate(self, text):
+        try:
+            self.item.coerce_to_type(text)
+            return True
+        except:
+            return False
+
+
+enamldef SettingField(Field):
+    attr item
+    validator << SettingFieldValidator(item=item)
+
+
+################################################################################
+# SingleSetting
+################################################################################
+enamldef SingleSettingField(SettingField):
+    attr selector
+    attr setting
+    text << str(selector.get_value(item))
+    text ::
+        selector.set_value(item, text)
+
+
+def update_single_setting_widgets(selector, context_items, setting):
+    widgets = []
+    for item in context_items:
+        label = Label(text=item.label)
+        widgets.append(label)
+        field = SingleSettingField(selector=selector, setting=setting,
+                                   item=item)
+        widgets.append(field)
+    return widgets
+
+
+enamldef SingleSettingContainer(Container):
+
+    attr selector
+
+    layout_constraints => ():
+        widgets = self.visible_widgets()
+        if len(widgets) == 0:
+            return []
+        label_widgets = widgets[::2]
+        setting_widgets = widgets[1::2]
+        row_constraints = [hbox(*label_widgets, spacing=0),
+                            hbox(*setting_widgets, spacing=0)]
+        constraints = [vbox(*row_constraints, spacing=0)]
+        for lw, sw in zip(label_widgets, setting_widgets):
+            constraints.append(lw.left == sw.left)
+        return constraints
+
+    Include: inc:
+        objects << update_single_setting_widgets(selector,
+                                                 selector.context_items,
+                                                 selector.setting)
+
+
+enamldef SingleSettingManifest(BaseSelectorManifest): manifest:
+
+    Extension:
+        id = 'selector.' + manifest.contribution.name
+        point = 'psi.experiment.workspace'
+
+        DockItem:
+            name = manifest.contribution.name + '.selector'
+            title = manifest.contribution.label
+
+            SingleSettingContainer:
+                selector = manifest.contribution
+
+
+################################################################################
+# SequenceSelector
+################################################################################
+class SequenceTable(EditableTable):
+
+    selector = d_(Typed(selector_classes.SequenceSelector))
+    select_behavior = 'rows'
+    select_mode = 'extended'
+
+    def _observe_selector(self, event):
+        self.selector.observe('updated', self._check_and_reset_model)
+
+    def _check_and_reset_model(self, event):
+        if not self.live_edit:
+            self._reset_model()
+
+    def get_rows(self):
+        if self.selector is None:
+            return []
+        return range(len(self.selector.settings))
+
+    def get_columns(self):
+        if self.selector is None:
+            return []
+        return [ci.name for ci in self.selector.context_items]
+
+    def get_data(self, row, col):
+        item = self.selector.context_items[col]
+        return str(self.selector.get_value(row, item))
+
+    def set_data(self, row, col, value):
+        item = self.selector.context_items[col]
+        self.selector.set_value(row, item, value)
+
+    def get_column_label(self, col):
+        return self.selector.context_items[col].compact_label
+
+    def remove_row(self, row):
+        setting = self.selector.settings[row]
+        self.selector.remove_setting(setting)
+
+    def insert_row(self, row_index):
+        self.selector.add_setting(index=row_index)
+
+
+enamldef SequenceSelectorContainer(Container): container:
+
+    attr selector
+
+    Container:
+        constraints = [
+            vbox(
+                hbox(order_label, order, spacer, add, sort),
+                table
+            ),
+            add.width == 50,
+            sort.width == 50,
+            align('v_center', order_label, order, add, sort),
+        ]
+
+        Label: order_label:
+            text = 'Order'
+        ObjectCombo: order:
+            items = list(selector.get_member('order').items)
+            selected := selector.order
+        PushButton: add:
+            text = 'Add'
+            clicked ::
+                selector.add_setting()
+                selector.updated = True
+        PushButton: sort:
+            text = 'Sort'
+            clicked ::
+                selector.sort_settings()
+                selector.updated = True
+
+        SequenceTable: table:
+            editable = True
+            selector << container.selector
+
+
+enamldef SequenceSelectorManifest(BaseSelectorManifest): manifest:
+
+    Extension:
+        id = 'selector.' + manifest.contribution.name
+        point = 'psi.experiment.workspace'
+
+        DockItem:
+            name = manifest.contribution.name + '.selector'
+            title = manifest.contribution.label
+
+            SequenceSelectorContainer:
+                selector << manifest.contribution
+
+
+################################################################################
+# CartesianProduct
+################################################################################
+enamldef CartesianProductContainer(Container):
+
+    attr selector
+
+    VGroup:
+        Looper:
+            iterable << selector.context_items[:]
+            VGroup:
+                Label:
+                    text = loop_item.label
+                ListTable:
+                    select_behavior = 'rows'
+                    select_mode = 'single'
+                    editable = True
+                    show_row_labels = False
+                    show_column_labels = False
+                    show_grid = True
+                    data << selector.settings[loop_item.name]
+                    updated::
+                        selector.settings[loop_item.name] = data
+
+
+enamldef CartesianProductManifest(BaseSelectorManifest): manifest:
+
+    Extension:
+        id = 'selector.' + manifest.contribution.name
+        point = 'psi.experiment.workspace'
+
+        DockItem:
+            name = manifest.contribution.name + '.selector'
+            title = manifest.contribution.label
+
+            CartesianProductContainer:
+                selector = manifest.contribution
