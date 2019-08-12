@@ -236,10 +236,10 @@ class Parameter(ContextItem):
 
 class EnumParameter(Parameter):
 
-    expression = Property()
-    choices = d_(Typed(dict))
+    expression = Property().tag(transient=True)
+    choices = d_(Typed(dict)).tag(preference=True)
     selected = d_(Unicode()).tag(preference=True)
-    default = d_(Unicode())
+    default = d_(Unicode()).tag(preference=True)
 
     def _default_dtype(self):
         values = list(self.choices.values())
