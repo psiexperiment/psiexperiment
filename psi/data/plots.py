@@ -303,50 +303,6 @@ class FFTContainer(BasePlotContainer):
 ################################################################################
 # ViewBox
 ################################################################################
-class CustomGraphicsViewBox(pg.ViewBox):
-
-    def __init__(self, data_range, y_min, y_max, y_mode, allow_zoom_x,
-                 allow_zoom_y, *args, **kwargs):
-        self.data_range = data_range
-        self.y_min = y_min
-        self.y_max = y_max
-        self.y_mode = y_mode
-        self.allow_zoom_x = allow_zoom_x
-        self.allow_zoom_y = allow_zoom_y
-        super().__init__(*args, **kwargs)
-
-    def wheelEvent(self, ev, axis=None):
-        if axis == 0 and not self.allow_zoom_x:
-            return
-        if axis == 1 and not self.allow_zoom_y:
-            return
-
-        s = 1.02**(ev.delta() * self.state['wheelScaleFactor'])
-
-        if axis == 0:
-            self.data_range.span *= s
-        elif axis == 1:
-            vr = self.targetRect()
-            if self.y_mode == 'symmetric':
-                self.y_min *= s
-                self.y_max *= s
-            elif self.y_mode == 'upper':
-                self.y_max *= s
-            self.setYRange(self.y_min, self.y_max)
-        self.sigRangeChangedManually.emit(self.state['mouseEnabled'])
-        ev.accept()
-
-    def mouseDragEvent(self, ev, axis=None):
-        ev.accept()
-        return
-        delta = ev.pos()-ev.lastPos()
-        tr = self.mapToView(delta)-self.mapToView(pg.Point(0, 0))
-        if axis == 0:
-            x = tr.x()
-            self.data_range.delay += x
-        ev.accept()
-
-
 class ViewBox(PSIContribution):
 
     viewbox = Typed(pg.ViewBox)
@@ -376,17 +332,8 @@ class ViewBox(PSIContribution):
         return y_axis
 
     def _default_viewbox(self):
-        try:
-            viewbox = CustomGraphicsViewBox(self.parent.data_range,
-                                            self.y_min,
-                                            self.y_max,
-                                            self.y_mode,
-                                            self.allow_zoom_x,
-                                            self.allow_zoom_y,
-                                            enableMenu=False)
-        except:
-            viewbox = pg.ViewBox(enableMenu=False)
-            viewbox.setMouseEnabled(x=False, y=False)
+        viewbox = pg.ViewBox(enableMenu=False)
+        viewbox.setMouseEnabled(x=False, y=True)
         viewbox.setBackgroundColor('w')
 
         if (self.y_min != 0) or (self.y_max != 0):
