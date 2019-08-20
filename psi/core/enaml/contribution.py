@@ -44,5 +44,9 @@ class PSIContribution(Declarative):
             m = 'No manifest defind for contribution %s'
             log.warn(m, self.name)
         except ValueError as e:
-            m = 'Manifest already loaded for contribution %s'
-            log.debug(m, self.name)
+            # Catch only "is already registered" exceptions.
+            if str(e).endswith('is already registered'):
+                m = 'Manifest already loaded for contribution %s'
+                log.debug(m, self.name)
+            else:
+                raise
