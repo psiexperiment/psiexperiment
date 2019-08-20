@@ -19,7 +19,7 @@ from psi.controller.calibration.api import FlatCalibration, InterpCalibration
 from psi.controller.calibration import util
 
 from psi.core.enaml.api import PSIManifest
-from psi.token.primitives import Chirp
+from psi.token.primitives import Chirp, Cos2Envelope, Tone
 from psi.util import octave_space
 
 
@@ -336,3 +336,39 @@ enamldef ChirpMixin(PluginManifest): manifest:
         ExperimentAction:
             event = 'epoch_queue_end'
             command = 'psi.controller.compute_calibration'
+
+
+enamldef ToneMixin(PluginManifest): manifest:
+
+    id = 'tone_mixin'
+    attr C
+
+    Extension:
+        id = 'tokens'
+        point = 'psi.token.tokens'
+
+        Cos2Envelope: tone_pip:
+            label = 'Tone pip'
+            Tone:
+                pass
+
+    Extension:
+        id = 'io_tone_mixin'
+        point = 'psi.controller.io'
+
+        SelectorQueuedEpochOutput: hw_ao:
+            name = 'hw_ao'
+            label = 'Output'
+            auto_decrement = True
+            selector_name = 'default'
+            queue = InterleavedFIFOSignalQueue()
+            token = tone_pip
+            target_name << C.output_channel
+            queue ::
+                log.debug('Connecting to epoch')
+                controller = workbench.get_plugin('psi.controller')
+                epoch = controller.get_input('epoch')
+                epoch.poststim_time = 10e-3
+                self.connect(epoch.queue.append)
+            target ::
+                channel.calibration = FlatCalibration.as_attenuation()

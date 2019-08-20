@@ -278,6 +278,14 @@ chirp_mixin = PluginDescription(
 )
 
 
+tone_mixin = PluginDescription(
+    name='tone',
+    title='Tone',
+    required=True,
+    manifest='psi.application.experiment.calibration_mixins.ToneMixin'
+)
+
+
 speaker_calibration_controller = PluginDescription(
     name='controller',
     title='Controller',
@@ -304,6 +312,17 @@ speaker_calibration_chirp_experiment = ParadigmDescription(
     plugins=[
         speaker_calibration_controller,
         chirp_mixin,
+    ]
+)
+
+
+speaker_calibration_tone_experiment = ParadigmDescription(
+    name='speaker_calibration_tone',
+    title='Speaker calibration (tone)',
+    type='calibration',
+    plugins=[
+        speaker_calibration_controller,
+        tone_mixin,
     ]
 )
 
@@ -428,7 +447,9 @@ experiments = {
     'dpoae_ttl': dpoae_ttl_experiment,
     'dpoae_io': dpoae_io_experiment,
     'speaker_calibration_chirp': speaker_calibration_chirp_experiment,
+    'speaker_calibration_tone': speaker_calibration_tone_experiment,
     'speaker_calibration_chirp_inear': speaker_calibration_chirp_experiment.copy(type='ear'),
+    'speaker_calibration_tone_inear': speaker_calibration_tone_experiment.copy(type='ear'),
     'speaker_calibration_golay': speaker_calibration_golay_experiment,
     'appetitive_gonogo_food': appetitive_experiment,
     'noise_exposure': noise_exposure_experiment,
