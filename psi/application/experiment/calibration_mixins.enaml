@@ -3,7 +3,7 @@ log = logging.getLogger(__name__)
 
 from functools import partial
 
-from enaml.application import deferred_call
+from enaml.application import deferred_call, timed_call
 from enaml.workbench.api import Extension, PluginManifest
 from enaml.workbench.core.api import Command
 import numpy as np
@@ -171,9 +171,10 @@ def compute_calibration_chirp(event):
     params = {'dataframe': summary, 'name': 'chirp_summary'}
     core.invoke_command('cal_data.save_dataframe', params)
 
-    # Now, test that the calibration works
+    # Now, test that the calibration works. Add a 25 msec delay to give prior
+    # task time to shut down and exit.
     ao.channel.calibration = InterpCalibration(freq, sens)
-    deferred_call(validate_spl, event, ao.channel, ai.channel, frequencies, 80)
+    timed_call(25, validate_spl, event, ao.channel, ai.channel, frequencies, 80)
 
 
 def validate_spl(event, ao_channel, ai_channel, frequencies, spl):
