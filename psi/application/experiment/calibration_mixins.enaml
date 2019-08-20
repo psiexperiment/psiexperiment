@@ -23,7 +23,7 @@ from psi.token.primitives import Chirp, Cos2Envelope, Tone
 from psi.util import octave_space
 
 
-def configure_hardware_golay(output, workbench):
+def configure_hardware_golay(output, workbench, event=None):
     '''
     Configure hardware and queue for Golay
 
@@ -33,6 +33,7 @@ def configure_hardware_golay(output, workbench):
     context = workbench.get_plugin('psi.context')
     controller = workbench.get_plugin('psi.controller')
 
+    max_sf = 0
     for setting in context.iter_settings('default', 1):
         n = setting['n_bits']
         gain = setting['output_gain']
@@ -48,13 +49,14 @@ def configure_hardware_golay(output, workbench):
         delays[-1] = ab_delay
 
         sf = output.channel.calibration.get_sf(None, gain)
+        max_sf = max(max_sf, sf)
         a, b = util.golay_pair(n)
         a *= sf
         b *= sf
         output.queue.append(a, n_trials, delays, metadata=setting)
         output.queue.append(b, n_trials, delays, metadata=setting)
 
-    output.channel.expected_range = (-sf*1.1, sf*1.1)
+    output.channel.expected_range = (-max_sf*1.1, max_sf*1.1)
 
 
 def plot_data(vb, summary, y_name, *args, **kwargs):
@@ -78,7 +80,7 @@ def compute_spl_golay(workbench, event):
     n_discard = context.get_value('discard')
     smoothing_window = context.get_value('smoothing_window')
 
-    n = n_discard + n_waveforms * n_fft 
+    n = n_discard + n_waveforms * n_fft
 
     keys = []
     summaries = []
@@ -88,7 +90,7 @@ def compute_spl_golay(workbench, event):
         mic_b = epochs[n_discard+n:]
         summary = util.summarize_golay(source.fs, a, b, mic_a, mic_b,
                                        n_waveforms)
-        
+
         # Calculate SPL
         frequency = summary['frequency']
         psd = summary['psd']
@@ -99,8 +101,8 @@ def compute_spl_golay(workbench, event):
             spl = np.convolve(spl, w, mode='same')
         summary['spl'] = spl
 
-        vb = data.find_viewbox('calibration_result')
-        deferred_call(plot_data, vb, summary, log_x=True)
+        vb = data.find_viewbox('spl_result')
+        deferred_call(plot_data, vb, summary, 'spl', log_x=True)
 
         keys.append((n_bits, output_gain))
         summary = pd.DataFrame(summary).set_index('frequency')
@@ -221,11 +223,11 @@ enamldef GolayMixin(PluginManifest): manifest:
             target ::
                 controller = workbench.get_plugin('psi.controller')
                 epoch = controller.get_input('epoch')
-                epoch.queue = queue
+                self.queue.connect(epoch.queue.append)
                 # This needs to be done manually otherwise it doesn't happen
                 # until after this block exits, creating a race condition. How
                 # to fix?
-                queue.set_fs(self.fs)
+                self.queue.set_fs(self.fs)
                 channel.calibration = FlatCalibration.as_attenuation()
                 configure_hardware_golay(hw_ao, workbench)
                 cb = partial(compute_spl_golay, workbench)
