@@ -110,6 +110,39 @@ class ABRFile(Recording):
                             detrend='constant', pad_duration=10e-3,
                             reject_threshold=None, reject_mode='absolute',
                             columns='auto'):
+        '''
+        Get filtered epochs
+
+        Parameters
+        ----------
+        filter_lb : float
+            Lower bound of filter passband, in Hz.
+        filter_ub : float
+            Upper bound of filter passband, in Hz.
+        filter_order : int
+            Filter order. Note that the effective order will be double this
+            since we use zero-phase filtering.
+        offset : float
+            Starting point of epoch, in seconds re. trial start. Can be
+            negative to capture prestimulus baseline.
+        duration : float
+            Duration of epoch, in seconds, relative to offset.
+        detrend : {'constant', 'linear', None}
+            Method for detrending
+        pad_duration : float
+            Duration, in seconds, to pad epoch prior to filtering. The extra
+            samples will be discarded after filtering.
+        reject_threshold : {None, 'auto', float}
+            If None, perform no artifact reject. If 'auto', use the value
+            stored in the file. Otherwise, use the provided value.
+        reject_mode : string
+            Not imlemented
+        columns : {'auto', list of names}
+            Columns to include
+        refresh_cache : bool
+            If true, recompute from raw EEG data. If false and data has already
+            been cached, return cached results.
+        '''
         fn = self.eeg.get_epochs_filtered
         result = fn(self.erp_metadata, offset, duration, filter_lb, filter_ub,
                     filter_order, detrend, pad_duration, columns)
