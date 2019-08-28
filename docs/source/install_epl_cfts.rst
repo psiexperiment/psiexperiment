@@ -27,7 +27,6 @@ Installing
 	```
 	pip install -e psiexperiment
 	```
-
 8. Create a file called `psiexperiment/psi/application/io/<hostname>.enaml` and update it with your hardware configuration (usually you can just copy `pika.enaml` and update the AI and AO channel information to point to the correct PXI cards). Eventually I plan to update the code so that you can create a configuration file that lives outside the main repository.
 
 9. Create an environment variable called `PSIEXPERIMENT_BASE` pointing to the folder where you want all data to be saved (e.g., `d:/psi`)
@@ -37,5 +36,4 @@ Installing
 	activate psi
 	cfts
 	```
-
 11. To run the program, double-click on the shortcut.
