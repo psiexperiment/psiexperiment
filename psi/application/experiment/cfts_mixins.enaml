@@ -166,7 +166,7 @@ enamldef TemperatureMixinManifest(PluginManifest): manifest:
         point = 'psi.controller.io'
 
         IIRFilter:
-            source_name = 'temperature_channel'
+            source_name = 'temperature'
             f_lowpass = 0.5
             btype = 'lowpass'
             ftype = 'butter'

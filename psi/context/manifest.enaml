@@ -57,6 +57,7 @@ def initialize(event):
     context.apply_changes(cycles=cycles)
     context.next_setting(selector=event.parameters['selector'],
                          save_prior=False)
+    context.initialized = True
     controller.invoke_actions('context_initialized')
 
 
