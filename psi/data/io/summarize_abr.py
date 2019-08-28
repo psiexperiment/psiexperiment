@@ -35,7 +35,6 @@ def process_files(filenames, offset=-0.001, duration=0.01,
             else:
                 print('*', end='', flush=True)
         except Exception as e:
-            raise
             print(f'\nError processing {filename}\n{e}\n')
 
 
@@ -107,8 +106,9 @@ def _match_epochs(*epochs):
     return [d.reset_index('dataset', drop=True) for _, d in \
               matched.groupby('dataset', group_keys=False)]
 
+
 def process_files_matched(filenames, offset, duration, filter_settings,
-                          reprocess=True, n_epochs=None, suffix=None):
+                          reprocess=True, suffix=None):
 
     epochs = []
     for filename in filenames:
@@ -171,11 +171,12 @@ def process_file(filename, offset, duration, filter_settings, reprocess=False,
     reprocess : bool
         If True, reprocess the file even if it already has been processed for
         the specified filter settings.
-    n_epochs : {None, int, dict}
-        If None, all epochs will be used. If integer, will limit the number of
-        epochs per frequency and level to this number. If dict, the key must be
-        a tuple of (frequency, level) and the value will indicate the number of
-        epochs to use.
+    n_epochs : {None, 'auto', int, dict}
+        If None, all epochs will be used. If 'auto', use the value defined at
+        acquisition time. If integer, will limit the number of epochs per
+        frequency and level to this number. If dict, the key must be a tuple of
+        (frequency, level) and the value will indicate the number of epochs to
+        use.
     suffix : {None, str}
         Suffix to use when creating save filenames.
     '''
@@ -208,15 +209,22 @@ def process_file(filename, offset, duration, filter_settings, reprocess=False,
     m = m.all(axis=1)
     epochs = epochs.loc[m]
 
+    if n_epochs is not None:
+        if n_epochs == 'auto':
+            n_epochs = fh.erp_metadata.at[0, 'averages']
+        n = np.floor(n_epochs / 2)
+        epochs = epochs.groupby(columns) \
+            .apply(lambda x: x.iloc[:n])
+
     epoch_reject_ratio = 1-m.groupby(columns[:-1]).mean()
     epoch_mean = epochs.groupby(columns).mean() \
         .groupby(columns[:-1]).mean()
-    epoch_n = epochs.groupby(columns[:-1]).size()
 
     # Write the data to CSV files
     epoch_reject_ratio.name = 'epoch_reject_ratio'
     epoch_reject_ratio.to_csv(reject_ratio_file, header=True)
     epoch_reject_ratio.name = 'epoch_n'
+    epoch_n = epochs.groupby(columns[:-1]).size()
     epoch_n.to_csv(n_epoch_file, header=True)
     epoch_mean.columns.name = 'time'
     epoch_mean.T.to_csv(mean_epoch_file)
