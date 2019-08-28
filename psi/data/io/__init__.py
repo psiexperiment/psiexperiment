@@ -100,8 +100,7 @@ class Signal:
     def _get_segments_filtered(self, fn, offset, duration, filter_lb, filter_ub,
                                filter_order=1, detrend='constant',
                                pad_duration=10e-3):
-
-        Wn = (filter_lb/self.fs, filter_ub/self.fs)
+        Wn = (filter_lb/(0.5*self.fs), filter_ub/(0.5*self.fs))
         b, a = signal.iirfilter(filter_order, Wn, btype='band', ftype='butter')
         df = fn(offset-pad_duration, duration+pad_duration, detrend)
         df[:] = signal.filtfilt(b, a, df.values, axis=-1)
