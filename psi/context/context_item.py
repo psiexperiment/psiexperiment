@@ -168,7 +168,7 @@ class ContextItem(Declarative):
     def coerce_to_type(self, value):
         coerce_function = np.dtype(self.dtype).type
         value = coerce_function(value)
-        return np.asscalar(value)
+        return value.item()
 
     def __repr__(self):
         return f'<{self}>'
@@ -206,7 +206,7 @@ class Parameter(ContextItem):
     a go trial).
     '''
     # Default value of the context item when used as part of a selector.
-    default = d_(Value()).tag(preference=True)
+    default = d_(Value())
 
     expression = d_(Unicode()).tag(preference=True)
 
@@ -237,9 +237,9 @@ class Parameter(ContextItem):
 class EnumParameter(Parameter):
 
     expression = Property().tag(transient=True)
-    choices = d_(Typed(dict)).tag(preference=True)
     selected = d_(Unicode()).tag(preference=True)
-    default = d_(Unicode()).tag(preference=True)
+    choices = d_(Typed(dict))
+    default = d_(Unicode())
 
     def _default_dtype(self):
         values = list(self.choices.values())

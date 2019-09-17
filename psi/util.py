@@ -30,19 +30,19 @@ def rpc(plugin_name, method_name):
     return wrapper
 
 
-def get_tagged_values(obj, tag_name, tag_value=True, exclude_properties=False):
+def get_tagged_members(obj, tag_name, tag_value=True, exclude_properties=False):
     result = {}
     if exclude_properties:
         match = lambda m: m.metadata and m.metadata.get(tag_name) == tag_value \
-            and not isinstance(member, Property)
+            and not isinstance(m, Property)
     else:
         match = lambda m: m.metadata and m.metadata.get(tag_name) == tag_value
+    return {n: m for n, m in obj.members().items() if match(m)}
 
-    for name, member in obj.members().items():
-        if match(member):
-            value = getattr(obj, name)
-            result[name] = value
-    return result
+
+def get_tagged_values(obj, tag_name, tag_value=True, exclude_properties=False):
+    members = get_tagged_members(obj, tag_name, tag_value, exclude_properties)
+    return {n: getattr(obj, n) for n in members}
 
 
 def declarative_to_dict(obj, tag_name, tag_value=True):
