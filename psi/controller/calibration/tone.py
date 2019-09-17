@@ -134,7 +134,7 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gains=0,
     ao_fs = ao_channel.fs
     ai_fs = ai_channels[0].fs
 
-    # Ensure that input channels are synced to the output channel 
+    # Ensure that input channels are synced to the output channel
     device_name = ao_channel.device_name
     ao_channel.start_trigger = ''
     for channel in ai_channels:
@@ -148,11 +148,15 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gains=0,
     # Build the signal queue
     queue = FIFOSignalQueue()
     queue.set_fs(ao_fs)
+    max_sf = 0
     for frequency, gain in zip(frequencies, gains):
         factory = ToneFactory(ao_fs, gain, frequency, 0, 1, calibration)
         waveform = factory.next(samples)
         md = {'gain': gain, 'frequency': frequency}
         queue.append(waveform, repetitions, iti, metadata=md)
+        sf = calibration.get_sf(frequency, gain) * np.sqrt(2)
+        max_sf = max(max_sf, sf)
+    ao_channel.expected_range = (-max_sf*1.1, max_sf*1.1)
 
     factory = SilenceFactory(ao_fs, calibration)
     waveform = factory.next(samples)
