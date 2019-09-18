@@ -21,6 +21,13 @@ The plugin-oriented nature of psiexperiment has a bit of a learning curve, but a
    :maxdepth: 2
    :caption: Contents:
 
+    installing
+    io_manifest
+    context
+    waveforms
+    creating_experiment
+
+
 :doc:`installing`
 -----------------
 Instructions on installing psiexperiment and configuring your system.
