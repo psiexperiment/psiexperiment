@@ -64,12 +64,14 @@ def plot_data(vb, summary, y_name, *args, **kwargs):
 
 
 def compute_spl_golay(workbench, event):
+    log.debug('Computing SPL for Golay')
     core = workbench.get_plugin('enaml.workbench.core')
     context = workbench.get_plugin('psi.context')
     controller = workbench.get_plugin('psi.controller')
     data = workbench.get_plugin('psi.data')
 
-    ai_channel = controller.get_input('hw_ai').channel
+    ai = controller.get_input('hw_ai')
+    ao = controller.get_output('hw_ao')
 
     source = data.find_sink('mic_data').get_source('epoch')
     grouping = ['n_bits', 'output_gain']
@@ -82,6 +84,8 @@ def compute_spl_golay(workbench, event):
 
     n = n_discard + n_waveforms * n_fft
 
+    vb_spl = data.find_viewbox('spl_result')
+    vb_sens = data.find_viewbox('sens_result')
     keys = []
     summaries = []
     for (n_bits, output_gain), epochs in waveforms.items():
@@ -92,17 +96,28 @@ def compute_spl_golay(workbench, event):
                                        n_waveforms)
 
         # Calculate SPL
-        frequency = summary['frequency']
+        freq = summary['frequency']
         psd = summary['psd']
-        spl = ai_channel.calibration.get_spl(frequency, psd)
+        spl = ai.channel.calibration.get_spl(freq, psd)
         if smoothing_window > 0:
             w = signal.hamming(smoothing_window)
             w /= w.sum()
             spl = np.convolve(spl, w, mode='same')
-        summary['spl'] = spl
 
-        vb = data.find_viewbox('spl_result')
-        deferred_call(plot_data, vb, summary, 'spl', log_x=True)
+        #a_psd = util.psd(a, source.fs)
+        #b_psd = util.psd(b, source.fs)
+        #signal_psd = util.db(0.5*a_psd + 0.5*b_psd) - output_gain
+
+        # This seems to give the correct answer. I think we assume that the
+        # Golay has a RMS of 1 across all frequencies?
+        sens = output_gain-spl-util.db(20e-6)
+        summary.update({
+            'spl': spl,
+            'sens': sens,
+        })
+
+        deferred_call(plot_data, vb_spl, summary, 'spl', log_x=True)
+        deferred_call(plot_data, vb_sens, summary, 'sens', log_x=True)
 
         keys.append((n_bits, output_gain))
         summary = pd.DataFrame(summary).set_index('frequency')
@@ -111,6 +126,13 @@ def compute_spl_golay(workbench, event):
     summary = pd.concat(summaries, keys=keys, names=grouping)
     params = {'dataframe': summary, 'name': 'golay_summary'}
     core.invoke_command('cal_data.save_dataframe', params)
+
+    # Now, test that the calibration works. Add a 25 msec delay to give prior
+    # task time to shut down and exit.
+    ao.channel.calibration = InterpCalibration(freq, sens)
+    frequencies = octave_space(500*1e-3, 50000*1e-3, 0.25)*1e3
+    timed_call(25, validate_spl, workbench, ao.channel, ai.channel,
+               frequencies, 80)
 
 
 def compute_calibration_chirp(event):
@@ -127,6 +149,8 @@ def compute_calibration_chirp(event):
     grouping = ['hw_ao_chirp_level']
     waveforms = source.get_epoch_groups(grouping)
 
+    vb_spl = data.find_viewbox('spl_result')
+    vb_sens = data.find_viewbox('sens_result')
     keys = []
     summaries = []
     for chirp_level, epochs in waveforms.items():
@@ -155,10 +179,8 @@ def compute_calibration_chirp(event):
             'phase': phase,
         })
 
-        vb = data.find_viewbox('spl_result')
-        deferred_call(plot_data, vb, summary, 'spl', log_x=True)
-        vb = data.find_viewbox('sens_result')
-        deferred_call(plot_data, vb, summary, 'sens', log_x=True)
+        deferred_call(plot_data, vb_spl, summary, 'spl', log_x=True)
+        deferred_call(plot_data, vb_sens, summary, 'sens', log_x=True)
 
         keys.append(chirp_level)
         summary = summary.set_index('frequency')
@@ -176,12 +198,14 @@ def compute_calibration_chirp(event):
     # Now, test that the calibration works. Add a 25 msec delay to give prior
     # task time to shut down and exit.
     ao.channel.calibration = InterpCalibration(freq, sens)
-    timed_call(25, validate_spl, event, ao.channel, ai.channel, frequencies, 80)
+    timed_call(25, validate_spl, event.workbench, ao.channel, ai.channel,
+               frequencies, 80)
 
 
-def validate_spl(event, ao_channel, ai_channel, frequencies, spl):
-    data = event.workbench.get_plugin('psi.data')
-    core = event.workbench.get_plugin('enaml.workbench.core')
+def validate_spl(workbench, ao_channel, ai_channel, frequencies, spl):
+    log.debug('Starting SPL validation')
+    data = workbench.get_plugin('psi.data')
+    core = workbench.get_plugin('enaml.workbench.core')
 
     gains = [ao_channel.calibration.get_gain(f, spl) for f in frequencies]
     gains = np.array(gains)

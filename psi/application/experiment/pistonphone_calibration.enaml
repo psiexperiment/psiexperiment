@@ -253,7 +253,7 @@ enamldef PistonphoneCalibrationManifest(ControllerManifest): manifest:
         TimeContainer:
             name = 'time_container'
             label = 'Signal'
-            span = 4
+            span = 8
             delay = 0
 
             ViewBox:

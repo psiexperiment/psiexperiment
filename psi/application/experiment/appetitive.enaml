@@ -11,7 +11,7 @@ from psi.controller.api import (CalibratedInput, ContinuousOutput, EpochOutput,
 from psi.data.plots import (EventPlot, FFTContainer, FFTChannelPlot, TimeContainer,
                             ChannelPlot, ViewBox, TimeseriesPlot)
 from psi.token.primitives import (BandlimitedNoise, Cos2Envelope, SAMEnvelope,
-                                  Silence)
+                                  Silence, Tone)
 from .behavior_base import BehaviorManifest
 
 
@@ -44,6 +44,13 @@ enamldef ControllerManifest(BehaviorManifest): manifest:
             label = 'Bandlimited SAM silence'
             SAMEnvelope:
                 Silence:
+                    pass
+
+        Cos2Envelope:
+            name = 'sam_tone'
+            label = 'SAM tone'
+            SAMEnvelope:
+                Tone:
                     pass
 
     Extension:
