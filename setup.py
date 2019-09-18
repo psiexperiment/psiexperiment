@@ -4,6 +4,7 @@ from setuptools import find_packages, setup
 requirements = [
     'bcolz',
     'enaml',
+    'joblib',
     'json_tricks',
     'numpy',
     'palettable',

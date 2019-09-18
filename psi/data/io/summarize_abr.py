@@ -109,7 +109,6 @@ def _match_epochs(*epochs):
 
 def process_files_matched(filenames, offset, duration, filter_settings,
                           reprocess=True, suffix=None):
-
     epochs = []
     for filename in filenames:
         fh = abr.load(filename)
@@ -146,7 +145,7 @@ def process_files_matched(filenames, offset, duration, filter_settings,
 
 
 def process_file(filename, offset, duration, filter_settings, reprocess=False,
-                 n_epochs=None, suffix=None):
+                 n_epochs='auto', suffix=None):
     '''
     Extract ABR epochs, filter and save result to CSV files
 
