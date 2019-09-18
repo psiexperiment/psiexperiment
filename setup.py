@@ -14,7 +14,7 @@ requirements = [
 
 extras_require = {
     'ni': ['pydaqmx'],
-    'docs': ['sphinx', 'sphinx_rtd_theme', 'pygments-enaml', 'numpydoc'],
+    'docs': ['sphinx', 'sphinx_rtd_theme', 'pygments-enaml'],
     'examples': ['matplotlib'],
     'test': ['pytest', 'pytest-benchmark'],
 }
