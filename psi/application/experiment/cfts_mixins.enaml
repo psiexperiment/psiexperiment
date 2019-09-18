@@ -174,7 +174,7 @@ enamldef TemperatureMixinManifest(PluginManifest): manifest:
 
             Downsample:
                 name = 'temperature_decimated'
-                q = 50
+                q = 500
 
 
 ################################################################################
@@ -590,11 +590,3 @@ enamldef EEGMixinManifest(PluginManifest): manifest:
             name = 'eeg'
             continuous_inputs = ['eeg']
             epoch_inputs = ['erp']
-
-    #Extension:
-    #    id = 'calibration_commands'
-    #    point = 'enaml.workbench.core.commands'
-
-    #    Command:
-    #        id = 'psi.controller.configure_experiment'
-    #        handler = configure_experiment

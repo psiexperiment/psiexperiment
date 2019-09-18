@@ -2,6 +2,17 @@
 Designing a new experiment
 ==========================
 
+Core plugins
+------------
+Psiexperiment ships with five core plugins that are always loaded when an experiment is started:
+
+* **Context** - 
+* **Data** - Manages saving, analysis and plotting of data.
+* **Controller** - Manages experiment.
+* **Token** - Manages generation of both epoch (i.e., finite in duration) and continuous (i.e., infinite in duration) waveforms.
+* **Calibration** - Manages calibrations of inputs and outputs. Right now only acoustic inputs and outputs (e.g., microphones and speakers) are supported. Offers chirp, golay and tone-based calibration algorithms.
+
+
 Getting started
 ---------------
 
@@ -14,7 +25,7 @@ Psiexperiment is a plugin-based system where the plugins determine the experimen
  
 Your experiment configuration file will define `EXPERIMENT`, which is the name of the experiment and will typically contain the following extensions:
 
-.. highlight:: enaml
+.. code-block:: enaml
 
     enamldef ControllerManifest(BaseManifest): manifest:
 
@@ -53,7 +64,9 @@ Let's take a closer look at each of the extensions.
 Actions
 .......
 
-At a minimum, you will typically define the following two actions (customized for your needs)::
+At a minimum, you will typically define the following two actions (customized for your needs):
+
+.. code-block:: enaml
 
     Extension:
         id = EXPERIMENT + '.actions'
@@ -75,22 +88,21 @@ Under the hood, the controller will configure the engines during the `experiment
 
 Sequence of events during an experiment
 .......................................
-
 * `plugins_started` - All plugins have finished loading. Now, you can perform actions that may require access to another plugin; however, do not assume that the plugins have finished initializing.
 
-* `experiment_initialize` - TODO
+* `experiment_initialize` - All plugins should have been initialized. This is where you will typically initialize the context (and nothing else).
 
-* `context_initialized` - TODO
+* `context_initialized` - This only follows `experiment_initialize` if `psi.context.initialize` has properly been bound to `experiment_initialize`. 
 
-* `experiment_prepare` - TODO
+* `experiment_prepare` - The majority of actions required prior to starting an experiment should be tied to this event since the context will now be available for queries.
 
 * `engines_configured` - TODO
 
 * `experiment_start` - TODO
 
-#### The power of actions
-
-The actions allow you to insert your own code or invoke commands at any point in the experiment process. A few examples:
+The power of actions
+....................
+Actions allow you to insert your own code or invoke commands at any point in the experiment process. A few examples:
 
 * The `abr_base.enaml` file calls a custom function when the `experiment_prepare` event is called. This function reviews the settings specified by the user to determine the sequence of the tone pips (e.g., conventional vs. interleaved, alternating polarity, etc.) and sets up the queue accordingly. While it's theoretically possible to set this using plugins offered by psiexperiment (e.g., alternating polarity could be specified as a "roving" context item), this custom function makes the user interface much simpler and more fool-proof.
 
@@ -100,7 +112,9 @@ The actions allow you to insert your own code or invoke commands at any point in
 Input/Output
 ............
 
-Example of an input-output plugin::
+Example of an input-output plugin:
+
+.. code-block:: enaml
 
     Extension:
         id = EXPERIMENT + '.io'
@@ -122,7 +136,9 @@ Example of an input-output plugin::
 Creating your own custom plugins
 ................................
 
-When defining your own subclasses of `PSIManifest`, we recommend the following naming convetions to minimize name collisions::
+When defining your own subclasses of `PSIManifest`, we recommend the following naming convetions to minimize name collisions:
+
+.. code-block:: enaml
 
     Extension:
         id = manifest.id + '.commands'
@@ -133,7 +149,6 @@ When defining your own subclasses of `PSIManifest`, we recommend the following n
             ...
 
 All subclasses of `PSIManifest` have access to the attached `contribution` (an instance of `PSIContribution`) as an attribute.
-
 
 Common gotchas
 --------------

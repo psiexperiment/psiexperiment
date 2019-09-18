@@ -35,6 +35,7 @@ def process_files(filenames, offset=-0.001, duration=0.01,
             else:
                 print('*', end='', flush=True)
         except Exception as e:
+            raise
             print(f'\nError processing {filename}\n{e}\n')
 
 
@@ -203,15 +204,15 @@ def process_file(filename, offset, duration, filter_settings, reprocess=False,
     epochs = _get_epochs(fh, offset, duration, filter_settings)
 
     # Apply the reject
-    reject_threshold = fh.erp_metadata.at[0, 'reject_threshold']
+    reject_threshold = fh.erp_metadata.iloc[0]['reject_threshold']
     m = np.abs(epochs) < reject_threshold
     m = m.all(axis=1)
     epochs = epochs.loc[m]
 
     if n_epochs is not None:
         if n_epochs == 'auto':
-            n_epochs = fh.erp_metadata.at[0, 'averages']
-        n = np.floor(n_epochs / 2)
+            n_epochs = fh.erp_metadata.iloc[0]['averages']
+        n = int(np.floor(n_epochs / 2))
         epochs = epochs.groupby(columns) \
             .apply(lambda x: x.iloc[:n])
 

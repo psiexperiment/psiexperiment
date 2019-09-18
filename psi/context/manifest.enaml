@@ -24,7 +24,7 @@ from .plugin import ContextPlugin
 from .symbol import ImportedSymbol, Function
 from .context_item import Parameter
 
-from ..util import rpc, get_tagged_values
+from ..util import rpc, get_tagged_members, get_tagged_values
 from .. import get_config
 
 
@@ -48,6 +48,12 @@ def revert_changes(event):
 
 def get_preferences(obj):
     return get_tagged_values(obj, 'preference')
+
+
+def set_preferences(obj, preferences):
+    for member in get_tagged_members(obj, 'preference'):
+        value = preferences.get(member)
+        setattr(obj, member, value)
 
 
 def initialize(event):
@@ -193,7 +199,7 @@ enamldef ContextManifest(PluginManifest): manifest:
                     try:
                         group_state = parameter_state.get(item.group_name, {})
                         state = group_state.get(item.name, {})
-                        item.__setstate__(state)
+                        set_preferences(item, state)
                     except Exception as e:
                         log.exception(e)
 
