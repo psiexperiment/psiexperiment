@@ -1,5 +1,5 @@
 =========================================
- Welcome to Psiexperiment
+ Welcome to Psiexperiment BYE
 =========================================
 
 Psiexperiment is a framework for creating feature-rich data acquistion experiments with minimal effort. Psiexperiment can be run on any platform which supports Python and Qt.
@@ -19,13 +19,11 @@ The plugin-oriented nature of psiexperiment has a bit of a learning curve, but a
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: Getting started
+   :hidden:
 
-    installing
-    io_manifest
-    context
-    waveforms
-    creating_experiment
+   installing
+   io_manifest
 
 
 :doc:`installing`
@@ -35,6 +33,15 @@ Instructions on installing psiexperiment and configuring your system.
 :doc:`io_manifest`
 ------------------
 Instructions on creating your input-output manifest which describes all equipment used for the experiment.
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Creating an experiment
+   :hidden:
+
+   creating_experiment
+   context
+   waveforms
 
 :doc:`context`
 --------------
@@ -48,9 +55,13 @@ Create stimuli.
 --------------------------
 Instructions on how to create your own experiment.
 
-Indices and tables
-==================
+.. toctree::
+   :maxdepth: 2
+   :caption: Reference
+   :hidden:
 
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+   api/index
+
+:doc:`api/index`
+----------------
+Reference

@@ -14,7 +14,7 @@ A *roving parameter* is like a parameter, except that it can be roved from trial
 
 You can define a list of parameters required by the experiment as well as a set of selectors that allow you to specify a sequence of values to test. Once you have defined these parameters, you can iterate through them:
 
-.. source::
+.. code-block:: python
 
     context = workbench.get_plugin('psi.context')
     context.next_setting(selector='go')
