@@ -1,5 +1,5 @@
 =========================================
- Welcome to Psiexperiment BYE
+ Welcome to Psiexperiment
 =========================================
 
 Psiexperiment is a framework for creating feature-rich data acquistion experiments with minimal effort. Psiexperiment can be run on any platform which supports Python and Qt.
@@ -56,12 +56,12 @@ Create stimuli.
 Instructions on how to create your own experiment.
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 5
    :caption: Reference
    :hidden:
 
-   api/index
+   API documetnation <api/modules>
 
-:doc:`api/index`
-----------------
-Reference
+:doc:`api/modules`
+------------------
+Overview of API.

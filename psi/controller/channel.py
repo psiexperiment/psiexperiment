@@ -15,13 +15,13 @@ from ..util import coroutine
 
 class Channel(PSIContribution):
 
-    # Globally-unique name of channel used for identification
+    #: Globally-unique name of channel used for identification
     name = d_(Unicode()).tag(metadata=True)
 
-    # Lable of channel used in GUI
+    #: Label of channel used in GUI
     label = d_(Unicode()).tag(metadata=True)
 
-    # Is channel active during experiment?
+    #: Is channel active during experiment?
     active = Property()
 
     # SI unit (e.g., V)

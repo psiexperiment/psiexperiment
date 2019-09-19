@@ -128,7 +128,6 @@ def is_processed(filename, offset, duration, filter_settings, suffix=None):
 
 def process_files_matched(filenames, offset, duration, filter_settings,
                           reprocess=True, suffix=None):
-
     epochs = []
     for filename in filenames:
         fh = abr.load(filename)
