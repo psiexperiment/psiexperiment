@@ -37,7 +37,7 @@ extensions = [
     'sphinx.ext.autodoc',
     'sphinx.ext.autosummary',
     'sphinx.ext.viewcode',
-    #'numpydoc',
+    'sphinx.ext.napoleon',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -61,11 +61,15 @@ html_theme = 'sphinx_rtd_theme'
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
 
-autodoc_member_order = 'bysource'
+autodoc_mock_imports = ['PyDAQmx']
 
-# None is read as making the option True (cf autodoc documentation)
-autodoc_default_options = {
-    'members': None,
-    'special-members': None,
-    'show-inheritance': None,
-}
+master_doc = 'index'
+
+#autodoc_member_order = 'bysource'
+#
+## None is read as making the option True (cf autodoc documentation)
+#autodoc_default_options = {
+#    'members': None,
+#    'special-members': None,
+#    'show-inheritance': None,
+#}

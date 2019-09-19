@@ -131,9 +131,9 @@ def get_config(setting=None):
 # fairly well. This ensures that third-party libraries (e.g., bcolz) that see
 # psiexperiment data structures can properly deal with them.
 import json
-import json_tricks
-
-for fn_name in ('dump', 'dumps', 'load', 'loads'):
-    fn = getattr(json_tricks, fn_name)
-    setattr(json, fn_name, fn)
-log.debug('Monkeypatched system JSON')
+#import json_tricks
+#
+#for fn_name in ('dump', 'dumps', 'load', 'loads'):
+#    fn = getattr(json_tricks, fn_name)
+#    setattr(json, fn_name, fn)
+#log.debug('Monkeypatched system JSON')
