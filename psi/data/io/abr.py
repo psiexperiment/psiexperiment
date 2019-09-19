@@ -5,10 +5,12 @@ import logging
 log = logging.getLogger(__name__)
 
 from functools import lru_cache, partialmethod
+import json
 import os.path
 import shutil
 import re
 from glob import glob
+import pickle
 
 import bcolz
 import numpy as np
@@ -41,19 +43,27 @@ def cache(f, name=None):
     def wrapper(self, *args, refresh_cache=False, **kwargs):
         bound_args = s.bind(self, *args, **kwargs)
         bound_args.apply_defaults()
-        iterable = bound_args.arguments.items()
-        file_params = ', '.join(f'{k}={v}' for k, v in iterable if k != 'self')
-        file_name = f'{name} {file_params}.pkl'
+        cache_kwargs = dict(bound_args.arguments)
+        cache_kwargs.pop('self')
+        string = json.dumps(cache_kwargs, sort_keys=True, allow_nan=True)
+        uuid = hash(string)
 
         cache_path = self.base_path / 'cache'
         cache_path.mkdir(parents=True, exist_ok=True)
-        cache_file = cache_path / file_name
+        cache_file = cache_path / f'{name}-{uuid}-result.pkl'
+        kwargs_cache_file = cache_path / f'{name}-{uuid}-kwargs.pkl'
 
         if not refresh_cache and cache_file.exists():
             result = pd.read_pickle(cache_file)
+            with open(kwargs_cache_file, 'wb') as fh:
+                cache_kwargs = pickle.load(fh)
+                if cache_kwargs != kwargs:
+                    raise ValueError('Cache is corrupted')
         else:
             result = f(self, *args, **kwargs)
             result.to_pickle(cache_file)
+            with open(kwargs_cache_file, 'wb') as fh:
+                pickle.dump(kwargs, fh)
 
         return result
 
@@ -63,15 +73,78 @@ def cache(f, name=None):
 class ABRFile(Recording):
 
     def __init__(self, *args, **kw):
+        '''
+        Wrapper around an ABR file with methods for loading and querying data
+
+        Parameters
+        ----------
+        base_path : string
+            Path to folder containing ABR data
+        '''
         super().__init__(*args, **kw)
         if 'eeg' not in self.carray_names:
             raise ValueError('Missing eeg data')
         if 'erp_metadata' not in self.ctable_names:
             raise ValueError('Missing erp metadata')
 
+    def get_setting(self, setting_name):
+        '''
+        Return value for setting
+
+        Parameters
+        ----------
+        setting_name : string
+            Setting to extract
+
+        Returns
+        -------
+        object
+            Value of setting
+
+        Raises
+        ------
+        ValueError
+            If the setting is not identical across all trials.
+        KeyError
+            If the setting does not exist.
+        '''
+        values = np.unique(self.erp_metadata[setting_name])
+        if len(values) != 1:
+            raise ValueError('{name} is not unique across all epochs.')
+        return values[0]
+
+    def get_setting_default(self, setting_name, default):
+        '''
+        Return value for setting
+
+        Parameters
+        ----------
+        setting_name : string
+            Setting to extract
+        default : obj
+            Value to return if setting doesn't exist.
+
+        Returns
+        -------
+        object
+            Value of setting
+
+        Raises
+        ------
+        ValueError
+            If the setting is not identical across all trials.
+        '''
+        try:
+            return self.get_setting(setting_name)
+        except KeyError:
+            return default
+
     @property
     @lru_cache(maxsize=MAXSIZE)
     def eeg(self):
+        '''
+        Continuous EEG signal in `BcolzSignal` format.
+        '''
         # Load and ensure that the EEG data is fine. If not, repair it and
         # reload the data.
         rootdir = self.base_path / 'eeg'
@@ -85,6 +158,14 @@ class ABRFile(Recording):
     @property
     @lru_cache(maxsize=MAXSIZE)
     def erp_metadata(self):
+        '''
+        Raw ERP metadata in DataFrame format
+
+        There will be one row for each epoch and one column for each parameter
+        from the ABR experiment. For simplicity, all parameters beginning with
+        `target_tone_` have that string removed. For example,
+        `target_tone_frequency` will become `frequency`).
+        '''
         data = self._load_bcolz_table('erp_metadata')
         return data.rename(columns=lambda x: x.replace('target_tone_', ''))
 
@@ -92,6 +173,16 @@ class ABRFile(Recording):
     def get_epochs(self, offset=0, duration=8.5e-3, detrend='constant',
                    reject_threshold=None, reject_mode='absolute',
                    columns='auto'):
+        '''
+        Extract epochs from EEG
+
+        Parameters
+        ----------
+        offset : float
+            Beginning of epoch relative to ABR stimulus onset.
+        duration : float
+            Duration of epoch.
+        '''
         fn = self.eeg.get_epochs
         result = fn(self.erp_metadata, offset, duration, detrend, columns)
         return self._apply_reject(result, reject_threshold, reject_mode)
@@ -100,6 +191,18 @@ class ABRFile(Recording):
     def get_random_segments(self, n, offset=0, duration=8.5e-3,
                             detrend='constant', reject_threshold=None,
                             reject_mode='absolute'):
+        '''
+        Extract random segments from EEG
+
+        Parameters
+        ----------
+        offset : float
+            Beginning of epoch relative to randomly identified timestamp. While
+            this may not conceptually make sense, we have kept this to maximize
+            the parallels between this function and `get_epochs`.
+        duration : float
+            Duration of epoch.
+        '''
         fn = self.eeg.get_random_segments
         result = fn(n, offset, duration, detrend)
         return self._apply_reject(result, reject_threshold, reject_mode)
@@ -168,9 +271,8 @@ class ABRFile(Recording):
             # 'reject_mode' wasn't added until a later version of the ABR
             # program, so we set it to the default that was used before if not
             # present.
-            row = self.erp_metadata.loc[0]
-            reject_threshold = row['reject_threshold']
-            reject_mode = row.get('reject_mode', 'absolute')
+            reject_threshold = self.get_setting('reject_threshold')
+            reject_mode = self.get_setting_default('reject_mode', 'absolute')
 
         if reject_threshold is not np.inf:
             # No point doing this if reject_threshold is infinite.
@@ -232,6 +334,20 @@ class ABRSupersetFile:
 
 
 def load(base_path):
+    '''
+    Load ABR data
+
+    Parameters
+    ----------
+    base_path : string
+        Path to folder
+
+    Returns
+    -------
+    {ABRFile, ABRSupersetFile}
+        Depending on folder, will return either an instance of `ABRFile` or
+        `ABRSupersetFile`.
+    '''
     check = os.path.join(base_path, 'erp')
     if os.path.exists(check):
         return ABRFile(base_path)
@@ -239,7 +355,21 @@ def load(base_path):
         return ABRSupersetFile.from_folder(base_path)
 
 
-def is_abr_experiment(path):
+def is_abr_experiment(base_path):
+    '''
+    Checks if path contains valid ABR data
+
+    Parameters
+    ----------
+    base_path : string
+        Path to folder
+
+    Returns
+    -------
+    bool
+        True if path contains valid ABR data, False otherwise. If path doesn't
+        exist, False is returned.
+    '''
     try:
         load(path)
         return True
