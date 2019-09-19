@@ -15,3 +15,4 @@ dependencies:
     - pip:
         - pygments-enaml
         - json_tricks
+        - git+https://github.com/bburan/psiexperiment.git
