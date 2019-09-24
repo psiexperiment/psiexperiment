@@ -1,5 +1,8 @@
 import enaml
 
 with enaml.imports():
-    from .primitives import (BandlimitedNoise, Chirp, Cos2Envelope, Gate,
-                            SAMEnvelope, Silence, SquareWave, Tone)
+    from .primitives import (
+        BandlimitedNoise, BandlimitedNoiseFactory, Chirp, ChirpFactory,
+        Cos2Envelope, Cos2EnvelopeFactory, Gate, GateFactory, SAMEnvelope,
+        SAMEnvelopeFactory, Silence, SilenceFactory, SquareWave,
+        SquareWaveFactory, Tone, ToneFactory)
