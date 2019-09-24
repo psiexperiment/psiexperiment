@@ -83,8 +83,8 @@ def calculate_sens_chirp(event):
 
 
 def calculate_sens_golay(event):
-    result = calculate_sens(event, ['n_bits', 'output_gain'], 'sensitivity',
-                   calculate_group_sens_golay)
+    result = calculate_sens(event, ['n_bits', 'output_gain'],
+                            'golay_sensitivity', calculate_group_sens_golay)
     max_n = result.index.get_level_values('n_bits').max()
     max_gain = result.index.get_level_values('output_gain').max()
     validate_sens(event, result.loc[max_n, max_gain].reset_index())
