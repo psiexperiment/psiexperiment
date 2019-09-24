@@ -124,7 +124,7 @@ def compute_spl_golay(workbench, event):
         summaries.append(summary)
 
     summary = pd.concat(summaries, keys=keys, names=grouping)
-    params = {'dataframe': summary, 'name': 'golay_sensitivity'}
+    params = {'dataframe': summary, 'name': 'golay_sens'}
     core.invoke_command('cal_data.save_dataframe', params)
 
     # Now, test that the calibration works. Add a 25 msec delay to give prior
@@ -192,7 +192,7 @@ def compute_calibration_chirp(event):
 
     # Save the calibration
     summary = pd.concat(summaries, keys=keys, names=grouping)
-    params = {'dataframe': summary, 'name': 'chirp_summary'}
+    params = {'dataframe': summary, 'name': 'chirp_sens'}
     core.invoke_command('cal_data.save_dataframe', params)
 
     # Now, test that the calibration works. Add a 25 msec delay to give prior

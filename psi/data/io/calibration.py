@@ -12,12 +12,47 @@ def _get_unique(df, level_name):
     return choices[0]
 
 
+def repair_golay_sens_name(fh):
+    if 'golay_sens' in fh.ttable_names:
+        return
+    for sens_name in ('golay_sensitivity', 'golay_summary', 'sensitivity'):
+        if sens_name in fh.ttable_names:
+            break
+    else:
+        raise ValueError(f'{fh} does not contain Golay data')
+    old_filename = (fh.base_path / sens_name).with_suffix('.csv')
+    new_filename = (fh.base_path / 'golay_sens.csv')
+    old_filename.rename(new_filename)
+    fh._refresh_names()
+
+
+def repair_chirp_sens_name(fh):
+    if 'chirp_sens' in fh.ttable_names:
+        return
+    for sens_name in ('chirp_sensitivity', 'chirp_summary', 'sensitivity'):
+        if sens_name in fh.ttable_names:
+            break
+    else:
+        raise ValueError(f'{fh} does not contain chirp data')
+    old_filename = (fh.base_path / sens_name).with_suffix('.csv')
+    new_filename = (fh.base_path / 'chirp_sens.csv')
+    old_filename.rename(new_filename)
+    fh._refresh_names()
+
+
 class CalibrationFile(Recording):
 
     _ttable_indices = {
         'tone_sens': ['channel_name', 'frequency'],
-        'golay_summary': ['n_bits', 'output_gain', 'frequency'],
+        'golay_sens': ['n_bits', 'output_gain', 'frequency'],
     }
+
+    def __init__(self, *args, **kw):
+        super().__init__(*args, **kw)
+        if 'golay' in self.base_path.name.lower():
+            repair_golay_sens_name(self)
+        elif 'chirp' in self.base_path.name.lower():
+            repair_chirp_sens_name(self)
 
     def get_tone_calibration(self, channel_name=None):
         '''
@@ -30,12 +65,6 @@ class CalibrationFile(Recording):
         return PointCalibration(sens.index, sens.values)
 
     def _get_golay_data(self, n_bits=None, output_gain=None):
-        for sens_name in ('golay_sensitivity', 'golay_summary', 'sensitivity'):
-            if sens_name in self.ttable_names:
-                break
-        else:
-            m = f'Path {self.base_path} does not appear to contain Golay data'
-            raise ValueError(m)
         for epoch_name in ('pt_epoch', 'epoch'):
             if epoch_name in self.carray_names:
                 break
@@ -43,7 +72,7 @@ class CalibrationFile(Recording):
             m = f'Path {self.base_path} does not appear to contain Golay data'
             raise ValueError(m)
 
-        sens_filename = (self.base_path / sens_name).with_suffix('.csv')
+        sens_filename = self.base_path / 'golay_sens.csv'
         sensitivity = pd.io.parsers.read_csv(sens_filename)
         if n_bits is None:
             n_bits = sensitivity['n_bits'].max()
