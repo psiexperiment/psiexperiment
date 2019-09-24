@@ -345,7 +345,9 @@ def _calculate_bandlimited_noise_iir(fs, calibration, fl, fh):
 
 
 class BandlimitedNoiseFactory(Carrier):
-
+    '''
+    Factory for generating continuous bandlimited noise
+    '''
     def __init__(self, fs, seed, level, fl, fh, filter_rolloff,
                  passband_attenuation, stopband_attenuation, equalize,
                  calibration):
@@ -354,19 +356,19 @@ class BandlimitedNoiseFactory(Carrier):
         # Calculate the scaling factor for the noise
         center_frequency = (fl+fh)*0.5
         pass_bandwidth = fh-fl
-        sf = calibration.get_sf(center_frequency, level)
+        self.sf = calibration.get_sf(center_frequency, level)
 
         # This was copied from the EPL CFT. Need to figure out how this
         # equation works so we can document this better. But it works as
         # intended to scale the noise back to RMS=1.
-        filter_sf = 1.0/np.sqrt(pass_bandwidth*2/fs/3.0)
+        self.filter_sf = 1.0/np.sqrt(pass_bandwidth*2/fs/3.0)
 
         # The RMS value of noise drawn from a uniform distribution is
         # amplitude/sqrt(3). By setting the low and high to sqrt(3) and
         # multiplying by the scaling factors, we can ensure that the noise is
         # initially generated with the desired RMS.
-        self.low = -np.sqrt(3)*filter_sf*sf
-        self.high = np.sqrt(3)*filter_sf*sf
+        self.low = -np.sqrt(3)*self.filter_sf*self.sf
+        self.high = np.sqrt(3)*self.filter_sf*self.sf
 
         # Calculate the stop bandwidth as octaves above and below the passband.
         # Precompute the filter settings.
