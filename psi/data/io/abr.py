@@ -73,16 +73,16 @@ def cache(f, name=None):
 
 
 class ABRFile(Recording):
+    '''
+    Wrapper around an ABR file with methods for loading and querying data
+
+    Parameters
+    ----------
+    base_path : string
+        Path to folder containing ABR data
+    '''
 
     def __init__(self, *args, **kw):
-        '''
-        Wrapper around an ABR file with methods for loading and querying data
-
-        Parameters
-        ----------
-        base_path : string
-            Path to folder containing ABR data
-        '''
         super().__init__(*args, **kw)
         if 'eeg' not in self.carray_names:
             raise ValueError('Missing eeg data')

@@ -420,6 +420,9 @@ def save_calibration(channels, filename):
 
 
 def load_calibration(filename, channels):
+    '''
+    Load calibration configuration for hardware from json file
+    '''
     from json_tricks import load
     from psi.controller.calibration import calibration as cal_types
     with open(filename, 'r') as fh:
