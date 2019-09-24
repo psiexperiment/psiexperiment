@@ -1,3 +1,11 @@
+'''
+This module provides classes and functions that facilitate working with
+recordings created by psiexperiment.
+
+The base class of all experiments is `Recording`. Some subclasses (e.g.,
+`psi.data.io.abr.ABRFile`) offer more specialized support for a particular
+experiment type.
+'''
 import logging
 log = logging.getLogger(__name__)
 
@@ -14,6 +22,43 @@ def get_unique_columns(df, exclude=None):
 
 
 class Recording:
+    '''
+    Wrapper around a recording created by psiexperiment
+
+    Parameters
+    ----------
+    base_path : :obj:`str` or :obj:`pathlib.Path`
+        Folder containing recordings
+
+    Attributes
+    ----------
+    base_path : pathlib.Path
+        Folder containing recordings
+    carray_names : set
+        List of Bcolz carrays in this recording
+    ctable_names : set
+        List of Bcolz ctables in this recording
+    ttable_names : set
+        List of CSV-formatted tables in this recording
+
+    The `__getattr__` method is implemented to allow accessing arrays and
+    tables by name. For example, if you have a ctable called `erp_metadata`:
+
+        recording = Recording(base_path)
+        erp_md = recording.erp_metadata
+
+    When using this approach, all tables are loaded into memory and returned as
+    instances of `pandas.DataFrame`. All arrays are returned as `Signal`
+    instances. Signal instances do not load the data into memory until the data
+    is requested.
+    '''
+
+    #: Mapping of names for CSV-formatted table to a list of columns that
+    #: should be used as indices. For example:
+    #:     {'tone_sens': ['channel_name', 'frequency']}
+    #: This attribute is typically used by subclasses to automate handling of
+    #: loading tables into DataFrames.
+    _ttable_indices = {}
 
     def __init__(self, base_path):
         bp = Path(base_path)
@@ -31,9 +76,11 @@ class Recording:
             return self._load_text_table(attr)
 
     def __repr__(self):
-        n_signals = len(self.carray_names)
-        n_tables = len(self.ctable_names) + len(self.ttable_names)
-        return f'<Dataset with {n_signals} signals and {n_tables} tables>'
+        lines = [f'Recording at {self.base_path.name} with:']
+        lines.append(f'* Bcolz carrays {self.carray_names}')
+        lines.append(f'* Bcolz ctables {self.ctable_names}')
+        lines.append(f'* CSV tables {self.ttable_names}')
+        return '\n'.join(lines)
 
     @functools.lru_cache()
     def _load_bcolz_signal(self, name):
@@ -48,7 +95,11 @@ class Recording:
     @functools.lru_cache()
     def _load_text_table(self, name):
         import pandas as pd
-        return pd.read_csv((self.base_path / name).with_suffix('.csv'))
+        path = (self.base_path / name).with_suffix('.csv')
+        index_col = self._ttable_indices.get(name, 0)
+        df = pd.read_csv(path, index_col=index_col)
+        drop = [c for c in df.columns if c.startswith('Unnamed:')]
+        return df.drop(columns=drop)
 
 
 class Signal:

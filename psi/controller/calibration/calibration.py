@@ -435,35 +435,15 @@ class GolayCalibration(InterpCalibration):
 
     @staticmethod
     def load_psi_golay(folder, n_bits=None, output_gain=None):
-        folder = Path(folder)
-        sensitivity = pd.io.parsers.read_csv(folder / 'sensitivity.csv')
-        if n_bits is None:
-            n_bits = sensitivity['n_bits'].max()
-        if output_gain is None:
-            m = sensitivity['n_bits'] == n_bits
-            output_gain = sensitivity.loc[m, 'output_gain'].max()
-        m_n_bits = sensitivity['n_bits'] == n_bits
-        m_output_gain = sensitivity['output_gain'] == output_gain
-        m = m_n_bits & m_output_gain
-        mic_freq = sensitivity.loc[m, 'frequency'].values
-        mic_sens = sensitivity.loc[m, 'sens'].values
-        mic_phase = sensitivity.loc[m, 'phase'].values
-        source = 'psi_golay', folder, n_bits, output_gain
-        carray = bcolz.carray(rootdir=folder / 'pt_epoch')
-        fs = carray.attrs['fs']
-        return {
-            'source': folder,
-            'frequency': mic_freq,
-            'sensitivity': mic_sens,
-            'phase': mic_phase,
-            'fs': fs,
-        }
+        from psi.data.io.calibration import CalibrationFile
+        fh = CalibrationFile(folder)
+        return fh._get_golay_data(n_bits, output_gain)
 
     @classmethod
     def from_psi_golay(cls, folder, n_bits=None, output_gain=None, **kwargs):
-        data = cls.load_psi_golay(folder, n_bits, output_gain)
-        data.update(kwargs)
-        return cls(**data)
+        from psi.data.io.calibration import CalibrationFile
+        fh = CalibrationFile(folder)
+        return fh.get_golay_calibration(n_bits, output_gain)
 
     def get_iir(self, fs, fl, fh, truncate=None):
         fs_ratio = self.fs/fs
