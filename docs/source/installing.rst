@@ -35,7 +35,7 @@ Plugin-specific requirements:
 
 
 After installing
-================
+----------------
 
 First, create the required configuration file that contains keys indicating where various files (logging, data, calibration, settings, temporary data, preferences, layout, IO and experiments) are saved. The configuration file defaults to `~/psi/config.py`. The `PSI_CONFIG` environment variable can be used to override the default path.
 

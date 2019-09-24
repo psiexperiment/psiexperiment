@@ -25,7 +25,7 @@ Psiexperiment is a plugin-based system where the plugins determine the experimen
  
 Your experiment configuration file will define `EXPERIMENT`, which is the name of the experiment and will typically contain the following extensions:
 
-.. highlight:: enaml
+.. code-block:: enaml
 
     enamldef ControllerManifest(BaseManifest): manifest:
 
@@ -64,7 +64,9 @@ Let's take a closer look at each of the extensions.
 Actions
 .......
 
-At a minimum, you will typically define the following two actions (customized for your needs)::
+At a minimum, you will typically define the following two actions (customized for your needs):
+
+.. code-block:: enaml
 
     Extension:
         id = EXPERIMENT + '.actions'
@@ -110,7 +112,9 @@ Actions allow you to insert your own code or invoke commands at any point in the
 Input/Output
 ............
 
-Example of an input-output plugin::
+Example of an input-output plugin:
+
+.. code-block:: enaml
 
     Extension:
         id = EXPERIMENT + '.io'
@@ -132,7 +136,9 @@ Example of an input-output plugin::
 Creating your own custom plugins
 ................................
 
-When defining your own subclasses of `PSIManifest`, we recommend the following naming convetions to minimize name collisions::
+When defining your own subclasses of `PSIManifest`, we recommend the following naming convetions to minimize name collisions:
+
+.. code-block:: enaml
 
     Extension:
         id = manifest.id + '.commands'
@@ -143,7 +149,6 @@ When defining your own subclasses of `PSIManifest`, we recommend the following n
             ...
 
 All subclasses of `PSIManifest` have access to the attached `contribution` (an instance of `PSIContribution`) as an attribute.
-
 
 Common gotchas
 --------------

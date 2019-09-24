@@ -6,5 +6,13 @@ dependencies:
     - sphinx
     - sphinx_rtd_theme
     - pip
+    - enaml
+    - bcolz
+    - numpy
+    - palettable
+    - pyqtgraph
+    - scipy
     - pip:
         - pygments-enaml
+        - json_tricks
+        - git+https://github.com/bburan/psiexperiment.git

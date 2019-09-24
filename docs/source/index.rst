@@ -19,7 +19,12 @@ The plugin-oriented nature of psiexperiment has a bit of a learning curve, but a
 
 .. toctree::
    :maxdepth: 2
-   :caption: Contents:
+   :caption: Getting started
+   :hidden:
+
+   installing
+   io_manifest
+
 
 :doc:`installing`
 -----------------
@@ -28,6 +33,15 @@ Instructions on installing psiexperiment and configuring your system.
 :doc:`io_manifest`
 ------------------
 Instructions on creating your input-output manifest which describes all equipment used for the experiment.
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Creating an experiment
+   :hidden:
+
+   creating_experiment
+   context
+   waveforms
 
 :doc:`context`
 --------------
@@ -41,9 +55,13 @@ Create stimuli.
 --------------------------
 Instructions on how to create your own experiment.
 
-Indices and tables
-==================
+.. toctree::
+   :maxdepth: 5
+   :caption: Reference
+   :hidden:
 
-* :ref:`genindex`
-* :ref:`modindex`
-* :ref:`search`
+   API documetnation <api/modules>
+
+:doc:`api/modules`
+------------------
+Overview of API.

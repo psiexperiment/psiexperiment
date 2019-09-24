@@ -145,6 +145,14 @@ class QEditableTableView(QTableView):
         header.setSectionsMovable(True)
         if not self.model.interface.show_column_labels:
             header.setVisible(False)
+        if self.model.interface.stretch_last_section:
+            header.setStretchLastSection(True)
+        resize_mode = self.model.interface.header_resize_mode
+        if resize_mode == 'contents':
+            resize_mode = 'ResizeToContents'
+        else:
+            resize_mode = resize_mode.capitalize()
+        header.setSectionResizeMode(getattr(header, resize_mode))
 
     def remove_selected_rows(self):
         selection_model = self.selectionModel()
@@ -218,8 +226,13 @@ class EditableTable(RawWidget):
     show_row_labels = d_(Bool(True))
     show_grid = d_(Bool(True))
 
-    # Can include label, compact_label, default value (for adding
-    # rows), coerce function (for editing data).
+    #: Dictionary mapping column name to a dictionary of settings for that
+    #: column. Valid keys for each setting include:
+    #: * compact_label - Column label (preferred).
+    #: * label - Column label (used if compact_label not provided).
+    #: * default - Value used for adding rows.
+    #: * coerce - Function to coerce text entered in column to correct value.
+    #: * initial_width - Initial width to set column to.
     column_info = d_(Dict(Unicode(), Typed(object), {}))
     column_widths = Property()
 
@@ -234,6 +247,11 @@ class EditableTable(RawWidget):
 
     select_behavior = d_(Enum('items', 'rows', 'columns'))
     select_mode = d_(Enum('single', 'contiguous', 'extended', 'multi', None))
+
+    #: Strectch width of last column so it fills rest of table?
+    stretch_last_section = d_(Bool(True))
+    header_resize_mode = d_(Enum('interactive', 'fixed', 'stretch',
+                                 'contents'))
 
     def get_column_attribute(self, column_name, attribute, default,
                              raise_error=False):
@@ -484,16 +502,20 @@ class DataFrameTable(EditableTable):
 
 class ListDictTable(EditableTable):
 
+    #: List of dictionaries where list index maps to row and dictionary key
+    #: maps to column.
     data = d_(List())
+
+    #: List of column names. If not provided, defaults to dictionary keys
+    #: provided by the first entry in `data`.
     columns = d_(List())
 
     def get_columns(self):
-        if self.columns is not None:
+        if self.columns:
             return self.columns
         if (self.data is not None) and (len(self.data) != 0):
             return list(self.data[0].keys())
-        else:
-            return []
+        return []
 
     def get_data(self, row_index, column_index):
         column = self.get_columns()[column_index]
@@ -522,6 +544,8 @@ class ListTable(EditableTable):
     data = d_(List())
     column_name = d_(Unicode())
     selected = d_(List())
+    show_column_labels = True
+    stretch_last_section = True
 
     def get_columns(self):
         return [self.column_name]

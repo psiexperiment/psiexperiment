@@ -1,38 +1,128 @@
-import os.path
+from pathlib import Path
 import urllib.parse
 
+from atom.api import Atom, Bool, Enum, Float, List, observe, Property
+from enaml.core.api import Looper
+from enaml.layout.api import hbox, spacer, vbox
 from enaml.widgets.api import (MainWindow, HGroup, Form, Label, CheckBox,
                                Container, VGroup, ObjectCombo, Field,
-                               PushButton, Feature, ProgressBar)
+                               PushButton, Feature, ProgressBar, PopupView)
 
 from enaml.stdlib.fields import FloatField, IntField
-from psi.core.enaml.api import ListView
-from psi.data.io.abr import is_abr_experiment
-from psi.data.io.summarize_abr import process_file
+from psi.core.enaml.api import ListDictTable
+from psi.data.io.abr import load
+from psi.data.io.summarize_abr import is_processed, process_file
 
 
-def drop_data_to_file_list(event, validator=None):
-    if validator is None:
-        validator = lambda x: True
+enamldef ErrorPopup(PopupView): popup:
 
+    anchor_mode = 'parent'
+    anchor = (0, 0)
+    offset = (0, 0)
+    attr errors
+
+    VGroup:
+        Label:
+            text = 'The following folders do not contain valid ABR data'
+        Looper:
+            iterable << errors[:]
+            Label:
+                text = str(loop_item)
+
+        HGroup:
+            leading_spacer = spacer(0)
+
+            PushButton:
+                text = 'OK'
+                clicked :: popup.close()
+
+
+def drop_data_to_abr_file_list(event):
     text = event.mime_data().data('text/uri-list').decode('utf-8')
-    file_list = []
+    info = []
+    errors = []
     for t in text.strip().split('\n'):
         t = urllib.parse.unquote(t).strip()
         fragments = urllib.parse.urlsplit(t)
-        path = fragments.path
-        if validator(path):
-            file_list.append(path)
-    return file_list
+        path = Path(urllib.request.url2pathname(fragments.path))
+        try:
+            fh = load(path)
+            if fh.get_setting('digital_filter'):
+                filter_info = '{} to {} Hz'.format(fh.get_setting('digital_highpass'),
+                                                   fh.get_setting('digital_lowpass'))
+            else:
+                filter_info = 'No filtering'
+            i = dict(path=path,
+                     filename=path.name,
+                     filter_info=filter_info,
+                     reject_threshold=fh.get_setting('reject_threshold'),
+                     averages=fh.get_setting('averages'),
+                     ordering=fh.get_setting('ordering'),
+                     rate=fh.get_setting('rate'))
+            info.append(i)
+        except:
+            errors.append(path)
+    return info, errors
 
 
-enamldef Main(MainWindow):
+class ProcessSettings(Atom):
+
+    reprocess = Bool(False)
+    time_lb = Float(-1e-3)
+    time_ub = Float(9e-3)
+    filter_mode = Enum('as defined in file', 'no filtering', 'manual')
+    filter_lb = Float(300)
+    filter_ub = Float(3000)
+    info = List()
+
+    offset = Property()
+    duration = Property()
+    filter_settings = Property()
+
+    def _get_offset(self):
+        return self.time_lb
+
+    def _get_duration(self):
+        return self.time_ub - self.time_lb
+
+    def _get_filter_settings(self):
+        if self.filter_mode == 'no filtering':
+            return None
+        if self.filter_mode == 'manual':
+            return {'lb': self.filter_lb, 'ub': self.filter_ub}
+        return 'saved'
+
+    @observe('time_lb', 'time_ub', 'filter_mode', 'filter_lb', 'filter_ub',
+             'info')
+    def _check_processed(self, event):
+        args = self.offset, self.duration, self.filter_settings
+        for info in self.info:
+            processed = is_processed(info['path'], *args)
+            info['status'] = 'processed' if processed else 'unprocessed'
+
+    def _process(self, progressbar):
+        info = self.info[:]
+        if not self.reprocess:
+            info = [i for i in info if i['status'] != 'processed']
+
+        args = self.offset, self.duration, self.filter_settings
+        progressbar.maximum = len(info)
+        for j, i in enumerate(info):
+            try:
+                process_file(i['path'], *args)
+                i['status'] = 'processed'
+            except Exception as e:
+                i['status'] = 'error'
+            progressbar.value = j+1
+
+
+enamldef SummarizeABRGui(MainWindow):
 
     initial_size = (800, 600)
+    attr setting = ProcessSettings()
     attr files = []
 
-    Container:
-
+    Container: container:
         features = Feature.DropEnabled
 
         drag_enter => (event):
@@ -40,20 +130,23 @@ enamldef Main(MainWindow):
                 event.accept_proposed_action()
 
         drop => (event):
-            for path in drop_data_to_file_list(event, is_abr_experiment):
-                if path not in files:
-                    files.append(path)
-            list_view.items = files
-
-        ListView: list_view:
-            editable = False
+            info = setting.info.copy()
+            new_info, errors = drop_data_to_abr_file_list(event)
+            for i in new_info:
+                if i not in info:
+                    info.append(i)
+            if errors:
+                popup = ErrorPopup(container, errors=errors)
+                popup.show()
+            setting.info = info
 
         Container:
             constraints = [
-                pb_process.top == filter_form.top,
-                pb_process.left == filter_form.right + 10,
-                progress.top == pb_process.bottom + 10,
-                progress.left == pb_process.left,
+                vbox(filter_form,
+                     table,
+                     progress,
+                     hbox(spacer(0), reprocess, pb_process)
+                     )
             ]
 
             Form: filter_form:
@@ -62,51 +155,80 @@ enamldef Main(MainWindow):
                 Label:
                     text = 'Filter'
 
-                ObjectCombo: filter_method:
-                    items = ['no filtering', 'as defined in file', 'manual']
-                    selected = 'as defined in file'
+                HGroup:
+                    align_widths = False
+                    padding = 0
+                    spacing = 5
+                    trailing_spacer = spacer(0)
+                    ObjectCombo: filter_method:
+                        items = list(setting.get_member('filter_mode').items)
+                        selected := setting.filter_mode
+                    FloatField: filter_lb:
+                        value := setting.filter_lb
+                        enabled << setting.filter_mode == 'manual'
+                    Label:
+                        text = 'to'
+                    FloatField: filter_ub:
+                        value := setting.filter_ub
+                        enabled << setting.filter_mode == 'manual'
+                    Label:
+                        text = 'Hz'
 
                 Label:
-                    text = 'Highpass filter cutoff (kHz)'
-                FloatField: filter_lb:
-                    value = 300.0
-                    enabled << filter_method.selected == 'manual'
-                Label:
-                    text = 'Lowpass filter cutoff (Hz)'
-                FloatField: filter_ub:
-                    value = 3e3
-                    enabled << filter_method.selected == 'manual'
+                    text = 'Analysis window'
 
-                Label:
-                    text = 'Prestim duration (msec before tone pip onset)'
-                FloatField: prestim:
-                    value = 1.0
+                HGroup:
+                    constraints = [
+                        prestim.width == poststim.width,
+                        prestim.width == 50,
+                    ]
+                    align_widths = False
+                    padding = 0
+                    spacing = 5
+                    trailing_spacer = spacer(0)
 
-                Label:
-                    text = 'Poststim duration (msec after tone pip onset)'
-                FloatField: poststim:
-                    value = 9.0
+                    FloatField: prestim:
+                        value << setting.time_lb * 1e3
+                        value ::
+                            setting.time_lb = value * 1e-3
+                    Label:
+                        text = 'to'
+                    FloatField: poststim:
+                        value << setting.time_ub * 1e3
+                        value ::
+                            setting.time_ub = value * 1e-3
+                    Label:
+                        text = 'ms'
+
+            ListDictTable: table:
+                columns = ['filename', 'rate', 'ordering', 'averages',
+                           'reject_threshold', 'filter_info']
+                column_info = {
+                    'rate': {'label': 'Rate'},
+                    'ordering': {'label': 'Ordering'},
+                    'averages': {'label': 'Averages'},
+                    'filename': {'label': 'Filename'},
+                    'reject_threshold': {'label': 'Reject threshold'},
+                    'filter_info': {'label': 'Filter'},
+                }
+                header_resize_mode = 'contents'
+                data << setting.info
+                get_cell_color => (row, col):
+                    status_map = dict(processed='lightgreen',
+                                      unprocessed='white',
+                                      error='lightpink')
+                    return status_map[setting.info[row]['status']]
 
             ProgressBar: progress:
                 pass
 
+            CheckBox: reprocess:
+                text = 'Reprocess?'
+                checked := setting.reprocess
+
             PushButton: pb_process:
                 text = 'Process experiments'
+                enabled << len(setting.info) != 0
                 clicked ::
-                    if filter_method.selected == 'no filtering':
-                        filter_settings = None
-                    elif filter_method.selected == 'as defined in file':
-                        filter_settings = 'saved'
-                    else:
-                        filter_settings = {
-                            'lb': filter_lb.value,
-                            'ub': filter_ub.value,
-                        }
-
-                    offset = -prestim.value * 1e-3
-                    duration = (prestim.value + poststim.value) * 1e-3
-
-                    progress.maximum = len(files)
-                    for i, path in enumerate(files):
-                        process_file(path, offset, duration, filter_settings)
-                        progress.value = i+1
+                    setting._process(progress)
+                    table.update = True

@@ -55,7 +55,8 @@ class Signal:
 
     def get_epochs(self, md, offset, duration, detrend=None, columns='auto'):
         fn = self.get_segments
-        return self._get_epochs(fn, md, offset, duration, columns=columns)
+        return self._get_epochs(fn, md, offset, duration, detrend=detrend,
+                                columns=columns)
 
     def get_epochs_filtered(self, md, offset, duration, filter_lb, filter_ub,
                             filter_order=1, detrend='constant',
@@ -99,8 +100,7 @@ class Signal:
     def _get_segments_filtered(self, fn, offset, duration, filter_lb, filter_ub,
                                filter_order=1, detrend='constant',
                                pad_duration=10e-3):
-
-        Wn = (filter_lb/self.fs, filter_ub/self.fs)
+        Wn = (filter_lb/(0.5*self.fs), filter_ub/(0.5*self.fs))
         b, a = signal.iirfilter(filter_order, Wn, btype='band', ftype='butter')
         df = fn(offset-pad_duration, duration+pad_duration, detrend)
         df[:] = signal.filtfilt(b, a, df.values, axis=-1)

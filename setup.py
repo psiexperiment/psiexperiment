@@ -4,6 +4,7 @@ from setuptools import find_packages, setup
 requirements = [
     'bcolz',
     'enaml',
+    'joblib',
     'json_tricks',
     'numpy',
     'palettable',
@@ -45,6 +46,7 @@ setup(
             'psi-cfts=psi.application.base_launcher:main_ear',
             'psi-cohort=psi.application.base_launcher:main_cohort',
             'psi-summarize-abr=psi.data.io.summarize_abr:main',
+            'psi-summarize-abr-gui=psi.data.io.summarize_abr:main_gui',
             'psi-summarize-abr-auto=psi.data.io.summarize_abr:main_auto',
         ]
     },

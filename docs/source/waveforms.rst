@@ -6,10 +6,10 @@ We've already discussed this briefly. However, what we have not discussed is *ho
 
 We can activate an output called `target` to begin at 10.5 seconds (re. acquisition start):
 
-```
-core = workbench.get_plugin('enaml.workbench.core')
-core.invoke_command('target.prepare')
-core.invoke_command('target.start', {'ts': 10.5})
-```
+.. code-block:: python
 
-Commands are basically strings that map to curried functions (one of Ivar's favorite types of functions).
+   core = workbench.get_plugin('enaml.workbench.core')
+   core.invoke_command('target.prepare')
+   core.invoke_command('target.start', {'ts': 10.5})
+
+Commands are strings that map to curried functions.
