@@ -12,6 +12,7 @@ from psi import get_config
 from psi.controller.api import ExperimentAction
 
 from .plugin import DataPlugin
+from .sinks.api import PreferencesStore
 
 
 PLUGIN_ID = 'psi.data'
@@ -61,3 +62,10 @@ enamldef DataManifest(PluginManifest): manifest:
         Command:
             id = PLUGIN_ID + '.format_container'
             handler = format_container
+
+    Extension:
+        id = 'sinks'
+        point = 'psi.data.sinks'
+
+        PreferencesStore:
+            pass

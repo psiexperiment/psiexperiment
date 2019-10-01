@@ -6,6 +6,8 @@ import os.path
 
 import enaml
 from enaml.core.api import Conditional, Looper
+from enaml.layout.api import vbox
+from enaml.stdlib.message_box import critical
 from enaml.widgets.api import (Action, CheckBox, Container, Field, Form,
                                GroupBox, HGroup, Label, MainWindow, Menu,
                                MenuBar, ObjectCombo, PushButton, VGroup)
@@ -94,7 +96,12 @@ enamldef LauncherView(MainWindow): main:
 
     Container:
 
-        Form:
+        constraints = [
+            config_form.width == preferences_box.width == data_form.width == plugins_box.width,
+            vbox(config_form, preferences_box, plugins_box, data_form, button_bar),
+        ]
+
+        Form: config_form:
             Label:
                 text = 'Hardware configuration'
 
@@ -129,10 +136,15 @@ enamldef LauncherView(MainWindow): main:
                 to_string = lambda x: x.title
                 selected := launcher.experiment
 
-        GroupBox:
+        GroupBox: preferences_box:
             title = 'Experiment preferences'
 
+            CheckBox:
+                text = 'Use prior preferences for {}'.format(launcher.experiment_type)
+                checked := launcher.use_prior_preferences
+
             ObjectCombo: preferences:
+                enabled << not launcher.use_prior_preferences
                 constraints = [
                     width == 300
                 ]
@@ -140,16 +152,17 @@ enamldef LauncherView(MainWindow): main:
                 to_string = lambda x: x.stem.replace('_', ' ')
                 selected := launcher.preferences
 
-            VGroup:
-                Looper:
-                    iterable << launcher.experiment.plugins
-                    CheckBox:
-                        checked := loop_item.selected
-                        text << loop_item.title
-                        visible << not loop_item.required
+        GroupBox: plugins_box:
+            title = 'Experiment plugins'
 
-        Form:
+            Looper:
+                iterable << launcher.experiment.plugins
+                CheckBox:
+                    checked := loop_item.selected
+                    text << loop_item.title
+                    visible << not loop_item.required
 
+        Form: data_form:
             Label:
                 text = 'Save data?'
 
@@ -193,9 +206,21 @@ enamldef LauncherView(MainWindow): main:
             Label: base_folder:
                 text << str(launcher.base_folder)
 
-        PushButton:
-            text = 'Run experiment'
-            enabled << launcher.can_launch
+        HGroup: button_bar:
 
-            clicked ::
-                launcher.launch_subprocess()
+            PushButton: button:
+                text = 'Run experiment'
+                enabled << launcher.can_launch
+
+                clicked ::
+                    try:
+                        launcher.launch_subprocess()
+                    except Exception as e:
+                        critical(main, 'Error starting experiment', str(e))
+
+            PushButton: button:
+                text = 'Print prefs'
+                enabled << launcher.can_launch
+
+                clicked ::
+                    print(launcher.get_preferences())
