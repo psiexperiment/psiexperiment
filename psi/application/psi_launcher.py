@@ -18,7 +18,6 @@ def main():
             for plugin_name in value:
                 namespace.controller.enable_plugin(plugin_name)
 
-
     parser = argparse.ArgumentParser(description='Run experiment')
     parser.add_argument('experiment', type=str, help='Experiment to run',
                         choices=experiments.keys(), action=ControllerAction)
