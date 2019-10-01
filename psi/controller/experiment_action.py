@@ -75,6 +75,9 @@ class ExperimentActionBase(Declarative):
         else:
             return partial(eval, code)
 
+    def __str__(self):
+        return f'{self.event} (weight={self.weight}; kwargs={self.kwargs})'
+
 
 class ExperimentAction(ExperimentActionBase):
 
