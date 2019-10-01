@@ -88,17 +88,21 @@ Under the hood, the controller will configure the engines during the `experiment
 
 Sequence of events during an experiment
 .......................................
-* `plugins_started` - All plugins have finished loading. Now, you can perform actions that may require access to another plugin; however, do not assume that the plugins have finished initializing.
+* `plugins_started` - All plugins have finished loading. Now, you can perform actions that may require access to another plugin; however, do not assume that the plugins have finished initializing. A number of logging actions are tied to this step.
 
 * `experiment_initialize` - All plugins should have been initialized. This is where you will typically initialize the context (and nothing else).
 
-* `context_initialized` - This only follows `experiment_initialize` if `psi.context.initialize` has properly been bound to `experiment_initialize`. 
+* `context_initialized` - This only follows `experiment_initialize` if `psi.context.initialize` has properly been bound to `experiment_initialize`. The `psi.context.finalize_io` method is called during this event. During this step, all "orphan" inputs and outputs (i.e., ones where the target or source is specified by name rather than as part of the hierarchy) are connected.
 
 * `experiment_prepare` - The majority of actions required prior to starting an experiment should be tied to this event since the context will now be available for queries.
 
 * `engines_configured` - TODO
 
-* `experiment_start` - TODO
+* `experiment_start` - Starts the data acquisition engines.
+
+* `experiment_end` - Stops the data acquisition engines.
+
+
 
 The power of actions
 ....................
