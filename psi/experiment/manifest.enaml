@@ -179,6 +179,11 @@ def open_shell(event):
     ipython_widget.show()
 
 
+def set_theme(event):
+    ui = event.workbench.get_plugin('enaml.workbench.ui')
+    ui.workspace.dock_area.style = event.parameters['style']
+
+
 enamldef ExperimentManifest(PluginManifest):
     '''
     This plugin acts as the entry point for all other plugins in this example.
@@ -234,6 +239,9 @@ enamldef ExperimentManifest(PluginManifest):
         Command:
             id = 'psi.open_shell'
             handler = open_shell
+        Command:
+            id = 'psi.set_theme'
+            handler = set_theme
 
     Extension:
         id = 'actions'
