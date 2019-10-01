@@ -479,6 +479,7 @@ class ControllerPlugin(Plugin):
 
         for action in self._actions:
             if action.match(context):
+                log.debug('... invoking action %s', action)
                 self._invoke_action(action, event_name, timestamp, kw)
 
     def _invoke_action(self, action, event_name, timestamp, kw):
@@ -523,8 +524,8 @@ class ControllerPlugin(Plugin):
     def stop_experiment(self):
         try:
             self.invoke_actions('experiment_end', self.get_ts())
-        except:
-            pass
+        except Exception as e:
+            log.exception(e)
         deferred_call(lambda: setattr(self, 'experiment_state', 'stopped'))
 
     def pause_experiment(self):
