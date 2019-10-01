@@ -63,6 +63,16 @@ class Recording:
     def __init__(self, base_path):
         bp = Path(base_path)
         self.base_path = bp
+        self._refresh_names()
+
+    def _refresh_names(self):
+        '''
+        Utility function to refresh list of signals and tables
+
+        This is primarily used by repair functions that may need to fix various
+        items in the folder when the class is first created.
+        '''
+        bp = self.base_path
         self.carray_names = {d.parent.stem for d in bp.glob('*/meta')}
         self.ctable_names = {d.parent.parent.stem for d in bp.glob('*/*/meta')}
         self.ttable_names = {d.stem for d in bp.glob('*.csv')}
@@ -74,6 +84,7 @@ class Recording:
             return self._load_bcolz_table(attr)
         elif attr in self.ttable_names:
             return self._load_text_table(attr)
+        raise AttributeError
 
     def __repr__(self):
         lines = [f'Recording at {self.base_path.name} with:']

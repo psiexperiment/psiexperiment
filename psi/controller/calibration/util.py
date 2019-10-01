@@ -265,8 +265,9 @@ def transfer_function(stimulus, response, fs):
 
 def golay_tf(a, b, a_signal, b_signal, fs):
     '''
-    Estimate system transfer function from golay sequence as described in Zhou
-    et al. 1992.
+    Estimate system transfer function from Golay sequence
+
+    Implements algorithm as described in Zhou et al. 1992.
     '''
     a_signal = a_signal[..., :len(a)]
     b_signal = b_signal[..., :len(b)]
@@ -282,6 +283,11 @@ def golay_tf(a, b, a_signal, b_signal, fs):
 
 
 def golay_ir(n, a, b, a_signal, b_signal):
+    '''
+    Estimate system impulse response from Golay sequence
+
+    Implements algorithm described in Zhou et al. 1992
+    '''
     a_signal = a_signal.mean(axis=0)
     b_signal = b_signal.mean(axis=0)
     a_conv = np.apply_along_axis(np.convolve, 1, a_signal, a[::-1], 'full')
