@@ -18,6 +18,10 @@ log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
 
 
+# Flag indicating whether user configuration file was loaded.
+CONFIG_LOADED = False
+
+
 exclude = ['_d_storage', '_d_engine', '_flags', '_parent', '_children']
 
 
@@ -82,6 +86,7 @@ def create_config_dirs():
 
 def load_config():
     # Load the default settings
+    global CONFIG_LOADED
     import importlib.util
     from os import environ
     from . import config
@@ -95,6 +100,7 @@ def load_config():
             for name, value in vars(module).items():
                 if name == name.upper():
                     setattr(config, name, value)
+            CONFIG_LOADED = True
         except Exception as e:
             log.exception(e)
 
@@ -114,12 +120,25 @@ def set_config(setting, value):
     setattr(_config, setting, value)
 
 
+CFG_ERR_MESG = '''
+Could not find setting "{}" in configuration. This may be because the
+configuration file is missing. Please run psi-config to create it.
+'''
+
+
 def get_config(setting=None):
     '''
     Get value of setting
     '''
     if setting is not None:
-        return getattr(_config, setting)
+        try:
+            return getattr(_config, setting)
+        except AttributeError as e:
+            print(CONFIG_LOADED)
+            if CONFIG_LOADED:
+                raise
+            mesg = CFG_ERR_MESG.strip().format(setting)
+            raise SystemError(mesg) from e
     else:
         setting_names = [s for s in dir(_config) if s.upper() == s]
         setting_values = [getattr(_config, s) for s in setting_names]
