@@ -524,12 +524,24 @@ class EditableTable(RawWidget):
         self.view.set_column_config(config)
         self._reset_model()
 
+    def get_visual_columns(self):
+        if not self.columns_movable:
+            return self.get_columns()
+        config = self.column_config
+        indices = [(cfg['visual_index'], c) for c, cfg in config.items()]
+        indices.sort()
+        return [i[1] for i in indices]
+
     def as_string(self):
         rows = self.get_rows()
+        visual_cols = self.get_visual_columns()
         cols = self.get_columns()
         table_strings = []
         for r in range(len(rows)):
-            row_data = [self.get_data(r, c) for c in range(len(cols))]
+            row_data = []
+            for v in visual_cols:
+                c = cols.index(v)
+                row_data.append(self.get_data(r, c))
             row_string = '\t'.join(str(d) for d in row_data)
             table_strings.append(row_string)
         return '\n'.join(table_strings)
