@@ -142,7 +142,7 @@ class QEditableTableView(QTableView):
 
     def _setup_hheader(self):
         header = self.horizontalHeader()
-        header.setSectionsMovable(True)
+        header.setSectionsMovable(self.model.interface.columns_movable)
         if not self.model.interface.show_column_labels:
             header.setVisible(False)
         if self.model.interface.stretch_last_section:
@@ -152,6 +152,7 @@ class QEditableTableView(QTableView):
             resize_mode = 'ResizeToContents'
         else:
             resize_mode = resize_mode.capitalize()
+        log.debug('Setting header resize mode to %s', resize_mode)
         header.setSectionResizeMode(getattr(header, resize_mode))
 
     def remove_selected_rows(self):
@@ -177,6 +178,49 @@ class QEditableTableView(QTableView):
     def insert_row_at_end(self):
         self.model.insertRow(self.model.rowCount())
 
+    def get_column_config(self):
+        log.debug('Geting column config')
+        try:
+            config = {}
+            columns = self.model.interface.get_columns()
+            header = self.horizontalHeader()
+            for i, c in enumerate(columns):
+                config[c] = {'width': self.columnWidth(i)}
+                if self.model.interface.columns_movable:
+                    config[c]['visual_index'] = header.visualIndex(i)
+            return config
+        except Exception as e:
+            log.exception(e)
+
+    def set_column_config(self, config):
+        columns = self.model.interface.get_columns()
+        for i, c in enumerate(columns):
+            try:
+                width = config[c]['width']
+                self.setColumnWidth(i, width)
+                log.debug('Set column width for %s to %d', c, width)
+            except KeyError as e:
+                log.debug('Unable to set column width for %s', c)
+
+        if self.model.interface.columns_movable:
+            header = self.horizontalHeader()
+            visual_indices = []
+            for i, c in enumerate(columns):
+                try:
+                    vi = config[c]['visual_index']
+                    visual_indices.append((vi, i, c))
+                except KeyError as e:
+                    log.debug('Unable to find visual index for %s', c)
+
+            # Since the current visual index of each column will change as we
+            # rearrange them, we need to figure out which column should appear
+            # first and put it there, then move to the next column.
+            for vi, li, c in sorted(visual_indices):
+                current_vi = header.visualIndex(li)
+                header.moveSection(current_vi, vi)
+                log.debug('Set visual index for %s to %d', c, vi)
+
+    # CAN DEPRECATE THIS
     def get_column_widths(self):
         widths = {}
         columns = self.model.interface.get_columns()
@@ -185,6 +229,7 @@ class QEditableTableView(QTableView):
             widths[c] = header.sectionSize(i)
         return widths
 
+    # CAN DEPRECATE THIS
     def set_column_widths(self, widths):
         columns = self.model.interface.get_columns()
         for i, c in enumerate(columns):
@@ -217,6 +262,8 @@ class EditableTable(RawWidget):
     hug_height = set_default('weak')
 
     model = Typed(QEditableTableModel)
+
+    #: Instance of QEditableTableView
     view = Typed(QEditableTableView)
     event_filter = Typed(EventFilter)
 
@@ -234,7 +281,17 @@ class EditableTable(RawWidget):
     #: * coerce - Function to coerce text entered in column to correct value.
     #: * initial_width - Initial width to set column to.
     column_info = d_(Dict(Unicode(), Typed(object), {}))
+
+    #: Widths of columns in table
     column_widths = Property()
+
+    #: Dictionary mapping column name to a dictionary of column properties:
+    #: * visual_index: Visual position of column in table
+    #: * width: Width of column in table
+    column_config = Property()
+
+    #: Can columns be rearranged by dragging labels in the header?
+    columns_movable = d_(Bool(True))
 
     data = d_(Typed(object))
     update = d_(Bool())
@@ -459,6 +516,23 @@ class EditableTable(RawWidget):
     def get_default_column_widths(self):
         return {c: self.get_column_attribute(c, 'initial_width', 100) \
                 for c in self.get_columns()}
+
+    def _get_column_config(self):
+        return self.view.get_column_config()
+
+    def _set_column_config(self, config):
+        self.view.set_column_config(config)
+        self._reset_model()
+
+    def as_string(self):
+        rows = self.get_rows()
+        cols = self.get_columns()
+        table_strings = []
+        for r in range(len(rows)):
+            row_data = [self.get_data(r, c) for c in range(len(cols))]
+            row_string = '\t'.join(str(d) for d in row_data)
+            table_strings.append(row_string)
+        return '\n'.join(table_strings)
 
 
 class DataFrameTable(EditableTable):

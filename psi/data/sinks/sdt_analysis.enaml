@@ -10,8 +10,9 @@ from atom.api import Bool, ContainerList, Int, Value
 
 from enaml.core.api import d_
 from enaml.layout.api import hbox, vbox, spacer
-from enaml.widgets.api import CheckBox, Container, DockItem, Label
+from enaml.qt.QtWidgets import QApplication
 from enaml.stdlib.fields import IntField
+from enaml.widgets.api import CheckBox, Container, DockItem, Label, PushButton
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 
@@ -122,7 +123,7 @@ def update(sdt, event):
 enamldef SDTAnalysisManifest(PSIManifest): manifest:
 
     Extension:
-        id = 'items'
+        id = manifest.id + '.items'
         point = 'psi.context.items'
         OrderedContextMeta: meta:
             name << manifest.contribution.name
@@ -153,14 +154,14 @@ enamldef SDTAnalysisManifest(PSIManifest): manifest:
             handler = partial(update, manifest.contribution)
 
     Extension:
-        id = manifest.contribution.name + '.actions'
+        id = manifest.id + '.actions'
         point = 'psi.controller.actions'
         ExperimentAction:
             event = 'experiment_end'
             command = manifest.contribution.name + '.save'
 
     Extension:
-        id = 'workspace'
+        id = manifest.id + '.workspace'
         point = 'psi.experiment.workspace'
 
         DockItem:
@@ -177,9 +178,11 @@ enamldef SDTAnalysisManifest(PSIManifest): manifest:
                             spacer,
                             repeat_nogo_field,
                             go_remind_field,
+                            copy_button,
                         ),
                         sdt_table,
-                    )
+                    ),
+                    copy_button.width == 20,
                 ]
 
                 Label: limit_label:
@@ -195,16 +198,23 @@ enamldef SDTAnalysisManifest(PSIManifest): manifest:
                 CheckBox: go_remind_field:
                     checked := manifest.contribution.include_go_remind
                     text = 'Include reminders?'
+                PushButton: copy_button:
+                    text = '📋'
+                    clicked ::
+                        text = sdt_table.as_string()
+                        cb = QApplication.clipboard()
+                        cb.setText(text)
 
                 DataFrameTable: sdt_table:
                     name = 'sdt_table'
+                    columns_movable = True
                     data << manifest.contribution.results
 
     Extension:
-        id = 'preferences'
+        id = manifest.id + '.preferences'
         point = 'psi.experiment.preferences'
         rank = 200
         ItemPreferences:
             item << sdt_table
             name << manifest.contribution.name
-            auto_save = ['column_widths']
+            auto_save = ['column_config']

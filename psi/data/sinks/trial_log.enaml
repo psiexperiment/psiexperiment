@@ -32,14 +32,14 @@ enamldef TrialLogManifest(TableStoreManifest): manifest:
                 name << contribution.name
                 label << '{} columns'.format(contribution.label)
                 values ::
-                    table.columns = [v.name for v in values]
+                    tl_table.columns = [v.name for v in values]
                     column_info = {}
                     for v in values:
                         column_info[v.name] = {
                             'label': v.compact_label,
                             'to_string': '{:.2f}'.format if 'f' in v.dtype else str,
                         }
-                    table.column_info = column_info
+                    tl_table.column_info = column_info
 
         Extension:
             id = manifest.id + '.trial_log_workspace'
@@ -54,9 +54,10 @@ enamldef TrialLogManifest(TableStoreManifest): manifest:
                     VGroup:
                         CheckBox:
                             text = 'Autoscroll?'
-                            checked := table.autoscroll
+                            checked := tl_table.autoscroll
 
-                    ListDictTable: table:
+                    ListDictTable: tl_table:
+                        name = 'tl_table'
                         data << manifest.contribution._data[:]
                         get_cell_color => (row, column):
                             try:
@@ -74,3 +75,13 @@ enamldef TrialLogManifest(TableStoreManifest): manifest:
                             except KeyError:
                                 return 'white'
                         autoscroll = True
+                        columns_movable = False
+
+        Extension:
+            id = manifest.id + '.preferences'
+            point = 'psi.experiment.preferences'
+            rank = 200
+            ItemPreferences:
+                item << tl_table
+                name << manifest.contribution.name
+                auto_save = ['column_config']
