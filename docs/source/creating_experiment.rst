@@ -157,3 +157,4 @@ All subclasses of `PSIManifest` have access to the attached `contribution` (an i
 Common gotchas
 --------------
 * Outputs and inputs are configured *only if they are deemed active*. If the output of a particular processing chain (e.g., microphone to IIR filter to extract epochs) is not saved to a data store or plotted, then it's assumed it is not used. The controller will then opmit this particular processing chain from the configuration to alleviate system load. This allows us to design intensive processing chains but allow the user to disable them easily by not plotting the result. However, this can be a bit tricky when defining your own custom sinks For example, there's no target for `AnalyzeDPOAE` in `dpoae_base.enaml` (TODO finish).
+* When adding new attributes to subclasses of `Declarative`, be sure to use `d_` as appropriate otherwise you will get a `TypeError` when attempting to assign to the attribute in an Enaml file.
