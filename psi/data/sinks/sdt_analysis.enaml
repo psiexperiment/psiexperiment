@@ -6,7 +6,7 @@ from functools import partial
 import pandas as pd
 from scipy.stats import norm
 
-from atom.api import Bool, ContainerList, Int, Value
+from atom.api import Bool, ContainerList, Float, Int, Value
 
 from enaml.core.api import d_
 from enaml.layout.api import hbox, vbox, spacer
@@ -38,6 +38,8 @@ class SDTAnalysis(BaseStore):
 
     _data = ContainerList()
     results = Value()
+    fa = Float()
+    fa_repeat = Float()
 
     def update(self, data):
         self._data.append(data)
@@ -67,6 +69,17 @@ class SDTAnalysis(BaseStore):
         if self.include_go_remind:
             valid_types.append('go_remind')
         data = [d for d in data if d['trial_type'] in valid_types]
+
+        # Add data to track FA rate
+        fa_data = [d for d in data if d['trial_type'] in ['nogo']]
+        fa_repeat_data = [d for d in data if d['trial_type'] in ['nogo', 'nogo_repeat']]
+
+        if fa_data:
+            self.fa = 1-pd.DataFrame(fa_data)['correct'].mean()
+            self.fa_repeat = 1-pd.DataFrame(fa_repeat_data)['correct'].mean()
+        else:
+            self.fa = 0
+            self.fa_repeat = 0
 
         # Exit if no data left
         if not data:
@@ -180,6 +193,7 @@ enamldef SDTAnalysisManifest(PSIManifest): manifest:
                             go_remind_field,
                             copy_button,
                         ),
+                        hbox(spacer, fa_label, fa_value, fa_repeat_label, fa_repeat_value),
                         sdt_table,
                     ),
                     copy_button.width == 20,
@@ -204,6 +218,17 @@ enamldef SDTAnalysisManifest(PSIManifest): manifest:
                         text = sdt_table.as_string()
                         cb = QApplication.clipboard()
                         cb.setText(text)
+
+                Label: fa_repeat_label:
+                    text = 'including repeats'
+                Label: fa_label:
+                    text = 'FA rate'
+
+                Label: fa_repeat_value:
+                    text << '{:.2f}'.format(manifest.contribution.fa_repeat)
+                Label: fa_value:
+                    text << '{:.2f}'.format(manifest.contribution.fa)
+
 
                 DataFrameTable: sdt_table:
                     name = 'sdt_table'
