@@ -106,6 +106,9 @@ enamldef ContextManifest(PluginManifest): manifest:
             name = 'db'
             function = lambda x: 20*np.log10(x)
         Function:
+            name = 'dbi'
+            function = lambda x: 10**(x/20)
+        Function:
             name = 'imul'
             function = lambda x, y: np.round(np.asarray(x)/y) * y
 
