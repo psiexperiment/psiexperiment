@@ -80,7 +80,7 @@ enamldef ContextMetaPopup(PopupView): cm_popup:
             Field:
                 text := context_item.compact_label
         Looper:
-            iterable << [c for c in context_meta.values() if not c.link_rove]
+            iterable << [c for c in context_meta.values() if c.editable]
             HGroup:
                 padding = 0
                 Label:

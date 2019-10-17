@@ -45,6 +45,9 @@ class SDTAnalysis(BaseStore):
         self._data.append(data)
         self.update_results()
 
+    def _observe_grouping(self, event):
+        self.update_results()
+
     def _observe_limit(self, event):
         self.update_results()
 
@@ -139,6 +142,7 @@ enamldef SDTAnalysisManifest(PSIManifest): manifest:
         id = manifest.id + '.items'
         point = 'psi.context.items'
         OrderedContextMeta: meta:
+            editable = True
             name << manifest.contribution.name
             label << '{} grouping'.format(manifest.contribution.label)
             values::

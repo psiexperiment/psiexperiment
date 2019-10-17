@@ -28,6 +28,7 @@ enamldef TrialLogManifest(TableStoreManifest): manifest:
             id = manifest.id + '.trial_log.items'
             point = 'psi.context.items'
             OrderedContextMeta: meta:
+                editable = True
                 link_rove = False
                 name << contribution.name
                 label << '{} columns'.format(contribution.label)
