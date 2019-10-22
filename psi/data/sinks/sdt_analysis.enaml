@@ -12,7 +12,8 @@ from enaml.core.api import d_
 from enaml.layout.api import hbox, vbox, spacer
 from enaml.qt.QtWidgets import QApplication
 from enaml.stdlib.fields import IntField
-from enaml.widgets.api import CheckBox, Container, DockItem, Label, PushButton
+from enaml.widgets.api import (CheckBox, Container, DockItem, Form, HGroup,
+                               Label, PushButton)
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 
@@ -22,6 +23,7 @@ from psi.core.enaml.api import DataFrameTable, PSIManifest
 from psi.experiment.api import ItemPreferences
 
 from .base_store import BaseStore
+from .trial_log import GONOGO_COLORS
 from ..plugin import Sink
 
 
@@ -92,27 +94,41 @@ class SDTAnalysis(BaseStore):
         rename = {'sum': 'n_correct',
                   'size': 'n_trials',
                   'mean': 'fraction_correct'}
+        ttype_map = {'go': 'go', 'go_remind': 'go', 'nogo': 'nogo',
+                     'nogo_repeat': 'nogo'}
+        score_map = {'MISS': 0, 'CR': 0, 'FA': 1, 'HIT': 1}
 
-        r = pd.DataFrame(data) \
-            .groupby(self.grouping) \
-            ['correct'] \
-            .agg(agg) \
-            .rename(columns=rename)
+        grouping = ['trial_type'] + self.grouping
+        data = pd.DataFrame(data)
+        data['trial_type'] = data['trial_type'].map(ttype_map)
+        data['yes'] = data['score'].map(score_map)
 
-        r['z_score'] = r['fraction_correct'] \
+        agg = ['sum', 'size', 'mean']
+        rename = {'sum': 'n_correct',
+                  'size': 'n_trials',
+                  'mean': 'fraction_correct'}
+        r = data.groupby(grouping)['correct'].agg(agg).rename(columns=rename)
+        r['z_score'] = data.groupby(grouping)['yes'].mean() \
             .clip(lower=0.05, upper=0.95) \
             .apply(norm.ppf)
 
         # Attempt to correct for the FA rate. If there is no NOGO, then assume
         # the FA rate is 0.05 (which corresponds to a "correct" rate of 0.95.
         try:
-            r['z_score'] += r.loc['nogo', 'z_score'].iloc[0]
-        except:
-            r['z_score'] += norm.ppf(0.95)
-        self.results = r.astype('float32').reset_index()
+            reference = r.loc['nogo', 'z_score'].rename('reference_z_score')
+            reference = reference.reset_index(self.grouping[-1], drop=True)
+            r = r.reset_index().join(reference, on=reference.index.names)
+            r['z_score'] = r['z_score'] - r['reference_z_score']
+        except Exception as e:
+            log.exception(e)
+            log.debug('Handling exception by assuming FA rate is 5%')
+            r['z_score'] = r['z_score'] - norm.ppf(0.05)
+            r = r.reset_index()
+
+        self.results = r.sort_values(self.grouping).reset_index(drop=True)
 
 
-extra_columns = ['n_correct', 'n_trials', 'fraction_correct', 'z_score']
+extra_columns = ['n_trials', 'n_correct', 'fraction_correct', 'z_score']
 
 extra_column_info = {
     'n_trials': {'label': '# trials', 'to_string': lambda x: str(int(x))},
@@ -136,6 +152,9 @@ def update(sdt, event):
     sdt.update(event.parameters['data'])
 
 
+from ..plots import DataFramePlot, PlotContainer, ViewBox
+
+
 enamldef SDTAnalysisManifest(PSIManifest): manifest:
 
     Extension:
@@ -149,7 +168,8 @@ enamldef SDTAnalysisManifest(PSIManifest): manifest:
                 manifest.contribution.grouping = [v.name for v in values]
 
                 # Update SDT table
-                columns = [v.name for v in meta.values] + extra_columns
+                meta_columns = [v.name for v in meta.values]
+                columns = meta_columns + extra_columns
                 column_info = {}
                 for v in values:
                     column_info[v.name] = {
@@ -159,6 +179,8 @@ enamldef SDTAnalysisManifest(PSIManifest): manifest:
                 column_info.update(extra_column_info)
                 sdt_table.columns = columns
                 sdt_table.column_info = column_info
+                sdt_plot.grouping = meta_columns[:-1]
+                sdt_plot.x_column = meta_columns[-1]
 
     Extension:
         id = manifest.id + 'commands'
@@ -178,6 +200,29 @@ enamldef SDTAnalysisManifest(PSIManifest): manifest:
             command = manifest.contribution.name + '.save'
 
     Extension:
+        id = manifest.id + '.plots'
+        point = 'psi.data.plots'
+
+        PlotContainer:
+            label = manifest.contribution.label + ' plot'
+            name = manifest.contribution.name + '.sdt_plot'
+
+            ViewBox:
+                DataFramePlot: sdt_plot:
+                    initialized ::
+                        print(self.pen_color_cycle)
+                        print(self.data)
+                        # There seems to be an initialization issue. Items are
+                        # not getting bound properly. Probably need to set up a
+                        # plots manifest thing.
+
+                    pen_color_cycle = 'palettable.cartocolors.qualitative.Safe_10'
+                    y_column = 'z_score'
+                    # TODO: Why is this not binding? I have to manually update
+                    # in the sdt_table below.
+                    data << manifest.contribution.results
+
+    Extension:
         id = manifest.id + '.workspace'
         point = 'psi.experiment.workspace'
 
@@ -190,32 +235,52 @@ enamldef SDTAnalysisManifest(PSIManifest): manifest:
                 constraints = [
                     vbox(
                         hbox(
-                            limit_label,
-                            limit_field,
-                            spacer,
-                            repeat_nogo_field,
-                            go_remind_field,
-                            copy_button,
+                            settings_form,
+                            vbox(copy_button, spacer),
+                            #vbox(
+                            #    hbox(fa_label, fa_value),
+                            #    hbox(fa_repeat_label, fa_repeat_value),
+                            #    copy_button,
+                            #),
                         ),
-                        hbox(spacer, fa_label, fa_value, fa_repeat_label, fa_repeat_value),
                         sdt_table,
+                        fa_form,
                     ),
+                    #vbox(
+                    #    hbox(
+                    #        limit_label,
+                    #        limit_field,
+                    #        spacer,
+                    #        repeat_nogo_field,
+                    #        go_remind_field,
+                    #        copy_button,
+                    #    ),
+                    #    sdt_table,
+                    #),
                     copy_button.width == 20,
                 ]
 
-                Label: limit_label:
-                    text = 'Trial limit'
-                    hug_width = 'strong'
-                IntField: limit_field:
-                    text << str(manifest.contribution.limit)
-                    text ::
-                        manifest.contribution.limit = int(text)
-                CheckBox: repeat_nogo_field:
-                    checked := manifest.contribution.include_repeat_nogo
-                    text = 'Include repeat NOGO?'
-                CheckBox: go_remind_field:
-                    checked := manifest.contribution.include_go_remind
-                    text = 'Include reminders?'
+                Form: settings_form:
+                    padding = 0
+                    Label: limit_label:
+                        text = 'Trial limit'
+                        hug_width = 'strong'
+                    IntField: limit_field:
+                        text << str(manifest.contribution.limit)
+                        text ::
+                            manifest.contribution.limit = int(text)
+                    Label:
+                        text = 'Include'
+                    HGroup:
+                        padding = 0
+                        spacing = 5
+                        CheckBox: repeat_nogo_field:
+                            checked := manifest.contribution.include_repeat_nogo
+                            text = 'repeat NOGO'
+                        CheckBox: go_remind_field:
+                            checked := manifest.contribution.include_go_remind
+                            text = 'reminders'
+
                 PushButton: copy_button:
                     text = '📋'
                     clicked ::
@@ -223,21 +288,30 @@ enamldef SDTAnalysisManifest(PSIManifest): manifest:
                         cb = QApplication.clipboard()
                         cb.setText(text)
 
-                Label: fa_repeat_label:
-                    text = 'including repeats'
-                Label: fa_label:
-                    text = 'FA rate'
-
-                Label: fa_repeat_value:
-                    text << '{:.2f}'.format(manifest.contribution.fa_repeat)
-                Label: fa_value:
-                    text << '{:.2f}'.format(manifest.contribution.fa)
+                Form: fa_form:
+                    padding = 0
+                    Label: fa_label:
+                        text = 'FA rate'
+                    Label: fa_value:
+                        text << '{:.2f}'.format(manifest.contribution.fa)
+                    Label: fa_repeat_label:
+                        text = 'FA rate (incl. repeat)'
+                    Label: fa_repeat_value:
+                        text << '{:.2f}'.format(manifest.contribution.fa_repeat)
 
 
                 DataFrameTable: sdt_table:
                     name = 'sdt_table'
-                    columns_movable = True
+                    header_resize_mode = 'contents'
+                    stretch_last_section = False
+                    columns_movable = False
                     data << manifest.contribution.results
+                    data ::
+                        # TODO: Why???
+                        sdt_plot.data = manifest.contribution.results
+                    get_cell_color => (row, column):
+                        tt = data.at[row, 'trial_type']
+                        return GONOGO_COLORS[tt]
 
     Extension:
         id = manifest.id + '.preferences'

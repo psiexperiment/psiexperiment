@@ -52,6 +52,41 @@ def make_color(color):
 
 
 ################################################################################
+# Style mixins
+################################################################################
+class ColorCycleMixin(Declarative):
+
+    # Define the pen color cycle. Can be a list of colors or a string
+    # indicating the color palette to use in palettable.
+    pen_color_cycle = d_(Typed(object))
+
+    _pen_color_cycle = Typed(object)
+    _plot_colors = Typed(dict)
+
+    def _default_pen_color_cycle(self):
+        return ['k']
+
+    @d_func
+    def get_pen_color(self, key):
+        color = self._plot_colors[key]
+        if not isinstance(color, str):
+            return QColor(*color)
+        else:
+            return QColor(color)
+
+    def _observe_pen_color_cycle(self, event):
+        if isinstance(self.pen_color_cycle, str):
+            self._pen_color_cycle = get_color_cycle(self.pen_color_cycle)
+        else:
+            self._pen_color_cycle = itertools.cycle(self.pen_color_cycle)
+        self._plot_colors = defaultdict(lambda: next(self._pen_color_cycle))
+        self.reset_plots()
+
+    def reset_plots(self):
+        raise NotImplementedError
+
+
+################################################################################
 # Supporting classes
 ################################################################################
 class BaseDataRange(Atom):
@@ -217,13 +252,14 @@ class BasePlotContainer(PSIContribution):
 
 class PlotContainer(BasePlotContainer):
 
-    x_min = d_(Float())
-    x_max = d_(Float())
+    x_min = d_(Float(0))
+    x_max = d_(Float(0))
 
     def format_container(self):
         # If we want to specify values relative to a psi context variable, we
         # cannot do it when initializing the plots.
-        self.base_viewbox.setXRange(self.x_min, self.x_max, padding=0)
+        if (self.x_min != 0) or (self.x_max != 0):
+            self.base_viewbox.setXRange(self.x_min, self.x_max, padding=0)
 
     def update(self, event=None):
         deferred_call(self.format_container)
@@ -310,8 +346,8 @@ class ViewBox(PSIContribution):
 
     y_mode = d_(Enum('symmetric', 'upper'))
 
-    y_min = d_(Float())
-    y_max = d_(Float())
+    y_min = d_(Float(0))
+    y_max = d_(Float(0))
 
     allow_zoom_y = d_(Bool(True))
     allow_zoom_x = d_(Bool(False))
@@ -665,7 +701,7 @@ class TimeseriesPlot(BaseTimeseriesPlot):
 ################################################################################
 # Group plots
 ################################################################################
-class GroupMixin(Declarative):
+class GroupMixin(ColorCycleMixin):
 
     source = Typed(object)
     group_meta = d_(Unicode())
@@ -675,11 +711,6 @@ class GroupMixin(Declarative):
     # Fucntion that takes the epoch metadata and decides whether to accept it
     # for plotting.  Useful to reduce the number of plots shown on a graph.
     group_filter = d_(Callable())
-
-    # Define the pen color cycle. Can be a list of colors or a string
-    # indicating the color palette to use in palettable.
-    pen_color_cycle = d_(Typed(object))
-    group_color_key = d_(Callable())
 
     pen_width = d_(Int(0))
     antialias = d_(Bool(False))
@@ -703,23 +734,15 @@ class GroupMixin(Declarative):
     def _default_group_filter(self):
         return lambda key: True
 
-    def _default_pen_color_cycle(self):
-        return ['k']
-
     def _default_group_color_key(self):
         return lambda key: tuple(key[g] for g in self.group_names)
 
-    @d_func
     def get_pen_color(self, key):
         kw_key = {n: k for n, k in zip(self.group_names, key)}
         group_key = self.group_color_key(kw_key)
-        color = self._plot_colors[group_key]
-        if not isinstance(color, str):
-            return QColor(*color)
-        else:
-            return QColor(color)
+        return super().get_pen_color(group_key)
 
-    def _reset_plots(self):
+    def reset_plots(self):
         # Clear any existing plots and reset color cycle
         for plot in self.plots.items():
             self.parent.viewbox.removeItem(plot)
@@ -729,24 +752,15 @@ class GroupMixin(Declarative):
         self._data_updated = defaultdict(int)
         self._data_n_samples = defaultdict(int)
 
-        if isinstance(self.pen_color_cycle, str):
-            self._pen_color_cycle = get_color_cycle(self.pen_color_cycle)
-        else:
-            self._pen_color_cycle = itertools.cycle(self.pen_color_cycle)
-        self._plot_colors = defaultdict(lambda: next(self._pen_color_cycle))
-
     def _observe_groups(self, event):
         self.groups.observe('values', self._update_groups)
         self._update_groups()
 
     def _update_groups(self, event=None):
-        self._reset_plots()
+        self.reset_plots()
         self.group_names = [p.name for p in self.groups.values]
         if self.source is not None:
             self.update()
-
-    def _observe_pen_color_cycle(self, event):
-        self._reset_plots()
 
     def get_plots(self):
         return []
@@ -993,3 +1007,90 @@ class ResultPlot(SinglePlot):
 
         deferred_call(self.parent.add_plot, plot, self.label)
         return plot
+
+
+class DataFramePlot(ColorCycleMixin, PSIContribution):
+
+    data = d_(Typed(pd.DataFrame))
+    x_column = d_(Unicode())
+    y_column = d_(Unicode())
+    grouping = d_(List(Unicode()))
+    _plot_cache = Dict()
+
+    SYMBOL_MAP = {
+        'circle': 'o',
+        'square': 's',
+        'triangle': 't',
+        'diamond': 'd',
+    }
+    symbol = d_(Enum('circle', 'square', 'triangle', 'diamond'))
+    symbol_size = d_(Float(10))
+    symbol_size_unit = d_(Enum('screen', 'data'))
+
+    pen_width = d_(Float(0))
+    antialias = d_(Bool(False))
+
+    def _default_name(self):
+        return '.'.join((self.parent.name, 'result_plot'))
+
+    def _observe_x_column(self, event):
+        self._observe_data(event)
+
+    def _observe_y_column(self, event):
+        self._observe_data(event)
+
+    def _observe_grouping(self, event):
+        self._observe_data(event)
+
+    def _observe_data(self, event):
+        if self.data is None:
+            return
+        if self.x_column not in self.data:
+            return
+        if self.y_column not in self.data:
+            return
+
+        todo = []
+        if self.grouping:
+            for group, values in self.data.groupby(self.grouping):
+                if group not in self._plot_cache:
+                    self._plot_cache[group] = self._default_plot(group)
+                x = values[self.x_column].values
+                y = values[self.y_column].values
+                i = np.argsort(x)
+                todo.append((self._plot_cache[group], x[i], y[i]))
+        else:
+            if None not in self._plot_cache:
+                self._plot_cache[None] = self._default_plot(None)
+            x = self.data[self.x_column].values
+            y = self.data[self.y_column].values
+            i = np.argsort(x)
+            todo.append((self._plot_cache[group], x[i], y[i]))
+
+        def update():
+            nonlocal todo
+            for plot, x, y in todo:
+                plot.setData(x, y)
+        deferred_call(update)
+
+    def _default_plot(self, group):
+        symbol_code = self.SYMBOL_MAP[self.symbol]
+        color = self.get_pen_color(group)
+        brush = pg.mkBrush(color)
+        pen = pg.mkPen(color, width=self.pen_width)
+
+        plot = pg.PlotDataItem(pen=pen,
+                               antialias=self.antialias,
+                               symbol=symbol_code,
+                               symbolSize=self.symbol_size,
+                               symbolPen=pen,
+                               symbolBrush=brush,
+                               pxMode=self.symbol_size_unit=='screen')
+        deferred_call(self.parent.add_plot, plot, self.label)
+        return plot
+
+    def reset_plots(self):
+        pass
+
+    def get_plots(self):
+        return []

@@ -178,3 +178,7 @@ enamldef BasePlotManifest(PSIManifest): manifest:
             # race conditions).
             event = 'experiment_end'
             command = manifest.contribution.name + '_update'
+
+
+enamldef DataFramePlotManifest(PSIManifest): manifest:
+    pass

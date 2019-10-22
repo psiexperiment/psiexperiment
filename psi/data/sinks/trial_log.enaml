@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from enaml.core.api import Conditional, d_func
 from enaml.widgets.api import CheckBox, Container, DockItem, VGroup
 from enaml.workbench.api import Extension
@@ -9,14 +11,20 @@ from psi.experiment.api import ItemPreferences
 from .table_store import TableStore, TableStoreManifest
 
 
+GONOGO_COLORS = {
+    'go_remind': 'forestgreen',
+    'go': 'lightgreen',
+    'go_forced': 'green',
+    'nogo': 'lightpink',
+    'nogo_repeat': 'pink',
+}
+GONOGO_COLORS = defaultdict(lambda x: 'white', **GONOGO_COLORS)
+
+
 class TrialLog(TableStore):
 
     name = 'trial_log'
     label = 'Trial log'
-
-    @d_func
-    def get_cell_color(self, row, column):
-        return 'white'
 
 
 enamldef TrialLogManifest(TableStoreManifest): manifest:
@@ -61,22 +69,12 @@ enamldef TrialLogManifest(TableStoreManifest): manifest:
                         name = 'tl_table'
                         data << manifest.contribution._data[:]
                         get_cell_color => (row, column):
-                            try:
-                                tt = data[row]['trial_type']
-                                if tt == 'go_remind':
-                                    return 'forestgreen'
-                                elif tt == 'go':
-                                    return 'lightgreen'
-                                elif tt == 'go_forced':
-                                    return 'green'
-                                elif tt == 'nogo':
-                                    return 'lightpink'
-                                elif tt == 'nogo_repeat':
-                                    return 'pink'
-                            except KeyError:
-                                return 'white'
+                            tt = data[row]['trial_type']
+                            return GONOGO_COLORS[tt]
                         autoscroll = True
                         columns_movable = False
+                        header_resize_mode = 'contents'
+                        stretch_last_section = False
 
         Extension:
             id = manifest.id + '.preferences'
