@@ -307,6 +307,8 @@ class EditableTable(RawWidget):
 
     #: Strectch width of last column so it fills rest of table?
     stretch_last_section = d_(Bool(True))
+
+    #: How can column headers be resized?
     header_resize_mode = d_(Enum('interactive', 'fixed', 'stretch',
                                  'contents'))
 
