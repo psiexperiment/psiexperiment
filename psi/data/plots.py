@@ -1034,12 +1034,15 @@ class DataFramePlot(ColorCycleMixin, PSIContribution):
         return '.'.join((self.parent.name, 'result_plot'))
 
     def _observe_x_column(self, event):
+        self.reset_plots()
         self._observe_data(event)
 
     def _observe_y_column(self, event):
+        self.reset_plots()
         self._observe_data(event)
 
     def _observe_grouping(self, event):
+        self.reset_plots()
         self._observe_data(event)
 
     def _observe_data(self, event):
@@ -1052,20 +1055,26 @@ class DataFramePlot(ColorCycleMixin, PSIContribution):
 
         todo = []
         if self.grouping:
-            for group, values in self.data.groupby(self.grouping):
-                if group not in self._plot_cache:
-                    self._plot_cache[group] = self._default_plot(group)
-                x = values[self.x_column].values
-                y = values[self.y_column].values
-                i = np.argsort(x)
-                todo.append((self._plot_cache[group], x[i], y[i]))
+            try:
+                for group, values in self.data.groupby(self.grouping):
+                    if group not in self._plot_cache:
+                        self._plot_cache[group] = self._default_plot(group)
+                    x = values[self.x_column].values
+                    y = values[self.y_column].values
+                    i = np.argsort(x)
+                    todo.append((self._plot_cache[group], x[i], y[i]))
+            except KeyError as e:
+                # This is likely triggered when grouping updates an analysis
+                # before it's ready.
+                log.warning(e)
+                return
         else:
             if None not in self._plot_cache:
                 self._plot_cache[None] = self._default_plot(None)
             x = self.data[self.x_column].values
             y = self.data[self.y_column].values
             i = np.argsort(x)
-            todo.append((self._plot_cache[group], x[i], y[i]))
+            todo.append((self._plot_cache[None], x[i], y[i]))
 
         def update():
             nonlocal todo
@@ -1090,7 +1099,9 @@ class DataFramePlot(ColorCycleMixin, PSIContribution):
         return plot
 
     def reset_plots(self):
-        pass
+        for plot in self._plot_cache.values():
+            deferred_call(self.parent.viewbox.removeItem, plot)
+        self._plot_cache = {}
 
     def get_plots(self):
-        return []
+        return list(self._plot_cache.values())

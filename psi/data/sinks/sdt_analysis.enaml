@@ -117,14 +117,27 @@ class SDTAnalysis(BaseStore):
         try:
             reference = r.loc['nogo', 'z_score'].rename('reference_z_score')
             reference = reference.reset_index(self.grouping[-1], drop=True)
-            r = r.reset_index().join(reference, on=reference.index.names)
-            r['z_score'] = r['z_score'] - r['reference_z_score']
+            if len(self.grouping) == 1:
+                if len(reference) != 1:
+                    raise ValueError('Cannot process reference')
+                r = r.reset_index()
+                r['reference_z_score'] = reference.iat[0]
+            else:
+                r = r.reset_index().join(reference, on=reference.index.names)
+        except KeyError as e:
+            log.debug(str(e))
+            log.debug('Handling exception by assuming FA rate is 5%')
+            r['reference_z_score'] = norm.ppf(0.05)
         except Exception as e:
             log.exception(e)
             log.debug('Handling exception by assuming FA rate is 5%')
-            r['z_score'] = r['z_score'] - norm.ppf(0.05)
-            r = r.reset_index()
+            r['reference_z_score'] = norm.ppf(0.05)
+        finally:
+            r['z_score'] = r['z_score'] - r['reference_z_score']
+            if r.index.nlevels != 1:
+                r = r.reset_index()
 
+        # The reset_index here renumbers the index from 0 ... n_rows
         self.results = r.sort_values(self.grouping).reset_index(drop=True)
 
 
@@ -165,7 +178,6 @@ enamldef SDTAnalysisManifest(PSIManifest): manifest:
             name << manifest.contribution.name
             label << '{} grouping'.format(manifest.contribution.label)
             values::
-                manifest.contribution.grouping = [v.name for v in values]
 
                 # Update SDT table
                 meta_columns = [v.name for v in meta.values]
@@ -177,10 +189,19 @@ enamldef SDTAnalysisManifest(PSIManifest): manifest:
                         'to_string': '{:.2f}'.format if 'f' in v.dtype else str,
                     }
                 column_info.update(extra_column_info)
+
+                # Order is important here to prevent triggering updates of
+                # table before table has been notified that columns were
+                # dropped/added.
                 sdt_table.columns = columns
                 sdt_table.column_info = column_info
                 sdt_plot.grouping = meta_columns[:-1]
                 sdt_plot.x_column = meta_columns[-1]
+                manifest.contribution.grouping = [v.name for v in values]
+
+                log.debug('Set SDT plot grouping to %r', sdt_plot.grouping)
+                log.debug('Set SDT x_column to %r', sdt_plot.x_column)
+                log.debug('Set SDT table columns to %r', sdt_table.columns)
 
     Extension:
         id = manifest.id + 'commands'
@@ -237,26 +258,10 @@ enamldef SDTAnalysisManifest(PSIManifest): manifest:
                         hbox(
                             settings_form,
                             vbox(copy_button, spacer),
-                            #vbox(
-                            #    hbox(fa_label, fa_value),
-                            #    hbox(fa_repeat_label, fa_repeat_value),
-                            #    copy_button,
-                            #),
                         ),
                         sdt_table,
                         fa_form,
                     ),
-                    #vbox(
-                    #    hbox(
-                    #        limit_label,
-                    #        limit_field,
-                    #        spacer,
-                    #        repeat_nogo_field,
-                    #        go_remind_field,
-                    #        copy_button,
-                    #    ),
-                    #    sdt_table,
-                    #),
                     copy_button.width == 20,
                 ]
 
