@@ -442,10 +442,14 @@ class EditableTable(RawWidget):
         raise NotImplementedError
 
     def _get_data(self, row_index, column_index):
-        value = self.get_data(row_index, column_index)
-        column = self.get_columns()[column_index]
-        formatter = self.column_info.get(column, {}).get('to_string', str)
-        return formatter(value)
+        try:
+            value = self.get_data(row_index, column_index)
+            column = self.get_columns()[column_index]
+            formatter = self.column_info.get(column, {}).get('to_string', str)
+            return formatter(value)
+        except Exception as e:
+            log.warning(e)
+            return ''
 
     def _set_data(self, *args):
         self.set_data(*args)
