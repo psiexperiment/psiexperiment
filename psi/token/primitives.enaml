@@ -252,6 +252,7 @@ def sam_eq_phase(delay, depth, direction):
 @fast_cache
 def sam_envelope(offset, samples, fs, depth, fm, delay, eq_phase, eq_power):
     delay_n = np.clip(int(delay*fs)-offset, 0, samples)
+    delay_n = int(np.round(delay_n))
     sam_n = samples-delay_n
 
     sam_offset = offset-delay_n
