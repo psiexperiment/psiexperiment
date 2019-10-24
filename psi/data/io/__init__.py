@@ -107,7 +107,9 @@ class Recording:
     def _load_text_table(self, name):
         import pandas as pd
         path = (self.base_path / name).with_suffix('.csv')
-        index_col = self._ttable_indices.get(name, 0)
+        if path.stat().st_size == 0:
+            return pd.DataFrame()
+        index_col = self._ttable_indices.get(name, None)
         df = pd.read_csv(path, index_col=index_col)
         drop = [c for c in df.columns if c.startswith('Unnamed:')]
         return df.drop(columns=drop)
