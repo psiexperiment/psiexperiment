@@ -172,10 +172,12 @@ class ContextItem(Declarative):
         return value.item()
 
     def __repr__(self):
-        return f'<{self}>'
+        return f'<{self.__class__.__name__}: {self}>'
 
     def __str__(self):
-        return f'{self.name} in {self.group}'
+        if self.group:
+            return f'{self.name} in {self.group}'
+        return f'{self.name}'
 
     def set_group(self, group):
         if self.group is not None and self.group != group:
