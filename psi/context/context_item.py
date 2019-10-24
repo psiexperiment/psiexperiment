@@ -15,6 +15,7 @@ class ContextMeta(Declarative):
     name = d_(Unicode())
     label = d_(Unicode())
     link_rove = d_(Bool(True))
+    editable = d_(Bool(False))
 
 
 class UnorderedContextMeta(ContextMeta):

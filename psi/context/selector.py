@@ -19,7 +19,7 @@ def warn_empty(method):
         try:
             return method(self, *args, **kwargs)
         except ValueError as e:
-            mesg = f'{self.label} sequence must have at least one value' 
+            mesg = f'{self.label} sequence must have at least one value'
             raise ValueError(mesg) from e
     return wrapper
 
@@ -82,7 +82,7 @@ class SingleSetting(BaseSelector):
         return self.setting[item.name]
 
     def set_value(self, item, value):
-        value = item.coerce_to_type(value)
+        #value = item.coerce_to_type(value)
         self.setting[item.name] = value
         self.updated = True
 
@@ -164,7 +164,7 @@ class SequenceSelector(BaseSelector):
     def set_value(self, setting_index, item, value):
         # TODO: It's weird that some methods take the index of the setting,
         # while others take the setting object. Need to sanitize this.
-        value = item.coerce_to_type(value)
+        #value = item.coerce_to_type(value)
         self.settings[setting_index][item.name] = value
         self.updated = True
 

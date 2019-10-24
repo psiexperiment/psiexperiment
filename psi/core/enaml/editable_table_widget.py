@@ -307,6 +307,8 @@ class EditableTable(RawWidget):
 
     #: Strectch width of last column so it fills rest of table?
     stretch_last_section = d_(Bool(True))
+
+    #: How can column headers be resized?
     header_resize_mode = d_(Enum('interactive', 'fixed', 'stretch',
                                  'contents'))
 
@@ -440,10 +442,14 @@ class EditableTable(RawWidget):
         raise NotImplementedError
 
     def _get_data(self, row_index, column_index):
-        value = self.get_data(row_index, column_index)
-        column = self.get_columns()[column_index]
-        formatter = self.column_info.get(column, {}).get('to_string', str)
-        return formatter(value)
+        try:
+            value = self.get_data(row_index, column_index)
+            column = self.get_columns()[column_index]
+            formatter = self.column_info.get(column, {}).get('to_string', str)
+            return formatter(value)
+        except Exception as e:
+            log.warning(e)
+            return ''
 
     def _set_data(self, *args):
         self.set_data(*args)

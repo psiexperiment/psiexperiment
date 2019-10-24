@@ -103,7 +103,7 @@ enamldef PelletDispenserManifest(PSIManifest): manifest:
             text = 'Dispense pellet'
             triggered ::
                 core = workbench.get_plugin('enaml.workbench.core')
-                cmd = manifest.id + '.dispense_pellet'
+                cmd = manifest.contribution.name + '.dispense_pellet'
                 core.invoke_command(cmd, {'pellets': 1})
             enabled <<  workbench.get_plugin('psi.controller').experiment_state \
                 not in ('initialized', 'stopped')

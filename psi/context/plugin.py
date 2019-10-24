@@ -369,15 +369,21 @@ class ContextPlugin(Plugin):
         return old != new
 
     def _check_for_changes(self):
+        log.debug('Checking for changes')
         for name, state in self._context_item_state.items():
             if name not in self.context_items:
+                log.debug('%s not in context item state. changes pending.', name)
                 self.changes_pending = True
                 return
             item = self.context_items[name]
             if (item.rove, item.expression) != state:
+                log.debug('%s expression/rove does not match state. changes pending.', name)
                 self.changes_pending = True
                 return
+
         self.changes_pending = self.selectors != self._selectors
+        if self.changes_pending:
+            log.debug('Selectors do not match. Changes pending.')
 
     def apply_changes(self, cycles=np.inf):
         self._apply_context_item_state()
@@ -386,6 +392,7 @@ class ContextPlugin(Plugin):
         self._namespace.update_symbols(self.symbols)
         self._iterators = self._get_iterators(cycles)
         self.changes_pending = False
+        log.debug('Applied changes')
 
     def revert_changes(self):
         self._revert_context_item_state()
