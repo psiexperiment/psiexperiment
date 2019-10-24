@@ -54,13 +54,19 @@ def cache(f, name=None):
         cache_file = cache_path / f'{name}-{uuid}-result.pkl'
         kwargs_cache_file = cache_path / f'{name}-{uuid}-kwargs.pkl'
 
-        if not refresh_cache and cache_file.exists():
-            result = pd.read_pickle(cache_file)
-            with open(kwargs_cache_file, 'wb') as fh:
-                cache_kwargs = pickle.load(fh)
-                if cache_kwargs != kwargs:
-                    raise ValueError('Cache is corrupted')
-        else:
+        result = None
+        try:
+            if not refresh_cache and cache_file.exists():
+                result = pd.read_pickle(cache_file)
+                with open(kwargs_cache_file, 'wb') as fh:
+                    cache_kwargs = pickle.load(fh)
+                    if cache_kwargs != kwargs:
+                        raise ValueError('Cache is corrupted')
+        except:
+            # Cache is corrupted. Delete it.
+            cache_file.unlink()
+
+        if result is None:
             result = f(self, *args, **kwargs)
             result.to_pickle(cache_file)
             with open(kwargs_cache_file, 'wb') as fh:
