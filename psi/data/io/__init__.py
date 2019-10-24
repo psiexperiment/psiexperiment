@@ -88,9 +88,12 @@ class Recording:
 
     def __repr__(self):
         lines = [f'Recording at {self.base_path.name} with:']
-        lines.append(f'* Bcolz carrays {self.carray_names}')
-        lines.append(f'* Bcolz ctables {self.ctable_names}')
-        lines.append(f'* CSV tables {self.ttable_names}')
+        if self.carray_names:
+            lines.append(f'* Bcolz carrays {self.carray_names}')
+        if self.ctable_names:
+            lines.append(f'* Bcolz ctables {self.ctable_names}')
+        if self.ttable_names:
+            lines.append(f'* CSV tables {self.ttable_names}')
         return '\n'.join(lines)
 
     @functools.lru_cache()
