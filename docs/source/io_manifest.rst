@@ -8,7 +8,7 @@ Examples
 Noise exposure
 ..............
 
-Basic configuration of a system with one output (connectd to a speaker) and two inputs (from microphones) driven by a National Instruments DAQ card. This configuration is about as simple as it gets.
+Basic configuration of a system with one output (connected to a speaker) and two inputs (from microphones) driven by a National Instruments DAQ card. This configuration is about as simple as it gets.
 
 .. literalinclude:: ../../psi/templates/noise_exposure.enaml
     :language: enaml
