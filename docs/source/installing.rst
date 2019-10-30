@@ -15,7 +15,13 @@ To install from source (e.g., if you plan to develop):
 From conda
 ----------
 
-Conda packages are in progress. We will update this section once we have created a conda package.
+Conda packages are in progress. We will update this section once we have created a conda package. For now, if you are using conda, run the following:
+
+.. code-block:: shell
+
+    conda create -n <envname>  bcolz enaml joblib numpy palettable pyqtgraph scipy matplotlib
+    pip install json_tricks pydaqmx
+
 
 Requirements
 ------------
