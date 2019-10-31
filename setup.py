@@ -28,7 +28,7 @@ package_data = {
 
 setup(
     name='PsiExperiment',
-    version='0.01',
+    version='0.1.3',
     author='Brad Buran',
     author_email='bburan@alum.mit.edu',
     install_requires=requirements,
