@@ -2,8 +2,17 @@
 Installing
 ==========
 
-From source
------------
+If you use Anaconda or Miniconda, you can install psiexperiment from the bburan channel:
+
+.. code-block:: shell
+
+    conda install -c bburan psiexperiment
+
+If you don't use Anaconda, psiexperiment can be installed via pip: 
+
+.. code-block:: shell
+
+    pip install psiexperiment
 
 To install from source (e.g., if you plan to develop):
 
@@ -12,21 +21,20 @@ To install from source (e.g., if you plan to develop):
     git clone https://github.com/bburan/psiexperiment
     pip install -e ./psiexperiment
 
-From conda
-----------
-
-Conda packages are in progress. We will update this section once we have created a conda package. For now, if you are using conda, run the following:
+If you want to set up psiexperiment in development mode, but would rather pull in the dependencies via conda instead of pip:
 
 .. code-block:: shell
 
-    conda create -n <envname>  bcolz enaml joblib numpy palettable pyqtgraph scipy matplotlib
-    pip install json_tricks pydaqmx
+    conda create -n <envname>
+    conda install -c bburan -n <envname> --only-deps psiexperiment
+    git clone https://github.com/bburan/psiexperiment
+    pip install -e ./psiexperiment
 
 
 Requirements
 ------------
 
-The actual list of requirements are lengthy, but you may only need a subset depending on the plugins you use. The core requirements are:
+The code is written with Python >= 3.6 in mind. The actual list of requirements are lengthy, but you may only need a subset depending on the plugins you use. The core requirements are:
 
 * enaml
 * numpy
