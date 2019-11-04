@@ -122,6 +122,11 @@ class AnalyzeDPOAE(Input):
 
 
 enamldef DPOAEManifest(ControllerManifest): manifest:
+    '''
+    All subclasses must do the following:
+
+        Define an experiment action that determines when the experiment is complete
+    '''
 
     Extension:
         id = EXPERIMENT + '.sinks'
@@ -359,7 +364,3 @@ enamldef DPOAEManifest(ControllerManifest): manifest:
         ExperimentAction:
             event = 'dpoae_start'
             command = 'dpoae_capture.start'
-
-        ExperimentAction:
-            event = 'context_complete'
-            command = 'psi.controller.stop'

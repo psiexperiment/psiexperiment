@@ -2,16 +2,22 @@ from setuptools import find_packages, setup
 
 
 requirements = [
+    'bcolz',
+    'enaml',
+    'joblib',
     'json_tricks',
+    'numpy',
     'palettable',
-    'pydaqmx',
+    'pyqtgraph',
+    'scipy',
 ]
 
 
 extras_require = {
-    # coloredlogs - Make logging pretty
-    # pyinstrument - Detailed performance information.
-    'debug': ['coloredlogs', 'pyinstrument'],
+    'ni': ['pydaqmx'],
+    'docs': ['sphinx', 'sphinx_rtd_theme', 'pygments-enaml'],
+    'examples': ['matplotlib'],
+    'test': ['pytest', 'pytest-benchmark'],
 }
 
 
@@ -22,7 +28,7 @@ package_data = {
 
 setup(
     name='PsiExperiment',
-    version='0.01',
+    version='0.1.3',
     author='Brad Buran',
     author_email='bburan@alum.mit.edu',
     install_requires=requirements,
@@ -40,6 +46,7 @@ setup(
             'psi-cfts=psi.application.base_launcher:main_ear',
             'psi-cohort=psi.application.base_launcher:main_cohort',
             'psi-summarize-abr=psi.data.io.summarize_abr:main',
+            'psi-summarize-abr-gui=psi.data.io.summarize_abr:main_gui',
             'psi-summarize-abr-auto=psi.data.io.summarize_abr:main_auto',
         ]
     },

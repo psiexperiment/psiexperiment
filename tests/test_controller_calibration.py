@@ -3,13 +3,7 @@ import pytest
 import numpy as np
 import enaml
 
-
-with enaml.imports():
-    from psi.controller.calibration.tone import process_tone
-    from psi.controller.calibration import CalibrationNFError
-    from psi.controller.calibration import CalibrationTHDError
-
-
+from psi.controller.calibration.api import CalibrationNFError, CalibrationTHDError, process_tone
 from psi.controller.calibration import util
 
 

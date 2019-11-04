@@ -28,19 +28,18 @@ def process_files(filenames, offset=-0.001, duration=0.01,
             else:
                 print('*', end='', flush=True)
         except Exception as e:
-            raise
             print(f'\nError processing {filename}\n{e}\n')
 
 
 def _get_file_template(fh, offset, duration, filter_settings, suffix=None):
     base_string = f'ABR {offset*1e3:.1f}ms to {(offset+duration)*1e3:.1f}ms'
     if filter_settings == 'saved':
-        settings = fh.erp_metadata.iloc[0]
-        if not settings.get('digital_filter', True):
+        settings = _get_filter(fh)
+        if not settings['digital_filter']:
             filter_string = None
         else:
-            lb = settings.get('digital_highpass', 300)
-            ub = settings.get('digital_lowpass', 3000)
+            lb = settings['lb']
+            ub = settings['ub']
             filter_string = f'{lb:.0f}Hz to {ub:.0f}Hz filter'
     elif filter_settings is None:
         filter_string = None
@@ -64,28 +63,41 @@ def _get_file_template(fh, offset, duration, filter_settings, suffix=None):
     return f'{file_string} {{}}.csv'
 
 
+def _get_filter(fh):
+    if not isinstance(fh, (abr.ABRFile, abr.ABRSupersetFile)):
+        fh = abr.load(fh)
+    return {
+        'digital_filter': fh.get_setting_default('digital_filter', True),
+        'lb': fh.get_setting_default('digital_highpass', 300),
+        'ub': fh.get_setting_default('digital_lowpass', 3000),
+        # Filter order is not currently an option in the psiexperiment ABR
+        # program so it defaults to 1.
+        'order': 1,
+    }
+
 def _get_epochs(fh, offset, duration, filter_settings, reject_ratio=None):
     # We need to do the rejects in this code so that we can obtain the
-    # information for generating the CSV files.
+    # information for generating the CSV files. Set reject_threshold to np.inf
+    # to ensure that nothing gets rejected.
     kwargs = {'offset': offset, 'duration': duration, 'columns': columns,
               'reject_threshold': np.inf}
+    if filter_settings is None:
+        return fh.get_epochs(**kwargs)
+
     if filter_settings == 'saved':
-        settings = fh.erp_metadata.iloc[0]
-        if not settings.get('digital_filter', True):
-            epochs = fh.get_epochs(**kwargs)
-        else:
-            lb = settings.get('digital_highpass', 300)
-            ub = settings.get('digital_lowpass', 3000)
-            kwargs.update({'filter_lb': lb, 'filter_ub': ub})
-            epochs = fh.get_epochs_filtered(**kwargs)
-    elif filter_settings is None:
-        epochs = fh.get_epochs(**kwargs)
-    else:
-        kwargs['filter_lb'] = filter_settings['lb']
-        kwargs['filter_ub'] = filter_settings['ub']
-        kwargs['filter_order'] = filter_settings['order']
-        epochs = fh.get_epochs_filtered(**kwargs)
-    return epochs
+        settings = _get_filter(fh)
+        if not settings['digital_filter']:
+            return fh.get_epochs(**kwargs)
+        lb = settings['lb']
+        ub = settings['ub']
+        order = settings['order']
+        kwargs.update({'filter_lb': lb, 'filter_ub': ub, 'order': order})
+        return fh.get_epochs_filtered(**kwargs)
+    lb = filter_settings['lb']
+    ub = filter_settings['ub']
+    order = filter_settings['order']
+    kwargs.update({'filter_lb': lb, 'filter_ub': ub, 'filter_order': order})
+    return fh.get_epochs_filtered(**kwargs)
 
 
 def _match_epochs(*epochs):
@@ -103,9 +115,20 @@ def _match_epochs(*epochs):
     return [d.reset_index('dataset', drop=True) for _, d in \
               matched.groupby('dataset', group_keys=False)]
 
-def process_files_matched(filenames, offset, duration, filter_settings,
-                          reprocess=True, n_epochs=None, suffix=None):
 
+def is_processed(filename, offset, duration, filter_settings, suffix=None):
+    t = _get_file_template(filename, offset, duration, filter_settings, suffix)
+    file_template = os.path.join(filename, t)
+    raw_epoch_file = file_template.format('individual waveforms')
+    mean_epoch_file = file_template.format('average waveforms')
+    n_epoch_file = file_template.format('number of epochs')
+    return os.path.exists(raw_epoch_file) and \
+        os.path.exists(mean_epoch_file) and \
+        os.path.exists(n_epoch_file)
+
+
+def process_files_matched(filenames, offset, duration, filter_settings,
+                          reprocess=True, suffix=None):
     epochs = []
     for filename in filenames:
         fh = abr.load(filename)
@@ -142,7 +165,7 @@ def process_files_matched(filenames, offset, duration, filter_settings,
 
 
 def process_file(filename, offset, duration, filter_settings, reprocess=False,
-                 n_epochs=None, suffix=None):
+                 n_epochs='auto', suffix=None):
     '''
     Extract ABR epochs, filter and save result to CSV files
 
@@ -167,11 +190,12 @@ def process_file(filename, offset, duration, filter_settings, reprocess=False,
     reprocess : bool
         If True, reprocess the file even if it already has been processed for
         the specified filter settings.
-    n_epochs : {None, int, dict}
-        If None, all epochs will be used. If integer, will limit the number of
-        epochs per frequency and level to this number. If dict, the key must be
-        a tuple of (frequency, level) and the value will indicate the number of
-        epochs to use.
+    n_epochs : {None, 'auto', int, dict}
+        If None, all epochs will be used. If 'auto', use the value defined at
+        acquisition time. If integer, will limit the number of epochs per
+        frequency and level to this number. If dict, the key must be a tuple of
+        (frequency, level) and the value will indicate the number of epochs to
+        use.
     suffix : {None, str}
         Suffix to use when creating save filenames.
     '''
@@ -199,20 +223,27 @@ def process_file(filename, offset, duration, filter_settings, reprocess=False,
     epochs = _get_epochs(fh, offset, duration, filter_settings)
 
     # Apply the reject
-    reject_threshold = fh.erp_metadata.at[0, 'reject_threshold']
+    reject_threshold = fh.get_setting('reject_threshold')
     m = np.abs(epochs) < reject_threshold
     m = m.all(axis=1)
     epochs = epochs.loc[m]
 
+    if n_epochs is not None:
+        if n_epochs == 'auto':
+            n_epochs = fh.get_setting('averages')
+        n = int(np.floor(n_epochs / 2))
+        epochs = epochs.groupby(columns) \
+            .apply(lambda x: x.iloc[:n])
+
     epoch_reject_ratio = 1-m.groupby(columns[:-1]).mean()
     epoch_mean = epochs.groupby(columns).mean() \
         .groupby(columns[:-1]).mean()
-    epoch_n = epochs.groupby(columns[:-1]).size()
 
     # Write the data to CSV files
     epoch_reject_ratio.name = 'epoch_reject_ratio'
     epoch_reject_ratio.to_csv(reject_ratio_file, header=True)
     epoch_reject_ratio.name = 'epoch_n'
+    epoch_n = epochs.groupby(columns[:-1]).size()
     epoch_n.to_csv(n_epoch_file, header=True)
     epoch_mean.columns.name = 'time'
     epoch_mean.T.to_csv(mean_epoch_file)
@@ -265,5 +296,17 @@ def main():
                   args.reprocess)
 
 
+def main_gui():
+    import enaml
+    from enaml.qt.qt_application import QtApplication
+    with enaml.imports():
+        from .summarize_abr_gui import SummarizeABRGui
+
+    app = QtApplication()
+    view = SummarizeABRGui()
+    view.show()
+    app.start()
+
+
 if __name__ == '__main__':
-    main()
+    main_gui()

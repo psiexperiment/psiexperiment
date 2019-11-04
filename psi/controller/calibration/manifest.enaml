@@ -53,7 +53,7 @@ def tone_calibrate_channel(workbench, outputs, input_name, gain, duration,
         Dictionary whose keys are outputs and values are a list of parameters
         needed to determine the calibration frequencies.
     input_name : string
-        Input to calibrate
+        Channel to calibrate
     selector_name : string (default='default')
         Selector to use
     gain : float

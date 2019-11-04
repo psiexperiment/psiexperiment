@@ -1,17 +1,13 @@
 '''
-Each generator takes a sequence and returns a single element on each call.  The
-order of the elements returned depends on the algorithm.  The generators do not
-modify the sequence.
-
-* When adding a generator, use the check_sequence decorator to ensure
-  that the sequence passed is a shallow copy that you can modify in-place
-  without any side effects.
-* All generators must be infinite (i.e. they never end) or raise a StopIteration
-  error when the sequence is exhausted.
-* Random sequences have a hard dependency on Numpy (the built-in Python random
-  module is suboptimal for scientific work).
-* If your sequence contains mutable objects, then any modifications to the
-  objects themselves will be reflected in the output of the generator.
+Introduction
+------------
+This module contains a collection of generators that facilitate ordering of
+sequences for an experiment. Each generator takes a sequence and returns a
+single element on each call. The order of the elements returned depends on the
+algorithm. A shallow copy of the sequence is created by the generator to
+prevent side effects if the original sequence is reordered elsewhere. However,
+if the sequence contains mutable objects, then any modification to the objects
+will be reflected in the output of the generator.
 
 Examples
 --------
@@ -20,12 +16,12 @@ not affect the output of the selector:
 
     >>> sequence = [1, 3, 8, 9, 12, 0, 4]
     >>> choice = exact_order(sequence)
-    >>> choice.next()
+    >>> next(choice)
     1
     >>> sequence[1] = 2
     >>> sequence
     [1, 2, 8, 9, 12, 0, 4]
-    >>> choice.next()
+    >>> next(choice)
     3
 
 However, if you have a sequence that contains a mutable object (e.g. a list),
@@ -33,10 +29,10 @@ then modifications to the mutable object will alter the output of the selector:
 
     >>> sequence = [1, [2, 3], 4, 5, 6]
     >>> choice = exact_order(sequence)
-    >>> print choice.next()
+    >>> next(choice)
     1
     >>> sequence[1][0] = -5
-    >>> print choice.next()
+    >>> next(choice)
     [-5, 3]
 
 An error is also raised when an empty sequence is passed:
@@ -45,10 +41,21 @@ An error is also raised when an empty sequence is passed:
     Traceback (most recent call last):
         ...
     ValueError: Cannot use an empty sequence
+
+Notes for developers
+--------------------
+* When writing your own generator, use the check_sequence decorator to ensure
+  that the sequence passed is a shallow copy that you can modify in-place
+  without any side effects. This also ensures that if the original sequence is
+  modified by outside code, it will not affect the output of the generator.
+* All generators must be infinite (i.e. they never end) or raise a StopIteration
+  error when the sequence is exhausted.
+* Random sequences have a hard dependency on Numpy (the built-in Python random
+  module is suboptimal for scientific work).
+
 '''
 
 from functools import wraps
-import doctest
 import collections
 
 import numpy as np
@@ -76,12 +83,18 @@ def ascending(sequence, c=np.inf, key=None):
     Returns elements from the sequence in ascending order.  When the last
     element is reached, loop around to the beginning.
 
+    Parameters
+    ----------
+    {common_docstring}
+
+    Example
+    -------
     >>> choice = ascending([1, 3, 8, 9, 12, 0, 4])
-    >>> choice.next()
+    >>> next(choice)
     0
-    >>> choice.next()
+    >>> next(choice)
     1
-    >>> choice.next()
+    >>> next(choice)
     3
     '''
     sequence.sort(key=key)
@@ -98,12 +111,18 @@ def descending(sequence, c=np.inf, key=None):
     Returns elements from the sequence in descending order.  When the last
     element is reached, loop around to the beginning.
 
+    Parameters
+    ----------
+    {common_docstring}
+
+    Example
+    -------
     >>> choice = descending([1, 3, 8, 9, 12, 0, 4])
-    >>> choice.next()
+    >>> next(choice)
     12
-    >>> choice.next()
+    >>> next(choice)
     9
-    >>> choice.next()
+    >>> next(choice)
     8
     '''
     sequence.sort(key=key, reverse=True)
@@ -118,9 +137,15 @@ def descending(sequence, c=np.inf, key=None):
 def pseudorandom(sequence, c=np.inf, key=None, seed=None):
     '''
     Returns a randomly selected element from the sequence.
+
+    Parameters
+    ----------
+    {common_docstring}
+    seed : int
+        Seed for random number generator.
     '''
-    # We need to create a stand-alone generator that cannot be affected by other
-    # parts of the code that may require random data (e.g. noise).
+    # We need to create a stand-alone generator that cannot be affected by
+    # other parts of the code that may require random data (e.g. noise).
     state = RandomState()
     state.seed(seed)
     n = len(sequence)
@@ -136,12 +161,18 @@ def exact_order(sequence, c=np.inf, key=None):
     '''
     Returns elements in the exact order they are provided.
 
+    Parameters
+    ----------
+    {common_docstring}
+
+    Example
+    -------
     >>> choice = exact_order([1, 3, 8, 9, 12, 0, 4])
-    >>> choice.next()
+    >>> next(choice)
     1
-    >>> choice.next()
+    >>> next(choice)
     3
-    >>> choice.next()
+    >>> next(choice)
     8
     '''
     cycle = 0
@@ -157,6 +188,12 @@ def shuffled_set(sequence, c=np.inf, key=None, seed=None):
     Returns a randomly selected element from the sequence and removes it from
     the sequence.  Once the sequence is exhausted, repopulate list with the
     original sequence.
+
+    Parameters
+    ----------
+    {common_docstring}
+    seed : int
+        Seed for random number generator.
     '''
     cycle = 0
     state = RandomState()
@@ -177,18 +214,27 @@ def counterbalanced(sequence, n, c=np.inf, key=None):
     do not draw from this sequence a number of times that is a multiple of `n`,
     then the sequence will not be counterbalanced properly.
 
+    Parameters
+    ----------
+    {common_docstring}
+
+    Example
+    -------
     >>> import numpy as np
     >>> choice = counterbalanced([0, 1, 2], 60)
-    >>> print np.bincount([choice.next() for i in range(60)])
-    [20 20 20]
+    >>> items = [next(choice) for i in range(60)]
+    >>> np.bincount(items)
+    array([20, 20, 20])
 
     >>> choice = counterbalanced(['RIGHT', 'LEFT'], 10)
-    >>> values = np.array([choice.next() for i in range(60)])
-    >>> print np.unique(values)
-    ['LEFT' 'RIGHT']
-    >>> print len(values[values == 'LEFT'])
+    >>> items = [next(choice) for i in range(60)]
+    >>> sorted(set(items))
+    ['LEFT', 'RIGHT']
+    >>> items.count('LEFT')
     30
-    >>> print len(values[values[:10] == 'LEFT'])
+    >>> items[:10].count('LEFT')
+    5
+    >>> items[10:20].count('LEFT')
     5
 
     '''
@@ -215,5 +261,31 @@ options = collections.OrderedDict([
 ])
 
 
+common_docstring = '''
+sequence : {tuple, list}
+    The iterable providing the sequence of values to be produced by the
+    generator.
+c : {int, np.inf}
+    Number of cycles to loop through sequence.
+key : {None, object}
+    Sort key to use when determining ordering of generator. If None, default
+    sort is used. This value is passed to the `key` parameter of `sort`.
+'''
+
+def format_docstrings():
+    fmt = {
+        'common_docstring': common_docstring,
+    }
+    for f in options.values():
+        try:
+            f.__doc__ = f.__doc__.format(**fmt)
+        except:
+            pass
+
+
+format_docstrings()
+
+
 if __name__ == '__main__':
+    import doctest
     doctest.testmod()

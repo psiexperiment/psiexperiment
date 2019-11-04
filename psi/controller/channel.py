@@ -7,7 +7,7 @@ from atom.api import (Bool, Float, Int, List, Property, Tuple, Typed, Unicode)
 from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
 
-from .calibration.api import Calibration, UnityCalibration
+from psi.controller.calibration.api import Calibration, UnityCalibration
 from .output import QueuedEpochOutput, ContinuousOutput, EpochOutput
 from ..core.enaml.api import PSIContribution
 from ..util import coroutine
@@ -15,13 +15,13 @@ from ..util import coroutine
 
 class Channel(PSIContribution):
 
-    # Globally-unique name of channel used for identification
+    #: Globally-unique name of channel used for identification
     name = d_(Unicode()).tag(metadata=True)
 
-    # Lable of channel used in GUI
+    #: Label of channel used in GUI
     label = d_(Unicode()).tag(metadata=True)
 
-    # Is channel active during experiment?
+    #: Is channel active during experiment?
     active = Property()
 
     # SI unit (e.g., V)

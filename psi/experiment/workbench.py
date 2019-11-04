@@ -7,6 +7,7 @@ from enaml.workbench.api import Workbench
 
 with enaml.imports():
     from enaml.stdlib.message_box import critical
+    from . import error_style
 
 from psi import set_config
 from psi.core.enaml.api import load_manifest, load_manifest_from_file
@@ -111,4 +112,6 @@ class PSIWorkbench(Workbench):
         # Now, open workspace
         ui.select_workspace(workspace)
         ui.show_window()
+        if base_path is None:
+            ui.workspace.dock_area.style = 'error'
         ui.start_application()

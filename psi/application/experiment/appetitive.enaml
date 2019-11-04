@@ -6,12 +6,12 @@ import numpy as np
 from enaml.workbench.api import Extension
 
 
-from psi.controller.api import (ContinuousOutput, EpochOutput,
-                                ExperimentAction)
-from psi.data.plots import (EventPlot, TimeContainer, 
+from psi.controller.api import (CalibratedInput, ContinuousOutput, EpochOutput,
+                                ExperimentAction, IIRFilter)
+from psi.data.plots import (EventPlot, FFTContainer, FFTChannelPlot, TimeContainer,
                             ChannelPlot, ViewBox, TimeseriesPlot)
 from psi.token.primitives import (BandlimitedNoise, Cos2Envelope, SAMEnvelope,
-                                  Silence)
+                                  Silence, Tone)
 from .behavior_base import BehaviorManifest
 
 
@@ -46,6 +46,13 @@ enamldef ControllerManifest(BehaviorManifest): manifest:
                 Silence:
                     pass
 
+        Cos2Envelope:
+            name = 'sam_tone'
+            label = 'SAM tone'
+            SAMEnvelope:
+                Tone:
+                    pass
+
     Extension:
         id = 'actions'
         point = 'psi.controller.actions'
@@ -67,7 +74,7 @@ enamldef ControllerManifest(BehaviorManifest): manifest:
         ExperimentAction:
             # Since generating the token can be expensive in terms of
             # computation, prepare this in advance as soon as possible. 
-            event = 'trial_prepare'
+            event = 'experiment_prepare or trial_prepare'
             command = 'target.prepare'
             kwargs = {'cache': True}
 
@@ -101,6 +108,14 @@ enamldef ControllerManifest(BehaviorManifest): manifest:
         id = 'io'
         point = 'psi.controller.io'
 
+        CalibratedInput:
+            source_name = 'microphone'
+
+            IIRFilter:
+                f_lowpass = 40e3
+                f_highpass = 200
+                name = 'microphone_filtered'
+
         ContinuousOutput:
             name = 'background'
             label = 'Background'
@@ -115,10 +130,33 @@ enamldef ControllerManifest(BehaviorManifest): manifest:
         id = 'plots'
         point = 'psi.data.plots'
 
+        FFTContainer:
+            name = 'microphone_fft_container'
+            label = 'Microphone FFT'
+            freq_lb = 5
+            freq_ub = 50000
+
+            ViewBox:
+                y_min = -120
+                y_max = 100
+
+                FFTChannelPlot:
+                    source_name = 'microphone_filtered'
+                    pen_color = 'k'
+                    time_span = 1
+
         TimeContainer:
             name = 'trial_plot_container'
             label = 'Trial timing'
             span = 10
+
+            ViewBox:
+                y_min = -1
+                y_max = 1
+
+                ChannelPlot:
+                    source_name = 'microphone_filtered'
+                    pen_color = 'k'
 
             ViewBox:
                 y_min = 0
@@ -131,39 +169,3 @@ enamldef ControllerManifest(BehaviorManifest): manifest:
                 ChannelPlot:
                     source_name = 'nose_poke_analog'
                     pen_color = 'orange'
-
-                EventPlot:
-                    event = 'hold'
-                    pen_color = (192, 192, 192, 113)
-                    fill_color = (192, 192, 192, 68)
-                    rect_center = 4.5
-                    rect_height = 1
-
-                EventPlot:
-                    event = 'response'
-                    pen_color = (113, 113, 113, 113)
-                    fill_color = (113, 113, 113, 68)
-                    rect_center = 4.5
-                    rect_height = 1
-
-                EventPlot:
-                    event = 'to'
-                    fill_color = (64, 64, 64, 68)
-                    pen_color = (64, 64, 64, 113)
-                    rect_center = 4.5
-                    rect_height = 1
-
-                EventPlot:
-                    event = 'iti'
-                    fill_color = (0, 0, 0, 68)
-                    pen_color = (0, 0, 0, 113)
-                    rect_center = 4.5
-                    rect_height = 1
-
-            #ViewBox:
-            #    y_min = -1
-            #    y_max = 1
-
-            #    ChannelPlot:
-            #        source_name = 'microphone'
-            #        pen_color = 'k'

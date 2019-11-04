@@ -735,9 +735,7 @@ def extract_epochs(fs, queue, epoch_size, poststim_time, buffer_size, target,
                 info['epoch_size'] = info['duration']
                 total_epoch_size = info['duration'] + poststim_time
 
-            info['total_epoch_size'] = total_epoch_size
             epoch_samples = round(total_epoch_size * fs)
-
             epoch_coroutine = capture_epoch(t0, epoch_samples, info,
                                             epochs.append)
 
@@ -778,15 +776,15 @@ def extract_epochs(fs, queue, epoch_size, poststim_time, buffer_size, target,
 
 class ExtractEpochs(EpochInput):
 
-    queue = Typed(deque, {})
+    queue = d_(Typed(deque, {}))
 
     buffer_size = d_(Float(0)).tag(metadata=True)
 
-    # Defines the size of the epoch (if 0, this is automatically drawn from
-    # the information provided by the queue).
+    #: Defines the size of the epoch (if NaN, this is automatically drawn from
+    #: the information provided by the queue).
     epoch_size = d_(Float(0)).tag(metadata=True)
 
-    # Defines the extra time period to capture beyond the epoch duration.
+    #: Defines the extra time period to capture beyond the epoch duration.
     poststim_time = d_(Float(0).tag(metadata=True))
 
     complete = Bool(False)
@@ -795,10 +793,11 @@ class ExtractEpochs(EpochInput):
         self.complete = True
 
     def configure_callback(self):
-        if self.epoch_size == 0:
-            raise ValueError('Epoch size not configured')
-        if not np.isfinite(self.epoch_size):
-            raise ValueError('Cannot have an infinite epoch size')
+        #if self.epoch_size == 0:
+            #raise ValueError('Epoch size not configured')
+        if np.isinf(self.epoch_size):
+            m = f'ExtractEpochs {self.name} has an infinite epoch size'
+            raise ValueError(m)
         cb = super().configure_callback()
         return extract_epochs(self.fs, self.queue, self.epoch_size,
                               self.poststim_time, self.buffer_size, cb,

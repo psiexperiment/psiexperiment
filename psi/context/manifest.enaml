@@ -24,7 +24,7 @@ from .plugin import ContextPlugin
 from .symbol import ImportedSymbol, Function
 from .context_item import Parameter
 
-from ..util import rpc, get_tagged_values
+from ..util import rpc, get_tagged_members, get_tagged_values
 from .. import get_config
 
 
@@ -50,6 +50,12 @@ def get_preferences(obj):
     return get_tagged_values(obj, 'preference')
 
 
+def set_preferences(obj, preferences):
+    for member in get_tagged_members(obj, 'preference'):
+        value = preferences.get(member)
+        setattr(obj, member, value)
+
+
 def initialize(event):
     controller = event.workbench.get_plugin('psi.controller')
     context = event.workbench.get_plugin(PLUGIN_ID)
@@ -57,6 +63,7 @@ def initialize(event):
     context.apply_changes(cycles=cycles)
     context.next_setting(selector=event.parameters['selector'],
                          save_prior=False)
+    context.initialized = True
     controller.invoke_actions('context_initialized')
 
 
@@ -98,6 +105,9 @@ enamldef ContextManifest(PluginManifest): manifest:
         Function:
             name = 'db'
             function = lambda x: 20*np.log10(x)
+        Function:
+            name = 'dbi'
+            function = lambda x: 10**(x/20)
         Function:
             name = 'imul'
             function = lambda x, y: np.round(np.asarray(x)/y) * y
@@ -142,9 +152,6 @@ enamldef ContextManifest(PluginManifest): manifest:
     Extension:
         id = 'context_actions'
         point = 'psi.controller.actions'
-
-        ExperimentEvent:
-            name = 'context_changed'
 
         ExperimentEvent:
             name = 'context_complete'
@@ -195,7 +202,7 @@ enamldef ContextManifest(PluginManifest): manifest:
                     try:
                         group_state = parameter_state.get(item.group_name, {})
                         state = group_state.get(item.name, {})
-                        item.__setstate__(state)
+                        set_preferences(item, state)
                     except Exception as e:
                         log.exception(e)
 

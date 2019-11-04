@@ -1,3 +1,5 @@
+from collections import defaultdict
+
 from enaml.core.api import Conditional, d_func
 from enaml.widgets.api import CheckBox, Container, DockItem, VGroup
 from enaml.workbench.api import Extension
@@ -9,14 +11,20 @@ from psi.experiment.api import ItemPreferences
 from .table_store import TableStore, TableStoreManifest
 
 
+GONOGO_COLORS = {
+    'go_remind': 'forestgreen',
+    'go': 'lightgreen',
+    'go_forced': 'green',
+    'nogo': 'lightpink',
+    'nogo_repeat': 'pink',
+}
+GONOGO_COLORS = defaultdict(lambda x: 'white', **GONOGO_COLORS)
+
+
 class TrialLog(TableStore):
 
     name = 'trial_log'
     label = 'Trial log'
-
-    @d_func
-    def get_cell_color(self, row, column):
-        return 'white'
 
 
 enamldef TrialLogManifest(TableStoreManifest): manifest:
@@ -28,18 +36,19 @@ enamldef TrialLogManifest(TableStoreManifest): manifest:
             id = manifest.id + '.trial_log.items'
             point = 'psi.context.items'
             OrderedContextMeta: meta:
+                editable = True
                 link_rove = False
                 name << contribution.name
                 label << '{} columns'.format(contribution.label)
                 values ::
-                    table.columns = [v.name for v in values]
+                    tl_table.columns = [v.name for v in values]
                     column_info = {}
                     for v in values:
                         column_info[v.name] = {
                             'label': v.compact_label,
                             'to_string': '{:.2f}'.format if 'f' in v.dtype else str,
                         }
-                    table.column_info = column_info
+                    tl_table.column_info = column_info
 
         Extension:
             id = manifest.id + '.trial_log_workspace'
@@ -54,23 +63,24 @@ enamldef TrialLogManifest(TableStoreManifest): manifest:
                     VGroup:
                         CheckBox:
                             text = 'Autoscroll?'
-                            checked := table.autoscroll
+                            checked := tl_table.autoscroll
 
-                    ListDictTable: table:
+                    ListDictTable: tl_table:
+                        name = 'tl_table'
                         data << manifest.contribution._data[:]
                         get_cell_color => (row, column):
-                            try:
-                                tt = data[row]['trial_type']
-                                if tt == 'go_remind':
-                                    return 'forestgreen'
-                                elif tt == 'go':
-                                    return 'lightgreen'
-                                elif tt == 'go_forced':
-                                    return 'green'
-                                elif tt == 'nogo':
-                                    return 'lightpink'
-                                elif tt == 'nogo_repeat':
-                                    return 'pink'
-                            except KeyError:
-                                return 'white'
+                            tt = data[row]['trial_type']
+                            return GONOGO_COLORS[tt]
                         autoscroll = True
+                        columns_movable = False
+                        header_resize_mode = 'contents'
+                        stretch_last_section = False
+
+        Extension:
+            id = manifest.id + '.preferences'
+            point = 'psi.experiment.preferences'
+            rank = 200
+            ItemPreferences:
+                item << tl_table
+                name << manifest.contribution.name
+                auto_save = ['column_config']

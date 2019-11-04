@@ -20,7 +20,8 @@ from .output import Output, Synchronized
 from .input import Input
 from .device import Device
 
-from .experiment_action import (ExperimentAction, ExperimentEvent,
+from .experiment_action import (ExperimentAction, ExperimentActionBase,
+                                ExperimentCallback, ExperimentEvent,
                                 ExperimentState)
 from .output import ContinuousOutput, EpochOutput
 
@@ -53,11 +54,20 @@ def find_devices(point):
     return devices
 
 
+engine_error = '''
+More than one engine named "{}"
+
+To fix this, please review the IO manifest (i.e., hardware configuration) you
+selected and verify that all engines have unique names.
+'''
+
 def find_engines(point):
     master_engine = None
     engines = {}
     for extension in point.extensions:
         for e in extension.get_children(Engine):
+            if e.name in engines:
+                raise ValueError(engine_error.strip().format(e.name))
             engines[e.name] = e
             if e.master_clock:
                 if master_engine is not None:
@@ -82,8 +92,9 @@ def find_outputs(channels, point):
     # Find all the outputs already connected to a channel
     for c in channels.values():
         if isinstance(c, OutputMixin):
-            for o in c.outputs:
-                outputs[o.name] = o
+            for o in c.children:
+                for oi in get_outputs(o):
+                    outputs[oi.name] = oi
 
     # Find unconnected outputs and inputs (these are allowed so that we can
     # split processing hierarchies across multiple manifests).
@@ -232,6 +243,9 @@ class ControllerPlugin(Plugin):
         for i in self._inputs.values():
             i.load_manifest(self.workbench)
 
+        log.warn('***********************************************')
+        log.warn(str(self._outputs.keys()))
+
     def _connect_outputs(self):
         for o in self._outputs.values():
             # First, make sure that the output is connected to a target. Check
@@ -293,7 +307,7 @@ class ControllerPlugin(Plugin):
         for extension in point.extensions:
             found_states = extension.get_children(ExperimentState)
             found_events = extension.get_children(ExperimentEvent)
-            found_actions = extension.get_children(ExperimentAction)
+            found_actions = extension.get_children(ExperimentActionBase)
 
             for state in found_states:
                 if state.name in states:
@@ -325,7 +339,12 @@ class ControllerPlugin(Plugin):
     def register_action(self, event, command, kwargs=None):
         if kwargs is None:
             kwargs = {}
-        action = ExperimentAction(event=event, command=command, kwargs=kwargs)
+        if isinstance(command, str):
+            action = ExperimentAction(event=event, command=command,
+                                      kwargs=kwargs)
+        else:
+            action = ExperimentCallback(event=event, callback=command,
+                                        kwargs=kwargs)
         self._registered_actions.append(action)
 
     def finalize_io(self):
@@ -460,6 +479,7 @@ class ControllerPlugin(Plugin):
 
         for action in self._actions:
             if action.match(context):
+                log.debug('... invoking action %s', action)
                 self._invoke_action(action, event_name, timestamp, kw)
 
     def _invoke_action(self, action, event_name, timestamp, kw):
@@ -470,7 +490,10 @@ class ControllerPlugin(Plugin):
         kwargs['event'] = event_name
         if kw is not None:
             kwargs.update(kw)
-        self.core.invoke_command(action.command, parameters=kwargs)
+        if isinstance(action, ExperimentAction):
+            self.core.invoke_command(action.command, parameters=kwargs)
+        elif isinstance(action, ExperimentCallback):
+            action.callback(**kwargs)
 
     def request_apply(self):
         if not self.apply_changes():
@@ -499,7 +522,10 @@ class ControllerPlugin(Plugin):
         deferred_call(lambda: setattr(self, 'experiment_state', 'running'))
 
     def stop_experiment(self):
-        self.invoke_actions('experiment_end', self.get_ts())
+        try:
+            self.invoke_actions('experiment_end', self.get_ts())
+        except Exception as e:
+            log.exception(e)
         deferred_call(lambda: setattr(self, 'experiment_state', 'stopped'))
 
     def pause_experiment(self):

@@ -44,12 +44,13 @@ def prepare_event_callback(input, event):
 
 
 def configure_epoch_input(input, event):
-    plugin = event.workbench.get_plugin('psi.controller')
-    plugin.invoke_actions(input.name + '_queue_start')
+    controller = event.workbench.get_plugin('psi.controller')
+    context = event.workbench.get_plugin('psi.context')
+    controller.invoke_actions(input.name + '_queue_start')
     def empty_queue_cb(event):
-        nonlocal plugin
+        nonlocal controller
         nonlocal input
-        plugin.invoke_actions(input.name + '_queue_end')
+        controller.invoke_actions(input.name + '_queue_end')
     input.observe('complete', empty_queue_cb)
 
 

@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 import atexit
 from collections import Mapping
 from functools import partial

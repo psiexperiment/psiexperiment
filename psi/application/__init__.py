@@ -13,6 +13,8 @@ import traceback
 import warnings
 
 import enaml
+with enaml.imports():
+    from enaml.stdlib.message_box import critical
 
 from psi import get_config, set_config
 
@@ -97,8 +99,6 @@ def list_calibrations(io_file):
     return list(calibration_path.glob('*.json'))
 
 
-
-
 def launch_experiment(args):
     set_config('ARGS', args)
     if args.profile:
@@ -108,13 +108,14 @@ def launch_experiment(args):
 
     try:
         _main(args)
-    except:
+    except Exception as e:
         if args.pdb:
             type, value, tb = sys.exc_info()
             traceback.print_exc()
             pdb.post_mortem(tb)
         else:
-            raise
+            log.exception(e)
+            critical(None, 'Error starting experiment', str(e))
 
     if args.profile:
         profiler.stop()
@@ -145,12 +146,22 @@ def add_default_options(parser):
 
     class IOAction(argparse.Action):
         def __call__(self, parser, namespace, value, option_string=None):
-            print('called')
-            setattr(namespace, self.dest, value)
+            path = Path(value)
+            if not path.exists():
+                path = get_config('IO_ROOT') / value
+                path = path.with_suffix('.enaml')
+                if not path.exists():
+                    raise ValueError('%s does not exist'.format(value))
+            setattr(namespace, self.dest, path)
 
     class CalibrationAction(argparse.Action):
         def __call__(self, parser, namespace, value, option_string=None):
-            print('called')
+            path = Path(value)
+            if not path.exists():
+                path = namespace.io / path
+                path = path.with_suffix('.json')
+                if not path.exists():
+                    raise ValueError('%s does not exist'.format(value))
             setattr(namespace, self.dest, value)
 
     parser.add_argument('pathname', type=str, help='Filename', nargs='?')
@@ -178,7 +189,10 @@ def add_default_options(parser):
 def parse_args(parser):
     args = parser.parse_args()
     if args.calibration is None:
-        args.calibration = get_default_calibration(args.io)
+        try:
+            args.calibration = get_default_calibration(args.io)
+        except ValueError as e:
+            log.warn(str(e))
     return args
 
 
@@ -187,7 +201,7 @@ def config():
     import psi
 
     def show_config(args):
-        print(psi.get_config_path())
+        print(psi.get_config_file())
 
     def create_config(args):
         psi.create_config(base_directory=args.base_directory)
@@ -196,6 +210,9 @@ def config():
 
     def create_folders(args):
         psi.create_config_dirs()
+
+    def create_io(args):
+        psi.create_io_manifest()
 
     parser = argparse.ArgumentParser('psi-config')
     subparsers = parser.add_subparsers(dest='cmd')
@@ -210,6 +227,9 @@ def config():
 
     make = subparsers.add_parser('create-folders')
     make.set_defaults(func=create_folders)
+
+    io = subparsers.add_parser('create-io')
+    io.set_defaults(func=create_io)
 
     args = parser.parse_args()
     args.func(args)

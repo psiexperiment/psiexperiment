@@ -252,10 +252,11 @@ def sam_eq_phase(delay, depth, direction):
 @fast_cache
 def sam_envelope(offset, samples, fs, depth, fm, delay, eq_phase, eq_power):
     delay_n = np.clip(int(delay*fs)-offset, 0, samples)
+    delay_n = int(np.round(delay_n))
     sam_n = samples-delay_n
 
     sam_offset = offset-delay_n
-    t = (np.arange(sam_n, dtype=np.float32) + sam_offset)/fs
+    t = (np.arange(sam_n, dtype=np.double) + sam_offset)/fs
     sam_envelope = depth/2.0*np.cos(2.0*np.pi*fm*t+eq_phase)+1.0-depth/2.0
 
     # Ensure that we scale the waveform so that the total power remains equal
@@ -345,7 +346,9 @@ def _calculate_bandlimited_noise_iir(fs, calibration, fl, fh):
 
 
 class BandlimitedNoiseFactory(Carrier):
-
+    '''
+    Factory for generating continuous bandlimited noise
+    '''
     def __init__(self, fs, seed, level, fl, fh, filter_rolloff,
                  passband_attenuation, stopband_attenuation, equalize,
                  calibration):
@@ -354,19 +357,19 @@ class BandlimitedNoiseFactory(Carrier):
         # Calculate the scaling factor for the noise
         center_frequency = (fl+fh)*0.5
         pass_bandwidth = fh-fl
-        sf = calibration.get_sf(center_frequency, level)
+        self.sf = calibration.get_sf(center_frequency, level)
 
         # This was copied from the EPL CFT. Need to figure out how this
         # equation works so we can document this better. But it works as
         # intended to scale the noise back to RMS=1.
-        filter_sf = 1.0/np.sqrt(pass_bandwidth*2/fs/3.0)
+        self.filter_sf = 1.0/np.sqrt(pass_bandwidth*2/fs/3.0)
 
         # The RMS value of noise drawn from a uniform distribution is
         # amplitude/sqrt(3). By setting the low and high to sqrt(3) and
         # multiplying by the scaling factors, we can ensure that the noise is
         # initially generated with the desired RMS.
-        self.low = -np.sqrt(3)*filter_sf*sf
-        self.high = np.sqrt(3)*filter_sf*sf
+        self.low = -np.sqrt(3)*self.filter_sf*self.sf
+        self.high = np.sqrt(3)*self.filter_sf*self.sf
 
         # Calculate the stop bandwidth as octaves above and below the passband.
         # Precompute the filter settings.
@@ -482,7 +485,7 @@ class ToneFactory(Carrier):
     def next(self, samples):
         # Note. At least for 5 msec tones it's faster to just compute the array
         # rather than cache the result.
-        t = (np.arange(samples, dtype=np.float32) + self.offset)/self.fs
+        t = (np.arange(samples, dtype=np.double) + self.offset)/self.fs
         waveform = self.polarity*self.sf*np.cos(2*np.pi*t*self.frequency + self.phase)
         self.offset += samples
         return waveform

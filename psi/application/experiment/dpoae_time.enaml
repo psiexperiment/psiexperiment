@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 
@@ -27,6 +30,7 @@ def next_trial(event):
     else:
         TRIAL += 1
 
+    log.debug('PREPARING TRIAL %d', TRIAL)
     iti = context.get_value('iti')
     ts = controller.get_ts()
     parameters = {'delay': iti, 'timestamp': ts}
@@ -59,24 +63,17 @@ enamldef ControllerManifest(DPOAEManifest):
         id = EXPERIMENT + '.items'
         point = 'psi.context.items'
 
-        #Parameter:
-        #    name = 'ttl_start'
-        #    label = 'TTL start time (sec)'
-        #    dtype = 'float'
-        #    default = 5
-        #    group_name = 'dpoae'
-
         Parameter:
             name = 'repetitions'
             label = 'Repetitions'
-            dtype = float
+            dtype = 'float'
             default = 5
             group_name = 'dpoae'
 
         Parameter:
             name = 'iti'
             label = 'ITI'
-            dtype = float
+            dtype = 'float'
             default = 1
             group_name = 'dpoae'
 
@@ -92,7 +89,7 @@ enamldef ControllerManifest(DPOAEManifest):
 
             ViewBox:
                 y_min = -10
-                y_max = 80
+                y_max = 30
 
                 ResultPlot: grp:
                     source_name = 'analyze_dpoae'

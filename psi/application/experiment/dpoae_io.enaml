@@ -29,6 +29,10 @@ enamldef ControllerManifest(DPOAEManifest):
             command = 'dpoae.start'
             kwargs = {'delay': 1.0}
 
+        ExperimentAction:
+            event = 'context_complete'
+            command = 'psi.controller.stop'
+
     Extension:
         id = EXPERIMENT + '.plots'
         point = 'psi.data.plots'

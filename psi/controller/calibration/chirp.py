@@ -50,6 +50,7 @@ def chirp_power(engine, ao_channel_name, ai_channel_names, start_frequency=500,
 
     # Build the signal queue
     queue = FIFOSignalQueue()
+    queue.set_fs(ao_fs)
 
     # Create and add the chirp
     factory = ChirpFactory(ao_fs, start_frequency, end_frequency, duration,

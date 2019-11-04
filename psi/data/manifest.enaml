@@ -12,9 +12,7 @@ from psi import get_config
 from psi.controller.api import ExperimentAction
 
 from .plugin import DataPlugin
-
-
-PLUGIN_ID = 'psi.data'
+from .sinks.api import PreferencesStore
 
 
 def set_base_path(event):
@@ -40,7 +38,7 @@ def format_container(event):
 
 enamldef DataManifest(PluginManifest): manifest:
 
-    id = PLUGIN_ID
+    id = 'psi.data'
     factory = DataPlugin
 
     ExtensionPoint:
@@ -50,14 +48,21 @@ enamldef DataManifest(PluginManifest): manifest:
         id = 'plots'
 
     Extension:
-        id = 'commands'
+        id = manifest.id + 'commands'
         point = 'enaml.workbench.core.commands'
         Command:
-            id = PLUGIN_ID + '.set_base_path'
+            id = manifest.id + '.set_base_path'
             handler = set_base_path
         Command:
-            id = PLUGIN_ID + '.attach_source'
+            id = manifest.id + '.attach_source'
             handler = attach_source
         Command:
-            id = PLUGIN_ID + '.format_container'
+            id = manifest.id + '.format_container'
             handler = format_container
+
+    Extension:
+        id = manifest.id + '.sinks'
+        point = 'psi.data.sinks'
+
+        PreferencesStore:
+            pass

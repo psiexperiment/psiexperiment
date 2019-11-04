@@ -33,11 +33,22 @@ class ExperimentEvent(Declarative):
     associated_state = Typed(ExperimentState)
 
 
+missing_event_mesg = '''
+Missing event "{key}".
+
+Perhaps an input, output or device is missing from the IO configuration?
+'''
+
+
 def simple_match(key, context):
-    return context[key]
+    try:
+        return context[key]
+    except Exception as e:
+        new_exc = KeyError(missing_event_mesg.format(key=key))
+        raise new_exc from e
 
 
-class ExperimentAction(Declarative):
+class ExperimentActionBase(Declarative):
 
     # Name of event that triggers command
     event = d_(Unicode())
@@ -46,16 +57,13 @@ class ExperimentAction(Declarative):
 
     match = Callable()
 
-    # Command to invoke
-    command = d_(Unicode())
-
-    # Arguments to pass to command by keywod
-    kwargs = d_(Dict())
-
     # Defines order of invocation. Less than 100 invokes before default. Higher
     # than 100 invokes after default. Note that if concurrent is True, then
     # order of execution is not guaranteed.
     weight = d_(Int(50))
+
+    # Arguments to pass to command by keyword
+    kwargs = d_(Dict())
 
     def _default_dependencies(self):
         return get_dependencies(self.event)
@@ -66,3 +74,22 @@ class ExperimentAction(Declarative):
             return partial(simple_match, self.dependencies[0])
         else:
             return partial(eval, code)
+
+    def __str__(self):
+        return f'{self.event} (weight={self.weight}; kwargs={self.kwargs})'
+
+
+class ExperimentAction(ExperimentActionBase):
+
+    # Command to invoke
+    command = d_(Unicode())
+
+    def invoke(self, core, kwargs):
+        kwargs = kwargs.copy()
+        kwargs.update(self.kwargs)
+        core.invoke_command(action.command, parameters=kwargs)
+
+
+class ExperimentCallback(ExperimentActionBase):
+
+    callback = d_(Callable())

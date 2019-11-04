@@ -1,4 +1,5 @@
 import logging
+import os
 from pathlib import Path
 
 from atom.api import Event
@@ -15,6 +16,10 @@ logging.Logger.trace = trace
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
+
+
+# Flag indicating whether user configuration file was loaded.
+CONFIG_LOADED = False
 
 
 exclude = ['_d_storage', '_d_engine', '_flags', '_parent', '_children']
@@ -44,21 +49,32 @@ def get_config_folder():
 
 
 def get_config_file():
-    return get_config_folder() / 'config.py'
+    default = get_config_folder() / 'config.py'
+    return Path(os.environ.get('PSI_CONFIG', default))
 
 
 def create_config(base_directory=None):
     config_template = Path(__file__).parent / 'templates' / 'config.txt'
-    target = get_config_path()
+    target = get_config_file()
     target.parent.mkdir(exist_ok=True, parents=True)
 
     if base_directory is None:
         base_directory = str(target.parent)
 
-    with open(target, 'w') as fh:
-        config_text = config_template.read_text()
-        config_text = config_text.format(base_directory)
-        fh.write(config_text)
+    config_text = config_template.read_text()
+    config_text = config_text.format(base_directory)
+    target.write_text(config_text)
+
+
+def create_io_manifest():
+    io_template = Path(__file__).parent / 'templates' / 'io.txt'
+    system = get_config('SYSTEM')
+    io = Path(get_config('IO_ROOT')) / system
+    io = io.with_suffix('.enaml')
+    io.parent.mkdir(exist_ok=True, parents=True)
+
+    io_text = io_template.read_text().format(system)
+    io.write_text(io_text)
 
 
 def create_config_dirs():
@@ -70,6 +86,7 @@ def create_config_dirs():
 
 def load_config():
     # Load the default settings
+    global CONFIG_LOADED
     import importlib.util
     from os import environ
     from . import config
@@ -83,6 +100,7 @@ def load_config():
             for name, value in vars(module).items():
                 if name == name.upper():
                     setattr(config, name, value)
+            CONFIG_LOADED = True
         except Exception as e:
             log.exception(e)
 
@@ -102,12 +120,25 @@ def set_config(setting, value):
     setattr(_config, setting, value)
 
 
+CFG_ERR_MESG = '''
+Could not find setting "{}" in configuration. This may be because the
+configuration file is missing. Please run psi-config to create it.
+'''
+
+
 def get_config(setting=None):
     '''
     Get value of setting
     '''
     if setting is not None:
-        return getattr(_config, setting)
+        try:
+            return getattr(_config, setting)
+        except AttributeError as e:
+            print(CONFIG_LOADED)
+            if CONFIG_LOADED:
+                raise
+            mesg = CFG_ERR_MESG.strip().format(setting)
+            raise SystemError(mesg) from e
     else:
         setting_names = [s for s in dir(_config) if s.upper() == s]
         setting_values = [getattr(_config, s) for s in setting_names]
@@ -119,9 +150,9 @@ def get_config(setting=None):
 # fairly well. This ensures that third-party libraries (e.g., bcolz) that see
 # psiexperiment data structures can properly deal with them.
 import json
-import json_tricks
-
-for fn_name in ('dump', 'dumps', 'load', 'loads'):
-    fn = getattr(json_tricks, fn_name)
-    setattr(json, fn_name, fn)
-log.debug('Monkeypatched system JSON')
+#import json_tricks
+#
+#for fn_name in ('dump', 'dumps', 'load', 'loads'):
+#    fn = getattr(json_tricks, fn_name)
+#    setattr(json, fn_name, fn)
+#log.debug('Monkeypatched system JSON')

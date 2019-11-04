@@ -204,6 +204,9 @@ class Calibration(Atom):
     def get_attenuation(self, frequency, voltage, level):
         return self.get_spl(frequency, voltage)-level
 
+    def get_gain(self, frequency, spl, attenuation=0):
+        return util.db(self.get_sf(frequency, spl, attenuation))
+
     def set_fixed_gain(self, fixed_gain):
         self.fixed_gain = fixed_gain
 
@@ -432,35 +435,15 @@ class GolayCalibration(InterpCalibration):
 
     @staticmethod
     def load_psi_golay(folder, n_bits=None, output_gain=None):
-        folder = Path(folder)
-        sensitivity = pd.io.parsers.read_csv(folder / 'sensitivity.csv')
-        if n_bits is None:
-            n_bits = sensitivity['n_bits'].max()
-        if output_gain is None:
-            m = sensitivity['n_bits'] == n_bits
-            output_gain = sensitivity.loc[m, 'output_gain'].max()
-        m_n_bits = sensitivity['n_bits'] == n_bits
-        m_output_gain = sensitivity['output_gain'] == output_gain
-        m = m_n_bits & m_output_gain
-        mic_freq = sensitivity.loc[m, 'frequency'].values
-        mic_sens = sensitivity.loc[m, 'sens'].values
-        mic_phase = sensitivity.loc[m, 'phase'].values
-        source = 'psi_golay', folder, n_bits, output_gain
-        carray = bcolz.carray(rootdir=folder / 'pt_epoch')
-        fs = carray.attrs['fs']
-        return {
-            'source': folder,
-            'frequency': mic_freq,
-            'sensitivity': mic_sens,
-            'phase': mic_phase,
-            'fs': fs,
-        }
+        from psi.data.io.calibration import CalibrationFile
+        fh = CalibrationFile(folder)
+        return fh._get_golay_data(n_bits, output_gain)
 
     @classmethod
     def from_psi_golay(cls, folder, n_bits=None, output_gain=None, **kwargs):
-        data = cls.load_psi_golay(folder, n_bits, output_gain)
-        data.update(kwargs)
-        return cls(**data)
+        from psi.data.io.calibration import CalibrationFile
+        fh = CalibrationFile(folder)
+        return fh.get_golay_calibration(n_bits, output_gain)
 
     def get_iir(self, fs, fl, fh, truncate=None):
         fs_ratio = self.fs/fs
@@ -496,6 +479,35 @@ class GolayCalibration(InterpCalibration):
             iir = iir[:n]
 
         return iir
+
+
+class ChirpCalibration(InterpCalibration):
+
+    source = Typed(Path).tag(metadata=True)
+
+    @staticmethod
+    def load_psi_chirp(folder, output_gain=None):
+        folder = Path(folder)
+        sensitivity = pd.io.parsers.read_csv(folder / 'chirp_summary.csv')
+        if output_gain is None:
+            output_gain = sensitivity['hw_ao_chirp_level'].max()
+
+        m = sensitivity['hw_ao_chirp_level'] == output_gain
+        mic_freq = sensitivity.loc[m, 'frequency'].values
+        mic_sens = sensitivity.loc[m, 'sens'].values
+        mic_phase = sensitivity.loc[m, 'phase'].values
+        source = 'psi_chirp', folder, output_gain
+        return {
+            'source': folder,
+            'frequency': mic_freq,
+            'sensitivity': mic_sens,
+        }
+
+    @classmethod
+    def from_psi_chirp(cls, folder, n_bits=None, output_gain=None, **kwargs):
+        data = cls.load_psi_golay(folder, n_bits, output_gain)
+        data.update(kwargs)
+        return cls(**data)
 
 
 if __name__ == '__main__':

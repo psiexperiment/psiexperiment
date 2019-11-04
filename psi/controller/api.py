@@ -14,8 +14,8 @@ from .output import (Synchronized, ContinuousOutput, EpochOutput,
                      QueuedEpochOutput, SelectorQueuedEpochOutput,
                      DigitalOutput, Trigger, Toggle)
 
-from .experiment_action import (ExperimentAction, ExperimentEvent,
-                                ExperimentState)
+from .experiment_action import (ExperimentAction, ExperimentCallback,
+                                ExperimentEvent, ExperimentState)
 
 from .queue import FIFOSignalQueue, InterleavedFIFOSignalQueue
 
@@ -25,3 +25,4 @@ with enaml.imports():
     # Not where ControllerPlugin is defined, but helps simplify imports.
     from .manifest import (ControllerManifest, ControllerPlugin,
                            get_hw_ai_choices, get_hw_ao_choices)
+    from .output_manifest import generate_waveform

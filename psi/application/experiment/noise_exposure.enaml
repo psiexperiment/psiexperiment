@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 import numpy as np
 
 from enaml.workbench.api import Extension
@@ -5,10 +8,10 @@ from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import Branding
 
 from psi.context.api import ContextGroup, EnumParameter
-from psi.controller.base_manifest import BaseManifest, get_hw_ai_choices
-from psi.controller.api import ExperimentAction
+from psi.controller.api import (ControllerManifest, EpochOutput,
+                                ExperimentAction, ExperimentState,
+                                get_hw_ai_choices)
 
-from psi.controller.api import EpochOutput, ExperimentAction, ExperimentState
 from psi.controller.input import (Input, IIRFilter, CalibratedInput, RMS, SPL)
 
 from psi.data.plots import (TimeContainer, ChannelPlot, FFTContainer,
@@ -19,13 +22,14 @@ from psi.token.primitives import Cos2Envelope, BandlimitedNoise
 
 
 def configure_hardware(event):
-    controller = event.workbench.get_plugin('psi.controller')
     context = event.workbench.get_plugin('psi.context')
+    controller = event.workbench.get_plugin('psi.controller')
+
     values = context.get_values()
     controller.connect_input('microphone', values['microphone_channel'])
 
 
-enamldef ControllerManifest(BaseManifest): manifest:
+enamldef ControllerManifest(ControllerManifest): manifest:
 
     id = 'psi.controller'
 
@@ -36,17 +40,17 @@ enamldef ControllerManifest(BaseManifest): manifest:
         BColzStore:
             continuous_inputs = ['microphone', 'noise_level']
 
-    Extension:
-        id = 'branding'
-        point = 'enaml.workbench.ui.branding'
-        Branding:
-            title = 'Noise exposure'
+    #Extension:
+    #    id = 'branding'
+    #    point = 'enaml.workbench.ui.branding'
+    #    Branding:
+    #        title = 'Noise exposure'
 
     Extension:
         id = 'tokens'
         point = 'psi.token.tokens'
 
-        Cos2Envelope:
+        Cos2Envelope: noise:
             name = 'bandlimited_noise_burst'
             label = 'Bandlimited noise'
             BandlimitedNoise:
@@ -60,6 +64,8 @@ enamldef ControllerManifest(BaseManifest): manifest:
             name = 'exposure'
             label = 'Exposure'
             target_name = 'speaker'
+            token = noise
+            configurable = False
 
         Input:
             name = 'microphone'
@@ -107,12 +113,17 @@ enamldef ControllerManifest(BaseManifest): manifest:
         rank = 100
 
         ExperimentAction:
+            event = 'experiment_initialize'
+            command = 'psi.context.initialize'
+            kwargs = {'selector': None}
+
+        ExperimentAction:
             event = 'experiment_prepare'
             command = 'psi.controller.configure_hardware'
             weight = 10
 
         ExperimentAction:
-            event = 'experiment_prepare'
+            event = 'engines_configured'
             command = 'exposure.prepare'
 
         ExperimentAction:

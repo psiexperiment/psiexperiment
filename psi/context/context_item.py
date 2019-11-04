@@ -15,6 +15,7 @@ class ContextMeta(Declarative):
     name = d_(Unicode())
     label = d_(Unicode())
     link_rove = d_(Bool(True))
+    editable = d_(Bool(False))
 
 
 class UnorderedContextMeta(ContextMeta):
@@ -168,13 +169,15 @@ class ContextItem(Declarative):
     def coerce_to_type(self, value):
         coerce_function = np.dtype(self.dtype).type
         value = coerce_function(value)
-        return np.asscalar(value)
+        return value.item()
 
     def __repr__(self):
-        return f'<{self}>'
+        return f'<{self.__class__.__name__}: {self}>'
 
     def __str__(self):
-        return f'{self.name} in {self.group}'
+        if self.group:
+            return f'{self.name} in {self.group}'
+        return f'{self.name}'
 
     def set_group(self, group):
         if self.group is not None and self.group != group:
@@ -206,7 +209,7 @@ class Parameter(ContextItem):
     a go trial).
     '''
     # Default value of the context item when used as part of a selector.
-    default = d_(Value()).tag(preference=True)
+    default = d_(Value())
 
     expression = d_(Unicode()).tag(preference=True)
 
@@ -236,9 +239,9 @@ class Parameter(ContextItem):
 
 class EnumParameter(Parameter):
 
-    expression = Property()
-    choices = d_(Typed(dict))
+    expression = Property().tag(transient=True)
     selected = d_(Unicode()).tag(preference=True)
+    choices = d_(Typed(dict))
     default = d_(Unicode())
 
     def _default_dtype(self):

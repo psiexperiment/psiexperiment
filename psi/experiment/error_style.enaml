@@ -1,0 +1,101 @@
+from enaml.stdlib.dock_area_styles import (
+    AreaStyle, CommonStyles, ContainerStyle, DockBarButtonStyle, ItemStyle,
+    register_styles, RubberBandStyle, TabBarCloseButtonStyle, TabBarTabStyle,
+    TitleBarButtonStyle, TitleBarLabelStyle, TitleBarStyle, WindowButtonStyle,
+    WindowStyle)
+
+
+
+template ErrorStyle():
+
+    CommonStyles():
+        pass
+
+    AreaStyle:
+        background = 'lightcoral'
+        border = '1px solid #B0B0B0'
+
+    RubberBandStyle:
+        background = 'rgba(255, 255, 255, 130)'
+        border = '2px solid #666666'
+
+    WindowStyle:
+        background = 'white'
+        border = '1px solid #B0B0B0'
+
+    WindowButtonStyle:
+        pseudo_class = 'hover'
+        background = '#3665B3'
+        color = 'white'
+
+    WindowButtonStyle:
+        pseudo_class = 'pressed'
+        background = '#3D6099'
+
+    ContainerStyle:
+        background = '#C0C0C0'
+
+    ContainerStyle:
+        pseudo_class = 'floating'
+        border = '1px solid #B0B0B0'
+
+    ItemStyle:
+        background = 'rgb(240, 240, 240)'
+
+    TitleBarStyle:
+        background = 'darkred'
+
+    TitleBarLabelStyle:
+        color = 'rgb(240, 240, 240)'
+        font = '9pt "Segoe UI"'
+
+    TitleBarButtonStyle:
+        color = 'rgb(240, 240, 240)'
+
+    TitleBarButtonStyle:
+        pseudo_class = 'hover'
+        color = 'black'
+
+    TabBarTabStyle:
+        background = '#838587'
+        color = 'rgb(240, 240, 240)'
+
+    TabBarTabStyle:
+        pseudo_class = 'hover'
+        background = '#959799'
+
+    TabBarTabStyle:
+        pseudo_class = 'selected'
+        background = 'rgb(240, 240, 240)'
+        color = 'black'
+
+    TabBarCloseButtonStyle:
+        color = 'rgb(240, 240, 240)'
+
+    TabBarCloseButtonStyle:
+        pseudo_class = 'hover'
+        color = 'black'
+
+    TabBarCloseButtonStyle:
+        pseudo_class = 'selected'
+        color = 'rgb(100, 100, 100)'
+
+    TabBarCloseButtonStyle:
+        pseudo_class = 'selected:hover'
+        color = 'black'
+
+    DockBarButtonStyle:
+        border = '1px solid rgba(0, 0, 0, 0)'
+        background = 'darkred'
+        color = 'rgb(240, 240, 240)'
+
+    DockBarButtonStyle:
+        pseudo_class = 'hover'
+        background = 'rgb(61, 159, 229)'
+
+    DockBarButtonStyle:
+        pseudo_class = 'checked'
+        background = '#838587'
+
+
+register_styles('error', ErrorStyle)

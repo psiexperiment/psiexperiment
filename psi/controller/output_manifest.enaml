@@ -74,6 +74,12 @@ def load_items(output, block):
     return parameters
 
 
+def generate_waveform(output, context):
+    factory = initialize_factory(output, output.token, context)
+    samples = factory.get_remaining_samples()
+    return factory.next(samples)
+
+
 def initialize_factory(output, block, context):
     input_factories = [initialize_factory(output, b, context) \
                        for b in block.blocks]
@@ -83,6 +89,11 @@ def initialize_factory(output, block, context):
     # sampling rate).
     code = block.factory.__init__.__code__
     params = code.co_varnames[1:code.co_argcount]
+
+    context = context.copy()
+    if 'fs' not in context:
+        context['fs'] = output.fs
+        context['calibration'] = output.calibration
 
     # Now, pull out the block-specific context.
     block_context = {bn: context[gn] for gn, bn in \
@@ -539,29 +550,33 @@ enamldef QueuedEpochOutputManifest(EpochOutputManifest): manifest:
 
 enamldef SelectorQueuedEpochOutputManifest(QueuedEpochOutputManifest): manifest:
 
-    Extension:
-        id = manifest.id + '.epoch_output_menu'
-        point = 'enaml.workbench.ui.actions'
-        MenuItem:
-            path = '/equipment/output/{}/queue'.format(manifest.contribution.name)
-            label = 'ordering'
-            ItemGroup:
-                exclusive = True
-                id = manifest.contribution.name + '.queue'
+    Conditional:
+        condition << manifest.contribution.configurable
 
-        Looper:
-            iterable << queues.items()
+        Extension:
+            id = manifest.id + '.epoch_output_menu'
+            point = 'enaml.workbench.ui.actions'
+            MenuItem:
+                path = '/equipment/output/{}/queue'.format(manifest.contribution.name)
+                label = 'ordering'
+                ItemGroup:
+                    exclusive = True
+                    id = manifest.contribution.name + '.queue'
 
-            ActionItem:
-                path = '/equipment/output/{}/queue/{}'.format(manifest.contribution.name, loop_item[0])
-                label = loop_item[0]
-                group = manifest.contribution.name + '.queue'
-                checked << isinstance(manifest.contribution.queue, loop_item[1])
-                checkable = True
-                command = manifest.contribution.name + '.set_queue'
-                parameters = {'queue_class': loop_item[1]}
-                enabled << workbench.get_plugin('psi.controller').experiment_state \
-                    in ('initialized', 'stopped')
+            Looper:
+                iterable << queues.items()
+
+                ActionItem:
+                    path = '/equipment/output/{}/queue/{}' \
+                        .format(manifest.contribution.name, loop_item[0])
+                    label = loop_item[0]
+                    group = manifest.contribution.name + '.queue'
+                    checked << isinstance(manifest.contribution.queue, loop_item[1])
+                    checkable = True
+                    command = manifest.contribution.name + '.set_queue'
+                    parameters = {'queue_class': loop_item[1]}
+                    enabled << workbench.get_plugin('psi.controller').experiment_state \
+                        in ('initialized', 'stopped')
 
     Extension:
         id = manifest.id + '.epoch_output_items'

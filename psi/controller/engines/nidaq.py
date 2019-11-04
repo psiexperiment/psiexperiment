@@ -12,7 +12,7 @@ ways. In general, the only portion of the code you should use in third-party
 modules is the `Engine` class. This will serve as the sole communication layer
 between the NI hardware and your application. By doing so, this ensures a
 sufficient layer of abstraction that helps switch between DAQ hardware from
-different vendors (including Measurement Computing and OpenElec).
+different vendors provided that the appropriate interface is written.
 '''
 
 import logging
@@ -54,11 +54,17 @@ class NIDAQGeneralMixin(Declarative):
 
 class NIDAQTimingMixin(Declarative):
 
-    # If specifying a sample clock, you still need to specify fs.
+    #: Specifies sampling clock for the channel. Even if specifying a sample
+    #: clock, you still need to explicitly set the fs attribute.
     sample_clock = d_(Unicode().tag(metadata=True))
+
+    #: Specifies the start trigger for the channel. If None, sampling begins
+    #: when task is started.
     start_trigger = d_(Unicode().tag(metadata=True))
 
-    # A good value is 'PXI_Clk10'
+    #: Reference clock for the channel. If you aren't sure, a good value is
+    #: `PXI_Clk10` if using a PXI chassis. This ensures that the sample clocks
+    #: across all NI cards in the PXI chassis are synchronized.
     reference_clock = d_(Unicode()).tag(metadata=True)
 
 
@@ -72,19 +78,23 @@ class NIDAQCounterChannel(NIDAQGeneralMixin, CounterChannel):
 class NIDAQHardwareAOChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
                              HardwareAOChannel):
 
-    # Not all terminal modes may be supported by a particular device
+    #: Available terminal modes. Not all terminal modes may be supported by a
+    #: particular device
     TERMINAL_MODES = 'pseudodifferential', 'differential', 'RSE'
+
+    #: Terminal mode
     terminal_mode = d_(Enum(*TERMINAL_MODES)).tag(metadata=True)
+
     filter_delay = Property().tag(metadata=True)
     filter_delay_samples = Property().tag(metadata=True)
     device_name = Property().tag(metadata=False)
 
-    # Filter delay lookup table for different sampling rates. The first column
-    # is the lower bound (exclusive) of the sampling rate (in samples/sec) for
-    # the filter delay (second column, in samples). The upper bound of the
-    # range (inclusive) for the sampling rate is denoted by the next row.
-    # e.g., if FILTER_DELAY[i, 0] < fs <= FILTER_DELAY[i+1, 0] is True, then
-    # the filter delay is FILTER_DELAY[i, 1].
+    #: Filter delay lookup table for different sampling rates. The first column
+    #: is the lower bound (exclusive) of the sampling rate (in samples/sec) for
+    #: the filter delay (second column, in samples). The upper bound of the
+    #: range (inclusive) for the sampling rate is denoted by the next row.
+    #: e.g., if FILTER_DELAY[i, 0] < fs <= FILTER_DELAY[i+1, 0] is True, then
+    #: the filter delay is FILTER_DELAY[i, 1].
     FILTER_DELAY = np.array([
         (  1.0e3, 36.6),
         (  1.6e3, 36.8),
@@ -110,11 +120,13 @@ class NIDAQHardwareAOChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
 class NIDAQHardwareAIChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
                              HardwareAIChannel):
 
-    # Not all terminal modes may be supported by a particular device
+    #: Available terminal modes. Not all terminal modes may be supported by a
+    #: particular device
     TERMINAL_MODES = 'pseudodifferential', 'differential', 'RSE', 'NRSE'
     terminal_mode = d_(Enum(*TERMINAL_MODES)).tag(metadata=True)
 
-    # Not all terminal couplings may be supported by a particular device.
+    #: Terminal coupling to use. Not all terminal couplings may be supported by
+    #: a particular device. Can be `None`, `'AC'`, `'DC'` or `'ground'`.
     terminal_coupling = d_(Enum(None, 'AC', 'DC', 'ground')).tag(metadata=True)
 
 
