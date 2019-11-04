@@ -8,13 +8,6 @@ import pandas as pd
 from psi.data.io import abr
 
 
-nofilter_template = 'ABR {:.1f}ms to {:.1f}ms {{}}{{}}.csv'
-
-filter_template = 'ABR {:.1f}ms to {:.1f}ms ' \
-    'with {:.0f}Hz to {:.0f}Hz filter ' \
-    '{{}}.csv'
-
-
 columns = ['frequency', 'level', 'polarity']
 
 
@@ -55,6 +48,9 @@ def _get_file_template(fh, offset, duration, filter_settings, suffix=None):
         lb = filter_settings['lb']
         ub = filter_settings['ub']
         filter_string = f'{lb:.0f}Hz to {ub:.0f}Hz filter'
+        order = filter_settings['order']
+        if order != 1:
+            filter_string = f'{order:.0f} order {filter_string}'
 
     if filter_string is None:
         file_string = f'{base_string}'
@@ -64,6 +60,7 @@ def _get_file_template(fh, offset, duration, filter_settings, suffix=None):
     if suffix is not None:
         file_string = f'{file_string} {suffix}'
 
+    print(file_string)
     return f'{file_string} {{}}.csv'
 
 
@@ -84,9 +81,9 @@ def _get_epochs(fh, offset, duration, filter_settings, reject_ratio=None):
     elif filter_settings is None:
         epochs = fh.get_epochs(**kwargs)
     else:
-        lb = filter_settings['lb']
-        ub = filter_settings['ub']
-        kwargs.update({'filter_lb': lb, 'filter_ub': ub})
+        kwargs['filter_lb'] = filter_settings['lb']
+        kwargs['filter_ub'] = filter_settings['ub']
+        kwargs['filter_order'] = filter_settings['order']
         epochs = fh.get_epochs_filtered(**kwargs)
     return epochs
 
@@ -248,6 +245,9 @@ def main():
     parser.add_argument('--filter-ub', type=float,
                         help='Lowpass filter cutoff',
                         default=None)
+    parser.add_argument('--order', type=float,
+                        help='Filter order',
+                        default=None)
     parser.add_argument('--reprocess',
                         help='Redo existing results',
                         action='store_true')
@@ -257,6 +257,7 @@ def main():
         filter_settings = {
             'lb': args.filter_lb,
             'ub': args.filter_ub,
+            'order': args.order,
         }
     else:
         filter_settings = None
