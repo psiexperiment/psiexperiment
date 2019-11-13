@@ -77,6 +77,7 @@ What you get
 
    installing
    io_manifest
+   software/index.rst
 
 :doc:`installing`
 -----------------
@@ -94,6 +95,10 @@ Instructions on creating your input-output manifest which describes all equipmen
    waveforms
    context
    creating_experiment
+
+:doc:`software`
+---------------
+Instructions for end-users.
 
 :doc:`context`
 --------------
