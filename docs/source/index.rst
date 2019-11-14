@@ -9,13 +9,16 @@ Psiexperiment is a plugin-based framework for creating feature-rich auditory exp
 * Operant behavior (go-nogo task) that can embed discrete sound tokens (i.e., targets and/or distractors) in a continuous background masker.
 * Noise exposures.
 
+.. note::
+
+   If you're interested in the interleaved stimulus design for auditory brainstem responses (ABRs) described in Buran et al. (2019) [1]_, please follow the regular install instructions then see :doc:`installing_abr`.
+
 Screencasts
 -----------
 To get a better view of these screencasts, right click on the image and select "view image" in your browser.
 
 Chirp calibration
 .................
-
 Screencast illustrating several key features of psiexperiment including:
 
 * The dock layout (which allows individual tabs to be rearranged)
@@ -96,7 +99,7 @@ Instructions on creating your input-output manifest which describes all equipmen
    context
    creating_experiment
 
-:doc:`software`
+:doc:`software/index`
 ---------------
 Instructions for end-users.
 
@@ -122,3 +125,5 @@ Instructions on how to create your own experiment.
 :doc:`api/modules`
 ------------------
 Overview of API.
+
+.. [1] Buran BN, Elkins S. Beth JB, Porsov EV, Brigande JV, David SV. Optimizing auditory brainstem response acquisition using interleaved frequencies.  bioRxiv 781831; doi: https://doi.org/10.1101/781831 
