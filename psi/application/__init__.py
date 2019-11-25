@@ -130,7 +130,8 @@ def get_default_io():
     for io in available_io:
         if io.stem == system:
             return io
-    raise ValueError('No IO configured for system')
+    return None
+    #raise ValueError('No IO configured for system')
 
 
 def get_default_calibration(io_file):
