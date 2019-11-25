@@ -135,10 +135,12 @@ enamldef ABRManifest(ControllerManifest): manifest:
 
         ContinuousInput:
             name = 'microphone'
-            source_name = 'microphone_channel'
+            source_name << C.pt_channel
+            source ::
+                channel.gain = C.pt_input_gain
 
         Input:
-            source_name = 'eeg_channel'
+            source_name << C.eeg_channel
             name = 'eeg'
 
             IIRFilter:
@@ -146,7 +148,6 @@ enamldef ABRManifest(ControllerManifest): manifest:
                 N = 2
                 btype = 'bandpass'
                 ftype = 'butter'
-                source_name = 'eeg_channel'
                 passthrough = not C.digital_filter
                 f_highpass = C.digital_highpass
                 f_lowpass = C.digital_lowpass
@@ -256,11 +257,32 @@ enamldef ABRManifest(ControllerManifest): manifest:
             label = 'Hardware settings'
 
             EnumParameter:
+                name = 'pt_channel'
+                label = 'Probe tube mic. channel'
+                choices = manifest.get_hw_ai_choices()
+                selected = next(iter(manifest.get_hw_ai_choices()))
+                scope = 'experiment'
+
+            Parameter:
+                name = 'pt_input_gain'
+                label = 'Probe tube input gain (dB)'
+                dtype = 'float64'
+                default = 40
+                scope = 'experiment'
+
+            EnumParameter:
                 name = 'output_channel'
                 label = 'Output channel'
                 compact_label = 'ao'
                 choices = manifest.get_hw_ao_choices()
                 selected = next(iter(manifest.get_hw_ao_choices()))
+                scope = 'experiment'
+
+            EnumParameter:
+                name = 'eeg_channel'
+                label = 'EEG channel'
+                choices = manifest.get_hw_ai_choices()
+                selected = next(iter(manifest.get_hw_ai_choices()))
                 scope = 'experiment'
 
             Parameter:
@@ -362,4 +384,5 @@ enamldef ABRManifest(ControllerManifest): manifest:
                         n_update = 8
                         group_filter = lambda key: key['target_tone_frequency'] == loop_item
                         pen_width = 2
+                        pen_color_cycle = ['k']
                         groups << epoch_groups

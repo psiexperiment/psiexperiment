@@ -177,6 +177,8 @@ enamldef DPOAEManifest(ControllerManifest): manifest:
         ContinuousInput:
             name = 'microphone'
             source_name = C.dpoae_microphone_channel
+            source ::
+                channel.gain = C.dpoae_microphone_input_gain
 
             Capture:
                 # Begin capturing microphone signal once DPOAE starts. Linked
@@ -297,6 +299,13 @@ enamldef DPOAEManifest(ControllerManifest): manifest:
                 name = 'dpoae_microphone_channel'
                 label = 'DPOAE microphone'
                 choices = manifest.get_hw_ai_choices()
+                scope = 'experiment'
+
+            Parameter:
+                name = 'dpoae_microphone_input_gain'
+                label = 'DPOAE microphone input gain'
+                dtype = 'float64'
+                default = 40
                 scope = 'experiment'
 
             Parameter:
