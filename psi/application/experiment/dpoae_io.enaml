@@ -10,10 +10,20 @@ EXPERIMENT = __name__.rsplit('.', 1)[-1]
 
 from enaml.core.api import Looper
 from enaml.widgets.api import Form, ObjectCombo
+from psi.context.api import Expression
 from psi.data.plots import MultiPlotContainer
 
 
 enamldef ControllerManifest(DPOAEManifest):
+
+    Extension:
+        id = EXPERIMENT + '.context'
+        point = 'psi.context.items'
+
+        Expression:
+            # Set tone duration to a very, very large number
+            parameter = 'secondary_tone_duration'
+            expression = '100e6'
 
     Extension:
         id = EXPERIMENT + '.actions'

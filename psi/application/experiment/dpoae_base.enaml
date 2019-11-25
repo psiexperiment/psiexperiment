@@ -256,16 +256,24 @@ enamldef DPOAEManifest(ControllerManifest): manifest:
             expression = 'imul(secondary_tone_frequency / f2_f1_ratio, 1/response_window)'
 
         Expression:
+            parameter = 'secondary_tone_level'
+            expression = 'f2_level'
+
+        Expression:
             parameter = 'primary_tone_level'
-            expression = 'secondary_tone_level + l1_l2_difference'
+            expression = 'f2_level + l1_l2_difference'
 
         Expression:
             parameter = 'primary_tone_duration'
             expression = 'secondary_tone_duration'
 
         Expression:
+            parameter = 'secondary_tone_rise_time'
+            expression = 'rise_time'
+
+        Expression:
             parameter = 'primary_tone_rise_time'
-            expression = 'secondary_tone_rise_time'
+            expression = 'rise_time'
 
         ContextGroup:
             name = 'dpoae'
@@ -296,6 +304,18 @@ enamldef DPOAEManifest(ControllerManifest): manifest:
                 label = 'F2 frequency'
                 compact_label = 'F2'
                 default = 8000
+
+            Parameter:
+                name = 'f2_level'
+                label = 'F2 level'
+                compact_label = 'L2'
+                default = 80
+
+            Parameter:
+                name = 'rise_time'
+                label = 'Tone rise time'
+                compact_label = 'rise time'
+                default = 2.5e-3
 
             Parameter:
                 name = 'f2_f1_ratio'
