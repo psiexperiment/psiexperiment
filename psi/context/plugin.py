@@ -225,6 +225,11 @@ class ContextPlugin(Plugin):
             if getattr(i, 'rove', False):
                 self.rove_item(i)
 
+    @observe('symbols')
+    def _update_selectors(self, event):
+        for selector in self._selectors.items():
+            selector.symbols = self.symbols[:]
+
     def _observe_item_updated(self, event):
         self._check_for_changes()
 

@@ -54,6 +54,8 @@ Notes for developers
   module is suboptimal for scientific work).
 
 '''
+import logging
+log = logging.getLogger(__name__)
 
 from functools import wraps
 import collections

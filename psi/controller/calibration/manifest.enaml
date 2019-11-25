@@ -93,7 +93,8 @@ def tone_calibrate_channel(workbench, outputs, input_name, gain, duration,
             new = core.invoke_command('psi.context.unique_values', p)
             frequencies.update(new)
 
-    ai_channel = controller.get_channel(input_name)
+    ai_input = controller.get_input(input_name)
+    ai_channel = ai_input.channel
 
     # Iter through the identified channels and calibrate them
     results = {}
@@ -157,7 +158,8 @@ def chirp_calibrate_channel(workbench, outputs, input_name, gain, duration,
         output = controller.get_output(output_name)
         ao_channels.update([output.channel])
 
-    ai_channel = controller.get_channel(input_name)
+    ai_input = controller.get_input(input_name)
+    ai_channel = ai_input.channel
 
     results = {}
     for ao_channel in ao_channels:
