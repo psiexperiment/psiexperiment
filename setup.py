@@ -10,6 +10,7 @@ requirements = [
     'palettable',
     'pyqtgraph',
     'scipy',
+    'pandas',
 ]
 
 
@@ -21,20 +22,15 @@ extras_require = {
 }
 
 
-package_data = {
-    '': ['*.enaml', '*.txt'],
-}
-
-
 setup(
-    name='PsiExperiment',
-    version='0.1.3',
+    name='psiexperiment',
+    version='0.1.4',
     author='Brad Buran',
     author_email='bburan@alum.mit.edu',
     install_requires=requirements,
     extras_require=extras_require,
     packages=find_packages(),
-    package_data=package_data,
+    include_package_data=True,
     license='LICENSE.txt',
     description='Module for running trial-based experiments.',
     entry_points={
