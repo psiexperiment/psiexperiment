@@ -7,6 +7,10 @@ figure, axes = plt.subplots(1, 1)
 lw = 10
 adj = 2.5
 r = 2
+
+patch = mp.patches.Rectangle((-10, -20), 30, 30, facecolor='white')
+axes.add_patch(patch)
+
 patch = mp.patches.Circle((0, 0), radius=2, lw=lw, edgecolor='black', facecolor='none')
 axes.add_patch(patch)
 
