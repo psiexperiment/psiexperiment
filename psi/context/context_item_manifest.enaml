@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 from enaml.core.api import Conditional, Looper
 from enaml.styling import StyleSheet, Style, Setter
 from enaml.widgets.api import DockItem, VGroup
@@ -22,6 +25,10 @@ enamldef ContextDockItem(DockItem):
                     context_item = loop_item
 
 
+def check_items(contribution):
+    return bool([i for i in contribution.items if i.visible])
+
+
 enamldef ContextGroupManifest(PSIManifest): manifest:
 
     Extension:
@@ -29,8 +36,7 @@ enamldef ContextGroupManifest(PSIManifest): manifest:
         point = 'psi.experiment.workspace'
 
         Conditional:
-            #condition << len(list(i for i in manifest.contribution.items if i.visible)) > 0
-            condition << True
+            condition << check_items(manifest.contribution)
 
             ContextDockItem:
                 group << manifest.contribution

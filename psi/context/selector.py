@@ -10,12 +10,12 @@ the value for that context item.
 Examples
 --------
 The plugins typically handle most of the configuration for the context items
-and selectors. To illustrate what happens under the hood, let's create two
-|parameters|, level and frequency:
+and selectors. These are not typically meant for direct use. To illustrate what
+happens under the hood, let's create two |parameters|, level and frequency:
 
     >>> from .api import Parameter
-    >>> frequency = Parameter(name='frequency')
-    >>> level = Parameter(name='level')
+    >>> frequency = Parameter(name='frequency', dtype='float64')
+    >>> level = Parameter(name='level', dtype='float64')
 
 Now, let's create the selector and add the parameters to the selector:
 
@@ -52,7 +52,56 @@ Now, what happens if we continue past these 8?
     Traceback (most recent call last):
      ...
     StopIteration
+
+The selectors can accept a mix of values and expressions. Expressions are
+returned intact:
+
+    >>> selector = SequenceSelector(order='ascending')
+    >>> selector.append_item(frequency)
+    >>> selector.add_setting({'frequency': '4000 * 1.2'})
+    >>> selector.add_setting({'frequency': '2000 * 1.2'})
+    >>> selector.add_setting({'frequency': '8000 * 1.2'})
+    >>> selector.add_setting({'frequency': 4000})
+    >>> selector.add_setting({'frequency': 2000})
+    >>> selector.add_setting({'frequency': 8000})
+    >>> iterator = selector.get_iterator(cycles=1)
+    >>> for i in range(6):
+    ...     print(next(iterator))
+    {<Parameter: frequency>: 2000}
+    {<Parameter: frequency>: '2000 * 1.2'}
+    {<Parameter: frequency>: 4000}
+    {<Parameter: frequency>: '4000 * 1.2'}
+    {<Parameter: frequency>: 8000}
+    {<Parameter: frequency>: '8000 * 1.2'}
+
+The context plugin can provide a namespace that is used to evaluate the
+expression. To emulate this behavior for an AM depth sequence where you want to
+express values in dB re 100% but have the values internally converted to 0 ...
+1 since the SAM token generation does not accept dB-scaled values. This will
+give you a nicely-sorted list:
+
+    >>> selector = SequenceSelector(order='descending')
+    >>> am_depth = Parameter(name='am_depth', dtype='float64')
+    >>> selector.append_item(am_depth)
+    >>> selector.symbols = {'dbi': lambda x: 10**(x/20)}
+
+    >>> selector.add_setting({'am_depth': 'dbi(-3)'})
+    >>> selector.add_setting({'am_depth': 'dbi(-12)'})
+    >>> selector.add_setting({'am_depth': 'dbi(-9)'})
+    >>> selector.add_setting({'am_depth': 'dbi(0)'})
+    >>> selector.add_setting({'am_depth': 'dbi(-6)'})
+    >>> iterator = selector.get_iterator(cycles=1)
+    >>> for i in range(5):
+    ...     print(next(iterator))
+    {<Parameter: am_depth>: 'dbi(0)'}
+    {<Parameter: am_depth>: 'dbi(-3)'}
+    {<Parameter: am_depth>: 'dbi(-6)'}
+    {<Parameter: am_depth>: 'dbi(-9)'}
+    {<Parameter: am_depth>: 'dbi(-12)'}
+
 '''
+import logging
+log = logging.getLogger(__name__)
 
 import numpy as np
 
@@ -86,6 +135,7 @@ def warn_empty(method):
 class BaseSelector(PSIContribution):
 
     context_items = Typed(list, [])
+    symbols = Typed(dict, {})
     updated = Event()
 
     #: Since order of context items is important for certain selectors (e.g.,
@@ -205,7 +255,6 @@ class SingleSetting(BaseSelector):
         item : ContextItem
             Item to set value for
         '''
-        #value = item.coerce_to_type(value)
         self.setting[item.name] = value
         self.updated = True
 
@@ -292,10 +341,25 @@ class SequenceSelector(BaseSelector):
                 setting[item.name] = item.default
         super(SequenceSelector, self).append_item(item)
 
+    def get_key(self, settings, use='name'):
+        key = []
+        for item in self.context_items:
+            if use == 'name':
+                setting_value = settings[item.name]
+            elif use == 'item':
+                setting_value = settings[item]
+            else:
+                raise ValueError(f'Unrecognized value for use: "{use}"')
+            try:
+                value = item.coerce_to_type(setting_value)
+            except ValueError:
+                value = item.coerce_to_type(eval(setting_value, self.symbols))
+            key.append(value)
+        return key
+
     def sort_settings(self):
-        key = lambda x: [x[i.name] for i in self.context_items]
         settings = self.settings.copy()
-        settings.sort(key=key)
+        settings.sort(key=self.get_key)
         self.settings = settings
         self.updated = True
 
@@ -309,15 +373,12 @@ class SequenceSelector(BaseSelector):
         # we need to convert to a list of tuples.
         settings = [{i: s[i.name] for i in self.context_items} \
                     for s in self.settings]
-        key = operator.itemgetter(*self.context_items) \
-            if self.context_items else None
         selector = choice.options[self.order]
-        return selector(settings, cycles, key=key)
+        return selector(settings, cycles, key=lambda x: self.get_key(x, 'item'))
 
     def set_value(self, setting_index, item, value):
         # TODO: It's weird that some methods take the index of the setting,
         # while others take the setting object. Need to sanitize this.
-        #value = item.coerce_to_type(value)
         self.settings[setting_index][item.name] = value
         self.updated = True
 

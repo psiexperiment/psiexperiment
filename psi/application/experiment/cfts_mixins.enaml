@@ -240,7 +240,7 @@ enamldef ABRInEarCalibrationMixinManifest(PluginManifest): manifest:
         ToneCalibrate:
             name = 'abr_tone_calibration'
             label = 'ABR tones'
-            input_name = 'microphone_channel'
+            input_name = 'microphone'
             outputs = {'target': ['target_tone_frequency']}
             gain = -40
             max_thd = None
@@ -263,7 +263,7 @@ enamldef DPOAEInEarCalibrationMixinManifest(PluginManifest): manifest:
         ToneCalibrate:
             name = 'dpoae_tone_calibration'
             label = 'DPOAE primaries'
-            input_name = C.dpoae_microphone_channel
+            input_name = 'microphone'
             outputs = {
                 'primary': ['primary_tone_frequency'],
                 'secondary': ['secondary_tone_frequency'],

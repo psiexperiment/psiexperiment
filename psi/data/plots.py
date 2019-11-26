@@ -56,18 +56,22 @@ def make_color(color):
 ################################################################################
 class ColorCycleMixin(Declarative):
 
-    # Define the pen color cycle. Can be a list of colors or a string
-    # indicating the color palette to use in palettable.
+    #: Define the pen color cycle. Can be a list of colors or a string
+    #: indicating the color palette to use in palettable.
     pen_color_cycle = d_(Typed(object))
-
-    _pen_color_cycle = Typed(object)
     _plot_colors = Typed(dict)
 
-    def _default_pen_color_cycle(self):
-        return ['k']
+    def _make_plot_cycle(self):
+        if isinstance(self.pen_color_cycle, str):
+            cycle = get_color_cycle(self.pen_color_cycle)
+        else:
+            cycle = itertools.cycle(self.pen_color_cycle)
+        return defaultdict(lambda: next(cycle))
 
     @d_func
     def get_pen_color(self, key):
+        if self._plot_colors is None:
+            self._plot_colors = self._make_plot_cycle()
         color = self._plot_colors[key]
         if not isinstance(color, str):
             return QColor(*color)
@@ -75,11 +79,7 @@ class ColorCycleMixin(Declarative):
             return QColor(color)
 
     def _observe_pen_color_cycle(self, event):
-        if isinstance(self.pen_color_cycle, str):
-            self._pen_color_cycle = get_color_cycle(self.pen_color_cycle)
-        else:
-            self._pen_color_cycle = itertools.cycle(self.pen_color_cycle)
-        self._plot_colors = defaultdict(lambda: next(self._pen_color_cycle))
+        self._plot_colors = self._make_plot_cycle()
         self.reset_plots()
 
     def reset_plots(self):
@@ -247,6 +247,9 @@ class BasePlotContainer(PSIContribution):
                 return child
 
     def format_container(self):
+        pass
+
+    def _reset_plots(self):
         pass
 
 
@@ -432,6 +435,9 @@ class BasePlot(PSIContribution):
     label = d_(Unicode())
 
     def update(self, event=None):
+        pass
+
+    def _reset_plots(self):
         pass
 
 
@@ -708,9 +714,13 @@ class GroupMixin(ColorCycleMixin):
     groups = d_(Typed(ContextMeta))
     group_names = d_(List())
 
-    # Fucntion that takes the epoch metadata and decides whether to accept it
-    # for plotting.  Useful to reduce the number of plots shown on a graph.
+    #: Function that takes the epoch metadata and decides whether to accept it
+    #: for plotting.  Useful to reduce the number of plots shown on a graph.
     group_filter = d_(Callable())
+
+    #: Function that takes the epoch metadata and returns a key indicating
+    #: which group it should included in for plotting.
+    group_color_key = d_(Callable())
 
     pen_width = d_(Int(0))
     antialias = d_(Bool(False))
@@ -924,7 +934,7 @@ class StackedEpochAveragePlot(EpochGroupMixin, BasePlot):
             self._offset_update_needed = False
 
     def _reset_plots(self):
-        super()._reset_plots()
+        #super()._reset_plots()
         self.parent.viewbox \
             .sigRangeChanged.connect(self._update_offsets)
         self.parent.viewbox \
