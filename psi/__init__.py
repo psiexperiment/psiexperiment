@@ -67,7 +67,7 @@ def create_config(base_directory=None):
 
 
 def create_io_manifest():
-    io_template = Path(__file__).parent / 'templates' / 'io.txt'
+    io_template = Path(__file__).parent / 'templates' / 'io' / 'bare_bones.txt'
     system = get_config('SYSTEM')
     io = Path(get_config('IO_ROOT')) / system
     io = io.with_suffix('.enaml')
@@ -150,9 +150,9 @@ def get_config(setting=None):
 # fairly well. This ensures that third-party libraries (e.g., bcolz) that see
 # psiexperiment data structures can properly deal with them.
 import json
-#import json_tricks
-#
-#for fn_name in ('dump', 'dumps', 'load', 'loads'):
-#    fn = getattr(json_tricks, fn_name)
-#    setattr(json, fn_name, fn)
-#log.debug('Monkeypatched system JSON')
+import json_tricks
+
+for fn_name in ('dump', 'dumps', 'load', 'loads'):
+    fn = getattr(json_tricks, fn_name)
+    setattr(json, fn_name, fn)
+log.debug('Monkeypatched system JSON')
