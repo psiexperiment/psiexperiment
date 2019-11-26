@@ -24,7 +24,7 @@ extras_require = {
 
 setup(
     name='psiexperiment',
-    version='0.1.4',
+    version='0.1.4.post2',
     author='Brad Buran',
     author_email='bburan@alum.mit.edu',
     install_requires=requirements,

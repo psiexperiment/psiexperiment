@@ -1,2 +1,2 @@
 recursive-include psi *.enaml
-recursive-incldue psi/templates *.txt
+recursive-include psi/templates *.txt
