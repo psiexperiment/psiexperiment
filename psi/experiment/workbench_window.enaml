@@ -3,6 +3,8 @@ from enaml.stdlib.message_box import warning
 from enaml.widgets.api import Container, StatusBar
 from enaml.workbench.ui.workbench_window import WorkbenchWindow
 
+from .util import main_icon
+
 
 enamldef ExperimentWorkbenchWindow(WorkbenchWindow):
     '''
@@ -10,6 +12,8 @@ enamldef ExperimentWorkbenchWindow(WorkbenchWindow):
         * Add toolbars and a status bar
         * Ensure that the experiment is stopped before closing window
     '''
+    icon = main_icon
+
     closing ::
         plugin = workbench.get_plugin('psi.controller')
         if plugin.experiment_state in ('running', 'paused'):
