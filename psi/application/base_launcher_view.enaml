@@ -16,6 +16,7 @@ from psi import get_config, get_config_folder
 from psi.controller.api import Channel
 from psi.core.enaml.api import load_manifest_from_file
 from psi.controller.calibration.util import load_calibration
+from psi.experiment.api import main_icon
 
 
 def get_editable_channels(io_file):
@@ -82,6 +83,7 @@ enamldef LauncherView(MainWindow): main:
 
     attr launcher
     title << 'Psiexperiment: ' + launcher.experiment_type
+    icon = main_icon
 
     initialized ::
         load_defaults(launcher, launcher.experiment_choices)

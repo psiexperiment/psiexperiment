@@ -1,2 +1,3 @@
+include psi/experiment/psi-logo.png
 recursive-include psi *.enaml
 recursive-include psi/templates *.txt
