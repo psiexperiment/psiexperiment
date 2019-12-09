@@ -168,13 +168,25 @@ def cos2ramp(t, rise_time, phi=0):
 @fast_cache
 def cos2envelope(fs, offset, samples, start_time, rise_time, duration):
     '''
-    Generates cosine-squared envelope. Can handle generating fragments.
+    Generates cosine-squared envelope. Can handle generating fragments (i.e.,
+    incomplete sections of the waveform).
+
+    Parameters
+    ----------
+    fs : float
+        Sampling rate
+    offset : int
+        Offset to begin generating waveform at (in samples relative to start)
+    samples : int
+        Number of samples to generate
+    start_time : float
+        Start time of envelope
     '''
     #t = np.linspace(0, samples*fs, samples, endpoint=False)
     t = (np.arange(samples, dtype=np.double) + offset)/fs
 
     m_null_pre = (t < start_time)
-    m_onset = (t >= start_time) & (t < rise_time)
+    m_onset = (t >= start_time) & (t < (start_time + rise_time))
 
     # If duration is set to infinite, than we only apply an *onset* ramp.
     # This is used, in particular, for the DPOAE stimulus in which we want
@@ -189,8 +201,8 @@ def cos2envelope(fs, offset, samples, start_time, rise_time, duration):
         m_null_post = np.zeros_like(t, dtype=np.bool)
 
     t_null_pre = t[m_null_pre]
-    t_onset = t[m_onset]
-    t_offset = t[m_offset]
+    t_onset = t[m_onset] - start_time
+    t_offset = t[m_offset] - start_time
     t_ss = t[~(m_null_pre | m_onset | m_offset | m_null_post)]
     t_null_post = t[m_null_post]
 
@@ -527,12 +539,23 @@ enamldef Tone(ContinuousBlock):
 # Silence
 ################################################################################
 class SilenceFactory(Carrier):
+    '''
+    Generate silence
 
-    def __init__(self, fs, calibration):
-        pass
+    All channels require at least one continuous output. If no token is
+    specified for the continuous output, silence is used.
+
+    Notes
+    -----
+    The fill_value can be set to a number other than one for testing (e.g., to
+    characterize the effect of a transformation).
+    '''
+
+    def __init__(self, fill_value=0):
+        self.fill_value = fill_value
 
     def next(self, samples):
-        return np.zeros(samples)
+        return np.full(samples, self.fill_value)
 
     def reset(self):
         pass
