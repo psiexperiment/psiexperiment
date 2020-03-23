@@ -28,6 +28,7 @@ def process_files(filenames, offset=-0.001, duration=0.01,
             else:
                 print('*', end='', flush=True)
         except Exception as e:
+            raise
             print(f'\nError processing {filename}\n{e}\n')
 
 
@@ -91,7 +92,7 @@ def _get_epochs(fh, offset, duration, filter_settings, reject_ratio=None):
         lb = settings['lb']
         ub = settings['ub']
         order = settings['order']
-        kwargs.update({'filter_lb': lb, 'filter_ub': ub, 'order': order})
+        kwargs.update({'filter_lb': lb, 'filter_ub': ub, 'filter_order': order})
         return fh.get_epochs_filtered(**kwargs)
     lb = filter_settings['lb']
     ub = filter_settings['ub']

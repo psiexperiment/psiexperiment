@@ -4,14 +4,16 @@ import urllib.parse
 from atom.api import Atom, Bool, Enum, Float, List, observe, Property
 from enaml.core.api import Looper
 from enaml.layout.api import hbox, spacer, vbox
-from enaml.widgets.api import (MainWindow, HGroup, Form, Label, CheckBox,
-                               Container, VGroup, ObjectCombo, Field,
-                               PushButton, Feature, ProgressBar, PopupView)
+from enaml.widgets.api import (FileDialogEx, MainWindow, HGroup, Form, Label,
+                               CheckBox, Container, VGroup, ObjectCombo, Field,
+                               PushButton, Feature, ProgressBar, PopupView,
+                               MenuBar, Menu, Action)
 
 from enaml.stdlib.fields import FloatField, IntField
 from psi.core.enaml.api import ListDictTable
 from psi.data.io.abr import load
 from psi.data.io.summarize_abr import is_processed, process_file
+from psi.experiment.api import main_icon
 
 
 enamldef ErrorPopup(PopupView): popup:
@@ -121,6 +123,23 @@ enamldef SummarizeABRGui(MainWindow):
     initial_size = (800, 600)
     attr setting = ProcessSettings()
     attr files = []
+    icon = main_icon
+
+    MenuBar:
+        Menu:
+            title = '&File'
+            Action:
+                text = 'Add all from directory\tCtrl+O'
+                triggered ::
+                    directory = FileDialogEx.get_existing_directory()
+                    if directory:
+                        print('suceess')
+            Action:
+                text = 'Add all from directory (recursive)\tCtrl+R'
+                triggered ::
+                    directory = FileDialogEx.get_existing_directory()
+                    if directory:
+                        print('suceess')
 
     Container: container:
         features = Feature.DropEnabled
