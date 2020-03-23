@@ -11,7 +11,7 @@ Psiexperiment is a plugin-based framework for creating feature-rich auditory exp
 
 .. note::
 
-   If you're interested in the interleaved stimulus design for auditory brainstem responses (ABRs) described in Buran et al. (2019) [1]_, please follow the regular install instructions then see :doc:`installing_abr`.
+   If you're interested in the interleaved stimulus design for auditory brainstem responses (ABRs) described in Buran et al. (2019) [1]_, we have :doc:`detailed information on how to use psiexperiment with the interleaved ABR program<interleaved_ABR>`.
 
 Screencasts
 -----------
