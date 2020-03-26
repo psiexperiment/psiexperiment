@@ -25,8 +25,8 @@ enamldef ContextDockItem(DockItem):
                     context_item = loop_item
 
 
-def check_items(contribution):
-    return bool([i for i in contribution.items if i.visible])
+def check_items(items):
+    return bool([i for i in items if i.visible])
 
 
 enamldef ContextGroupManifest(PSIManifest): manifest:
@@ -36,7 +36,7 @@ enamldef ContextGroupManifest(PSIManifest): manifest:
         point = 'psi.experiment.workspace'
 
         Conditional:
-            condition << check_items(manifest.contribution)
+            condition << check_items(manifest.contribution.items)
 
             ContextDockItem:
                 group << manifest.contribution

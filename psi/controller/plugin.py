@@ -261,12 +261,15 @@ class ControllerPlugin(Plugin):
     def _connect_inputs(self):
         for i in self._inputs.values():
             # First, make sure the input is connected to a source
-            if i.source is None and i.source_name:
-                self.connect_input(i.name, i.source_name)
-            elif i.source is None and not isinstance(i.parent, Extension):
-                i.parent.add_input(i)
-            elif i.source is None:
-                log.warn('Unconnected input %s', i.name)
+            try:
+                if i.source is None and i.source_name:
+                    self.connect_input(i.name, i.source_name)
+                elif i.source is None and not isinstance(i.parent, Extension):
+                    i.parent.add_input(i)
+                elif i.source is None:
+                    log.warn('Unconnected input %s', i.name)
+            except:
+                pass
 
     def connect_output(self, output_name, target_name):
         # Link up outputs with channels if needed.  TODO: Can another output be
