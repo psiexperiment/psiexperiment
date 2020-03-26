@@ -66,14 +66,13 @@ def create_config(base_directory=None):
     target.write_text(config_text)
 
 
-def create_io_manifest():
-    io_template = Path(__file__).parent / 'templates' / 'io' / 'bare_bones.txt'
-    system = get_config('SYSTEM')
-    io = Path(get_config('IO_ROOT')) / system
+def create_io_manifest(template):
+    io_template = Path(__file__).parent / 'templates' / 'io' / template
+    io_template = io_template.with_suffix('.enaml')
+    io = Path(get_config('IO_ROOT')) / template
     io = io.with_suffix('.enaml')
     io.parent.mkdir(exist_ok=True, parents=True)
-
-    io_text = io_template.read_text().format(system)
+    io_text = io_template.read_text()
     io.write_text(io_text)
 
 
@@ -134,7 +133,6 @@ def get_config(setting=None):
         try:
             return getattr(_config, setting)
         except AttributeError as e:
-            print(CONFIG_LOADED)
             if CONFIG_LOADED:
                 raise
             mesg = CFG_ERR_MESG.strip().format(setting)

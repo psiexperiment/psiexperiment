@@ -125,11 +125,9 @@ def launch_experiment(args):
 
 
 def get_default_io():
-    system = get_config('SYSTEM')
     available_io = list_io()
-    for io in available_io:
-        if io.stem == system:
-            return io
+    if len(available_io) == 1:
+        return available_io[0]
     return None
     #raise ValueError('No IO configured for system')
 
@@ -189,6 +187,7 @@ def add_default_options(parser):
 
 def parse_args(parser):
     args = parser.parse_args()
+    print(args)
     if args.calibration is None:
         try:
             args.calibration = get_default_calibration(args.io)
@@ -213,7 +212,7 @@ def config():
         psi.create_config_dirs()
 
     def create_io(args):
-        psi.create_io_manifest()
+        psi.create_io_manifest(args.template)
 
     parser = argparse.ArgumentParser('psi-config')
     subparsers = parser.add_subparsers(dest='cmd')
@@ -229,8 +228,11 @@ def config():
     make = subparsers.add_parser('create-folders')
     make.set_defaults(func=create_folders)
 
+    io_template_path = Path(__file__).parent.parent / 'templates' / 'io'
+    io_choices = [p.stem for p in io_template_path.glob('*.enaml')]
     io = subparsers.add_parser('create-io')
     io.set_defaults(func=create_io)
+    io.add_argument('template', type=str, choices=io_choices)
 
     args = parser.parse_args()
     args.func(args)
