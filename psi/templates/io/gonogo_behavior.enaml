@@ -1,6 +1,6 @@
 from enaml.workbench.api import Extension, PluginManifest
 
-from psi.controller.engines.nidaq import (NIDAQEngine, 
+from psi.controller.engines.nidaq import (NIDAQEngine,
                                           NIDAQHardwareAIChannel,
                                           NIDAQHardwareAOChannel,
                                           NIDAQSoftwareDOChannel)
@@ -9,16 +9,30 @@ from psi.controller.api import (CalibratedInput, Downsample, Edges, IIRFilter,
                                 Threshold, Trigger, Toggle)
 
 
-enamldef AnalogToDigital(IIRFilter): atd:
-    alias q: ds.q
-    alias threshold: th.threshold
-    alias debounce: e.debounce
+enamldef IRChannel(NIDAQHardwareAIChannel): irc:
+    unit = 'V'
+    start_trigger = 'ao/StartTrigger'
+    fs = 100e3
+    expected_range = (-10, 10)
+    dtype = 'float64'
+    terminal_mode = 'differential'
 
-    Downsample: ds:
-        name << atd.name + '_analog'
-        Threshold: th:
-            Edges: e:
-                name << atd.name + '_digital'
+    IIRFilter: iir:
+        name << irc.name + '_filtered'
+        f_lowpass = 25
+        ftype = 'butter'
+        btype = 'lowpass'
+
+        Downsample: ds:
+            name << irc.name + '_analog'
+            q = 1000
+            Threshold: th:
+                threshold = 2.5
+                Edges: e:
+                    name << irc.name + '_digital'
+                    debounce = 2
+
+
 
 
 enamldef IOManifest(PluginManifest): manifest:
@@ -74,53 +88,12 @@ enamldef IOManifest(PluginManifest): manifest:
                     name = 'room_light_toggle'
                     label = 'Room light'
 
-            NIDAQHardwareAIChannel: channel:
-                label = 'Microphone'
-                name = 'microphone'
-                channel = 'Dev1/ai5'
-                start_trigger = 'ao/StartTrigger'
-                fs = 100e3
-                expected_range = (-10, 10)
-                dtype = 'float64'
-                terminal_mode = 'differential'
-                calibration_user_editable = True
-                gain = 20
-
-            NIDAQHardwareAIChannel:
+            IRChannel:
                 label = 'Nose poke IR'
                 name = 'nose_poke'
-                channel = 'Dev1/ai3'
-                start_trigger = 'ao/StartTrigger'
-                fs = 100e3
-                expected_range = (-10, 10)
-                dtype = 'float64'
-                terminal_mode = 'differential'
+                channel = 'Dev1/ai0'
 
-                AnalogToDigital:
-                    name = 'nose_poke'
-                    f_lowpass = 25
-                    btype = 'lowpass'
-                    ftype = 'butter'
-                    q = 1000
-                    threshold = 2.5
-                    debounce = 2
-
-            NIDAQHardwareAIChannel:
+            IRChannel:
                 label = 'Reward IR'
-                unit = 'V'
                 name = 'reward_contact'
-                channel = 'Dev1/ai4'
-                start_trigger = 'ao/StartTrigger'
-                fs = 100e3
-                expected_range = (-10, 10)
-                dtype = 'float64'
-                terminal_mode = 'differential'
-
-                AnalogToDigital:
-                    name = 'reward_contact'
-                    f_lowpass = 25
-                    btype = 'lowpass'
-                    ftype = 'butter'
-                    q = 1000
-                    threshold = 2.5
-                    debounce = 2
+                channel = 'Dev1/ai1'
