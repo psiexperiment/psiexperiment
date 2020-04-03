@@ -14,12 +14,11 @@ from psi.controller.calibration.api import (ChirpCalibration,
                                             CochlearCalibration,
                                             EPLCalibration, FlatCalibration,
                                             GolayCalibration, UnityCalibration)
+from psi.controller.calibration.calibration import calibration_registry
 
 from psi.controller.channel import HardwareAIChannel
 
 from psi.controller.calibration import util
-
-
 
 
 template CalibrationTemplate(calibration, MemberType: UnityCalibration):
@@ -117,19 +116,6 @@ template CalibrationTemplate(calibration, MemberType: EPLCalibration):
                         setattr(calibration, k, v)
 
 
-filename = r'C:\psi-dev\calibration\20181107-0832 Brad 2W starship 2 377C10 primary long coupler pt_calibration_golay'
-
-
-name_map = {
-    UnityCalibration: 'unity gain',
-    FlatCalibration: 'fixed sensitivity',
-    GolayCalibration: 'Golay calibration',
-    ChirpCalibration: 'Chirp calibration',
-    EPLCalibration: 'EPL calibration',
-    CochlearCalibration: 'Golay calibration (old Cochlear format)',
-}
-
-
 enamldef SavePopup(PopupView): popup:
 
     attr file_name = 'default'
@@ -185,9 +171,9 @@ enamldef Main(MainWindow): window:
                     text = 'Calibration type'
 
                 ObjectCombo: cal_type:
-                    items << list(name_map.keys())
+                    items << list(calibration_registry.classes())
                     selected << type(selected_channel.calibration)
-                    to_string = name_map.get
+                    to_string = calibration_registry.label
                     selected ::
                         if type(selected_channel.calibration) != selected:
                             selected_channel.calibration = selected.as_attenuation()
@@ -205,7 +191,7 @@ enamldef Main(MainWindow): window:
         PushButton: save_button:
             text << 'Save'
             clicked ::
-                popup = SavePopup(io_file=io_file, 
+                popup = SavePopup(io_file=io_file,
                                   channels=channels,
                                   anchor_mode='cursor')
                 popup.show()

@@ -32,6 +32,7 @@ class GroupedEpochCounter(EpochCounter):
     max_n = Int()
     groups_n = Int()
     groups = d_(Typed(ContextMeta))
+    extra_groups = d_(List())
 
     counts = Typed(defaultdict, (int,))
     get_key = Typed(object)
@@ -42,8 +43,9 @@ class GroupedEpochCounter(EpochCounter):
             self._update_get_key()
 
     def _update_get_key(self, event=None):
-        if len(self.groups.values):
-            group_names = [v.name for v in self.groups.values]
+        groups = self.groups.values + self.extra_groups
+        if len(groups):
+            group_names = [v.name for v in groups]
             self.get_key = operator.itemgetter(*group_names)
 
     def _update_data(self, epochs):
@@ -82,7 +84,8 @@ enamldef EpochCounterManifest(SinkWithSourceManifest): manifest:
                     text << str(manifest.contribution.total_n)
 
 
-def group_label_format(groups):
+def group_label_format(groups, extra_groups):
+    groups = groups + extra_groups
     if not groups:
         return 'No groups specified'
     t = 'Grouped by {}'
@@ -100,7 +103,7 @@ enamldef GroupedEpochCounterManifest(SinkWithSourceManifest): manifest:
             title << manifest.contribution.label
             VGroup:
                 Label:
-                    text << group_label_format(manifest.contribution.groups.values)
+                    text << group_label_format(manifest.contribution.groups.values, manifest.contribution.extra_groups)
                 Form:
                     padding = 0
                     Label:

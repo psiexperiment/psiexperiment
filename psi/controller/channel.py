@@ -68,6 +68,18 @@ class Channel(PSIContribution):
     def configure(self):
         pass
 
+    def sync_start(self, channel):
+        '''
+        Synchronize with channel so that sampling begins at the same time
+
+        Parameters
+        ----------
+        channel : instance of Channel
+            Channel to synchronize with.
+        '''
+
+        raise NotImplementedError
+
     def _get_active(self):
         raise NotImplementedError
 

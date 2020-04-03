@@ -226,6 +226,7 @@ def validate_sens(event, sens):
         freq_ub = 50000
 
     frequencies = octave_space(freq_lb*1e-3, freq_ub*1e-3, 0.125)*1e3
+    #frequencies = octave_space(freq_lb*1e-3, freq_ub*1e-3, 0.5)*1e3
 
     ai_channels = [pt_channel, cal_channel]
     result = tone_sens(ao.engine, frequencies, gain=-50,

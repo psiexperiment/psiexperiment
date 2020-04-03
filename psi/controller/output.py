@@ -123,8 +123,8 @@ class BufferedOutput(Output):
 
         log.trace('Getting %d samples from %d to %d for %s', samples, lb, ub,
                   self.name)
-        log.trace('Buffer has %d to %d for %s', buffered_lb, buffered_ub,
-                  self.name)
+        log.trace('Buffer has cached %d to %d for %s', buffered_lb,
+                  buffered_ub, self.name)
 
         if lb > buffered_ub:
             # This breaks an implicit software contract.
@@ -265,7 +265,8 @@ class QueuedEpochOutput(BufferedOutput):
         # manifest system.
         factory = initialize_factory(self, self.token, context)
         duration = factory.get_duration()
-        self.queue.append(factory, averages, iti_duration, duration, setting)
+        self.queue.append(factory, averages, iti_duration, duration,
+                          setting.copy())
 
     def activate(self, offset):
         log.debug('Activating output at %d', offset)

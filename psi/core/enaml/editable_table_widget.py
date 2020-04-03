@@ -127,6 +127,7 @@ class QEditableTableView(QTableView):
         for index in selection_model.selectedIndexes():
             locations.append((index.row(), index.column()))
         self.model.interface.selected_coords = locations
+        self.model.interface.selection_changed = True
 
     def _set_default_column_widths(self):
         widths = self.model.interface.get_default_column_widths()
@@ -298,6 +299,7 @@ class EditableTable(RawWidget):
     updated = d_(Event())
 
     # List of row, col tuples of selections
+    selection_changed = d_(Event())
     selected_coords = d_(List(), [])
 
     live_edit = Typed(LiveEdit, {})

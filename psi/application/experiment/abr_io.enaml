@@ -1,0 +1,179 @@
+from functools import partial
+import numpy as np
+
+from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
+
+from psi.context.api import (BoolParameter, ContextGroup, EnumParameter,
+                             OrderedContextMeta, Parameter)
+
+from psi.controller import queue
+from psi.data.plots import (MultiPlotContainer, StackedEpochAveragePlot,
+                            TimeContainer, ViewBox)
+from psi.data.sinks.api import GroupedEpochCounter
+
+
+from .abr_base import ABRBaseManifest
+
+
+EXPERIMENT = __name__.rsplit('.', 1)[-1]
+
+
+def configure_experiment(event):
+    context = event.workbench.get_plugin('psi.context')
+    controller = event.workbench.get_plugin('psi.controller')
+
+    ordering = context.get_value('ordering')
+    alternate_polarity = context.get_value('alternate_polarity')
+    tone_duration = context.get_value('target_tone_burst_duration')
+    rate = context.get_value('rate')
+    averages = context.get_value('averages')
+
+    if alternate_polarity and (averages % 2):
+        # Round to the nearest multiple of 2
+        averages = (round(averages/2) + 1) * 2
+
+    # Compensate for the tone duration. ITI is the time from tone offset to
+    # tone offset.
+    iti = 1/rate - tone_duration
+    if iti <= 0:
+        raise ValueError('Repetition rate is too fast')
+
+    target = controller.get_output('target')
+
+    # Configure the queues
+    if ordering == 'interleaved':
+        target.queue = queue.InterleavedFIFOSignalQueue()
+    elif ordering == 'sequential':
+        if alternate_polarity:
+            target.queue = queue.GroupedFIFOSignalQueue(group_size=2)
+        else:
+            target.queue = queue.FIFOSignalQueue()
+    elif ordering == 'random':
+        target.queue = queue.BlockedRandomSignalQueue()
+    else:
+        raise ValueError('Unrecognized ordering {}'.format(ordering))
+
+    if not alternate_polarity:
+        for setting in context.iter_settings('default', 1):
+            target.add_setting(setting, averages, iti)
+    elif ordering == 'interleaved':
+        for setting in context.iter_settings('default', 1):
+            setting['target_tone_polarity'] = 1
+            target.add_setting(setting, averages/2, iti)
+        for setting in context.iter_settings('default', 1):
+            setting['target_tone_polarity'] = -1
+            target.add_setting(setting, averages/2, iti)
+    elif ordering in ('sequential', 'random'):
+        for setting in context.iter_settings('default', 1):
+            setting['target_tone_polarity'] = 1
+            target.add_setting(setting, averages/2, iti)
+            setting['target_tone_polarity'] = -1
+            target.add_setting(setting, averages/2, iti)
+    else:
+        raise ValueError('Unrecognized ordering {}'.format(ordering))
+
+    # Now, identify the maximum level on a per-frequency setting
+    max_level = {}
+    for setting in context.iter_settings('default', 1):
+        frequency = setting['target_tone_frequency']
+        level = setting['target_tone_level']
+        max_level[frequency] = max(level, max_level.get(frequency, -np.inf))
+
+    # Then figure out the maximum scaling factor required for that level.
+    # Multiply to convert from RMS to peak to peak and add 1% headroom.
+    max_sf = {}
+    for frequency, level in max_level.items():
+        sf = target.calibration.get_sf(frequency, level)
+        max_sf[frequency] = sf
+    max_sf = max(max_sf.values()) * np.sqrt(2) * 1.01
+    target.channel.expected_range = (-max_sf, max_sf)
+
+    action_name = target.name + '_end'
+    target.complete_cb = partial(controller.invoke_actions, action_name)
+
+
+enamldef ABRIOManifest(ABRBaseManifest):
+
+    Extension:
+        id = EXPERIMENT + '.context'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'abr_io'
+
+            Parameter:
+                name = 'averages'
+                label = 'Averages'
+                default = 512
+                scope = 'experiment'
+
+            Parameter:
+                name = 'rate'
+                label = 'Reps. per sec.'
+                default = 80
+                scope = 'experiment'
+
+            BoolParameter:
+                name = 'alternate_polarity'
+                label = 'Alternate polarity?'
+                default = True
+                scope = 'experiment'
+
+            EnumParameter:
+                name = 'ordering'
+                label = 'Stimulus ordering'
+                choices = {
+                    'interleaved': '"interleaved"',
+                    'sequential': '"sequential"',
+                    'random': '"random"',
+                }
+                scope = 'experiment'
+
+        OrderedContextMeta: epoch_groups:
+            name = 'settings'
+
+    Extension:
+        id = EXPERIMENT + '.commands'
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = 'psi.controller.configure_experiment'
+            handler = configure_experiment
+
+    Extension:
+        id = EXPERIMENT + '.sink'
+        point = 'psi.data.sinks'
+
+        GroupedEpochCounter:
+            name = 'valid_erp_counter'
+            label = 'Valid ERPs acquired'
+            source_name = 'valid_erp'
+            groups << epoch_groups
+
+    Extension:
+        id = EXPERIMENT + '.plots'
+        point = 'psi.data.plots'
+
+        MultiPlotContainer: mc:
+            name = 'abr_results'
+            label = 'ABR waveforms'
+            group = 'target_tone_frequency'
+
+            TimeContainer:
+                name = 'erp_container'
+                label = 'ERP average'
+                span = 8.5e-3
+
+                ViewBox:
+                    y_min = -5
+                    y_max = 5
+                    label = 'Signal (V) {}'.format(loop_item)
+
+                    StackedEpochAveragePlot:
+                        label = 'ERP average plot'
+                        source_name = 'valid_erp'
+                        n_update = 8
+                        group_filter = lambda key: key['target_tone_frequency'] == loop_item
+                        pen_width = 2
+                        groups << epoch_groups

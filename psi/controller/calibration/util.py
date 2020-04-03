@@ -430,12 +430,10 @@ def load_calibration(filename, channels):
     Load calibration configuration for hardware from json file
     '''
     from json_tricks import load
-    from psi.controller.calibration import calibration as cal_types
+    from psi.controller.calibration.api import calibration_registry
     with open(filename, 'r') as fh:
         settings = load(fh)
     channels = {c.name: c for c in channels}
     for c_name, c_calibration in settings.items():
-        calibration_type = c_calibration.pop('calibration_type')
-        calibration = getattr(cal_types, calibration_type)
-        calibration = calibration(**c_calibration)
-        channels[c_name].calibration = calibration
+        channels[c_name].calibration = \
+            calibration_registry.from_dict(**c_calibration)

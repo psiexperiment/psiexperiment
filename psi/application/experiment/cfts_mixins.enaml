@@ -51,17 +51,6 @@ enamldef MicrophoneSignalViewMixinManifest(PluginManifest):
                     pen_color = 'k'
                     source_name = 'microphone'
 
-            ViewBox:
-                name = 'ttl_view'
-                y_min = 0
-                y_max = 5
-
-                ChannelPlot:
-                    pen_color = 'r'
-                    pen_width = 2.5
-                    source_name = 'ttl_monitor'
-                    decimate_mode = 'mean'
-
 
 enamldef MicrophoneFFTViewMixinManifest(PluginManifest): manifest:
 

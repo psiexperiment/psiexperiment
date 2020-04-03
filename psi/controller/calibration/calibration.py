@@ -1,5 +1,6 @@
 import os.path
 from fractions import gcd
+import importlib
 from pathlib import Path
 
 import bcolz
@@ -217,7 +218,7 @@ class Calibration(Atom):
 class FlatCalibration(Calibration):
 
     sensitivity = Float().tag(metadata=True)
-    fixed_gain = Float().tag(metadata=True)
+    fixed_gain = Float(0).tag(metadata=True)
     mv_pa = Property()
 
     def _get_mv_pa(self):
@@ -249,24 +250,12 @@ class FlatCalibration(Calibration):
         Additional kwargs are passed to the class initialization.
         '''
         sensitivity = util.db(vrms)-spl-util.db(20e-6)
-        return cls(sensitivity, **kwargs)
+        return cls(sensitivity=sensitivity, **kwargs)
 
     @classmethod
     def from_mv_pa(cls, mv_pa, **kwargs):
         sens = util.db(mv_pa*1e-3)
         return cls(sens, **kwargs)
-
-    def __init__(self, sensitivity, fixed_gain=0, source=None):
-        '''
-        Parameters
-        ----------
-        sensitivity : float
-            Sensitivity of system in dB(V/Pa).
-        '''
-        self.sensitivity = sensitivity
-        self.fixed_gain = fixed_gain
-        if source is not None:
-            self.source = Path(source)
 
     def get_sens(self, frequency):
         return self.sensitivity-self.fixed_gain
@@ -274,14 +263,10 @@ class FlatCalibration(Calibration):
 
 class UnityCalibration(FlatCalibration):
 
-    # For unity calibration, set the property so it doesn't get saved.
-    sensitivity = Float().tag(metadata=False)
-
-    def __init__(self, fixed_gain=0, source=None):
-        # This value gives us unity passthrough (because the core methods
-        # assume everything is in units of dB(Vrms/Pa)).
-        sensitivity = -util.db(20e-6)
-        super().__init__(sensitivity, fixed_gain=fixed_gain, source=source)
+    # For unity calibration, set the property so it doesn't get saved.  This
+    # value gives us unity passthrough (because the core methods assume
+    # everything is in units of dB(Vrms/Pa)).
+    sensitivity = Float(-util.db(20e-6)).tag(metadata=False)
 
 
 class InterpCalibration(Calibration):
@@ -508,6 +493,68 @@ class ChirpCalibration(InterpCalibration):
         data = cls.load_psi_golay(folder, n_bits, output_gain)
         data.update(kwargs)
         return cls(**data)
+
+
+class CalibrationRegistry:
+
+    def __init__(self):
+        self.registry = {}
+
+    def register(self, klass, label=None):
+        calibration_type = klass.__name__
+        calibration_path = f'{klass.__module__}.{calibration_type}'
+        if label is None:
+            label = calibration_type
+        if calibration_type in self.registry:
+            m = f'{label} already registered as {calibration_type}'
+            raise ValueError(m)
+        self.registry[calibration_path] = klass, label
+        log.debug('Registered %s', calibration_path)
+
+    def clear(self):
+        self.registry.clear()
+
+    def register_basic(self, clear=False, unity=True, fixed=True, golay=True,
+                       chirp=True):
+        if clear:
+            self.clear()
+        if unity:
+            self.register(UnityCalibration, 'unity gain')
+        if fixed:
+            self.register(FlatCalibration, 'fixed sensitivity')
+        if golay:
+            self.register(GolayCalibration, 'Golay calibration')
+        if chirp:
+            self.register(ChirpCalibration, 'Chirp calibration')
+
+    def get_classes(self):
+        return [v[0] for v in self.registry.values()]
+
+    def get_class(self, calibration_type):
+        return self.registry[calibration_type][0]
+
+    def get_labels(self):
+        return [v[1] for v in self.registry.values()]
+
+    def get_label(self, calibration_type):
+        return self.registry[calibration_type][1]
+
+    def from_dict(self, calibration_type, **kw):
+        if calibration_type not in self.registry:
+            log.debug('Importing and registering calibration')
+            module_name, class_name = calibration_type.rsplit('.', 1)
+            module = importlib.import_module(module_name)
+            klass = getattr(module, class_name)
+        else:
+            klass = self.get_class(calibration_type)
+        return klass(**kw)
+
+
+calibration_registry = CalibrationRegistry()
+calibration_registry.register_basic()
+calibration_registry.register(EPLCalibration, 'EPL calibration')
+calibration_registry.register(CochlearCalibration,
+                              'Golay calibration (old Cochlear format)')
 
 
 if __name__ == '__main__':

@@ -197,19 +197,16 @@ enamldef CartesianProductContainer(Container):
     VGroup:
         Looper:
             iterable << selector.context_items[:]
-            VGroup:
-                Label:
-                    text = loop_item.label
-                ListTable:
-                    select_behavior = 'rows'
-                    select_mode = 'single'
-                    editable = True
-                    show_row_labels = False
-                    show_column_labels = False
-                    show_grid = True
-                    data << selector.settings[loop_item.name]
-                    updated::
-                        selector.settings[loop_item.name] = data
+            ListTable:
+                select_behavior = 'rows'
+                select_mode = 'single'
+                column_name = loop_item.label
+                editable = True
+                show_row_labels = False
+                show_grid = True
+                data << selector.settings[loop_item.name]
+                updated::
+                    selector.settings[loop_item.name] = data
 
 
 enamldef CartesianProductManifest(BaseSelectorManifest): manifest:

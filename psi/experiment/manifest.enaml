@@ -307,6 +307,10 @@ enamldef ExperimentManifest(PluginManifest):
             label = 'Revert to default'
             command = 'psi.get_default_preferences'
             group = 'preferences_default'
+        ActionItem:
+            path = '/configuration/get_default_preferences'
+            label = 'Revert to default preferences'
+            command = 'psi.get_default_preferences'
 
         ActionItem:
             path = '/configuration/load_shell'
