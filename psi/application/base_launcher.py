@@ -12,12 +12,15 @@ import enaml
 from enaml.qt.qt_application import QtApplication
 
 with enaml.imports():
+    from enaml.stdlib.message_box import critical
     from psi.application.base_launcher_view import LauncherView
 
 from psi import get_config
 from psi.util import get_tagged_values
-from psi.application import list_calibrations, list_io, list_preferences
-from psi.application.experiment_description import get_experiments, ParadigmDescription
+from psi.application import (get_default_io, list_calibrations, list_io,
+                             list_preferences)
+from psi.application.experiment_description import (get_experiments,
+                                                    ParadigmDescription)
 
 
 class SimpleLauncher(Atom):
@@ -34,17 +37,17 @@ class SimpleLauncher(Atom):
     experiment_choices = List()
 
     root_folder = Typed(Path)
-    base_folder = Typed(Path)
+    base_folder = Typed(Path).tag(required=False)
     wildcard = Unicode()
     template = '{{date_time}} {experimenter} {note} {experiment}'
     wildcard_template = '*{experiment}'
     use_prior_preferences = Bool(False)
 
-    can_launch = Bool(False)
+    can_launch = Bool(False).tag(required=False)
 
     available_io = List()
     available_calibrations = List()
-    available_preferences = List()
+    available_preferences = List().tag(required=False)
 
     def _default_experiment(self):
         return self.experiment_choices[0]
@@ -90,7 +93,7 @@ class SimpleLauncher(Atom):
                 self.preferences = self.available_preferences[0]
 
     def _default_io(self):
-        return sorted(list_io())[0]
+        return get_default_io()
 
     def _default_root_folder(self):
         return get_config('DATA_ROOT')
@@ -112,20 +115,26 @@ class SimpleLauncher(Atom):
         self._update()
 
     def _update(self):
-        if not self.save_data and self.experiment:
-            self.can_launch = True
-            self.base_folder = None
-            return
+        exclude = list(get_tagged_values(self, 'required', False).keys())
+        exclude_save = ['experimenter', 'animal', 'ear']
+        if not self.save_data:
+            exclude.extend(exclude_save)
 
         template_vals = get_tagged_values(self, 'template')
         required_vals = get_tagged_values(self, 'required')
         for k, v in required_vals.items():
             if k == 'note':
                 continue
+            if k == 'save_data':
+                continue
             if not v:
                 self.can_launch = False
                 self.base_folder = None
                 return
+
+        if self.save_data:
+            vals['experiment'] = vals['experiment'].name
+            self.base_folder = self.root_folder / self.template.format(**vals)
 
         template_vals['experiment'] = template_vals['experiment'].name
         self.base_folder = self.root_folder / self.template.format(**template_vals)
@@ -192,18 +201,25 @@ class EarLauncher(AnimalLauncher):
         self._update()
 
 
-def _launch(klass, experiment_type, root_folder=None):
+def launch(klass, experiment_type, root_folder='DATA_ROOT', view_klass=None):
     app = QtApplication()
-    if root_folder is None:
-        root_folder = get_config('DATA_ROOT')
-    launcher = klass(root_folder=root_folder, experiment_type=experiment_type)
-    view = LauncherView(launcher=launcher)
-    view.show()
-    app.start()
+    try:
+        if root_folder.endswith('_ROOT'):
+            root_folder = get_config(root_folder)
+        if view_klass is None:
+            view_klass = LauncherView
+        launcher = klass(root_folder=root_folder, experiment_type=experiment_type)
+        view = view_klass(launcher=launcher)
+        view.show()
+        app.start()
+        return True
+    except Exception as e:
+        mesg = f'Unable to load configuration data.\n\n{e}'
+        critical(None, 'Software not configured', mesg)
+        raise
 
 
-main_calibration = partial(_launch, SimpleLauncher, 'calibration',
-                           get_config('CAL_ROOT'))
-main_cohort = partial(_launch, SimpleLauncher, 'cohort')
-main_animal = partial(_launch, AnimalLauncher, 'animal')
-main_ear = partial(_launch, EarLauncher, 'ear')
+main_calibration = partial(launch, SimpleLauncher, 'calibration', 'CAL_ROOT')
+main_cohort = partial(launch, SimpleLauncher, 'cohort')
+main_animal = partial(launch, AnimalLauncher, 'animal')
+main_ear = partial(launch, EarLauncher, 'ear')
