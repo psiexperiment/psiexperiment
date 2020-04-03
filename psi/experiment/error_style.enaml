@@ -5,7 +5,6 @@ from enaml.stdlib.dock_area_styles import (
     WindowStyle)
 
 
-
 template ErrorStyle():
 
     CommonStyles():
