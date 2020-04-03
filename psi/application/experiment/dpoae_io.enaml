@@ -1,9 +1,22 @@
+import logging
+log = logging.getLogger(__name__)
+
+import atexit
+
+from atom.api import Float, List
+from enaml.core.api import d_
 from enaml.widgets.api import Container, DockItem, Label
-from enaml.workbench.api import Extension 
-from psi.controller.api import ExperimentAction
-from psi.data.plots import ResultPlot, PlotContainer, ViewBox
+from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
+import pandas as pd
+
+from psi.controller.api import coroutine, ExperimentAction, Input
+from psi.data.plots import (DataFramePlot, FFTContainer, ResultPlot,
+                            PlotContainer, ViewBox)
+from psi.data.io import dpoae
 
 from .dpoae_base import DPOAEManifest
+from .dpoae_mixins import DPOAEThreshold
 
 EXPERIMENT = __name__.rsplit('.', 1)[-1]
 
@@ -14,7 +27,32 @@ from psi.context.api import Expression
 from psi.data.plots import MultiPlotContainer
 
 
-enamldef ControllerManifest(DPOAEManifest):
+def postprocess(event):
+    try:
+        plugin = event.workbench.get_plugin('psi.data')
+        store = plugin.find_sink('dpoae_store')
+        # atexit calls in reverse order
+        atexit.register(dpoae.convert_epl, store.base_path)
+        atexit.register(store._store.flush)
+    except Exception as e:
+        log.exception(e)
+
+
+enamldef ControllerManifest(DPOAEManifest): manifest:
+
+    Extension:
+        id = EXPERIMENT + '.sinks'
+        point = 'psi.data.sinks'
+        DPOAEThreshold:
+            pass
+
+    Extension:
+        id = EXPERIMENT + '.commands'
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = EXPERIMENT + '.postprocess'
+            handler = postprocess
 
     Extension:
         id = EXPERIMENT + '.context'
@@ -42,6 +80,10 @@ enamldef ControllerManifest(DPOAEManifest):
         ExperimentAction:
             event = 'context_complete'
             command = 'psi.controller.stop'
+
+        ExperimentAction:
+            event = 'experiment_end'
+            command = EXPERIMENT + '.postprocess'
 
     Extension:
         id = EXPERIMENT + '.plots'
