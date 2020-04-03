@@ -107,14 +107,16 @@ class ProcessSettings(Atom):
         if not self.reprocess:
             info = [i for i in info if i['status'] != 'processed']
 
-        args = self.offset, self.duration, self.filter_settings
+        args = self.offset, self.duration, self.filter_settings, self.reprocess
         progressbar.maximum = len(info)
         for j, i in enumerate(info):
             try:
                 process_file(i['path'], *args)
                 i['status'] = 'processed'
             except Exception as e:
+                raise
                 i['status'] = 'error'
+                i['status_message'] = str(e)
             progressbar.value = j+1
 
 
@@ -164,7 +166,9 @@ enamldef SummarizeABRGui(MainWindow):
                 vbox(filter_form,
                      table,
                      progress,
-                     hbox(spacer(0), reprocess, pb_process)
+                     hbox(spacer(0), reprocess, pb_process),
+                     e_label,
+                     e_message,
                      )
             ]
 
@@ -237,6 +241,10 @@ enamldef SummarizeABRGui(MainWindow):
                                       unprocessed='white',
                                       error='lightpink')
                     return status_map[setting.info[row]['status']]
+                select_behavior = 'rows'
+                selection_changed ::
+                    row = selected_coords[0][0]
+                    e_message.text = setting.info[row].get('status_message', '')
 
             ProgressBar: progress:
                 pass
@@ -251,3 +259,9 @@ enamldef SummarizeABRGui(MainWindow):
                 clicked ::
                     setting._process(progress)
                     table.update = True
+
+            Label: e_label:
+                text = 'Error detail'
+
+            Label: e_message:
+                pass
