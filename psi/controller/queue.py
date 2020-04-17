@@ -10,11 +10,8 @@ import numpy as np
 
 from enaml.core.api import Declarative
 
+
 class QueueEmptyError(Exception):
-    pass
-
-
-class QueueBufferEmptyError(Exception):
     pass
 
 
@@ -30,25 +27,56 @@ def as_iterator(x):
 
 class AbstractSignalQueue:
 
-    def __init__(self):
+    def __init__(self, fs=None):
         '''
         Parameters
         ----------
         fs : float
             Sampling rate of output that will be using this queue
-        initial_delay : float
-            Delay, in seconds, before starting playout of queue
-        filter_delay : float
-            Filter delay, in seconds, of the output. The starting timestamp of
-            each trial will be adjusted by the filter delay to reflect the true
-            time at which the trial reaches the output of the DAC.
         '''
+        # Used internally to track intertrial silent period.
         self._delay_samples = 0
-        self._data = {} # list of generators
-        self._ordering = [] # order of items added to queue
+
+        # Dictionary of generators or arrays. Each token added to the queue has
+        # a unique ID. The token is associated with either a class-based
+        # generator (which can be restarted to generate a new waveform) or an
+        # already-generated waveform.
+        self._data = {}
+
+        # Tracks order of items added to queue. Subclasses will incorporate
+        # this into their algorithms to determine the actual ordering of the
+        # stimuli (e.g., first-in, first-out, interleaved, etc.).
+        self._ordering = []
+
+        # Current waveform generator for trials.
         self._source = None
+
         self._samples = 0
+
+        # List of callbacks each time a new waveform is started.
         self._notifiers = []
+
+        # Is stimulus generation paused?
+        self._paused = False
+
+        # Is queue complete?
+        self._empty = False
+
+        # Sampling rate needed to generate waveforms at. This is required since
+        # it's used in some calculations of timing.
+        self._fs = fs
+
+        # Start time of queue relative to acquisition start.
+        self._t0 = 0
+
+    def pause(self):
+        self._paused = True
+
+    def resume(self):
+        self._paused = False
+
+    def is_empty(self):
+        return self._empty
 
     def set_fs(self, fs):
         # Sampling rate at which samples will be generated.
@@ -62,7 +90,10 @@ class AbstractSignalQueue:
     def _add_source(self, source, trials, delays, duration, metadata):
         key = uuid.uuid4()
         if duration is None:
-            duration = source.shape[-1]/self._fs
+            if isinstance(source, np.ndarray):
+                duration = source.shape[-1]/self._fs
+            else:
+                duration = source.get_duration()
 
         data = {
             'source': source,
@@ -141,18 +172,18 @@ class AbstractSignalQueue:
     def _get_samples_waveform(self, samples):
         if samples > len(self._source):
             waveform = self._source
-            complete = True
+            self._source = None
         else:
             waveform = self._source[:samples]
             self._source = self._source[samples:]
-            complete = False
-        return waveform, complete
+        return waveform
 
     def _get_samples_generator(self, samples):
         samples = min(self._source.get_remaining_samples(), samples)
         waveform = self._source.next(samples)
-        complete = self._source.is_complete()
-        return waveform, complete
+        if self._source.is_complete():
+            self._source = None
+        return waveform
 
     def next_trial(self, decrement=True):
         '''
@@ -191,54 +222,48 @@ class AbstractSignalQueue:
         '''
         Return the requested number of samples
 
-        Removes stack of waveforms in order determind by `pop`, but only returns
-        requested number of samples.  If a partial fragment of a waveform is
-        returned, the remaining part will be returned on subsequent calls to
-        this function.
+        Removes stack of waveforms in order determind by `pop`, but only
+        returns requested number of samples.  If a partial fragment of a
+        waveform is returned, the remaining part will be returned on subsequent
+        calls to this function.
         '''
-        # TODO: This is a bit complicated and I'm not happy with the structure.
-        # It should be simplified quite a bit.  Cleanup?
         waveforms = []
-        queue_empty = False
+        while samples > 0:
+            try:
+                waveform = self._pop_buffer(samples, decrement)
+            except QueueEmptyError:
+                log.info('Queue is empty')
+                waveform = np.zeros(samples)
+                self._empty = True
+            samples -= len(waveform)
+            self._samples += len(waveform)
+            waveforms.append(waveform)
+        return np.concatenate(waveforms, axis=-1)
+
+    def _pop_buffer(self, samples, decrement):
+        '''
+        Encodes logic for deciding what segment needs to be generated. It must
+        return *up to* the number of samples requested, but can be less if
+        needed.
+        '''
+        # If paused, return a stream of zeros.
+        if self._paused:
+            return np.zeros(samples)
+
+        # Insert intertrial interval delay if one exists
+        if self._delay_samples > 0:
+            n = min(self._delay_samples, samples)
+            self._delay_samples -= n
+            return np.zeros(n)
+
+        # Set up next trial
+        if self._source is None:
+            self.next_trial(decrement)
+            return np.empty(0)
 
         # Load samples from current source
-        if samples > 0 and self._source is not None:
-            # That this is a dynamic function that is set when the next
-            # source is loaded (see below in this method).
-            waveform, complete = self._get_samples(samples)
-            samples -= len(waveform)
-            self._samples += len(waveform)
-            waveforms.append(waveform)
-            if complete:
-                self._source = None
-
-        # Insert intertrial interval delay
-        if samples > 0 and self._delay_samples > 0:
-            n_padding = min(self._delay_samples, samples)
-            waveform = np.zeros(n_padding)
-            samples -= n_padding
-            self._samples += len(waveform)
-            self._delay_samples -= n_padding
-            waveforms.append(waveform)
-
-        # Get next source
-        if (self._source is None) and (self._delay_samples == 0):
-            try:
-                self.next_trial(decrement)
-            except QueueEmptyError:
-                queue_empty = True
-                waveform = np.zeros(samples)
-                waveforms.append(waveform)
-                log.info('Queue is now empty')
-
-        if (samples > 0) and not queue_empty:
-            waveform, queue_empty = self.pop_buffer(samples, decrement)
-            waveforms.append(waveform)
-            samples -= len(waveform)
-
-        waveform = np.concatenate(waveforms, axis=-1)
-
-        return waveform, queue_empty
+        if self._source is not None:
+            return self._get_samples(samples)
 
 
 class FIFOSignalQueue(AbstractSignalQueue):
