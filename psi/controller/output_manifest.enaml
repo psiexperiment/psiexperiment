@@ -376,6 +376,18 @@ def clear_output(event, output):
     controller.invoke_actions('{}_end'.format(output.name), end+delay)
 
 
+def pause_output_queue(event, output):
+    with output.engine.lock:
+        log.debug('Pausing queue for output %s', output.name)
+        output.queue.pause()
+
+
+def resume_output_queue(event, output):
+    with output.engine.lock:
+        log.debug('Resuming queue for output %s', output.name)
+        output.queue.resume()
+
+
 def decrement_key(event, output):
     counts = defaultdict(int)
     for epoch in event.parameters['data']:
@@ -543,8 +555,20 @@ enamldef QueuedEpochOutputManifest(EpochOutputManifest): manifest:
             id = manifest.contribution.name + '.prepare_queue'
             handler = partial(prepare_output_queue, output=contribution)
         Command:
+            id = manifest.contribution.name + '.pause_queue'
+            handler = partial(pause_output_queue, output=contribution)
+        Command:
+            id = manifest.contribution.name + '.resume_queue'
+            handler = partial(resume_output_queue, output=contribution)
+        Command:
             id = manifest.contribution.name + '.decrement_key'
             handler = partial(decrement_key, output=contribution)
+
+    Extension:
+        id = manifest.id + '.actions'
+        point = 'psi.controller.actions'
+        ExperimentAction:
+            event = manifest.contribution.name + '_paused'
 
 
 enamldef SelectorQueuedEpochOutputManifest(QueuedEpochOutputManifest): manifest:
