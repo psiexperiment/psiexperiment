@@ -68,8 +68,6 @@ abr_io_controller = PluginDescription(
     manifest='psi.application.experiment.abr_io.ABRIOManifest',
 )
 
-)
-
 
 dpoae_time_controller = PluginDescription(
     name='controller',
