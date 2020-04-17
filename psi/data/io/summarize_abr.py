@@ -1,6 +1,9 @@
 import argparse
+import datetime as dt
 from glob import glob
+import json
 import os.path
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -32,7 +35,11 @@ def process_files(filenames, offset=-0.001, duration=0.01,
             print(f'\nError processing {filename}\n{e}\n')
 
 
-def _get_file_template(fh, offset, duration, filter_settings, suffix=None):
+def _get_file_template(fh, offset, duration, filter_settings, suffix=None,
+                       simple_filename=True):
+    if simple_filename:
+        return 'ABR {}.csv'
+
     base_string = f'ABR {offset*1e3:.1f}ms to {(offset+duration)*1e3:.1f}ms'
     if filter_settings == 'saved':
         settings = _get_filter(fh)
@@ -60,7 +67,6 @@ def _get_file_template(fh, offset, duration, filter_settings, suffix=None):
     if suffix is not None:
         file_string = f'{file_string} {suffix}'
 
-    print(file_string)
     return f'{file_string} {{}}.csv'
 
 
@@ -117,8 +123,10 @@ def _match_epochs(*epochs):
               matched.groupby('dataset', group_keys=False)]
 
 
-def is_processed(filename, offset, duration, filter_settings, suffix=None):
-    t = _get_file_template(filename, offset, duration, filter_settings, suffix)
+def is_processed(filename, offset, duration, filter_settings, suffix=None,
+                 simple_filename=True):
+    t = _get_file_template(filename, offset, duration, filter_settings, suffix,
+                           simple_filename)
     file_template = os.path.join(filename, t)
     raw_epoch_file = file_template.format('individual waveforms')
     mean_epoch_file = file_template.format('average waveforms')
@@ -128,45 +136,8 @@ def is_processed(filename, offset, duration, filter_settings, suffix=None):
         os.path.exists(n_epoch_file)
 
 
-def process_files_matched(filenames, offset, duration, filter_settings,
-                          reprocess=True, suffix=None):
-    epochs = []
-    for filename in filenames:
-        fh = abr.load(filename)
-        if len(fh.erp_metadata) == 0:
-            raise IOError('No data in file')
-        e = _get_epochs(fh, offset, duration, filter_settings)
-        epochs.append(e)
-
-    epochs = _match_epochs(*epochs)
-    for filename, e in zip(filenames, epochs):
-        # Generate the filenames
-        t = _get_file_template(fh, offset, duration, filter_settings, suffix)
-        file_template = os.path.join(filename, t)
-        raw_epoch_file = file_template.format('individual waveforms')
-        mean_epoch_file = file_template.format('average waveforms')
-        n_epoch_file = file_template.format('number of epochs')
-
-        # Check to see if all of them exist before reprocessing
-        if not reprocess and \
-                (os.path.exists(raw_epoch_file) and \
-                 os.path.exists(mean_epoch_file) and \
-                 os.path.exists(n_epoch_file)):
-            continue
-
-        epoch_n = e.groupby(columns[:-1]).size()
-        epoch_mean = e.groupby(columns).mean().groupby(columns[:-1]).mean()
-
-        # Write the data to CSV files
-        epoch_n.to_csv(n_epoch_file, header=True)
-        epoch_mean.columns.name = 'time'
-        epoch_mean.T.to_csv(mean_epoch_file)
-        e.columns.name = 'time'
-        e.T.to_csv(raw_epoch_file)
-
-
 def process_file(filename, offset, duration, filter_settings, reprocess=False,
-                 n_epochs='auto', suffix=None):
+                 n_epochs='auto', suffix=None, simple_filename=True):
     '''
     Extract ABR epochs, filter and save result to CSV files
 
@@ -199,18 +170,24 @@ def process_file(filename, offset, duration, filter_settings, reprocess=False,
         use.
     suffix : {None, str}
         Suffix to use when creating save filenames.
+    simple_filename : bool
+        Pass
     '''
+    settings = locals()
+    settings['filename'] = str(settings['filename'])
+    settings['creation_time'] = dt.datetime.now().isoformat()
     fh = abr.load(filename)
     if len(fh.erp_metadata) == 0:
         raise IOError('No data in file')
 
-    # Generate the filenames
-    t = _get_file_template(fh, offset, duration, filter_settings, suffix)
+    t = _get_file_template(fh, offset, duration, filter_settings, suffix,
+                           simple_filename)
     file_template = os.path.join(filename, t)
     raw_epoch_file = file_template.format('individual waveforms')
     mean_epoch_file = file_template.format('average waveforms')
     n_epoch_file = file_template.format('number of epochs')
     reject_ratio_file = file_template.format('reject ratio')
+    settings_file = Path(file_template.format('processing settings')).with_suffix('.json')
 
     # Check to see if all of them exist before reprocessing
     if not reprocess and \
@@ -250,6 +227,7 @@ def process_file(filename, offset, duration, filter_settings, reprocess=False,
     epoch_mean.T.to_csv(mean_epoch_file)
     epochs.columns.name = 'time'
     epochs.T.to_csv(raw_epoch_file)
+    settings_file.write_text(json.dumps(settings, indent=2))
     return True
 
 

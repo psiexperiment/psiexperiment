@@ -84,12 +84,13 @@ def process(n_time, n_fft, input, workbench, status_widget, target):
                                       total_samples / input.fs)
 
                     values = context.get_values()
-                    target([values])
+                    data = [values]
+                    target(data)
                     fft_data = {}
-                    controller.invoke_actions('dpoae_acquired')
+                    controller.invoke_actions('dpoae_acquired',
+                                              kw={'data': data})
                     parameters = {'data': values}
-                    core.invoke_command('dpoae_store.save',
-                                        parameters=parameters)
+                    core.invoke_command('dpoae_store.save', parameters=parameters)
             else:
                 log.debug('DPOAE reject')
 

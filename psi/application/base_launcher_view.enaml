@@ -5,7 +5,7 @@ import json
 import os.path
 
 import enaml
-from enaml.core.api import Conditional, Looper
+from enaml.core.api import Conditional, Include, Looper
 from enaml.layout.api import vbox
 from enaml.stdlib.message_box import critical
 from enaml.widgets.api import (Action, CheckBox, Container, Field, Form,
@@ -13,6 +13,7 @@ from enaml.widgets.api import (Action, CheckBox, Container, Field, Form,
                                MenuBar, ObjectCombo, PushButton, VGroup)
 
 from psi import get_config, get_config_folder
+from psi.util import get_tagged_values
 from psi.controller.api import Channel
 from psi.core.enaml.api import load_manifest_from_file
 from psi.controller.calibration.util import load_calibration
@@ -46,14 +47,16 @@ def load_defaults(launcher, experiments):
         with path.open('r') as fh:
             settings = json.load(fh)
 
-        es_settings = settings.get('experiment', {})
+        es_settings = settings.pop('experiment', {})
         for experiment in experiments:
             t_settings = es_settings.get(experiment.type, {})
             e_settings = t_settings.get(experiment.name, {})
             for plugin in experiment.plugins:
                 p_settings = e_settings.get(plugin.name, {})
                 plugin.selected = p_settings.get('selected', plugin.selected)
-        launcher.io = settings.get('io', launcher.io)
+
+        for attr, value in settings.items():
+            setattr(launcher, attr, value)
     except:
         log.warn('%s does not exist', path)
 
@@ -66,6 +69,10 @@ def set_defaults(launcher, experiments):
     except:
         settings = {}
 
+    # Save all simple attributes that might be defined on the launcher
+    settings.update(get_tagged_values(launcher, 'persist'))
+
+    # Now, handle the experiment-specific settings
     es_settings = settings.setdefault('experiment', {})
     for experiment in experiments:
         t_settings = es_settings.setdefault(experiment.type, {})
@@ -73,16 +80,32 @@ def set_defaults(launcher, experiments):
         for plugin in experiment.plugins:
             p_settings = e_settings.setdefault(plugin.name, {})
             p_settings['selected'] = plugin.selected
-    settings['io'] = launcher.io
 
     with path.open('w') as fh:
         json.dump(settings, fh, indent=2)
+
+
+enamldef CalibrationGroup(HGroup):
+    padding = 0
+    align_widths = False
+    enabled << len(get_editable_channels(launcher.io)) > 0
+
+    ObjectCombo: select_calibration:
+        items << launcher.available_calibrations[:]
+        selected := launcher.calibration
+        to_string = lambda x: x.stem.replace('_', ' ')
+
+    PushButton:
+        text = '⚙'
+        clicked ::
+            configure_calibration(launcher.io, launcher.calibration)
 
 
 enamldef LauncherView(MainWindow): main:
 
     attr launcher
     title << 'Psiexperiment: ' + launcher.experiment_type
+    attr calibration_widgets = [Label(text='Calibration'), CalibrationGroup()]
     icon = main_icon
 
     initialized ::
@@ -114,23 +137,8 @@ enamldef LauncherView(MainWindow): main:
                 selected := launcher.io
                 to_string = lambda x: x.stem.replace('_', ' ')
 
-            Label:
-                text = 'Calibration'
-
-            HGroup:
-                padding = 0
-                align_widths = False
-                enabled << len(get_editable_channels(launcher.io)) > 0
-
-                ObjectCombo: select_calibration:
-                    items << launcher.available_calibrations[:]
-                    selected := launcher.calibration
-                    to_string = lambda x: x.stem.replace('_', ' ')
-
-                PushButton:
-                    text = '⚙'
-                    clicked ::
-                        configure_calibration(launcher.io, launcher.calibration)
+            Include:
+                objects << calibration_widgets
 
             Label:
                 text = 'Experiment'

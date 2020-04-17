@@ -314,6 +314,16 @@ class BlockedRandomSignalQueue(InterleavedFIFOSignalQueue):
 
 
 class GroupedFIFOSignalQueue(FIFOSignalQueue):
+    '''
+    Like the FIFOSignalQueue, this queue iterates through each waveform in the
+    order it was added. However, the iteration is performed in blocks. If the
+    block size is 4 and you have 8 waveforms queued:
+
+        A B C D E F G H
+
+    The queue iterates through A B C D until all trials have been presented,
+    then it shifts to E F G H.
+    '''
 
     def __init__(self, group_size, *args, **kwargs):
         super().__init__(*args, **kwargs)

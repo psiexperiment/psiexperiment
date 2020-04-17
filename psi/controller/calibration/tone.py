@@ -119,6 +119,8 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gains=0,
     if not isinstance(ao_channel_name, str):
         raise ValueError('Can only specify one output channel')
 
+    log.debug('Computing tone power for %r using inputs %r', ao_channel_name,
+              ai_channel_names)
     from psi.controller.api import ExtractEpochs, FIFOSignalQueue
 
     frequencies = np.asarray(frequencies)
@@ -138,7 +140,7 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gains=0,
     device_name = ao_channel.device_name
     ao_channel.start_trigger = ''
     for channel in ai_channels:
-        channel.start_trigger = f'/{device_name}/ao/StartTrigger'
+        channel.sync_start(ao_channel)
 
     samples = int(ao_fs*duration)
 
@@ -175,6 +177,7 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gains=0,
     samples = {ai_channel.name: [] for ai_channel in ai_channels}
 
     def accumulate(epochs, epoch):
+        log.debug('Capturing %d epochs', len(epoch))
         epochs.extend(epoch)
 
     for ai_channel in ai_channels:
@@ -185,6 +188,7 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gains=0,
         ai_channel.add_input(epoch_input)
         ai_channel.add_callback(samples[ai_channel.name].append)
 
+    cal_engine.configure()
     cal_engine.start()
     while not epoch_input.complete:
         time.sleep(0.1)

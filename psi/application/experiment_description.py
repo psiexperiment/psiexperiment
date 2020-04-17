@@ -61,11 +61,11 @@ def get_experiments(type):
 ################################################################################
 # CFTS stuff
 ################################################################################
-abr_controller = PluginDescription(
+abr_io_controller = PluginDescription(
     name='controller',
     title='Controller',
     required=True,
-    manifest='psi.application.experiment.abr_base.ABRManifest',
+    manifest='psi.application.experiment.abr_io.ABRIOManifest',
 )
 
 
@@ -148,12 +148,12 @@ microphone_fft_view_mixin = PluginDescription(
 )
 
 
-abr_experiment = ParadigmDescription(
-    name='abr',
-    title='ABR',
+abr_io_experiment = ParadigmDescription(
+    name='abr_io',
+    title='ABR (input-output)',
     type='ear',
     plugins=[
-        abr_controller,
+        abr_io_controller,
         temperature_mixin.copy(),
         eeg_view_mixin.copy(),
         abr_in_ear_calibration_mixin.copy(),
@@ -442,7 +442,7 @@ appetitive_experiment = ParadigmDescription(
 # Wrapup
 ################################################################################
 experiments = {
-    'abr': abr_experiment,
+    'abr_io': abr_io_experiment,
     'dpoae_contra': dpoae_contra_experiment,
     'dpoae_ttl': dpoae_ttl_experiment,
     'dpoae_io': dpoae_io_experiment,

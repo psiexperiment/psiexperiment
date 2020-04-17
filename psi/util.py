@@ -7,7 +7,7 @@ import threading
 
 import numpy as np
 import pandas as pd
-from atom.api import Property
+from atom.api import Atom, Property
 
 
 def as_numeric(x):
@@ -46,8 +46,6 @@ def get_tagged_values(obj, tag_name, tag_value=True, exclude_properties=False):
 
 
 def declarative_to_dict(obj, tag_name, tag_value=True):
-    from atom.api import Atom
-    import numpy as np
     result = {}
     for name, member in obj.members().items():
         if member.metadata and member.metadata.get(tag_name) == tag_value:
@@ -62,6 +60,16 @@ def declarative_to_dict(obj, tag_name, tag_value=True):
                 result[name] = value
     result['type'] = obj.__class__.__name__
     return result
+
+
+def dict_to_declarative(obj, info):
+    for k, v in info.items():
+        if k == 'type':
+            continue
+        if isinstance(v, dict) and 'type' in v:
+            dict_to_declarative(getattr(obj, k), v)
+        else:
+            setattr(obj, k, v)
 
 
 def coroutine(func):
@@ -109,6 +117,7 @@ def get_dependencies(expression):
 class SignalBuffer:
 
     def __init__(self, fs, size, fill_value=np.nan, dtype=np.double):
+        log.debug('Creating signal buffer with fs=%f and size=%f', fs, size)
         self._lock = threading.RLock()
         self._buffer_fs = fs
         self._buffer_size = size
@@ -171,6 +180,9 @@ class SignalBuffer:
                 ub = self.get_samples_ub()
             ilb = self.samples_to_index(lb)
             iub = self.samples_to_index(ub)
+            log.trace('Need range %d to %d.', ilb, iub)
+            log.trace('Current lower bound is %d for %d', self._ilb,
+                      self._buffer_samples)
             if ilb < self._ilb:
                 raise IndexError
             elif iub > self._buffer_samples:
@@ -215,8 +227,10 @@ class SignalBuffer:
 
     def get_latest(self, lb, ub=0):
         with self._lock:
+            log.trace('Converting latest %f to %f to absolute time', lb, ub)
             lb = lb + self.get_time_ub()
             ub = ub + self.get_time_ub()
+            log.trace('Absolute time is %f to %f', lb, ub)
             return self.get_range(lb, ub)
 
     def get_time_lb(self):

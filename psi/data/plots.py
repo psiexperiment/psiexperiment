@@ -61,6 +61,9 @@ class ColorCycleMixin(Declarative):
     pen_color_cycle = d_(Typed(object))
     _plot_colors = Typed(dict)
 
+    def _default_pen_color_cycle(self):
+        return ['k']
+
     def _make_plot_cycle(self):
         if isinstance(self.pen_color_cycle, str):
             cycle = get_color_cycle(self.pen_color_cycle)
@@ -80,9 +83,9 @@ class ColorCycleMixin(Declarative):
 
     def _observe_pen_color_cycle(self, event):
         self._plot_colors = self._make_plot_cycle()
-        self.reset_plots()
+        self._reset_plots()
 
-    def reset_plots(self):
+    def _reset_plots(self):
         raise NotImplementedError
 
 
@@ -220,6 +223,10 @@ class BasePlotContainer(PSIContribution):
     x_axis = Typed(pg.AxisItem)
     base_viewbox = Property()
     legend = Typed(pg.LegendItem)
+    x_transform = Callable()
+
+    def _default_x_transform(self):
+        return lambda x: x
 
     def _default_container(self):
         return create_container(self.children, self.x_axis)
@@ -323,6 +330,9 @@ class FFTContainer(BasePlotContainer):
     '''
     freq_lb = d_(Float(5))
     freq_ub = d_(Float(50000))
+
+    def _default_x_transform(self):
+        return np.log10
 
     def _default_container(self):
         container = super()._default_container()
@@ -752,7 +762,7 @@ class GroupMixin(ColorCycleMixin):
         group_key = self.group_color_key(kw_key)
         return super().get_pen_color(group_key)
 
-    def reset_plots(self):
+    def _reset_plots(self):
         # Clear any existing plots and reset color cycle
         for plot in self.plots.items():
             self.parent.viewbox.removeItem(plot)
@@ -767,7 +777,7 @@ class GroupMixin(ColorCycleMixin):
         self._update_groups()
 
     def _update_groups(self, event=None):
-        self.reset_plots()
+        self._reset_plots()
         self.group_names = [p.name for p in self.groups.values]
         if self.source is not None:
             self.update()
@@ -934,7 +944,7 @@ class StackedEpochAveragePlot(EpochGroupMixin, BasePlot):
             self._offset_update_needed = False
 
     def _reset_plots(self):
-        #super()._reset_plots()
+        super()._reset_plots()
         self.parent.viewbox \
             .sigRangeChanged.connect(self._update_offsets)
         self.parent.viewbox \
@@ -1040,19 +1050,28 @@ class DataFramePlot(ColorCycleMixin, PSIContribution):
     pen_width = d_(Float(0))
     antialias = d_(Bool(False))
 
+    container = Property()
+
+    def _get_container(self):
+        parent = self.parent
+        while True:
+            if isinstance(parent, BasePlotContainer):
+                return parent
+            parent = parent.parent
+
     def _default_name(self):
         return '.'.join((self.parent.name, 'result_plot'))
 
     def _observe_x_column(self, event):
-        self.reset_plots()
+        self._reset_plots()
         self._observe_data(event)
 
     def _observe_y_column(self, event):
-        self.reset_plots()
+        self._reset_plots()
         self._observe_data(event)
 
     def _observe_grouping(self, event):
-        self.reset_plots()
+        self._reset_plots()
         self._observe_data(event)
 
     def _observe_data(self, event):
@@ -1067,10 +1086,16 @@ class DataFramePlot(ColorCycleMixin, PSIContribution):
         if self.grouping:
             try:
                 for group, values in self.data.groupby(self.grouping):
+                    if len(self.grouping) == 1:
+                        label = str(group)
+                    else:
+                        label = ','.join(f'{n} {v}'
+                                        for n, v in zip(self.grouping, group))
                     if group not in self._plot_cache:
-                        self._plot_cache[group] = self._default_plot(group)
+                        self._plot_cache[group] = self._default_plot(group, label)
                     x = values[self.x_column].values
                     y = values[self.y_column].values
+                    x = self.container.x_transform(x)
                     i = np.argsort(x)
                     todo.append((self._plot_cache[group], x[i], y[i]))
             except KeyError as e:
@@ -1083,6 +1108,7 @@ class DataFramePlot(ColorCycleMixin, PSIContribution):
                 self._plot_cache[None] = self._default_plot(None)
             x = self.data[self.x_column].values
             y = self.data[self.y_column].values
+            x = self.container.x_transform(x)
             i = np.argsort(x)
             todo.append((self._plot_cache[None], x[i], y[i]))
 
@@ -1092,7 +1118,7 @@ class DataFramePlot(ColorCycleMixin, PSIContribution):
                 plot.setData(x, y)
         deferred_call(update)
 
-    def _default_plot(self, group):
+    def _default_plot(self, group, label=None):
         symbol_code = self.SYMBOL_MAP[self.symbol]
         color = self.get_pen_color(group)
         brush = pg.mkBrush(color)
@@ -1105,10 +1131,10 @@ class DataFramePlot(ColorCycleMixin, PSIContribution):
                                symbolPen=pen,
                                symbolBrush=brush,
                                pxMode=self.symbol_size_unit=='screen')
-        deferred_call(self.parent.add_plot, plot, self.label)
+        deferred_call(self.parent.add_plot, plot, label)
         return plot
 
-    def reset_plots(self):
+    def _reset_plots(self):
         for plot in self._plot_cache.values():
             deferred_call(self.parent.viewbox.removeItem, plot)
         self._plot_cache = {}

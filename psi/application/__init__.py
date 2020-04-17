@@ -24,21 +24,29 @@ def _exception_notifier(*args):
     sys.__excepthook__(*args)
 
 
-def configure_logging(level, filename=None):
+def configure_logging(level, filename=None, debug_exclude=None):
     log = logging.getLogger()
     log.setLevel(level)
     stream_handler = logging.StreamHandler()
+    fmt = '{levelname:10s}: {threadName:11s} - {name:40s}:: {message}'
+    formatter = logging.Formatter(fmt, style='{')
+    stream_handler.setFormatter(formatter)
     log.addHandler(stream_handler)
     if filename is not None:
         file_handler = logging.FileHandler(filename, 'w', 'UTF-8')
         log.addHandler(file_handler)
 
+    if debug_exclude is not None:
+        for name in debug_exclude:
+            logging.getLogger(name).setLevel('CRITICAL')
+
+    tdt_logger = logging.getLogger('tdt')
+    tdt_logger.setLevel('INFO')
     sys.excepthook = _exception_notifier
 
 
 def warn_with_traceback(message, category, filename, lineno, file=None,
                         line=None):
-    #traceback.print_stack()
     log = file if hasattr(file,'write') else sys.stderr
     m = warnings.formatwarning(message, category, filename, lineno, line)
     log.write(m)
@@ -53,7 +61,8 @@ def _main(args):
         dt_string = dt.datetime.now().strftime('%Y-%m-%d %H%M')
         filename = '{} {}'.format(dt_string, args.experiment)
         log_root = get_config('LOG_ROOT')
-        configure_logging('DEBUG', os.path.join(log_root, filename))
+        configure_logging(args.debug_level, os.path.join(log_root, filename),
+                          args.debug_exclude)
 
         log.debug('Logging configured')
         log.info('Logging information captured in {}'.format(filename))
@@ -81,7 +90,9 @@ def _main(args):
 
 
 def list_preferences(experiment):
-    p_root = get_config('PREFERENCES_ROOT') / experiment.name
+    if not isinstance(experiment, str):
+        experiment = experiment.name
+    p_root = get_config('PREFERENCES_ROOT') / experiment
     p_wildcard = get_config('PREFERENCES_WILDCARD')
     p_glob = p_wildcard[:-1].split('(')[1]
     matches = p_root.glob(p_glob)
@@ -93,10 +104,23 @@ def list_io():
     return list(io_path.glob('*.enaml'))
 
 
-def list_calibrations(io_file):
+def get_calibration_path(io_file):
     io_file = Path(io_file)
-    calibration_path = io_file.parent / io_file.stem
-    return list(calibration_path.glob('*.json'))
+    return io_file.parent / io_file.stem
+
+
+def get_calibration_file(io_file=None, name='default'):
+    if io_file is None:
+        io_file = get_default_io()
+    path = get_calibration_path(io_file)
+    return (path / name).with_suffix('.json')
+
+
+def list_calibrations(io_file=None):
+    if io_file is None:
+        io_file = get_default_io()
+    path = get_calibration_path(io_file)
+    return list(path.glob('*.json'))
 
 
 def launch_experiment(args):
@@ -125,11 +149,38 @@ def launch_experiment(args):
 
 
 def get_default_io():
+    '''
+    Attempt to figure out the default IO configuration file
+
+    Rules
+    -----
+    * If no files are defined, raise ValueError
+    * If only one file is defined, return it
+    * If more than one file is defined, check for one named "default" first. If
+      none are named "default", check to see if one matches the hostname.
+    * Finally, raise ValueError if it cannot define a reasonalbe default.
+    '''
+    system = get_config('SYSTEM')
     available_io = list_io()
-    if len(available_io) == 1:
+    log.debug('Found the following IO files: %r', available_io)
+
+    if len(available_io) == 0:
+        raise ValueError('No IO configured for system')
+    elif len(available_io) == 1:
         return available_io[0]
-    return None
-    #raise ValueError('No IO configured for system')
+
+    # First, check for one named "default"
+    for io in available_io:
+        if io.stem.lower() == 'default':
+            return io
+
+    # Next, check to see if it matches hostname
+    for io in available_io:
+        if io.stem == system:
+            return io
+
+    # Give up
+    raise ValueError('Could not identify default IO configuration')
 
 
 def get_default_calibration(io_file):
@@ -150,7 +201,7 @@ def add_default_options(parser):
                 path = get_config('IO_ROOT') / value
                 path = path.with_suffix('.enaml')
                 if not path.exists():
-                    raise ValueError('%s does not exist'.format(value))
+                    raise ValueError('{} does not exist'.format(value))
             setattr(namespace, self.dest, path)
 
     class CalibrationAction(argparse.Action):
@@ -163,15 +214,23 @@ def add_default_options(parser):
                     raise ValueError('%s does not exist'.format(value))
             setattr(namespace, self.dest, value)
 
+    try:
+        default_io = get_default_io()
+    except ValueError:
+        default_io = None
     parser.add_argument('pathname', type=str, help='Filename', nargs='?')
-    parser.add_argument('--io', type=str, default=get_default_io(),
+    parser.add_argument('--io', type=str, default=default_io,
                         help='Hardware configuration', action=IOAction)
     parser.add_argument('--calibration', type=str, help='Hardware calibration',
                         action=CalibrationAction)
     parser.add_argument('--debug', default=True, action='store_true',
                         help='Debug mode?')
     parser.add_argument('--debug-warning', default=False, action='store_true',
-                        help='Debug mode?')
+                        help='Show warnings?')
+    parser.add_argument('--debug-level', type=str, default='DEBUG',
+                        help='Logging level')
+    parser.add_argument('--debug-exclude', type=str, nargs='*',
+                        help='Names to exclude from debugging')
     parser.add_argument('--pdb', default=False, action='store_true',
                         help='Autolaunch PDB?')
     parser.add_argument('--no-preferences', default=False, action='store_true',

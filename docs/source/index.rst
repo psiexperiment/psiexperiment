@@ -13,6 +13,14 @@ Psiexperiment is a plugin-based framework for creating feature-rich auditory exp
 
    If you're interested in the interleaved stimulus design for auditory brainstem responses (ABRs) described in Buran et al. (2019) [1]_, we have :doc:`detailed information on how to use psiexperiment with the interleaved ABR program<interleaved_ABR>`.
 
+Contributors and Acknowledgements
+---------------------------------
+
+* Brad Buran (New York University, Oregon Health & Science University)
+* Decibel Therapeutics, Inc.
+
+Work on psiexperiment was supported by grants R01-DC009237 and R21-DC016969 from the `National Institute on Deafness and Other Communication Disorders <https://www.nidcd.nih.gov/>`_ and an Emerging Research Grant from the `Hearing Health Foundation <https://hearinghealthfoundation.org/>`_. Ann Hickox provided extensive testing and feedback on the TDT backend for psiexperiment.
+
 Screencasts
 -----------
 To get a better view of these screencasts, right click on the image and select "view image" in your browser.

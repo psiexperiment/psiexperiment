@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 from functools import partial
 
 import numpy as np
@@ -6,78 +9,19 @@ from enaml.widgets.api import DockItem, Container
 from enaml.workbench.api import Extension, PluginManifest
 from enaml.workbench.core.api import Command
 
-from psi.core.enaml.api import DataFrameTable
 from psi.context.api import (ContextGroup, Parameter, BoolParameter, EnumParameter)
-from psi.context.context_item import OrderedContextMeta
 from psi.context.selector import CartesianProduct
-from psi.controller import queue
 from psi.controller.api import ExperimentAction
 from psi.controller.api import (ContinuousInput, ControllerManifest,
                                 ExtractEpochs, RejectEpochs, IIRFilter, Input,
                                 Detrend)
 from psi.controller.output import QueuedEpochOutput
 from psi.controller.calibration.util import db
-from psi.data.plots import (MultiPlotContainer, StackedEpochAveragePlot,
-                            TimeContainer, ViewBox, StackedEpochAveragePlot)
-from psi.data.sinks.epoch_counter import GroupedEpochCounter
 from psi.data.sinks.bcolz_store import BColzStore
 from psi.token.primitives import Cos2Envelope, Tone
 
 
-def configure_experiment(event):
-    context = event.workbench.get_plugin('psi.context')
-    controller = event.workbench.get_plugin('psi.controller')
-
-    ordering = context.get_value('ordering')
-    alternate_polarity = context.get_value('alternate_polarity')
-    tone_duration = context.get_value('target_tone_burst_duration')
-    rate = context.get_value('rate')
-    averages = context.get_value('averages')
-
-    if alternate_polarity and (averages % 2):
-        # Round to the nearest multiple of 2
-        averages = (round(averages/2) + 1) * 2
-
-    # Compensate for the tone duration. ITI is the time from tone offset to
-    # tone offset.
-    iti = 1/rate - tone_duration
-    if iti <= 0:
-        raise ValueError('Repetition rate is too fast')
-
-    target = controller.get_output('target')
-
-    # Configure the queues
-    if ordering == 'interleaved':
-        target.queue = queue.InterleavedFIFOSignalQueue()
-    elif ordering == 'sequential':
-        if alternate_polarity:
-            target.queue = queue.GroupedFIFOSignalQueue(group_size=2)
-        else:
-            target.queue = queue.FIFOSignalQueue()
-    elif ordering == 'random':
-        target.queue = queue.BlockedRandomSignalQueue()
-    else:
-        raise ValueError('Unrecognized ordering {}'.format(ordering))
-
-    if not alternate_polarity:
-        for setting in context.iter_settings('default', 1):
-            target.add_setting(setting, averages, iti)
-    elif ordering == 'interleaved':
-        for setting in context.iter_settings('default', 1):
-            setting['target_tone_polarity'] = 1
-            target.add_setting(setting, averages/2, iti)
-        for setting in context.iter_settings('default', 1):
-            setting['target_tone_polarity'] = -1
-            target.add_setting(setting, averages/2, iti)
-    elif ordering in ('sequential', 'random'):
-        for setting in context.iter_settings('default', 1):
-            setting['target_tone_polarity'] = 1
-            target.add_setting(setting, averages/2, iti)
-            setting['target_tone_polarity'] = -1
-            target.add_setting(setting, averages/2, iti)
-    else:
-        raise ValueError('Unrecognized ordering {}'.format(ordering))
-
+def set_expected_range(context, target):
     # Now, identify the maximum level on a per-frequency setting
     max_level = {}
     for setting in context.iter_settings('default', 1):
@@ -94,11 +38,14 @@ def configure_experiment(event):
     max_sf = max(max_sf.values()) * np.sqrt(2) * 1.01
     target.channel.expected_range = (-max_sf, max_sf)
 
-    action_name = target.name + '_end'
-    target.complete_cb = partial(controller.invoke_actions, action_name)
 
+enamldef ABRBaseManifest(ControllerManifest): manifest:
+    '''
+    Defines functionality shared by all applications that perform tone ABRs.
 
-enamldef ABRManifest(ControllerManifest): manifest:
+    Subclasses must add a command, `psi.controller.configure_experiment` that
+    creates and configures the target queue.
+    '''
 
     Extension:
         id = 'abr_base_text_store'
@@ -131,6 +78,8 @@ enamldef ABRManifest(ControllerManifest): manifest:
             configurable = False
             target_name = C.output_channel
             queue ::
+                # Once the queue has been configured in one of the
+                # subclasses, hook it up to the ExtractEpochs input
                 self.connect(extract.queue.append)
 
         ContinuousInput:
@@ -170,8 +119,8 @@ enamldef ABRManifest(ControllerManifest): manifest:
         point = 'psi.context.items'
 
         ContextGroup:
-            name = 'abr'
-            label = 'ABR settings'
+            name = 'artifact_reject'
+            label = 'Artifact reject settings'
 
             EnumParameter:
                 name = 'detrend_mode'
@@ -200,34 +149,6 @@ enamldef ABRManifest(ControllerManifest): manifest:
                 label = 'Reject threshold'
                 compact_label = 'Th'
                 default = 2.5
-                scope = 'experiment'
-
-            Parameter:
-                name = 'averages'
-                label = 'Averages'
-                default = 512
-                scope = 'experiment'
-
-            Parameter:
-                name = 'rate'
-                label = 'Reps. per sec.'
-                default = 80
-                scope = 'experiment'
-
-            BoolParameter:
-                name = 'alternate_polarity'
-                label = 'Alternate polarity?'
-                default = True
-                scope = 'experiment'
-
-            EnumParameter:
-                name = 'ordering'
-                label = 'Stimulus ordering'
-                choices = {
-                    'interleaved': '"interleaved"',
-                    'sequential': '"sequential"',
-                    'random': '"random"',
-                }
                 scope = 'experiment'
 
         ContextGroup:
@@ -281,6 +202,7 @@ enamldef ABRManifest(ControllerManifest): manifest:
             EnumParameter:
                 name = 'eeg_channel'
                 label = 'EEG channel'
+                compact_label = 'ai_eeg'
                 choices = manifest.get_hw_ai_choices()
                 selected = next(iter(manifest.get_hw_ai_choices()))
                 scope = 'experiment'
@@ -303,9 +225,6 @@ enamldef ABRManifest(ControllerManifest): manifest:
                 default = 100e3
                 scope = 'experiment'
 
-        OrderedContextMeta: epoch_groups:
-            name = 'settings'
-
     Extension:
         id = 'selectors'
         point = 'psi.context.selectors'
@@ -313,14 +232,6 @@ enamldef ABRManifest(ControllerManifest): manifest:
         CartesianProduct:
             name = 'default'
             label = 'ABR sequence'
-
-    Extension:
-        id = 'calibration_commands'
-        point = 'enaml.workbench.core.commands'
-
-        Command:
-            id = 'psi.controller.configure_experiment'
-            handler = configure_experiment
 
     Extension:
         id = 'actions'
@@ -348,41 +259,3 @@ enamldef ABRManifest(ControllerManifest): manifest:
         ExperimentAction:
             event = 'target_end'
             command = 'psi.controller.stop'
-
-    Extension:
-        id = 'sink'
-        point = 'psi.data.sinks'
-
-        GroupedEpochCounter:
-            name = 'valid_erp_counter'
-            label = 'Valid ERPs acquired'
-            source_name = 'valid_erp'
-            groups << epoch_groups
-
-    Extension:
-        id = 'plots'
-        point = 'psi.data.plots'
-
-        MultiPlotContainer: mc:
-            name = 'abr_results'
-            label = 'ABR waveforms'
-            group = 'target_tone_frequency'
-
-            TimeContainer:
-                name = 'erp_container'
-                label = 'ERP average'
-                span = 8.5e-3
-
-                ViewBox:
-                    y_min = -5
-                    y_max = 5
-                    label = 'Signal (V) {}'.format(loop_item)
-
-                    StackedEpochAveragePlot:
-                        label = 'ERP average plot'
-                        source_name = 'valid_erp'
-                        n_update = 8
-                        group_filter = lambda key: key['target_tone_frequency'] == loop_item
-                        pen_width = 2
-                        pen_color_cycle = ['k']
-                        groups << epoch_groups

@@ -74,6 +74,15 @@ def find_engines(point):
                     m = 'Only one engine can be defined as the master'
                     raise ValueError(m)
                 master_engine = e
+
+    # The first engine is the master by default
+    if master_engine is None:
+        candidates = list(engines.values())
+        if len(candidates) == 1:
+            master_engine = candidates[0]
+        else:
+            raise ValueError('Must specify master engine in IOManifest')
+
     return engines, master_engine
 
 

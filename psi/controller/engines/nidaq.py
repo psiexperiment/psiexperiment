@@ -51,6 +51,10 @@ class NIDAQGeneralMixin(Declarative):
     def __str__(self):
         return f'{self.label} ({self.channel})'
 
+    def sync_start(self, channel):
+        self.start_trigger = f'/{channel.device_name}/ao/StartTrigger'
+        channel.start_trigger = ''
+
 
 class NIDAQTimingMixin(Declarative):
 

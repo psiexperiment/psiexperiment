@@ -44,13 +44,13 @@ class SimpleState(object):
 
 
 def get_config_folder():
-    user_path = Path('~') / 'psi'
-    return user_path.expanduser()
+    default = Path('~') / 'psi'
+    default = default.expanduser()
+    return Path(os.environ.get('PSI_CONFIG', default))
 
 
 def get_config_file():
-    default = get_config_folder() / 'config.py'
-    return Path(os.environ.get('PSI_CONFIG', default))
+    return get_config_folder() / 'config.py'
 
 
 def create_config(base_directory=None):
@@ -147,6 +147,7 @@ def get_config(setting=None):
 # json-tricks library handles quite a few different types of Python objects
 # fairly well. This ensures that third-party libraries (e.g., bcolz) that see
 # psiexperiment data structures can properly deal with them.
+import matplotlib
 import json
 import json_tricks
 

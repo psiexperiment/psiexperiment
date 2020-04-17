@@ -158,7 +158,7 @@ def start_synchronized(synchronized, event):
     try:
         _start_synchronized(synchronized, event)
     except Exception as e:
-        raise
+        log.exception(e)
         controller = event.workbench.get_plugin('psi.controller')
         controller.invoke_actions('{}_failure'.format(synchronized.name))
 
@@ -166,6 +166,11 @@ def start_synchronized(synchronized, event):
 def _start_synchronized(synchronized, event):
     log.debug('Starting synchronized %s', synchronized.name)
     controller = event.workbench.get_plugin('psi.controller')
+
+    # First, lock all engines involved to avoid race conditions
+    for engine in synchronized.engines:
+        engine.lock.acquire()
+    log.debug('#> Acquired lock for all engines')
 
     ts = event.parameters['timestamp']
     start = event.parameters.get('start', ts)
@@ -176,16 +181,11 @@ def _start_synchronized(synchronized, event):
     if start is None:
         start = controller.get_ts()
         log.debug('No starting time provided. Setting start to %f.', start)
+    log.debug('Timestamp %r, start %r, delay %r', ts, start, delay)
 
     # For each engine involved in this synchronized output, store a list of the
     # offsets and channel names that need to be updated.
-    settings = {e: {'offsets': [], 'channel_names': []} \
-                for e in synchronized.engines}
-
-    # First, lock all engines involved to avoid race conditions
-    log.debug('Locking all engines')
-    for engine in synchronized.engines:
-        engine.lock.acquire()
+    settings = {e: {'offsets': [], 'names': []} for e in synchronized.engines}
 
     notify_end = False
     durations = {}
@@ -210,13 +210,15 @@ def _start_synchronized(synchronized, event):
 
         setting = settings[output.engine]
         setting['offsets'].append(offset)
-        setting['channel_names'].append(output.channel.name)
+        setting['names'].append(output.channel.name)
 
     # Tell the engines to update the waveform
     for engine, setting in settings.items():
-        engine.update_hw_ao_multiple(method='write_position', **setting)
+        log.debug('%s update %r', engine.name, setting)
+        engine.update_hw_ao_multiple(**setting)
 
     # Finally, release the lock.
+    log.debug('<# Releasing lock for all engines')
     for engine in synchronized.engines:
         engine.lock.release()
 
@@ -239,8 +241,7 @@ def clear_synchronized(synchronized, event):
 
     # For each engine involved in this synchronized output, store a list of the
     # offsets and channel names that need to be updated.
-    settings = {e: {'offsets': [], 'channel_names': []} \
-                for e in synchronized.engines}
+    settings = {e: {'offsets': [], 'names': []} for e in synchronized.engines}
 
     # First, lock all engines involved to avoid race conditions
     log.debug('Locking all engines')
@@ -257,11 +258,11 @@ def clear_synchronized(synchronized, event):
 
         setting = settings[output.engine]
         setting['offsets'].append(offset)
-        setting['channel_names'].append(output.channel.name)
+        setting['names'].append(output.channel.name)
 
     # Tell the engines to update the waveform
     for engine, setting in settings.items():
-        engine.update_hw_ao_multiple(method='write_position', **setting)
+        engine.update_hw_ao_multiple(**setting)
 
     # Finally, release the lock.
     for engine in synchronized.engines:
@@ -326,8 +327,7 @@ def start_output(event, output):
         duration = output.get_duration()
 
         output.activate(offset)
-        output.engine.update_hw_ao(offset, output.channel.name,
-                                   method='write_position')
+        output.engine.update_hw_ao(output.channel.name, offset)
         output.engine.lock.release()
     except SystemError as e:
         # There wasn't enough time to write the data to the buffer. Need to
@@ -370,8 +370,7 @@ def clear_output(event, output):
         # will overwrite any data that contains a fragment of the output
         # waveform.
         offset = round((end+delay)*output.fs)
-        output.engine.update_hw_ao(offset, output.channel.name,
-                                   method='write_position')
+        output.engine.update_hw_ao(output.channel.name, offset)
 
     controller = event.workbench.get_plugin('psi.controller')
     controller.invoke_actions('{}_end'.format(output.name), end+delay)
