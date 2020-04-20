@@ -68,7 +68,7 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
                 hide = ['polarity', 'phase']
 
     Extension:
-        id = 'io'
+        id = 'abr_base_io'
         point = 'psi.controller.io'
 
         QueuedEpochOutput: output:
@@ -115,7 +115,7 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
                             mode = C.reject_mode
 
     Extension:
-        id = 'context'
+        id = 'abr_base_context'
         point = 'psi.context.items'
 
         ContextGroup:
