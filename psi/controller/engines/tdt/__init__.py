@@ -99,6 +99,9 @@ class TDTEngine(Engine):
     '''
     #: Device name (e.g., RZ6, etc.)
     device_name = d_(Enum('RZ6')).tag(metadata=True)
+    circuit = d_(Unicode('standard')).tag(metadata=True)
+
+    circuit_path = Property()
 
     #: Device ID (required only if you have more than one of the same device).
     #: Use zBUSmon utility to look up the correct device ID.
@@ -120,13 +123,15 @@ class TDTEngine(Engine):
     _stop_requested = Value()
     _sf = Typed(dict, {})
 
+    def _get_circuit_path(self):
+        circuit_name = f'{self.device_name}-{self.circuit}.rcx'
+        return Path(__file__).parent / circuit_name
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         log.debug('Loading DSP circuit')
         self._project = DSPProject()
-        #circuit_path = Path(__file__).parent / 'RZ6-standard-single-DSP.rcx'
-        circuit_path = Path(__file__).parent / 'RZ6-standard.rcx'
-        self._circuit = self._project.load_circuit(circuit_path,
+        self._circuit = self._project.load_circuit(self.circuit_path,
                                                    self.device_name,
                                                    self.device_id)
         self._circuit.start()
