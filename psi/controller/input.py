@@ -685,7 +685,7 @@ def capture_epoch(epoch_t0, epoch_samples, info, callback):
 
 @coroutine
 def extract_epochs(fs, queue, epoch_size, poststim_time, buffer_size, target,
-                   empty_queue_cb=None):
+                   empty_queue_cb=None, comm_queue=None):
 
     # The variable `tlb` tracks the number of samples that have been acquired
     # and reflects the lower bound of `data`. For example, if we have acquired
@@ -695,6 +695,9 @@ def extract_epochs(fs, queue, epoch_size, poststim_time, buffer_size, target,
     tlb = 0
     epoch_coroutines = []
     prior_samples = []
+
+    if comm_queue is None:
+        comm_queue = deque()
 
     # How much historical data to keep (for retroactively capturing epochs)
     buffer_samples = int(buffer_size*fs)
@@ -707,6 +710,10 @@ def extract_epochs(fs, queue, epoch_size, poststim_time, buffer_size, target,
     while True:
         # Wait for new data to become available
         data = (yield)
+        while comm_queue:
+            cmd, cmd_info = comm_queue.popleft()
+            if cmd == 'clear':
+
         prior_samples.append((tlb, data))
 
         # Send the data to each coroutine. If a StopIteration occurs, this means

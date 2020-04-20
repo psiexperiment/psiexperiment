@@ -70,10 +70,15 @@ class AbstractSignalQueue:
         self._t0 = 0
 
     def pause(self):
+        log.debug('Pausing queue')
         self._paused = True
 
     def resume(self):
+        log.debug('Resuming queue')
         self._paused = False
+
+    def toggle_pause(self):
+        self._paused = not self._paused
 
     def is_empty(self):
         return self._empty
@@ -208,7 +213,6 @@ class AbstractSignalQueue:
             raise ValueError('Invalid option for delay samples')
 
         queue_t0 = self._samples/self._fs
-
         uploaded = {
             't0': self._t0 + queue_t0,      # Time re. acq. start
             'queue_t0': queue_t0,           # Time re. queue start
@@ -216,6 +220,7 @@ class AbstractSignalQueue:
             'key': key,                     # Unique ID
             'metadata': data['metadata'],   # Metadata re. token
         }
+        #log.debug('t0: %f; queue_t0: %f', uploaded['t0'], uploaded['queue_t0'])
         self._notify(uploaded)
 
     def pop_buffer(self, samples, decrement=True):
@@ -238,7 +243,9 @@ class AbstractSignalQueue:
             samples -= len(waveform)
             self._samples += len(waveform)
             waveforms.append(waveform)
-        return np.concatenate(waveforms, axis=-1)
+        waveform = np.concatenate(waveforms, axis=-1)
+        log.debug('Generated %d samples', len(waveform))
+        return waveform
 
     def _pop_buffer(self, samples, decrement):
         '''

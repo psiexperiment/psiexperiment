@@ -218,6 +218,26 @@ class QueuedEpochOutput(BufferedOutput):
     auto_decrement = d_(Bool(False))
     complete_cb = Typed(object)
     complete = d_(Event(), writable=False)
+    paused = Bool(False)
+
+    def pause(self):
+        with self.engine.lock:
+            self.paused = True
+            pause_time = self.engine.get_ts() + 1
+            self.queue.pause(pause_time)
+            offset = int((pause_time + 1) * self.fs)
+            self._buffer.invalidate_samples(offset)
+            self.engine.update_hw_ao(self.channel.name, offset)
+
+    def resume(self):
+        self.paused = False
+        self.queue.resume()
+
+    def toggle_pause(self):
+        if self.paused:
+            self.resume()
+        else:
+            self.pause()
 
     def _observe_queue(self, event):
         self.source = self.queue
