@@ -129,7 +129,8 @@ class TDTEngine(Engine):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        log.debug('Loading DSP circuit')
+        log.debug('Loading DSP circuit %s to %s %d', self.circuit_path,
+                  self.device_name, self.device_id)
         self._project = DSPProject()
         self._circuit = self._project.load_circuit(self.circuit_path,
                                                    self.device_name,
