@@ -1,4 +1,4 @@
-from collections import deque
+from collections import Counter, deque
 from copy import copy
 
 import pytest
@@ -70,6 +70,118 @@ def test_long_tone_queue():
     assert np.any(waveforms[0] != waveforms[1])
 
 
+def make_queue(ordering, frequencies, trials, fs=100e3):
+    if ordering == 'FIFO':
+        queue = FIFOSignalQueue(fs)
+    elif ordering == 'interleaved':
+        queue = InterleavedFIFOSignalQueue(fs)
+    else:
+        raise ValueError(f'Unrecognized queue ordering {ordering}')
+
+    conn = deque()
+    queue.connect(conn.append, 'added')
+    removed_conn = deque()
+    queue.connect(removed_conn.append, 'removed')
+
+    keys = []
+    tones = []
+    for frequency in frequencies:
+        t = make_tone(frequency=frequency)
+        k = queue.append(t, trials)
+        keys.append(k)
+        tones.append(t)
+
+    return queue, conn, removed_conn, keys, tones
+
+
+def test_fifo_queue_pause_with_requeue():
+    fs = 100e3
+    queue, conn, rem_conn, (k1, k2), (t, _) = make_queue('FIFO', [1e3, 5e3], 200, fs)
+    extractor_conn = deque()
+    extractor_rem_conn = deque()
+    queue.connect(extractor_conn.append, 'added')
+    queue.connect(extractor_rem_conn.append, 'removed')
+
+    waveforms = []
+    extractor = extract_epochs(fs=fs,
+                               queue=extractor_conn,
+                               removed_queue=extractor_rem_conn,
+                               epoch_size=None,
+                               poststim_time=0,
+                               buffer_size=0,
+                               target=waveforms.extend)
+
+    waveform = queue.pop_buffer(int(1.5*fs))
+    assert len(conn) == int(1.5 / t.duration)
+    keys = [i['key'] for i in conn]
+    assert len(set(keys)) == 2
+    assert len(set(keys[:200])) == 1
+    assert keys[0] == k1
+    assert keys[200] == k2
+    assert queue.remaining_trials(k1) == 0
+    assert queue.remaining_trials(k2) == 100
+    conn.clear()
+    assert len(rem_conn) == 0
+    # At this point we should have 300 trials "acquired"
+
+    # Pausing should requeue everything after 0.5s
+    queue.pause(0.5)
+    extractor.send(waveform)
+    assert len(waveforms) == 100
+
+    waveform = queue.pop_buffer(int(fs))
+    extractor.send(waveform)
+    assert len(waveforms) == 100
+    assert queue.remaining_trials(k1) == 100
+    assert queue.remaining_trials(k2) == 200
+    assert len(conn) == 0
+    assert len(rem_conn) == 200
+
+    # Verify removal event is properly notifying
+    rem_t0 = np.array([i['t0'] for i in rem_conn])
+    rem_keys = np.array([i['key'] for i in rem_conn])
+    assert np.all(rem_t0 >= 0.5)
+    rem_count = Counter(rem_keys)
+    assert rem_count[k1] == 100
+    assert rem_count[k2] == 100
+    rem_conn.clear()
+
+    queue.resume()
+    waveform = queue.pop_buffer(int(fs))
+    extractor.send(waveform)
+    assert len(waveforms) == 300
+    assert queue.remaining_trials(k1) == 0
+    assert queue.remaining_trials(k2) == 100
+    assert len(conn) == 200
+    keys += [i['key'] for i in conn]
+    conn.clear()
+
+    waveform = queue.pop_buffer(int(fs))
+    extractor.send(waveform)
+    assert queue.remaining_trials(k1) == 0
+    assert queue.remaining_trials(k2) == 0
+    assert len(conn) == 100
+    keys += [i['key'] for i in conn]
+
+    # We requeued 1 second worth of trials, which corresponds to 200. Thus,
+    # there will be 600 total queued.
+    assert len(keys) == (400 + 200)
+
+    # However, the extractor is smart enough to handle cancel appropriately
+    # and should only have the 400 we originally intended.
+    assert len(waveforms) == 400
+
+    assert len(rem_conn) == 0
+    assert len(set(keys[:200])) == 1
+    assert len(set(keys[200:300])) == 1
+    assert len(set(keys[300:400])) == 1
+    assert len(set(keys[400:])) == 1
+    assert keys[0] == k1
+    assert keys[200] == k2
+    assert keys[300] == k1
+    assert keys[400] == k2
+
+
 def test_queue_isi_with_pause(tone_pip):
     '''
     Verifies that queue generates samples at the expected ISI and also verifies
@@ -120,16 +232,10 @@ def test_queue_isi_with_pause(tone_pip):
 
 def test_fifo_queue_ordering():
     fs = 100e3
-    conn = deque()
-    queue = FIFOSignalQueue(fs)
-    queue.connect(conn.append)
-
-    samples = int(100e3)
-    duration = samples/fs
     trials = 20
+    samples = int(100e3)
 
-    t1 = make_tone(frequency=1e3)
-    t2 = make_tone(frequency=5e3)
+    queue, conn, _, (k1, k2), (t1, _) = make_queue('FIFO', (1e3, 5e3), trials, fs)
     epoch_samples = int(t1.duration * fs)
 
     waveforms = []
@@ -146,9 +252,6 @@ def test_fifo_queue_ordering():
                                target=waveforms.extend,
                                empty_queue_cb=mark_empty)
 
-
-    k1 = queue.append(t1, trials)
-    k2 = queue.append(t2, trials)
     waveform = queue.pop_buffer(samples)
     extractor.send(waveform)
 
@@ -170,16 +273,10 @@ def test_fifo_queue_ordering():
 
 def test_interleaved_fifo_queue_ordering():
     fs = 100e3
-    conn = deque()
-    queue = InterleavedFIFOSignalQueue(fs)
-    queue.connect(conn.append)
-
     samples = int(100e3)
-    duration = samples/fs
     trials = 20
 
-    t1 = make_tone(frequency=1e3)
-    t2 = make_tone(frequency=5e3)
+    queue, conn, _, (k1, k2), (t1, _) = make_queue('interleaved', (1e3, 5e3), trials, fs)
     epoch_samples = int(t1.duration * fs)
 
     waveforms = []
@@ -196,9 +293,6 @@ def test_interleaved_fifo_queue_ordering():
                                target=waveforms.extend,
                                empty_queue_cb=mark_empty)
 
-
-    k1 = queue.append(t1, trials)
-    k2 = queue.append(t2, trials)
     waveform = queue.pop_buffer(samples)
     extractor.send(waveform)
 

@@ -672,63 +672,70 @@ def capture_epoch(epoch_t0, epoch_samples, info, callback):
 
 @coroutine
 def extract_epochs(fs, queue, epoch_size, poststim_time, buffer_size, target,
-                   empty_queue_cb=None, comm_queue=None):
-
+                   empty_queue_cb=None, removed_queue=None):
     # The variable `tlb` tracks the number of samples that have been acquired
     # and reflects the lower bound of `data`. For example, if we have acquired
     # 300,000 samples, then the next chunk of data received from (yield) will
     # start at sample 300,000 (remember that Python is zero-based indexing, so
     # the first sample has an index of 0).
     tlb = 0
-    epoch_coroutines = []
+    epoch_coroutines = {}
     prior_samples = []
 
-    if comm_queue is None:
-        comm_queue = deque()
-
     # How much historical data to keep (for retroactively capturing epochs)
-    buffer_samples = int(buffer_size*fs)
+    buffer_samples = int(buffer_size * fs)
 
-    # Since we may capture very short, rapidly occuring epochs (at, say, 80 per
-    # second), I find it best to accumulate as many epochs as possible before
+    # Since we may capture very short, rapidly occurring epochs (at, say,
+    # 80 per second), I find it best to accumulate as many epochs as possible before
     # calling the next target. This list will maintain the accumulated set.
     epochs = []
+
+    # This is used for communicating events
+    if removed_queue is None:
+        removed_queue = deque()
 
     while True:
         # Wait for new data to become available
         data = (yield)
-        while comm_queue:
-            cmd, cmd_info = comm_queue.popleft()
-            if cmd == 'clear':
-
         prior_samples.append((tlb, data))
 
-        # Send the data to each coroutine. If a StopIteration occurs, this means
-        # that the epoch has successfully been acquired and has been sent to the
-        # callback and we can remove it. Need to operate on a copy of list since
-        # it's bad form to modify a list in-place.
-        for epoch_coroutine in epoch_coroutines[:]:
+        # First, check to see what needs to be removed from
+        # epoch_coroutines. If it doesn't exist, it may already have been
+        # captured.
+        skip = []
+        while removed_queue:
+            info = removed_queue.popleft()
+            md = info['t0'], info['key']
+            if md not in epoch_coroutines:
+                skip.append(md)
+            else:
+                epoch_coroutines.pop(md)
+
+        # Send the data to each coroutine. If a StopIteration occurs,
+        # this means that the epoch has successfully been acquired and has
+        # been sent to the callback and we can remove it. Need to operate on
+        # a copy of list since it's bad form to modify a list in-place.
+        for key, epoch_coroutine in list(epoch_coroutines.items()):
             try:
                 epoch_coroutine.send((tlb, data))
             except StopIteration:
-                epoch_coroutines.remove(epoch_coroutine)
+                epoch_coroutines.pop(key)
 
         # Check to see if more epochs have been requested. Information will be
         # provided in seconds, but we need to convert this to number of
         # samples.
         while queue:
             info = queue.popleft()
+            key = info['t0'], info['key']
+            if key in skip:
+                skip.remove(key)
+                continue
 
             # Figure out how many samples to capture for that epoch
             t0 = round(info['t0'] * fs)
             info['poststim_time'] = poststim_time
-            if epoch_size:
-                info['epoch_size'] = epoch_size
-                total_epoch_size = epoch_size + poststim_time
-            else:
-                info['epoch_size'] = info['duration']
-                total_epoch_size = info['duration'] + poststim_time
-
+            info['epoch_size'] = epoch_size if epoch_size else info['duration']
+            total_epoch_size = info['epoch_size'] + poststim_time
             epoch_samples = round(total_epoch_size * fs)
             epoch_coroutine = capture_epoch(t0, epoch_samples, info,
                                             epochs.append)
@@ -740,7 +747,9 @@ def extract_epochs(fs, queue, epoch_size, poststim_time, buffer_size, target,
                 # epoch.
                 for prior_sample in prior_samples:
                     epoch_coroutine.send(prior_sample)
-                epoch_coroutines.append(epoch_coroutine)
+                if key in epoch_coroutines:
+                    raise ValueError('Duplicate epochs not supported')
+                epoch_coroutines[key] = epoch_coroutine
             except StopIteration:
                 pass
 
@@ -752,12 +761,12 @@ def extract_epochs(fs, queue, epoch_size, poststim_time, buffer_size, target,
             target(epochs[:])
             epochs[:] = []
 
-        # Check to see if any of the cached samples are older than the specified
-        # `buffer_samples` and discard them.
+        # Check to see if any of the cached samples are older than the
+        # specified buffer_samples and discard them.
         while True:
             oldest_samples = prior_samples[0]
             tub = oldest_samples[0] + oldest_samples[1].shape[-1]
-            if tub < (tlb-buffer_samples):
+            if tub < (tlb - buffer_samples):
                 prior_samples.pop(0)
             else:
                 break
@@ -769,7 +778,6 @@ def extract_epochs(fs, queue, epoch_size, poststim_time, buffer_size, target,
 
 
 class ExtractEpochs(EpochInput):
-
     queue = d_(Typed(deque, {}))
 
     buffer_size = d_(Float(0)).tag(metadata=True)
@@ -787,8 +795,6 @@ class ExtractEpochs(EpochInput):
         self.complete = True
 
     def configure_callback(self):
-        #if self.epoch_size == 0:
-            #raise ValueError('Epoch size not configured')
         if np.isinf(self.epoch_size):
             m = f'ExtractEpochs {self.name} has an infinite epoch size'
             raise ValueError(m)
@@ -826,7 +832,7 @@ def reject_epochs(reject_threshold, mode, status, valid_target):
             # Update the status. Must be wrapped in a deferred call to ensure
             # that the update occurs on the GUI thread.
             status.total += len(epochs)
-            status.rejects += len(epochs)-len(valid)
+            status.rejects += len(epochs) - len(valid)
             status.reject_ratio = status.rejects / status.total
 
         deferred_call(update)
