@@ -752,6 +752,8 @@ def extract_epochs(fs, queue, epoch_size, poststim_time, buffer_size, target,
                 epoch_coroutines[key] = epoch_coroutine
             except StopIteration:
                 pass
+        else:
+            log.debug('Current tlb: %.2f, t0: %.2f', tlb/fs, t0/fs)
 
         tlb = tlb + data.shape[-1]
 
@@ -778,7 +780,9 @@ def extract_epochs(fs, queue, epoch_size, poststim_time, buffer_size, target,
 
 
 class ExtractEpochs(EpochInput):
-    queue = d_(Typed(deque, {}))
+
+    added_queue = d_(Typed(deque, {}))
+    removed_queue = d_(Typed(deque, {}))
 
     buffer_size = d_(Float(0)).tag(metadata=True)
 
@@ -799,9 +803,9 @@ class ExtractEpochs(EpochInput):
             m = f'ExtractEpochs {self.name} has an infinite epoch size'
             raise ValueError(m)
         cb = super().configure_callback()
-        return extract_epochs(self.fs, self.queue, self.epoch_size,
+        return extract_epochs(self.fs, self.added_queue, self.epoch_size,
                               self.poststim_time, self.buffer_size, cb,
-                              self.mark_complete).send
+                              self.mark_complete, self.removed_queue).send
 
     def _get_duration(self):
         return self.epoch_size + self.poststim_time

@@ -224,14 +224,23 @@ class QueuedEpochOutput(BufferedOutput):
         with self.engine.lock:
             self.paused = True
             pause_time = self.engine.get_ts() + 1
+            log.debug('Pausing queue for output %s at %f', self.name,
+                      pause_time)
             self.queue.pause(pause_time)
             offset = int((pause_time + 1) * self.fs)
             self._buffer.invalidate_samples(offset)
             self.engine.update_hw_ao(self.channel.name, offset)
 
     def resume(self):
-        self.paused = False
-        self.queue.resume()
+        with self.engine.lock:
+            resume_time = self.engine.get_ts() + 1
+            log.debug('Resuming queue for output %s at %f', self.name,
+                      resume_time)
+            offset = int((resume_time + 1) * self.fs)
+            self._buffer.invalidate_samples(offset)
+            self.queue.resume(resume_time)
+            self.engine.update_hw_ao(self.channel.name, offset)
+            self.paused = False
 
     def toggle_pause(self):
         if self.paused:
