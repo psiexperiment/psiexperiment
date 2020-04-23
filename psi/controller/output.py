@@ -216,37 +216,16 @@ class QueuedEpochOutput(BufferedOutput):
 
     queue = d_(Typed(AbstractSignalQueue))
     auto_decrement = d_(Bool(False))
-    complete_cb = Typed(object)
     complete = d_(Event(), writable=False)
     paused = Bool(False)
 
-    def pause(self):
-        with self.engine.lock:
-            self.paused = True
-            pause_time = self.engine.get_ts() + 1
-            log.debug('Pausing queue for output %s at %f', self.name,
-                      pause_time)
-            self.queue.pause(pause_time)
-            offset = int((pause_time + 1) * self.fs)
-            self._buffer.invalidate_samples(offset)
-            self.engine.update_hw_ao(self.channel.name, offset)
+    def pause(self, time):
+        self.queue.pause(time)
+        self.paused = True
 
-    def resume(self):
-        with self.engine.lock:
-            resume_time = self.engine.get_ts() + 1
-            log.debug('Resuming queue for output %s at %f', self.name,
-                      resume_time)
-            offset = int((resume_time + 1) * self.fs)
-            self._buffer.invalidate_samples(offset)
-            self.queue.resume(resume_time)
-            self.engine.update_hw_ao(self.channel.name, offset)
-            self.paused = False
-
-    def toggle_pause(self):
-        if self.paused:
-            self.resume()
-        else:
-            self.pause()
+    def resume(self, time):
+        self.queue.resume(time)
+        self.paused = False
 
     def _observe_queue(self, event):
         self.source = self.queue
@@ -263,11 +242,11 @@ class QueuedEpochOutput(BufferedOutput):
     def get_next_samples(self, samples):
         if self.active:
             waveform = self.queue.pop_buffer(samples, self.auto_decrement)
-            if self.queue.is_empty() and self.complete_cb is not None:
+            if self.queue.is_empty():
                 self.complete = True
-                log.debug('Queue empty. Calling complete callback.')
-                deferred_call(self.complete_cb)
                 self.active = False
+                log.debug('Queue empty. Output %s no longer active.',
+                          self.name)
         else:
             waveform = np.zeros(samples, dtype=np.double)
         return waveform
@@ -283,12 +262,6 @@ class QueuedEpochOutput(BufferedOutput):
             averages = context.pop(f'{self.name}_averages')
         if iti_duration is None:
             iti_duration = context.pop(f'{self.name}_iti_duration')
-
-        # Somewhat surprisingly it appears to be faster to use factories in the
-        # queue rather than creating the waveforms for ABR tone pips, even for
-        # very short signal durations.
-        #context['fs'] = self.fs
-        #context['calibration'] = self.calibration
 
         # I'm not in love with this since it requires hooking into the
         # manifest system.

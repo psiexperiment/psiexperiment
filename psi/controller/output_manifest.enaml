@@ -3,7 +3,7 @@ log =  logging.getLogger(__name__)
 
 import copy
 from functools import partial
-from collections import defaultdict
+from collections import Counter, defaultdict
 
 import numpy as np
 
@@ -144,7 +144,8 @@ def prepare_output_queue(event, output):
     controller = event.workbench.get_plugin('psi.controller')
     context = event.workbench.get_plugin('psi.context')
     action_name = output.name + '_end'
-    output.complete_cb = partial(controller.invoke_actions, action_name)
+    output.observe('complete',
+                   lambda e: controller.invoke_actions(action_name))
     for setting in context.iter_settings(output.selector_name, 1):
         output.add_setting(setting)
 
@@ -378,11 +379,9 @@ def clear_output(event, output):
 
 
 def decrement_key(event, output):
-    counts = defaultdict(int)
-    for epoch in event.parameters['data']:
-        key = epoch['info']['key']
-        counts[key] += 1
     with output.engine.lock:
+        keys = [e['info']['key'] for e in event.parameters['data']]
+        counts = Counter(keys)
         for key, count in counts.items():
             try:
                 output.queue.decrement_key(key, count)
@@ -516,6 +515,10 @@ enamldef AnalogOutputManifest(PSIManifest): manifest:
             name = manifest.contribution.name
         ExperimentEvent:
             name = manifest.contribution.name + '_failure'
+        ExperimentEvent:
+            name = manifest.contribution.name + '_paused'
+        ExperimentEvent:
+            name = manifest.contribution.name + '_resumed'
 
 
 def get_tokens(workbench, ttype):
@@ -540,6 +543,23 @@ def get_pause_text(contribution, is_paused):
     return '{} {}'.format(base, contribution.name)
 
 
+def toggle_pause(event, output):
+    controller = event.workbench.get_plugin('psi.controller')
+    with output.engine.lock:
+        time = output.engine.get_ts() + 1
+        if output.paused:
+            log.debug('Resuming queue for output %s at %f', output.name, time)
+            output.resume(time)
+            controller.invoke_actions(output.name + '_resumed', time)
+        else:
+            log.debug('Pausing queue for output %s at %f', output.name, time)
+            output.pause(time)
+            controller.invoke_actions(output.name + '_paused', time)
+        offset = int(time * output.fs)
+        output._buffer.invalidate_samples(offset)
+        output.engine.update_hw_ao(output.channel.name, offset)
+
+
 enamldef QueuedEpochOutputManifest(EpochOutputManifest): manifest:
 
     Extension:
@@ -551,6 +571,9 @@ enamldef QueuedEpochOutputManifest(EpochOutputManifest): manifest:
         Command:
             id = manifest.contribution.name + '.decrement_key'
             handler = partial(decrement_key, output=contribution)
+        Command:
+            id = manifest.contribution.name + '.toggle_pause'
+            handler = partial(toggle_pause, output=contribution)
 
     # Uses unicode symbols as icons for sake of simplicity.
     Extension:
@@ -563,7 +586,8 @@ enamldef QueuedEpochOutputManifest(EpochOutputManifest): manifest:
                                        manifest.contribution.paused)
                 enabled << workbench.get_plugin('psi.controller').experiment_state == 'running'
                 triggered ::
-                    manifest.contribution.toggle_pause()
+                    core = workbench.get_plugin('enaml.workbench.core')
+                    core.invoke_command(manifest.contribution.name + '.toggle_pause')
 
 
 enamldef SelectorQueuedEpochOutputManifest(QueuedEpochOutputManifest): manifest:
@@ -663,7 +687,6 @@ enamldef ContinuousOutputManifest(AnalogOutputManifest): manifest:
 ################################################################################
 # ToggleManifest
 ################################################################################
-
 def toggle_off(event, output):
     output.set_low()
 

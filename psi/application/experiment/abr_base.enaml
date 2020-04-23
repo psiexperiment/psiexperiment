@@ -83,6 +83,9 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
                 # they communicate properly.
                 self.queue.connect(extract.added_queue.append, 'added')
                 self.queue.connect(extract.removed_queue.append, 'removed')
+            complete ::
+                controller = workbench.get_plugin('psi.controller')
+                controller.invoke_actions(output.name + '_end')
 
         ContinuousInput:
             name = 'microphone'
