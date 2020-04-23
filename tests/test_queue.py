@@ -12,6 +12,7 @@ with enaml.imports():
     from psi.token.primitives import Cos2EnvelopeFactory, ToneFactory
 
 fs = 100e3
+isi = np.round(1/76.0, 5)
 
 
 @pytest.fixture
@@ -86,9 +87,10 @@ def make_queue(ordering, frequencies, trials):
 
     keys = []
     tones = []
+    duration = 5e-3
     for frequency in frequencies:
-        t = make_tone(frequency=frequency)
-        k = queue.append(t, trials)
+        t = make_tone(frequency=frequency, duration=duration)
+        k = queue.append(t, trials, isi-duration)
         keys.append(k)
         tones.append(t)
 
@@ -96,91 +98,138 @@ def make_queue(ordering, frequencies, trials):
 
 
 def test_fifo_queue_pause_with_requeue():
-    queue, conn, rem_conn, (k1, k2), (t, _) = make_queue('FIFO', [1e3, 5e3],
-                                                         200)
+
+    # Helper function to track number of remaining keys
+    def _adjust_remaining(k1, k2, n):
+        nk1 = min(k1, n)
+        nk2 = min(n-nk1, k2)
+        print(k1, k2, n, nk1, nk2)
+        return k1-nk1, k2-nk2
+
+    queue, conn, rem_conn, (k1, k2), (t1, t2) = \
+        make_queue('FIFO', [1e3, 5e3], 100)
     extractor_conn = deque()
     extractor_rem_conn = deque()
     queue.connect(extractor_conn.append, 'added')
     queue.connect(extractor_rem_conn.append, 'removed')
 
+    # Generate the waveform template
+    n_t1 = t1.get_remaining_samples()
+    n_t2 = t2.get_remaining_samples()
+    t1_waveform = t1.next(n_t1)
+    t2_waveform = t2.next(n_t2)
+
     waveforms = []
     extractor = extract_epochs(fs=fs,
                                queue=extractor_conn,
                                removed_queue=extractor_rem_conn,
-                               epoch_size=None,
                                poststim_time=0,
                                buffer_size=0,
+                               epoch_size=15e-3,
                                target=waveforms.extend)
 
-    waveform = queue.pop_buffer(int(1.5*fs))
-    assert len(conn) == int(1.5 / t.duration)
-    keys = [i['key'] for i in conn]
-    assert len(set(keys)) == 2
-    assert len(set(keys[:200])) == 1
-    assert keys[0] == k1
-    assert keys[200] == k2
-    assert queue.remaining_trials(k1) == 0
-    assert queue.remaining_trials(k2) == 100
-    conn.clear()
+    # Track number of trials remaining
+    k1_left, k2_left = 100, 100
+
+    ###########################################################################
+    # First, queue up 2 seconds worth of trials
+    ###########################################################################
+    waveform = queue.pop_buffer(int(2*fs))
+    n_queued = np.floor(2/isi) + 1
+    t1_lb = 0
+    t2_lb = int(fs*isi*100)
+    assert np.all(waveform[t1_lb:t1_lb+n_t1] == t1_waveform)
+    assert np.all(waveform[t2_lb:t2_lb+n_t2] == t2_waveform)
+
+    assert len(conn) == np.ceil(2 / isi)
     assert len(rem_conn) == 0
-    # At this point we should have 300 trials "acquired"
+    keys = [i['key'] for i in conn]
+    assert set(keys) == {k1, k2}
+    assert set(keys[:100]) == {k1}
+    assert set(keys[100:]) == {k2}
 
-    # Pausing should requeue everything after 0.5s
+    k1_left, k2_left = _adjust_remaining(k1_left, k2_left, n_queued)
+    assert queue.remaining_trials(k1) == k1_left
+    assert queue.remaining_trials(k2) == k2_left
+    conn.clear()
+
+    ###########################################################################
+    # Now, pause
+    ###########################################################################
+    # Pausing should remove all epochs queued up after 0.5s. After sending
+    # the first waveform to the extractor, we generate a new waveform to
+    # verify that no additional trials are queued and send that to the
+    # extractor.
     queue.pause(0.5)
-    extractor.send(waveform)
-    assert len(waveforms) == 100
+    extractor.send(waveform[:int(0.5*fs)])
 
+    # We need to add 1 to account for the very first trial.
+    n_queued = int(np.floor(2/isi)) + 1
+    n_kept = int(np.floor(0.5/isi)) + 1
+
+    # Now, fix the counters
+    k1_left, k2_left = _adjust_remaining(100, 100, n_kept)
+
+    # This is the total number that were removed when we paused.
+    n_removed = n_queued - n_kept
+
+    # Subtract 1 because we haven't fully captured the last trial that
+    # remains in the queue because the epoch_size was chosen such that the
+    # end of the epoch to be extracted is after 0.5s.
+    n_captured = n_kept - 1
+    assert len(waveforms) == n_captured
+
+    # Doing this will capture the final epoch.
     waveform = queue.pop_buffer(int(fs))
+    assert np.all(waveform == 0)
     extractor.send(waveform)
-    assert len(waveforms) == 100
-    assert queue.remaining_trials(k1) == 100
-    assert queue.remaining_trials(k2) == 200
-    assert len(conn) == 0
-    assert len(rem_conn) == 200
+    assert len(waveforms) == (n_captured + 1)
 
-    # Verify removal event is properly notifying
+    # Verify removal event is properly notifying the timestamp
     rem_t0 = np.array([i['t0'] for i in rem_conn])
-    rem_keys = np.array([i['key'] for i in rem_conn])
     assert np.all(rem_t0 >= 0.5)
-    rem_count = Counter(rem_keys)
-    assert rem_count[k1] == 100
-    assert rem_count[k2] == 100
+    assert (rem_t0[0] % isi) == pytest.approx(0)
+
+    assert queue.remaining_trials(k1) == k1_left
+    assert queue.remaining_trials(k2) == k2_left
+    assert len(conn) == 0
+    assert len(rem_conn) == n_removed
+
+    rem_count = Counter(i['key'] for i in rem_conn)
+    assert rem_count[k1] == 100-n_kept
+    assert rem_count[k2] == n_queued-100
+    conn.clear()
     rem_conn.clear()
 
-    queue.resume()
+    queue.resume(1.5)
     waveform = queue.pop_buffer(int(fs))
+    n_queued = np.floor(1/isi) + 1
+    k1_left, k2_left = _adjust_remaining(k1_left, k2_left, n_queued)
+
     extractor.send(waveform)
-    assert len(waveforms) == 300
-    assert queue.remaining_trials(k1) == 0
-    assert queue.remaining_trials(k2) == 100
-    assert len(conn) == 200
+    assert len(conn) == np.floor(1/isi) + 1
+    assert queue.remaining_trials(k1) == k1_left
+    assert queue.remaining_trials(k2) == k2_left
+    assert len(conn) == np.floor(1/isi) + 1
     keys += [i['key'] for i in conn]
     conn.clear()
 
-    waveform = queue.pop_buffer(int(fs))
+    waveform = queue.pop_buffer(int(5*fs))
+    n_queued = np.floor(1/isi) + 1
+    k1_left, k2_left = _adjust_remaining(k1_left, k2_left, n_queued)
+
     extractor.send(waveform)
     assert queue.remaining_trials(k1) == 0
     assert queue.remaining_trials(k2) == 0
-    assert len(conn) == 100
     keys += [i['key'] for i in conn]
 
-    # We requeued 1 second worth of trials, which corresponds to 200. Thus,
-    # there will be 600 total queued.
-    assert len(keys) == (400 + 200)
+    # We requeued 1.5 second worth of trials so need to factor this because
+    # keys (from conn) did not remove the removed keys.
+    assert len(keys) == (200 + n_removed)
 
     # However, the extractor is smart enough to handle cancel appropriately
-    # and should only have the 400 we originally intended.
-    assert len(waveforms) == 400
-
-    assert len(rem_conn) == 0
-    assert len(set(keys[:200])) == 1
-    assert len(set(keys[200:300])) == 1
-    assert len(set(keys[300:400])) == 1
-    assert len(set(keys[400:])) == 1
-    assert keys[0] == k1
-    assert keys[200] == k2
-    assert keys[300] == k1
-    assert keys[400] == k2
+    # and should only have the 200 we originally intended.
+    assert len(waveforms) == 200
 
 
 def test_queue_isi_with_pause(tone_pip):

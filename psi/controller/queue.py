@@ -299,6 +299,10 @@ class AbstractSignalQueue:
         if self._paused:
             return np.zeros(samples)
 
+        # Load samples from current source
+        if self._source is not None:
+            return self._get_samples(samples)
+
         # Insert intertrial interval delay if one exists
         if self._delay_samples > 0:
             n = min(self._delay_samples, samples)
@@ -309,10 +313,6 @@ class AbstractSignalQueue:
         if self._source is None:
             self.next_trial(decrement)
             return np.empty(0)
-
-        # Load samples from current source
-        if self._source is not None:
-            return self._get_samples(samples)
 
 
 class FIFOSignalQueue(AbstractSignalQueue):
