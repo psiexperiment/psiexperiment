@@ -555,7 +555,7 @@ def toggle_pause(event, output):
             log.debug('Pausing queue for output %s at %f', output.name, time)
             output.pause(time)
             controller.invoke_actions(output.name + '_paused', time)
-        offset = int(time * output.fs)
+        offset = round(time * output.fs)
         output._buffer.invalidate_samples(offset)
         output.engine.update_hw_ao(output.channel.name, offset)
 
