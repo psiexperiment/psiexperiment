@@ -77,25 +77,30 @@ class AbstractSignalQueue:
     def remaining_trials(self, key):
         return self._data[key]['trials']
 
-    def rewind_samples(self, t0):
+    def rewind_samples(self, t):
         # Reset the samples
-        self._samples = round((t0 - self._t0) * self._fs)
+        t_samples = round(t * self._fs)
+        t0_samples = round(self._t0 * self._fs)
+        self._samples = t_samples - t0_samples
+        log.debug('Rewound queue samples back to %d', self._samples)
+        log.debug('Absolute sample %d, relative sample %d', t_sampels,
+                  t0_samples)
 
-    def pause(self, t0=None):
+    def pause(self, t=None):
         log.debug('Pausing queue')
         self._paused = True
-        if t0 is not None:
-            self.cancel(t0)
-            self.requeue(t0)
-            self.rewind_samples(t0)
+        if t is not None:
+            self.cancel(t)
+            self.requeue(t)
+            self.rewind_samples(t)
 
-    def cancel(self, t0):
+    def cancel(self, t):
         for info in self._generated[::-1]:
-            if info['t0'] < t0:
+            if info['t0'] < t:
                 break
             self._notify('removed', info)
 
-    def requeue(self, t0):
+    def requeue(self, t):
         '''
         Requeues all trials scheduled after t0
 
@@ -108,7 +113,7 @@ class AbstractSignalQueue:
         '''
         to_requeue = []
         for info in self._generated[::-1]:
-            if info['t0'] < t0:
+            if info['t0'] < t:
                 break
             if info['decrement']:
                 to_requeue.append(info['key'])
@@ -129,10 +134,10 @@ class AbstractSignalQueue:
         trials = {k: self._data[k]['trials'] for k in self._data.keys()}
         log.debug('Current trials:: %r', trials)
 
-    def resume(self, t0=None):
+    def resume(self, t=None):
         log.debug('Resuming queue')
-        if t0 is not None:
-            self.rewind_samples(t0)
+        if t is not None:
+            self.rewind_samples(t)
         self._paused = False
 
     def is_empty(self):
@@ -218,7 +223,6 @@ class AbstractSignalQueue:
         '''
         Removes key from queue entirely, regardless of number of trials
         '''
-        #self._data.pop(key)
         self._ordering.remove(key)
 
     def decrement_key(self, key, n=1):
@@ -264,13 +268,13 @@ class AbstractSignalQueue:
 
         # Now, determine the next ITI (as specified by the delay generator)
         delay = next(data['delays'])
-        self._delay_samples = int(delay*self._fs)
+        self._delay_samples = round(delay*self._fs)
         if self._delay_samples < 0:
             raise ValueError('Invalid option for delay samples')
 
-        queue_t0 = self._samples/self._fs
+        t0 = self._t0 + (self._samples/self._fs)
         info = {
-            't0': self._t0 + queue_t0,      # Time re. acq. start
+            't0': t0,                       # Time re. acq. start
             'duration': data['duration'],   # Duration of token
             'key': key,                     # Unique ID
             'metadata': data['metadata'],   # Metadata re. token

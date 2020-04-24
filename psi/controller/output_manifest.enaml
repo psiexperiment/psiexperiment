@@ -556,6 +556,8 @@ def toggle_pause(event, output):
             output.pause(time)
             controller.invoke_actions(output.name + '_paused', time)
         offset = round(time * output.fs)
+        log.debug('Clearing samples for %s starting at offset %d', output.name,
+                  offset)
         output._buffer.invalidate_samples(offset)
         output.engine.update_hw_ao(output.channel.name, offset)
 

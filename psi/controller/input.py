@@ -2,8 +2,7 @@ import logging
 
 log = logging.getLogger(__name__)
 
-from collections import deque, namedtuple
-from copy import copy
+from collections import deque
 from functools import partial
 from queue import Empty, Queue
 
@@ -16,7 +15,7 @@ from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
 from ..util import coroutine
 from .channel import Channel
-from .calibration.util import db, dbi, patodb
+from .calibration.util import dbi, patodb
 
 from psi.core.enaml.api import PSIContribution
 from psi.controller.calibration.api import FlatCalibration
@@ -564,7 +563,7 @@ class Delay(ContinuousInput):
 
     def configure_callback(self):
         cb = super().configure_callback()
-        n = int(self.delay * self.fs)
+        n = round(self.delay * self.fs)
         return delay(n, cb).send
 
 
@@ -656,8 +655,8 @@ def capture_epoch(epoch_t0, epoch_samples, info, callback):
             # `accumulated_data`. We then update start to point to the last
             # acquired sample `i+d` and update duration to be the number of
             # samples we still need to capture.
-            i = int(epoch_t0 - tlb)
-            d = int(min(epoch_samples, samples - i))
+            i = round(epoch_t0 - tlb)
+            d = round(min(epoch_samples, samples - i))
             accumulated_data.append(data[..., i:i + d])
             epoch_t0 += d
             epoch_samples -= d
@@ -683,7 +682,7 @@ def extract_epochs(fs, queue, epoch_size, poststim_time, buffer_size, target,
     prior_samples = []
 
     # How much historical data to keep (for retroactively capturing epochs)
-    buffer_samples = int(buffer_size * fs)
+    buffer_samples = round(buffer_size * fs)
 
     # Since we may capture very short, rapidly occurring epochs (at, say,
     # 80 per second), I find it best to accumulate as many epochs as possible before
