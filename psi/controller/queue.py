@@ -2,6 +2,7 @@ import logging
 log = logging.getLogger(__name__)
 
 from collections import Counter
+import copy
 import itertools
 import uuid
 
@@ -81,9 +82,12 @@ class AbstractSignalQueue:
         # Reset the samples
         t_samples = round(t * self._fs)
         t0_samples = round(self._t0 * self._fs)
+        new_sample = t_samples - t0_samples
+        if new_sample > self._samples:
+            raise ValueError('Cannot rewind past last sample generated')
         self._samples = t_samples - t0_samples
         log.debug('Rewound queue samples back to %d', self._samples)
-        log.debug('Absolute sample %d, relative sample %d', t_sampels,
+        log.debug('Absolute sample %d, relative sample %d', t_samples,
                   t0_samples)
 
     def pause(self, t=None):
@@ -96,9 +100,8 @@ class AbstractSignalQueue:
 
     def cancel(self, t):
         for info in self._generated[::-1]:
-            if info['t0'] < t:
-                break
-            self._notify('removed', info)
+            if (info['t0'] + info['duration']) > t:
+                self._notify('removed', info)
 
     def requeue(self, t):
         '''
@@ -161,7 +164,7 @@ class AbstractSignalQueue:
                 duration = source.get_duration()
 
         data = {
-            'source': source,
+            'source': copy.deepcopy(source),
             'trials': trials,
             'delays': as_iterator(delays),
             'duration': duration,
@@ -268,7 +271,7 @@ class AbstractSignalQueue:
 
         # Now, determine the next ITI (as specified by the delay generator)
         delay = next(data['delays'])
-        self._delay_samples = round(delay*self._fs)
+        self._delay_samples = int(round(delay*self._fs))
         if self._delay_samples < 0:
             raise ValueError('Invalid option for delay samples')
 

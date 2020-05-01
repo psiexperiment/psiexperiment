@@ -751,8 +751,8 @@ def extract_epochs(fs, queue, epoch_size, poststim_time, buffer_size, target,
                 epoch_coroutines[key] = epoch_coroutine
             except StopIteration:
                 pass
-        else:
-            log.debug('Current tlb: %.2f, t0: %.2f', tlb/fs, t0/fs)
+        #else:
+            #log.debug('Current tlb: %.2f, t0: %.2f', tlb/fs, t0/fs)
 
         tlb = tlb + data.shape[-1]
 
