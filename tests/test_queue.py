@@ -13,7 +13,8 @@ with enaml.imports():
 
 #fs = 100e3
 fs = 195312.5
-isi = np.round(1/76.0, 5)
+rate = 76.0
+isi = np.round(1/rate, 5)
 
 
 def make_tone(frequency=250, duration=5e-3):
@@ -40,7 +41,8 @@ def make_queue(ordering, frequencies, trials, duration=5e-3, isi=isi):
     for frequency in frequencies:
         t = make_tone(frequency=frequency, duration=duration)
         delay = max(isi-duration, 0)
-        k = queue.append(t, trials, delay)
+        md = {'frequency': frequency}
+        k = queue.append(t, trials, delay, metadata=md)
         keys.append(k)
         tones.append(t)
 
@@ -437,3 +439,15 @@ def test_queue_partial_capture():
     extractor.send(w2)
 
     assert len(waveforms) == 0
+
+
+def test_remove_keys():
+    frequencies = (500, 1e3, 2e3, 4e3, 8e3)
+    queue, conn, _, keys, tones = make_queue('FIFO', frequencies, 100)
+    queue.remove_keys(frequency=1000)
+    queue.pop_buffer(int(fs))
+    queue.remove_keys(frequency=500)
+    queue.pop_buffer(int(fs))
+    counts = Counter(c['key'] for c in conn)
+    assert counts[keys[0]] == int(rate)
+    assert counts[keys[2]] == int(rate)

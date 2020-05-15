@@ -103,6 +103,27 @@ class AbstractSignalQueue:
             if (info['t0'] + info['duration']) > t:
                 self._notify('removed', info)
 
+    def remove_keys(self, t=None, **query):
+        '''
+        Remove trials where metadata matches query
+
+        Parameters
+        ----------
+        query : kwargs
+            Key-value pairs. All must match to remove the key.
+        '''
+        for key, data in self._data.items():
+            md = data['metadata']
+            for k, v in query.items():
+                if md[k] != v:
+                    break
+            else:
+                log.debug(f'Removing {key}')
+                self.remove_key(key)
+        if t is not None:
+            self.cancel(t)
+            self.rewind_samples(t)
+
     def requeue(self, t):
         '''
         Requeues all trials scheduled after t0
