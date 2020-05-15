@@ -13,7 +13,7 @@ The plugins typically handle most of the configuration for the context items
 and selectors. These are not typically meant for direct use. To illustrate what
 happens under the hood, let's create two |parameters|, level and frequency:
 
-    >>> from .api import Parameter
+    >>> from psi.context.api import Parameter
     >>> frequency = Parameter(name='frequency', dtype='float64')
     >>> level = Parameter(name='level', dtype='float64')
 
@@ -113,7 +113,7 @@ from atom.api import Typed, Enum, Event, Bool, Property
 from enaml.core.api import d_
 from psi.core.enaml.api import PSIContribution
 
-from . import choice
+from psi.context import choice
 
 
 def warn_empty(method):

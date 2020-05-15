@@ -11,7 +11,7 @@ def test_enum_parameter():
     )
     assert item.label == item.name
     assert item.compact_label == item.name
-    assert item.dtype == np.dtype('int32').str
+    assert item.dtype == np.dtype('int64').str
     item.selected = 'negative'
     assert item.expression == -1
 
