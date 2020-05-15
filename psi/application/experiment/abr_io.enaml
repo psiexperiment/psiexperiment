@@ -8,6 +8,7 @@ from psi.context.api import (BoolParameter, ContextGroup, EnumParameter,
                              OrderedContextMeta, Parameter)
 
 from psi.controller import queue
+from psi.controller.api import ExperimentAction
 from psi.data.plots import (MultiPlotContainer, StackedEpochAveragePlot,
                             TimeContainer, ViewBox)
 from psi.data.sinks.api import GroupedEpochCounter
@@ -89,9 +90,6 @@ def configure_experiment(event):
     max_sf = max(max_sf.values()) * np.sqrt(2) * 1.01
     target.channel.expected_range = (-max_sf, max_sf)
 
-    action_name = target.name + '_end'
-    target.complete_cb = partial(controller.invoke_actions, action_name)
-
 
 enamldef ABRIOManifest(ABRBaseManifest):
 
@@ -101,6 +99,7 @@ enamldef ABRIOManifest(ABRBaseManifest):
 
         ContextGroup:
             name = 'abr_io'
+            label = 'Acquisition'
 
             Parameter:
                 name = 'averages'
@@ -140,6 +139,15 @@ enamldef ABRIOManifest(ABRBaseManifest):
         Command:
             id = 'psi.controller.configure_experiment'
             handler = configure_experiment
+
+    Extension:
+        id = EXPERIMENT + '.actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'target_start'
+            command = 'psi.controller.set_pause_ok'
+            kwargs = {'value': True}
 
     Extension:
         id = EXPERIMENT + '.sink'

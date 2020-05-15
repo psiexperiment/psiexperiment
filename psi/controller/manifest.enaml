@@ -102,6 +102,12 @@ enamldef ControllerManifest(ControllerManifestBase): manifest:
     '''
     Defines the core functionality that most controller plugins will share
     (start, stop, pause, apply/revert settings).
+
+    Available commands:
+
+    * set_pause_ok(value): Sets an internal flag that indicates that the
+      experiment is now in a state where it can be paused by the user. When
+      the flag is set, the "Pause" button in the toolbar becomes active.
     '''
     id = 'psi.controller'
     factory = ControllerPlugin
@@ -197,19 +203,6 @@ enamldef ControllerManifest(ControllerManifestBase): manifest:
                     plugin.invoke_command('psi.controller.stop')
                 enabled <<  workbench.get_plugin('psi.controller').experiment_state \
                     not in ('initialized', 'stopped')
-            Action:
-                separator = True
-            Action:
-                text << 'Resume' if checked else 'Pause'
-                checkable = True
-                enabled << workbench.get_plugin('psi.controller')._pause_ok
-                tool_tip << 'Resume' if checked else 'Pause'
-                toggled ::
-                    plugin = workbench.get_plugin('enaml.workbench.core')
-                    if checked:
-                        plugin.invoke_command('psi.controller.request_pause')
-                    else:
-                        plugin.invoke_command('psi.controller.request_resume')
             Action:
                 separator = True
 

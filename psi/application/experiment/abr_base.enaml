@@ -68,7 +68,7 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
                 hide = ['polarity', 'phase']
 
     Extension:
-        id = 'io'
+        id = 'abr_base_io'
         point = 'psi.controller.io'
 
         QueuedEpochOutput: output:
@@ -79,8 +79,13 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
             target_name = C.output_channel
             queue ::
                 # Once the queue has been configured in one of the
-                # subclasses, hook it up to the ExtractEpochs input
-                self.connect(extract.queue.append)
+                # subclasses, hook it up to the ExtractEpochs input so that
+                # they communicate properly.
+                self.queue.connect(extract.added_queue.append, 'added')
+                self.queue.connect(extract.removed_queue.append, 'removed')
+            complete ::
+                controller = workbench.get_plugin('psi.controller')
+                controller.invoke_actions(output.name + '_end')
 
         ContinuousInput:
             name = 'microphone'
@@ -115,7 +120,7 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
                             mode = C.reject_mode
 
     Extension:
-        id = 'context'
+        id = 'abr_base_context'
         point = 'psi.context.items'
 
         ContextGroup:

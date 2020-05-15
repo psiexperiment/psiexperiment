@@ -1,5 +1,6 @@
 from pathlib import Path
 import urllib.parse
+import urllib.request
 
 from atom.api import Atom, Bool, Enum, Float, List, observe, Property
 from enaml.core.api import Looper

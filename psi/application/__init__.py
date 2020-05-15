@@ -171,7 +171,7 @@ def get_default_io():
 
     # First, check for one named "default"
     for io in available_io:
-        if io.stem.lower() == 'default':
+        if 'default' in io.stem.lower():
             return io
 
     # Next, check to see if it matches hostname

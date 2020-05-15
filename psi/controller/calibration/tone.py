@@ -137,8 +137,6 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gains=0,
     ai_fs = ai_channels[0].fs
 
     # Ensure that input channels are synced to the output channel
-    device_name = ao_channel.device_name
-    ao_channel.start_trigger = ''
     for channel in ai_channels:
         channel.sync_start(ao_channel)
 
@@ -160,7 +158,7 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gains=0,
         max_sf = max(max_sf, sf)
     ao_channel.expected_range = (-max_sf*1.1, max_sf*1.1)
 
-    factory = SilenceFactory(ao_fs, calibration)
+    factory = SilenceFactory()
     waveform = factory.next(samples)
     md = {'gain': -400, 'frequency': 0}
     queue.append(waveform, repetitions, iti, metadata=md)

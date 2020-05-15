@@ -1,8 +1,8 @@
 import logging
+
 log = logging.getLogger(__name__)
 
-from collections import deque, namedtuple
-from copy import copy
+from collections import deque
 from functools import partial
 from queue import Empty, Queue
 
@@ -15,9 +15,7 @@ from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
 from ..util import coroutine
 from .channel import Channel
-from .calibration.util import db, dbi, patodb
-from .device import Device
-from .queue import AbstractSignalQueue
+from .calibration.util import dbi, patodb
 
 from psi.core.enaml.api import PSIContribution
 from psi.controller.calibration.api import FlatCalibration
@@ -54,7 +52,6 @@ def broadcast(*targets):
 
 
 class Input(PSIContribution):
-
     name = d_(Unicode()).tag(metadata=True)
     label = d_(Unicode()).tag(metadata=True)
     force_active = d_(Bool(False)).tag(metadata=True)
@@ -123,7 +120,8 @@ class Input(PSIContribution):
 
     def configure_callback(self):
         targets = [i.configure_callback() for i in self.inputs if i.active]
-        log.debug('Configured callback for %s with %d targets', self.name, len(targets))
+        log.debug('Configured callback for %s with %d targets', self.name,
+                  len(targets))
         if len(targets) == 1:
             return targets[0]
         # If we have more than one target, need to add a broadcaster
@@ -146,7 +144,6 @@ class EventInput(Input):
 
 
 class EpochInput(Input):
-
     duration = Property().tag(metadata=True)
 
     def _get_duration(self):
@@ -154,7 +151,6 @@ class EpochInput(Input):
 
 
 class Callback(Input):
-
     function = d_(Callable())
 
     def configure_callback(self):
@@ -176,7 +172,6 @@ def custom_input(function, target):
 
 
 class CustomInput(Input):
-
     function = d_(Callable())
 
     def configure_callback(self):
@@ -189,7 +184,7 @@ def calibrate(calibration, target):
     sens = dbi(calibration.get_sens(1000))
     while True:
         data = (yield)
-        target(data/sens)
+        target(data / sens)
 
 
 class CalibratedInput(ContinuousInput):
@@ -211,21 +206,20 @@ def rms(n, target):
         else:
             data = np.concatenate((data, (yield)), axis=-1)
         while data.shape[-1] >= n:
-            result = np.mean(data[..., :n]**2, axis=0)**0.5
+            result = np.mean(data[..., :n] ** 2, axis=0) ** 0.5
             target(result[np.newaxis])
             data = data[..., n:]
 
 
 class RMS(ContinuousInput):
-
     duration = d_(Float()).tag(metadata=True)
 
     def _get_fs(self):
-        n = round(self.duration*self.source.fs)
-        return self.source.fs/n
+        n = round(self.duration * self.source.fs)
+        return self.source.fs / n
 
     def configure_callback(self):
-        n = round(self.duration*self.source.fs)
+        n = round(self.duration * self.source.fs)
         cb = super().configure_callback()
         return rms(n, cb).send
 
@@ -258,7 +252,7 @@ def iirfilter(N, Wn, rp, rs, btype, ftype, target):
     # transient.
     zi = signal.lfilter_zi(b, a)
     y = (yield)
-    zo = zi*y[0]
+    zo = zi * y[0]
 
     while True:
         y, zo = signal.lfilter(b, a, y, zi=zo)
@@ -267,7 +261,6 @@ def iirfilter(N, Wn, rp, rs, btype, ftype, target):
 
 
 class IIRFilter(ContinuousInput):
-
     # Allows user to deactivate the filter entirely during configuration if
     # desired. Ideally we could just remove it from the graph, but it seems a
     # bit tricky to do so as some other components may be looking for the
@@ -275,8 +268,10 @@ class IIRFilter(ContinuousInput):
     passthrough = d_(Bool(False)).tag(metadata=True)
 
     N = d_(Int(1)).tag(metadata=True)
-    btype = d_(Enum('bandpass', 'lowpass', 'highpass', 'bandstop')).tag(metadata=True)
-    ftype = d_(Enum('butter', 'cheby1', 'cheby2', 'ellip', 'bessel')).tag(metadata=True)
+    btype = d_(Enum('bandpass', 'lowpass', 'highpass', 'bandstop')).tag(
+        metadata=True)
+    ftype = d_(Enum('butter', 'cheby1', 'cheby2', 'ellip', 'bessel')).tag(
+        metadata=True)
     f_highpass = d_(Float()).tag(metadata=True)
     f_lowpass = d_(Float()).tag(metadata=True)
     wn = Property()
@@ -284,15 +279,15 @@ class IIRFilter(ContinuousInput):
     def _get_wn(self):
         if self.btype == 'lowpass':
             log.debug('Lowpass at %r (fs=%r)', self.f_lowpass, self.fs)
-            return self.f_lowpass/(0.5*self.fs)
+            return self.f_lowpass / (0.5 * self.fs)
         elif self.btype == 'highpass':
             log.debug('Highpass at %r (fs=%r)', self.f_lowpass, self.fs)
-            return self.f_highpass/(0.5*self.fs)
+            return self.f_highpass / (0.5 * self.fs)
         else:
             log.debug('Bandpass %r to %r (fs=%r)', self.f_highpass,
                       self.f_lowpass, self.fs)
-            return (self.f_highpass/(0.5*self.fs),
-                    self.f_lowpass/(0.5*self.fs))
+            return (self.f_highpass / (0.5 * self.fs),
+                    self.f_lowpass / (0.5 * self.fs))
 
     def configure_callback(self):
         cb = super().configure_callback()
@@ -336,7 +331,7 @@ class Blocked(ContinuousInput):
             m = 'Duration for {} must be > 0'.format(self.name)
             raise ValueError(m)
         cb = super().configure_callback()
-        block_size = round(self.duration*self.fs)
+        block_size = round(self.duration * self.fs)
         return blocked(block_size, cb).send
 
 
@@ -383,7 +378,7 @@ class Accumulate(ContinuousInput):
 def capture(fs, queue, target):
     s0 = 0
     t_start = None  # Time, in seconds, of capture start
-    s_next = None   # Sample number fo rcapture
+    s_next = None  # Sample number fo rcapture
     active = False
 
     while True:
@@ -397,7 +392,7 @@ def capture(fs, queue, target):
             t_start = queue.get(block=False)
             if t_start is not None:
                 log.debug('Starting capture at %f', t_start)
-                s_next = round(t_start*fs)
+                s_next = round(t_start * fs)
                 target(Ellipsis)
             elif t_start is None:
                 log.debug('Ending capture')
@@ -408,7 +403,7 @@ def capture(fs, queue, target):
             pass
 
         if (s_next is not None) and (s_next >= s0):
-            i = s_next-s0
+            i = s_next - s0
             if i < data.shape[-1]:
                 d = data[i:]
                 d.metadata['capture'] = t_start
@@ -419,7 +414,6 @@ def capture(fs, queue, target):
 
 
 class Capture(ContinuousInput):
-
     queue = Typed(Queue)
 
     def configure_callback(self):
@@ -444,11 +438,10 @@ def downsample(q, target):
 
 
 class Downsample(ContinuousInput):
-
     q = d_(Int()).tag(metadata=True)
 
     def _get_fs(self):
-        return self.source.fs/self.q
+        return self.source.fs / self.q
 
     def configure_callback(self):
         cb = super().configure_callback()
@@ -457,7 +450,7 @@ class Downsample(ContinuousInput):
 
 @coroutine
 def decimate(q, target):
-    b, a = signal.cheby1(4, 0.05, 0.8/q)
+    b, a = signal.cheby1(4, 0.05, 0.8 / q)
     if np.any(np.abs(np.roots(a)) > 1):
         raise ValueError('Unstable filter coefficients')
     zf = signal.lfilter_zi(b, a)
@@ -476,11 +469,10 @@ def decimate(q, target):
 
 
 class Decimate(ContinuousInput):
-
     q = d_(Int()).tag(metadata=True)
 
     def _get_fs(self):
-        return self.source.fs/self.q
+        return self.source.fs / self.q
 
     def configure_callback(self):
         cb = super().configure_callback()
@@ -508,12 +500,11 @@ def discard(discard_samples, cb):
 
 
 class Discard(ContinuousInput):
-
     duration = d_(Float()).tag(metadata=True)
 
     def configure_callback(self):
         cb = super().configure_callback()
-        samples = round(self.duration*self.fs)
+        samples = round(self.duration * self.fs)
         return discard(samples, cb).send
 
 
@@ -525,7 +516,6 @@ def threshold(threshold, target):
 
 
 class Threshold(ContinuousInput):
-
     threshold = d_(Float(0)).tag(metadata=True)
 
     def configure_callback(self):
@@ -539,7 +529,7 @@ def average(n, target):
     axis = 0
     while True:
         while data.shape[axis] >= n:
-            s = [Ellipsis]*data.ndim
+            s = [Ellipsis] * data.ndim
             s[axis] = np.s_[:block_size]
             target(data[s].mean(axis=axis))
             s[axis] = np.s_[block_size:]
@@ -549,7 +539,6 @@ def average(n, target):
 
 
 class Average(ContinuousInput):
-
     n = d_(Float()).tag(metadata=True)
 
     def configure_callback(self):
@@ -566,7 +555,6 @@ def delay(n, target):
 
 
 class Delay(ContinuousInput):
-
     # This can be set to account for things such as the AO and AI filter delays
     # on the 4461. For AO at 100 kHz, the output delay is ~0.48 msec. For the
     # AI at 25e-3, the input delay is 63 samples (divide this by the
@@ -575,7 +563,7 @@ class Delay(ContinuousInput):
 
     def configure_callback(self):
         cb = super().configure_callback()
-        n = int(self.delay * self.fs)
+        n = round(self.delay * self.fs)
         return delay(n, cb).send
 
 
@@ -588,7 +576,6 @@ def transform(function, target):
 
 
 class Transform(ContinuousInput):
-
     function = d_(Callable())
 
     def configure_callback(self):
@@ -614,13 +601,13 @@ def edges(initial_state, min_samples, fs, target):
 
         events = []
         for tlb, tub in zip(ts_change[:-1], ts_change[1:]):
-            if (tub-tlb) >= min_samples:
+            if (tub - tlb) >= min_samples:
                 if initial_state == samples[tlb]:
                     continue
                 edge = 'rising' if samples[tlb] == 1 else 'falling'
                 initial_state = samples[tlb]
                 ts = t_prior + tlb
-                events.append((edge, ts/fs))
+                events.append((edge, ts / fs))
         if events:
             target(events)
         t_prior += new_samples.shape[-1]
@@ -628,7 +615,6 @@ def edges(initial_state, min_samples, fs, target):
 
 
 class Edges(EventInput):
-
     initial_state = d_(Int(0)).tag(metadata=True)
     debounce = d_(Int()).tag(metadata=True)
 
@@ -657,7 +643,7 @@ def capture_epoch(epoch_t0, epoch_samples, info, callback):
         if epoch_t0 < tlb:
             # We have missed the start of the epoch. Notify the callback of this
             m = 'Missed samples for epoch of %d samples starting at %d'
-            log.warn(m, epoch_samples, epoch_t0)
+            log.warning(m, epoch_samples, epoch_t0)
             callback({'signal': None, 'info': info})
             break
 
@@ -669,9 +655,9 @@ def capture_epoch(epoch_t0, epoch_samples, info, callback):
             # `accumulated_data`. We then update start to point to the last
             # acquired sample `i+d` and update duration to be the number of
             # samples we still need to capture.
-            i = int(epoch_t0-tlb)
-            d = int(min(epoch_samples, samples-i))
-            accumulated_data.append(data[..., i:i+d])
+            i = round(epoch_t0 - tlb)
+            d = round(min(epoch_samples, samples - i))
+            accumulated_data.append(data[..., i:i + d])
             epoch_t0 += d
             epoch_samples -= d
 
@@ -685,56 +671,70 @@ def capture_epoch(epoch_t0, epoch_samples, info, callback):
 
 @coroutine
 def extract_epochs(fs, queue, epoch_size, poststim_time, buffer_size, target,
-                   empty_queue_cb=None):
-
+                   empty_queue_cb=None, removed_queue=None):
     # The variable `tlb` tracks the number of samples that have been acquired
     # and reflects the lower bound of `data`. For example, if we have acquired
     # 300,000 samples, then the next chunk of data received from (yield) will
     # start at sample 300,000 (remember that Python is zero-based indexing, so
     # the first sample has an index of 0).
     tlb = 0
-    epoch_coroutines = []
+    epoch_coroutines = {}
     prior_samples = []
 
     # How much historical data to keep (for retroactively capturing epochs)
-    buffer_samples = int(buffer_size*fs)
+    buffer_samples = round(buffer_size * fs)
 
-    # Since we may capture very short, rapidly occuring epochs (at, say, 80 per
-    # second), I find it best to accumulate as many epochs as possible before
+    # Since we may capture very short, rapidly occurring epochs (at, say,
+    # 80 per second), I find it best to accumulate as many epochs as possible before
     # calling the next target. This list will maintain the accumulated set.
     epochs = []
+
+    # This is used for communicating events
+    if removed_queue is None:
+        removed_queue = deque()
 
     while True:
         # Wait for new data to become available
         data = (yield)
         prior_samples.append((tlb, data))
 
-        # Send the data to each coroutine. If a StopIteration occurs, this means
-        # that the epoch has successfully been acquired and has been sent to the
-        # callback and we can remove it. Need to operate on a copy of list since
-        # it's bad form to modify a list in-place.
-        for epoch_coroutine in epoch_coroutines[:]:
+        # First, check to see what needs to be removed from
+        # epoch_coroutines. If it doesn't exist, it may already have been
+        # captured.
+        skip = []
+        while removed_queue:
+            info = removed_queue.popleft()
+            md = info['t0'], info['key']
+            if md not in epoch_coroutines:
+                skip.append(md)
+            else:
+                epoch_coroutines.pop(md)
+
+        # Send the data to each coroutine. If a StopIteration occurs,
+        # this means that the epoch has successfully been acquired and has
+        # been sent to the callback and we can remove it. Need to operate on
+        # a copy of list since it's bad form to modify a list in-place.
+        for key, epoch_coroutine in list(epoch_coroutines.items()):
             try:
                 epoch_coroutine.send((tlb, data))
             except StopIteration:
-                epoch_coroutines.remove(epoch_coroutine)
+                epoch_coroutines.pop(key)
 
         # Check to see if more epochs have been requested. Information will be
         # provided in seconds, but we need to convert this to number of
         # samples.
         while queue:
             info = queue.popleft()
+            key = info['t0'], info['key']
+            if key in skip:
+                skip.remove(key)
+                continue
 
             # Figure out how many samples to capture for that epoch
             t0 = round(info['t0'] * fs)
             info['poststim_time'] = poststim_time
-            if epoch_size:
-                info['epoch_size'] = epoch_size
-                total_epoch_size = epoch_size + poststim_time
-            else:
-                info['epoch_size'] = info['duration']
-                total_epoch_size = info['duration'] + poststim_time
-
+            info['epoch_size'] = epoch_size if epoch_size else info['duration']
+            total_epoch_size = info['epoch_size'] + poststim_time
             epoch_samples = round(total_epoch_size * fs)
             epoch_coroutine = capture_epoch(t0, epoch_samples, info,
                                             epochs.append)
@@ -746,9 +746,13 @@ def extract_epochs(fs, queue, epoch_size, poststim_time, buffer_size, target,
                 # epoch.
                 for prior_sample in prior_samples:
                     epoch_coroutine.send(prior_sample)
-                epoch_coroutines.append(epoch_coroutine)
+                if key in epoch_coroutines:
+                    raise ValueError('Duplicate epochs not supported')
+                epoch_coroutines[key] = epoch_coroutine
             except StopIteration:
                 pass
+        #else:
+            #log.debug('Current tlb: %.2f, t0: %.2f', tlb/fs, t0/fs)
 
         tlb = tlb + data.shape[-1]
 
@@ -758,12 +762,12 @@ def extract_epochs(fs, queue, epoch_size, poststim_time, buffer_size, target,
             target(epochs[:])
             epochs[:] = []
 
-        # Check to see if any of the cached samples are older than the specified
-        # `buffer_samples` and discard them.
+        # Check to see if any of the cached samples are older than the
+        # specified buffer_samples and discard them.
         while True:
             oldest_samples = prior_samples[0]
             tub = oldest_samples[0] + oldest_samples[1].shape[-1]
-            if tub < (tlb-buffer_samples):
+            if tub < (tlb - buffer_samples):
                 prior_samples.pop(0)
             else:
                 break
@@ -776,7 +780,8 @@ def extract_epochs(fs, queue, epoch_size, poststim_time, buffer_size, target,
 
 class ExtractEpochs(EpochInput):
 
-    queue = d_(Typed(deque, {}))
+    added_queue = d_(Typed(deque, {}))
+    removed_queue = d_(Typed(deque, {}))
 
     buffer_size = d_(Float(0)).tag(metadata=True)
 
@@ -793,15 +798,13 @@ class ExtractEpochs(EpochInput):
         self.complete = True
 
     def configure_callback(self):
-        #if self.epoch_size == 0:
-            #raise ValueError('Epoch size not configured')
         if np.isinf(self.epoch_size):
             m = f'ExtractEpochs {self.name} has an infinite epoch size'
             raise ValueError(m)
         cb = super().configure_callback()
-        return extract_epochs(self.fs, self.queue, self.epoch_size,
+        return extract_epochs(self.fs, self.added_queue, self.epoch_size,
                               self.poststim_time, self.buffer_size, cb,
-                              self.mark_complete).send
+                              self.mark_complete, self.removed_queue).send
 
     def _get_duration(self):
         return self.epoch_size + self.poststim_time
@@ -832,7 +835,7 @@ def reject_epochs(reject_threshold, mode, status, valid_target):
             # Update the status. Must be wrapped in a deferred call to ensure
             # that the update occurs on the GUI thread.
             status.total += len(epochs)
-            status.rejects += len(epochs)-len(valid)
+            status.rejects += len(epochs) - len(valid)
             status.reject_ratio = status.rejects / status.total
 
         deferred_call(update)

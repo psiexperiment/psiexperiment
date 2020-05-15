@@ -200,7 +200,7 @@ class ControllerPlugin(Plugin):
         return self._registered_actions + self._plugin_actions
 
     def start(self):
-        log.debug('Starting controller plugin')
+        log.debug('Starting controller plugin %s', self.__class__.__name__)
         self._refresh_io()
         self._refresh_actions()
         self._bind_observers()
@@ -251,9 +251,6 @@ class ControllerPlugin(Plugin):
 
         for i in self._inputs.values():
             i.load_manifest(self.workbench)
-
-        log.warn('***********************************************')
-        log.warn(str(self._outputs.keys()))
 
     def _connect_outputs(self):
         for o in self._outputs.values():
