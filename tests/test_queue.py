@@ -451,3 +451,14 @@ def test_remove_keys():
     counts = Counter(c['key'] for c in conn)
     assert counts[keys[0]] == int(rate)
     assert counts[keys[2]] == int(rate)
+
+
+def test_get_closest_key():
+    frequencies = (500, 1e3, 2e3, 4e3, 8e3)
+    queue, conn, _, keys, tones = make_queue('FIFO', frequencies, 100)
+    assert queue.get_closest_key(1) is None
+    queue.pop_buffer(int(fs))
+    assert queue.get_closest_key(1) == keys[0]
+    queue.pop_buffer(int(fs))
+    assert queue.get_closest_key(1) == keys[0]
+    assert queue.get_closest_key(2) == keys[1]

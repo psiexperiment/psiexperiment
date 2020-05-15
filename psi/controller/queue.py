@@ -356,6 +356,11 @@ class AbstractSignalQueue:
             self.next_trial(decrement)
             return np.empty(0)
 
+    def get_closest_key(self, t):
+        for info in self._generated[::-1]:
+            if info['t0'] <= t:
+                return info['key']
+        return None
 
 class FIFOSignalQueue(AbstractSignalQueue):
     '''
