@@ -264,7 +264,7 @@ class CartesianProduct(BaseSelector):
     Generate all possible permutations of the values. The order in which the
     context items were added to the selector define the order in which the
     values are looped through (first item is slowest-varying and last item is
-    fastest-varying).  The followign code illustrates the concept where item A
+    fastest-varying).  The following code illustrates the concept where item A
     was added first, followed by item B and then item C:
 
         for value_A in item_A_values:
