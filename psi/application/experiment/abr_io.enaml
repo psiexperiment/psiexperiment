@@ -24,7 +24,6 @@ from .abr_base import ABRBaseManifest
 EXPERIMENT = __name__.rsplit('.', 1)[-1]
 
 
-
 def configure_plugins(event):
     log.debug('************************************************')
     log.debug('CONFIGURE')
@@ -37,7 +36,13 @@ def configure_plugins(event):
     log.debug('************************************************')
 
 
-def configure_experiment(event):
+def add_setting(target, setting, averages, iti, key_map):
+    key = target.add_setting(setting, averages, iti)
+    freq = setting['target_tone_frequency']
+    key_map.setdefault(freq, []).append(key)
+
+
+def configure_experiment(key_map, event):
     context = event.workbench.get_plugin('psi.context')
     controller = event.workbench.get_plugin('psi.controller')
 
@@ -58,7 +63,6 @@ def configure_experiment(event):
         raise ValueError('Repetition rate is too fast')
 
     target = controller.get_output('target')
-
     # Configure the queues
     if ordering in ('interleaved_ramp', 'interleaved_plateau'):
         target.queue = queue.InterleavedFIFOSignalQueue()
@@ -72,22 +76,23 @@ def configure_experiment(event):
     else:
         raise ValueError('Unrecognized ordering {}'.format(ordering))
 
+    key_map.clear()
     if not alternate_polarity:
         for setting in context.iter_settings('default', 1):
-            target.add_setting(setting, averages, iti)
+            add_setting(target, setting, averages, iti, key_map)
     elif ordering == 'interleaved':
         for setting in context.iter_settings('default', 1):
             setting['target_tone_polarity'] = 1
-            target.add_setting(setting, averages/2, iti)
+            add_setting(target, setting, averages/2, iti, key_map)
         for setting in context.iter_settings('default', 1):
             setting['target_tone_polarity'] = -1
-            target.add_setting(setting, averages/2, iti)
+            add_setting(target, setting, averages/2, iti, key_map)
     elif ordering in ('sequential', 'random'):
         for setting in context.iter_settings('default', 1):
             setting['target_tone_polarity'] = 1
-            target.add_setting(setting, averages/2, iti)
+            add_setting(target, setting, averages/2, iti, key_map)
             setting['target_tone_polarity'] = -1
-            target.add_setting(setting, averages/2, iti)
+            add_setting(target, setting, averages/2, iti, key_map)
     else:
         raise ValueError('Unrecognized ordering {}'.format(ordering))
 
@@ -108,7 +113,7 @@ def configure_experiment(event):
     target.channel.expected_range = (-max_sf, max_sf)
 
 
-def next_frequency(event):
+def next_frequency(key_map, event):
     controller = event.workbench.get_plugin('psi.controller')
     output = controller.get_output('target')
     queue = output.queue
@@ -121,17 +126,15 @@ def next_frequency(event):
         key = output.queue.get_closest_key(ts - 0.5)
 
         # Now, remove all keys that match the stimulus frequency from the
-        # queue. This will clear all ermaining levels for that frequency. We
+        # queue. This will clear all remaining levels for that frequency. We
         # may get an error indicating that key has already been removed
         # (possible if we are close to the number of averages needed for that
         # key).
         info = output.queue.get_info(key)
         frequency = info['metadata']['target_tone_frequency']
         log.debug('Frequency at %0.2f is %.0f', ts, frequency)
-        try:
-            output.queue.remove_keys(target_tone_frequency=frequency)
-        except:
-            pass
+        for key in key_map[frequency]:
+            output.queue.remove_key(key)
 
         # Finally, flush the queue and update with new data.
         ts = controller.get_ts()
@@ -145,8 +148,9 @@ def next_frequency(event):
         output.engine.update_hw_ao(output.channel.name, offset)
 
 
-
 enamldef ABRIOManifest(ABRBaseManifest): manifest:
+
+    attr key_map = {}
 
     Extension:
         id = EXPERIMENT + '.context'
@@ -194,13 +198,13 @@ enamldef ABRIOManifest(ABRBaseManifest): manifest:
 
         Command:
             id = 'psi.controller.configure_experiment'
-            handler = configure_experiment
+            handler = partial(configure_experiment, key_map)
         Command:
             id = 'psi.controller.configure_plugins'
             handler = configure_plugins
         Command:
             id = manifest.id + '.next_frequency'
-            handler = next_frequency
+            handler = partial(next_frequency, key_map)
 
     Extension:
         id = EXPERIMENT + '.actions'
@@ -264,4 +268,3 @@ enamldef ABRIOManifest(ABRBaseManifest): manifest:
                     and C.ordering == 'sequential'
                 triggered ::
                     core = workbench.get_plugin('enaml.workbench.core')
-                    core.invoke_command(manifest.id + '.next_frequency')

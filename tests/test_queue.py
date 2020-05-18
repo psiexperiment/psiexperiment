@@ -219,19 +219,9 @@ def test_fifo_queue_pause_with_requeue():
     n = len(t1_waveform)
     t1_waveforms = np.vstack(w['signal'] for w in waveforms[:100])[..., :n]
     t2_waveforms = np.vstack(w['signal'] for w in waveforms[100:])[..., :n]
-    # discrepancy happens at 38
-    #import matplotlib.pyplot as plt
-    #plt.plot(t1_waveforms[30], 'k')
-    #plt.plot(t1_waveform, 'r')
-    #plt.show()
 
     assert np.all(t1_waveforms == t1_waveform)
     assert np.all(t2_waveforms == t2_waveform)
-
-    #for waveform in waveforms[:100]:
-    #    assert np.all(waveform['signal'][..., :n] == t1_waveform)
-    #for waveform in waveforms[100:]:
-    #    assert np.all(waveform['signal'][..., :n] == t2_waveform)
 
 
 def test_queue_isi_with_pause():
@@ -444,13 +434,41 @@ def test_queue_partial_capture():
 def test_remove_keys():
     frequencies = (500, 1e3, 2e3, 4e3, 8e3)
     queue, conn, _, keys, tones = make_queue('FIFO', frequencies, 100)
-    queue.remove_keys(frequency=1000)
+    queue.remove_key(keys[1])
     queue.pop_buffer(int(fs))
-    queue.remove_keys(frequency=500)
+    queue.remove_key(keys[0])
     queue.pop_buffer(int(fs))
     counts = Counter(c['key'] for c in conn)
     assert counts[keys[0]] == int(rate)
     assert counts[keys[2]] == int(rate)
+
+    # Should generate all remaining queued trials. Make sure it properly
+    # exits the queue.
+    queue.pop_buffer((int(5*100/rate * fs)))
+    counts = Counter(c['key'] for c in conn)
+    assert keys[1] not in counts
+    assert counts[keys[0]] == int(rate)
+    for k in keys[2:]:
+        assert counts[k] == 100
+
+
+def test_remove_keys_with_no_auto_decrement():
+    frequencies = (500, 1e3, 2e3, 4e3, 8e3)
+    queue, conn, _, keys, tones = make_queue('FIFO', frequencies, 100)
+    queue.remove_key(keys[1])
+    queue.pop_buffer(10*int(fs), decrement=False)
+    queue.remove_key(keys[0])
+    for key in keys[2:]:
+        queue.remove_key(key)
+
+    # Should generate all remaining queued trials. Make sure it properly
+    # exits the queue.
+    queue.pop_buffer((int(5*100/rate * fs)), decrement=False)
+    counts = Counter(c['key'] for c in conn)
+    assert keys[1] not in counts
+    assert counts[keys[0]] == 10*int(rate)
+    for k in keys[2:]:
+        assert k not in counts
 
 
 def test_get_closest_key():
