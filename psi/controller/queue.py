@@ -120,6 +120,7 @@ class AbstractSignalQueue:
             else:
                 log.debug(f'Removing {key}')
                 self.remove_key(key)
+
         if t is not None:
             self.cancel(t)
             self.rewind_samples(t)
@@ -361,6 +362,10 @@ class AbstractSignalQueue:
             if info['t0'] <= t:
                 return info['key']
         return None
+
+    def get_info(self, key):
+        return self._data[key].copy()
+
 
 class FIFOSignalQueue(AbstractSignalQueue):
     '''
