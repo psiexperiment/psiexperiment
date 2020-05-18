@@ -25,15 +25,13 @@ EXPERIMENT = __name__.rsplit('.', 1)[-1]
 
 
 def configure_plugins(event):
-    log.debug('************************************************')
-    log.debug('CONFIGURE')
+    return
     context = event.workbench.get_plugin('psi.context')
     selector = context.selectors['default']
     freq = context.parameters['target_tone_frequency']
     level = context.parameters['target_tone_level']
     selector.append_item(freq)
     selector.append_item(level)
-    log.debug('************************************************')
 
 
 def add_setting(target, setting, averages, iti, key_map):
@@ -116,7 +114,6 @@ def configure_experiment(key_map, event):
 def next_frequency(key_map, event):
     controller = event.workbench.get_plugin('psi.controller')
     output = controller.get_output('target')
-    queue = output.queue
     with output.engine.lock:
         # Assume some delay in hitting the skip button. So, we want to search
         # back and find out what the frequency is. We should include some logic
@@ -132,11 +129,24 @@ def next_frequency(key_map, event):
         # key).
         info = output.queue.get_info(key)
         frequency = info['metadata']['target_tone_frequency']
-        log.debug('Frequency at %0.2f is %.0f', ts, frequency)
+        log.debug('Frequency at %0.2f sec is %.0f Hz', ts, frequency)
         for key in key_map[frequency]:
-            output.queue.remove_key(key)
+            try:
+                output.queue.remove_key(key)
+                log.debug('Removed key %r', key)
+            except ValueError:
+                log.debug('Key %r already removed', key)
 
-        # Finally, flush the queue and update with new data.
+    # Finally, flush the queue and update with new data. This needs to be
+    # outside the lock block because `rebuffer` acquires the lock as well.
+    rebuffer(event)
+
+
+def rebuffer(event):
+    controller = event.workbench.get_plugin('psi.controller')
+    output = controller.get_output('target')
+
+    with output.engine.lock:
         ts = controller.get_ts()
         log.debug('Flushing at %.2f', ts)
         output.queue.cancel(ts + 1.0)
@@ -198,13 +208,16 @@ enamldef ABRIOManifest(ABRBaseManifest): manifest:
 
         Command:
             id = 'psi.controller.configure_experiment'
-            handler = partial(configure_experiment, key_map)
+            handler = partial(configure_experiment, manifest.key_map)
         Command:
             id = 'psi.controller.configure_plugins'
             handler = configure_plugins
         Command:
             id = manifest.id + '.next_frequency'
-            handler = partial(next_frequency, key_map)
+            handler = partial(next_frequency, manifest.key_map)
+        Command:
+            id = manifest.id + '.rebuffer'
+            handler = rebuffer
 
     Extension:
         id = EXPERIMENT + '.actions'
@@ -218,6 +231,10 @@ enamldef ABRIOManifest(ABRBaseManifest): manifest:
             event = 'target_start'
             command = 'psi.controller.set_pause_ok'
             kwargs = {'value': True}
+
+        ExperimentAction:
+            event = 'keys_complete'
+            command = manifest.id + '.rebuffer'
 
     Extension:
         id = EXPERIMENT + '.sink'
@@ -268,3 +285,4 @@ enamldef ABRIOManifest(ABRBaseManifest): manifest:
                     and C.ordering == 'sequential'
                 triggered ::
                     core = workbench.get_plugin('enaml.workbench.core')
+                    core.invoke_command(manifest.id + '.next_frequency')

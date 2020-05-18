@@ -382,13 +382,19 @@ def decrement_key(event, output):
     with output.engine.lock:
         keys = [e['info']['key'] for e in event.parameters['data']]
         counts = Counter(keys)
+        complete_keys = []
         for key, count in counts.items():
             try:
-                output.queue.decrement_key(key, count)
+                if output.queue.decrement_key(key, count):
+                    complete_keys.append(key)
             except KeyError:
                 # This can happen if we are playing epochs so rapidly we gather
                 # a few extra before the output queue knows to stop.
-                pass
+                complete_keys.append(key)
+    if complete_keys:
+        log.debug('Queued keys complete: %r', complete_keys)
+        controller = event.workbench.get_plugin('psi.controller')
+        controller.invoke_actions('keys_complete', keys)
 
 
 enamldef SynchronizedManifest(PSIManifest): manifest:
@@ -576,6 +582,13 @@ enamldef QueuedEpochOutputManifest(EpochOutputManifest): manifest:
         Command:
             id = manifest.contribution.name + '.toggle_pause'
             handler = partial(toggle_pause, output=contribution)
+
+    Extension:
+        id = '.'.join((manifest.id, manifest.__class__.__name__, '.actions'))
+        point = 'psi.controller.actions'
+
+        ExperimentEvent:
+            name = 'keys_complete'
 
     # Uses unicode symbols as icons for sake of simplicity.
     Extension:

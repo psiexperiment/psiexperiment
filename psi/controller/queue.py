@@ -229,11 +229,28 @@ class AbstractSignalQueue:
         self._ordering.remove(key)
 
     def decrement_key(self, key, n=1):
+        """
+        Decrement trials for key
+
+        Parameters
+        ----------
+        key : UUID
+            Key to decrement
+        n : int
+            Number of trials to decrement by
+
+        Returns
+        -------
+        complete : bool
+            True if no trials left for key, False otherwise.
+        """
         if key not in self._ordering:
             raise KeyError('{} not in queue'.format(key))
         self._data[key]['trials'] -= n
         if self._data[key]['trials'] <= 0:
             self.remove_key(key)
+            return True
+        return False
 
     def _get_samples_waveform(self, samples):
         if samples > len(self._source):

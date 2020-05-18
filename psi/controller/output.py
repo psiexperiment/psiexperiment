@@ -267,8 +267,8 @@ class QueuedEpochOutput(BufferedOutput):
         # manifest system.
         factory = initialize_factory(self, self.token, context)
         duration = factory.get_duration()
-        self.queue.append(factory, averages, iti_duration, duration,
-                          setting.copy())
+        return self.queue.append(factory, averages, iti_duration, duration,
+                                 setting.copy())
 
     def activate(self, offset):
         log.debug('Activating output at %d', offset)
