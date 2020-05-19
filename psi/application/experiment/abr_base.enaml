@@ -5,6 +5,7 @@ from functools import partial
 
 import numpy as np
 
+from enaml.application import deferred_call
 from enaml.widgets.api import DockItem, Container
 from enaml.workbench.api import Extension, PluginManifest
 from enaml.workbench.core.api import Command
@@ -85,7 +86,7 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
                 self.queue.connect(extract.removed_queue.append, 'removed')
             complete ::
                 controller = workbench.get_plugin('psi.controller')
-                controller.invoke_actions(output.name + '_end')
+                deferred_call(controller.invoke_actions, output.name + '_end')
 
         ContinuousInput:
             name = 'microphone'
@@ -234,7 +235,7 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
         id = 'selectors'
         point = 'psi.context.selectors'
 
-        CartesianProduct:
+        CartesianProduct: abr_selector:
             name = 'default'
             label = 'ABR sequence'
 

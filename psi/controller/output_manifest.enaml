@@ -7,6 +7,7 @@ from collections import Counter, defaultdict
 
 import numpy as np
 
+from enaml.application import deferred_call
 from enaml.core.api import Looper, Include, Conditional
 from enaml.widgets.api import Action, ToolBar
 from enaml.workbench.api import Extension
@@ -144,8 +145,17 @@ def prepare_output_queue(event, output):
     controller = event.workbench.get_plugin('psi.controller')
     context = event.workbench.get_plugin('psi.context')
     action_name = output.name + '_end'
-    output.observe('complete',
-                   lambda e: controller.invoke_actions(action_name))
+
+    # Link a callback that's invoked in the main thread (to avoid race
+    # conditions)
+    def cb(event):
+        nonlocal controller
+        nonlocal action_name
+        log.debug('Output queue complete. Invoking %s in MainThread',
+                  action_name)
+        deferred_call(controller.invoke_actions, action_name)
+    output.observe('complete', cb)
+
     for setting in context.iter_settings(output.selector_name, 1):
         output.add_setting(setting)
 

@@ -29,6 +29,35 @@ def log_configuration(engine):
     log.info('\n'.join(info))
 
 
+class LogLock(object):
+    def __init__(self, name):
+        self.name = str(name)
+        self.lock = threading.Lock()
+
+    def acquire(self, blocking=True):
+        log.debug("~~~~ {0:x} Trying to acquire {1} lock".format(
+            id(self), self.name))
+        ret = self.lock.acquire(blocking)
+        if ret == True:
+            log.debug("~~~~ {0:x} Acquired {1} lock".format(
+                id(self), self.name))
+        else:
+            log.debug("~~~~ {0:x} Non-blocking aquire of {1} lock failed".format(
+                id(self), self.name))
+        return ret
+
+    def release(self):
+        log.debug("~~~~ {0:x} Releasing {1} lock".format(id(self), self.name))
+        self.lock.release()
+
+    def __enter__(self):
+        self.acquire()
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.release()
+        return False    # Do not swallow exceptions
+
+
 class Engine(PSIContribution):
     '''
     Defines hardware-specific interface
@@ -81,11 +110,10 @@ class Engine(PSIContribution):
     configured = Bool(False)
 
     hw_ai_monitor_period = d_(Float(0.1)).tag(metadata=True)
-
     hw_ao_monitor_period = d_(Float(1)).tag(metadata=True)
 
     def _default_lock(self):
-        return threading.Lock()
+        return LogLock(self.name)
 
     def get_channels(self, mode=None, direction=None, timing=None,
                      active=True):

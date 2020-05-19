@@ -148,14 +148,17 @@ def rebuffer(event):
 
     with output.engine.lock:
         ts = controller.get_ts()
-        log.debug('Flushing at %.2f', ts)
+        log.debug('Flushing queue at %.2f', ts)
         output.queue.cancel(ts + 1.0)
         output.queue.rewind_samples(ts + 1.0)
 
         # Sort of klunky that we need to do the sec -> samples conversion here.
         offset = round((ts + 1.0) * output.fs)
+        log.debug('Updating output buffers at offset %d', offset)
         output._buffer.invalidate_samples(offset)
+        log.debug('Invalidated buffer cache')
         output.engine.update_hw_ao(output.channel.name, offset)
+        log.debug('Updated data in hardware buffers')
 
 
 enamldef ABRIOManifest(ABRBaseManifest): manifest:

@@ -190,6 +190,7 @@ class TDTEngine(Engine):
         log.debug('Completed engine configuration')
 
     def complete(self):
+        log.debug('Triggering "done" callbacks')
         for cb in self._callbacks.get('done', []):
             cb()
 
@@ -350,6 +351,7 @@ class TDTEngine(Engine):
     def stop(self):
         if not self._configured:
             return
+
         log.debug('Stopping engine')
         self._project.trigger('A', 'low')
         self._stop_requested.set()
@@ -359,7 +361,10 @@ class TDTEngine(Engine):
             if thread is current_thread():
                 log.debug('Skipping join')
                 continue
+            log.debug('Waiting for %r thread to exit', thread)
             thread.join()
+            log.debug('Thread %r exited', thread)
+
         self.complete()
         self._configured = False
 
