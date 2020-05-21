@@ -186,8 +186,6 @@ def test_fifo_queue_pause_with_requeue():
     k1_left, k2_left = _adjust_remaining(k1_left, k2_left, n_queued)
 
     extractor.send(waveform)
-    print('N', len(waveforms))
-    print('EQ2??', np.all(waveforms[38]['signal'][:n_t1] == t1_waveform))
 
     assert len(conn) == np.floor(1/actual_isi) + 1
     assert queue.remaining_trials(k1) == k1_left
@@ -217,11 +215,11 @@ def test_fifo_queue_pause_with_requeue():
     # int() instead of round() with quirky sample rates (e.g., like with the
     # RZ6).
     n = len(t1_waveform)
-    t1_waveforms = np.vstack(w['signal'] for w in waveforms[:100])[..., :n]
-    t2_waveforms = np.vstack(w['signal'] for w in waveforms[100:])[..., :n]
+    t1_waveforms = np.vstack(w['signal'] for w in waveforms[:100])
+    t2_waveforms = np.vstack(w['signal'] for w in waveforms[100:])
 
-    assert np.all(t1_waveforms == t1_waveform)
-    assert np.all(t2_waveforms == t2_waveform)
+    assert np.all(t1_waveforms[:, :n] == t1_waveform)
+    assert np.all(t2_waveforms[:, :n] == t2_waveform)
 
 
 def test_queue_isi_with_pause():
@@ -480,3 +478,54 @@ def test_get_closest_key():
     queue.pop_buffer(int(fs))
     assert queue.get_closest_key(1) == keys[0]
     assert queue.get_closest_key(2) == keys[1]
+
+
+def test_rebuffering():
+    frequencies = (500, 1e3, 2e3, 4e3, 8e3)
+    trials = 200
+    queue, conn, rem_conn, keys, tones = \
+        make_queue('FIFO', frequencies, trials)
+
+    waveforms = []
+    extractor_conn = deque()
+    extractor_rem_conn = deque()
+    queue.connect(extractor_conn.append, 'added')
+    queue.connect(extractor_rem_conn.append, 'removed')
+    extractor = extract_epochs(fs=fs,
+                               queue=extractor_conn,
+                               removed_queue=extractor_rem_conn,
+                               poststim_time=0,
+                               buffer_size=0,
+                               epoch_size=8.5e-3,
+                               target=waveforms.extend)
+
+    tone_duration = tones[0].duration
+    tone_samples = int(round(tone_duration * fs))
+    w = queue.pop_buffer(tone_samples*2)
+    extractor.send(w[:tone_samples])
+
+    queue.pause(tone_duration)
+    queue.resume(tone_duration, delay=10e-3)
+
+    w = queue.pop_buffer(int(fs))
+    extractor.send(w)
+
+    # This will result in pausing in the middle of a tone burst (at this
+    # point, we will have popped the equivalent of 1.005 sec of samples off
+    # the queue buffer).
+    queue.pause(tone_duration + 1.0)
+    queue.resume(tone_duration + 1.0)
+    assert len(rem_conn) == 1
+
+    w = queue.pop_buffer(int(fs))
+    extractor.send(w)
+
+    # Clear all remaining trials
+    w = queue.pop_buffer(15*int(fs))
+    extractor.send(w)
+
+    assert len(waveforms) == (len(frequencies) * trials)
+    epochs = np.vstack([w['signal'] for w in waveforms])
+    epochs.shape = len(frequencies), trials, -1
+    print(epochs[:, [0]].shape, epochs.shape)
+    assert np.all(np.equal(epochs[:, [0]], epochs))

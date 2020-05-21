@@ -137,10 +137,25 @@ class AbstractSignalQueue:
         trials = {k: self._data[k]['trials'] for k in self._data.keys()}
         log.debug('Current trials:: %r', trials)
 
-    def resume(self, t=None):
+    def resume(self, t=None, delay=0):
+        """
+        Resumes generating trials from queue
+        Parameters
+        ----------
+        t : float
+            Time, in sec, to resume generating trials from queue.
+        delay : float
+            Duration of silence, in sec, to insert after queue resumes.
+        """
         log.debug('Resuming queue')
         if t is not None:
             self.rewind_samples(t)
+        if self._source is not None:
+            info = self._generated[-1]
+            if info['decrement']:
+                self._data[info['key']]['trials'] += 1
+            self._source = None
+        self._delay_samples = int(round(delay * self._fs))
         self._paused = False
 
     def is_empty(self):
