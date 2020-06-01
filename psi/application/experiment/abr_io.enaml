@@ -4,6 +4,7 @@ log = logging.getLogger()
 from functools import partial
 import numpy as np
 
+from enaml.application import deferred_call
 from enaml.stdlib.message_box import question
 from enaml.widgets.api import Action, ToolBar
 from enaml.workbench.api import Extension
@@ -133,7 +134,7 @@ def next_frequency(key_map, event):
     log.debug('Frequency at %0.2f sec is %.0f Hz', ts, frequency)
 
     # Bounce back to main thread for confirmation dialog
-    deferred_call(skip_stimuli, event, output, frequency, key_map[frequency])
+    deferred_call(skip_keys, event, output, frequency, key_map[frequency])
 
 
 def skip_keys(event, output, frequency, keys):
