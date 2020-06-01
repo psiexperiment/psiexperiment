@@ -60,9 +60,9 @@ def initialize(event):
     controller = event.workbench.get_plugin('psi.controller')
     context = event.workbench.get_plugin(PLUGIN_ID)
     cycles = event.parameters.get('cycles', np.inf)
+    selector = event.parameters.get('selector', None)
     context.apply_changes(cycles=cycles)
-    context.next_setting(selector=event.parameters['selector'],
-                         save_prior=False)
+    context.next_setting(selector=selector, save_prior=False)
     context.initialized = True
     controller.invoke_actions('context_initialized')
 

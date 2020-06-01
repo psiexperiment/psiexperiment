@@ -13,6 +13,7 @@ from enaml.workbench.core.api import Command
 from psi.context.api import (BoolParameter, ContextGroup, EnumParameter,
                              OrderedContextMeta, Parameter)
 
+from psi.context.selector import CartesianProduct
 from psi.controller import queue
 from psi.controller.api import ExperimentAction
 from psi.data.plots import (MultiPlotContainer, StackedEpochAveragePlot,
@@ -26,16 +27,6 @@ from .abr_base import ABRBaseManifest
 EXPERIMENT = __name__.rsplit('.', 1)[-1]
 
 
-def configure_plugins(event):
-    return
-    context = event.workbench.get_plugin('psi.context')
-    selector = context.selectors['default']
-    freq = context.parameters['target_tone_frequency']
-    level = context.parameters['target_tone_level']
-    selector.append_item(freq)
-    selector.append_item(level)
-
-
 def add_setting(target, setting, averages, iti, key_map):
     key = target.add_setting(setting, averages, iti)
     freq = setting['target_tone_frequency']
@@ -45,24 +36,24 @@ def add_setting(target, setting, averages, iti, key_map):
 def configure_experiment(key_map, event):
     context = event.workbench.get_plugin('psi.context')
     controller = event.workbench.get_plugin('psi.controller')
+    target = controller.get_output('target')
 
     ordering = context.get_value('ordering')
     alternate_polarity = context.get_value('alternate_polarity')
-    tone_duration = context.get_value('target_tone_burst_duration')
-    rate = context.get_value('rate')
     averages = context.get_value('averages')
 
+    rate = context.get_value('rate')
+    tone_duration = context.get_value('target_tone_burst_duration')
     if alternate_polarity and (averages % 2):
         # Round to the nearest multiple of 2
         averages = (round(averages/2) + 1) * 2
 
     # Compensate for the tone duration. ITI is the time from tone offset to
-    # tone offset.
+    # tone offset. Do sanity check while at it.
     iti = 1/rate - tone_duration
     if iti <= 0:
         raise ValueError('Repetition rate is too fast')
 
-    target = controller.get_output('target')
     # Configure the queues
     if ordering in ('interleaved_ramp', 'interleaved_plateau'):
         target.queue = queue.InterleavedFIFOSignalQueue()
@@ -76,10 +67,26 @@ def configure_experiment(key_map, event):
     else:
         raise ValueError('Unrecognized ordering {}'.format(ordering))
 
+    freq_name = 'target_tone_frequency'
+    level_name = 'target_tone_level'
+    sorters = {
+        'sequential': lambda a: (a[freq_name], a[level_name]),
+        'interleaved_random': lambda a: (a[freq_name], a[level_name]),
+        'interleaved_ramp': lambda a: (-a[freq_name], a[level_name]),
+        'interleaved_plateau': lambda a: (a[level_name], -a[freq_name])
+    }
+    settings = list(context.iter_settings('default', 1))
+    settings.sort(key=sorters[ordering])
+    for s in settings:
+        log.debug('%f\t%f', s[freq_name], s[level_name])
+    import sys
+    sys.exit()
+
     key_map.clear()
     if not alternate_polarity:
-        for setting in context.iter_settings('default', 1):
+        for setting in settings:
             add_setting(target, setting, averages, iti, key_map)
+
     elif ordering == 'interleaved':
         for setting in context.iter_settings('default', 1):
             setting['target_tone_polarity'] = 1
@@ -165,13 +172,16 @@ def rebuffer(event):
         output.rebuffer(controller.get_ts() + 1.0, delay=10e-3)
 
 
-enamldef ABRIOManifest(ABRBaseManifest): manifest:
+enamldef ABRIOBaseManifest(ABRBaseManifest): manifest:
 
     attr key_map = {}
 
     Extension:
         id = EXPERIMENT + '.context'
         point = 'psi.context.items'
+
+        OrderedContextMeta: epoch_groups:
+            name = 'settings'
 
         ContextGroup:
             name = 'abr_io'
@@ -199,32 +209,25 @@ enamldef ABRIOManifest(ABRBaseManifest): manifest:
                 name = 'ordering'
                 label = 'Stimulus ordering'
                 choices = {
+                    'conventional': '"sequential"',
                     'interleaved plateau': '"interleaved_plateau"',
                     'interleaved ramp': '"interleaved_ramp"',
                     'interleaved random': '"interleaved_random"',
-                    'sequential': '"sequential"',
                 }
                 scope = 'experiment'
-
-        OrderedContextMeta: epoch_groups:
-            name = 'settings'
 
     Extension:
         id = EXPERIMENT + '.commands'
         point = 'enaml.workbench.core.commands'
-
-        Command:
-            id = 'psi.controller.configure_experiment'
-            handler = partial(configure_experiment, manifest.key_map)
-        Command:
-            id = 'psi.controller.configure_plugins'
-            handler = configure_plugins
         Command:
             id = manifest.id + '.next_frequency'
             handler = partial(next_frequency, manifest.key_map)
         Command:
             id = manifest.id + '.rebuffer'
             handler = rebuffer
+        Command:
+            id = 'psi.controller.configure_experiment'
+            handler = partial(configure_experiment, manifest.key_map)
 
     Extension:
         id = EXPERIMENT + '.actions'
@@ -293,3 +296,14 @@ enamldef ABRIOManifest(ABRBaseManifest): manifest:
                 triggered ::
                     core = workbench.get_plugin('enaml.workbench.core')
                     core.invoke_command(manifest.id + '.next_frequency')
+
+
+enamldef ABRIOManifest(ABRIOBaseManifest): manifest:
+
+    Extension:
+        id = EXPERIMENT + '.selectors'
+        point = 'psi.context.selectors'
+
+        CartesianProduct:
+            name = 'default'
+            label = 'ABR sequence'

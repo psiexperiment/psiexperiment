@@ -134,9 +134,16 @@ def warn_empty(method):
 
 class BaseSelector(PSIContribution):
 
-    context_items = Typed(list, [])
     symbols = Typed(dict, {})
     updated = Event()
+    name = 'default'
+
+
+class BaseConfigurableSelector(BaseSelector):
+    '''
+    Defines a selector where items can be added/removed
+    '''
+    context_items = Typed(list, [])
 
     #: Since order of context items is important for certain selectors (e.g.,
     #: the CartesianProduct), this attribute is used to persist experiment
@@ -189,7 +196,7 @@ class BaseSelector(PSIContribution):
         self.updated = True
 
 
-class SingleSetting(BaseSelector):
+class SingleSetting(BaseConfigurableSelector):
     '''
     Each parameter takes on only a single value. The value is the same on every
     iteration. This is commonly used in behavioral paradigms where you want to
@@ -259,7 +266,7 @@ class SingleSetting(BaseSelector):
         self.updated = True
 
 
-class CartesianProduct(BaseSelector):
+class CartesianProduct(BaseConfigurableSelector):
     '''
     Generate all possible permutations of the values. The order in which the
     context items were added to the selector define the order in which the
@@ -299,7 +306,7 @@ class CartesianProduct(BaseSelector):
         return choice.exact_order(settings, cycles)
 
 
-class SequenceSelector(BaseSelector):
+class SequenceSelector(BaseConfigurableSelector):
     '''
     TODO
     '''
