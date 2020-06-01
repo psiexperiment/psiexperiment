@@ -115,31 +115,37 @@ def configure_experiment(key_map, event):
 def next_frequency(key_map, event):
     controller = event.workbench.get_plugin('psi.controller')
     output = controller.get_output('target')
+
+    # Assume some delay in hitting the skip button. So, we want to search
+    # back and find out what the frequency is. We should include some logic
+    # to make sure that we don't accidentally skip a frequency that we just
+    # started.
+    ts = controller.get_ts()
+    key = output.queue.get_closest_key(ts - 0.5)
+
+    # Now, remove all keys that match the stimulus frequency from the
+    # queue. This will clear all remaining levels for that frequency. We
+    # may get an error indicating that key has already been removed
+    # (possible if we are close to the number of averages needed for that
+    # key).
+    info = output.queue.get_info(key)
+    frequency = info['metadata']['target_tone_frequency']
+    log.debug('Frequency at %0.2f sec is %.0f Hz', ts, frequency)
+
+    # Bounce back to main thread for confirmation dialog
+    deferred_call(skip_stimuli, event, output, frequency, key_map[frequency])
+
+
+def skip_keys(event, output, frequency, keys):
     ui = event.workbench.get_plugin('enaml.workbench.ui')
 
+    m = f'Skip remaining levels for {frequency} Hz?'
+    button = question(ui.window, 'Skip frequency', m)
+    if button.text != 'Yes':
+        return
+
     with output.engine.lock:
-        # Assume some delay in hitting the skip button. So, we want to search
-        # back and find out what the frequency is. We should include some logic
-        # to make sure that we don't accidentally skip a frequency that we just
-        # started.
-        ts = controller.get_ts()
-        key = output.queue.get_closest_key(ts - 0.5)
-
-        # Now, remove all keys that match the stimulus frequency from the
-        # queue. This will clear all remaining levels for that frequency. We
-        # may get an error indicating that key has already been removed
-        # (possible if we are close to the number of averages needed for that
-        # key).
-        info = output.queue.get_info(key)
-        frequency = info['metadata']['target_tone_frequency']
-        log.debug('Frequency at %0.2f sec is %.0f Hz', ts, frequency)
-
-        m = 'Skip remaining levels for {frequency} Hz?'
-        button = question(ui.window, 'Skip frequency', m)
-        if button.text != 'Yes':
-            return
-
-        for key in key_map[frequency]:
+        for key in keys:
             try:
                 output.queue.remove_key(key)
                 log.debug('Removed key %r', key)
