@@ -219,12 +219,25 @@ class QueuedEpochOutput(BufferedOutput):
     complete = d_(Event(), writable=False)
     paused = Bool(False)
 
+    def rebuffer(self, time, delay=0):
+        log.debug('Flushing queue at %.2f', time)
+        self.queue.cancel(time, delay)
+        self.queue.rewind_samples(time)
+        offset = round(time * self.fs)
+        log.debug('Updating output buffers at offset %d', offset)
+        self._buffer.invalidate_samples(offset)
+        log.debug('Invalidated buffer cache')
+        self.engine.update_hw_ao(self.channel.name, offset)
+        log.debug('Updated data in hardware buffers')
+
     def pause(self, time):
         self.queue.pause(time)
+        self.rebuffer(time)
         self.paused = True
 
-    def resume(self, time):
+    def resume(self, time, delay=0):
         self.queue.resume(time)
+        self.rebuffer(time, delay)
         self.paused = False
 
     def _observe_queue(self, event):

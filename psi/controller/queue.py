@@ -75,6 +75,9 @@ class AbstractSignalQueue:
         # need to pause stimulus generation.
         self._generated = []
 
+    def get_ts(self):
+        return self._samples / self._fs
+
     def remaining_trials(self, key):
         return self._data[key]['trials']
 
@@ -98,10 +101,18 @@ class AbstractSignalQueue:
             self.requeue(t)
             self.rewind_samples(t)
 
-    def cancel(self, t):
+    def cancel(self, t, delay=0):
         for info in self._generated[::-1]:
             if (info['t0'] + info['duration']) > t:
                 self._notify('removed', info)
+
+        if self._source is not None:
+            info = self._generated[-1]
+            if info['decrement']:
+                self._data[info['key']]['trials'] += 1
+            self._source = None
+
+        self._delay_samples = int(round(delay * self._fs))
 
     def requeue(self, t):
         '''
@@ -137,25 +148,17 @@ class AbstractSignalQueue:
         trials = {k: self._data[k]['trials'] for k in self._data.keys()}
         log.debug('Current trials:: %r', trials)
 
-    def resume(self, t=None, delay=0):
+    def resume(self, t=None):
         """
         Resumes generating trials from queue
         Parameters
         ----------
         t : float
             Time, in sec, to resume generating trials from queue.
-        delay : float
-            Duration of silence, in sec, to insert after queue resumes.
         """
         log.debug('Resuming queue')
         if t is not None:
             self.rewind_samples(t)
-        if self._source is not None:
-            info = self._generated[-1]
-            if info['decrement']:
-                self._data[info['key']]['trials'] += 1
-            self._source = None
-        self._delay_samples = int(round(delay * self._fs))
         self._paused = False
 
     def is_empty(self):
