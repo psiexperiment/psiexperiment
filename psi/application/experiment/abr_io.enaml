@@ -4,6 +4,7 @@ log = logging.getLogger()
 from functools import partial
 import numpy as np
 
+from enaml.stdlib.message_box import question
 from enaml.widgets.api import Action, ToolBar
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
@@ -114,6 +115,8 @@ def configure_experiment(key_map, event):
 def next_frequency(key_map, event):
     controller = event.workbench.get_plugin('psi.controller')
     output = controller.get_output('target')
+    ui = event.workbench.get_plugin('enaml.workbench.ui')
+
     with output.engine.lock:
         # Assume some delay in hitting the skip button. So, we want to search
         # back and find out what the frequency is. We should include some logic
@@ -130,6 +133,12 @@ def next_frequency(key_map, event):
         info = output.queue.get_info(key)
         frequency = info['metadata']['target_tone_frequency']
         log.debug('Frequency at %0.2f sec is %.0f Hz', ts, frequency)
+
+        m = 'Skip remaining levels for {frequency} Hz?'
+        button = question(ui.window, 'Skip frequency', m)
+        if button.text != 'Yes':
+            return
+
         for key in key_map[frequency]:
             try:
                 output.queue.remove_key(key)
@@ -146,7 +155,7 @@ def rebuffer(event):
     controller = event.workbench.get_plugin('psi.controller')
     output = controller.get_output('target')
     with output.engine.lock:
-        output.rebuffer(controller.get_ts() + 1.0)
+        output.rebuffer(controller.get_ts() + 1.0, delay=10e-3)
 
 
 enamldef ABRIOManifest(ABRBaseManifest): manifest:
