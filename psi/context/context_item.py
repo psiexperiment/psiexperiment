@@ -156,7 +156,7 @@ class ContextItem(Declarative):
     # Can this be configured by the user? This will typically be False if the
     # experiment configuration has contributed an Expression that assigns the
     # value of this parameter.
-    configurable = Bool(True)
+    editable = Bool(True)
 
     updated = Event()
 
@@ -235,6 +235,9 @@ class Parameter(ContextItem):
 
     def to_expression(self, value):
         return str(value)
+
+    def set_value(self, value):
+        self.expression = self.to_expression(value)
 
 
 class EnumParameter(Parameter):

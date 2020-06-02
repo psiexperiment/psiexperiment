@@ -12,7 +12,7 @@ from psi.core.enaml.api import PSIManifest
 from . import selector as selector_classes
 
 
-enamldef BaseConfigurableSelectorManifest(PSIManifest): manifest:
+enamldef BaseSelectorManifest(PSIManifest): manifest:
     pass
 
 
@@ -78,7 +78,7 @@ enamldef SingleSettingContainer(Container):
                                                  selector.setting)
 
 
-enamldef SingleSettingManifest(BaseConfigurableSelectorManifest): manifest:
+enamldef SingleSettingManifest(BaseSelectorManifest): manifest:
 
     Extension:
         id = 'selector.' + manifest.contribution.name
@@ -173,7 +173,7 @@ enamldef SequenceSelectorContainer(Container): container:
             selector << container.selector
 
 
-enamldef SequenceSelectorManifest(BaseConfigurableSelectorManifest): manifest:
+enamldef SequenceSelectorManifest(BaseSelectorManifest): manifest:
 
     Extension:
         id = 'selector.' + manifest.contribution.name
@@ -209,7 +209,7 @@ enamldef CartesianProductContainer(Container):
                     selector.settings[loop_item.name] = data
 
 
-enamldef CartesianProductManifest(BaseConfigurableSelectorManifest): manifest:
+enamldef CartesianProductManifest(BaseSelectorManifest): manifest:
 
     Extension:
         id = 'selector.' + manifest.contribution.name

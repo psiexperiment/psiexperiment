@@ -133,16 +133,17 @@ def warn_empty(method):
 
 
 class BaseSelector(PSIContribution):
+    '''
+    Defines a selector where items can be added/removed
+    '''
 
     symbols = Typed(dict, {})
     updated = Event()
     name = 'default'
 
+    # Can the user manage the selector by manually checking items to rove?
+    user_managed = Bool(True)
 
-class BaseConfigurableSelector(BaseSelector):
-    '''
-    Defines a selector where items can be added/removed
-    '''
     context_items = Typed(list, [])
 
     #: Since order of context items is important for certain selectors (e.g.,
@@ -195,8 +196,14 @@ class BaseConfigurableSelector(BaseSelector):
         self.context_items = context_items
         self.updated = True
 
+    def find_item(self, name):
+        for item in self.context_items:
+            if item.name == name:
+                return item
+        raise ValueError(f'{name} not in selector {self.name}')
 
-class SingleSetting(BaseConfigurableSelector):
+
+class SingleSetting(BaseSelector):
     '''
     Each parameter takes on only a single value. The value is the same on every
     iteration. This is commonly used in behavioral paradigms where you want to
@@ -266,7 +273,7 @@ class SingleSetting(BaseConfigurableSelector):
         self.updated = True
 
 
-class CartesianProduct(BaseConfigurableSelector):
+class CartesianProduct(BaseSelector):
     '''
     Generate all possible permutations of the values. The order in which the
     context items were added to the selector define the order in which the
@@ -306,7 +313,7 @@ class CartesianProduct(BaseConfigurableSelector):
         return choice.exact_order(settings, cycles)
 
 
-class SequenceSelector(BaseConfigurableSelector):
+class SequenceSelector(BaseSelector):
     '''
     TODO
     '''

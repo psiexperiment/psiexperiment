@@ -435,3 +435,14 @@ class ContextPlugin(Plugin):
     @property
     def has_selectors(self):
         return len(self.selectors) != 0
+
+    def get_parameter(self, name):
+        return self.parameters[name]
+
+    def get_meta(self, name):
+        return self.context_meta[name]
+
+    def get_metas(self, editable=None):
+        if editable is None:
+            return list(self.context_meta.values())
+        return [m for m in self.context_meta if m.editable == editable]

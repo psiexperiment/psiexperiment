@@ -25,13 +25,15 @@ EXPERIMENT = __name__.rsplit('.', 1)[-1]
 
 class ABRSelector(BaseSelector):
 
-    freq_lb = Float(5.6)
-    freq_ub = Float(45.2)
-    freq_step = Float(0.5)
+    freq_lb = Float(5.6).tag(preference=True)
+    freq_ub = Float(45.2).tag(preference=True)
+    freq_step = Float(0.5).tag(preference=True)
 
-    level_lb = Float(10.0)
-    level_ub = Float(80.0)
-    level_step = Float(5.0)
+    level_lb = Float(10.0).tag(preference=True)
+    level_ub = Float(80.0).tag(preference=True)
+    level_step = Float(5.0).tag(preference=True)
+
+    user_managed = False
 
     def get_iterator(self, cycles=None):
         level_lb = self.level_lb
@@ -53,8 +55,8 @@ class ABRSelector(BaseSelector):
         if cycles is None:
             cycles = 1
 
-        freq_param = Parameter(name='target_tone_frequency')
-        level_param = Parameter(name='target_tone_level')
+        level_param = self.find_item('target_tone_level')
+        freq_param = self.find_item('target_tone_frequency')
         for i in range(cycles):
             for l in levels:
                 for f in freqs:
@@ -128,15 +130,17 @@ enamldef ABRSelectorManifest(PSIManifest): manifest:
                         text = 'dB steps'
 
 
-
 def configure_plugins(event):
     context = event.workbench.get_plugin('psi.context')
-    freq = context.parameters['target_tone_frequency']
-    level = context.parameters['target_tone_level']
-    alternate = context.parameters['alternate_polarity']
-    freq.visible = False
-    level.visible = False
-    alternate.visible = False
+    freq = context.get_parameter('target_tone_frequency')
+    level = context.get_parameter('target_tone_level')
+    for p in (freq, level):
+        p.visible = False
+        p.editable = False
+    freq.rove = True
+    level.rove = True
+    meta = context.get_meta('settings')
+    meta.editable = False
 
 
 enamldef ABRIOSimpleManifest(ABRIOBaseManifest): manifest:
