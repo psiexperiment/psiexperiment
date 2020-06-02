@@ -27,6 +27,38 @@ from .abr_base import ABRBaseManifest
 EXPERIMENT = __name__.rsplit('.', 1)[-1]
 
 
+def octave_ordering(freqs):
+    '''
+    Return correct ordering for frequencies in interleaved paradigm
+    '''
+    freqs = list(freqs).copy()
+    freqs.sort()
+    space = np.median(np.diff(np.log2(freqs)))
+    freqs = freqs[::-1]
+    n_groups = int(np.round(1/space))
+
+    ordered = []
+    for i in range(n_groups):
+        ordered.extend(freqs[i::n_groups])
+    if not check_ordering(ordered):
+        raise ValueError('Unable to order frequencies appropriately')
+    return ordered
+
+
+def check_ordering(freqs):
+    '''
+    Ensure that frequencies are spaced at least an octave apart
+
+    This also checks that the last frequency is an octave from the first
+    frequency.
+    '''
+    check = freqs.copy()
+    # Ensure octave spacing between end of trial and beginning of next trial
+    check += [check[0]]
+    octaves = np.abs(np.diff(np.log2(check)))
+    return not np.any(octaves < 1)
+
+
 def add_setting(target, setting, averages, iti, key_map):
     key = target.add_setting(setting, averages, iti)
     freq = setting['target_tone_frequency']
@@ -55,7 +87,9 @@ def configure_experiment(key_map, event):
         raise ValueError('Repetition rate is too fast')
 
     # Configure the queues
-    if ordering in ('interleaved_ramp', 'interleaved_plateau'):
+    if ordering == 'interleaved_ramp':
+        target.queue = queue.InterleavedFIFOSignalQueue()
+    elif ordering == 'interleaved_plateau':
         target.queue = queue.InterleavedFIFOSignalQueue()
     elif ordering == 'interleaved_random':
         target.queue = queue.BlockedRandomSignalQueue()
@@ -69,33 +103,35 @@ def configure_experiment(key_map, event):
 
     freq_name = 'target_tone_frequency'
     level_name = 'target_tone_level'
+    settings = list(context.iter_settings('default', 1))
+    frequencies = {s[freq_name] for s in settings}
+    int_freq = octave_ordering(frequencies)
+
     sorters = {
         'sequential': lambda a: (a[freq_name], a[level_name]),
         'interleaved_random': lambda a: (a[freq_name], a[level_name]),
-        'interleaved_ramp': lambda a: (-a[freq_name], a[level_name]),
-        'interleaved_plateau': lambda a: (a[level_name], -a[freq_name])
+        'interleaved_ramp': lambda a: (int_freq.index(a[freq_name]), a[level_name]),
+        'interleaved_plateau': lambda a: (a[level_name], int_freq.index(a[freq_name])),
     }
-    settings = list(context.iter_settings('default', 1))
     settings.sort(key=sorters[ordering])
+    log.debug('Ordering %s', ordering)
+
     for s in settings:
         log.debug('%f\t%f', s[freq_name], s[level_name])
-    import sys
-    sys.exit()
 
     key_map.clear()
     if not alternate_polarity:
         for setting in settings:
             add_setting(target, setting, averages, iti, key_map)
-
-    elif ordering == 'interleaved':
-        for setting in context.iter_settings('default', 1):
+    elif ordering in ('interleaved_ramp', 'interleaved_plateau'):
+        for setting in settings:
             setting['target_tone_polarity'] = 1
             add_setting(target, setting, averages/2, iti, key_map)
-        for setting in context.iter_settings('default', 1):
+        for setting in settings:
             setting['target_tone_polarity'] = -1
             add_setting(target, setting, averages/2, iti, key_map)
-    elif ordering in ('sequential', 'random'):
-        for setting in context.iter_settings('default', 1):
+    elif ordering in ('sequential', 'interleaved_random'):
+        for setting in settings:
             setting['target_tone_polarity'] = 1
             add_setting(target, setting, averages/2, iti, key_map)
             setting['target_tone_polarity'] = -1
@@ -105,7 +141,7 @@ def configure_experiment(key_map, event):
 
     # Now, identify the maximum level on a per-frequency setting
     max_level = {}
-    for setting in context.iter_settings('default', 1):
+    for setting in settings:
         frequency = setting['target_tone_frequency']
         level = setting['target_tone_level']
         max_level[frequency] = max(level, max_level.get(frequency, -np.inf))
