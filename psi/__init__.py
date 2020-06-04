@@ -4,6 +4,8 @@ from pathlib import Path
 
 from atom.api import Event
 
+_config = {}
+
 
 # Set up a verbose debugger level for tracing
 TRACE_LEVEL_NUM = 5
@@ -109,7 +111,10 @@ def load_config():
 
     return config
 
-_config = load_config()
+
+def reload_config():
+    global _config
+    _config = load_config()
 
 
 def set_config(setting, value):
@@ -155,3 +160,6 @@ for fn_name in ('dump', 'dumps', 'load', 'loads'):
     fn = getattr(json_tricks, fn_name)
     setattr(json, fn_name, fn)
 log.debug('Monkeypatched system JSON')
+
+
+reload_config()
