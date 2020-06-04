@@ -181,7 +181,7 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gains=0,
     for ai_channel in ai_channels:
         cb = partial(accumulate, data[ai_channel.name])
         epoch_input = ExtractEpochs(epoch_size=duration)
-        queue.connect(epoch_input.queue.append)
+        queue.connect(epoch_input.added_queue.append)
         epoch_input.add_callback(cb)
         ai_channel.add_input(epoch_input)
         ai_channel.add_callback(samples[ai_channel.name].append)
