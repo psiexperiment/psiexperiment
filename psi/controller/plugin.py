@@ -377,10 +377,12 @@ class ControllerPlugin(Plugin):
 
     def stop_engines(self):
         for name, timer in list(self._timers.items()):
+            log.debug('Stopping timer %s', name)
             timer.timeout.disconnect()
             timer.stop()
             del self._timers[name]
         for engine in self._engines.values():
+            log.debug('Stopping engine %r', engine)
             engine.stop()
 
     def reset_engines(self):
@@ -500,8 +502,10 @@ class ControllerPlugin(Plugin):
         if kw is not None:
             kwargs.update(kw)
         if isinstance(action, ExperimentAction):
+            log.debug('Calling command %s', action.command)
             self.core.invoke_command(action.command, parameters=kwargs)
         elif isinstance(action, ExperimentCallback):
+            log.debug('Invoking callback %r', action.callback)
             action.callback(**kwargs)
 
     def request_apply(self):

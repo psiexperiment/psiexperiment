@@ -60,9 +60,9 @@ def initialize(event):
     controller = event.workbench.get_plugin('psi.controller')
     context = event.workbench.get_plugin(PLUGIN_ID)
     cycles = event.parameters.get('cycles', np.inf)
+    selector = event.parameters.get('selector', None)
     context.apply_changes(cycles=cycles)
-    context.next_setting(selector=event.parameters['selector'],
-                         save_prior=False)
+    context.next_setting(selector=selector, save_prior=False)
     context.initialized = True
     controller.invoke_actions('context_initialized')
 
@@ -174,6 +174,8 @@ enamldef ContextManifest(PluginManifest): manifest:
                 # Build the context item state
                 parameter_state = {}
                 for i in plugin.context_items.values():
+                    if not i.editable:
+                        continue
                     group_state = parameter_state.setdefault(i.group_name, {})
                     group_state[i.name] = get_preferences(i)
 
@@ -199,6 +201,8 @@ enamldef ContextManifest(PluginManifest): manifest:
 
                 log.debug('Setting context item states')
                 for item in plugin.context_items.values():
+                    if not item.editable:
+                        continue
                     try:
                         group_state = parameter_state.get(item.group_name, {})
                         state = group_state.get(item.name, {})

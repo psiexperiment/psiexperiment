@@ -14,41 +14,85 @@ def main(filename):
     fh = abr.load(filename)
     epochs = fh.get_epochs()
     epochs_mean = epochs.groupby(['level', 'frequency', 'polarity']).mean()
-    levels = epochs_mean.index.unique('level')
-    freqs = epochs_mean.index.unique('frequency')
+    epochs_size = epochs.groupby(['level', 'frequency', 'polarity']).size()
+    levels = epochs_mean.index.unique('level').tolist()
+    freqs = epochs_mean.index.unique('frequency').tolist()
+    levels.sort()
+    freqs.sort()
+
     f1, axes = plt.subplots(len(levels), len(freqs), sharey=True, sharex=True,
                             figsize=(10, 10))
     for l, row in zip(levels, axes):
         for f, ax in zip(freqs, row):
-            en = epochs_mean.loc[l, f, -1]
-            ax.plot(en, label=f'Neg. pol. average {np.max(np.abs(en)):.2f}')
-            ep = epochs_mean.loc[l, f, 1]
-            ax.plot(ep, label=f'Pos. pol. average {np.max(np.abs(ep)):.2f}')
-            ax.plot(ep+en)
+            try:
+                en = epochs_mean.loc[l, f, -1]
+                ax.plot(en, label=f'Neg. pol. average {np.max(np.abs(en)):.2f}')
+                e_last = epochs.loc[l, f, 1].iloc[-1]
+                ax.plot(e_last, label='Last waveform')
+            except KeyError:
+                en = None
+            try:
+                ep = epochs_mean.loc[l, f, 1]
+                ax.plot(ep, label=f'Pos. pol. average {np.max(np.abs(ep)):.2f}')
+                e_first = epochs.loc[l, f, 1].iloc[0]
+                ax.plot(e_first, label='First waveform')
+            except KeyError:
+                ep = None
 
-            e_first = epochs.loc[l, f, 1].iloc[0]
-            ax.plot(e_first, label='First waveform')
-            e_last = epochs.loc[l, f, 1].iloc[-1]
-            ax.plot(e_last, label='Last waveform')
+            if ep is not None and en is not None:
+                ax.plot(ep+en, label='Sum of polarities')
 
-            ax.legend()
-            ax.set_ylabel('Amplitude (V)')
+            ax.legend(fontsize=6)
             ax.set_xlabel('Time (s)')
+
+        row[0].set_ylabel(f'Amplitude (V)\n{l:.0f} dB')
+
+    for f, ax in zip(freqs, axes[0]):
+        ax.set_title(f'{f:.0f} Hz')
 
     f2, axes = plt.subplots(len(levels), len(freqs), sharey=True, sharex=True,
                             figsize=(10, 10))
     for l, row in zip(levels, axes):
         for f, ax in zip(freqs, row):
-            e_first = epochs.loc[l, f, 1].iloc[0]
-            ax.plot(e_first, label='First waveform')
-            e_last = epochs.loc[l, f, 1].iloc[-1]
-            ax.plot(e_last, label='Last waveform')
-            ax.plot(e_first-e_last, label='Difference')
+            try:
+                e_first = epochs.loc[l, f, 1].iloc[0]
+                ax.plot(e_first, label='First waveform')
+                e_last = epochs.loc[l, f, 1].iloc[-1]
+                ax.plot(e_last, label='Last waveform')
+                ax.plot(e_first-e_last, label='Difference')
+            except KeyError:
+                pass
+
+            ax.legend()
+            ax.set_ylabel('Amplitude (V)')
+            ax.set_xlabel('Time (s)')
+
+    f3, axes = plt.subplots(len(levels), len(freqs), sharey=True, sharex=True,
+                            figsize=(10, 10))
+    f4, axes_err = plt.subplots(len(levels), len(freqs), sharey=True,
+                                sharex=True, figsize=(10, 10))
+    for l, row, row_err in zip(levels, axes, axes_err):
+        for f, ax, ax_err in zip(freqs, row, row_err):
+            try:
+                e = epochs.loc[l, f].loc[:, 1e-3:4e-3]
+                e_rms = np.mean(e ** 2, axis=1) ** 0.5
+                ax.plot(e_rms.values, label='Tone RMS')
+
+                s = epochs.loc[l, f].loc[:, 5e-3:]
+                s_rms = np.mean(s ** 2, axis=1) ** 0.5
+                ax.plot(s_rms.values, label='ITI RMS')
+                i = s_rms.idxmax()
+                w = epochs.loc[l, f].loc[i]
+                ax_err.plot(w)
+            except KeyError:
+                pass
+
             ax.legend()
             ax.set_ylabel('Amplitude (V)')
             ax.set_xlabel('Time (s)')
 
     plt.show()
+
 
 
 if __name__ == '__main__':

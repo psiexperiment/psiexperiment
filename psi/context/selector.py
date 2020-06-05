@@ -13,7 +13,7 @@ The plugins typically handle most of the configuration for the context items
 and selectors. These are not typically meant for direct use. To illustrate what
 happens under the hood, let's create two |parameters|, level and frequency:
 
-    >>> from .api import Parameter
+    >>> from psi.context.api import Parameter
     >>> frequency = Parameter(name='frequency', dtype='float64')
     >>> level = Parameter(name='level', dtype='float64')
 
@@ -113,7 +113,7 @@ from atom.api import Typed, Enum, Event, Bool, Property
 from enaml.core.api import d_
 from psi.core.enaml.api import PSIContribution
 
-from . import choice
+from psi.context import choice
 
 
 def warn_empty(method):
@@ -133,10 +133,18 @@ def warn_empty(method):
 
 
 class BaseSelector(PSIContribution):
+    '''
+    Defines a selector where items can be added/removed
+    '''
 
-    context_items = Typed(list, [])
     symbols = Typed(dict, {})
     updated = Event()
+    name = 'default'
+
+    # Can the user manage the selector by manually checking items to rove?
+    user_managed = Bool(True)
+
+    context_items = Typed(list, [])
 
     #: Since order of context items is important for certain selectors (e.g.,
     #: the CartesianProduct), this attribute is used to persist experiment
@@ -187,6 +195,12 @@ class BaseSelector(PSIContribution):
         context_items.remove(item)
         self.context_items = context_items
         self.updated = True
+
+    def find_item(self, name):
+        for item in self.context_items:
+            if item.name == name:
+                return item
+        raise ValueError(f'{name} not in selector {self.name}')
 
 
 class SingleSetting(BaseSelector):
@@ -264,7 +278,7 @@ class CartesianProduct(BaseSelector):
     Generate all possible permutations of the values. The order in which the
     context items were added to the selector define the order in which the
     values are looped through (first item is slowest-varying and last item is
-    fastest-varying).  The followign code illustrates the concept where item A
+    fastest-varying).  The following code illustrates the concept where item A
     was added first, followed by item B and then item C:
 
         for value_A in item_A_values:

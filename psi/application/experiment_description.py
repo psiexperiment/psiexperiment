@@ -69,6 +69,14 @@ abr_io_controller = PluginDescription(
 )
 
 
+abr_io_simple_controller = PluginDescription(
+    name='controller',
+    title='Controller',
+    required=True,
+    manifest='psi.application.experiment.abr_io_simple.ABRIOSimpleManifest',
+)
+
+
 dpoae_time_controller = PluginDescription(
     name='controller',
     title='Controller',
@@ -159,6 +167,19 @@ abr_io_experiment = ParadigmDescription(
         abr_in_ear_calibration_mixin.copy(),
     ]
 )
+
+abr_io_experiment = ParadigmDescription(
+    name='abr_io',
+    title='ABR (input-output)',
+    type='ear',
+    plugins=[
+        abr_io_controller,
+        temperature_mixin.copy(),
+        eeg_view_mixin.copy(),
+        abr_in_ear_calibration_mixin.copy(),
+    ]
+)
+
 
 
 dpoae_time_noise_mixin = PluginDescription(
@@ -442,7 +463,18 @@ appetitive_experiment = ParadigmDescription(
 # Wrapup
 ################################################################################
 experiments = {
-    'abr_io': abr_io_experiment,
+    #'abr_io': abr_io_experiment,
+    'abr_io': ParadigmDescription(
+        name='abr_io',
+        title='Simple ABR (input-output)',
+        type='ear',
+        plugins=[
+            abr_io_simple_controller,
+            temperature_mixin.copy(),
+            eeg_view_mixin.copy(),
+            abr_in_ear_calibration_mixin.copy(),
+        ]
+    ),
     'dpoae_contra': dpoae_contra_experiment,
     'dpoae_ttl': dpoae_ttl_experiment,
     'dpoae_io': dpoae_io_experiment,

@@ -75,6 +75,9 @@ class AbstractSignalQueue:
         # need to pause stimulus generation.
         self._generated = []
 
+    def get_ts(self):
+        return self._samples / self._fs
+
     def remaining_trials(self, key):
         return self._data[key]['trials']
 
@@ -98,10 +101,18 @@ class AbstractSignalQueue:
             self.requeue(t)
             self.rewind_samples(t)
 
-    def cancel(self, t):
+    def cancel(self, t, delay=0):
         for info in self._generated[::-1]:
             if (info['t0'] + info['duration']) > t:
                 self._notify('removed', info)
+
+        if self._source is not None:
+            info = self._generated[-1]
+            if info['decrement']:
+                self._data[info['key']]['trials'] += 1
+            self._source = None
+
+        self._delay_samples = int(round(delay * self._fs))
 
     def requeue(self, t):
         '''
@@ -138,6 +149,13 @@ class AbstractSignalQueue:
         log.debug('Current trials:: %r', trials)
 
     def resume(self, t=None):
+        """
+        Resumes generating trials from queue
+        Parameters
+        ----------
+        t : float
+            Time, in sec, to resume generating trials from queue.
+        """
         log.debug('Resuming queue')
         if t is not None:
             self.rewind_samples(t)
@@ -229,11 +247,28 @@ class AbstractSignalQueue:
         self._ordering.remove(key)
 
     def decrement_key(self, key, n=1):
+        """
+        Decrement trials for key
+
+        Parameters
+        ----------
+        key : UUID
+            Key to decrement
+        n : int
+            Number of trials to decrement by
+
+        Returns
+        -------
+        complete : bool
+            True if no trials left for key, False otherwise.
+        """
         if key not in self._ordering:
             raise KeyError('{} not in queue'.format(key))
         self._data[key]['trials'] -= n
         if self._data[key]['trials'] <= 0:
             self.remove_key(key)
+            return True
+        return False
 
     def _get_samples_waveform(self, samples):
         if samples > len(self._source):
@@ -334,6 +369,15 @@ class AbstractSignalQueue:
         if self._source is None:
             self.next_trial(decrement)
             return np.empty(0)
+
+    def get_closest_key(self, t):
+        for info in self._generated[::-1]:
+            if info['t0'] <= t:
+                return info['key']
+        return None
+
+    def get_info(self, key):
+        return self._data[key].copy()
 
 
 class FIFOSignalQueue(AbstractSignalQueue):

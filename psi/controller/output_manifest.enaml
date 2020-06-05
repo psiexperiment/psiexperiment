@@ -7,6 +7,7 @@ from collections import Counter, defaultdict
 
 import numpy as np
 
+from enaml.application import deferred_call
 from enaml.core.api import Looper, Include, Conditional
 from enaml.widgets.api import Action, ToolBar
 from enaml.workbench.api import Extension
@@ -144,8 +145,17 @@ def prepare_output_queue(event, output):
     controller = event.workbench.get_plugin('psi.controller')
     context = event.workbench.get_plugin('psi.context')
     action_name = output.name + '_end'
-    output.observe('complete',
-                   lambda e: controller.invoke_actions(action_name))
+
+    # Link a callback that's invoked in the main thread (to avoid race
+    # conditions)
+    def cb(event):
+        nonlocal controller
+        nonlocal action_name
+        log.debug('Output queue complete. Invoking %s in MainThread',
+                  action_name)
+        deferred_call(controller.invoke_actions, action_name)
+    output.observe('complete', cb)
+
     for setting in context.iter_settings(output.selector_name, 1):
         output.add_setting(setting)
 
@@ -382,13 +392,19 @@ def decrement_key(event, output):
     with output.engine.lock:
         keys = [e['info']['key'] for e in event.parameters['data']]
         counts = Counter(keys)
+        complete_keys = []
         for key, count in counts.items():
             try:
-                output.queue.decrement_key(key, count)
+                if output.queue.decrement_key(key, count):
+                    complete_keys.append(key)
             except KeyError:
                 # This can happen if we are playing epochs so rapidly we gather
                 # a few extra before the output queue knows to stop.
-                pass
+                complete_keys.append(key)
+    if complete_keys:
+        log.debug('Queued keys complete: %r', complete_keys)
+        controller = event.workbench.get_plugin('psi.controller')
+        controller.invoke_actions('keys_complete', keys)
 
 
 enamldef SynchronizedManifest(PSIManifest): manifest:
@@ -555,11 +571,6 @@ def toggle_pause(event, output):
             log.debug('Pausing queue for output %s at %f', output.name, time)
             output.pause(time)
             controller.invoke_actions(output.name + '_paused', time)
-        offset = round(time * output.fs)
-        log.debug('Clearing samples for %s starting at offset %d', output.name,
-                  offset)
-        output._buffer.invalidate_samples(offset)
-        output.engine.update_hw_ao(output.channel.name, offset)
 
 
 enamldef QueuedEpochOutputManifest(EpochOutputManifest): manifest:
@@ -576,6 +587,13 @@ enamldef QueuedEpochOutputManifest(EpochOutputManifest): manifest:
         Command:
             id = manifest.contribution.name + '.toggle_pause'
             handler = partial(toggle_pause, output=contribution)
+
+    Extension:
+        id = '.'.join((manifest.id, manifest.__class__.__name__, '.actions'))
+        point = 'psi.controller.actions'
+
+        ExperimentEvent:
+            name = 'keys_complete'
 
     # Uses unicode symbols as icons for sake of simplicity.
     Extension:

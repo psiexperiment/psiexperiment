@@ -5,12 +5,12 @@ from functools import partial
 
 import numpy as np
 
+from enaml.application import deferred_call
 from enaml.widgets.api import DockItem, Container
 from enaml.workbench.api import Extension, PluginManifest
 from enaml.workbench.core.api import Command
 
 from psi.context.api import (ContextGroup, Parameter, BoolParameter, EnumParameter)
-from psi.context.selector import CartesianProduct
 from psi.controller.api import ExperimentAction
 from psi.controller.api import (ContinuousInput, ControllerManifest,
                                 ExtractEpochs, RejectEpochs, IIRFilter, Input,
@@ -85,7 +85,7 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
                 self.queue.connect(extract.removed_queue.append, 'removed')
             complete ::
                 controller = workbench.get_plugin('psi.controller')
-                controller.invoke_actions(output.name + '_end')
+                deferred_call(controller.invoke_actions, output.name + '_end')
 
         ContinuousInput:
             name = 'microphone'
@@ -231,26 +231,18 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
                 scope = 'experiment'
 
     Extension:
-        id = 'selectors'
-        point = 'psi.context.selectors'
-
-        CartesianProduct:
-            name = 'default'
-            label = 'ABR sequence'
-
-    Extension:
         id = 'actions'
         point = 'psi.controller.actions'
-
-        ExperimentAction:
-            event = 'experiment_initialize'
-            command = 'psi.context.initialize'
-            kwargs = {'selector': 'default', 'cycles': 1}
 
         ExperimentAction:
             event = 'experiment_prepare'
             command = 'psi.controller.configure_experiment'
             weight = 11
+
+        ExperimentAction:
+            event = 'experiment_initialize'
+            command = 'psi.context.initialize'
+            kwargs = {'selector': 'default', 'cycles': 1}
 
         ExperimentAction:
             event = 'engines_configured'

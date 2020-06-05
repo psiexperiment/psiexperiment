@@ -3,4 +3,6 @@ from .context_item import (
     FileParameter, OrderedContextMeta, Parameter, Result, UnorderedContextMeta
 )
 
-from .selector import CartesianProduct, SingleSetting, SequenceSelector
+from .selector import (
+    BaseSelector, CartesianProduct, SingleSetting, SequenceSelector
+)
