@@ -359,9 +359,12 @@ def setup_counters(channels, task_name='counter'):
 def setup_hw_ao(channels, buffer_duration, callback_interval, callback,
                 task_name='hw_ao'):
 
+    log.debug('SETTIN UP')
     lines = get_channel_property(channels, 'channel', True)
     names = get_channel_property(channels, 'name', True)
     expected_ranges = get_channel_property(channels, 'expected_range', True)
+    log.debug(channels)
+    log.debug(expected_ranges)
     start_trigger = get_channel_property(channels, 'start_trigger')
     terminal_mode = get_channel_property(channels, 'terminal_mode')
     terminal_mode = NIDAQEngine.terminal_mode_map[terminal_mode]
@@ -369,7 +372,8 @@ def setup_hw_ao(channels, buffer_duration, callback_interval, callback,
     merged_lines = ','.join(lines)
 
     for line, name, (vmin, vmax) in zip(lines, names, expected_ranges):
-        log.debug(f'Configuring line %s (%s)', line, name)
+        log.debug(f'Configuring line %s (%s) with voltage range %f-%f', line,
+                  name, vmin, vmax)
         mx.DAQmxCreateAOVoltageChan(task, line, name, vmin, vmax,
                                     mx.DAQmx_Val_Volts, '')
 
@@ -1111,7 +1115,7 @@ class NIDAQEngine(Engine):
             channel.get_samples(offset, samples, out=ch_data)
         return data
 
-    def get_offset(self, channel_name=None):
+    def get_offset(self, name):
         # Doesn't matter. Offset is the same for all channels in the task.
         task = self._tasks['hw_ao']
         mx.DAQmxSetWriteRelativeTo(task, mx.DAQmx_Val_CurrWritePos)
@@ -1119,7 +1123,7 @@ class NIDAQEngine(Engine):
         mx.DAQmxGetWriteCurrWritePos(task, self._uint64)
         return self._uint64.value
 
-    def get_space_available(self, offset=None, channel_name=None):
+    def get_space_available(self, name, offset=None):
         # It doesn't matter what the output channel is. Space will be the same
         # for all.
         task = self._tasks['hw_ao']
@@ -1130,6 +1134,7 @@ class NIDAQEngine(Engine):
         # Compensate for offset if specified.
         if offset is not None:
             write_position = self.ao_write_position()
+            log_ao.info('%r %r', offset, write_position)
             relative_offset = offset-write_position
             log_ao.trace('Compensating write space for requested offset %d', offset)
             available -= relative_offset
@@ -1139,20 +1144,19 @@ class NIDAQEngine(Engine):
         # Get the next set of samples to upload to the buffer
         with self.lock:
             log_ao.trace('Hardware AO callback for %s', self.name)
-            offset = self.get_offset()
-            available_samples = self.get_space_available(offset)
+            offset = self.get_offset(None)
+            available_samples = self.get_space_available(None, offset)
             if available_samples < samples:
                 log_ao.trace('Not enough samples available for writing')
             else:
                 data = self._get_hw_ao_samples(offset, samples)
                 self.write_hw_ao(data, offset, timeout=0)
 
-    def update_hw_ao(self, offset, channel_name=None,
-                     method='space_available'):
+    def update_hw_ao(self, name, offset, method='space_available'):
         # Get the next set of samples to upload to the buffer. Ignore the
         # channel name because we need to update all channels simultaneously.
         if method == 'space_available':
-            samples = self.get_space_available(offset)
+            samples = self.get_space_available(name, offset)
         elif method == 'write_position':
             samples = self.ao_write_position()-offset
         else:
@@ -1165,7 +1169,7 @@ class NIDAQEngine(Engine):
         data = self._get_hw_ao_samples(offset, samples)
         self.write_hw_ao(data, offset=offset, timeout=0)
 
-    def update_hw_ao_multiple(self, offsets, channel_names, method):
+    def update_hw_ao_multiple(self, offsets, names, method):
         # This is really simple to implement since we have to update all
         # channels at once. So, we just pick the minimum offset and let
         # `update_hw_ao` do the work.
@@ -1229,7 +1233,7 @@ class NIDAQEngine(Engine):
 
         if 'hw_ao' in self._tasks:
             log.debug('Calling HW ao callback before starting tasks')
-            samples = self.get_space_available()
+            samples = self.get_space_available(None)
             self.hw_ao_callback(samples)
 
         log.debug('Starting NIDAQmx tasks')
@@ -1270,5 +1274,5 @@ class NIDAQEngine(Engine):
     def ao_sample_time(self):
         return self.ao_sample_clock()/self.ao_fs
 
-    def get_buffer_size(self, channel_name):
+    def get_buffer_size(self, name):
         return self.hw_ao_buffer_size
