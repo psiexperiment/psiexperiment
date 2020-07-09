@@ -159,7 +159,8 @@ def get_config(setting=None):
 # json-tricks library handles quite a few different types of Python objects
 # fairly well. This ensures that third-party libraries (e.g., bcolz) that see
 # psiexperiment data structures can properly deal with them.
-import matplotlib
+#import matplotlib
+import matplotlib.font_manager
 import json
 import json_tricks
 
