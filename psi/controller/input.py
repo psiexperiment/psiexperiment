@@ -144,6 +144,7 @@ class EventInput(Input):
 
 
 class EpochInput(Input):
+
     duration = Property().tag(metadata=True)
 
     def _get_duration(self):
@@ -655,8 +656,8 @@ def capture_epoch(epoch_t0, epoch_samples, info, callback):
             # `accumulated_data`. We then update start to point to the last
             # acquired sample `i+d` and update duration to be the number of
             # samples we still need to capture.
-            i = round(epoch_t0 - tlb)
-            d = round(min(epoch_samples, samples - i))
+            i = int(round(epoch_t0 - tlb))
+            d = int(round(min(epoch_samples, samples - i)))
             accumulated_data.append(data[..., i:i + d])
             epoch_t0 += d
             epoch_samples -= d

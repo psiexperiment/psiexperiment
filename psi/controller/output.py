@@ -128,7 +128,9 @@ class BufferedOutput(Output):
 
         if lb > buffered_ub:
             # This breaks an implicit software contract.
-            raise SystemError('Mismatch between offsets')
+            m = 'Mismatch between offsets. ' \
+                f'Requested {lb} but only buffered up to {buffered_lb}'
+            raise SystemError(m)
         elif lb == buffered_ub:
             log.trace('Generating new data')
             pass

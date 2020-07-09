@@ -443,6 +443,7 @@ class ContextPlugin(Plugin):
         return self.context_meta[name]
 
     def get_metas(self, editable=None):
+        values = list(self.context_meta.values())
         if editable is None:
-            return list(self.context_meta.values())
-        return [m for m in self.context_meta if m.editable == editable]
+            return values
+        return [m for m in values if m.editable == editable]

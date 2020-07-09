@@ -171,9 +171,9 @@ enamldef Main(MainWindow): window:
                     text = 'Calibration type'
 
                 ObjectCombo: cal_type:
-                    items << list(calibration_registry.classes())
+                    items << list(calibration_registry.get_classes())
                     selected << type(selected_channel.calibration)
-                    to_string = calibration_registry.label
+                    to_string = calibration_registry.get_label
                     selected ::
                         if type(selected_channel.calibration) != selected:
                             selected_channel.calibration = selected.as_attenuation()
