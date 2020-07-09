@@ -110,9 +110,20 @@ class ContextGroup(PSIContribution):
     # Items in context
     items = List()
 
+    has_visible_items = d_(Bool(False))
+
+    def _check_visible(self):
+        self.has_visible_items = bool(self.visible_items())
+
+    def visible_items(self):
+        if not self.visible:
+            return []
+        return [i for i in self.items if i.visible]
+
     def add_item(self, item):
         if item not in self.items:
             self.items = self.items[:] + [item]
+            self._check_visible()
         else:
             raise ValueError(f'Item {item.name} already in group')
 
@@ -121,6 +132,7 @@ class ContextGroup(PSIContribution):
             items = self.items[:]
             items.remove(item)
             self.items = items
+            self._check_visible()
 
 
 ################################################################################
