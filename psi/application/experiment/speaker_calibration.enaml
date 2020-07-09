@@ -116,9 +116,10 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
             kwargs = {'selector': 'default', 'cycles': 1}
 
         ExperimentAction:
-            event = 'engines_configured'
+            event = 'experiment_start'
             command = 'hw_ao.start'
             kwargs = {'delay': 0.25}
+            weight = 60
 
         ExperimentAction:
             event = 'epoch_queue_end'
