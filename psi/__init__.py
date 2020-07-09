@@ -44,13 +44,20 @@ class SimpleState(object):
 
 
 def get_config_folder():
+    '''
+    Return configuration folder
+    '''
     default = Path('~') / 'psi'
     default = default.expanduser()
     return Path(os.environ.get('PSI_CONFIG', default))
 
 
 def get_config_file():
-    return get_config_folder() / 'config.py'
+    '''
+    Return configuration file
+    '''
+    default = get_config_folder() / 'config.py'
+    return Path(os.environ.get('PSI_CONFIG_FILE', default))
 
 
 def create_config(base_directory=None):
