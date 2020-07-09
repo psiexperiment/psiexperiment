@@ -536,13 +536,20 @@ class CalibrationRegistry:
     def get_labels(self):
         return [v[1] for v in self.registry.values()]
 
-    def get_label(self, calibration_type):
-        return self.registry[calibration_type][1]
+    def get_label(self, obj):
+        name = f'{obj.__module__}.{obj.__name__}'
+        return self.registry[name][1]
 
     def from_dict(self, calibration_type, **kw):
         if calibration_type not in self.registry:
             log.debug('Importing and registering calibration')
-            module_name, class_name = calibration_type.rsplit('.', 1)
+            # Older calibration formats may still have only the class name, not
+            # the full module + class name.
+            try:
+                module_name, class_name = calibration_type.rsplit('.', 1)
+            except ValueError:
+                module_name = __name__
+                class_name = calibration_type
             module = importlib.import_module(module_name)
             klass = getattr(module, class_name)
         else:

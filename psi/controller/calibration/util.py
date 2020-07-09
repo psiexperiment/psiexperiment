@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 import numpy as np
 import pandas as pd
 from scipy import signal
@@ -435,5 +438,6 @@ def load_calibration(filename, channels):
         settings = load(fh)
     channels = {c.name: c for c in channels}
     for c_name, c_calibration in settings.items():
+        log.debug('Loading calibration %s with data %r', c_name, c_calibration)
         channels[c_name].calibration = \
             calibration_registry.from_dict(**c_calibration)
