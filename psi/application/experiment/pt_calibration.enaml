@@ -454,8 +454,8 @@ enamldef ChirpControllerManifest(PTManifest): manifest:
                 channel.calibration = FlatCalibration.as_attenuation()
                 pt_epoch = controller.get_input('pt_epoch')
                 cal_epoch = controller.get_input('cal_epoch')
-                self.connect(pt_epoch.queue.append)
-                self.connect(cal_epoch.queue.append)
+                self.connect(pt_epoch.added_queue.append)
+                self.connect(cal_epoch.added_queue.append)
 
     Extension:
         id = 'calibration_commands'
