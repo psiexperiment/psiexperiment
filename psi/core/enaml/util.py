@@ -1,6 +1,8 @@
-import importlib
+import importlib.util
+
 from pathlib import Path
 
+import enaml
 from enaml.core import import_hooks
 
 
@@ -16,9 +18,11 @@ def load_manifest(manifest_path):
 def load_enaml_module_from_file(path):
     path = Path(path)
     name = path.with_suffix('').name
-    file_info = import_hooks.make_file_info(str(path))
-    importer = import_hooks.EnamlImporter(file_info)
-    return importer.load_module(name)
+    search_path = [str(path.parent)]
+    spec = import_hooks.EnamlImporter.find_spec(name, path=search_path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def load_manifest_from_file(path, manifest_name):
