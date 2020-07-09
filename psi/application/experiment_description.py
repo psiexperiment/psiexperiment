@@ -463,7 +463,7 @@ appetitive_experiment = ParadigmDescription(
 # Wrapup
 ################################################################################
 experiments = {
-    #'abr_io': abr_io_experiment,
+    'abr_io_editable': abr_io_experiment,
     'abr_io': ParadigmDescription(
         name='abr_io',
         title='Simple ABR (input-output)',
