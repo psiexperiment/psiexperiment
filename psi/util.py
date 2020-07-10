@@ -249,14 +249,30 @@ class SignalBuffer:
             return self._samples
 
 
-def octave_space(lb, ub, step):
+def octave_space(lb, ub, step, mode='nearest'):
     '''
     >>> freq = octave_space(4, 32, 1)
     >>> print(freq)
     [ 4.  8. 16. 32.]
+
+    >>> freq = octave_space(0.5, 50.0, 0.25, 'nearest')
+    >>> print(round(min(freq), 2))
+    0.5
+    >>> print(round(max(freq), 2))
+    53.82
+
+    >>> freq = octave_space(0.5, 50.0, 0.25, 'bounded')
+    >>> print(round(min(freq), 2))
+    0.5
+    >>> print(round(max(freq), 2))
+    45.25
     '''
-    lbi = round(np.log2(lb) / step) * step
-    ubi = round(np.log2(ub) / step) * step
+    if mode == 'nearest':
+        lbi = round(np.log2(lb) / step) * step
+        ubi = round(np.log2(ub) / step) * step
+    elif mode == 'bounded':
+        lbi = np.ceil(np.log2(lb) / step) * step
+        ubi = np.floor(np.log2(ub) / step) * step
     x = np.arange(lbi, ubi+step, step)
     return 2**x
 
