@@ -40,7 +40,7 @@ from psi.data.plots import (EpochTimeContainer, ChannelPlot,
 from psi.controller.calibration.api import FlatCalibration, InterpCalibration
 from psi.util import octave_space
 
-from .calibration_mixins import configure_hardware_golay
+from .calibration_mixins import configure_hardware_golay, level_to_gain
 
 
 def calculate_sens(event, grouping, filename, calc_sens):
@@ -99,14 +99,7 @@ def calculate_group_sens_chirp(fs, pt_waveform, cal_waveform, color, context,
     freq = psd_freq(pt_waveform, fs)
     pt_psd = np.mean(psd(pt_waveform, fs), axis=0)
     cal_psd = np.mean(psd(cal_waveform, fs), axis=0)
-
-    #pt_psd = pt_summary['psd']
-    #cal_psd = cal_summary['psd']
-    #pt_phase = pt_summary['phase']
-    #cal_phase = cal_summary['phase']
-
     sens = db(pt_psd) + db(cal_mic_sens) - db(cal_psd)
-    #phase = pt_phase - cal_phase
 
     if smoothing_window > 0:
         w = signal.hamming(smoothing_window)
@@ -218,6 +211,7 @@ def validate_sens(event, sens):
     cal_ai = controller.get_channel(cal_channel)
     cal_ai.calibration = InterpCalibration(sens['frequency'], sens['sens'])
 
+    validation_level = context.get_value('validation_level')
     try:
         freq_lb = context.get_value('hw_ao_chirp_start_frequency')
         freq_ub = context.get_value('hw_ao_chirp_end_frequency')
@@ -225,11 +219,17 @@ def validate_sens(event, sens):
         freq_lb = 100
         freq_ub = 50000
 
-    frequencies = octave_space(freq_lb*1e-3, freq_ub*1e-3, 0.125)*1e3
-    #frequencies = octave_space(freq_lb*1e-3, freq_ub*1e-3, 0.5)*1e3
+    frequencies = octave_space(freq_lb*1e-3, freq_ub*1e-3, 1, 'bounded')*1e3
+    log.debug('Validating calibration by targeting %f dB SPL', validation_level)
+    frequencies, gains = level_to_gain(ao.calibration, frequencies, validation_level)
+    if len(frequencies) == 0:
+        log.debug('No frequencies available to calibrate. Please review target SPL.')
+        return
 
     ai_channels = [pt_channel, cal_channel]
-    result = tone_sens(ao.engine, frequencies, gain=-50,
+    result = tone_sens(ao.engine, 
+                       frequencies,
+                       gain=gains,
                        ao_channel_name=output_channel,
                        ai_channel_names=ai_channels)
     rms = result['rms'].unstack('channel_name')
@@ -342,6 +342,13 @@ enamldef PTManifest(ControllerManifest): manifest:
                 default = 10
                 scope = 'experiment'
 
+            Parameter:
+                name = 'validation_level'
+                label = 'Level to validate at (dB SPL)'
+                dtype = 'float64'
+                default = 80
+                scope = 'experiment'
+
         OrderedContextMeta: epoch_groups:
             name = 'settings'
 
@@ -374,6 +381,7 @@ enamldef PTManifest(ControllerManifest): manifest:
             event = 'experiment_start'
             command = 'hw_ao.start'
             kwargs = {'delay': 1}
+            weight = 60
 
     Extension:
         id = 'plots'
@@ -483,8 +491,8 @@ enamldef GolayControllerManifest(PTManifest): manifest:
                 channel.calibration = FlatCalibration.as_attenuation()
                 pt_epoch = controller.get_input('pt_epoch')
                 cal_epoch = controller.get_input('cal_epoch')
-                self.connect(pt_epoch.queue.append)
-                self.connect(cal_epoch.queue.append)
+                self.connect(pt_epoch.added_queue.append)
+                self.connect(cal_epoch.added_queue.append)
 
     Extension:
         id = 'context_golay'
