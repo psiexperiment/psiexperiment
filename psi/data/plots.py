@@ -17,6 +17,7 @@ from atom.api import (Unicode, Float, Tuple, Int, Typed, Property, Atom, Bool,
 from enaml.application import deferred_call, timed_call
 from enaml.colors import parse_color
 from enaml.core.api import Looper, Declarative, d_, d_func
+from enaml.core.compiler_nodes import new_scope
 from enaml.qt.QtGui import QColor
 
 from psi.util import SignalBuffer, ConfigurationException
@@ -191,25 +192,42 @@ def create_container(children, x_axis=None):
 ################################################################################
 # Pattern containers
 ################################################################################
-class MultiPlotContainer(Looper, PSIContribution):
+from enaml.core.pattern import Pattern
+
+
+class MultiPlotContainer(Pattern, PSIContribution):
 
     group = d_(Unicode())
-    containers = d_(Dict())
-    _workbench = Value()
     selected_item = Value()
 
-    def refresh_items(self):
-        super().refresh_items()
-        if not self.iterable:
-            return
-        self.containers = {str(i): c[0].container for \
-                           i, c in zip(self.iterable, self.items)}
-        load_manifests(self.items, self._workbench)
-        for item in self.items:
-            load_manifests(item, self._workbench)
-            load_manifests(item[0].children, self._workbench)
-            deferred_call(item[0].format_container)
+    workbench = Value()
+    iterable = List()
+    items = List()
+    containers = d_(Dict())
 
+    def pattern_items(self):
+        return sum(self.items, [])
+
+    def refresh_items(self):
+        if (not self.iterable) or (len(self.pattern_nodes) == 0):
+            return
+        items = []
+        log.debug('Iterable is %r', self.iterable)
+        for loop_index, loop_item in enumerate(self.iterable):
+            for nodes, key, f_locals in self.pattern_nodes:
+                f_locals['loop_index'] = loop_index
+                f_locals['loop_item'] = loop_item
+                for node in nodes:
+                    with new_scope(key, f_locals) as f_locals:
+                        child = node(None)
+                        if isinstance(child, list):
+                            items.extend(child)
+                        else:
+                            items.append(child)
+        self.items = items
+        load_manifests(self.items, self.workbench)
+        self.containers = {str(i): c.container for i, c in zip(self.iterable, self.items)}
+        log.debug(self.containers)
 
 
 ################################################################################

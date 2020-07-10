@@ -40,9 +40,10 @@ def update_plot(plot, event):
 
 
 def set_groups(container, event):
-    container._workbench = event.workbench
+    container.workbench = event.workbench
     context = event.workbench.get_plugin('psi.context')
     container.iterable = sorted(context.unique_values(container.group))
+    container.refresh_items()
 
 
 enamldef MultiPlotContainerManifest(PSIManifest): manifest:
