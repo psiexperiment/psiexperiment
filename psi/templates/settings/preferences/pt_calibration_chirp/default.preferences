@@ -1,0 +1,108 @@
+context:
+  meta:
+    settings:
+    - hw_ao_chirp_level
+  parameters:
+    calibration:
+      cal_channel:
+        compact_label: Calibration mic. channel
+        label: Calibration mic. channel
+        rove: false
+        selected: Calibration microphone (PXI1Slot8/ai1)
+        visible: true
+      cal_input_gain:
+        compact_label: Calibration input gain (dB)
+        expression: '0.0'
+        label: Calibration input gain (dB)
+        rove: false
+        visible: true
+      cal_mic_sens_mv:
+        compact_label: Calibration microphone sensitivity (mV/Pa)
+        expression: '1.5'
+        label: Calibration microphone sensitivity (mV/Pa)
+        rove: false
+        visible: true
+      input_range:
+        compact_label: ai_range
+        expression: '10'
+        label: Expected input range (Vpp)
+        rove: false
+        visible: true
+      output_channel:
+        compact_label: ao
+        label: Output channel
+        rove: false
+        selected: Speaker 1
+        visible: true
+      pt_channel:
+        compact_label: Probe tube mic. channel
+        label: Probe tube mic. channel
+        rove: false
+        selected: Starship microphone (PXI1Slot8/ai0)
+        visible: true
+      pt_input_gain:
+        compact_label: Probe tube input gain (dB)
+        expression: '0'
+        label: Probe tube input gain (dB)
+        rove: false
+        visible: true
+      smoothing_window:
+        compact_label: Frequency smoothing window size (bins)
+        expression: '25'
+        label: Frequency smoothing window size (bins)
+        rove: false
+        visible: true
+      validation_level:
+        compact_label: Level to validate at (dB SPL)
+        expression: '-50'
+        label: Level to validate at (dB SPL)
+        rove: false
+        visible: true
+    hw_ao:
+      hw_ao_chirp_duration:
+        compact_label: ' duration (sec)'
+        expression: '0.02'
+        label: chirp duration (sec)
+        rove: false
+        visible: true
+      hw_ao_chirp_end_frequency:
+        compact_label: ' end frequency (Hz)'
+        expression: '50000.0'
+        label: chirp end frequency (Hz)
+        rove: false
+        visible: true
+      hw_ao_chirp_level:
+        compact_label: ' level (dB)'
+        expression: '-40'
+        label: chirp level (dB)
+        rove: true
+        visible: true
+      hw_ao_chirp_start_frequency:
+        compact_label: ' start frequency (Hz)'
+        expression: '250.0'
+        label: chirp start frequency (Hz)
+        rove: false
+        visible: true
+    hw_ao_sequence:
+      hw_ao_averages:
+        compact_label: ' N'
+        expression: '16'
+        label: ' averages'
+        rove: false
+        visible: true
+      hw_ao_iti_duration:
+        compact_label: ' ITI'
+        expression: '0.01'
+        label: ' intertrial interval (s)'
+        rove: false
+        visible: true
+  selectors:
+    default:
+      context_item_order:
+      - hw_ao_chirp_level
+      order: ascending
+      settings:
+      - hw_ao_chirp_level: '-40'
+      - hw_ao_chirp_level: '-400'
+queued_epoch_output.hw_ao:
+  queue_type: first-in, first-out

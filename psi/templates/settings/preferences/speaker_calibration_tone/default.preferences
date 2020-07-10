@@ -1,0 +1,104 @@
+context:
+  meta:
+    epoch_group:
+    - hw_ao_tone_frequency
+  parameters:
+    calibration:
+      input_channel:
+        compact_label: input
+        label: Input channel
+        rove: false
+        selected: Starship microphone (PXI1Slot8/ai0)
+        visible: true
+      input_gain:
+        compact_label: ai_gain
+        expression: '40'
+        label: Input gain (dB)
+        rove: false
+        visible: true
+      input_range:
+        compact_label: ai_range
+        expression: '10'
+        label: Expected input range (Vpp)
+        rove: false
+        visible: true
+      output_channel:
+        compact_label: ao
+        label: Output channel
+        rove: false
+        selected: Speaker 1
+        visible: true
+      validation_level:
+        compact_label: Stim. level to validate (dB SPL)
+        expression: '-50'
+        label: Stim. level to validate (dB SPL)
+        rove: false
+        visible: true
+    hw_ao:
+      hw_ao_envelope_duration:
+        compact_label: ' dur'
+        expression: 5e-3
+        label: Tone pip duration (s)
+        rove: false
+        visible: true
+      hw_ao_envelope_rise_time:
+        compact_label: ' env rise'
+        expression: '0.5e-3'
+        label: Tone pip rise time (s)
+        rove: false
+        visible: true
+      hw_ao_envelope_start_time:
+        compact_label: ' start'
+        expression: '0.0'
+        label: Tone pip start time (s)
+        rove: false
+        visible: true
+      hw_ao_tone_frequency:
+        compact_label: ' fc'
+        expression: '1000.0'
+        label: tone frequency (Hz)
+        rove: true
+        visible: true
+      hw_ao_tone_level:
+        compact_label: ' level'
+        expression: '-40'
+        label: tone level (dB SPL)
+        rove: false
+        visible: true
+      hw_ao_tone_phase:
+        compact_label: " \u0398"
+        expression: '0'
+        label: tone phase
+        rove: false
+        visible: true
+      hw_ao_tone_polarity:
+        compact_label: ' pol'
+        label: tone polarity (radians)
+        rove: false
+        selected: positive
+        visible: true
+    hw_ao_sequence:
+      hw_ao_averages:
+        compact_label: Output N
+        expression: '16'
+        label: Output averages
+        rove: false
+        visible: true
+      hw_ao_iti_duration:
+        compact_label: Output ITI
+        expression: '0.01'
+        label: Output intertrial interval (s)
+        rove: false
+        visible: true
+  selectors:
+    default:
+      context_item_order:
+      - hw_ao_tone_frequency
+      order: ascending
+      settings:
+      - hw_ao_tone_frequency: '1000.0'
+      - hw_ao_tone_frequency: '2000'
+output.hw_ao:
+  token_name: envelope
+queued_epoch_output.hw_ao:
+  queue_type: interleaved first-in, first-out

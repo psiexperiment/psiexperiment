@@ -1,0 +1,80 @@
+context:
+  meta:
+    epoch_group:
+    - hw_ao_chirp_level
+  parameters:
+    calibration:
+      input_channel:
+        compact_label: input
+        label: Input channel
+        rove: false
+        selected: Starship microphone (PXI1Slot8/ai0)
+        visible: true
+      input_gain:
+        compact_label: ai_gain
+        expression: '40'
+        label: Input gain (dB)
+        rove: false
+        visible: true
+      input_range:
+        compact_label: ai_range
+        expression: '10'
+        label: Expected input range (Vpp)
+        rove: false
+        visible: true
+      output_channel:
+        compact_label: ao
+        label: Output channel
+        rove: false
+        selected: Speaker 1
+        visible: true
+    hw_ao:
+      hw_ao_chirp_duration:
+        compact_label: ' duration (sec)'
+        expression: '0.02'
+        label: chirp duration (sec)
+        rove: false
+        visible: true
+      hw_ao_chirp_end_frequency:
+        compact_label: ' end frequency (Hz)'
+        expression: '50000.0'
+        label: chirp end frequency (Hz)
+        rove: false
+        visible: true
+      hw_ao_chirp_level:
+        compact_label: ' level (dB)'
+        expression: '-40'
+        label: chirp level (dB)
+        rove: true
+        visible: true
+      hw_ao_chirp_start_frequency:
+        compact_label: ' start frequency (Hz)'
+        expression: '250.0'
+        label: chirp start frequency (Hz)
+        rove: false
+        visible: true
+    hw_ao_sequence:
+      hw_ao_averages:
+        compact_label: Output N
+        expression: '32'
+        label: Output averages
+        rove: false
+        visible: true
+      hw_ao_iti_duration:
+        compact_label: Output ITI
+        expression: '0.01'
+        label: Output intertrial interval (s)
+        rove: false
+        visible: true
+  selectors:
+    default:
+      context_item_order:
+      - hw_ao_chirp_level
+      order: ascending
+      settings:
+      - hw_ao_chirp_level: -40
+      - hw_ao_chirp_level: '-400'
+output.hw_ao:
+  token_name: chirp
+queued_epoch_output.hw_ao:
+  queue_type: interleaved first-in, first-out

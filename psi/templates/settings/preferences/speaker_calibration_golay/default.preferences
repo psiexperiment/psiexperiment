@@ -1,0 +1,93 @@
+context:
+  meta:
+    epoch_group:
+    - output_gain
+  parameters:
+    calibration:
+      input_channel:
+        compact_label: input
+        label: Input channel
+        rove: false
+        selected: Starship microphone (PXI1Slot8/ai0)
+        visible: true
+      input_gain:
+        compact_label: ai_gain
+        expression: '40'
+        label: Input gain (dB)
+        rove: false
+        visible: true
+      input_range:
+        compact_label: ai_range
+        expression: '10'
+        label: Expected input range (Vpp)
+        rove: false
+        visible: true
+      output_channel:
+        compact_label: ao
+        label: Output channel
+        rove: false
+        selected: Speaker 1
+        visible: true
+      validation_level:
+        compact_label: Stim. level to validate (dB SPL)
+        expression: '80'
+        label: Stim. level to validate (dB SPL)
+        rove: false
+        visible: true
+    golay:
+      ab_delay:
+        compact_label: Delay between A and B code (sec)
+        expression: '1'
+        label: Delay between A and B code (sec)
+        rove: false
+        visible: true
+      discard:
+        compact_label: Repetitions to discard
+        expression: '2'
+        label: Repetitions to discard
+        rove: false
+        visible: true
+      fft_averages:
+        compact_label: FFT averages
+        expression: '4'
+        label: FFT averages
+        rove: false
+        visible: true
+      iti:
+        compact_label: Delay between repetitions (sec)
+        expression: 1e-05
+        label: Delay between repetitions (sec)
+        rove: false
+        visible: true
+      n_bits:
+        compact_label: Number of bits for Golay
+        expression: '14'
+        label: Number of bits for Golay
+        rove: false
+        visible: true
+      output_gain:
+        compact_label: Output gain
+        expression: '-20'
+        label: Output gain
+        rove: true
+        visible: true
+      smoothing_window:
+        compact_label: Smoothing window
+        expression: '10'
+        label: Smoothing window
+        rove: false
+        visible: true
+      waveform_averages:
+        compact_label: Waveform averages
+        expression: '2'
+        label: Waveform averages
+        rove: false
+        visible: true
+  selectors:
+    default:
+      context_item_order:
+      - output_gain
+      order: ascending
+      settings:
+      - output_gain: -20
+      - output_gain: '-400'

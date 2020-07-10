@@ -1,0 +1,111 @@
+context:
+  meta:
+    settings:
+    - output_gain
+  parameters:
+    calibration:
+      cal_channel:
+        compact_label: Calibration mic. channel
+        label: Calibration mic. channel
+        rove: false
+        selected: Calibration microphone (PXI1Slot8/ai1)
+        visible: true
+      cal_input_gain:
+        compact_label: Calibration input gain (dB)
+        expression: '0.0'
+        label: Calibration input gain (dB)
+        rove: false
+        visible: true
+      cal_mic_sens_mv:
+        compact_label: Calibration microphone sensitivity (mV/Pa)
+        expression: '0.0'
+        label: Calibration microphone sensitivity (mV/Pa)
+        rove: false
+        visible: true
+      input_range:
+        compact_label: ai_range
+        expression: '10'
+        label: Expected input range (Vpp)
+        rove: false
+        visible: true
+      output_channel:
+        compact_label: ao
+        label: Output channel
+        rove: false
+        selected: Speaker 1
+        visible: true
+      pt_channel:
+        compact_label: Probe tube mic. channel
+        label: Probe tube mic. channel
+        rove: false
+        selected: Starship microphone (PXI1Slot8/ai0)
+        visible: true
+      pt_input_gain:
+        compact_label: Probe tube input gain (dB)
+        expression: '0'
+        label: Probe tube input gain (dB)
+        rove: false
+        visible: true
+      smoothing_window:
+        compact_label: Frequency smoothing window size (bins)
+        expression: '25'
+        label: Frequency smoothing window size (bins)
+        rove: false
+        visible: true
+      validation_level:
+        compact_label: Level to validate at (dB SPL)
+        expression: '-50'
+        label: Level to validate at (dB SPL)
+        rove: false
+        visible: true
+    golay:
+      ab_delay:
+        compact_label: Delay between A and B code (sec)
+        expression: '2'
+        label: Delay between A and B code (sec)
+        rove: false
+        visible: true
+      discard:
+        compact_label: Repetitions to discard
+        expression: '2'
+        label: Repetitions to discard
+        rove: false
+        visible: true
+      fft_averages:
+        compact_label: FFT averages
+        expression: '4'
+        label: FFT averages
+        rove: false
+        visible: true
+      iti:
+        compact_label: Delay between repetitions (sec)
+        expression: 1e-05
+        label: Delay between repetitions (sec)
+        rove: false
+        visible: true
+      n_bits:
+        compact_label: Number of bits for Golay
+        expression: '14'
+        label: Number of bits for Golay
+        rove: false
+        visible: true
+      output_gain:
+        compact_label: Output gain
+        expression: '-20'
+        label: Output gain
+        rove: true
+        visible: true
+      waveform_averages:
+        compact_label: Waveform averages
+        expression: '2'
+        label: Waveform averages
+        rove: false
+        visible: true
+  selectors:
+    default:
+      context_item_order:
+      - output_gain
+      order: ascending
+      settings:
+      - output_gain: '-20'
+      - output_gain: '-400'

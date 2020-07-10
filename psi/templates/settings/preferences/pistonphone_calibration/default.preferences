@@ -1,0 +1,42 @@
+context:
+  meta: {}
+  parameters:
+    input:
+      input_channel:
+        compact_label: ai
+        label: Input channel
+        rove: false
+        selected: Calibration microphone (PXI1Slot8/ai1)
+        visible: true
+      input_gain:
+        compact_label: ai_gain
+        expression: '40'
+        label: input gain (dB)
+        rove: false
+        visible: true
+      input_range:
+        compact_label: ai_range
+        expression: '10'
+        label: Expected input range (Vpp)
+        rove: false
+        visible: true
+      sample_duration:
+        compact_label: samp. dur.
+        expression: '2'
+        label: Sample duration (sec.)
+        rove: false
+        visible: true
+    reference:
+      reference_frequency:
+        compact_label: ref. freq.
+        expression: '1000.0'
+        label: Reference frequency (Hz)
+        rove: false
+        visible: true
+      reference_level:
+        compact_label: ref. freq.
+        expression: '114'
+        label: Reference level (dB SPL)
+        rove: false
+        visible: true
+  selectors: {}
