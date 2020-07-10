@@ -155,8 +155,10 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gains=0,
         md = {'gain': gain, 'frequency': frequency}
         queue.append(waveform, repetitions, iti, metadata=md)
         sf = calibration.get_sf(frequency, gain) * np.sqrt(2)
+        log.debug(sf)
         max_sf = max(max_sf, sf)
     ao_channel.expected_range = (-max_sf*1.1, max_sf*1.1)
+    log.debug('Expected range for AO is %r', ao_channel.expected_range)
 
     factory = SilenceFactory()
     waveform = factory.next(samples)
@@ -273,7 +275,12 @@ def tone_sens(engine, frequencies, gain=-40, vrms=1, *args, **kwargs):
     '''
     kwargs.update(dict(gains=gain, vrms=vrms))
     result = tone_spl(engine, frequencies, *args, **kwargs)
-    result['norm_spl'] = result['spl'] - gain - db(vrms)
+
+    # Need to reshape for the math in case we provided a different gain for each frequency.
+    spl = result['spl'].unstack('channel_name')
+    norm_spl = spl.subtract(gain - db(vrms), axis=0)
+    result['norm_spl'] = norm_spl.stack()
+
     result['sens'] = -result['norm_spl'] - db(20e-6)
     return result
 
