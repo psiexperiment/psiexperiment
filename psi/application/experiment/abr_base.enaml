@@ -245,9 +245,10 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
             kwargs = {'selector': 'default', 'cycles': 1}
 
         ExperimentAction:
-            event = 'engines_configured'
+            event = 'experiment_start'
             command = 'target.start'
             kwargs = {'delay': 1}
+            weight = 60
 
         ExperimentAction:
             event = 'valid_erp_acquired'
