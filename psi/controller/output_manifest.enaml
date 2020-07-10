@@ -342,6 +342,7 @@ def start_output(event, output):
         output.engine.update_hw_ao(output.channel.name, offset)
         output.engine.lock.release()
     except SystemError as e:
+        log.exception(e)
         # There wasn't enough time to write the data to the buffer. Need to
         # reset the generator and deactivate the output. The invoking code can
         # then decide what to do about the problem.
@@ -350,7 +351,6 @@ def start_output(event, output):
         output._buffer.append_data(zeros)
 
         output.engine.lock.release()
-        log.exception(e)
         log.debug('Invalidated buffer at %d', offset)
     else:
         filter_delay = output.channel.filter_delay
