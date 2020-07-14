@@ -1142,7 +1142,9 @@ class NIDAQEngine(Engine):
 
     def hw_ao_callback(self, samples):
         # Get the next set of samples to upload to the buffer
+        log.debug('HW AO callback: attempting to retrieve lock')
         with self.lock:
+            log_ao.trace('#> Acquired lock for engine %s', self.name)
             log_ao.trace('Hardware AO callback for %s', self.name)
             offset = self.get_offset(None)
             available_samples = self.get_space_available(None, offset)
@@ -1151,6 +1153,7 @@ class NIDAQEngine(Engine):
             else:
                 data = self._get_hw_ao_samples(offset, samples)
                 self.write_hw_ao(data, offset, timeout=0)
+            log_ao.trace('<# Releasing lock for engine %s', self.name)
 
     def update_hw_ao(self, name, offset, method='space_available'):
         # Get the next set of samples to upload to the buffer. Ignore the
@@ -1219,8 +1222,9 @@ class NIDAQEngine(Engine):
         log_ao.trace('Write complete')
 
     def get_ts(self):
-        with self.lock:
-            return self.sample_time()
+        #log.debug('Attempting to get lock to check sample time')
+        #with self.lock:
+        return self.sample_time()
 
     def start(self):
         if not self._configured:
