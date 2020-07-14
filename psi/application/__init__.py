@@ -20,7 +20,7 @@ from psi import get_config, set_config
 
 
 def _exception_notifier(*args):
-    log.error("Uncaught exception", exc_info=args)
+    log.exception("Uncaught exception", exc_info=args)
     sys.__excepthook__(*args)
 
 
