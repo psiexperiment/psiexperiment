@@ -257,6 +257,12 @@ class LiveEdit:
 
 
 class EditableTable(RawWidget):
+    '''
+    Defines a table that can optionally be edited by the end-user.
+
+    Subclasses implement handling for different types of containers (e.g.,
+    DataFrame, dictionary of lists, list of lists, etc.).
+    '''
 
     # Expand the table by default
     hug_width = set_default('weak')
@@ -264,14 +270,24 @@ class EditableTable(RawWidget):
 
     model = Typed(QEditableTableModel)
 
-    #: Instance of QEditableTableView
+    # Instance of QEditableTableView
     view = Typed(QEditableTableView)
     event_filter = Typed(EventFilter)
 
+    #: Can the user edit the data in the table?
     editable = d_(Bool(False))
+
+    #: Each time the table is updated, should it scroll to the bottom (last
+    #: row)?
     autoscroll = d_(Bool(False))
+
+    #: Should column labels be shown?
     show_column_labels = d_(Bool(True))
+
+    #: Should row labels be shown?
     show_row_labels = d_(Bool(True))
+
+    #: Should the grid between cells be shown?
     show_grid = d_(Bool(True))
 
     #: Dictionary mapping column name to a dictionary of settings for that
@@ -281,6 +297,8 @@ class EditableTable(RawWidget):
     #: * default - Value used for adding rows.
     #: * coerce - Function to coerce text entered in column to correct value.
     #: * initial_width - Initial width to set column to.
+    #: * to_string - Function used to generate string representation.
+
     column_info = d_(Dict(Unicode(), Typed(object), {}))
 
     #: Widths of columns in table
@@ -294,7 +312,9 @@ class EditableTable(RawWidget):
     #: Can columns be rearranged by dragging labels in the header?
     columns_movable = d_(Bool(True))
 
-    data = d_(Typed(object))
+    #: Table data. Table is updated every time the object changes. Atom cannot
+    #: listen for changes to an object, so you need to be sur ethat
+    data = d_(Value())
     update = d_(Bool())
     updated = d_(Event())
 

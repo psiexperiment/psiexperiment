@@ -3,6 +3,7 @@ log = logging.getLogger(__name__)
 
 import pandas as pd
 
+from enaml.application import deferred_call
 from enaml.workbench.api import PluginManifest, Extension, ExtensionPoint
 from enaml.workbench.core.api import Command
 
@@ -20,13 +21,13 @@ def run_calibration(event):
     core = event.workbench.get_plugin('enaml.workbench.core')
     save_command = 'calibration_data.save_dataframe'
     for tone in plugin._tone_calibrations:
-        tone.result = tone_calibrate_channel(event.workbench, tone.outputs,
-                                             tone.input_name, tone.gain,
-                                             tone.duration, tone.iti,
-                                             tone.trim, tone.max_thd,
-                                             tone.min_snr, tone.selector_name)
+        tone. result = tone_calibrate_channel(event.workbench, tone.outputs,
+                                              tone.input_name, tone.gain,
+                                              tone.duration, tone.iti,
+                                              tone.trim, tone.max_thd,
+                                              tone.min_snr, tone.selector_name)
         parameters = {'name': tone.name, 'dataframe': tone.result}
-        core.invoke_command(save_command, parameters)
+        deferred_call(core.invoke_command, save_command, parameters)
 
     for chirp in plugin._chirp_calibrations:
         chirp.result = chirp_calibrate_channel(event.workbench, chirp.outputs,
@@ -34,7 +35,7 @@ def run_calibration(event):
                                                chirp.duration, chirp.iti,
                                                chirp.repetitions)
         parameters = {'name': chirp.name, 'dataframe': chirp.result}
-        core.invoke_command(save_command, parameters)
+        deferred_call(core.invoke_command, save_command, parameters)
 
 
 def tone_calibrate_channel(workbench, outputs, input_name, gain, duration,

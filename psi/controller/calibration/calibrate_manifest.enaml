@@ -17,13 +17,12 @@ enamldef ToneCalibrateDockItem(DockItem):
     Container:
         DataFrameTable:
             column_info = {
-                'ao_channel': {'label': 'Channel'},
-                'frequency': {'label': 'Frequency (Hz)'},
-                'snr': {'label': 'SNR (dB)'},
-                'thd': {'label': 'THD (%)'},
-                'norm_spl': {'label': 'SPL @ 1 Vrms'},
+                'frequency': {'label': 'Freq. (Hz)', 'to_string': '{:.0f}'.format, 'width': 30},
+                'norm_spl': {'label': 'SPL (1 Vrms)', 'to_string': '{:.0f}'.format, 'width': 30},
+                'snr': {'label': 'SNR (dB)', 'to_string': '{:.0f}'.format, 'width': 30},
+                'thd': {'label': 'THD (%)', 'to_string': '{:.0f}'.format, 'width': 30},
             }
-            columns = ['ao_channel', 'frequency', 'norm_spl', 'snr', 'thd']
+            columns = ['frequency', 'norm_spl', 'snr', 'thd']
             data << contribution.result
 
 

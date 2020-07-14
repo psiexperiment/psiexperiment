@@ -279,7 +279,8 @@ def tone_sens(engine, frequencies, gain=-40, vrms=1, *args, **kwargs):
     # Need to reshape for the math in case we provided a different gain for each frequency.
     spl = result['spl'].unstack('channel_name')
     norm_spl = spl.subtract(gain - db(vrms), axis=0)
-    result['norm_spl'] = norm_spl.stack()
+    norm_spl = norm_spl.stack().reorder_levels(result.index.names)
+    result['norm_spl'] = norm_spl
 
     result['sens'] = -result['norm_spl'] - db(20e-6)
     return result

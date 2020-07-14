@@ -17,7 +17,7 @@ class ToneCalibrate(PSIContribution):
     selector_name = d_(Unicode('default'))
     show_widget = d_(Bool(True))
 
-    result = Value()
+    result = d_(Value())
 
 
 class ChirpCalibrate(PSIContribution):
@@ -30,4 +30,4 @@ class ChirpCalibrate(PSIContribution):
     repetitions = d_(Int(64))
     show_widget = d_(Bool(True))
 
-    result = Value()
+    result = d_(Value())
