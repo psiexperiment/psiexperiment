@@ -27,8 +27,6 @@ enamldef ToneCalibrateDockItem(DockItem):
 
 
 def plot_chirp_result(workbench, manifest, event):
-    log.debug(str(manifest))
-    log.debug(str(event))
     data = workbench.get_plugin('psi.data')
     vb = data.find_viewbox(manifest.contribution.name)
     result = manifest.contribution.result

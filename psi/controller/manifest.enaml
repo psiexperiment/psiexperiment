@@ -249,6 +249,10 @@ enamldef ControllerManifest(ControllerManifestBase): manifest:
         ExperimentEvent:
             name = 'engines_configured'
         ExperimentEvent:
+            name = 'engines_started'
+        ExperimentEvent:
+            name = 'engines_stopped'
+        ExperimentEvent:
             name = 'experiment_event'
 
         ExperimentAction:

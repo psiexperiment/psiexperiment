@@ -1172,12 +1172,12 @@ class NIDAQEngine(Engine):
         data = self._get_hw_ao_samples(offset, samples)
         self.write_hw_ao(data, offset=offset, timeout=0)
 
-    def update_hw_ao_multiple(self, offsets, names, method):
+    def update_hw_ao_multiple(self, offsets, names, method='space_available'):
         # This is really simple to implement since we have to update all
         # channels at once. So, we just pick the minimum offset and let
         # `update_hw_ao` do the work.
         offset = min(offsets)
-        self.update_hw_ao(offset, None, method)
+        self.update_hw_ao(None, offset, method)
 
     def ao_write_position(self):
         task = self._tasks['hw_ao']

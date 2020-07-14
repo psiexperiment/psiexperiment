@@ -130,7 +130,7 @@ def load_preferences(event):
 def _load_preferences(event, filename):
     log.debug('Loading preferences from {}'.format(filename))
     with open(filename, 'r') as fh:
-        preferences = yaml.load(fh)
+        preferences = yaml.load(fh, Loader=yaml.Loader)
     plugin = event.workbench.get_plugin('psi.experiment')
     plugin.set_preferences(preferences)
 

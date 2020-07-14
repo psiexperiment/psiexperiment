@@ -116,6 +116,7 @@ class BufferedOutput(Output):
         return SignalBuffer(self.fs, self.buffer_size, 0, self.dtype)
 
     def get_samples(self, offset, samples, out):
+        log.debug('Getting %r samples at offset %r', samples, offset)
         lb = offset
         ub = offset + samples
         buffered_lb = self._buffer.get_samples_lb()

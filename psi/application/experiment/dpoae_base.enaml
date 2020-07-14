@@ -386,7 +386,7 @@ enamldef DPOAEManifest(ControllerManifest): manifest:
 
         # Once engines are configured, start the experiment!
         ExperimentAction:
-            event = 'engines_configured'
+            event = 'engines_started'
             command = 'dpoae.start'
             kwargs = {'delay': 0.5}
 

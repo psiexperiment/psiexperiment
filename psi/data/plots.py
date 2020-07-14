@@ -224,10 +224,15 @@ class MultiPlotContainer(Pattern, PSIContribution):
                             items.extend(child)
                         else:
                             items.append(child)
+
+        for item in items:
+            if hasattr(item, 'format_container'):
+                deferred_call(item.format_container)
+
         self.items = items
         load_manifests(self.items, self.workbench)
+
         self.containers = {str(i): c.container for i, c in zip(self.iterable, self.items)}
-        log.debug(self.containers)
 
 
 ################################################################################
@@ -282,6 +287,12 @@ class PlotContainer(BasePlotContainer):
 
     x_min = d_(Float(0))
     x_max = d_(Float(0))
+
+    def _observe_x_min(self, event):
+        self.format_container()
+
+    def _observe_x_max(self, event):
+        self.format_container()
 
     def format_container(self):
         # If we want to specify values relative to a psi context variable, we

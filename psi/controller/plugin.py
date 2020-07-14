@@ -374,6 +374,7 @@ class ControllerPlugin(Plugin):
         log.debug('Starting engines')
         for engine in self._engines.values():
             engine.start()
+        self.invoke_actions('engines_started')
 
     def stop_engines(self):
         for name, timer in list(self._timers.items()):
@@ -384,6 +385,7 @@ class ControllerPlugin(Plugin):
         for engine in self._engines.values():
             log.debug('Stopping engine %r', engine)
             engine.stop()
+        self.invoke_actions('engines_stopped')
 
     def reset_engines(self):
         for engine in self._engines.values():
