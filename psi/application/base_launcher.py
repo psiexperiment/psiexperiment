@@ -115,20 +115,18 @@ class SimpleLauncher(Atom):
         self._update()
 
     def _update(self):
-        exclude = list(get_tagged_values(self, 'required', False).keys())
-        exclude_save = ['experimenter', 'animal', 'ear']
-        if not self.save_data:
-            exclude.extend(exclude_save)
-
-        template_vals = get_tagged_values(self, 'template')
+        exclude = [] if self.save_data else ['experimenter', 'animal', 'ear']
         required_vals = get_tagged_values(self, 'required')
-        for k, v in required_vals.items():
+        self.can_launch = True
+        for k, v in get_tagged_values(self, 'required').items():
+            if k in exclude:
+                continue
             if not v:
                 self.can_launch = False
                 return
-            self.can_launch = True
 
         if self.save_data:
+            template_vals = get_tagged_values(self, 'template')
             template_vals['experiment'] = template_vals['experiment'].name
             self.base_folder = self.root_folder / self.template.format(**template_vals)
             self.wildcard = self.wildcard_template.format(**template_vals)

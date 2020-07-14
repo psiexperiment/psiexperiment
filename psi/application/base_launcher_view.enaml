@@ -10,7 +10,8 @@ from enaml.layout.api import vbox
 from enaml.stdlib.message_box import critical
 from enaml.widgets.api import (Action, CheckBox, Container, Field, Form,
                                GroupBox, HGroup, Label, MainWindow, Menu,
-                               MenuBar, ObjectCombo, PushButton, VGroup)
+                               MenuBar, ObjectCombo, PopupView, PushButton,
+                               VGroup)
 
 from psi import get_config, get_config_folder
 from psi.util import get_tagged_values
@@ -88,7 +89,6 @@ def set_defaults(launcher, experiments):
 enamldef CalibrationGroup(HGroup):
     padding = 0
     align_widths = False
-    enabled << len(get_editable_channels(launcher.io)) > 0
 
     ObjectCombo: select_calibration:
         items << launcher.available_calibrations[:]
@@ -96,9 +96,22 @@ enamldef CalibrationGroup(HGroup):
         to_string = lambda x: x.stem.replace('_', ' ')
 
     PushButton:
+        constraints = [width == 30]
         text = '⚙'
         clicked ::
             configure_calibration(launcher.io, launcher.calibration)
+
+
+enamldef PluginPopup(PopupView): popup:
+    attr plugins
+    arrow_size = 20
+    VGroup:
+        Looper:
+            iterable << plugins[:]
+            CheckBox:
+                checked := loop_item.selected
+                text << loop_item.title
+                visible << not loop_item.required
 
 
 enamldef LauncherView(MainWindow): main:
@@ -121,14 +134,8 @@ enamldef LauncherView(MainWindow): main:
 
     Container:
 
-        constraints = [
-            config_form.width == preferences_box.width == data_form.width == plugins_box.width,
-            config_form.left == preferences_box.left == data_form.left == plugins_box.left,
-            config_form.right == preferences_box.right == data_form.right == plugins_box.right,
-            vbox(config_form, preferences_box, plugins_box, data_form, button_bar),
-        ]
-
         Form: config_form:
+
             Label:
                 text = 'Hardware configuration'
 
@@ -137,44 +144,52 @@ enamldef LauncherView(MainWindow): main:
                 selected := launcher.io
                 to_string = lambda x: x.stem.replace('_', ' ')
 
-            Include:
-                objects << calibration_widgets
+            Conditional:
+                condition << len(get_editable_channels(launcher.io)) > 0
+                Include:
+                    objects << calibration_widgets
 
             Label:
                 text = 'Experiment'
 
-            ObjectCombo: experiment:
-                items << launcher.experiment_choices
-                to_string = lambda x: x.title
-                selected := launcher.experiment
+            HGroup:
+                padding = 0
+                spacing = 0
+                align_widths = False
 
-        GroupBox: preferences_box:
-            title = 'Experiment preferences'
+                ObjectCombo: experiment:
+                    items << launcher.experiment_choices
+                    to_string = lambda x: x.title
+                    selected := launcher.experiment
 
-            CheckBox:
-                text = 'Use prior preferences for {}'.format(launcher.experiment_type)
-                checked := launcher.use_prior_preferences
+                PushButton:
+                    constraints = [width == 30]
+                    text = '⚙'
+                    visible << len([p for p in launcher.experiment.plugins if not p.required]) > 0
+                    clicked ::
+                        popup = PluginPopup(parent=self, plugins=launcher.experiment.plugins)
+                        popup.show()
 
-            ObjectCombo: preferences:
-                enabled << not launcher.use_prior_preferences
-                constraints = [
-                    width == 300
-                ]
-                items << launcher.available_preferences[:]
-                to_string = lambda x: x.stem.replace('_', ' ')
-                selected := launcher.preferences
+            Label: settings_label:
+                text = 'Settings'
+                vertical_align = 'top'
 
-        GroupBox: plugins_box:
-            title = 'Experiment plugins'
-
-            Looper:
-                iterable << launcher.experiment.plugins
+            VGroup: settings_group:
+                padding = 0
+                spacing = 0
                 CheckBox:
-                    checked := loop_item.selected
-                    text << loop_item.title
-                    visible << not loop_item.required
+                    text = 'Use prior settings for {}'.format(launcher.experiment_type)
+                    checked := launcher.use_prior_preferences
 
-        Form: data_form:
+                ObjectCombo: preferences:
+                    enabled << not launcher.use_prior_preferences
+                    constraints = [
+                        width == 300
+                    ]
+                    items << launcher.available_preferences[:]
+                    to_string = lambda x: x.stem.replace('_', ' ')
+                    selected := launcher.preferences
+
             Label:
                 text = 'Save data?'
 
