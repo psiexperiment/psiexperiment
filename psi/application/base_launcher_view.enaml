@@ -43,7 +43,7 @@ def configure_calibration(io_file, cal_file):
 
 
 def load_defaults(launcher, experiments):
-    path = get_config_folder() / 'experiment_launcher.txt'
+    path = get_config_folder() / 'experiment_launcher.json'
     try:
         with path.open('r') as fh:
             settings = json.load(fh)
@@ -63,7 +63,8 @@ def load_defaults(launcher, experiments):
 
 
 def set_defaults(launcher, experiments):
-    path = get_config_folder() / 'experiment_launcher.txt'
+    path = get_config_folder() / 'experiment_launcher.json'
+    path.parent.mkdir(exist_ok=True)
     try:
         with path.open('r') as fh:
             settings = json.load(fh)
@@ -88,6 +89,7 @@ def set_defaults(launcher, experiments):
 
 enamldef CalibrationGroup(HGroup):
     padding = 0
+    spacing = 0
     align_widths = False
 
     ObjectCombo: select_calibration:
