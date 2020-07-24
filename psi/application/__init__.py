@@ -13,6 +13,7 @@ import traceback
 import warnings
 
 import enaml
+from enaml.qt.qt_application import QtApplication
 with enaml.imports():
     from enaml.stdlib.message_box import critical
 
@@ -139,7 +140,9 @@ def launch_experiment(args):
             pdb.post_mortem(tb)
         else:
             log.exception(e)
+            app = QtApplication()
             critical(None, 'Error starting experiment', str(e))
+            app.start()
 
     if args.profile:
         profiler.stop()
