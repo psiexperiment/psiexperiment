@@ -127,7 +127,7 @@ def compute_spl_golay(workbench, event):
     # Now, test that the calibration works. Add a 25 msec delay to give prior
     # task time to shut down and exit.
     ao.channel.calibration = InterpCalibration(freq, sens)
-    frequencies = octave_space(500*1e-3, 50000*1e-3, 0.25, 'bounded')*1e3
+    frequencies = octave_space(500*1e-3, 50000*1e-3, 0.125, 'bounded')*1e3
     timed_call(25, validate_spl, workbench, ao.channel, ai.channel,
                frequencies, validation_level)
 
@@ -185,7 +185,7 @@ def compute_calibration_chirp(event):
 
     freq_lb = context.get_value('hw_ao_chirp_start_frequency')
     freq_ub = context.get_value('hw_ao_chirp_end_frequency')
-    frequencies = octave_space(freq_lb*1e-3, freq_ub*1e-3, 0.25, 'bounded')*1e3
+    frequencies = octave_space(freq_lb*1e-3, freq_ub*1e-3, 0.125, 'bounded')*1e3
 
     # Save the calibration
     summary = pd.concat(summaries, keys=keys, names=grouping)

@@ -219,7 +219,7 @@ def validate_sens(event, sens):
         freq_lb = 100
         freq_ub = 50000
 
-    frequencies = octave_space(freq_lb*1e-3, freq_ub*1e-3, 1, 'bounded')*1e3
+    frequencies = octave_space(freq_lb*1e-3, freq_ub*1e-3, 0.125, 'bounded')*1e3
     log.debug('Validating calibration by targeting %f dB SPL', validation_level)
     frequencies, gains = level_to_gain(ao.calibration, frequencies, validation_level)
     if len(frequencies) == 0:
