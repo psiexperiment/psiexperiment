@@ -136,10 +136,11 @@ class BaseSelector(PSIContribution):
     '''
     Defines a selector where items can be added/removed
     '''
-
     symbols = Typed(dict, {})
     updated = Event()
-    name = 'default'
+
+    def _default_name(self):
+        return 'default'
 
     # Can the user manage the selector by manually checking items to rove?
     user_managed = Bool(True)
@@ -353,7 +354,7 @@ class SequenceSelector(BaseSelector):
         for setting in self.settings:
             if item not in setting:
                 setting[item.name] = item.default
-        super(SequenceSelector, self).append_item(item)
+        super().append_item(item)
 
     def get_key(self, settings, use='name'):
         key = []

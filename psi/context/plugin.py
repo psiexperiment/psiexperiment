@@ -64,7 +64,6 @@ class ContextPlugin(Plugin):
     # Reflects state of selectors and context_items as currently applied.
     _context_item_state = Typed(dict, ())
     _selector_state = Typed(dict, ())
-
     _selectors = Typed(dict, ())
 
     changes_pending = Bool(False)
@@ -227,8 +226,8 @@ class ContextPlugin(Plugin):
 
     @observe('symbols')
     def _update_selectors(self, event):
-        for selector in self._selectors.items():
-            selector.symbols = self.symbols[:]
+        for selector in self.selectors.values():
+            selector.symbols = self.symbols.copy()
 
     def _observe_item_updated(self, event):
         self._check_for_changes()
@@ -386,7 +385,7 @@ class ContextPlugin(Plugin):
                 self.changes_pending = True
                 return
 
-        self.changes_pending = self.selectors != self._selectors
+        self.changes_pending = self.get_gui_selector_state() != self._selector_state
         if self.changes_pending:
             log.debug('Selectors do not match. Changes pending.')
 
@@ -416,9 +415,11 @@ class ContextPlugin(Plugin):
         e.update({n.parameter: n.expression for n in self.context_expressions})
         return e
 
+    def get_gui_selector_state(self):
+        return {n: get_preferences(s) for n, s in self.selectors.items()}
+
     def _apply_selector_state(self):
-        state = {n: get_preferences(s) for n, s in self.selectors.items()}
-        self._selector_state = state
+        self._selector_state = self.get_gui_selector_state()
 
     def _revert_selector_state(self):
         for name, state in self._selector_state.items():
