@@ -32,14 +32,12 @@ class PSIContribution(Declarative):
         raise ImportError(m)
 
     def load_manifest(self, workbench):
-        if not self.load_manifest:
-            return
         try:
             manifest_class = self.find_manifest_class()
             manifest = manifest_class(contribution=self)
             workbench.register(manifest)
-            m = 'Loaded manifest for contribution %s (%s)'
-            log.info(m, self.name, manifest_class.__name__)
+            m = 'Loaded manifest for contribution %s (%s) with ID %r'
+            log.info(m, self.name, manifest_class.__name__, manifest.id)
         except ImportError:
             m = 'No manifest defind for contribution %s'
             log.warn(m, self.name)
