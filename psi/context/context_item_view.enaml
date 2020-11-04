@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 from atom.api import Typed
 from enaml.core.api import Conditional, DynamicTemplate, Looper
 from enaml.layout.api import hbox, spacer, horizontal
@@ -74,13 +77,8 @@ enamldef ContextMetaPopup(PopupView): cm_popup:
     attr context_meta
 
     VGroup:
-        Form:
-            Label:
-                text = 'Short name'
-            Field:
-                text := context_item.compact_label
         Looper:
-            iterable << [c for c in context_meta.values() if c.editable]
+            iterable << context_meta
             HGroup:
                 padding = 0
                 Label:
@@ -97,6 +95,7 @@ template ContextItemTemplate(context_item, MemberType: Result):
     HGroup: group:
         spacing = 0
         padding = 0
+        align_widths = False
         Label: label:
             text << context_item.label
 
@@ -195,6 +194,8 @@ enamldef ContextItem(Container): container:
     HGroup:
         padding = 0
         spacing = 0
+        align_widths = False
+
         Container: c:
             padding = 0
             DynamicTemplate: t:
@@ -204,7 +205,7 @@ enamldef ContextItem(Container): container:
         Conditional:
             condition << len(workbench.get_plugin('psi.context').get_metas(editable=True)) > 0
             PushButton: pb:
-                constraints = [pb.width == pb.height == 20]
+                constraints = [pb.width == 20]
                 text << 'C'
                 clicked:: 
                     context_meta = workbench.get_plugin('psi.context').get_metas(editable=True)
