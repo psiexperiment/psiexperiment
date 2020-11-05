@@ -4,6 +4,7 @@ log = logging.getLogger(__name__)
 from functools import partial
 
 from enaml.application import deferred_call, timed_call
+from enaml.widgets.api import Action, ToolBar
 from enaml.workbench.api import Extension, PluginManifest
 from enaml.workbench.core.api import Command
 import numpy as np
@@ -81,7 +82,6 @@ def compute_spl_golay(workbench, event):
     n_waveforms = context.get_value('waveform_averages')
     n_discard = context.get_value('discard')
     smoothing_window = context.get_value('smoothing_window')
-    validation_level = context.get_value('validation_level')
 
     n = n_discard + n_waveforms * n_fft
 
@@ -124,12 +124,9 @@ def compute_spl_golay(workbench, event):
     params = {'dataframe': summary, 'name': 'golay_sens'}
     core.invoke_command('cal_data.save_dataframe', params)
 
-    # Now, test that the calibration works. Add a 25 msec delay to give prior
-    # task time to shut down and exit.
+    # We need to update the channel with the calibration in case we want to
+    # verify the calibration afterwards.
     ao.channel.calibration = InterpCalibration(freq, sens)
-    frequencies = octave_space(500*1e-3, 50000*1e-3, 0.125, 'bounded')*1e3
-    timed_call(25, validate_spl, workbench, ao.channel, ai.channel,
-               frequencies, validation_level)
 
 
 def compute_calibration_chirp(event):
@@ -192,11 +189,7 @@ def compute_calibration_chirp(event):
     params = {'dataframe': summary, 'name': 'chirp_sens'}
     core.invoke_command('cal_data.save_dataframe', params)
 
-    # Now, test that the calibration works. Add a 25 msec delay to give prior
-    # task time to shut down and exit.
     ao.channel.calibration = InterpCalibration(freq, sens)
-    timed_call(25, validate_spl, event.workbench, ao.channel, ai.channel,
-               frequencies, settings['validation_level'])
 
 
 def level_to_gain(calibration, frequencies, spl):
@@ -238,7 +231,7 @@ enamldef GolayMixin(PluginManifest): manifest:
     attr C
 
     Extension:
-        id = 'io_golay_mixin'
+        id = manifest.id + '.io'
         point = 'psi.controller.io'
 
         QueuedEpochOutput: hw_ao:
@@ -262,8 +255,24 @@ enamldef GolayMixin(PluginManifest): manifest:
                 epoch.observe('complete', cb)
 
     Extension:
-        id = 'context_golay'
+        id = manifest.id + '.items'
         point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'validation'
+            label = 'Validation Settings'
+
+            Parameter:
+                name = 'validation_octaves'
+                label = 'Octave step for validation'
+                default = 0.125
+                scope = 'experiment'
+
+            Parameter:
+                name = 'validation_level'
+                label = 'Level to validate (dB SPL)'
+                default = 80
+                scope = 'experiment'
 
         ContextGroup:
             name = 'golay'
@@ -316,6 +325,88 @@ enamldef GolayMixin(PluginManifest): manifest:
                 label = 'Smoothing window'
                 default = 10
                 scope = 'trial'
+
+
+def validate_spl_wrapper(event):
+    core = event.workbench.get_plugin('enaml.workbench.core')
+    context = event.workbench.get_plugin('psi.context')
+    controller = event.workbench.get_plugin('psi.controller')
+    data = event.workbench.get_plugin('psi.data')
+
+    ai = controller.get_input('hw_ai')
+    ao = controller.get_output('hw_ao')
+    settings = context.get_values()
+
+    freq_lb = settings['validation_start']
+    freq_ub = settings['validation_end']
+    octaves = settings['validation_octaves']
+    validation_level = settings['validation_level']
+    frequencies = octave_space(freq_lb*1e-3, freq_ub*1e-3, octaves,
+                               'bounded')*1e3
+    validate_spl(event.workbench, ao.channel, ai.channel, frequencies,
+                 validation_level)
+
+
+enamldef ToneValidateMixin(PluginManifest): manifest:
+    '''
+    This mixin requires a `calibration_result` FFT container with `spl_result`
+    and `spl_sens` viewboxes defined (the idea being that the main plugin may
+    want to plot its own calibration information, and then we use this plugin
+    to plot the tone verification on the same plot).
+    '''
+
+    id = 'tone_validate_mixin'
+
+    Extension:
+        id = manifest.id + '.items'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'validation'
+            label = 'Validation Settings'
+
+            Parameter:
+                name = 'validation_start'
+                label = 'Start frequency'
+                default = 500.0
+                scope = 'experiment'
+
+            Parameter:
+                name = 'validation_end'
+                label = 'Start frequency'
+                default = 50000.0
+                scope = 'experiment'
+
+            Parameter:
+                name = 'validation_octaves'
+                label = 'Octave step'
+                default = 0.125
+                scope = 'experiment'
+
+            Parameter:
+                name = 'validation_level'
+                label = 'Level to validate (dB SPL)'
+                default = 80.0
+                scope = 'experiment'
+
+    Extension:
+        id = manifest.id + '.toolbar'
+        point = 'psi.experiment.toolbar'
+
+        ToolBar:
+            Action:
+                text = 'Validate'
+                enabled << workbench.get_plugin('psi.controller').experiment_state == 'stopped'
+                triggered ::
+                    core = workbench.get_plugin('enaml.workbench.core')
+                    core.invoke_command('psi.calibration.validate')
+
+    Extension:
+        id = manifest.id + '.commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = 'psi.calibration.validate'
+            handler = validate_spl_wrapper
 
 
 enamldef ChirpMixin(PluginManifest): manifest:
@@ -404,3 +495,4 @@ enamldef ToneMixin(PluginManifest): manifest:
                 epoch = controller.get_input('epoch')
                 epoch.poststim_time = 10e-3
                 self.connect(epoch.added_queue.append)
+

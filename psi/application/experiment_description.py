@@ -315,6 +315,14 @@ speaker_calibration_controller = PluginDescription(
 )
 
 
+tone_validate_mixin = PluginDescription(
+    name='tone_validate',
+    title='Tone validation',
+    required=True,
+    manifest='psi.application.experiment.calibration_mixins.ToneValidateMixin'
+)
+
+
 speaker_calibration_golay_experiment = ParadigmDescription(
     name='speaker_calibration_golay',
     title='Speaker calibration (Golay)',
@@ -322,6 +330,7 @@ speaker_calibration_golay_experiment = ParadigmDescription(
     plugins=[
         speaker_calibration_controller,
         golay_mixin,
+        tone_validate_mixin,
     ]
 )
 
@@ -333,6 +342,7 @@ speaker_calibration_chirp_experiment = ParadigmDescription(
     plugins=[
         speaker_calibration_controller,
         chirp_mixin,
+        tone_validate_mixin,
     ]
 )
 

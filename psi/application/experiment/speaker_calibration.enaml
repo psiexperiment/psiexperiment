@@ -94,13 +94,6 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
                 default = 10
                 scope = 'experiment'
 
-            Parameter:
-                name = 'validation_level'
-                label = 'Stim. level to validate (dB SPL)'
-                dtype = 'float64'
-                default = 80
-                scope = 'experiment'
-
         OrderedContextMeta: epoch_group:
             name = 'epoch_group'
             label = 'Epoch groups'
