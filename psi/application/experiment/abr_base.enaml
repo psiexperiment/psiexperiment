@@ -8,7 +8,6 @@ import numpy as np
 from enaml.application import deferred_call
 from enaml.widgets.api import DockItem, Container
 from enaml.workbench.api import Extension, PluginManifest
-from enaml.workbench.core.api import Command
 
 from psi.context.api import (ContextGroup, Parameter, BoolParameter, EnumParameter)
 from psi.controller.api import ExperimentAction
