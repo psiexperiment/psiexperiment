@@ -58,6 +58,9 @@ class ContextPlugin(Plugin):
     context_meta = Typed(dict, {})
     context_expressions = Typed(list, [])
 
+    # True if some of the context_meta items are user-configurable.
+    context_meta_editable = Bool(False)
+
     selectors = Typed(dict, ())
     symbols = Typed(dict, ())
 
@@ -173,6 +176,7 @@ class ContextPlugin(Plugin):
 
         for meta in metas:
             context_meta[meta.name] = meta
+            log.debug('%s: %r %r', meta.name, id(meta), id(meta.values))
 
         for expression in expressions:
             try:
@@ -187,6 +191,7 @@ class ContextPlugin(Plugin):
         self.context_items = context_items
         self.context_groups = context_groups
         self.context_meta = context_meta
+        self.context_meta_editable = len(self.get_metas(editable=True)) > 0
 
     def _bind_observers(self):
         self.workbench.get_extension_point(SELECTORS_POINT) \
@@ -211,25 +216,33 @@ class ContextPlugin(Plugin):
         # tokens (which contribute their own set of parameters), the ID of the
         # parameters may change (even if we're just reloading the token).
         # Perhaps there's a more intelligent approach?
+
+        # This triggers an interesting "bug" where ContextMeta is set to track
+        # roving items and we change one of the tokens. I don't have a great
+        # work-around right now. 
         oldvalue = change.get('oldvalue', {})
         newvalue = change.get('value', {})
         for i in oldvalue.values():
             i.unobserve('expression', self._observe_item_updated)
             i.unobserve('rove', self._observe_item_rove)
-            if getattr(i, 'rove', False):
-                self.unrove_item(i)
+            if getattr(i, 'rove', False): 
+                if id(i) != id(newvalue.get(i.name, None)):
+                    self.unrove_item(i)
         for i in newvalue.values():
             i.observe('expression', self._observe_item_updated)
             i.observe('rove', self._observe_item_rove)
             if getattr(i, 'rove', False):
-                self.rove_item(i)
+                if id(i) != id(oldvalue.get(i.name, None)):
+                    self.rove_item(i)
 
     @observe('symbols')
     def _update_selectors(self, event):
+        log.debug('Symbols updated')
         for selector in self.selectors.values():
             selector.symbols = self.symbols.copy()
 
     def _observe_item_updated(self, event):
+        log.debug('Item changed')
         self._check_for_changes()
 
     def _observe_item_rove(self, event):
@@ -242,15 +255,18 @@ class ContextPlugin(Plugin):
 
     @observe('selectors')
     def _bind_selectors(self, change):
+        log.debug('Binding selectors')
         for p in change.get('oldvalue', {}).values():
             p.unobserve('updated', self._observe_selector_updated)
         for p in change.get('value', {}).values():
             p.observe('updated', self._observe_selector_updated)
 
     def _observe_selector_updated(self, event):
+        log.debug('Selectors updated')
         self._check_for_changes()
 
     def _get_iterators(self, cycles=np.inf):
+        log.debug('Getting iterators')
         return {k: v.get_iterator(cycles) for k, v in self.selectors.items()}
 
     def iter_settings(self, iterator='default', cycles=np.inf):
@@ -288,6 +304,7 @@ class ContextPlugin(Plugin):
         }
 
     def rove_item(self, item):
+        log.debug('Roving item %r', item)
         for selector in self.selectors.values():
             if item not in selector.context_items:
                 selector.append_item(item)
@@ -296,6 +313,7 @@ class ContextPlugin(Plugin):
                 meta.add_item(item)
 
     def unrove_item(self, item):
+        log.debug('Unroving item %r', item)
         for selector in self.selectors.values():
             if item in selector.context_items:
                 selector.remove_item(item)
@@ -390,15 +408,16 @@ class ContextPlugin(Plugin):
             log.debug('Selectors do not match. Changes pending.')
 
     def apply_changes(self, cycles=np.inf):
+        log.debug('Applying changes')
         self._apply_context_item_state()
         self._apply_selector_state()
         self._namespace.update_expressions(self.expressions)
         self._namespace.update_symbols(self.symbols)
         self._iterators = self._get_iterators(cycles)
         self.changes_pending = False
-        log.debug('Applied changes')
 
     def revert_changes(self):
+        log.debug('Reverting changes')
         self._revert_context_item_state()
         self._revert_selector_state()
         self.changes_pending = False
@@ -441,9 +460,11 @@ class ContextPlugin(Plugin):
         return self.parameters[name]
 
     def get_meta(self, name):
+        log.debug('Getting meta for %s', name)
         return self.context_meta[name]
 
     def get_metas(self, editable=None):
+        log.debug('Getting meta information')
         values = list(self.context_meta.values())
         if editable is None:
             return values

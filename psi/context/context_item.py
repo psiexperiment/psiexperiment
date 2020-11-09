@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 import numpy as np
 
 from enaml.core.declarative import Declarative, d_

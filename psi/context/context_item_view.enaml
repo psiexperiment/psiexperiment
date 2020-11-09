@@ -203,13 +203,15 @@ enamldef ContextItem(Container): container:
                 args = (context_item, type(context_item))
 
         Conditional:
-            condition << len(workbench.get_plugin('psi.context').get_metas(editable=True)) > 0
+            condition << workbench.get_plugin('psi.context').context_meta_editable
             PushButton: pb:
                 constraints = [pb.width == 20]
                 text << 'C'
                 clicked:: 
+                    log.debug('Preparing context meta popup')
                     context_meta = workbench.get_plugin('psi.context').get_metas(editable=True)
                     cm_popup = ContextMetaPopup(parent=self,
                                                 context_meta=context_meta,
                                                 context_item=context_item)
+                    log.debug('Popup ID %r', id(cm_popup))
                     cm_popup.show()

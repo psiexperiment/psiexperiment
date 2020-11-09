@@ -173,35 +173,42 @@ enamldef SDTAnalysisManifest(PSIManifest): manifest:
     Extension:
         id = manifest.id + '.items'
         point = 'psi.context.items'
+
         OrderedContextMeta: meta:
             editable = True
             name << manifest.contribution.name
             label << '{} grouping'.format(manifest.contribution.label)
             values::
-
                 # Update SDT table
                 meta_columns = [v.name for v in meta.values]
-                columns = meta_columns + extra_columns
-                column_info = {}
-                for v in values:
-                    column_info[v.name] = {
-                        'label': v.compact_label,
-                        'to_string': '{:.2f}'.format if 'f' in v.dtype else str,
-                    }
-                column_info.update(extra_column_info)
+                if not meta_columns:
+                    sdt_table.columns = []
+                    sdt_table.column_info = {}
+                    sdt_plot.grouping = []
+                    sdt_plot.x_column = ''
+                    manifest.contribution.grouping = []
+                else:
+                    columns = meta_columns + extra_columns
+                    column_info = {}
+                    for v in values:
+                        column_info[v.name] = {
+                            'label': v.compact_label,
+                            'to_string': '{:.2f}'.format if 'f' in v.dtype else str,
+                        }
+                    column_info.update(extra_column_info)
 
-                # Order is important here to prevent triggering updates of
-                # table before table has been notified that columns were
-                # dropped/added.
-                sdt_table.columns = columns
-                sdt_table.column_info = column_info
-                sdt_plot.grouping = meta_columns[:-1]
-                sdt_plot.x_column = meta_columns[-1]
-                manifest.contribution.grouping = [v.name for v in values]
+                    # Order is important here to prevent triggering updates of
+                    # table before table has been notified that columns were
+                    # dropped/added.
+                    sdt_table.columns = columns
+                    sdt_table.column_info = column_info
+                    sdt_plot.grouping = meta_columns[:-1]
+                    sdt_plot.x_column = meta_columns[-1]
+                    manifest.contribution.grouping = [v.name for v in values]
 
-                log.debug('Set SDT plot grouping to %r', sdt_plot.grouping)
-                log.debug('Set SDT x_column to %r', sdt_plot.x_column)
-                log.debug('Set SDT table columns to %r', sdt_table.columns)
+                    log.debug('Set SDT plot grouping to %r', sdt_plot.grouping)
+                    log.debug('Set SDT x_column to %r', sdt_plot.x_column)
+                    log.debug('Set SDT table columns to %r', sdt_table.columns)
 
     Extension:
         id = manifest.id + 'commands'
