@@ -137,6 +137,7 @@ class ContextPlugin(Plugin):
         # Expressions.
         point = self.workbench.get_extension_point(ITEMS_POINT)
         for extension in point.extensions:
+            log.debug('Found extension %s', extension.id)
             groups.extend(extension.get_children(ContextGroup))
             items.extend(extension.get_children(ContextItem))
             metas.extend(extension.get_children(ContextMeta))
