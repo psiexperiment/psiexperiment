@@ -259,22 +259,6 @@ enamldef GolayMixin(PluginManifest): manifest:
         point = 'psi.context.items'
 
         ContextGroup:
-            name = 'validation'
-            label = 'Validation Settings'
-
-            Parameter:
-                name = 'validation_octaves'
-                label = 'Octave step for validation'
-                default = 0.125
-                scope = 'experiment'
-
-            Parameter:
-                name = 'validation_level'
-                label = 'Level to validate (dB SPL)'
-                default = 80
-                scope = 'experiment'
-
-        ContextGroup:
             name = 'golay'
             label = 'Golay'
 
