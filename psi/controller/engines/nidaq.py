@@ -89,7 +89,6 @@ class NIDAQHardwareAOChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
     #: Terminal mode
     terminal_mode = d_(Enum(*TERMINAL_MODES)).tag(metadata=True)
 
-    filter_delay = Property().tag(metadata=True)
     filter_delay_samples = Property().tag(metadata=True)
     device_name = Property().tag(metadata=False)
 
@@ -117,7 +116,7 @@ class NIDAQHardwareAOChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
         i = np.flatnonzero(self.fs > self.FILTER_DELAY[:, 0])[-1]
         return self.FILTER_DELAY[i, 1]
 
-    def _get_filter_delay(self):
+    def _default_filter_delay(self):
         return self.filter_delay_samples / self.fs
 
 
