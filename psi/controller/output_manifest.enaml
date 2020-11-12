@@ -516,6 +516,7 @@ enamldef AnalogOutputManifest(PSIManifest): manifest:
         point = 'psi.context.items'
 
         ContextGroup:
+            visible << manifest.contribution.configurable
             name = manifest.contribution.name
             label = manifest.contribution.label
 

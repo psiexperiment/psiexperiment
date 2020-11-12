@@ -59,7 +59,7 @@ class ExperimentPlugin(Plugin):
                 item.set_parent(ui.workspace.dock_area)
                 op = InsertItem(item=item.name)
                 ui.workspace.dock_area.update_layout(op)
-                items_added.append(item.name)
+                items_added.append(f'{item.name} ({item.title}) from {extension.id}')
         log.debug('Added dock area items: %s', ', '.join(items_added))
 
     def _refresh_toolbars(self, event=None):
