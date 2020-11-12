@@ -1,0 +1,278 @@
+context:
+  meta:
+    sdt_analysis:
+    - target_SAM_depth
+    trial_log: []
+  parameters:
+    background:
+      background_continuous_bandlimited_noise_equalize:
+        compact_label: ' equalize'
+        label: Continuous bandlimited noise equalize
+        rove: false
+        selected: 'no'
+        visible: true
+      background_continuous_bandlimited_noise_fh:
+        compact_label: ' fh'
+        expression: '20000.0'
+        label: Continuous bandlimited noise lowpass cutoff (Hz)
+        rove: false
+        visible: true
+      background_continuous_bandlimited_noise_filter_rolloff:
+        compact_label: ' fr'
+        expression: '3'
+        label: Continuous bandlimited noise filter rolloff (octaves)
+        rove: false
+        visible: true
+      background_continuous_bandlimited_noise_fl:
+        compact_label: ' fl'
+        expression: '100.0'
+        label: Continuous bandlimited noise highpass cutoff (Hz)
+        rove: false
+        visible: true
+      background_continuous_bandlimited_noise_level:
+        compact_label: ' level'
+        expression: '40'
+        label: Continuous bandlimited noise level (dB SPL)
+        rove: false
+        visible: true
+      background_continuous_bandlimited_noise_passband_attenuation:
+        compact_label: ' pass. atten.'
+        expression: '0.1'
+        label: Continuous bandlimited noise passband attenuation (dB)
+        rove: false
+        visible: true
+      background_continuous_bandlimited_noise_seed:
+        compact_label: ' seed'
+        expression: '1'
+        label: Continuous bandlimited noise random seed
+        rove: false
+        visible: true
+      background_continuous_bandlimited_noise_stopband_attenuation:
+        compact_label: ' stop. atten.'
+        expression: '90.0'
+        label: Continuous bandlimited noise stopband attenuation (dB)
+        rove: false
+        visible: true
+    food_dispenser:
+      food_dispenser_pellets:
+        compact_label: P
+        expression: '1'
+        label: Pellets
+        rove: false
+        visible: true
+    results:
+      correct:
+        compact_label: C
+        label: Correct
+        visible: true
+      np_end:
+        compact_label: NP\
+        label: Nose-poke end
+        visible: true
+      np_start:
+        compact_label: NP/
+        label: Nose-poke start
+        visible: true
+      reaction_time:
+        compact_label: RT
+        label: Reaction time
+        visible: true
+      response:
+        compact_label: Resp.
+        label: Response
+        visible: true
+      response_time:
+        compact_label: resp
+        label: Response time
+        visible: true
+      response_ts:
+        compact_label: R|
+        label: Response timestamp
+        visible: true
+      score:
+        compact_label: Score
+        label: Score
+        visible: true
+      trial_start:
+        compact_label: T/
+        label: Trial start
+        visible: true
+      trial_type:
+        compact_label: Type
+        label: Trial type
+        visible: true
+    selector:
+      go_probability:
+        compact_label: Pr
+        expression: '1'
+        label: Go probability
+        rove: false
+        visible: true
+      max_nogo:
+        compact_label: MG
+        expression: '5'
+        label: Max. consecutive nogo trials
+        rove: false
+        visible: true
+      remind_trials:
+        compact_label: N remind
+        expression: '10'
+        label: Remind trials
+        rove: false
+        visible: true
+      repeat_fa:
+        compact_label: RFA
+        label: Repeat FA?
+        rove: false
+        selected: 'no'
+        visible: true
+      warmup_trials:
+        compact_label: N warmup
+        expression: '30'
+        label: Warmup trials
+        rove: false
+        visible: true
+    target:
+      target_SAM_delay:
+        compact_label: ' delay'
+        expression: '0'
+        label: SAM AM delay (s)
+        rove: false
+        visible: true
+      target_SAM_depth:
+        compact_label: ' depth'
+        expression: '1.0'
+        label: SAM depth (frac.)
+        rove: true
+        visible: true
+      target_SAM_direction:
+        compact_label: ' dir'
+        label: SAM Initial AM direction
+        rove: false
+        selected: positive
+        visible: true
+      target_SAM_fm:
+        compact_label: ' fm'
+        expression: '5.0'
+        label: SAM Modulation frequency (Hz)
+        rove: false
+        visible: true
+      target_sam_tone_duration:
+        compact_label: ' dur'
+        expression: '5'
+        label: SAM tone duration (s)
+        rove: false
+        visible: true
+      target_sam_tone_rise_time:
+        compact_label: ' env rise'
+        expression: '0.25'
+        label: SAM tone rise time (s)
+        rove: false
+        visible: true
+      target_sam_tone_start_time:
+        compact_label: ' start'
+        expression: '0'
+        label: SAM tone start time (s)
+        rove: false
+        visible: true
+      target_tone_frequency:
+        compact_label: ' fc'
+        expression: np.random.choice([1500, 10500])
+        label: tone frequency (Hz)
+        rove: false
+        visible: true
+      target_tone_level:
+        compact_label: ' level'
+        expression: '75'
+        label: tone level (dB SPL)
+        rove: false
+        visible: true
+      target_tone_phase:
+        compact_label: " \u0398"
+        expression: '0'
+        label: tone phase
+        rove: false
+        visible: true
+      target_tone_polarity:
+        compact_label: ' pol'
+        label: tone polarity (radians)
+        rove: false
+        selected: positive
+        visible: true
+    trial:
+      hold_duration:
+        compact_label: Hold
+        expression: target_SAM_delay+0.5
+        label: Hold duration (s)
+        rove: false
+        visible: true
+      iti_duration:
+        compact_label: ITI
+        expression: '0.01'
+        label: Intertrial interval (s)
+        rove: false
+        visible: true
+      np_duration:
+        compact_label: Poke
+        expression: '0.05'
+        label: Poke duration (s)
+        rove: false
+        visible: true
+      response_duration:
+        compact_label: Resp
+        expression: '15'
+        label: Response duration (s)
+        rove: false
+        visible: true
+      to_duration:
+        compact_label: TO
+        expression: '5'
+        label: Timeout duration (s)
+        rove: false
+        visible: true
+      training_mode:
+        compact_label: train
+        label: Mode
+        rove: false
+        selected: testing
+        visible: true
+  selectors:
+    go:
+      context_item_order:
+      - target_SAM_depth
+      order: descending
+      settings:
+      - target_SAM_depth: 1.0
+        target_tone_frequency: 1500.0
+        target_tone_level: 75.0
+    nogo:
+      context_item_order:
+      - target_SAM_depth
+      order: shuffled_set
+      settings:
+      - food_dispenser_pellets: 1
+        target_SAM_depth: 0.0
+        target_bandlimited_noise_fh: 2500.0
+        target_bandlimited_noise_fl: 1500.0
+        target_bandlimited_noise_level: 60.0
+        target_tone_frequency: 1500.0
+        target_tone_level: 75.0
+    remind:
+      context_item_order:
+      - target_SAM_depth
+      order: shuffled_set
+      settings:
+      - target_SAM_depth: 1.0
+        target_tone_frequency: 1500.0
+        target_tone_level: 60.0
+output.background:
+  token_name: continuous_bandlimited_noise
+output.target:
+  token_name: sam_tone
+sdt_analysis:
+  column_widths:
+    fraction_correct: 100
+    n_correct: 100
+    n_trials: 100
+    target_SAM_depth: 100
+    z_score: 331

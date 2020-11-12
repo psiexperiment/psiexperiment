@@ -1,0 +1,96 @@
+context:
+  meta: {}
+  parameters:
+    exposure:
+      exposure_bandlimited_noise_burst_duration:
+        compact_label: Bandlimited noise dur
+        default: 4.0
+        expression: '60'
+        label: bandlimited noise burst duration (s)
+        rove: false
+        visible: true
+      exposure_bandlimited_noise_burst_rise_time:
+        compact_label: Bandlimited noise env rise
+        default: 1.0
+        expression: '1'
+        label: bandlimited noise burst rise time (s)
+        rove: false
+        visible: true
+      exposure_bandlimited_noise_burst_start_time:
+        compact_label: Bandlimited noise start
+        default: 0.0
+        expression: '0.0'
+        label: bandlimited noise burst start time (s)
+        rove: false
+        visible: true
+      exposure_bandlimited_noise_equalize:
+        choices:
+          'no': false
+          'yes': true
+        compact_label: bandlimited noise equalize
+        default: 'yes'
+        label: bandlimited noise equalize
+        rove: false
+        selected: 'yes'
+        visible: true
+      exposure_bandlimited_noise_fh:
+        compact_label: bandlimited noise fh
+        default: 20000.0
+        expression: '2000'
+        label: bandlimited noise lowpass cutoff (Hz)
+        rove: false
+        visible: true
+      exposure_bandlimited_noise_filter_rolloff:
+        compact_label: bandlimited noise fr
+        default: 3
+        expression: '0.2'
+        label: bandlimited noise filter rolloff (octaves)
+        rove: false
+        visible: true
+      exposure_bandlimited_noise_fl:
+        compact_label: bandlimited noise fl
+        default: 100.0
+        expression: '1000'
+        label: bandlimited noise highpass cutoff (Hz)
+        rove: false
+        visible: true
+      exposure_bandlimited_noise_level:
+        compact_label: bandlimited noise level
+        default: 60.0
+        expression: '112'
+        label: bandlimited noise level (dB SPL)
+        rove: false
+        visible: true
+      exposure_bandlimited_noise_passband_attenuation:
+        compact_label: bandlimited noise pass. atten.
+        default: 10.0
+        expression: '10.0'
+        label: bandlimited noise passband attenuation (dB)
+        rove: false
+        visible: true
+      exposure_bandlimited_noise_seed:
+        compact_label: bandlimited noise seed
+        default: 1
+        expression: '1'
+        label: bandlimited noise random seed
+        rove: false
+        visible: true
+      exposure_bandlimited_noise_stopband_attenuation:
+        compact_label: bandlimited noise stop. atten.
+        default: 60.0
+        expression: '60.0'
+        label: bandlimited noise stopband attenuation (dB)
+        rove: false
+        visible: true
+    hardware:
+      microphone_channel:
+        choices:
+          Calibration microphone (Dev1/ai1): '"calibration_microphone"'
+          Experiment microphone (Dev1/ai2): '"experiment_microphone"'
+        compact_label: Microphone channel
+        default: ''
+        label: Microphone channel
+        rove: false
+        selected: Calibration microphone (Dev1/ai1)
+        visible: true
+  selectors: {}
