@@ -654,7 +654,7 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
         ContextGroup:
             name = 'results'
             label = 'Trial results'
-            visible = False
+            visible = True
 
             Result:
                 name = 'response'
