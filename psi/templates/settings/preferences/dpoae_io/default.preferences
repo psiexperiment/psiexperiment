@@ -1,0 +1,166 @@
+context:
+  meta: {}
+  parameters:
+    dpoae:
+      dpoae_microphone_channel:
+        compact_label: DPOAE microphone
+        label: DPOAE microphone
+        rove: false
+        selected: Starship microphone (PXI1Slot8/ai0)
+        visible: true
+      dpoae_microphone_input_gain:
+        compact_label: DPOAE microphone input gain
+        expression: '40'
+        label: DPOAE microphone input gain
+        rove: false
+        visible: true
+      f2_f1_ratio:
+        compact_label: F2/F1
+        expression: '1.2'
+        label: F2/F1 ratio
+        rove: false
+        visible: true
+      f2_frequency:
+        compact_label: F2
+        expression: '8000'
+        label: F2 frequency
+        rove: true
+        visible: true
+      f2_level:
+        compact_label: L2
+        expression: '80'
+        label: F2 level
+        rove: true
+        visible: true
+      l1_l2_difference:
+        compact_label: L1-L2
+        expression: '10'
+        label: L1-L2 (dB)
+        rove: false
+        visible: true
+      max_dpoae_noise_floor:
+        compact_label: DPOAE NF
+        expression: '0.0'
+        label: DPOAE noise floor (db SPL)
+        rove: false
+        visible: true
+      n_fft:
+        compact_label: N FFT
+        expression: '4'
+        label: Spectrum avg. (decr. variablity)
+        rove: false
+        visible: true
+      n_time:
+        compact_label: N time
+        expression: '8'
+        label: Time avg. (decr. noise floor)
+        rove: false
+        visible: true
+      primary_channel:
+        compact_label: Output channel (primary)
+        label: Output channel (primary)
+        rove: false
+        selected: Speaker 1
+        visible: true
+      response_window:
+        compact_label: Resp. Window
+        expression: '0.1'
+        label: Response window (sec)
+        rove: false
+        visible: true
+      rise_time:
+        compact_label: rise time
+        expression: '0.0025'
+        label: Tone rise time
+        rove: false
+        visible: true
+      secondary_channel:
+        compact_label: Output channel (secondary)
+        label: Output channel (secondary)
+        rove: false
+        selected: Speaker 2
+        visible: true
+    primary:
+      primary_tone_phase:
+        compact_label: " \u0398"
+        expression: '0'
+        label: tone phase
+        rove: false
+        visible: false
+      primary_tone_polarity:
+        compact_label: ' pol'
+        label: tone polarity (radians)
+        rove: false
+        selected: positive
+        visible: false
+      primary_tone_start_time:
+        compact_label: ' start'
+        expression: '0.0'
+        label: tone start time (s)
+        rove: false
+        visible: false
+    result:
+      dpoae_noise_floor:
+        compact_label: Dpoae noise floor
+        label: Dpoae noise floor
+        visible: true
+      dpoae_spl:
+        compact_label: Dpoae spl
+        label: Dpoae spl
+        visible: true
+      f1_noise_floor:
+        compact_label: F1 noise floor
+        label: F1 noise floor
+        visible: true
+      f1_spl:
+        compact_label: F1 spl
+        label: F1 spl
+        visible: true
+      f2_noise_floor:
+        compact_label: F2 noise floor
+        label: F2 noise floor
+        visible: true
+      f2_spl:
+        compact_label: F2 spl
+        label: F2 spl
+        visible: true
+      ts_end:
+        compact_label: Ts end
+        label: Ts end
+        visible: true
+    secondary:
+      secondary_tone_phase:
+        compact_label: " \u0398"
+        expression: '0'
+        label: tone phase
+        rove: false
+        visible: false
+      secondary_tone_polarity:
+        compact_label: ' pol'
+        label: tone polarity (radians)
+        rove: false
+        selected: positive
+        visible: false
+      secondary_tone_start_time:
+        compact_label: ' start'
+        expression: '0.0'
+        label: tone start time (s)
+        rove: false
+        visible: false
+  selectors:
+    default:
+      context_item_order:
+      - f2_frequency
+      - f2_level
+      settings:
+        f2_frequency:
+        - '8000'
+        f2_level:
+        - '20'
+        - '40'
+        - '60'
+        - '80'
+event_log:
+  column_widths:
+    event: 100
+    timestamp: 1857

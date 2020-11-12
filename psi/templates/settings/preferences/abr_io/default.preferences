@@ -1,0 +1,154 @@
+context:
+  meta:
+    settings:
+    - target_tone_frequency
+    - target_tone_level
+  parameters:
+    abr_io:
+      alternate_polarity:
+        compact_label: Alternate polarity?
+        expression: 'True'
+        label: Alternate polarity?
+        rove: false
+        visible: true
+      averages:
+        compact_label: Averages
+        expression: '512'
+        label: Averages
+        rove: false
+        visible: true
+      ordering:
+        compact_label: Stimulus ordering
+        label: Stimulus ordering
+        rove: false
+        selected: interleaved ramp
+        visible: true
+      rate:
+        compact_label: Reps. per sec.
+        expression: '80'
+        label: Reps. per sec.
+        rove: false
+        visible: true
+    artifact_reject:
+      detrend_mode:
+        compact_label: Detrend mode
+        label: Detrend mode
+        rove: false
+        selected: None
+        visible: true
+      reject_mode:
+        compact_label: Rej. mode
+        label: Reject mode
+        rove: false
+        selected: absolute value
+        visible: true
+      reject_threshold:
+        compact_label: Th
+        expression: '2.5'
+        label: Reject threshold
+        rove: false
+        visible: true
+    digital_filter:
+      digital_filter:
+        compact_label: Digital filter?
+        expression: 'True'
+        label: Digital filter?
+        rove: false
+        visible: true
+      digital_highpass:
+        compact_label: Digital highpass filter cutoff
+        expression: '300'
+        label: Digital highpass filter cutoff
+        rove: false
+        visible: true
+      digital_lowpass:
+        compact_label: Digital lowpass filter cutoff
+        expression: '3000'
+        label: Digital lowpass filter cutoff
+        rove: false
+        visible: true
+    hardware_settings:
+      amplifier_gain:
+        compact_label: Amplifier gain
+        expression: '100000.0'
+        label: Amplifier gain
+        rove: false
+        visible: true
+      amplifier_highpass:
+        compact_label: Amplifier highpass filter cutoff
+        expression: '10'
+        label: Amplifier highpass filter cutoff
+        rove: false
+        visible: true
+      amplifier_lowpass:
+        compact_label: Amplifier lowpass filter cutoff
+        expression: '10000.0'
+        label: Amplifier lowpass filter cutoff
+        rove: false
+        visible: true
+      eeg_channel:
+        compact_label: ai_eeg
+        label: EEG channel
+        rove: false
+        selected: Starship microphone (PXI1Slot8/ai0)
+        visible: true
+      output_channel:
+        compact_label: ao
+        label: Output channel
+        rove: false
+        selected: Speaker 1
+        visible: true
+      pt_channel:
+        compact_label: Probe tube mic. channel
+        label: Probe tube mic. channel
+        rove: false
+        selected: Starship microphone (PXI1Slot8/ai0)
+        visible: true
+      pt_input_gain:
+        compact_label: Probe tube input gain (dB)
+        expression: '40'
+        label: Probe tube input gain (dB)
+        rove: false
+        visible: true
+    target:
+      target_tone_burst_duration:
+        compact_label: ' dur'
+        expression: 5e-3
+        label: tone duration (s)
+        rove: false
+        visible: true
+      target_tone_burst_rise_time:
+        compact_label: ' env rise'
+        expression: '0.5e-3'
+        label: tone rise time (s)
+        rove: false
+        visible: true
+      target_tone_burst_start_time:
+        compact_label: ' start'
+        expression: '0.0'
+        label: tone start time (s)
+        rove: false
+        visible: false
+      target_tone_phase:
+        compact_label: " \u0398"
+        expression: '0'
+        label: tone phase
+        rove: false
+        visible: false
+      target_tone_polarity:
+        compact_label: ' pol'
+        label: tone polarity (radians)
+        rove: false
+        selected: positive
+        visible: false
+  selectors:
+    default:
+      context_item_order:
+      - target_tone_frequency
+      - target_tone_level
+      freq_lb: 1.0
+      freq_step: 0.5
+      freq_ub: 16.0
+      level_lb: 10.0
+      level_step: 5.0
+      level_ub: 80.0
