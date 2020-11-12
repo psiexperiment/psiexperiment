@@ -112,8 +112,8 @@ enamldef ControllerManifest(BehaviorManifest): manifest:
             source_name = 'microphone'
 
             IIRFilter:
-                f_lowpass = 20e3
-                f_highpass = 500
+                f_lowpass = 40e3
+                f_highpass = 400
                 name = 'microphone_filtered'
 
         ContinuousOutput:
