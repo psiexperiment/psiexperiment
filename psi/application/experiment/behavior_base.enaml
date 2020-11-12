@@ -8,7 +8,7 @@ from atom.api import Int, Typed, Unicode
 from enaml.application import deferred_call
 from enaml.layout.api import InsertItem
 from enaml.widgets.api import Action, DockItem, Container, Label, ToolBar
-from enaml.workbench.api import Extension, ExtensionPoint, PluginManifest
+from enaml.workbench.api import Extension, ExtensionPoint
 from enaml.workbench.core.api import Command
 import numpy as np
 
@@ -19,6 +19,7 @@ from psi.controller.api import (ControllerManifest, ControllerPlugin,
                                 ExperimentAction, ExperimentEvent,
                                 ExperimentState)
 from psi.controller.devices.pellet_dispenser import PelletDispenser
+from psi.core.enaml.api import ExperimentManifest
 
 from psi.data.sinks.api import BColzStore, EventLog, SDTAnalysis, TrialLog
 
@@ -830,9 +831,9 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
 ################################################################################
 # Useful plugins
 ################################################################################
-enamldef PelletDispenserMixinManifest(PluginManifest): manifest:
+enamldef PelletDispenserMixinManifest(ExperimentManifest): manifest:
 
-    id = 'pellet_dispenser_mixin'
+    id = 'pellet_dispenser'
 
     Extension:
         id = manifest.id + '.io'

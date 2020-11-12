@@ -256,10 +256,10 @@ enamldef ABRIOBaseManifest(ABRBaseManifest): manifest:
         id = EXPERIMENT + '.commands'
         point = 'enaml.workbench.core.commands'
         Command:
-            id = manifest.id + '.next_frequency'
+            id = EXPERIMENT + '.next_frequency'
             handler = partial(next_frequency, manifest.key_map)
         Command:
-            id = manifest.id + '.rebuffer'
+            id = EXPERIMENT + '.rebuffer'
             handler = rebuffer
         Command:
             id = 'psi.controller.configure_experiment'
@@ -280,7 +280,7 @@ enamldef ABRIOBaseManifest(ABRBaseManifest): manifest:
 
         ExperimentAction:
             event = 'keys_complete'
-            command = manifest.id + '.rebuffer'
+            command = EXPERIMENT + '.rebuffer'
 
     Extension:
         id = EXPERIMENT + '.sink'
@@ -321,7 +321,7 @@ enamldef ABRIOBaseManifest(ABRBaseManifest): manifest:
 
     # Uses unicode symbols as icons for sake of simplicity.
     Extension:
-        id = manifest.id + 'abr_io.toolbar'
+        id = EXPERIMENT + 'abr_io.toolbar'
         point = 'psi.experiment.toolbar'
 
         ToolBar:
@@ -331,7 +331,7 @@ enamldef ABRIOBaseManifest(ABRBaseManifest): manifest:
                     and C.ordering == 'sequential'
                 triggered ::
                     core = workbench.get_plugin('enaml.workbench.core')
-                    core.invoke_command(manifest.id + '.next_frequency')
+                    core.invoke_command(EXPERIMENT + '.next_frequency')
 
 
 enamldef ABRIOManifest(ABRIOBaseManifest): manifest:

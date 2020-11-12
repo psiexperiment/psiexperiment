@@ -1,8 +1,22 @@
-from atom.api import Typed, Property
+from atom.api import Bool, Property, Typed, Unicode
 
+from enaml.core.api import d_
 from enaml.workbench.api import PluginManifest
 
 from .contribution import PSIContribution
+
+
+class ExperimentManifest(PluginManifest):
+
+    name = d_(Unicode())
+    title = d_(Unicode())
+    required = d_(Bool(False))
+
+    def _default_name(self):
+        return self.id
+
+    def _default_title(self):
+        return self.name.replace('_', ' ').capitalize()
 
 
 class PSIManifest(PluginManifest):

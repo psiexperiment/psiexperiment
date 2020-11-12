@@ -5,7 +5,7 @@ from functools import partial
 
 from enaml.application import deferred_call, timed_call
 from enaml.widgets.api import Action, ToolBar
-from enaml.workbench.api import Extension, PluginManifest
+from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 import numpy as np
 import pandas as pd
@@ -19,7 +19,7 @@ from psi.controller.api import (ExperimentAction, FIFOSignalQueue,
 from psi.controller.calibration.api import FlatCalibration, InterpCalibration
 from psi.controller.calibration import util
 
-from psi.core.enaml.api import PSIManifest
+from psi.core.enaml.api import ExperimentManifest
 from psi.token.primitives import Chirp, Cos2Envelope, Tone
 from psi.util import octave_space
 
@@ -225,9 +225,9 @@ def validate_spl(workbench, ao_channel, ai_channel, frequencies, spl):
     core.invoke_command('cal_data.save_dataframe', parameters=parameters)
 
 
-enamldef GolayMixin(PluginManifest): manifest:
+enamldef GolayMixin(ExperimentManifest): manifest:
 
-    id = 'golay_mixin'
+    id = 'golay'
     attr C
 
     Extension:
@@ -331,7 +331,7 @@ def validate_spl_wrapper(event):
                  validation_level)
 
 
-enamldef ToneValidateMixin(PluginManifest): manifest:
+enamldef ToneValidateMixin(ExperimentManifest): manifest:
     '''
     This mixin requires a `calibration_result` FFT container with `spl_result`
     and `spl_sens` viewboxes defined (the idea being that the main plugin may
@@ -339,7 +339,9 @@ enamldef ToneValidateMixin(PluginManifest): manifest:
     to plot the tone verification on the same plot).
     '''
 
-    id = 'tone_validate_mixin'
+    id = 'tone_validate'
+    title = 'Tone validation'
+    required = True
 
     Extension:
         id = manifest.id + '.items'
@@ -393,20 +395,22 @@ enamldef ToneValidateMixin(PluginManifest): manifest:
             handler = validate_spl_wrapper
 
 
-enamldef ChirpMixin(PluginManifest): manifest:
+enamldef ChirpMixin(ExperimentManifest): manifest:
 
-    id = 'chirp_mixin'
+    id = 'chirp'
+    required = True
+
     attr C
 
     Extension:
-        id = 'tokens'
+        id = manifest.id + '.tokens'
         point = 'psi.token.tokens'
 
         Chirp: chirp:
             pass
 
     Extension:
-        id = 'io_chirp_mixin'
+        id = manifest.id + '.io'
         point = 'psi.controller.io'
 
         SelectorQueuedEpochOutput: hw_ao:
@@ -429,7 +433,7 @@ enamldef ChirpMixin(PluginManifest): manifest:
                 self.connect(epoch.added_queue.append)
 
     Extension:
-        id = 'commands_chirp_mixin'
+        id = manifest.id + '.commands'
         point = 'enaml.workbench.core.commands'
 
         Command:
@@ -437,7 +441,7 @@ enamldef ChirpMixin(PluginManifest): manifest:
             handler = compute_calibration_chirp
 
     Extension:
-        id = 'actions_chirp_mixin'
+        id = manifest.id + '.actions'
         point = 'psi.controller.actions'
 
         ExperimentAction:
@@ -445,13 +449,15 @@ enamldef ChirpMixin(PluginManifest): manifest:
             command = 'psi.controller.compute_calibration'
 
 
-enamldef ToneMixin(PluginManifest): manifest:
+enamldef ToneMixin(ExperimentManifest): manifest:
 
-    id = 'tone_mixin'
+    id = 'tone'
+    required = True
+
     attr C
 
     Extension:
-        id = 'tokens'
+        id = manifest.id + '.tokens'
         point = 'psi.token.tokens'
 
         Cos2Envelope: tone_pip:
@@ -460,7 +466,7 @@ enamldef ToneMixin(PluginManifest): manifest:
                 pass
 
     Extension:
-        id = 'io_tone_mixin'
+        id = manifest.id + '.io'
         point = 'psi.controller.io'
 
         SelectorQueuedEpochOutput: hw_ao:

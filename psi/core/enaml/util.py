@@ -9,7 +9,8 @@ from enaml.core import import_hooks
 def load_manifest(manifest_path):
     try:
         module_name, manifest_name = manifest_path.rsplit('.', 1)
-        module = importlib.import_module(module_name)
+        with enaml.imports():
+            module = importlib.import_module(module_name)
         return getattr(module, manifest_name)
     except AttributeError as e:
         raise ImportError() from e

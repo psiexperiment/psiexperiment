@@ -69,7 +69,7 @@ class ABRSelector(BaseSelector):
 enamldef ABRSelectorManifest(PSIManifest): manifest:
 
     Extension:
-        id = 'selector.' + manifest.contribution.name
+        id = manifest.contribution.name + '.selector'
         point = 'psi.experiment.workspace'
 
         DockItem:

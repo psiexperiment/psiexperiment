@@ -4,7 +4,7 @@ log = logging.getLogger(__name__)
 import enaml
 from enaml.stdlib.message_box import critical
 from enaml.widgets.api import Action, ToolBar
-from enaml.workbench.api import Extension, ExtensionPoint, PluginManifest
+from enaml.workbench.api import Extension, ExtensionPoint
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, Branding, MenuItem
 
@@ -13,6 +13,8 @@ from ..util import rpc
 from .plugin import ControllerPlugin
 from .experiment_action import (ExperimentState, ExperimentEvent,
                                 ExperimentAction)
+
+from psi.core.enaml.api import ExperimentManifest
 
 
 def accumulate_actions(plugin):
@@ -89,7 +91,7 @@ def get_hw_ai_choices(workbench):
     return {str(c): '"{}"'.format(c.name) for c in channels}
 
 
-class ControllerManifestBase(PluginManifest):
+class ControllerManifestBase(ExperimentManifest):
 
     def get_hw_ao_choices(self):
         return get_hw_ao_choices(self.workbench)
@@ -109,6 +111,10 @@ enamldef ControllerManifest(ControllerManifestBase): manifest:
       experiment is now in a state where it can be paused by the user. When
       the flag is set, the "Pause" button in the toolbar becomes active.
     '''
+    # Set attrs that guide experiment description
+    name = 'controller'
+    required = True
+
     id = 'psi.controller'
     factory = ControllerPlugin
 

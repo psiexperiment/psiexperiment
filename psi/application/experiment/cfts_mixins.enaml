@@ -6,7 +6,7 @@ import pandas as pd
 from enaml.application import deferred_call
 from enaml.core.api import Conditional
 from enaml.widgets.api import Container, DockItem
-from enaml.workbench.api import Extension, PluginManifest
+from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 
 from psi.context.api import (BoolParameter, ContextGroup, EnumParameter,
@@ -19,7 +19,7 @@ from psi.controller.calibration.api import (chirp_sens, ChirpCalibrate,
                                             InterpCalibration,
                                             PointCalibration, tone_sens,
                                             ToneCalibrate)
-from psi.core.enaml.api import DataFrameTable
+from psi.core.enaml.api import DataFrameTable, ExperimentManifest
 from psi.data.plots import (ChannelPlot, FFTChannelPlot, FFTContainer,
                             TimeContainer, ViewBox)
 from psi.data.sinks.api import BColzStore, DisplayValue, TextStore
@@ -28,9 +28,11 @@ from psi.token.api import BandlimitedNoise, Cos2Envelope, Gate, SquareWave
 ################################################################################
 # Microphone mixins
 ################################################################################
-enamldef MicrophoneSignalViewMixinManifest(PluginManifest):
+enamldef MicrophoneSignalViewMixinManifest(ExperimentManifest):
 
     id = 'microphone_signal_view_mixin'
+    name = 'microphone_signal_view'
+    title = 'Microphone view (time)'
 
     Extension:
         id = 'plots'
@@ -52,9 +54,11 @@ enamldef MicrophoneSignalViewMixinManifest(PluginManifest):
                     source_name = 'microphone'
 
 
-enamldef MicrophoneFFTViewMixinManifest(PluginManifest): manifest:
+enamldef MicrophoneFFTViewMixinManifest(ExperimentManifest): manifest:
 
     id = 'microphone_fft_view_mixin'
+    name = 'microphone_fft_view'
+    title = 'Microphone view (PSD)'
 
     Extension:
         id = manifest.id  + '.plots'
@@ -76,9 +80,11 @@ enamldef MicrophoneFFTViewMixinManifest(PluginManifest): manifest:
                     time_span = 1
 
 
-enamldef MicrophoneElicitorFFTViewMixinManifest(PluginManifest): manifest:
+enamldef MicrophoneElicitorFFTViewMixinManifest(ExperimentManifest): manifest:
 
     id = 'microphone_elicitor_fft_view_mixin'
+    name = 'microphone_elicitor_fft_view'
+    title = 'Microphone view (PSD)'
 
     Extension:
         id = manifest.id  + '.plots'
@@ -109,9 +115,11 @@ enamldef MicrophoneElicitorFFTViewMixinManifest(PluginManifest): manifest:
 ################################################################################
 # EEG mixins
 ################################################################################
-enamldef EEGViewMixinManifest(PluginManifest): manifest:
+enamldef EEGViewMixinManifest(ExperimentManifest): manifest:
 
     id = 'eeg_view_mixin'
+    name = 'eeg_view'
+    title = 'EEG display'
 
     Extension:
         id = 'plots'
@@ -133,9 +141,10 @@ enamldef EEGViewMixinManifest(PluginManifest): manifest:
                     source_name = 'eeg_filtered'
 
 
-enamldef TemperatureMixinManifest(PluginManifest): manifest:
+enamldef TemperatureMixinManifest(ExperimentManifest): manifest:
 
     id = 'temperature_mixin'
+    name = 'temperature'
 
     Extension:
         id = 'temperature_data'
@@ -169,7 +178,7 @@ enamldef TemperatureMixinManifest(PluginManifest): manifest:
 ################################################################################
 # ABR and DPOAE calibration mixins
 ################################################################################
-enamldef CalibrationPlugin(PluginManifest): manifest:
+enamldef CalibrationPlugin(ExperimentManifest): manifest:
 
     id = 'inear_calibration_mixin'
 
@@ -218,9 +227,11 @@ enamldef CalibrationPlugin(PluginManifest): manifest:
                 }
 
 
-enamldef ABRInEarCalibrationMixinManifest(PluginManifest): manifest:
+enamldef ABRInEarCalibrationMixinManifest(ExperimentManifest): manifest:
 
     id = 'abr_inear_calibration_mixin'
+    name = 'abr_in_ear_calibration'
+    title = 'In-ear calibration'
 
     Extension:
         id = manifest.id + '.calibration'
@@ -239,9 +250,11 @@ enamldef ABRInEarCalibrationMixinManifest(PluginManifest): manifest:
             iti = 0
 
 
-enamldef DPOAEInEarCalibrationMixinManifest(PluginManifest): manifest:
+enamldef DPOAEInEarCalibrationMixinManifest(ExperimentManifest): manifest:
 
-    id = 'abr_inear_calibration_mixin'
+    id = 'dpoae_inear_calibration_mixin'
+    name = 'dpoae_in_ear_calibration'
+    title = 'In-ear calibration'
 
     attr C
 
@@ -265,9 +278,11 @@ enamldef DPOAEInEarCalibrationMixinManifest(PluginManifest): manifest:
             iti = 0
 
 
-enamldef DPOAEInEarNoiseCalibrationMixinManifest(PluginManifest): manifest:
+enamldef DPOAEInEarNoiseCalibrationMixinManifest(ExperimentManifest): manifest:
 
     id = 'dpoae_inear_noise_calibration_mixin'
+    name = 'dpoae_in_ear_noise_calibration'
+    title = 'In-ear noise calibration'
 
     attr C
 
@@ -289,9 +304,11 @@ enamldef DPOAEInEarNoiseCalibrationMixinManifest(PluginManifest): manifest:
 ################################################################################
 # Enhancements to DPOAE time
 ################################################################################
-enamldef DPOAETimeNoiseMixinManifest(PluginManifest): manifest:
+enamldef DPOAETimeNoiseMixinManifest(ExperimentManifest): manifest:
 
     id = 'dpoae_time_noise_mixin'
+    name = 'dpoae_time_noise'
+    title = 'Noise elicitor'
 
     attr C
 
@@ -364,7 +381,7 @@ enamldef DPOAETimeNoiseMixinManifest(PluginManifest): manifest:
             kwargs = {'delay': 'elicitor_start'}
 
 
-enamldef DPOAETimeTTLMixinManifest(PluginManifest): manifest:
+enamldef DPOAETimeTTLMixinManifest(ExperimentManifest): manifest:
 
     id = 'dpoae_time_ttl_mixin'
 
@@ -447,7 +464,7 @@ enamldef DPOAETimeTTLMixinManifest(PluginManifest): manifest:
             kwargs = {'delay': 'ttl_start'}
 
 
-enamldef EEGMixinManifest(PluginManifest): manifest:
+enamldef EEGMixinManifest(ExperimentManifest): manifest:
 
     id = 'eeg_mixin'
 

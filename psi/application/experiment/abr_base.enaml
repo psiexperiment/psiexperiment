@@ -38,6 +38,9 @@ def set_expected_range(context, target):
     target.channel.expected_range = (-max_sf, max_sf)
 
 
+EXPERIMENT = 'abr_base'
+
+
 enamldef ABRBaseManifest(ControllerManifest): manifest:
     '''
     Defines functionality shared by all applications that perform tone ABRs.
@@ -47,7 +50,7 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
     '''
 
     Extension:
-        id = 'abr_base_text_store'
+        id = EXPERIMENT + '.store'
         point = 'psi.data.sinks'
 
         BColzStore:
@@ -56,7 +59,7 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
             continuous_inputs = ['eeg']
 
     Extension:
-        id = 'tokens'
+        id = EXPERIMENT + '.tokens'
         point = 'psi.token.tokens'
 
         Cos2Envelope: tone_burst:
@@ -67,7 +70,7 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
                 hide = ['polarity', 'phase']
 
     Extension:
-        id = 'abr_base_io'
+        id = EXPERIMENT + '.io'
         point = 'psi.controller.io'
 
         QueuedEpochOutput: output:
@@ -119,7 +122,7 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
                             mode = C.reject_mode
 
     Extension:
-        id = 'abr_base_context'
+        id = EXPERIMENT + '.context'
         point = 'psi.context.items'
 
         ContextGroup:
@@ -230,7 +233,7 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
                 scope = 'experiment'
 
     Extension:
-        id = 'actions'
+        id = EXPERIMENT + '.actions'
         point = 'psi.controller.actions'
 
         ExperimentAction:

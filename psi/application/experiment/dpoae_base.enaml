@@ -144,7 +144,7 @@ enamldef DPOAEManifest(ControllerManifest): manifest:
             show_widget = True
 
     Extension:
-        id = 'tokens'
+        id = EXPERIMENT + '.tokens'
         point = 'psi.token.tokens'
 
         Cos2Envelope: tone:
