@@ -74,6 +74,7 @@ def get_experiments(type):
 
 PATH = 'psi.application.experiment.'
 
+
 ################################################################################
 # CFTS stuff
 ################################################################################
@@ -136,7 +137,18 @@ ParadigmDescription(
 ParadigmDescription(
     'efr', 'EFR (SAM)', 'ear', [
         (PATH + 'efr.EFRManifest',),
+        (PATH + 'cfts_mixins.MicrophoneSignalViewMixinManifest', True),
+        (PATH + 'cfts_mixins.MicrophoneFFTViewMixinManifest', True),
     ],
+)
+
+
+ParadigmDescription(
+    'speaker_calibration_chirp', 'Speaker calibration (chirp)', 'ear', [
+        (PATH + 'speaker_calibration.BaseSpeakerCalibrationManifest',),
+        (PATH + 'calibration_mixins.ChirpMixin',),
+        (PATH + 'calibration_mixins.ToneValidateMixin',),
+    ]
 )
 
 
