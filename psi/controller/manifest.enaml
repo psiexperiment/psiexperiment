@@ -232,16 +232,9 @@ enamldef ControllerManifest(ControllerManifestBase): manifest:
             path = '/equipment'
             label = 'Equipment'
             after = 'configuration'
-        ActionItem:
-            path = '/equipment/calibration'
-            label = 'Calibration'
-            command = 'psi.controller.configure_calibration'
         MenuItem:
             path = '/equipment/output'
             label = 'Outputs'
-        MenuItem:
-            path = '/equipment/input'
-            label = 'Inputs'
 
     Extension:
         id = 'base_actions'
