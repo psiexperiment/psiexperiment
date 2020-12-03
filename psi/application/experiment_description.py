@@ -45,8 +45,6 @@ class ParadigmDescription(Atom):
     type = Enum('ear', 'animal', 'cohort', 'calibration')
 
     def __init__(self, name, title, experiment_type, plugin_info):
-        for pi in plugin_info:
-            print(pi)
         plugins = [PluginDescription(*pi) for pi in plugin_info]
         super().__init__(name=name, title=title, type=experiment_type,
                          plugins=plugins)
@@ -74,107 +72,120 @@ def get_experiments(type):
     return [e for e in experiments.values() if e.type == type]
 
 
+PATH = 'psi.application.experiment.'
+
 ################################################################################
 # CFTS stuff
 ################################################################################
 ParadigmDescription(
+    # This is a much more flexible, more powerful ABR experiment interface.
     'abr_io_editable', 'Configurable ABR (input-output)', 'ear', [
-        ('psi.application.experiment.abr_io.ABRIOManifest',),
-        ('psi.application.experiment.cfts_mixins.TemperatureMixinManifest', True),
-        ('psi.application.experiment.cfts_mixins.EEGViewMixinManifest', True),
-        ('psi.application.experiment.cfts_mixins.ABRInEarCalibrationMixinManifest', True),
+        (PATH + 'abr_io.ABRIOManifest',),
+        (PATH + 'cfts_mixins.TemperatureMixinManifest', True),
+        (PATH + 'cfts_mixins.EEGViewMixinManifest', True),
+        (PATH + 'cfts_mixins.ABRInEarCalibrationMixinManifest', True),
     ]
 )
 
 
 ParadigmDescription(
+    # This is the default, simple ABR experiment that most users will want.  
     'abr_io', 'ABR (input-output)', 'ear', [
-        ('psi.application.experiment.abr_io.ABRIOManifest',),
-        ('psi.application.experiment.cfts_mixins.TemperatureMixinManifest', True),
-        ('psi.application.experiment.cfts_mixins.EEGViewMixinManifest', True),
-        ('psi.application.experiment.cfts_mixins.ABRInEarCalibrationMixinManifest', True),
+        (PATH + 'abr_io_simple.ABRIOSimpleManifest',),
+        (PATH + 'cfts_mixins.TemperatureMixinManifest', True),
+        (PATH + 'cfts_mixins.EEGViewMixinManifest', True),
+        (PATH + 'cfts_mixins.ABRInEarCalibrationMixinManifest', True),
     ]
 )
 
 
 ParadigmDescription(
     'dpoae_io', 'DPOAE input-output', 'ear', [
-        ('psi.application.experiment.dpoae_io.ControllerManifest',),
-        ('psi.application.experiment.cfts_mixins.TemperatureMixinManifest', True),
-        ('psi.application.experiment.cfts_mixins.DPOAEInEarCalibrationMixinManifest', True),
-        ('psi.application.experiment.cfts_mixins.MicrophoneSignalViewMixinManifest', True),
-        ('psi.application.experiment.cfts_mixins.MicrophoneFFTViewMixinManifest', True),
+        (PATH + 'dpoae_io.ControllerManifest',),
+        (PATH + 'cfts_mixins.TemperatureMixinManifest', True),
+        (PATH + 'cfts_mixins.DPOAEInEarCalibrationMixinManifest', True),
+        (PATH + 'cfts_mixins.MicrophoneSignalViewMixinManifest', True),
+        (PATH + 'cfts_mixins.MicrophoneFFTViewMixinManifest', True),
     ]
 )
 
 
 ParadigmDescription(
     'dpoae_ttl', 'DPOAE (TTL output)', 'ear', [
-        ('psi.application.experiment.dpoae_time.ControllerManifest',),
-        ('psi.application.experiment.cfts_mixins.TemperatureMixinManifest', True),
-        ('psi.application.experiment.cfts_mixins.DPOAEInEarCalibrationMixinManifest', True),
-        ('psi.application.experiment.cfts_mixins.MicrophoneSignalViewMixinManifest', True),
-        ('psi.application.experiment.cfts_mixins.MicrophoneFFTViewMixinManifest', True),
+        (PATH + 'dpoae_time.ControllerManifest',),
+        (PATH + 'cfts_mixins.TemperatureMixinManifest', True),
+        (PATH + 'cfts_mixins.DPOAEInEarCalibrationMixinManifest', True),
+        (PATH + 'cfts_mixins.MicrophoneSignalViewMixinManifest', True),
+        (PATH + 'cfts_mixins.MicrophoneFFTViewMixinManifest', True),
     ]
 )
 
 
 ParadigmDescription(
     'dpoae_contra', 'DPOAE (contra noise)', 'ear', [
-        ('psi.application.experiment.dpoae_time.ControllerManifest',),
-        ('psi.application.experiment.cfts_mixins.TemperatureMixinManifest', True),
-        ('psi.application.experiment.cfts_mixins.MicrophoneElicitorFFTViewMixinManifest', True),
-        ('psi.application.experiment.cfts_mixins.DPOAETimeNoiseMixinManifest', True),
-        ('psi.application.experiment.cfts_mixins.DPOAEInEarCalibrationMixinManifest', True),
-        ('psi.application.experiment.cfts_mixins.DPOAEInEarNoiseCalibrationMixinManifest', True),
-    ]
+        (PATH + 'dpoae_time.ControllerManifest',),
+        (PATH + 'cfts_mixins.TemperatureMixinManifest', True),
+        (PATH + 'cfts_mixins.MicrophoneElicitorFFTViewMixinManifest', True),
+        (PATH + 'cfts_mixins.DPOAETimeNoiseMixinManifest', True),
+        (PATH + 'cfts_mixins.DPOAEInEarCalibrationMixinManifest', True),
+        (PATH + 'cfts_mixins.DPOAEInEarNoiseCalibrationMixinManifest', True),
+    ],
 )
+
+
+ParadigmDescription(
+    'efr', 'EFR (SAM)', 'ear', [
+        (PATH + 'efr.EFRManifest',),
+    ],
+)
+
 
 #################################################################################
 ## Calibration
 #################################################################################
 ParadigmDescription(
     'speaker_calibration_golay', 'Speaker calibration (Golay)', 'calibration', [
-        ('psi.application.experiment.speaker_calibration.BaseSpeakerCalibrationManifest',),
-        ('psi.application.experiment.calibration_mixins.GolayMixin',),
-        ('psi.application.experiment.calibration_mixins.ToneValidateMixin',),
+        (PATH + 'speaker_calibration.BaseSpeakerCalibrationManifest',),
+        (PATH + 'calibration_mixins.GolayMixin',),
+        (PATH + 'calibration_mixins.ToneValidateMixin',),
     ]
 )
 
 
 ParadigmDescription(
     'speaker_calibration_chirp', 'Speaker calibration (chirp)', 'calibration', [
-        ('psi.application.experiment.speaker_calibration.BaseSpeakerCalibrationManifest',),
-        ('psi.application.experiment.calibration_mixins.ChirpMixin',),
-        ('psi.application.experiment.calibration_mixins.ToneValidateMixin',),
+        (PATH + 'speaker_calibration.BaseSpeakerCalibrationManifest',),
+        (PATH + 'calibration_mixins.ChirpMixin',),
+        (PATH + 'calibration_mixins.ToneValidateMixin',),
     ]
 )
 
 
 ParadigmDescription(
     'speaker_calibration_tone', 'Speaker calibration (tone)', 'calibration', [
-        ('psi.application.experiment.speaker_calibration.BaseSpeakerCalibrationManifest',),
-        ('psi.application.experiment.calibration_mixins.ToneMixin',),
+        (PATH + 'speaker_calibration.BaseSpeakerCalibrationManifest',),
+        (PATH + 'calibration_mixins.ToneMixin',),
     ]
 )
 
 
 ParadigmDescription(
     'pistonphone_calibration', 'Pistonphone calibration', 'calibration', [
-        ('psi.application.experiment.pistonphone_calibration.PistonphoneCalibrationManifest',),
+        (PATH + 'pistonphone_calibration.PistonphoneCalibrationManifest',),
     ]
 )
 
+
 ParadigmDescription(
     'pt_calibration_chirp', 'Probe tube calibration (chirp)', 'calibration', [
-        ('psi.application.experiment.pt_calibration.ChirpControllerManifest',),
+        (PATH + 'pt_calibration.ChirpControllerManifest',),
     ],
 )
 
 
 ParadigmDescription(
     'pt_calibration_golay', 'Probe tube calibration (golay)', 'calibration', [
-        ('psi.application.experiment.pt_calibration.GolayControllerManifest',),
+        (PATH + 'pt_calibration.GolayControllerManifest',),
     ],
 )
 
@@ -184,7 +195,7 @@ ParadigmDescription(
 #################################################################################
 ParadigmDescription(
     'noise_exposure', 'Noise exposure', 'cohort', [
-        ('psi.application.experiment.noise_exposure.ControllerManifest',),
+        (PATH + 'noise_exposure.ControllerManifest',),
     ],
 )
 
@@ -194,7 +205,7 @@ ParadigmDescription(
 #################################################################################
 ParadigmDescription(
     'appetitive_gonogo_food', 'Appetitive GO-NOGO food', 'animal', [
-        ('psi.application.experiment.appetitive.ControllerManifest',),
-        ('psi.application.experiment.behavior_base.PelletDispenserMixinManifest', True),
+        (PATH + 'appetitive.ControllerManifest',),
+        (PATH + 'behavior_base.PelletDispenserMixinManifest', True),
     ],
 )
