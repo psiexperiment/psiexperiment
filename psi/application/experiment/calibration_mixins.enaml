@@ -202,6 +202,9 @@ def level_to_gain(calibration, frequencies, spl):
 
 
 def validate_spl(workbench, ao_channel, ai_channel, frequencies, spl):
+    '''
+    Validate SPL given a working calibration
+    '''
     log.debug('Starting SPL validation')
     data = workbench.get_plugin('psi.data')
     core = workbench.get_plugin('enaml.workbench.core')
@@ -215,6 +218,7 @@ def validate_spl(workbench, ao_channel, ai_channel, frequencies, spl):
                       ao_channel_name=ao_channel.name,
                       ai_channel_names=[ai_channel.name])
     result = result.reset_index()
+    result['gain'] = gains
     result['sens'] = gains-result['spl']-util.db(20e-6)
     vb = data.find_viewbox('spl_result')
     deferred_call(plot_data, vb, result, 'spl', log_x=True, kind='scatter')
@@ -229,6 +233,7 @@ enamldef GolayMixin(ExperimentManifest): manifest:
 
     id = 'golay'
     attr C
+    required = True
 
     Extension:
         id = manifest.id + '.io'
@@ -340,7 +345,6 @@ enamldef ToneValidateMixin(ExperimentManifest): manifest:
     '''
 
     id = 'tone_validate'
-    title = 'Tone validation'
     required = True
 
     Extension:
@@ -485,4 +489,3 @@ enamldef ToneMixin(ExperimentManifest): manifest:
                 epoch = controller.get_input('epoch')
                 epoch.poststim_time = 10e-3
                 self.connect(epoch.added_queue.append)
-

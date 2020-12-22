@@ -25,16 +25,12 @@ class PluginDescription(Atom):
     def __init__(self, manifest, selected=False, **kwargs):
         kwargs['manifest'] = manifest
         manifest = load_manifest(manifest)()
-        for attr in ('name', 'title', 'required'):
-            if attr not in kwargs:
-                kwargs[attr] = getattr(manifest, attr)
-        super().__init__(**kwargs)
 
-    def copy(self, **kwargs):
-        other = copy.copy(self)
-        for k, v in kwargs.items():
-            setattr(other, k, v)
-        return other
+        # Default values are loaded directly from the PluginManifest (but can
+        # be overridden by kwargs).
+        for attr in ('name', 'title', 'required'):
+            kwargs.setdefault(attr, getattr(manifest, attr))
+        super().__init__(**kwargs)
 
 
 class ParadigmDescription(Atom):
@@ -45,29 +41,11 @@ class ParadigmDescription(Atom):
     type = Enum('ear', 'animal', 'cohort', 'calibration')
 
     def __init__(self, name, title, experiment_type, plugin_info):
-        for pi in plugin_info:
-            print(pi)
         plugins = [PluginDescription(*pi) for pi in plugin_info]
         super().__init__(name=name, title=title, type=experiment_type,
                          plugins=plugins)
         global experiments
         experiments[name] = self
-
-
-    def enable_plugin(self, plugin_name):
-        for plugin in self.plugins:
-            if plugin.name == plugin_name:
-                plugin.selected = True
-                return
-        valid_plugins = ', '.join(p.name for p in self.plugins)
-        raise ValueError(f'Plugin {plugin_name} does not exist. ' \
-                         f'Valid options are {valid_plugins}')
-
-    def copy(self, **kwargs):
-        other = copy.copy(self)
-        for k, v in kwargs.items():
-            setattr(other, k, v)
-        return other
 
 
 def get_experiments(type):
