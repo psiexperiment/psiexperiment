@@ -6,6 +6,7 @@ from psi.application.experiment_description import experiments
 
 
 def main():
+
     class ControllerAction(argparse.Action):
         def __call__(self, parser, namespace, value, option_string=None):
             setattr(namespace, 'experiment', value)

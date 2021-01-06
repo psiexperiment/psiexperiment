@@ -47,6 +47,11 @@ class ParadigmDescription(Atom):
         global experiments
         experiments[name] = self
 
+    def enable_plugin(self, plugin_name):
+        for p in self.plugins:
+            if p.name == plugin_name:
+                p.selected = True
+
 
 def get_experiments(type):
     return [e for e in experiments.values() if e.type == type]
