@@ -12,7 +12,7 @@ import pandas as pd
 from scipy import signal
 
 from psi.controller.calibration.tone import tone_spl
-from psi.context.api import ContextGroup, Parameter
+from psi.context.api import BoolParameter, ContextGroup, Parameter
 from psi.controller.api import (ExperimentAction, FIFOSignalQueue,
                                 generate_waveform, InterleavedFIFOSignalQueue,
                                 SelectorQueuedEpochOutput, QueuedEpochOutput)
@@ -470,6 +470,17 @@ enamldef ToneMixin(ExperimentManifest): manifest:
                 pass
 
     Extension:
+        id = manifest.id + '.items'
+        point = 'psi.context.items'
+
+        BoolParameter:
+            name = 'level_as_attenuation'
+            label = 'Specify stimulus level as attenuation (dB)?'
+            default = False
+            scope = 'experiment'
+            group_name = 'calibration'
+
+    Extension:
         id = manifest.id + '.io'
         point = 'psi.controller.io'
 
@@ -482,9 +493,11 @@ enamldef ToneMixin(ExperimentManifest): manifest:
             token = tone_pip
             target_name << C.output_channel
             target ::
-                channel.calibration = FlatCalibration.as_attenuation()
-                queue = InterleavedFIFOSignalQueue()
+                if C.level_as_attenuation:
+                    log.debug('Setting output to use attenuation values')
+                    channel.calibration = FlatCalibration.as_attenuation()
 
+                queue = InterleavedFIFOSignalQueue()
                 controller = workbench.get_plugin('psi.controller')
                 epoch = controller.get_input('epoch')
                 epoch.poststim_time = 10e-3

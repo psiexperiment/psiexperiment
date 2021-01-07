@@ -202,6 +202,10 @@ class Calibration(Atom):
         vdb = sensitivity+spl+util.db(20e-6)+attenuation
         return 10**(vdb/20.0)
 
+    def get_mean_sf(self, flb, fub, spl, attenuation=0):
+        frequencies = np.arange(flb, fub)
+        return self.get_sf(frequencies, spl).mean(axis=0)
+
     def get_attenuation(self, frequency, voltage, level):
         return self.get_spl(frequency, voltage)-level
 
