@@ -230,6 +230,8 @@ class Cos2EnvelopeFactory(GateFactory):
                                 self.rise_time, self.duration)
         waveform = envelope*token
         self.offset += samples
+        log.debug('Cos2Envelope: Waveform RMS is %f with %d samples',
+                  rms(waveform), len(waveform))
         return waveform
 
 
@@ -302,6 +304,8 @@ class SAMEnvelopeFactory(Modulator):
         token = self.input_factory.next(samples)
         waveform = env*token
         self.offset += len(waveform)
+        log.debug('SAM: Waveform RMS is %f with %d samples', rms(waveform),
+                  len(waveform))
         return waveform
 
 
@@ -371,9 +375,8 @@ class BandlimitedNoiseFactory(Carrier):
         vars(self).update(locals())
 
         # Calculate the scaling factor for the noise
-        center_frequency = (fl+fh)*0.5
         pass_bandwidth = fh-fl
-        self.sf = calibration.get_sf(center_frequency, level)
+        self.sf = calibration.get_mean_sf(fl, fh, level)
 
         # This was copied from the EPL CFT. Need to figure out how this
         # equation works so we can document this better. But it works as
