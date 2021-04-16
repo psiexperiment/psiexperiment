@@ -35,6 +35,7 @@ def configure_logging(level, filename=None, debug_exclude=None):
     log.addHandler(stream_handler)
     if filename is not None:
         file_handler = logging.FileHandler(filename, 'w', 'UTF-8')
+        file_handler.setFormatter(formatter)
         log.addHandler(file_handler)
 
     if debug_exclude is not None:
@@ -62,8 +63,7 @@ def _main(args):
         dt_string = dt.datetime.now().strftime('%Y-%m-%d %H%M')
         filename = '{} {}'.format(dt_string, args.experiment)
         log_root = get_config('LOG_ROOT')
-        configure_logging(args.debug_level, os.path.join(log_root, filename),
-                          args.debug_exclude)
+        configure_logging(args.debug_level, os.path.join(log_root, filename), args.debug_exclude)
 
         log.debug('Logging configured')
         log.info('Logging information captured in {}'.format(filename))
@@ -230,7 +230,7 @@ def add_default_options(parser):
                         help='Debug mode?')
     parser.add_argument('--debug-warning', default=False, action='store_true',
                         help='Show warnings?')
-    parser.add_argument('--debug-level', type=str, default='DEBUG',
+    parser.add_argument('--debug-level', type=str, default='TRACE',
                         help='Logging level')
     parser.add_argument('--debug-exclude', type=str, nargs='*',
                         help='Names to exclude from debugging')
