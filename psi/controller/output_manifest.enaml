@@ -377,11 +377,10 @@ def clear_output(event, output):
             return
 
         log.debug('Deactivating output {}'.format(output.name))
-        output.deactivate()
-        # Now, update the channel once the output has been deactivated. This
-        # will overwrite any data that contains a fragment of the output
-        # waveform.
+        # Deactivate the output and update the channel. This will overwrite any
+        # buffered data that contains a fragment of the output waveform.
         offset = round((end+delay)*output.fs)
+        output.deactivate(offset)
         output.engine.update_hw_ao(output.channel.name, offset)
 
     controller = event.workbench.get_plugin('psi.controller')
