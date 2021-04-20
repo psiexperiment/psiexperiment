@@ -4,8 +4,8 @@ log = logging.getLogger(__name__)
 import enum
 from functools import partial
 
-from atom.api import Int, Typed, Unicode
-from enaml.application import deferred_call
+from atom.api import Bool, Int, Typed, Unicode
+from enaml.application import deferred_call, timed_call
 from enaml.layout.api import InsertItem
 from enaml.widgets.api import Action, DockItem, Container, Label, ToolBar
 from enaml.workbench.api import Extension, ExtensionPoint
@@ -116,10 +116,8 @@ def configure_state(event):
 
 def update_trial_log(event):
     core = event.workbench.get_plugin('enaml.workbench.core')
-    core.invoke_command('trial_log.save', 
-                        {'data': event.parameters['result']})
-    core.invoke_command('sdt_analysis.update', 
-                        {'data': event.parameters['result']})
+    core.invoke_command('trial_log.save', {'data': event.parameters['result']})
+    core.invoke_command('sdt_analysis.update', {'data': event.parameters['result']})
 
 
 def get_status(trial, trial_type, experiment_state):
@@ -177,6 +175,10 @@ class BehaviorPlugin(ControllerPlugin):
     trial_type = Unicode()
     trial_info = Typed(dict, ())
     trial_state = Typed(TrialState)
+
+    # True if we're running in random behavior mode for debugging purposes,
+    # False otherwise.
+    random_behavior_mode = Bool(False)
 
     event_map = {
         ('rising', 'nose_poke'): Event.np_start,
@@ -528,6 +530,26 @@ class BehaviorPlugin(ControllerPlugin):
     def stop_event_timer(self):
         deferred_call(self.stop_timer, 'event')
 
+    def start_random_behavior(self):
+        log.info('Starting random behavior mode')
+        self.random_behavior_mode = True
+        timed_call(500, self.random_behavior_cb, Event.digital_np_start)
+
+    def stop_random_behavior(self):
+        self.random_behavior_mode = False
+
+    def random_behavior_cb(self, event):
+        if self.random_behavior_mode:
+            log.info('Handling event %r', event)
+            self.handle_event(event)
+            ms = np.random.uniform(100, 3000)
+            if event == Event.digital_np_start:
+                next_event = Event.digital_np_end
+            else:
+                next_event = Event.digital_np_start
+            log.info('Starting next event for %d ms from now', ms)
+            timed_call(ms, self.random_behavior_cb, next_event)
+
 
 ################################################################################
 # Manifest
@@ -572,6 +594,17 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
                     plugin.handle_event(Event.digital_reward_end)
                 enabled << workbench.get_plugin(manifest.id).experiment_state \
                     not in ('initialized', 'stopped')
+
+            Action:
+                text = 'Random poke generator'
+                checkable = True
+                triggered ::
+                    plugin = workbench.get_plugin(manifest.id)
+                    if checked:
+                        plugin.start_random_behavior()
+                    else:
+                        plugin.stop_random_behavior()
+
 
     # Parameters used by the appetitive Go-Nogo controller.
     Extension:
