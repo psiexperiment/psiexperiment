@@ -229,7 +229,7 @@ def add_default_options(parser):
                         help='Debug mode?')
     parser.add_argument('--debug-warning', default=False, action='store_true',
                         help='Show warnings?')
-    parser.add_argument('--debug-level', type=str, default='TRACE',
+    parser.add_argument('--debug-level', type=str, default='INFO',
                         help='Logging level')
     parser.add_argument('--debug-exclude', type=str, nargs='*',
                         help='Names to exclude from debugging')
