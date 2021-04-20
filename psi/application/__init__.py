@@ -1,7 +1,6 @@
 import logging.config
 log = logging.getLogger(__name__)
 
-
 import datetime as dt
 from glob import glob
 import importlib
