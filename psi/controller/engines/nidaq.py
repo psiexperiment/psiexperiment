@@ -664,6 +664,18 @@ def setup_sw_do(channels, task_name='sw_do'):
     return task
 
 
+def halt_on_error(f):
+    def wrapper(self, *args, **kwargs):
+        try:
+            f(self, *args, **kwargs)
+        except Exception as e:
+            log.exception(e)
+            self.stop()
+            for cb in self._callbacks.get('done', []):
+                cb()
+    return wrapper
+
+
 ################################################################################
 # Engine
 ################################################################################
@@ -866,7 +878,10 @@ class NIDAQEngine(Engine):
         # fit evenly into a block of samples. The other two arguments
         # (event_type and cb_data) are required of the function signature by
         # NIDAQmx but are unused.
-        task._cb(task, None, 1, None)
+        try:
+            task._cb(task, None, 1, None)
+        except Exception as e:
+            log.exception(e)
 
         # Only check to see if hardware-timed tasks are complete.
         # Software-timed tasks must be explicitly canceled by the user.
@@ -1094,14 +1109,11 @@ class NIDAQEngine(Engine):
             if i == line_index:
                 cb(change, event_time)
 
+    @halt_on_error
     def _hw_ai_callback(self, samples):
         samples /= self._tasks['hw_ai']._sf
         for channel_name, s, cb in self._callbacks.get('ai', []):
-            try:
-                cb(samples[s])
-            except Exception as e:
-                log.exception(e)
-                self.unregister_ai_callback(cb, channel_name)
+            cb(samples[s])
 
     def _hw_di_callback(self, samples):
         for i, cb in self._callbacks.get('di', []):
@@ -1184,6 +1196,7 @@ class NIDAQEngine(Engine):
         log_ao.trace('Current write position %d', self._uint64.value)
         return self._uint64.value
 
+    @halt_on_error
     def write_hw_ao(self, data, offset, timeout=1):
         # TODO: add a safety-check to make sure waveform doesn't exceed limits.
         # This is a recoverable error unless the DAQmx API catches it instead.
