@@ -867,6 +867,8 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
 enamldef PelletDispenserMixinManifest(ExperimentManifest): manifest:
 
     id = 'pellet_dispenser'
+    required = True
+    name = 'Pellet dispenser'
 
     Extension:
         id = manifest.id + '.io'

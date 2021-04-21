@@ -203,6 +203,6 @@ ParadigmDescription(
 ParadigmDescription(
     'appetitive_gonogo_food', 'Appetitive GO-NOGO food', 'animal', [
         (PATH + 'appetitive.ControllerManifest',),
-        (PATH + 'behavior_base.PelletDispenserMixinManifest', True),
+        (PATH + 'behavior_base.PelletDispenserMixinManifest',),
     ],
 )
