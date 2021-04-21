@@ -1145,7 +1145,6 @@ class NIDAQEngine(Engine):
         # Compensate for offset if specified.
         if offset is not None:
             write_position = self.ao_write_position()
-            log_ao.info('%r %r', offset, write_position)
             relative_offset = offset-write_position
             log_ao.trace('Compensating write space for requested offset %d', offset)
             available -= relative_offset
