@@ -122,10 +122,8 @@ class BufferedOutput(Output):
         buffered_lb = self._buffer.get_samples_lb()
         buffered_ub = self._buffer.get_samples_ub()
 
-        log.trace('Getting %d samples from %d to %d for %s', samples, lb, ub,
-                  self.name)
-        log.trace('Buffer has cached %d to %d for %s', buffered_lb,
-                  buffered_ub, self.name)
+        log.trace('Getting %d samples from %d to %d for %s', samples, lb, ub, self.name)
+        log.trace('Buffer has cached %d to %d for %s', buffered_lb, buffered_ub, self.name)
 
         if lb > buffered_ub:
             # This breaks an implicit software contract.
