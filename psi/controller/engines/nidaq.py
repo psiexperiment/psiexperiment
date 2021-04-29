@@ -382,10 +382,8 @@ def setup_hw_ao(channels, buffer_duration, callback_interval, callback,
     merged_lines = ','.join(lines)
 
     for line, name, (vmin, vmax) in zip(lines, names, expected_ranges):
-        log.debug(f'Configuring line %s (%s) with voltage range %f-%f', line,
-                  name, vmin, vmax)
-        mx.DAQmxCreateAOVoltageChan(task, line, name, vmin, vmax,
-                                    mx.DAQmx_Val_Volts, '')
+        log.debug(f'Configuring line %s (%s) with voltage range %f-%f', line, name, vmin, vmax)
+        mx.DAQmxCreateAOVoltageChan(task, line, name, vmin, vmax, mx.DAQmx_Val_Volts, '')
 
     setup_timing(task, channels)
     properties = get_timing_config(task)
@@ -408,6 +406,7 @@ def setup_hw_ao(channels, buffer_duration, callback_interval, callback,
     # If the write reaches the end of the buffer and no new data has been
     # provided, do not loop around to the beginning and start over.
     mx.DAQmxSetWriteRegenMode(task, mx.DAQmx_Val_DoNotAllowRegen)
+    mx.DAQmxSetWriteRelativeTo(task, mx.DAQmx_Val_CurrWritePos)
 
     callback_samples = round(fs*callback_interval)
 
@@ -1127,7 +1126,7 @@ class NIDAQEngine(Engine):
             channel.get_samples(offset, samples, out=ch_data)
         return data
 
-    def get_space_available(self, name):
+    def get_space_available(self, name=None):
         # It doesn't matter what the output channel is. Space will be the same
         # for all.
         result = ctypes.c_uint32()
@@ -1136,14 +1135,22 @@ class NIDAQEngine(Engine):
 
     def hw_ao_callback(self, samples):
         # Get the next set of samples to upload to the buffer
-        with self.lock:
-            log_ao.trace('#> HW AO callback. Acquired lock for engine %s', self.name)
-            available_samples = self.get_space_available()
-            if available_samples < samples:
-                log_ao.trace('Not enough samples available for writing')
-            else:
-                data = self._get_hw_ao_samples(offset, samples)
-                self.write_hw_ao(data, offset, timeout=0)
+        try:
+            with self.lock:
+                log_ao.trace('#> HW AO callback. Acquired lock for engine %s', self.name)
+                available_samples = self.get_space_available()
+                if available_samples < samples:
+                    log_ao.trace('Not enough samples available for writing')
+                else:
+                    data = self._get_hw_ao_samples(self.total_samples_written, samples)
+                    self.write_hw_ao(data, self.total_samples_written, timeout=0)
+        except Exception as e:
+            offset = ctypes.c_int32()
+            curr_write = ctypes.c_uint64()
+            mx.DAQmxGetWriteOffset(self._tasks['hw_ao'], offset)
+            mx.DAQmxGetWriteCurrWritePos(self._tasks['hw_ao'], curr_write)
+            log.info('HW AO callback failed. Write offset %d, write position %d, total samples written %d', offset.value, curr_write.value, self.total_samples_written)
+            raise
 
         log_ao.trace('<# HW AO callback. Released lock for engine %s', self.name)
 
@@ -1177,12 +1184,13 @@ class NIDAQEngine(Engine):
         try:
             result = ctypes.c_int32()
             task = self._tasks['hw_ao']
+            relative_offset = offset - self.total_samples_written
             mx.DAQmxSetWriteOffset(task, relative_offset)
             mx.DAQmxWriteAnalogF64(task, data.shape[-1], False, timeout, mx.DAQmx_Val_GroupByChannel, data.astype(np.float64), result, None)
             mx.DAQmxSetWriteOffset(task, 0)
 
             # Calculate total samples written
-            self.total_samples_written = self.total_samples_written - offset + data.shape[-1]
+            self.total_samples_written = self.total_samples_written + relative_offset + data.shape[-1]
 
         except Exception as e:
             # If we log on every call, the logfile will get quite verbose.
