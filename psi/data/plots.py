@@ -961,8 +961,11 @@ class StackedEpochAveragePlot(EpochGroupMixin, BasePlot):
         n = len(self.plots)
         for i, (_, plot) in enumerate(sorted(self.plots.items())):
             offset = (i+1) * height / (n+1)
-            point = vb.mapToView(pg.Point(0, offset))
-            plot.setPos(0, point.y())
+            try:
+                point = vb.mapToView(pg.Point(0, offset))
+                plot.setPos(0, point.y())
+            except np.linalg.LinAlgError:
+                pass
 
     def _cache_x(self, event=None):
         # Set up the new time axis
