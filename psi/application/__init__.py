@@ -12,6 +12,7 @@ import traceback
 import warnings
 
 import enaml
+from enaml.application import deferred_call
 from enaml.qt.qt_application import QtApplication
 with enaml.imports():
     from enaml.stdlib.message_box import critical
@@ -38,7 +39,6 @@ class ExceptionHandler:
 
     def __call__(self, *args):
         log.exception("Uncaught exception", exc_info=args)
-        print(args)
         if self.workbench is not None:
             controller = self.workbench.get_plugin('psi.controller')
             controller.stop_experiment()
@@ -49,7 +49,7 @@ class ExceptionHandler:
                 log_mesg = 'Unfortunately, no log file was saved.'
 
             mesg = mesg_template.format(args[1], log_mesg)
-            critical(ui.window, 'Oops :(', mesg)
+            deferred_call(critical, ui.window, 'Oops :(', mesg)
 
         sys.__excepthook__(*args)
 
