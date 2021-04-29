@@ -230,8 +230,6 @@ class Cos2EnvelopeFactory(GateFactory):
                                 self.rise_time, self.duration)
         waveform = envelope*token
         self.offset += samples
-        log.debug('Cos2Envelope: Waveform RMS is %f with %d samples',
-                  rms(waveform), len(waveform))
         return waveform
 
 
@@ -304,8 +302,6 @@ class SAMEnvelopeFactory(Modulator):
         token = self.input_factory.next(samples)
         waveform = env*token
         self.offset += len(waveform)
-        log.debug('SAM: Waveform RMS is %f with %d samples', rms(waveform),
-                  len(waveform))
         return waveform
 
 

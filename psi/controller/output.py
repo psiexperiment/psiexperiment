@@ -116,15 +116,10 @@ class BufferedOutput(Output):
         return SignalBuffer(self.fs, self.buffer_size, 0, self.dtype)
 
     def get_samples(self, offset, samples, out):
-        log.debug('Getting %r samples at offset %r', samples, offset)
         lb = offset
         ub = offset + samples
         buffered_lb = self._buffer.get_samples_lb()
         buffered_ub = self._buffer.get_samples_ub()
-
-        log.trace('Getting %d samples from %d to %d for %s', samples, lb, ub, self.name)
-        log.trace('Buffer has cached %d to %d for %s', buffered_lb, buffered_ub, self.name)
-
         if lb > buffered_ub:
             # This breaks an implicit software contract.
             m = 'Mismatch between offsets. ' \
@@ -134,12 +129,10 @@ class BufferedOutput(Output):
             log.trace('Generating new data')
             pass
         elif lb >= buffered_lb and ub <= buffered_ub:
-            log.trace('Extracting from buffer')
             out[:] = self._buffer.get_range_samples(lb, ub)
             samples = 0
             offset = ub
         elif lb >= buffered_lb and ub > buffered_ub:
-            log.trace('Extracting from buffer and generating new data')
             b = self._buffer.get_range_samples(lb)
             s = b.shape[-1]
             out[:s] = b
@@ -168,13 +161,13 @@ class BufferedOutput(Output):
         raise NotImplementedError
 
     def activate(self, offset):
-        log.debug('Activating %s at %d', self.name, offset)
+        log.trace('Activating %s at %d', self.name, offset)
         self.active = True
         self._offset = offset
         self._buffer.invalidate_samples(offset)
 
     def deactivate(self, offset):
-        log.debug('Deactivating %s at %d', self.name, offset)
+        log.trace('Deactivating %s at %d', self.name, offset)
         self.active = False
         self.source = None
         self._buffer.invalidate_samples(offset)
@@ -189,7 +182,6 @@ class BufferedOutput(Output):
 class EpochOutput(BufferedOutput):
 
     def get_next_samples(self, samples):
-        log.trace('Getting %d samples for %s', samples, self.name)
         if self.active:
             buffered_ub = self._buffer.get_samples_ub()
 
@@ -221,15 +213,11 @@ class QueuedEpochOutput(BufferedOutput):
     paused = Bool(False)
 
     def rebuffer(self, time, delay=0):
-        log.debug('Flushing queue at %.2f', time)
         self.queue.cancel(time, delay)
         self.queue.rewind_samples(time)
         offset = round(time * self.fs)
-        log.debug('Updating output buffers at offset %d', offset)
         self._buffer.invalidate_samples(offset)
-        log.debug('Invalidated buffer cache')
         self.engine.update_hw_ao(self.channel.name, offset)
-        log.debug('Updated data in hardware buffers')
 
     def pause(self, time):
         self.queue.pause(time)
