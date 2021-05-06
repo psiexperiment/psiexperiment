@@ -97,29 +97,6 @@ ParadigmDescription(
 
 
 ParadigmDescription(
-    'dpoae_ttl', 'DPOAE (TTL output)', 'ear', [
-        (PATH + 'dpoae_time.ControllerManifest',),
-        (PATH + 'cfts_mixins.TemperatureMixinManifest', True),
-        (PATH + 'cfts_mixins.DPOAEInEarCalibrationMixinManifest', True),
-        (PATH + 'cfts_mixins.MicrophoneSignalViewMixinManifest', True),
-        (PATH + 'cfts_mixins.MicrophoneFFTViewMixinManifest', True),
-    ]
-)
-
-
-ParadigmDescription(
-    'dpoae_contra', 'DPOAE (contra noise)', 'ear', [
-        (PATH + 'dpoae_time.ControllerManifest',),
-        (PATH + 'cfts_mixins.TemperatureMixinManifest', True),
-        (PATH + 'cfts_mixins.MicrophoneElicitorFFTViewMixinManifest', True),
-        (PATH + 'cfts_mixins.DPOAETimeNoiseMixinManifest', True),
-        (PATH + 'cfts_mixins.DPOAEInEarCalibrationMixinManifest', True),
-        (PATH + 'cfts_mixins.DPOAEInEarNoiseCalibrationMixinManifest', True),
-    ],
-)
-
-
-ParadigmDescription(
     'efr', 'EFR (SAM)', 'ear', [
         (PATH + 'efr.EFRManifest',),
         (PATH + 'cfts_mixins.MicrophoneSignalViewMixinManifest', True),
