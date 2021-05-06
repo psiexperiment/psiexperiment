@@ -362,8 +362,6 @@ class BehaviorPlugin(ControllerPlugin):
         try:
             if timestamp is None:
                 timestamp = self.get_ts()
-            log.debug('{} at {}'.format(event, timestamp))
-            log.trace('Queuing handle_event')
             # TODO: let's keep this in the original thread? Should we just use
             # a lock rather than a deferred call?
             deferred_call(self._handle_event, event, timestamp)
@@ -581,8 +579,10 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
                 toggled ::
                     plugin = workbench.get_plugin(manifest.id)
                     if checked:
+                        log.info('( ) virtual nose-poke started')
                         plugin.handle_event(Event.digital_np_start)
                     else:
+                        log.info('( ) virtual nose-poke ended')
                         plugin.handle_event(Event.digital_np_end)
                 enabled <<  workbench.get_plugin(manifest.id).experiment_state \
                     not in ('initialized', 'stopped')
