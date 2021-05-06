@@ -916,6 +916,7 @@ class NIDAQEngine(Engine):
         self.ao_fs = task._fs
         for channel in channels:
             channel.fs = task._fs
+        self.total_samples_written = 0
 
     def configure_hw_ai(self, channels):
         task_name = '{}_hw_ai'.format(self.name)
@@ -1149,19 +1150,17 @@ class NIDAQEngine(Engine):
             curr_write = ctypes.c_uint64()
             mx.DAQmxGetWriteOffset(self._tasks['hw_ao'], offset)
             mx.DAQmxGetWriteCurrWritePos(self._tasks['hw_ao'], curr_write)
-            log.info('HW AO callback failed. Write offset %d, write position %d, total samples written %d', offset.value, curr_write.value, self.total_samples_written)
             raise
-
-        log_ao.trace('<# HW AO callback. Released lock for engine %s', self.name)
 
     def update_hw_ao(self, name, offset):
         # Get the next set of samples to upload to the buffer. Ignore the
         # channel name because we need to update all channels simultaneously.
-        samples = self.get_space_available() - (offset - self.total_samples_written)
+        available = self.get_space_available()
+        samples = available - (offset - self.total_samples_written)
         if samples <= 0:
             return
 
-        log_ao.trace('Updating hw ao at %d with %d samples', offset, samples)
+        log_ao.info('Updating hw ao at %d with %d samples', offset, samples)
         data = self._get_hw_ao_samples(offset, samples)
         self.write_hw_ao(data, offset=offset, timeout=0)
 
@@ -1204,8 +1203,6 @@ class NIDAQEngine(Engine):
         return self.sample_time()
 
     def start(self):
-        self.total_samples_written = 0
-
         if not self._configured:
             log.debug('Tasks were not configured yet')
             self.configure()
