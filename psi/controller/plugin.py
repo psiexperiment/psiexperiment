@@ -446,7 +446,7 @@ class ControllerPlugin(Plugin):
 
     def event_used(self, event_name):
         '''
-        Returns true if the experiment event is bound to an experiment action.
+        Returns True if the experiment event is bound to an experiment action.
 
         This is typically used internally as a performance-optimization so we
         don't configure callbacks for events that are unused. For example, we

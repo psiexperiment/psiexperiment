@@ -35,20 +35,10 @@ class LogLock(object):
         self.lock = threading.Lock()
 
     def acquire(self, blocking=True):
-        log.debug("~~~~ {0:x} Trying to acquire {1} lock".format(
-            id(self), self.name))
-        ret = self.lock.acquire(blocking)
-        if ret == True:
-            log.debug("~~~~ {0:x} Acquired {1} lock".format(
-                id(self), self.name))
-        else:
-            log.debug("~~~~ {0:x} Non-blocking aquire of {1} lock failed".format(
-                id(self), self.name))
-        return ret
+        return self.lock.acquire(blocking)
 
     def release(self):
-        log.debug("~~~~ {0:x} Releasing {1} lock".format(id(self), self.name))
-        self.lock.release()
+        return self.lock.release()
 
     def __enter__(self):
         self.acquire()
@@ -241,10 +231,7 @@ class Engine(PSIContribution):
     def get_buffer_size(self, channel_name):
         raise NotImplementedError
 
-    def get_offset(self, channel_name):
-        raise NotImplementedError
-
-    def update_hw_ao_multiple(self, offsets, channel_names, method):
+    def update_hw_ao_multiple(self, offsets, channel_names):
         raise NotImplementedError
 
     def update_hw_ao(self, offsets, channel_name, method):

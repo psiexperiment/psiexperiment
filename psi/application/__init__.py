@@ -1,7 +1,6 @@
 import logging.config
 log = logging.getLogger(__name__)
 
-
 import datetime as dt
 from glob import glob
 import importlib
@@ -13,16 +12,49 @@ import traceback
 import warnings
 
 import enaml
+from enaml.application import deferred_call
 from enaml.qt.qt_application import QtApplication
 with enaml.imports():
     from enaml.stdlib.message_box import critical
 
 from psi import get_config, set_config
 
+mesg_template = '''
+A critical exception has occurred. While we do our best to prevent these
+issues, they sometimes happen. We are now attempting to shut down the program
+gracefully so acquired data can be saved. Please notify the developers.
 
-def _exception_notifier(*args):
-    log.exception("Uncaught exception", exc_info=args)
-    sys.__excepthook__(*args)
+The error message is:
+{}
+
+{}
+'''
+
+
+class ExceptionHandler:
+
+    def __init__(self):
+        self.workspace = None
+        self.logfile = None
+
+    def __call__(self, *args):
+        log.exception("Uncaught exception", exc_info=args)
+        if self.workbench is not None:
+            controller = self.workbench.get_plugin('psi.controller')
+            controller.stop_experiment()
+            ui = self.workbench.get_plugin('enaml.workbench.ui')
+            if self.logfile is not None:
+                log_mesg = f'The log file has been saved to {self.logfile}'
+            else:
+                log_mesg = 'Unfortunately, no log file was saved.'
+
+            mesg = mesg_template.format(args[1], log_mesg)
+            deferred_call(critical, ui.window, 'Oops :(', mesg)
+
+        sys.__excepthook__(*args)
+
+
+exception_handler = ExceptionHandler()
 
 
 def configure_logging(level, filename=None, debug_exclude=None):
@@ -35,7 +67,9 @@ def configure_logging(level, filename=None, debug_exclude=None):
     log.addHandler(stream_handler)
     if filename is not None:
         file_handler = logging.FileHandler(filename, 'w', 'UTF-8')
+        file_handler.setFormatter(formatter)
         log.addHandler(file_handler)
+        exception_handler.logfile = filename
 
     if debug_exclude is not None:
         for name in debug_exclude:
@@ -43,7 +77,7 @@ def configure_logging(level, filename=None, debug_exclude=None):
 
     tdt_logger = logging.getLogger('tdt')
     tdt_logger.setLevel('INFO')
-    sys.excepthook = _exception_notifier
+    sys.excepthook = exception_handler
 
 
 def warn_with_traceback(message, category, filename, lineno, file=None,
@@ -62,8 +96,7 @@ def _main(args):
         dt_string = dt.datetime.now().strftime('%Y-%m-%d %H%M')
         filename = '{} {}'.format(dt_string, args.experiment)
         log_root = get_config('LOG_ROOT')
-        configure_logging(args.debug_level, os.path.join(log_root, filename),
-                          args.debug_exclude)
+        configure_logging(args.debug_level, os.path.join(log_root, filename), args.debug_exclude)
 
         log.debug('Logging configured')
         log.info('Logging information captured in {}'.format(filename))
@@ -81,6 +114,7 @@ def _main(args):
     if args.pathname is None:
         log.warn('All data will be destroyed at end of experiment')
 
+    exception_handler.workbench = workbench
     workbench.start_workspace(args.experiment,
                               args.pathname,
                               commands=args.commands,
@@ -230,7 +264,7 @@ def add_default_options(parser):
                         help='Debug mode?')
     parser.add_argument('--debug-warning', default=False, action='store_true',
                         help='Show warnings?')
-    parser.add_argument('--debug-level', type=str, default='DEBUG',
+    parser.add_argument('--debug-level', type=str, default='INFO',
                         help='Logging level')
     parser.add_argument('--debug-exclude', type=str, nargs='*',
                         help='Names to exclude from debugging')

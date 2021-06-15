@@ -7,7 +7,7 @@ from enaml.workbench.api import Extension
 
 
 from psi.controller.api import (CalibratedInput, ContinuousOutput, EpochOutput,
-                                ExperimentAction, IIRFilter)
+                                ExperimentAction, IIRFilter, Input)
 from psi.data.plots import (EventPlot, FFTContainer, FFTChannelPlot, TimeContainer,
                             ChannelPlot, ViewBox, TimeseriesPlot)
 from psi.token.primitives import (BandlimitedNoise, Cos2Envelope, SAMEnvelope,
@@ -108,8 +108,13 @@ enamldef ControllerManifest(BehaviorManifest): manifest:
         id = 'io'
         point = 'psi.controller.io'
 
+        Input:
+            source_name = 'microphone'
+            name = 'microphone_raw'
+
         CalibratedInput:
             source_name = 'microphone'
+            name = 'microphone_calibrated'
 
             IIRFilter:
                 f_lowpass = 40e3

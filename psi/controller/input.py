@@ -183,6 +183,7 @@ class CustomInput(Input):
 @coroutine
 def calibrate(calibration, target):
     sens = dbi(calibration.get_sens(1000))
+    log.debug('Setting sensitivity for CalibratedInput to %f', sens)
     while True:
         data = (yield)
         target(data / sens)
@@ -195,6 +196,7 @@ class CalibratedInput(ContinuousInput):
 
     def configure_callback(self):
         cb = super().configure_callback()
+        log.debug('Configuring CalibratedInput %s', self.name)
         return calibrate(self.source.calibration, cb).send
 
 

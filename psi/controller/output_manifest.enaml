@@ -306,7 +306,6 @@ def start_output(event, output):
     ts = event.parameters['timestamp']
     start = event.parameters.get('start', ts)
     delay = event.parameters.get('delay', 0)
-
     if isinstance(delay, str):
         context = event.workbench.get_plugin('psi.context')
         delay = context.get_value(delay)
@@ -317,8 +316,6 @@ def start_output(event, output):
         start = 0
 
     offset = round((start+delay)*output.channel.fs)
-    notify_end = False
-
     try:
         output.engine.lock.acquire()
         buffered_ub = output._buffer.get_samples_ub()
@@ -328,7 +325,7 @@ def start_output(event, output):
         if output.active:
             output.deactivate(offset)
             log.debug('Output %s was active. Deactivating first.', output.name)
-            notify_end = True
+            deferred_call(controller.invoke_actions, f'{output.name}_end', start+delay+duration)
 
         if not output.is_ready():
             log.debug('Output %s is not ready', output.name)
@@ -363,10 +360,6 @@ def start_output(event, output):
             controller.invoke_actions('{}_end'.format(output.name),
                                       start+delay+duration, delayed=True)
 
-    if notify_end:
-        controller.invoke_actions('{}_end'.format(output.name),
-                                  start+delay+duration)
-
 def clear_output(event, output):
     end = event.parameters['timestamp']
     delay = event.parameters.get('delay', 0)
@@ -377,11 +370,10 @@ def clear_output(event, output):
             return
 
         log.debug('Deactivating output {}'.format(output.name))
-        output.deactivate()
-        # Now, update the channel once the output has been deactivated. This
-        # will overwrite any data that contains a fragment of the output
-        # waveform.
+        # Deactivate the output and update the channel. This will overwrite any
+        # buffered data that contains a fragment of the output waveform.
         offset = round((end+delay)*output.fs)
+        output.deactivate(offset)
         output.engine.update_hw_ao(output.channel.name, offset)
 
     controller = event.workbench.get_plugin('psi.controller')

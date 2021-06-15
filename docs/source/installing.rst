@@ -89,3 +89,11 @@ Now, go to where you defined `IO_ROOT` and create a file that ends with the exte
 Inside this file, you will describe the configuration of your system using Enaml_ syntax. 
 
 .. _Enaml: http://enaml.readthedocs.io/en/latest/
+
+Suggestions for development
+---------------------------
+
+I often like to have separate psiexperiment configurations for production and development environments. Use Anaconda to create your development environment as above, then create a custom psiexperiment config directory using:
+
+    conda env config vars set -n <env> PSI_CONFIG=<path to config dir>
+    psi-config --base-directory <path to data dir>

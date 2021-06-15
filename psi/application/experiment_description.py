@@ -25,16 +25,12 @@ class PluginDescription(Atom):
     def __init__(self, manifest, selected=False, **kwargs):
         kwargs['manifest'] = manifest
         manifest = load_manifest(manifest)()
-        for attr in ('name', 'title', 'required'):
-            if attr not in kwargs:
-                kwargs[attr] = getattr(manifest, attr)
-        super().__init__(**kwargs)
 
-    def copy(self, **kwargs):
-        other = copy.copy(self)
-        for k, v in kwargs.items():
-            setattr(other, k, v)
-        return other
+        # Default values are loaded directly from the PluginManifest (but can
+        # be overridden by kwargs).
+        for attr in ('name', 'title', 'required'):
+            kwargs.setdefault(attr, getattr(manifest, attr))
+        super().__init__(**kwargs)
 
 
 class ParadigmDescription(Atom):
@@ -51,21 +47,10 @@ class ParadigmDescription(Atom):
         global experiments
         experiments[name] = self
 
-
     def enable_plugin(self, plugin_name):
-        for plugin in self.plugins:
-            if plugin.name == plugin_name:
-                plugin.selected = True
-                return
-        valid_plugins = ', '.join(p.name for p in self.plugins)
-        raise ValueError(f'Plugin {plugin_name} does not exist. ' \
-                         f'Valid options are {valid_plugins}')
-
-    def copy(self, **kwargs):
-        other = copy.copy(self)
-        for k, v in kwargs.items():
-            setattr(other, k, v)
-        return other
+        for p in self.plugins:
+            if p.name == plugin_name:
+                p.selected = True
 
 
 def get_experiments(type):
@@ -108,29 +93,6 @@ ParadigmDescription(
         (PATH + 'cfts_mixins.MicrophoneSignalViewMixinManifest', True),
         (PATH + 'cfts_mixins.MicrophoneFFTViewMixinManifest', True),
     ]
-)
-
-
-ParadigmDescription(
-    'dpoae_ttl', 'DPOAE (TTL output)', 'ear', [
-        (PATH + 'dpoae_time.ControllerManifest',),
-        (PATH + 'cfts_mixins.TemperatureMixinManifest', True),
-        (PATH + 'cfts_mixins.DPOAEInEarCalibrationMixinManifest', True),
-        (PATH + 'cfts_mixins.MicrophoneSignalViewMixinManifest', True),
-        (PATH + 'cfts_mixins.MicrophoneFFTViewMixinManifest', True),
-    ]
-)
-
-
-ParadigmDescription(
-    'dpoae_contra', 'DPOAE (contra noise)', 'ear', [
-        (PATH + 'dpoae_time.ControllerManifest',),
-        (PATH + 'cfts_mixins.TemperatureMixinManifest', True),
-        (PATH + 'cfts_mixins.MicrophoneElicitorFFTViewMixinManifest', True),
-        (PATH + 'cfts_mixins.DPOAETimeNoiseMixinManifest', True),
-        (PATH + 'cfts_mixins.DPOAEInEarCalibrationMixinManifest', True),
-        (PATH + 'cfts_mixins.DPOAEInEarNoiseCalibrationMixinManifest', True),
-    ],
 )
 
 
@@ -218,6 +180,6 @@ ParadigmDescription(
 ParadigmDescription(
     'appetitive_gonogo_food', 'Appetitive GO-NOGO food', 'animal', [
         (PATH + 'appetitive.ControllerManifest',),
-        (PATH + 'behavior_base.PelletDispenserMixinManifest', True),
+        (PATH + 'behavior_base.PelletDispenserMixinManifest',),
     ],
 )

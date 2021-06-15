@@ -15,6 +15,17 @@ sufficient layer of abstraction that helps switch between DAQ hardware from
 different vendors provided that the appropriate interface is written.
 '''
 
+# These are pointers to C datatypes that are required for communicating with
+# the NI-DAQmx library. When querying various properties of tasks, channels and
+# buffers, the NI-DAQmx function often requires an integer of a specific type
+# (e.g. unsigned 32-bit, unsigned 64-bit, etc.). This integer must be passed by
+# reference, allowing the NI-DAQmx function to modify the value directly. For
+# example:
+#
+#   result = ctypes.c_uint32()
+#   mx.DAQmxGetWriteSpaceAvail(task, result)
+#   print(result.value)
+
 import logging
 log = logging.getLogger(__name__)
 log_ai = logging.getLogger(__name__ + '.ai')
@@ -371,10 +382,8 @@ def setup_hw_ao(channels, buffer_duration, callback_interval, callback,
     merged_lines = ','.join(lines)
 
     for line, name, (vmin, vmax) in zip(lines, names, expected_ranges):
-        log.debug(f'Configuring line %s (%s) with voltage range %f-%f', line,
-                  name, vmin, vmax)
-        mx.DAQmxCreateAOVoltageChan(task, line, name, vmin, vmax,
-                                    mx.DAQmx_Val_Volts, '')
+        log.debug(f'Configuring line %s (%s) with voltage range %f-%f', line, name, vmin, vmax)
+        mx.DAQmxCreateAOVoltageChan(task, line, name, vmin, vmax, mx.DAQmx_Val_Volts, '')
 
     setup_timing(task, channels)
     properties = get_timing_config(task)
@@ -397,6 +406,7 @@ def setup_hw_ao(channels, buffer_duration, callback_interval, callback,
     # If the write reaches the end of the buffer and no new data has been
     # provided, do not loop around to the beginning and start over.
     mx.DAQmxSetWriteRegenMode(task, mx.DAQmx_Val_DoNotAllowRegen)
+    mx.DAQmxSetWriteRelativeTo(task, mx.DAQmx_Val_CurrWritePos)
 
     callback_samples = round(fs*callback_interval)
 
@@ -664,6 +674,18 @@ def setup_sw_do(channels, task_name='sw_do'):
     return task
 
 
+def halt_on_error(f):
+    def wrapper(self, *args, **kwargs):
+        try:
+            f(self, *args, **kwargs)
+        except Exception as e:
+            log.exception(e)
+            self.stop()
+            for cb in self._callbacks.get('done', []):
+                cb()
+    return wrapper
+
+
 ################################################################################
 # Engine
 ################################################################################
@@ -676,44 +698,49 @@ class NIDAQEngine(Engine):
     input, analog output, digital input, digital output are all unique task
     types).
     '''
-    # TODO: Why is this relevant?
+    #: Name of the engine. This is used for logging and configuration purposes
+    #: (we can have multiple NIDAQ engines if we need to define separate sets
+    #: of tasks (e.g., if we have more than one multifunction DAQ card).
     engine_name = 'nidaq'
 
-    # Flag indicating whether engine was configured
+    #: Flag indicating whether engine was configured
     _configured = Bool(False)
 
-    # Poll period (in seconds). This defines how often callbacks for the analog
-    # outputs are notified (i.e., to generate additional samples for playout).
-    # If the poll period is too long, then the analog output may run out of
-    # samples.
+    #: Poll period (in seconds). This defines how often callbacks for the
+    #: analog outputs are notified (i.e., to generate additional samples for
+    #: playout).  If the poll period is too long, then the analog output may
+    #: run out of samples.
     hw_ao_monitor_period = d_(Float(1)).tag(metadata=True)
 
-    # Size of buffer (in seconds). This defines how much data is pregenerated
-    # for the buffer before starting acquisition. This is impotant because
+    #: Size of buffer (in seconds). This defines how much data is pregenerated
+    #: for the buffer before starting acquisition. This is impotant because
     hw_ao_buffer_size = d_(Float(10)).tag(metadata=True)
 
-    # Even though data is written to the analog outputs, it is buffered in
-    # computer memory until it's time to be transferred to the onboard buffer of
-    # the NI acquisition card. NI-DAQmx handles this behind the scenes (i.e.,
-    # when the acquisition card needs additional samples, NI-DAQmx will transfer
-    # the next chunk of data from the computer memory). We can overwrite data
-    # that's been buffered in computer memory (e.g., so we can insert a target
-    # in response to a nose-poke). However, we cannot overwrite data that's
-    # already been transfered to the onboard buffer. So, the onboard buffer size
-    # determines how quickly we can change the analog output in response to an
-    # event.
-    # TODO: this is not configurable on some systems. How do we figure out if
-    # it's configurable?
+    #: Even though data is written to the analog outputs, it is buffered in
+    #: computer memory until it's time to be transferred to the onboard buffer
+    #: of the NI acquisition card. NI-DAQmx handles this behind the scenes
+    #: (i.e., when the acquisition card needs additional samples, NI-DAQmx will
+    #: transfer the next chunk of data from the computer memory). We can
+    #: overwrite data that's been buffered in computer memory (e.g., so we can
+    #: insert a target in response to a nose-poke). However, we cannot
+    #: overwrite data that's already been transfered to the onboard buffer. So,
+    #: the onboard buffer size determines how quickly we can change the analog
+    #: output in response to an event.
     hw_ao_onboard_buffer = d_(Int(4095)).tag(metadata=True)
+    # TODO: This is not configurable on every card. How do we know if it's
+    # configurable?
 
-    # Since any function call takes a small fraction of time (e.g., nanoseconds
-    # to milliseconds), we can't simply overwrite data starting at
-    # hw_ao_onboard_buffer+1. By the time the function calls are complete, the
-    # DAQ probably has already transferred a couple hundred samples to the
-    # buffer. This parameter will likely need some tweaking (i.e., only you can
-    # determine an appropriate value for this based on the needs of your
-    # program).
+    #: Since any function call takes a small fraction of time (e.g., nanoseconds
+    #: to milliseconds), we can't simply overwrite data starting at
+    #: hw_ao_onboard_buffer+1. By the time the function calls are complete, the
+    #: DAQ probably has already transferred a couple hundred samples to the
+    #: buffer. This parameter will likely need some tweaking (i.e., only you can
+    #: determine an appropriate value for this based on the needs of your
+    #: program).
     hw_ao_min_writeahead = d_(Int(8191 + 1000)).tag(metadata=True)
+
+    #: Total samples written to the buffer.
+    total_samples_written = Int(0)
 
     _tasks = Typed(dict)
     _task_done = Typed(dict)
@@ -757,23 +784,6 @@ class NIDAQEngine(Engine):
         self._callbacks = {}
         self._timers = {}
         self._configured = False
-
-        # These are pointers to C datatypes that are required for communicating
-        # with the NI-DAQmx library. When querying various properties of tasks,
-        # channels and buffers, the NI-DAQmx function often requires an integer
-        # of a specific type (e.g. unsigned 32-bit, unsigned 64-bit, etc.). This
-        # integer must be passed by reference, allowing the NI-DAQmx function to
-        # modify the value directly. For example:
-        #
-        #     mx.DAQmxGetWriteSpaceAvail(task, self._uint32)
-        #     print(self._uint32.value)
-        #
-        # The ctypes library facilitates communicating with the NI-DAQmx C-API
-        # by providing wrappers around C datatypes that can be passed by
-        # reference.
-        self._uint32 = ctypes.c_uint32()
-        self._uint64 = ctypes.c_uint64()
-        self._int32 = ctypes.c_int32()
 
     def configure(self, active=True):
         log.debug('Configuring {} engine'.format(self.name))
@@ -866,7 +876,10 @@ class NIDAQEngine(Engine):
         # fit evenly into a block of samples. The other two arguments
         # (event_type and cb_data) are required of the function signature by
         # NIDAQmx but are unused.
-        task._cb(task, None, 1, None)
+        try:
+            task._cb(task, None, 1, None)
+        except Exception as e:
+            log.exception(e)
 
         # Only check to see if hardware-timed tasks are complete.
         # Software-timed tasks must be explicitly canceled by the user.
@@ -903,6 +916,7 @@ class NIDAQEngine(Engine):
         self.ao_fs = task._fs
         for channel in channels:
             channel.fs = task._fs
+        self.total_samples_written = 0
 
     def configure_hw_ai(self, channels):
         task_name = '{}_hw_ai'.format(self.name)
@@ -1053,18 +1067,20 @@ class NIDAQEngine(Engine):
     def write_sw_ao(self, state):
         task = self._tasks['sw_ao']
         state = np.array(state).astype(np.double)
+        result = ctypes.c_int32()
         mx.DAQmxWriteAnalogF64(task, 1, True, 0, mx.DAQmx_Val_GroupByChannel,
-                               state, self._int32, None)
-        if self._int32.value != 1:
+                               state, result, None)
+        if result.value != 1:
             raise ValueError('Unable to update software-timed AO')
         task._current_state = state
 
     def write_sw_do(self, state):
         task = self._tasks['sw_do']
         state = np.asarray(state).astype(np.uint8)
+        result = ctypes.c_int32()
         mx.DAQmxWriteDigitalLines(task, 1, True, 0, mx.DAQmx_Val_GroupByChannel,
-                                  state, self._int32, None)
-        if self._int32.value != 1:
+                                  state, result, None)
+        if result.value != 1:
             raise ValueError('Problem writing data to software-timed DO')
         task._current_state = state
 
@@ -1094,14 +1110,11 @@ class NIDAQEngine(Engine):
             if i == line_index:
                 cb(change, event_time)
 
+    @halt_on_error
     def _hw_ai_callback(self, samples):
         samples /= self._tasks['hw_ai']._sf
         for channel_name, s, cb in self._callbacks.get('ai', []):
-            try:
-                cb(samples[s])
-            except Exception as e:
-                log.exception(e)
-                self.unregister_ai_callback(cb, channel_name)
+            cb(samples[s])
 
     def _hw_di_callback(self, samples):
         for i, cb in self._callbacks.get('di', []):
@@ -1114,76 +1127,50 @@ class NIDAQEngine(Engine):
             channel.get_samples(offset, samples, out=ch_data)
         return data
 
-    def get_offset(self, name):
-        # Doesn't matter. Offset is the same for all channels in the task.
-        task = self._tasks['hw_ao']
-        mx.DAQmxSetWriteRelativeTo(task, mx.DAQmx_Val_CurrWritePos)
-        mx.DAQmxSetWriteOffset(task, 0)
-        mx.DAQmxGetWriteCurrWritePos(task, self._uint64)
-        return self._uint64.value
-
-    def get_space_available(self, name, offset=None):
+    def get_space_available(self, name=None):
         # It doesn't matter what the output channel is. Space will be the same
         # for all.
-        task = self._tasks['hw_ao']
-        mx.DAQmxGetWriteSpaceAvail(task, self._uint32)
-        available = self._uint32.value
-        log_ao.trace('Current write space available %d', available)
-
-        # Compensate for offset if specified.
-        if offset is not None:
-            write_position = self.ao_write_position()
-            log_ao.info('%r %r', offset, write_position)
-            relative_offset = offset-write_position
-            log_ao.trace('Compensating write space for requested offset %d', offset)
-            available -= relative_offset
-        return available
+        result = ctypes.c_uint32()
+        mx.DAQmxGetWriteSpaceAvail(self._tasks['hw_ao'], result)
+        return result.value
 
     def hw_ao_callback(self, samples):
         # Get the next set of samples to upload to the buffer
-        log.debug('HW AO callback: attempting to retrieve lock')
-        with self.lock:
-            log_ao.trace('#> Acquired lock for engine %s', self.name)
-            log_ao.trace('Hardware AO callback for %s', self.name)
-            offset = self.get_offset(None)
-            available_samples = self.get_space_available(None, offset)
-            if available_samples < samples:
-                log_ao.trace('Not enough samples available for writing')
-            else:
-                data = self._get_hw_ao_samples(offset, samples)
-                self.write_hw_ao(data, offset, timeout=0)
-            log_ao.trace('<# Releasing lock for engine %s', self.name)
+        try:
+            with self.lock:
+                log_ao.trace('#> HW AO callback. Acquired lock for engine %s', self.name)
+                available_samples = self.get_space_available()
+                if available_samples < samples:
+                    log_ao.trace('Not enough samples available for writing')
+                else:
+                    data = self._get_hw_ao_samples(self.total_samples_written, samples)
+                    self.write_hw_ao(data, self.total_samples_written, timeout=0)
+        except Exception as e:
+            offset = ctypes.c_int32()
+            curr_write = ctypes.c_uint64()
+            mx.DAQmxGetWriteOffset(self._tasks['hw_ao'], offset)
+            mx.DAQmxGetWriteCurrWritePos(self._tasks['hw_ao'], curr_write)
+            raise
 
-    def update_hw_ao(self, name, offset, method='space_available'):
+    def update_hw_ao(self, name, offset):
         # Get the next set of samples to upload to the buffer. Ignore the
         # channel name because we need to update all channels simultaneously.
-        if method == 'space_available':
-            samples = self.get_space_available(name, offset)
-        elif method == 'write_position':
-            samples = self.ao_write_position()-offset
-        else:
-            raise ValueError('Unsupported update method')
-
+        available = self.get_space_available()
+        samples = available - (offset - self.total_samples_written)
         if samples <= 0:
-            log_ao.trace('No update of hw ao required')
             return
-        log_ao.trace('Updating hw ao at %d with %d samples', offset, samples)
+
+        log_ao.info('Updating hw ao at %d with %d samples', offset, samples)
         data = self._get_hw_ao_samples(offset, samples)
         self.write_hw_ao(data, offset=offset, timeout=0)
 
-    def update_hw_ao_multiple(self, offsets, names, method='space_available'):
+    def update_hw_ao_multiple(self, offsets, names):
         # This is really simple to implement since we have to update all
         # channels at once. So, we just pick the minimum offset and let
         # `update_hw_ao` do the work.
-        offset = min(offsets)
-        self.update_hw_ao(None, offset, method)
+        self.update_hw_ao(None, min(offsets))
 
-    def ao_write_position(self):
-        task = self._tasks['hw_ao']
-        mx.DAQmxGetWriteCurrWritePos(task, self._uint64)
-        log_ao.trace('Current write position %d', self._uint64.value)
-        return self._uint64.value
-
+    @halt_on_error
     def write_hw_ao(self, data, offset, timeout=1):
         # TODO: add a safety-check to make sure waveform doesn't exceed limits.
         # This is a recoverable error unless the DAQmx API catches it instead.
@@ -1193,36 +1180,26 @@ class NIDAQEngine(Engine):
         # overflow if we attempt to set the offset relative to the first sample
         # written. Therefore, we compute the write offset relative to the last
         # sample written (for requested offsets it should be negative).
-        log_ao.trace('Writing %r samples at %r', data.shape, offset)
-        task = self._tasks['hw_ao']
-
-        write_position = self.ao_write_position()
-        relative_offset = offset-write_position
-        mx.DAQmxSetWriteOffset(task, relative_offset)
-        m = 'Write position %d, requested offset %d, relative offset %d'
-        log_ao.trace(m, write_position, offset, relative_offset)
-
-        generated = self.ao_sample_clock()
-        log_ao.trace('AO samples generated %d', generated)
-        if offset != 0 and (offset-generated) <= task._onboard_buffer_size*1.25:
-            log_ao.debug('AO samples generated %d', generated)
-            log.debug('%d samples generated at offset %d', generated, offset)
-            #raise SystemError('Insufficient time to update output')
-
-        mx.DAQmxWriteAnalogF64(task, data.shape[-1], False, timeout,
-                               mx.DAQmx_Val_GroupByChannel,
-                               data.astype(np.float64), self._int32, None)
-
-        # Now, reset it back to 0
-        if offset is not None:
-            log_ao.trace('Resetting write offset')
+        try:
+            result = ctypes.c_int32()
+            task = self._tasks['hw_ao']
+            relative_offset = offset - self.total_samples_written
+            mx.DAQmxSetWriteOffset(task, relative_offset)
+            mx.DAQmxWriteAnalogF64(task, data.shape[-1], False, timeout, mx.DAQmx_Val_GroupByChannel, data.astype(np.float64), result, None)
             mx.DAQmxSetWriteOffset(task, 0)
 
-        log_ao.trace('Write complete')
+            # Calculate total samples written
+            self.total_samples_written = self.total_samples_written + relative_offset + data.shape[-1]
+
+        except Exception as e:
+            # If we log on every call, the logfile will get quite verbose.
+            # Let's only log this information on an Exception.
+            log_ao.info('Failed to write %r samples starting at %r', data.shape, offset)
+            log_ao.info(' * Offset is %d samples relative to current write position %d', relative_offset, self.total_samples_written)
+            log_ao.info(' * Current read position is %d and onboard buffer size is %d', self.ao_sample_clock(), task._onboard_buffer_size)
+            raise
 
     def get_ts(self):
-        #log.debug('Attempting to get lock to check sample time')
-        #with self.lock:
         return self.sample_time()
 
     def start(self):
@@ -1236,7 +1213,7 @@ class NIDAQEngine(Engine):
 
         if 'hw_ao' in self._tasks:
             log.debug('Calling HW ao callback before starting tasks')
-            samples = self.get_space_available(None)
+            samples = self.get_space_available()
             self.hw_ao_callback(samples)
 
         log.debug('Starting NIDAQmx tasks')
@@ -1259,9 +1236,9 @@ class NIDAQEngine(Engine):
 
     def ai_sample_clock(self):
         task = self._tasks['hw_ai']
-        mx.DAQmxGetReadTotalSampPerChanAcquired(task, self._uint64)
-        log.trace('%d samples per channel acquired', self._uint64.value)
-        return self._uint64.value
+        result = ctypes.c_uint64()
+        mx.DAQmxGetReadTotalSampPerChanAcquired(task, result)
+        return result.value
 
     def ai_sample_time(self):
         return self.ai_sample_clock()/self.ai_fs
@@ -1269,8 +1246,9 @@ class NIDAQEngine(Engine):
     def ao_sample_clock(self):
         try:
             task = self._tasks['hw_ao']
-            mx.DAQmxGetWriteTotalSampPerChanGenerated(task, self._uint64)
-            return self._uint64.value
+            result = ctypes.c_uint64()
+            mx.DAQmxGetWriteTotalSampPerChanGenerated(task, result)
+            return result.value
         except:
             return 0
 
