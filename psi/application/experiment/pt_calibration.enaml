@@ -226,8 +226,10 @@ def validate_sens(event, sens):
         log.debug('No frequencies available to calibrate. Please review target SPL.')
         return
 
-    ai_channels = [pt_channel, cal_channel]
-    result = tone_sens(ao.engine, 
+    # TODO: NEED TO ORDER CHANNELS!
+    #ai_channels = [pt_channel, cal_channel]
+    ai_channels = [cal_channel, pt_channel]
+    result = tone_sens(ao.engine,
                        frequencies,
                        gain=gains,
                        ao_channel_name=output_channel,
@@ -370,11 +372,11 @@ enamldef PTManifest(ControllerManifest): manifest:
             kwargs = {'selector': 'default', 'cycles': 1}
 
         ExperimentAction:
-            event = 'cal_epoch_queue_end'
+            event = 'pt_epoch_queue_end'
             command = 'psi.controller.stop'
 
         ExperimentAction:
-            event = 'cal_epoch_queue_end'
+            event = 'pt_epoch_queue_end'
             command = 'psi.controller.calculate_sens'
 
         ExperimentAction:

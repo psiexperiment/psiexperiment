@@ -178,59 +178,12 @@ enamldef TemperatureMixinManifest(ExperimentManifest): manifest:
 ################################################################################
 # ABR and DPOAE calibration mixins
 ################################################################################
-enamldef CalibrationPlugin(ExperimentManifest): manifest:
+enamldef InEarCalibrationMixinManifest(ExperimentManifest): manifest:
 
-    id = 'inear_calibration_mixin'
-
-    Extension:
-        id = manifest.id + '.actions'
-        point = 'psi.controller.actions'
-
-        Conditional:
-            condition = manifest.tone_outputs is not None
-
-            ExperimentAction:
-                weight = 10
-                event = 'experiment_prepare'
-                command = 'psi.controller.tone_calibrate_channel'
-                kwargs = {
-                    'input_name': 'microphone',
-                    'outputs': manifest.tone_outputs,
-                    'gain': -40,
-                    'max_thd': None,
-                    'min_snr': 5,
-                    'duration': 0.1,
-                    'trim': 0.01,
-                    'iti': 0,
-                    'widget_name': 'calibration_result',
-                    'attr_name': 'result',
-                    'store_name': 'calibration_data',
-                }
-
-        Conditional:
-            condition = manifest.chirp_outputs is not None
-
-            ExperimentAction:
-                weight = 10
-                event = 'experiment_prepare'
-                command = 'psi.controller.chirp_calibrate_channel'
-                kwargs = {
-                    'input_name': 'microphone',
-                    'outputs': manifest.chirp_outputs,
-                    'gain': -30,
-                    'duration': 20e-3,
-                    'iti': 1e-3,
-                    'repetitions': 16,
-                    'widget_name': 'calibration_result',
-                    'attr_name': 'result',
-                    'store_name': 'calibration_data',
-                }
-
-
-enamldef ABRInEarCalibrationMixinManifest(ExperimentManifest): manifest:
-
-    id = 'abr_inear_calibration_mixin'
-    name = 'abr_in_ear_calibration'
+    attr experiment
+    attr outputs
+    id = f'{experiment}_inear_calibration_mixin'
+    name = f'{experiment}_in_ear_calibration'
     title = 'In-ear calibration'
 
     Extension:
@@ -238,10 +191,10 @@ enamldef ABRInEarCalibrationMixinManifest(ExperimentManifest): manifest:
         point = 'psi.controller.calibration.channels'
 
         ToneCalibrate:
-            name = 'abr_tone_calibration'
-            label = 'ABR tones'
+            name = f'{experiment}_tone_calibration'
+            label = 'Tone calibration'
             input_name = 'microphone'
-            outputs = {'target': ['target_tone_frequency']}
+            outputs = manifest.outputs
             gain = -40
             max_thd = None
             min_snr = 5
@@ -250,7 +203,13 @@ enamldef ABRInEarCalibrationMixinManifest(ExperimentManifest): manifest:
             iti = 0
 
 
-enamldef DPOAEInEarCalibrationMixinManifest(ExperimentManifest): manifest:
+enamldef ABRInEarCalibrationMixinManifest(InEarCalibrationMixinManifest): manifest:
+
+    experiment = 'abr'
+    outputs = {'target': ['target_tone_frequency']}
+
+
+enamldef DPOAEInEarCalibrationMixinManifest(InEarCalibrationMIxinManifest): manifest:
 
     id = 'dpoae_inear_calibration_mixin'
     name = 'dpoae_in_ear_calibration'
@@ -278,7 +237,7 @@ enamldef DPOAEInEarCalibrationMixinManifest(ExperimentManifest): manifest:
             iti = 0
 
 
-enamldef DPOAEInEarNoiseCalibrationMixinManifest(ExperimentManifest): manifest:
+enamldef DPOAEInEarNoiseCalibrationMixinManifest(InEarCalibrationMIxinManifest): manifest:
 
     id = 'dpoae_inear_noise_calibration_mixin'
     name = 'dpoae_in_ear_noise_calibration'
