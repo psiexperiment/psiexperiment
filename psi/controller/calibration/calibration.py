@@ -264,6 +264,9 @@ class FlatCalibration(Calibration):
     def get_sens(self, frequency):
         return self.sensitivity-self.fixed_gain
 
+    def get_mean_sf(self, flb, fub, spl, attenuation=0):
+        return self.get_sf(flb, spl)
+
 
 class UnityCalibration(FlatCalibration):
 
