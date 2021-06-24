@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 import pyqtgraph as pg
 
-from atom.api import (Unicode, Float, Tuple, Int, Typed, Property, Atom, Bool,
+from atom.api import (Str, Float, Tuple, Int, Typed, Property, Atom, Bool,
                       Enum, List, Dict, Callable, Value)
 
 from enaml.application import deferred_call, timed_call
@@ -197,7 +197,7 @@ from enaml.core.pattern import Pattern
 
 class MultiPlotContainer(Pattern, PSIContribution):
 
-    group = d_(Unicode())
+    group = d_(Str())
     selected_item = Value()
 
     workbench = Value()
@@ -240,7 +240,7 @@ class MultiPlotContainer(Pattern, PSIContribution):
 ################################################################################
 class BasePlotContainer(PSIContribution):
 
-    label = d_(Unicode())
+    label = d_(Str())
 
     container = Typed(pg.GraphicsWidget)
     x_axis = Typed(pg.AxisItem)
@@ -469,9 +469,9 @@ class BasePlot(PSIContribution):
     # Make this weak-referenceable so we can bind methods to Qt slots.
     __slots__ = '__weakref__'
 
-    source_name = d_(Unicode())
+    source_name = d_(Str())
     source = Typed(object)
-    label = d_(Unicode())
+    label = d_(Str())
 
     def update(self, event=None):
         pass
@@ -488,7 +488,7 @@ class SinglePlot(BasePlot):
     pen_color = d_(Typed(object))
     pen_width = d_(Float(0))
     antialias = d_(Bool(False))
-    label = d_(Unicode())
+    label = d_(Str())
 
     pen = Typed(object)
     plot = Typed(object)
@@ -704,7 +704,7 @@ class BaseTimeseriesPlot(SinglePlot):
 
 class EventPlot(BaseTimeseriesPlot):
 
-    event = d_(Unicode())
+    event = d_(Str())
 
     def _observe_event(self, event):
         if self.event is not None:
@@ -723,7 +723,7 @@ class EventPlot(BaseTimeseriesPlot):
 
 class TimeseriesPlot(BaseTimeseriesPlot):
 
-    source_name = d_(Unicode())
+    source_name = d_(Str())
     source = Typed(object)
 
     def _default_name(self):
@@ -749,7 +749,7 @@ class TimeseriesPlot(BaseTimeseriesPlot):
 class GroupMixin(ColorCycleMixin):
 
     source = Typed(object)
-    group_meta = d_(Unicode())
+    group_meta = d_(Str())
     groups = d_(Typed(ContextMeta))
     group_names = d_(List())
 
@@ -992,8 +992,8 @@ class StackedEpochAveragePlot(EpochGroupMixin, BasePlot):
 ################################################################################
 class ResultPlot(SinglePlot):
 
-    x_column = d_(Unicode())
-    y_column = d_(Unicode())
+    x_column = d_(Str())
+    y_column = d_(Str())
     average = d_(Bool())
 
     SYMBOL_MAP = {
@@ -1068,9 +1068,9 @@ class ResultPlot(SinglePlot):
 class DataFramePlot(ColorCycleMixin, PSIContribution):
 
     data = d_(Typed(pd.DataFrame))
-    x_column = d_(Unicode())
-    y_column = d_(Unicode())
-    grouping = d_(List(Unicode()))
+    x_column = d_(Str())
+    y_column = d_(Str())
+    grouping = d_(List(Str()))
     _plot_cache = Dict()
 
     SYMBOL_MAP = {

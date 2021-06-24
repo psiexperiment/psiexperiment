@@ -3,7 +3,7 @@ log = logging.getLogger(__name__)
 
 from functools import partial
 
-from atom.api import Unicode, Int, Dict, Bool, Typed, Callable, List
+from atom.api import Str, Int, Dict, Bool, Typed, Callable, List
 from enaml.core.api import Declarative, d_
 
 from psi.util import get_dependencies
@@ -15,7 +15,7 @@ class ExperimentState(Declarative):
     Automatically contributes the start/end events associataed with the state
     (e.g., `experiment_start`, `experiment_end`).
     '''
-    name = d_(Unicode())
+    name = d_(Str())
     events = ['prepare', 'start', 'end']
 
     def _generate_events(self):
@@ -29,7 +29,7 @@ class ExperimentState(Declarative):
 
 class ExperimentEvent(Declarative):
 
-    name = d_(Unicode())
+    name = d_(Str())
     associated_state = Typed(ExperimentState)
 
 
@@ -51,7 +51,7 @@ def simple_match(key, context):
 class ExperimentActionBase(Declarative):
 
     # Name of event that triggers command
-    event = d_(Unicode())
+    event = d_(Str())
 
     dependencies = List()
 
@@ -82,7 +82,7 @@ class ExperimentActionBase(Declarative):
 class ExperimentAction(ExperimentActionBase):
 
     # Command to invoke
-    command = d_(Unicode())
+    command = d_(Str())
 
     def invoke(self, core, kwargs):
         kwargs = kwargs.copy()

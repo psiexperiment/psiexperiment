@@ -6,7 +6,7 @@ from functools import partial
 from pathlib import Path
 
 import bcolz
-from atom.api import Atom, Typed, List, Dict, Unicode, Float, Property
+from atom.api import Atom, Typed, List, Dict, Str, Float, Property
 from enaml.core.api import d_
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
@@ -213,7 +213,7 @@ class BColzStore(BaseStore):
     '''
     Simple class for storing acquired trial data in hierarchy of bcolz folders.
     '''
-    name = d_(Unicode('bcolz_store'))
+    name = d_(Str('bcolz_store'))
 
     continuous_inputs = d_(List())
     epoch_inputs = d_(List())

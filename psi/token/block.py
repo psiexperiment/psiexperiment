@@ -1,6 +1,6 @@
 import copy
 
-from atom.api import Callable, List, Property, Typed, Unicode
+from atom.api import Callable, List, Property, Typed, Str
 
 from enaml.core.api import Declarative, d_, d_func
 
@@ -9,9 +9,9 @@ from psi.context.api import Parameter
 
 class Block(Declarative):
 
-    name = d_(Unicode())
-    label = d_(Unicode())
-    compact_label = d_(Unicode())
+    name = d_(Str())
+    label = d_(Str())
+    compact_label = d_(Str())
     factory = d_(Callable())
     context_name_map = Typed(dict)
 

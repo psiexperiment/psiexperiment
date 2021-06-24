@@ -3,7 +3,7 @@ log = logging.getLogger(__name__)
 
 from pathlib import Path
 
-from atom.api import ContainerList, Typed, Unicode
+from atom.api import ContainerList, Typed, Str
 from enaml.application import deferred_call
 from enaml.workbench.api import Plugin
 

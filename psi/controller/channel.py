@@ -3,7 +3,7 @@ log = logging.getLogger(__name__)
 
 import numpy as np
 
-from atom.api import (Bool, Float, Int, List, Property, Tuple, Typed, Unicode)
+from atom.api import (Bool, Float, Int, List, Property, Tuple, Typed, Str)
 from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
 
@@ -16,23 +16,23 @@ from ..util import coroutine
 class Channel(PSIContribution):
 
     #: Globally-unique name of channel used for identification
-    name = d_(Unicode()).tag(metadata=True)
+    name = d_(Str()).tag(metadata=True)
 
     #: Label of channel used in GUI
-    label = d_(Unicode()).tag(metadata=True)
+    label = d_(Str()).tag(metadata=True)
 
     #: Is channel active during experiment?
     active = Property()
 
     # SI unit (e.g., V)
-    unit = d_(Unicode()).tag(metadata=True)
+    unit = d_(Str()).tag(metadata=True)
 
     # Number of samples to acquire before task ends. Typically will be set to
     # 0 to indicate continuous acquisition.
     samples = d_(Int(0)).tag(metadata=True)
 
     # Used to properly configure data storage.
-    dtype = d_(Unicode()).tag(metadata=True)
+    dtype = d_(Str()).tag(metadata=True)
 
     # Parent engine (automatically derived by Enaml hierarchy)
     engine = Property()

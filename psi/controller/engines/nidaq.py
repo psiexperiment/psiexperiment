@@ -39,7 +39,7 @@ from threading import Timer
 
 import numpy as np
 import PyDAQmx as mx
-from atom.api import (Float, Typed, Unicode, Int, Bool, Callable, Enum,
+from atom.api import (Float, Typed, Str, Int, Bool, Callable, Enum,
                       Property, Value)
 from enaml.core.api import Declarative, d_
 
@@ -57,7 +57,7 @@ from ..input import InputData
 class NIDAQGeneralMixin(Declarative):
 
     # Channel identifier (e.g., /Dev1/ai0)
-    channel = d_(Unicode()).tag(metadata=True)
+    channel = d_(Str()).tag(metadata=True)
 
     def __str__(self):
         return f'{self.label} ({self.channel})'
@@ -71,23 +71,23 @@ class NIDAQTimingMixin(Declarative):
 
     #: Specifies sampling clock for the channel. Even if specifying a sample
     #: clock, you still need to explicitly set the fs attribute.
-    sample_clock = d_(Unicode().tag(metadata=True))
+    sample_clock = d_(Str().tag(metadata=True))
 
     #: Specifies the start trigger for the channel. If None, sampling begins
     #: when task is started.
-    start_trigger = d_(Unicode().tag(metadata=True))
+    start_trigger = d_(Str().tag(metadata=True))
 
     #: Reference clock for the channel. If you aren't sure, a good value is
     #: `PXI_Clk10` if using a PXI chassis. This ensures that the sample clocks
     #: across all NI cards in the PXI chassis are synchronized.
-    reference_clock = d_(Unicode()).tag(metadata=True)
+    reference_clock = d_(Str()).tag(metadata=True)
 
 
 class NIDAQCounterChannel(NIDAQGeneralMixin, CounterChannel):
 
     high_samples = d_(Int().tag(metadata=True))
     low_samples = d_(Int().tag(metadata=True))
-    source_terminal = d_(Unicode().tag(metadata=True))
+    source_terminal = d_(Str().tag(metadata=True))
 
 
 class NIDAQHardwareAOChannel(NIDAQGeneralMixin, NIDAQTimingMixin,

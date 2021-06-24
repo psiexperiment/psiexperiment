@@ -18,7 +18,7 @@ from time import time
 from threading import current_thread, Thread, Event
 
 import numpy as np
-from atom.api import (Float, Typed, Unicode, Int, Bool, Callable, Enum,
+from atom.api import (Float, Typed, Str, Int, Bool, Callable, Enum,
                       Property, Value)
 from enaml.core.api import Declarative, d_
 
@@ -35,7 +35,7 @@ from tdt import DSPCircuit, DSPProject
 class TDTGeneralMixin(Declarative):
 
     #: Tag connected to WriteTagV or ReadTagV
-    tag = d_(Unicode()).tag(metadata=True)
+    tag = d_(Str()).tag(metadata=True)
 
     #: Poll period (in seconds). This defines how often callbacks for the
     #: channel are triggered to read or write data. If the poll period is too
@@ -99,7 +99,7 @@ class TDTEngine(Engine):
     '''
     #: Device name (e.g., RZ6, etc.)
     device_name = d_(Enum('RZ6')).tag(metadata=True)
-    circuit = d_(Unicode('standard')).tag(metadata=True)
+    circuit = d_(Str('standard')).tag(metadata=True)
 
     circuit_path = Property()
 

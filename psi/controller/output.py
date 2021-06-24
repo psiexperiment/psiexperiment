@@ -6,7 +6,7 @@ from functools import partial
 
 import numpy as np
 
-from atom.api import (Unicode, Enum, Event, Typed, Property, Float, Int, Bool,
+from atom.api import (Str, Enum, Event, Typed, Property, Float, Int, Bool,
                       List)
 
 import enaml
@@ -36,10 +36,10 @@ class Synchronized(PSIContribution):
 
 class Output(PSIContribution):
 
-    name = d_(Unicode()).tag(metadata=True)
-    label = d_(Unicode()).tag(metadata=True)
+    name = d_(Str()).tag(metadata=True)
+    label = d_(Str()).tag(metadata=True)
 
-    target_name = d_(Unicode())
+    target_name = d_(Str())
     target = d_(Typed(Declarative).tag(metadata=True), writable=False)
     channel = Property()
     engine = Property()
@@ -101,7 +101,7 @@ class Output(PSIContribution):
 
 class BufferedOutput(Output):
 
-    dtype = Unicode('double')
+    dtype = Str('double')
     buffer_size = Property()
     active = Bool(False)
     source = Typed(object)
@@ -284,7 +284,7 @@ class QueuedEpochOutput(BufferedOutput):
 
 class SelectorQueuedEpochOutput(QueuedEpochOutput):
 
-    selector_name = d_(Unicode('default'))
+    selector_name = d_(Str('default'))
 
 
 class ContinuousOutput(BufferedOutput):

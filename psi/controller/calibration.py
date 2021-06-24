@@ -1,4 +1,4 @@
-from atom.api import Float, Unicode
+from atom.api import Float, Str
 from enaml.core.api import Declarative, d_
 
 from psi import SimpleState
@@ -15,4 +15,4 @@ class SensCalibration(Calibration):
 
 class FileCalibration(Calibration):
 
-    filename = Unicode()
+    filename = Str()

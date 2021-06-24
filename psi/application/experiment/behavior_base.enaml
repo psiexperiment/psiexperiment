@@ -4,7 +4,7 @@ log = logging.getLogger(__name__)
 import enum
 from functools import partial
 
-from atom.api import Bool, Int, Typed, Unicode
+from atom.api import Bool, Int, Typed, Str
 from enaml.application import deferred_call, timed_call
 from enaml.layout.api import InsertItem
 from enaml.widgets.api import Action, DockItem, Container, Label, ToolBar
@@ -172,7 +172,7 @@ class BehaviorPlugin(ControllerPlugin):
 
     # Used by the trial sequence selector to randomly select between go/nogo.
     rng = Typed(np.random.RandomState)
-    trial_type = Unicode()
+    trial_type = Str()
     trial_info = Typed(dict, ())
     trial_state = Typed(TrialState)
 

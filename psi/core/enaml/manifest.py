@@ -1,4 +1,4 @@
-from atom.api import Bool, Property, Typed, Unicode
+from atom.api import Bool, Property, Typed, Str
 
 from enaml.core.api import d_
 from enaml.workbench.api import PluginManifest
@@ -8,8 +8,8 @@ from .contribution import PSIContribution
 
 class ExperimentManifest(PluginManifest):
 
-    name = d_(Unicode())
-    title = d_(Unicode())
+    name = d_(Str())
+    title = d_(Str())
     required = d_(Bool(False))
 
     def _default_name(self):

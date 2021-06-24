@@ -7,7 +7,7 @@ log = logging.getLogger(__name__)
 import pandas as pd
 
 from atom.api import (Typed, set_default, observe, Enum, Event, Property,
-                      Bool, Dict, Unicode, Atom, List, Value)
+                      Bool, Dict, Str, Atom, List, Value)
 from enaml.core.declarative import d_, d_func
 from enaml.widgets.api import RawWidget
 
@@ -299,7 +299,7 @@ class EditableTable(RawWidget):
     #: * initial_width - Initial width to set column to.
     #: * to_string - Function used to generate string representation.
 
-    column_info = d_(Dict(Unicode(), Typed(object), {}))
+    column_info = d_(Dict(Str(), Typed(object), {}))
 
     #: Widths of columns in table
     column_widths = Property()
@@ -656,7 +656,7 @@ class ListDictTable(EditableTable):
 class ListTable(EditableTable):
 
     data = d_(List())
-    column_name = d_(Unicode())
+    column_name = d_(Str())
     selected = d_(List())
     show_column_labels = True
     stretch_last_section = True

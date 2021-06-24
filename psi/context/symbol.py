@@ -1,6 +1,6 @@
 import importlib
 
-from atom.api import Unicode, Callable
+from atom.api import Str, Callable
 from enaml.core.api import Declarative, d_
 
 
@@ -11,7 +11,7 @@ class Symbol(Declarative):
 
 class ImportedSymbol(Symbol):
 
-    module = d_(Unicode())
+    module = d_(Str())
 
     def get_object(self):
         return importlib.import_module(self.module)

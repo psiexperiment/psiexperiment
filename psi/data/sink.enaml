@@ -1,4 +1,4 @@
-from atom.api import Unicode, Value
+from atom.api import Str, Value
 from enaml.core.api import d_
 from enaml.workbench.api import Extension
 
@@ -13,7 +13,7 @@ class Sink(PSIContribution):
 
 
 class SinkWithSource(Sink):
-    source_name = d_(Unicode())
+    source_name = d_(Str())
     source = Value()
 
     def _observe_source(self, event):

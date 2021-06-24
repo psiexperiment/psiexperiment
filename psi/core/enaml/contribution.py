@@ -1,7 +1,7 @@
 import logging
 log = logging.getLogger(__name__)
 
-from atom.api import Unicode
+from atom.api import Str
 from enaml.core.api import Declarative, d_
 
 from .util import load_manifest
@@ -9,9 +9,9 @@ from .util import load_manifest
 
 class PSIContribution(Declarative):
 
-    name = d_(Unicode())
-    label = d_(Unicode())
-    manifest = d_(Unicode())
+    name = d_(Str())
+    label = d_(Str())
+    manifest = d_(Str())
 
     def _default_name(self):
         # Provide a default name if none is specified

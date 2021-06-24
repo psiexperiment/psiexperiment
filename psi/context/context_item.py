@@ -4,7 +4,7 @@ log = logging.getLogger(__name__)
 import numpy as np
 
 from enaml.core.declarative import Declarative, d_
-from atom.api import (Unicode, Typed, Value, Enum, List, Event, Property,
+from atom.api import (Str, Typed, Value, Enum, List, Event, Property,
                       observe, Bool, Dict, Coerced)
 
 from psi.core.enaml.api import PSIContribution
@@ -15,8 +15,8 @@ from psi.core.enaml.api import PSIContribution
 ################################################################################
 class ContextMeta(Declarative):
 
-    name = d_(Unicode())
-    label = d_(Unicode())
+    name = d_(Str())
+    label = d_(Str())
     link_rove = d_(Bool(True))
     editable = d_(Bool(False))
 
@@ -88,10 +88,10 @@ class OrderedContextMeta(ContextMeta):
 class Expression(Declarative):
 
     # Parameter that is assigned the result of the expression
-    parameter = d_(Unicode())
+    parameter = d_(Str())
 
     # Expression to be evaluated
-    expression = d_(Unicode())
+    expression = d_(Str())
 
 
 ################################################################################
@@ -102,10 +102,10 @@ class ContextGroup(PSIContribution):
     Used to group together context items for management.
     '''
     # Group name
-    name = d_(Unicode())
+    name = d_(Str())
 
     # Label to use in the GUI
-    label = d_(Unicode())
+    label = d_(Str())
 
     # Are the parameters in this group visible?
     visible = d_(Bool(True))
@@ -147,23 +147,23 @@ class ContextItem(Declarative):
     to the context namespace.
     '''
     # Must be a valid Python identifier. Used by eval() in expressions.
-    name = d_(Unicode())
+    name = d_(Str())
 
     # Long-format label for display in the GUI. Include units were applicable.
-    label = d_(Unicode()).tag(preference=True)
+    label = d_(Str()).tag(preference=True)
 
     # Datatype of the value. Required for properly initializing some data
     # plugins (e.g., those that save data to a HDF5 file).
-    dtype = d_(Unicode())
+    dtype = d_(Str())
 
     group = d_(Typed(ContextGroup))
 
     # Name of the group to display the item under.
-    group_name = d_(Unicode())
+    group_name = d_(Str())
 
     # Compact label where there is less space in the GUI (e.g., under a column
     # heading for example).
-    compact_label = d_(Unicode()).tag(preference=True)
+    compact_label = d_(Str()).tag(preference=True)
 
     # Is this visible via the standard configuration menus?
     visible = d_(Bool(True)).tag(preference=True)
@@ -226,7 +226,7 @@ class Parameter(ContextItem):
     # Default value of the context item when used as part of a selector.
     default = d_(Value())
 
-    expression = d_(Unicode()).tag(preference=True)
+    expression = d_(Str()).tag(preference=True)
 
     # Defines the span over which the item's value does not change:
     # * experiment - the value cannot change once the experiment begins
@@ -258,9 +258,9 @@ class Parameter(ContextItem):
 class EnumParameter(Parameter):
 
     expression = Property().tag(transient=True)
-    selected = d_(Unicode()).tag(preference=True)
+    selected = d_(Str()).tag(preference=True)
     choices = d_(Typed(dict))
-    default = d_(Unicode())
+    default = d_(Str())
 
     def _default_dtype(self):
         values = list(self.choices.values())
@@ -298,10 +298,10 @@ class EnumParameter(Parameter):
 class FileParameter(Parameter):
 
     expression = Property().tag(transient=True)
-    path = d_(Unicode())
+    path = d_(Str())
     file_mode = d_(Enum('any_file', 'existing_file', 'directory'))
-    current_path = d_(Unicode())
-    name_filters = d_(List(Unicode()))
+    current_path = d_(Str())
+    name_filters = d_(List(Str()))
 
     def _get_expression(self):
         return '"{}"'.format(self.path)

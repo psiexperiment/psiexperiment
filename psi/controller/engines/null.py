@@ -6,7 +6,7 @@ from pathlib import Path
 import threading
 import time
 
-from atom.api import Dict, Float, Unicode
+from atom.api import Dict, Float, Str
 from ..engine import Engine
 
 
@@ -14,7 +14,7 @@ class NullEngine(Engine):
 
     buffer_size = Float()
     handles = Dict()
-    base_path = Unicode()
+    base_path = Str()
 
     t0 = Float()
     t_ao = Float()

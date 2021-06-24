@@ -1,13 +1,13 @@
 import logging
 log = logging.getLogger(__name__)
 
-from atom.api import List, Unicode, Value
+from atom.api import List, Str, Value
 from enaml.core.api import Declarative, d_, d_func
 
 
 class Preferences(Declarative):
 
-    name = d_(Unicode())
+    name = d_(Str())
 
     @d_func
     def get_object(self, workbench):
@@ -55,7 +55,7 @@ class ItemPreferences(_AutoPreferences):
 
 class PluginPreferences(_AutoPreferences):
 
-    plugin_id = d_(Unicode())
+    plugin_id = d_(Str())
 
     def get_object(self, workbench):
         return workbench.get_plugin(self.plugin_id)

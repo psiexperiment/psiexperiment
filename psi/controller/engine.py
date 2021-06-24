@@ -5,7 +5,7 @@ import threading
 
 import numpy as np
 
-from atom.api import (Unicode, Float, Bool, observe, Property, Int, Typed,
+from atom.api import (Str, Float, Bool, observe, Property, Int, Typed,
                       Long, Value)
 from enaml.core.api import Declarative, d_
 
@@ -91,7 +91,7 @@ class Engine(PSIContribution):
     need to implement the analog input methods.
     '''
 
-    name = d_(Unicode()).tag(metadata=True)
+    name = d_(Str()).tag(metadata=True)
 
     master_clock = d_(Bool(False)).tag(metadata=True)
 

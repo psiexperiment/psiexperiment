@@ -7,7 +7,7 @@ import os.path
 from pathlib import Path
 import subprocess
 
-from atom.api import Atom, Bool, Enum, List, Typed, Unicode
+from atom.api import Atom, Bool, Enum, List, Typed, Str
 import enaml
 from enaml.qt.qt_application import QtApplication
 
@@ -30,15 +30,15 @@ class SimpleLauncher(Atom):
     calibration = Typed(Path)
     preferences = Typed(Path)
     save_data = Bool(True)
-    experimenter = Unicode().tag(template=True)
-    note = Unicode().tag(template=True)
+    experimenter = Str().tag(template=True)
+    note = Str().tag(template=True)
 
-    experiment_type = Unicode()
+    experiment_type = Str()
     experiment_choices = List()
 
     root_folder = Typed(Path)
     base_folder = Typed(Path)
-    wildcard = Unicode()
+    wildcard = Str()
     template = '{{date_time}} {experimenter} {note} {experiment}'
     wildcard_template = '*{experiment}'
     use_prior_preferences = Bool(False)
@@ -173,7 +173,7 @@ class SimpleLauncher(Atom):
 
 class AnimalLauncher(SimpleLauncher):
 
-    animal = Unicode().tag(template=True, required=True)
+    animal = Str().tag(template=True, required=True)
 
     template = '{{date_time}} {experimenter} {animal} {note} {experiment}'
     wildcard_template = '*{animal}*{experiment}'

@@ -9,7 +9,7 @@ from queue import Empty, Queue
 import numpy as np
 from scipy import signal
 
-from atom.api import (Unicode, Float, Typed, Int, Property, Enum, Bool,
+from atom.api import (Str, Float, Typed, Int, Property, Enum, Bool,
                       Callable, List)
 from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
@@ -52,11 +52,11 @@ def broadcast(*targets):
 
 
 class Input(PSIContribution):
-    name = d_(Unicode()).tag(metadata=True)
-    label = d_(Unicode()).tag(metadata=True)
+    name = d_(Str()).tag(metadata=True)
+    label = d_(Str()).tag(metadata=True)
     force_active = d_(Bool(False)).tag(metadata=True)
 
-    source_name = d_(Unicode())
+    source_name = d_(Str())
     source = d_(Typed(Declarative).tag(metadata=True), writable=False)
     channel = Property()
     engine = Property()

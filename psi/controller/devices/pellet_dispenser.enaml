@@ -1,6 +1,6 @@
 from functools import partial
 
-from atom.api import Float, Int, Unicode, Typed
+from atom.api import Float, Int, Str, Typed
 from enaml.application import timed_call
 from enaml.core.api import d_
 from enaml.widgets.api import Action, DockItem, Container, Label
@@ -18,7 +18,7 @@ from ..device import Device
 
 class PelletDispenser(Device):
 
-    output_name = d_(Unicode())
+    output_name = d_(Str())
     inter_pellet_delay = d_(Float(0.5))
 
     pellets_dispensed = Int(0)
