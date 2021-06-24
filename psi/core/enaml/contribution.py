@@ -23,6 +23,7 @@ class PSIContribution(Declarative):
         for c in cls.mro():
             search.append(f'{c.__module__}.{c.__name__}Manifest')
             search.append(f'{c.__module__}_manifest.{c.__name__}Manifest')
+        search.append('psi.core.enaml.manifest.PSIManifest')
         for location in search:
             try:
                 return load_manifest(location)
@@ -32,6 +33,8 @@ class PSIContribution(Declarative):
         raise ImportError(m)
 
     def load_manifest(self, workbench):
+        if not self.load_manifest:
+            return
         try:
             manifest_class = self.find_manifest_class()
             manifest = manifest_class(contribution=self)
