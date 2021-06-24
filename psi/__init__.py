@@ -155,21 +155,6 @@ def get_config(setting=None):
         return dict(zip(setting_names, setting_values))
 
 
-# Monkeypatch built-in JSON library to better handle special types. The
-# json-tricks library handles quite a few different types of Python objects
-# fairly well. This ensures that third-party libraries (e.g., bcolz) that see
-# psiexperiment data structures can properly deal with them.
-#import matplotlib
-import matplotlib.font_manager
-import json
-import json_tricks
-
-for fn_name in ('dump', 'dumps', 'load', 'loads'):
-    fn = getattr(json_tricks, fn_name)
-    setattr(json, fn_name, fn)
-log.debug('Monkeypatched system JSON')
-
-
 reload_config()
 
 from ._version import get_versions
