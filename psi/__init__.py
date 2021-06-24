@@ -62,16 +62,42 @@ def get_config_file():
     return Path(os.environ.get('PSI_CONFIG_FILE', default))
 
 
-def create_config(base_directory=None):
-    config_template = Path(__file__).parent / 'templates' / 'config.txt'
+def create_config(base_directory=None, log=None, data=None, processed=None,
+                  cal=None, preferences=None, layout=None, io=None):
+
+    # This approach allows code inspection to show valid function parameters
+    # without hiding it behind an anonymous **kwargs definition.
+    kwargs = locals()
+    kwargs.pop('base_directory')
+
+    # Figure out where to save everything
     target = get_config_file()
     target.parent.mkdir(exist_ok=True, parents=True)
 
     if base_directory is None:
         base_directory = str(target.parent)
 
+    defaults = {
+        'LOG_ROOT': "BASE_DIRECTORY / 'logs'",
+        'DATA_ROOT': "BASE_DIRECTORY / 'data'",
+        'PROCESSED_ROOT': "BASE_DIRECTORY / 'processed'",
+        'CAL_ROOT': "BASE_DIRECTORY / 'calibration'",
+        'PREFERENCES_ROOT': "BASE_DIRECTORY / 'settings' / 'preferences'",
+        'LAYOUT_ROOT': "BASE_DIRECTORY / 'settings' / 'layout'",
+        'IO_ROOT': "BASE_DIRECTORY / 'io'",
+    }
+
+    for key, value in kwargs.items():
+        if value is None:
+            continue
+        config_key = f"{key.upper()}_ROOT"
+        config_value = f"Path(r'{value}')"
+        defaults[config_key] = config_value
+
+    paths = '\n'.join(f'{k} = {v}' for k, v in defaults.items())
+    config_template = Path(__file__).parent / 'templates' / 'config.txt'
     config_text = config_template.read_text()
-    config_text = config_text.format(base_directory)
+    config_text = config_text.format(base_directory, paths)
     target.write_text(config_text)
 
 
