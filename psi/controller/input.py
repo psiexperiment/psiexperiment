@@ -852,7 +852,7 @@ def reject_epochs(reject_threshold, mode, status, valid_target):
             # that the update occurs on the GUI thread.
             status.total += len(epochs)
             status.rejects += len(epochs) - len(valid)
-            status.reject_ratio = status.rejects / status.total
+            status.reject_percent = status.rejects / status.total * 100
 
         deferred_call(update)
 
