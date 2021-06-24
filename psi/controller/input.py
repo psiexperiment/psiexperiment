@@ -56,18 +56,18 @@ class Input(PSIContribution):
     label = d_(Str()).tag(metadata=True)
     force_active = d_(Bool(False)).tag(metadata=True)
 
-    source_name = d_(Str())
+    source_name = d_(Str()).tag(metadata=True)
     source = d_(Typed(Declarative).tag(metadata=True), writable=False)
-    channel = Property()
-    engine = Property()
+    channel = Property().tag(metadata=True)
+    engine = Property().tag(metadata=True)
 
     fs = Property().tag(metadata=True)
     dtype = Property().tag(metadata=True)
     unit = Property().tag(metadata=True)
-    calibration = Property()
-    active = Property()
+    calibration = Property().tag(metadata=True)
+    active = Property().tag(metadata=True)
 
-    inputs = List()
+    inputs = List().tag(metadata=True)
 
     def _default_name(self):
         if self.source is not None:
@@ -277,7 +277,7 @@ class IIRFilter(ContinuousInput):
         metadata=True)
     f_highpass = d_(Float()).tag(metadata=True)
     f_lowpass = d_(Float()).tag(metadata=True)
-    wn = Property()
+    wn = Property().tag(metadata=True)
 
     def _get_wn(self):
         if self.btype == 'lowpass':
@@ -862,7 +862,7 @@ class RejectEpochs(EpochInput):
 
     total = Int()
     rejects = Int()
-    reject_ratio = Float()
+    reject_percent = Float()
 
     def configure_callback(self):
         valid_cb = super().configure_callback()
@@ -897,7 +897,7 @@ class Detrend(EpochInput):
         linear least-squares fit is subtracted from the epoch. If 'constant',
         only the mean of the epoch is subtracted.
     '''
-    mode = d_(Enum('constant', 'linear', None))
+    mode = d_(Enum('constant', 'linear', None)).tag(metadata=True)
 
     def configure_callback(self):
         cb = super().configure_callback()

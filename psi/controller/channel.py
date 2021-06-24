@@ -22,7 +22,7 @@ class Channel(PSIContribution):
     label = d_(Str()).tag(metadata=True)
 
     #: Is channel active during experiment?
-    active = Property()
+    active = Property().tag(metadata=True)
 
     # SI unit (e.g., V)
     unit = d_(Str()).tag(metadata=True)
@@ -35,17 +35,14 @@ class Channel(PSIContribution):
     dtype = d_(Str()).tag(metadata=True)
 
     # Parent engine (automatically derived by Enaml hierarchy)
-    engine = Property()
+    engine = Property().tag(metadata=True)
 
     # Calibration of channel
     calibration = d_(Typed(Calibration, factory=UnityCalibration))
     calibration.tag(metadata=True)
 
     # Can the user modify the channel calibration?
-    calibration_user_editable = d_(Bool(False))
-
-    # Is channel active during experiment?
-    active = Property()
+    calibration_user_editable = d_(Bool(False)).tag(metadata=True)
 
     filter_delay = d_(Float(0).tag(metadata=True))
 
@@ -98,7 +95,7 @@ class SoftwareMixin(Declarative):
 
 class InputMixin(Declarative):
 
-    inputs = List()
+    inputs = List().tag(metadata=True)
 
     def _get_active(self):
         active = [i.active for i in self.inputs]
@@ -146,8 +143,8 @@ class CounterMixin(Declarative):
 
 class OutputMixin(Declarative):
 
-    outputs = List()
-    buffer_size = Property()
+    outputs = List().tag(metadata=True)
+    buffer_size = Property().tag(metadata=True)
 
     def _get_active(self):
         return len(self.outputs) > 0

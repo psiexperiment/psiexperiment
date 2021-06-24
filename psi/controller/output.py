@@ -39,10 +39,10 @@ class Output(PSIContribution):
     name = d_(Str()).tag(metadata=True)
     label = d_(Str()).tag(metadata=True)
 
-    target_name = d_(Str())
+    target_name = d_(Str()).tag(metadata=True)
     target = d_(Typed(Declarative).tag(metadata=True), writable=False)
-    channel = Property()
-    engine = Property()
+    channel = Property().tag(metadata=True)
+    engine = Property().tag(metadata=True)
 
     # These two are defined as properties because it's theoretically possible
     # for the output to transform these (e.g., an output could upsample
@@ -52,7 +52,7 @@ class Output(PSIContribution):
     filter_delay = Property().tag(metadata=True)
 
     # TODO: clean this up. it's sort of hackish.
-    token = d_(Typed(Declarative))
+    token = d_(Typed(Declarative)).tag(metadata=True)
 
     # Can the user configure properties (such as the token) via the GUI?
     configurable = d_(Bool(True))
@@ -63,6 +63,8 @@ class Output(PSIContribution):
         self.callbacks.append(cb)
 
     def notify(self, data):
+        if not self.callbacks:
+            return
         # Correct for filter delay
         d = data.copy()
         d['t0'] += self.filter_delay
@@ -101,10 +103,10 @@ class Output(PSIContribution):
 
 class BufferedOutput(Output):
 
-    dtype = Str('double')
-    buffer_size = Property()
-    active = Bool(False)
-    source = Typed(object)
+    dtype = Str('double').tag(metadata=True)
+    buffer_size = Property().tag(metadata=True)
+    active = Bool(False).tag(metadata=True)
+    source = Typed(object).tag(metadata=True)
 
     _buffer = Typed(SignalBuffer)
     _offset = Int(0)
@@ -208,7 +210,7 @@ class EpochOutput(BufferedOutput):
 class QueuedEpochOutput(BufferedOutput):
 
     queue = d_(Typed(AbstractSignalQueue))
-    auto_decrement = d_(Bool(False))
+    auto_decrement = d_(Bool(False)).tag(metadata=True)
     complete = d_(Event(), writable=False)
     paused = Bool(False)
 
@@ -284,7 +286,7 @@ class QueuedEpochOutput(BufferedOutput):
 
 class SelectorQueuedEpochOutput(QueuedEpochOutput):
 
-    selector_name = d_(Str('default'))
+    selector_name = d_(Str('default')).tag(metadata=True)
 
 
 class ContinuousOutput(BufferedOutput):
@@ -302,7 +304,7 @@ class DigitalOutput(Output):
 
 class Trigger(DigitalOutput):
 
-    duration = d_(Float(0.1))
+    duration = d_(Float(0.1)).tag(metadata=True)
 
     def fire(self):
         if self.engine.configured:
