@@ -1,4 +1,5 @@
 from setuptools import find_packages, setup
+import versioneer
 
 
 requirements = [
@@ -24,7 +25,6 @@ extras_require = {
 
 setup(
     name='psiexperiment',
-    version='0.1.4.post2',
     author='Brad Buran',
     author_email='bburan@alum.mit.edu',
     install_requires=requirements,
@@ -46,4 +46,6 @@ setup(
             'psi-summarize-abr-auto=psi.data.io.summarize_abr:main_auto',
         ]
     },
+    version=versioneer.get_version(),
+    cmdclass=versioneer.get_cmdclass(),
 )
