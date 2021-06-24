@@ -497,22 +497,24 @@ class Decimate(ContinuousInput):
 
 @coroutine
 def discard(discard_samples, cb):
-    discarded = discard_samples
+    to_discard = discard_samples
     while True:
         samples = (yield)
         if samples is Ellipsis:
-            to_discard = discarded
+            # Restart the pipeline
+            to_discard = discard_samples
             cb(samples)
             continue
 
-        if discard_samples == 0:
+        samples.metadata['discarded'] = discard_samples
+        if to_discard == 0:
             cb(samples)
-        elif samples.shape[-1] <= discard_samples:
-            discard_samples -= samples.shape[-1]
-        elif samples.shape[-1] > discard_samples:
-            s = samples[..., discard_samples:]
-            discard_samples -= s.shape[-1]
-            cb(s)
+        elif samples.shape[-1] <= to_discard:
+            to_discard -= samples.shape[-1]
+        elif samples.shape[-1] > to_discard:
+            samples = samples[..., to_discard:]
+            to_discard = 0
+            cb(samples)
 
 
 class Discard(ContinuousInput):
