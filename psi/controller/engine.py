@@ -29,7 +29,8 @@ def log_configuration(engine):
     log.info('\n'.join(info))
 
 
-class LogLock(object):
+class LogLock:
+
     def __init__(self, name):
         self.name = str(name)
         self.lock = threading.Lock()
