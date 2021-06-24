@@ -30,24 +30,24 @@ class SimpleLauncher(Atom):
     calibration = Typed(Path)
     preferences = Typed(Path)
     save_data = Bool(True)
-    experimenter = Str().tag(template=True)
+    experimenter = Str().tag(template=True, required=True)
     note = Str().tag(template=True)
 
     experiment_type = Str()
     experiment_choices = List()
 
     root_folder = Typed(Path)
-    base_folder = Typed(Path)
+    base_folder = Typed(Path).tag(required=False)
     wildcard = Str()
     template = '{{date_time}} {experimenter} {note} {experiment}'
     wildcard_template = '*{experiment}'
     use_prior_preferences = Bool(False)
 
-    can_launch = Bool(False)
+    can_launch = Bool(False).tag(required=False)
 
     available_io = List()
     available_calibrations = List()
-    available_preferences = List()
+    available_preferences = List().tag(required=False)
 
     def _default_experiment(self):
         return self.experiment_choices[0]
@@ -115,23 +115,31 @@ class SimpleLauncher(Atom):
         self._update()
 
     def _update(self):
-        exclude = [] if self.save_data else ['experimenter', 'animal', 'ear']
+        exclude = list(get_tagged_values(self, 'required', False).keys())
+        exclude_save = ['experimenter', 'animal', 'ear']
+        if not self.save_data:
+            exclude.extend(exclude_save)
+
+        template_vals = get_tagged_values(self, 'template')
         required_vals = get_tagged_values(self, 'required')
-        self.can_launch = True
-        for k, v in get_tagged_values(self, 'required').items():
-            if k in exclude:
+        for k, v in required_vals.items():
+            if k == 'note':
+                continue
+            if k == 'save_data':
                 continue
             if not v:
                 self.can_launch = False
+                self.base_folder = None
                 return
 
         if self.save_data:
-            template_vals = get_tagged_values(self, 'template')
-            template_vals['experiment'] = template_vals['experiment'].name
-            self.base_folder = self.root_folder / self.template.format(**template_vals)
-            self.wildcard = self.wildcard_template.format(**template_vals)
-        else:
-            self.base_folder = None
+            vals['experiment'] = vals['experiment'].name
+            self.base_folder = self.root_folder / self.template.format(**vals)
+
+        template_vals['experiment'] = template_vals['experiment'].name
+        self.base_folder = self.root_folder / self.template.format(**template_vals)
+        self.wildcard = self.wildcard_template.format(**template_vals)
+        self.can_launch = True
 
     def get_preferences(self):
         if not self.use_prior_preferences:
