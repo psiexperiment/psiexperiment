@@ -34,6 +34,9 @@ def workbench(app):
     item.rove = True
     for r in (20, 15, 10, 2, 20):
         context.selectors['default'].add_setting({'repetitions': r})
+
+    core = workbench.get_plugin('enaml.workbench.core')
+    core.invoke_command('psi.context.initialize')
     return workbench
 
 

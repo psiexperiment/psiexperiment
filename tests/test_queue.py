@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 import pytest
 
 from collections import Counter, deque
@@ -215,8 +218,8 @@ def test_fifo_queue_pause_with_requeue():
     # int() instead of round() with quirky sample rates (e.g., like with the
     # RZ6).
     n = len(t1_waveform)
-    t1_waveforms = np.vstack(w['signal'] for w in waveforms[:100])
-    t2_waveforms = np.vstack(w['signal'] for w in waveforms[100:])
+    t1_waveforms = np.vstack([w['signal'] for w in waveforms[:100]])
+    t2_waveforms = np.vstack([w['signal'] for w in waveforms[100:]])
 
     assert np.all(t1_waveforms[:, :n] == t1_waveform)
     assert np.all(t2_waveforms[:, :n] == t2_waveform)
@@ -484,10 +487,13 @@ def test_get_closest_key():
 
 
 def test_rebuffering():
+    log.debug('ISI is %f', isi)
+    from matplotlib import pyplot as plt
     frequencies = (500, 1e3, 2e3, 4e3, 8e3)
     trials = 200
     queue, conn, rem_conn, keys, tones = \
         make_queue('FIFO', frequencies, trials)
+
 
     waveforms = []
     extractor_conn = deque()
@@ -502,33 +508,56 @@ def test_rebuffering():
                                epoch_size=8.5e-3,
                                target=waveforms.extend)
 
+    # Default tone duration is 5e-3
     tone_duration = tones[0].duration
     tone_samples = int(round(tone_duration * fs))
-    w = queue.pop_buffer(tone_samples * 2)
-    extractor.send(w[:tone_samples])
 
+    # Remove 5e-3 sec of the waveform
+    extractor.send(queue.pop_buffer(tone_samples))
+
+    # Now, pause the queue at 5e-3 sec, remove 10e-3 worth of samples, and then
+    # resume.
+    log.debug('Pausing first time')
     queue.pause(tone_duration)
-    queue.resume(tone_duration, delay=10e-3)
+    extractor.send(queue.pop_buffer(tone_samples*2))
+    queue.resume()
 
+    # Pull off one additonal second.
+    new_ts = queue.get_ts()
+
+    # Since we will be pausing the queue at 1.005 sec, we need to make sure
+    # that we do not actually deliver the samples after 1.005 sec to the
+    # extractor (this simulates a DAQ where we have uploaded some samples to a
+    # "buffer" but have not actually played them out).
+    old_ts = queue.get_ts()
+    keep = (tone_duration + 1.0) - old_ts
+    keep_samples = int(round(keep * fs))
     w = queue.pop_buffer(int(fs))
-    extractor.send(w)
+    log.warning('Keeping %d of %d samples', keep_samples, len(w))
+    extractor.send(w[:keep_samples])
+    assert queue.get_ts() == pytest.approx(1.015, 4)
 
-    # This will result in pausing in the middle of a tone burst (at this
-    # point, we will have popped the equivalent of 1.005 sec of samples off
-    # the queue buffer).
+    # This will result in pausing in the middle of a tone burst. This ensures
+    # that we properly notify the extractor that a stimulus was cut-off halfway
+    # (i.e., rem_conn will have an item in the queue).
+    log.debug('Pausing second time')
+    assert len(rem_conn) == 0
     queue.pause(tone_duration + 1.0)
     queue.resume(tone_duration + 1.0)
     assert len(rem_conn) == 1
 
-    w = queue.pop_buffer(int(fs))
-    extractor.send(w)
-
     # Clear all remaining trials
-    w = queue.pop_buffer(15 * int(fs))
-    extractor.send(w)
+    extractor.send(queue.pop_buffer(15 * int(fs)))
 
-    assert len(waveforms) == (len(frequencies) * trials)
+    # Check that we have the expected number of epochs acquired
+    #assert len(waveforms) == (len(frequencies) * trials)
+
+    #plt.plot(waveforms[0]['signal'])
+    #plt.plot(waveforms[-1]['signal'])
+    #plt.show()
+
     epochs = np.vstack([w['signal'] for w in waveforms])
     epochs.shape = len(frequencies), trials, -1
-    print(epochs[:, [0]].shape, epochs.shape)
+
+    # Make sure epochs 1 ... end are equal to epoch 0
     assert np.all(np.equal(epochs[:, [0]], epochs))

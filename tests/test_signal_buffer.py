@@ -4,9 +4,27 @@ import numpy as np
 from psi.data.plots import SignalBuffer
 
 
+TDT_FS = 195312.5
+
+
 @pytest.fixture
 def sb():
     return SignalBuffer(fs=100, size=10)
+
+
+@pytest.fixture
+def sb_tdt():
+    return SignalBuffer(fs=TDT_FS, size=1)
+
+
+def test_buffer_get_latest(sb_tdt):
+    size = 201858
+    n = int(np.ceil(TDT_FS))
+    write_samples = np.random.uniform(size=size)
+    sb_tdt.append_data(write_samples)
+    read_samples = sb_tdt.get_latest(-1, 0)
+    assert len(read_samples) == n
+    assert np.array_equal(read_samples, write_samples[-n:])
 
 
 def test_buffer_bounds(sb):

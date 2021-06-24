@@ -82,4 +82,4 @@ def test_update(workbench):
     item = context.context_items['repetitions']
     context.selectors['default'].set_value(0, item, '5')
     assert context.changes_pending == True
-    assert context.selectors['default'].get_value(0, item) == 5
+    assert context.selectors['default'].get_value(0, item) == '5'

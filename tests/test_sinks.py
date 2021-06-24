@@ -24,7 +24,8 @@ def test_table_create_append():
         },
     ]
     for row in rows:
-        store.process_table(row, flush=True)
+        store.process_table(row)
+        store.flush()
     filename = store.get_filename()
     assert pd.read_csv(filename).equals(pd.DataFrame(rows))
 
