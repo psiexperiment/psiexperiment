@@ -6,14 +6,16 @@ from enaml.application import deferred_call
 from enaml.layout.api import InsertItem
 from enaml.layout.dock_layout import DockLayoutValidator
 from enaml.workbench.plugin import Plugin
-from enaml.widgets.api import Action, ToolBar, DockItem
+from enaml.widgets.api import Action, DockItem, ToolBar
 from enaml.widgets.toolkit_object import ToolkitObject
 
 from .preferences import Preferences
+from .status_item import StatusItem
 
 
 TOOLBAR_POINT = 'psi.experiment.toolbar'
 WORKSPACE_POINT = 'psi.experiment.workspace'
+STATUS_POINT = 'psi.experiment.status'
 PREFERENCES_POINT = 'psi.experiment.preferences'
 
 
@@ -36,9 +38,11 @@ class ExperimentPlugin(Plugin):
     _preferences = Typed(list)
     _workspace_contributions = Typed(list)
     _toolbars = Typed(list)
+    _status_items = Typed(list)
 
     def start(self):
         log.debug('Starting experiment plugin')
+        self._refresh_status()
         self._refresh_workspace()
         self._refresh_toolbars()
         self._refresh_preferences()
@@ -54,8 +58,11 @@ class ExperimentPlugin(Plugin):
         items_added = []
         for extension in point.extensions:
             if extension.factory is not None:
-                extension.factory(ui.workbench, ui.workspace)
-            for item in extension.get_children(DockItem):
+                items = extension.factory(self, ui.workbench, ui.workspace)
+            else:
+                items = []
+            items.extend(extension.get_children(DockItem))
+            for item in items:
                 item.set_parent(ui.workspace.dock_area)
                 op = InsertItem(item=item.name)
                 ui.workspace.dock_area.update_layout(op)
@@ -89,6 +96,16 @@ class ExperimentPlugin(Plugin):
         log.debug('Registered preferences: %s', ', '.join(preferences_added))
         self._preferences = preferences
 
+    def _refresh_status(self, event=None):
+        log.debug('Refreshing status')
+        point = self.workbench.get_extension_point(STATUS_POINT)
+        status_items_added = []
+        for extension in point.extensions:
+            for item in extension.get_children(StatusItem):
+                item.load_manifest(self.workbench)
+                status_items_added.append(item)
+        self._status_items = status_items_added
+
     def _bind_observers(self):
         self.workbench.get_extension_point(PREFERENCES_POINT) \
             .observe('extensions', self._refresh_preferences)
@@ -96,6 +113,8 @@ class ExperimentPlugin(Plugin):
             .observe('extensions', self._refresh_toolbars)
         self.workbench.get_extension_point(WORKSPACE_POINT) \
             .observe('extensions', self._refresh_workspace)
+        self.workbench.get_extension_point(STATUS_POINT) \
+            .observe('extensions', self._refresh_status)
 
     def _unbind_observers(self):
         self.workbench.get_extension_point(PREFERENCES_POINT) \
@@ -104,6 +123,8 @@ class ExperimentPlugin(Plugin):
             .unobserve('extensions', self._refresh_toolbars)
         self.workbench.get_extension_point(WORKSPACE_POINT) \
             .unobserve('extensions', self._refresh_workspace)
+        self.workbench.get_extension_point(STATUS_POINT) \
+            .unobserve('extensions', self._refresh_status)
 
     def _get_toolbar_layout(self, toolbars):
         # TODO: This needs some work. It's not *quite* working 100%, especially

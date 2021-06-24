@@ -9,7 +9,8 @@ import yaml
 
 import numpy as np
 
-from enaml.widgets.api import FileDialogEx
+from enaml.widgets.api import DockItem, FileDialogEx, Form, HGroup, Label, VGroup
+from enaml.core.api import Looper, Include
 from enaml.workbench.api import Extension, PluginManifest, ExtensionPoint
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
@@ -184,7 +185,29 @@ def set_theme(event):
     ui.workspace.dock_area.style = event.parameters['style']
 
 
-enamldef ExperimentManifest(PluginManifest):
+enamldef StatusDockItem(DockItem):
+
+    name = 'experiment_status'
+    title = 'Experiment Status'
+    attr plugin
+
+    Form:
+        Looper:
+            iterable << plugin._status_items
+            Label:
+                text << loop_item.label
+            HGroup:
+                padding = 0
+                spacing = 0
+                Include:
+                    objects << loop_item.children
+
+
+def status_dockitem_factory(plugin, workbench, workspace):
+    return [StatusDockItem(plugin=plugin)]
+
+
+enamldef ExperimentManifest(PluginManifest): manifest:
     '''
     This plugin acts as the entry point for all other plugins in this example.
     It contributes the window branding, default actions, and the workspace
@@ -194,23 +217,23 @@ enamldef ExperimentManifest(PluginManifest):
     factory = ExperimentPlugin
 
     Extension:
-        id = 'workspace'
+        id = manifest.id + '.ui.workspace'
         point = 'enaml.workbench.ui.workspaces'
         factory = lambda workbench: ExperimentWorkspace()
 
     Extension:
-        id = 'window'
+        id = manifest.id + '.window'
         point = 'enaml.workbench.ui.window_factory'
         factory = lambda workbench: ExperimentWorkbenchWindow()
 
     Extension:
-        id = 'controller_actions'
+        id = manifest.id + '.controller_actions'
         point = 'psi.controller.actions'
         ExperimentEvent:
             name = 'plugins_started'
 
     Extension:
-        id = 'commands'
+        id = manifest.id + '.commands'
         point = 'enaml.workbench.core.commands'
         Command:
             id = 'psi.save_layout'
@@ -244,7 +267,7 @@ enamldef ExperimentManifest(PluginManifest):
             handler = set_theme
 
     Extension:
-        id = 'actions'
+        id = manifest.id + '.actions'
         point = 'enaml.workbench.ui.actions'
         MenuItem:
             path = '/configuration'
@@ -325,3 +348,11 @@ enamldef ExperimentManifest(PluginManifest):
 
     ExtensionPoint:
         id = 'preferences'
+
+    ExtensionPoint:
+        id = 'status'
+
+    Extension:
+        id = manifest.id + '.workspace'
+        point = 'psi.experiment.workspace'
+        factory = status_dockitem_factory

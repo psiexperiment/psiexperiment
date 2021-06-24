@@ -1,6 +1,8 @@
 import logging
 log = logging.getLogger(__name__)
 
+from atom.api import Value
+
 import enaml
 from enaml.application import deferred_call
 from enaml.workbench.api import Workbench
@@ -65,7 +67,7 @@ class PSIWorkbench(Workbench):
     def start_workspace(self,
                         experiment_name,
                         base_path=None,
-                        workspace='psi.experiment.workspace',
+                        workspace='psi.experiment.ui.workspace',
                         commands=None,
                         load_preferences=True,
                         load_layout=True,
