@@ -416,7 +416,7 @@ def truncated_ifft(spectrum, original_fs, truncated_fs):
 
 def save_calibration(channels, filename):
     from psi.util import get_tagged_values
-    from json_tricks import dump
+    from json import dump
     settings = {}
     for channel in channels:
         metadata = get_tagged_values(channel.calibration, 'metadata')
@@ -432,7 +432,7 @@ def load_calibration(filename, channels):
     '''
     Load calibration configuration for hardware from json file
     '''
-    from json_tricks import load
+    from json import load
     from psi.controller.calibration.api import calibration_registry
     with open(filename, 'r') as fh:
         settings = load(fh)
