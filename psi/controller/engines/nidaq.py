@@ -370,12 +370,9 @@ def setup_counters(channels, task_name='counter'):
 def setup_hw_ao(channels, buffer_duration, callback_interval, callback,
                 task_name='hw_ao'):
 
-    log.debug('SETTIN UP')
     lines = get_channel_property(channels, 'channel', True)
     names = get_channel_property(channels, 'name', True)
     expected_ranges = get_channel_property(channels, 'expected_range', True)
-    log.debug(channels)
-    log.debug(expected_ranges)
     start_trigger = get_channel_property(channels, 'start_trigger')
     terminal_mode = get_channel_property(channels, 'terminal_mode')
     terminal_mode = NIDAQEngine.terminal_mode_map[terminal_mode]
