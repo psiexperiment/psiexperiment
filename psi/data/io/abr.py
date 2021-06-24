@@ -41,7 +41,11 @@ def cache(f, name=None):
         name = f.__code__.co_name
 
     @wraps(f)
-    def wrapper(self, *args, refresh_cache=False, **kwargs):
+    def wrapper(self, *args, bypass_cache=False, refresh_cache=False, **kwargs):
+        if bypass_cache:
+            return f(self, *args, **kwargs)
+
+        cb = kwargs.pop('cb', None)
         bound_args = s.bind(self, *args, **kwargs)
         bound_args.apply_defaults()
         cache_kwargs = dict(bound_args.arguments)
@@ -67,15 +71,17 @@ def cache(f, name=None):
             cache_file.unlink()
 
         if result is None:
-            result = f(self, *args, **kwargs)
-            result.to_pickle(cache_file)
-            with open(kwargs_cache_file, 'wb') as fh:
-                pickle.dump(kwargs, fh)
+            result = f(self, *args, cb=cb, **kwargs)
+            try:
+                result.to_pickle(cache_file)
+                with open(kwargs_cache_file, 'wb') as fh:
+                    pickle.dump(kwargs, fh)
+            except OSError:
+                warnings.warn(f'Unable to create cache file at {cache_path}')
 
         return result
 
     return wrapper
-
 
 
 class ABRFile(Recording):
