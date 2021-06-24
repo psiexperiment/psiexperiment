@@ -10,15 +10,24 @@ import numpy as np
 from psi.data.io import abr
 
 
-def main(filename):
+def main(filename, levels=None, latency=0):
+    columns = ['level', 'frequency', 'polarity']
     fh = abr.load(filename)
-    epochs = fh.get_epochs()
-    epochs_mean = epochs.groupby(['level', 'frequency', 'polarity']).mean()
-    epochs_size = epochs.groupby(['level', 'frequency', 'polarity']).size()
-    levels = epochs_mean.index.unique('level').tolist()
-    freqs = epochs_mean.index.unique('frequency').tolist()
-    levels.sort()
-    freqs.sort()
+    epochs = fh.get_epochs(offset=latency, columns=columns)
+    epochs_mean = epochs.groupby(columns).mean()
+    epochs_size = epochs.groupby(columns).size()
+
+    all_levels = epochs_mean.index.unique('level').tolist()
+    all_freqs = epochs_mean.index.unique('frequency').tolist()
+    all_levels.sort()
+    all_freqs.sort()
+
+    # TODO: Not filtering freqs for now
+    freqs = all_freqs[:]
+
+    if not levels:
+        levels = all_levels[:]
+    levels = sorted(set(levels) & set(all_levels))
 
     f1, axes = plt.subplots(len(levels), len(freqs), sharey=True, sharex=True,
                             figsize=(10, 10))
@@ -96,6 +105,11 @@ def main(filename):
 
 
 if __name__ == '__main__':
-    import sys
-    filename = sys.argv[1]
-    main(filename)
+    import argparse
+    parser = argparse.ArgumentParser('review-abr-data')
+    parser.add_argument('filename')
+    parser.add_argument('--levels', nargs='*', type=float)
+    parser.add_argument('--latency', default=0.0, type=float)
+    args = parser.parse_args()
+    print(args)
+    main(args.filename, args.levels, args.latency)
