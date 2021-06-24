@@ -247,6 +247,8 @@ class Engine(PSIContribution):
         example, calibration may only need to run a subset of the channels.
         '''
         new = copy_declarative(self)
+        for channel in new.children:
+            channel.set_parent(None)
         if channel_names is not None:
             for channel_name in channel_names:
                 channel = self.get_channel(channel_name)
