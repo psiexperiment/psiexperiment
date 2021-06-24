@@ -1,0 +1,76 @@
+from . import TDTEngine, TDTHardwareAIChannel, TDTHardwareAOChannel
+
+
+enamldef BaseTDTEngine(TDTEngine):
+
+    device_name = 'RZ6'
+    device_id = 1
+    name = 'TDT_audio'
+
+    # 31 samples for devices with serial number > 2000
+    attr ao_delay = 0.31744e-3
+
+    # 66 samples
+    attr ai_delay = 0.67584e-3
+
+    TDTHardwareAOChannel:
+        tag = 'ao1'
+        label = 'Out-A'
+        name = 'primary'
+        dtype = 'float32'
+        filter_delay << ao_delay
+
+    TDTHardwareAOChannel:
+        tag = 'ao2'
+        label = 'Out-B'
+        name = 'secondary'
+        dtype = 'float32'
+        filter_delay << ao_delay
+
+    TDTHardwareAIChannel:
+        tag = 'ai1'
+        label = 'In-A'
+        calibration_user_editable = True
+        name = 'microphone_channel'
+        dtype = 'float32'
+        filter_delay << ai_delay
+
+    TDTHardwareAIChannel:
+        tag = 'ai2'
+        label = 'In-B'
+        calibration_user_editable = True
+        name = 'calibration_microphone'
+        dtype = 'float32'
+        filter_delay << ai_delay
+
+
+enamldef Medusa4ZTDTEngine(BaseTDTEngine):
+
+    # Calculated using Golay code
+    attr medusa4z_delay = 0.9194218671948237e-3
+
+    circuit = 'RZ6-standard-Medusa4Z'
+
+    TDTHardwareAIChannel:
+        tag = 'ai3'
+        label = 'Medusa 1'
+        name = 'eeg_channel'
+        dtype = 'float32'
+        decimation = 4
+        filter_delay << medusa4z_delay
+
+
+enamldef RA4PATDTEngine(BaseTDTEngine):
+
+    # Calculated using Golay code
+    attr RA4PA_delay = 0.16501290493175813e-3
+
+    circuit = 'RZ6-standard-RA4PAx20'
+
+    TDTHardwareAIChannel:
+        tag = 'ai3'
+        label = 'Medusa 1'
+        name = 'eeg_channel'
+        dtype = 'float32'
+        decimation = 4
+        filter_delay << RA4PA_delay

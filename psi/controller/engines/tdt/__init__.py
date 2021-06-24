@@ -22,6 +22,7 @@ from atom.api import (Float, Typed, Str, Int, Bool, Callable, Enum,
                       Property, Value)
 from enaml.core.api import Declarative, d_
 
+from psi import get_config
 from psi.controller.calibration.util import dbi
 from psi.controller.api import (Engine, HardwareAIChannel, HardwareAOChannel)
 from psi.controller.input import InputData
@@ -62,7 +63,17 @@ class TDTHardwareAOChannel(TDTGeneralMixin, HardwareAOChannel):
 
 
 class TDTHardwareAIChannel(TDTGeneralMixin, HardwareAIChannel):
-    pass
+
+    #: Decimation factor. The analog inputs allow for the data to be
+    #: downsampled to a rate that's an integer divisor of the circuit
+    #: frequency.
+    decimation = d_(Int(1)).tag(metadata=True)
+
+    #: Filter delay in samples.
+    filter_delay_samples = Property().tag(metadata=True)
+
+    def _get_filter_delay_samples(self):
+        return int(round(self.filter_delay * self.fs))
 
 
 ###############################################################################
@@ -79,11 +90,23 @@ class DAQThread(Thread):
         self.name = name
 
     def run(self):
+        profile = get_config('PROFILE')
+        if profile:
+            import cProfile
+            pr = cProfile.Profile()
+            pr.enable()
+
         log.debug('Starting acquisition thread')
         while not self.stop_requested.wait(self.poll_interval):
             stop = self.callback()
             if stop:
                 break
+
+        if profile:
+            pr.disable()
+            path = get_config('LOG_ROOT') / f'{self.name}_thread.pstat'
+            pr.dump_stats(path)
+
         log.debug('Exiting acquistion thread')
 
 
@@ -99,8 +122,10 @@ class TDTEngine(Engine):
     '''
     #: Device name (e.g., RZ6, etc.)
     device_name = d_(Enum('RZ6')).tag(metadata=True)
-    circuit = d_(Str('standard')).tag(metadata=True)
-
+    circuit = d_(Enum('RZ6-standard-RA4PAx1',
+                      'RZ6-standard-RA4PAx20',
+                      'RZ6-standard-Medusa4Z',
+                      'RZ6-debugging')).tag(metadata=True)
     circuit_path = Property()
 
     #: Device ID (required only if you have more than one of the same device).
@@ -124,8 +149,7 @@ class TDTEngine(Engine):
     _sf = Typed(dict, {})
 
     def _get_circuit_path(self):
-        circuit_name = f'{self.device_name}-{self.circuit}.rcx'
-        return Path(__file__).parent / circuit_name
+        return Path(__file__).parent / f'{self.circuit}.rcx'
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -144,7 +168,9 @@ class TDTEngine(Engine):
         ao_chans = self.get_channels('analog', 'output', 'hardware', False)
 
         # First, verify that all channels are supported by the engine. If not,
-        # raise an error.
+        # raise an error. We don't actually load the channels until we call
+        # `configure`, but we need to do some preliminary introspection to help
+        # bootstrap other parts of psiexperiment
         for c in ai_chans:
             if not isinstance(c, TDTGeneralMixin):
                 m = f'Channel {c} type {type(c)} not supported.'
@@ -152,7 +178,7 @@ class TDTEngine(Engine):
             if c.fs != 0:
                 m = f'Sampling rate for {c} cannot be set in IO manifest'
                 raise ValueError(m)
-            c.fs = self._circuit.get_buffer(c.tag, 'r').fs
+            c.fs = self._circuit.get_buffer(c.tag, 'r', dec_factor=c.decimation).fs
             log.debug('Updated sampling rate for %d %s %s to %f', id(c), c, c.name, c.fs)
 
         for c in ao_chans:
@@ -221,8 +247,13 @@ class TDTEngine(Engine):
         buffers = {}
         sf = {}
         for c in channels:
-            b = self._circuit.get_buffer(c.tag, 'r')
+            b = self._circuit.get_buffer(c.tag, 'r', dec_factor=c.decimation)
             b._sf = dbi(c.gain)
+            b._discard = c.filter_delay_samples
+            b._discarded = 0
+            # This will track the total samples read *after* discarding the
+            # samples for filter delay. See _hw_ai_callback.
+            b._total_samples_read = 0
             buffers[c.name] = b
         self._buffers['hw_ai'] = buffers
         self._threads['hw_ai'] = DAQThread(c.monitor_period,
@@ -233,19 +264,23 @@ class TDTEngine(Engine):
     def _hw_ai_callback(self):
         # TODO: Get lock?
         for name, b in self._buffers['hw_ai'].items():
-            t = time()
-            samples = b.read() / b._sf
-            duration = time()-t
-            if duration != 0:
-                rate = samples.size/duration/1e3
-            else:
-                rate = np.inf
-            log.debug('Read %r samples at rate of %.2f kHz/samples',
-                      samples.shape, rate)
-            data = InputData(samples[0])
-            for channel_name, cb in self._callbacks.get('ai', []):
-                if channel_name == name:
-                    cb(data)
+            t0_sample = b._total_samples_read
+
+            samples = b.read()[0] / b._sf
+            if b._discarded < b._discard:
+                to_discard = min(samples.shape[-1], b._discard)
+                b._discarded += to_discard
+                t0_sample -= to_discard
+
+                log.info('Discarding %.0f samples to compensate for AI filter delay', to_discard)
+                samples = samples[to_discard:]
+
+            if len(samples):
+                b._total_samples_read += len(samples)
+                data = InputData(samples, metadata={'t0_sample': t0_sample, 'fs': b.fs})
+                for channel_name, cb in self._callbacks.get('ai', []):
+                    if channel_name == name:
+                        cb(data)
 
     def get_buffer_size(self, name):
         #return self._buffers['hw_ao'][name].sample_time
@@ -257,8 +292,6 @@ class TDTEngine(Engine):
     def get_space_available(self, name, offset=None):
         b = self._buffers['hw_ao'][name]
         size = b.available(offset)
-        log_ao.trace('%s has %d samples available. Max write is %d.', name,
-                     size, b._max_samples)
         return min(size, b._max_samples)
 
     def _hw_ao_callback(self):
@@ -277,6 +310,7 @@ class TDTEngine(Engine):
                     continue
                 log_ao.debug('%d samples available for %s at offset %d',
                              samples, name, offset)
+
                 data = self.get_channel(name).get_samples(offset, samples)
                 self.write_hw_ao(name, data, offset)
             log_ao.trace('<# Releasing lock for engine %s', self.name)
@@ -319,17 +353,10 @@ class TDTEngine(Engine):
         '''
         # Note, the TDTPy backend does not support timeout, so we ignore the
         # value.
-        t = time()
         self._buffers['hw_ao'][name].write(data, offset)
-        duration = time()-t
-        mb = data.size/duration/1e3
-        log.debug('Write of shape %r, dtype %r, was %.2f kHz/s', data.shape,
-                  data.dtype, mb)
 
     def get_ts(self):
-        ts = self._circuit.cget_tag('zTime', 'n', 's')
-        log.trace('Current circuit timestamp %f', ts)
-        return ts
+        return self._circuit.cget_tag('zTime', 'n', 's')
 
     def start(self):
         if not self._configured:
