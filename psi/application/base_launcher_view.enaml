@@ -91,6 +91,7 @@ enamldef CalibrationGroup(HGroup):
     padding = 0
     spacing = 0
     align_widths = False
+    enabled << len(get_editable_channels(launcher.io)) > 0
 
     ObjectCombo: select_calibration:
         items << launcher.available_calibrations[:]
@@ -136,8 +137,14 @@ enamldef LauncherView(MainWindow): main:
 
     Container:
 
-        Form: config_form:
+        constraints = [
+            config_form.width == preferences_box.width == data_form.width == plugins_box.width,
+            config_form.left == preferences_box.left == data_form.left == plugins_box.left,
+            config_form.right == preferences_box.right == data_form.right == plugins_box.right,
+            vbox(config_form, preferences_box, plugins_box, data_form, button_bar),
+        ]
 
+        Form: config_form:
             Label:
                 text = 'Hardware configuration'
 
