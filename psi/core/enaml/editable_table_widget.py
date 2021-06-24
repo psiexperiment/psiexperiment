@@ -11,11 +11,33 @@ from atom.api import (Typed, set_default, observe, Enum, Event, Property,
 from enaml.core.declarative import d_, d_func
 from enaml.widgets.api import RawWidget
 
-from enaml.qt.QtCore import QAbstractTableModel, QModelIndex, Qt
-from enaml.qt.QtWidgets import QTableView, QHeaderView, QAbstractItemView
-from enaml.qt.QtGui import QColor
+from enaml.qt.QtCore import QAbstractTableModel, QModelIndex, QRect, Qt
+from enaml.qt.QtWidgets import QAbstractItemView, QHeaderView, QStyledItemDelegate, QTableView
+from enaml.qt.QtGui import QBrush, QColor
 
 from .event_filter import EventFilter
+
+
+class QDelegate(QStyledItemDelegate):
+
+    def __init__(self, model, **kw):
+        self.model = model
+        super().__init__(**kw)
+
+    def paint(self, painter, option, index):
+        self.initStyleOption(option, index)
+        painter.save()
+        left_width = option.rect.width() * self.model.cellFrac(index)
+        right_width = option.rect.width() - left_width
+        left_rect = QRect(option.rect.left(), option.rect.top(), left_width, option.rect.height())
+        right_rect = QRect(option.rect.left(), option.rect.top(), right_width, option.rect.height())
+
+        left_brush = QBrush(self.model.cellColor(index))
+        painter.fillRect(left_rect, left_brush)
+        painter.fillRect(right_rect, Qt.NoBrush)
+        painter.restore()
+        option.backgroundBrush = QBrush(Qt.NoBrush)
+        super().paint(painter, option, index)
 
 
 class QEditableTableModel(QAbstractTableModel):
@@ -41,16 +63,22 @@ class QEditableTableModel(QAbstractTableModel):
             flags = flags | Qt.ItemIsEditable
         return flags
 
+    def cellColor(self, index):
+        r = index.row()
+        c = index.column()
+        color_name = self.interface.get_cell_color(r, c)
+        color = QColor()
+        color.setNamedColor(color_name)
+        return color
+
+    def cellFrac(self, index):
+        r = index.row()
+        c = index.column()
+        return self.interface.get_cell_frac(r, c)
+
     def data(self, index, role):
         if not index.isValid():
             return
-        if role == Qt.BackgroundRole:
-            r = index.row()
-            c = index.column()
-            color_name = self.interface.get_cell_color(r, c)
-            color = QColor()
-            color.setNamedColor(color_name)
-            return color
         elif role in (Qt.DisplayRole, Qt.EditRole):
             r = index.row()
             c = index.column()
@@ -103,6 +131,9 @@ class QEditableTableView(QTableView):
         super().__init__(parent=parent, **kwds)
         self.model = model
         self.setModel(model)
+        self.delegate = QDelegate(model)
+        self.setItemDelegate(self.delegate)
+
         self._setup_hheader()
         self._setup_vheader()
         self.setVerticalScrollMode(QAbstractItemView.ScrollPerItem)
@@ -270,7 +301,7 @@ class EditableTable(RawWidget):
 
     model = Typed(QEditableTableModel)
 
-    # Instance of QEditableTableView
+    #: Instance of QEditableTableView
     view = Typed(QEditableTableView)
     event_filter = Typed(EventFilter)
 
@@ -334,6 +365,12 @@ class EditableTable(RawWidget):
     header_resize_mode = d_(Enum('interactive', 'fixed', 'stretch',
                                  'contents'))
 
+    def get_selected_row_coords(self):
+        if len(self.selected_coords) == 0:
+            return []
+        rows, cols = zip(*self.selected_coords)
+        return sorted(list(set(rows)))
+
     def get_column_attribute(self, column_name, attribute, default,
                              raise_error=False):
 
@@ -348,6 +385,24 @@ class EditableTable(RawWidget):
                     raise
                 else:
                     return default
+
+    @d_func
+    def get_cell_frac(self, row_index, column_index):
+        '''
+        Parameters
+        ----------
+        row_index : int
+            Row index (zero-based)
+        column_index : int
+            Column index (zero-based)
+
+        Result
+        ------
+        frac : float
+            Fraction to shade background cell. Used for progress bars within
+            cells. Defaults to 1 (i.e., shade full width of cell).
+        '''
+        return 1.0
 
     @d_func
     def get_cell_color(self, row_index, column_index):
@@ -528,7 +583,10 @@ class EditableTable(RawWidget):
             self.update = False
 
     def _reset_model(self, event=None):
-        # Forces a reset of the model and view
+        # Forces a reset of the model and view. Check if model has been created
+        # first. If not, do nothing.
+        if self.model is None:
+            return
         self.model.beginResetModel()
         self.model.endResetModel()
         if self.autoscroll and self.view:
@@ -651,6 +709,9 @@ class ListDictTable(EditableTable):
 
     def remove_row(self, row_index):
         self.data.pop(row_index)
+
+    def get_selected_rows(self):
+        return [self.data[i] for i in self.get_selected_row_coords()]
 
 
 class ListTable(EditableTable):
