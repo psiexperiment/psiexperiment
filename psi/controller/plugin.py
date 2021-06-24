@@ -314,6 +314,7 @@ class ControllerPlugin(Plugin):
 
         point = self.workbench.get_extension_point(ACTION_POINT)
         for extension in point.extensions:
+            log.debug('Scanning extension %s', extension.id)
             found_states = extension.get_children(ExperimentState)
             found_events = extension.get_children(ExperimentEvent)
             found_actions = extension.get_children(ExperimentActionBase)
@@ -330,6 +331,9 @@ class ControllerPlugin(Plugin):
                     m = '{} event already exists'.format(event.name)
                     raise ValueError(m)
                 events[event.name] = event
+
+            for action in found_actions:
+                log.debug('... Found action %s', action)
 
             actions.extend(found_actions)
 
@@ -442,7 +446,7 @@ class ControllerPlugin(Plugin):
                 cb = lambda: self._invoke_actions(event_name, timestamp)
                 deferred_call(self.start_timer, event_name, delay, cb)
                 return
-        self._invoke_actions(event_name, timestamp, kw)
+        return self._invoke_actions(event_name, timestamp, kw)
 
     def event_used(self, event_name):
         '''
@@ -490,10 +494,13 @@ class ControllerPlugin(Plugin):
         context = self._action_context.copy()
         context[event_name] = True
 
+        results = []
         for action in self._actions:
             if action.match(context):
                 log.debug('... invoking action %s', action)
-                self._invoke_action(action, event_name, timestamp, kw)
+                result = self._invoke_action(action, event_name, timestamp, kw)
+                results.append(result)
+        return results
 
     def _invoke_action(self, action, event_name, timestamp, kw):
         # Add the event name and timestamp to the parameters passed to the
@@ -505,10 +512,10 @@ class ControllerPlugin(Plugin):
             kwargs.update(kw)
         if isinstance(action, ExperimentAction):
             log.debug('Calling command %s', action.command)
-            self.core.invoke_command(action.command, parameters=kwargs)
+            return self.core.invoke_command(action.command, parameters=kwargs)
         elif isinstance(action, ExperimentCallback):
             log.debug('Invoking callback %r', action.callback)
-            action.callback(**kwargs)
+            return action.callback(**kwargs)
 
     def request_apply(self):
         if not self.apply_changes():
@@ -537,11 +544,9 @@ class ControllerPlugin(Plugin):
         deferred_call(lambda: setattr(self, 'experiment_state', 'running'))
 
     def stop_experiment(self):
-        try:
-            self.invoke_actions('experiment_end', self.get_ts())
-        except Exception as e:
-            log.exception(e)
+        results = self.invoke_actions('experiment_end', self.get_ts())
         deferred_call(lambda: setattr(self, 'experiment_state', 'stopped'))
+        return results
 
     def pause_experiment(self):
         raise NotImplementedError
