@@ -12,7 +12,7 @@ from psi import get_config
 from psi.controller.api import ExperimentAction
 
 from .plugin import DataPlugin
-from .sinks.api import PreferencesStore
+from .sinks.api import ConfigStore
 
 
 def set_base_path(event):
@@ -67,5 +67,5 @@ enamldef DataManifest(PluginManifest): manifest:
         id = manifest.id + '.sinks'
         point = 'psi.data.sinks'
 
-        PreferencesStore:
+        ConfigStore:
             pass
