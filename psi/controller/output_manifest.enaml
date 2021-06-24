@@ -187,6 +187,7 @@ def _start_synchronized(synchronized, event):
     ts = event.parameters['timestamp']
     start = event.parameters.get('start', ts)
     delay = event.parameters.get('delay', 0)
+    clear_delay = event.parameters.get('clear_delay', delay)
 
     # Is this a hack? If no timestamp is defined, then assume that the start is
     # 0 (e.g., in the case of experiment_prepare).
@@ -195,20 +196,24 @@ def _start_synchronized(synchronized, event):
         log.debug('No starting time provided. Setting start to %f.', start)
     log.debug('Timestamp %r, start %r, delay %r', ts, start, delay)
 
+    if clear_delay > delay:
+        raise ValueError('Delay for clearing buffer cannot be greater than delay')
+
+
     # For each engine involved in this synchronized output, store a list of the
     # offsets and channel names that need to be updated.
     settings = {e: {'offsets': [], 'names': []} for e in synchronized.engines}
-
     notify_end = False
     durations = {}
 
     # Activate the outputs
     for output in synchronized.outputs:
         offset = round((start+delay)*output.channel.fs)
+        offset_delay = round((start+clear_delay)*output.channel.fs)
 
         if output.active:
-            log.debug('Output %s is active. Deactivating first.', output.name)
-            output.deactivate(offset)
+            output.deactivate(offset_delay)
+            log.debug('Output %s was active. Deactivating first.', output.name)
             notify_end = True
 
         if not output.is_ready():
@@ -221,7 +226,7 @@ def _start_synchronized(synchronized, event):
         output.activate(offset)
 
         setting = settings[output.engine]
-        setting['offsets'].append(offset)
+        setting['offsets'].append(offset_delay)
         setting['names'].append(output.channel.name)
 
     # Tell the engines to update the waveform
@@ -230,7 +235,6 @@ def _start_synchronized(synchronized, event):
         engine.update_hw_ao_multiple(**setting)
 
     # Finally, release the lock.
-    log.debug('<# Releasing lock for all engines')
     for engine in synchronized.engines:
         engine.lock.release()
 
@@ -303,9 +307,17 @@ def _get_start_delay(event):
 
 
 def start_output(event, output):
+    '''
+    clear_delay : The time at which to stop the output if it's currently active.
+    '''
     ts = event.parameters['timestamp']
     start = event.parameters.get('start', ts)
     delay = event.parameters.get('delay', 0)
+    clear_delay = event.parameters.get('clear_delay', delay)
+
+    if clear_delay > delay:
+        raise ValueError('Delay for clearing buffer cannot be greater than delay')
+
     if isinstance(delay, str):
         context = event.workbench.get_plugin('psi.context')
         delay = context.get_value(delay)
@@ -316,6 +328,9 @@ def start_output(event, output):
         start = 0
 
     offset = round((start+delay)*output.channel.fs)
+    offset_delay = round((start+clear_delay)*output.channel.fs)
+    notify_end = False
+
     try:
         output.engine.lock.acquire()
         buffered_ub = output._buffer.get_samples_ub()
@@ -323,9 +338,11 @@ def start_output(event, output):
         # race conditions
         log.debug('Starting output %s at %d', output.name, offset)
         if output.active:
-            output.deactivate(offset)
+            output.deactivate(offset_delay)
             log.debug('Output %s was active. Deactivating first.', output.name)
-            deferred_call(controller.invoke_actions, f'{output.name}_end', start+delay+duration)
+            notify_end = True
+        else:
+            update_offset = offset
 
         if not output.is_ready():
             log.debug('Output %s is not ready', output.name)
@@ -335,11 +352,10 @@ def start_output(event, output):
         # None once all samples have been generated.
         duration = output.get_duration()
 
-        output.activate(offset)
+        output.activate(offset_delay)
         output.engine.update_hw_ao(output.channel.name, offset)
         output.engine.lock.release()
     except SystemError as e:
-        log.exception(e)
         # There wasn't enough time to write the data to the buffer. Need to
         # reset the generator and deactivate the output. The invoking code can
         # then decide what to do about the problem.
@@ -348,6 +364,7 @@ def start_output(event, output):
         output._buffer.append_data(zeros)
 
         output.engine.lock.release()
+        log.exception(e)
         log.debug('Invalidated buffer at %d', offset)
     else:
         filter_delay = output.channel.filter_delay
@@ -360,6 +377,10 @@ def start_output(event, output):
             controller.invoke_actions('{}_end'.format(output.name),
                                       start+delay+duration, delayed=True)
 
+    if notify_end:
+        controller.invoke_actions('{}_end'.format(output.name),
+                                  start+delay+duration)
+
 def clear_output(event, output):
     end = event.parameters['timestamp']
     delay = event.parameters.get('delay', 0)
@@ -370,10 +391,11 @@ def clear_output(event, output):
             return
 
         log.debug('Deactivating output {}'.format(output.name))
-        # Deactivate the output and update the channel. This will overwrite any
-        # buffered data that contains a fragment of the output waveform.
+        output.deactivate()
+        # Now, update the channel once the output has been deactivated. This
+        # will overwrite any data that contains a fragment of the output
+        # waveform.
         offset = round((end+delay)*output.fs)
-        output.deactivate(offset)
         output.engine.update_hw_ao(output.channel.name, offset)
 
     controller = event.workbench.get_plugin('psi.controller')
