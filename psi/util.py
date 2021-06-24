@@ -3,6 +3,8 @@ log = logging.getLogger(__name__)
 
 import ast
 import inspect
+import json
+from pathlib import Path
 import threading
 
 import numpy as np
@@ -45,31 +47,79 @@ def get_tagged_values(obj, tag_name, tag_value=True, exclude_properties=False):
     return {n: getattr(obj, n) for n in members}
 
 
-def declarative_to_dict(obj, tag_name, tag_value=True):
-    result = {}
-    for name, member in obj.members().items():
-        if member.metadata and member.metadata.get(tag_name) == tag_value:
-            value = getattr(obj, name)
-            if isinstance(value, Atom):
-                # Recurse into the class
-                result[name] = declarative_to_dict(value, tag_name, tag_value)
-            elif isinstance(value, np.ndarray):
-                # Convert to a list
-                result[name] = value.tolist()
-            else:
-                result[name] = value
-    result['type'] = obj.__class__.__name__
-    return result
+def declarative_to_dict(value, tag_name, tag_value=True, include_dunder=True,
+                        seen_objects=None):
+    if seen_objects is None:
+        seen_objects = []
 
+    args = (tag_name, tag_value, include_dunder, seen_objects)
 
-def dict_to_declarative(obj, info):
-    for k, v in info.items():
-        if k == 'type':
-            continue
-        if isinstance(v, dict) and 'type' in v:
-            dict_to_declarative(getattr(obj, k), v)
+    if isinstance(value, int) \
+            or isinstance(value, float) \
+            or isinstance(value, str) \
+            or value is None:
+        return value
+
+    if isinstance(value, Path):
+        return str(value)
+
+    if id(value) in seen_objects:
+        return f'__obj__::{id(value)}'
+    else:
+        seen_objects.append(id(value))
+
+    if isinstance(value, Atom):
+        if include_dunder:
+            result = {
+                '__type__': value.__class__.__name__,
+                '__id__': id(value),
+            }
         else:
-            setattr(obj, k, v)
+            result = {}
+        for name, member in value.members().items():
+            if member.metadata and member.metadata.get(tag_name) == tag_value:
+                v = getattr(value, name)
+                result[name] = declarative_to_dict(v, *args)
+        return result
+
+    if isinstance(value, np.ndarray):
+        return value.tolist()
+
+    if isinstance(value, list):
+        return [declarative_to_dict(v, *args) for v in value]
+
+    if hasattr(value, '__dict__') or hasattr(value, '__slots__'):
+        if include_dunder:
+            return {
+                '__type__': value.__class__.__name__,
+                '__id__': id(value),
+            }
+        else:
+            return {}
+
+    return value
+
+
+def declarative_to_json(filename, value, tag_name, tag_value=True,
+                        include_dunder=True, seen_objects=None):
+    filename = Path(filename)
+    info = declarative_to_dict(value, tag_name, tag_value,
+                               include_dunder=include_dunder)
+    filename.write_text(json.dumps(info, indent=2))
+
+
+def dict_to_declarative(obj, info, skip_errors=False):
+    for k, v in info.items():
+        if k in ('type', '__type__', '__id__'):
+            continue
+        if isinstance(v, dict) and ('type' in v or '__type__' in v):
+            dict_to_declarative(getattr(obj, k), v, skip_errors)
+        else:
+            try:
+                setattr(obj, k, v)
+            except Exception as e:
+                if not skip_errors:
+                    raise
 
 
 def coroutine(func):
