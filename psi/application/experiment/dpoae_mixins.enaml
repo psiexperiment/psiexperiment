@@ -14,9 +14,12 @@ from enaml.workbench.core.api import Command
 
 from psi.controller.api import ExperimentAction
 from psi.core.enaml.api import DataFrameTable, PSIManifest
-from psi.data.io import dpoae
+from psi.data.io.api import isodp_th_criterions
 from psi.data.plots import DataFramePlot, FFTContainer, ViewBox
 from psi.data.sinks.base_store import BaseStore
+
+from .cfts_mixins import MicrophoneFFTViewMixinManifest
+
 
 KEEP_COLS = ['secondary_tone_frequency', 'secondary_tone_level',
              'dpoae_level', 'dpoae_noise_floor', 'f2_level']
@@ -44,7 +47,7 @@ class DPOAEThreshold(BaseStore):
             return
         df = pd.DataFrame(self.data)
         grouping = df.groupby('secondary_tone_frequency')
-        th = grouping.apply(dpoae.isodp_th_criterions,
+        th = grouping.apply(isodp_th_criterions,
                             criterions=self.criterions,
                             debug=False)
         th.columns.name = 'criterion'
@@ -59,7 +62,7 @@ def update(contribution, event):
 enamldef DPOAEThresholdManifest(PSIManifest): manifest:
 
     Extension:
-        id = manifest.id + 'commands'
+        id = manifest.id + '.commands'
         point = 'enaml.workbench.core.commands'
         Command:
             id = manifest.contribution.name + '.update'
@@ -69,6 +72,7 @@ enamldef DPOAEThresholdManifest(PSIManifest): manifest:
         id = manifest.id + '.events'
         point = 'psi.controller.actions'
         ExperimentAction:
+            weight = 100
             event = 'dpoae_acquired'
             command = manifest.contribution.name + '.update'
 
@@ -78,12 +82,15 @@ enamldef DPOAEThresholdManifest(PSIManifest): manifest:
 
         FFTContainer:
             label = manifest.contribution.label + ' plot'
-            name = manifest.contribution.name + '.dpoae_threshold_plot'
+            name = manifest.contribution.name + '_container'
             freq_lb = 1e3
             freq_ub = 100e3
+
             ViewBox:
                 y_min = -20
                 y_max = 100
+                y_mode = 'fixed'
+                name = 'dpoae_threshold_view'
                 label = 'DPOAE threshold (dB SPL)'
 
                 DataFramePlot: th_plot:
@@ -129,3 +136,11 @@ enamldef DPOAEThresholdManifest(PSIManifest): manifest:
                         'threshold': {'label': 'Th. (dB SPL)'},
                     }
                     columns = list(column_info.keys())
+
+
+enamldef DPOAEMicrophoneFFTViewMixinManifest(MicrophoneFFTViewMixinManifest): manifest:
+
+    id = 'dpoae_microphone_fft_mixin'
+    name = 'dpoae_microphone_fft'
+    source_name = 'microphone'
+    fft_time_span = 0.25

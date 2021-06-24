@@ -8,6 +8,7 @@ import numpy as np
 from enaml.application import deferred_call
 from enaml.widgets.api import DockItem, Container
 from enaml.workbench.api import Extension, PluginManifest
+from enaml.workbench.core.api import Command
 
 from psi.context.api import (ContextGroup, Parameter, BoolParameter, EnumParameter)
 from psi.controller.api import ExperimentAction
@@ -16,7 +17,7 @@ from psi.controller.api import (ContinuousInput, ControllerManifest,
                                 Detrend)
 from psi.controller.output import QueuedEpochOutput
 from psi.controller.calibration.util import db
-from psi.data.sinks.bcolz_store import BColzStore
+from psi.data.sinks.api import BColzStore, TextStore
 from psi.token.primitives import Cos2Envelope, Tone
 
 
@@ -48,18 +49,22 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
     Subclasses must add a command, `psi.controller.configure_experiment` that
     creates and configures the target queue.
     '''
+    id = EXPERIMENT
 
     Extension:
-        id = EXPERIMENT + '.store'
+        id = manifest.id + '.store'
         point = 'psi.data.sinks'
 
         BColzStore:
             name = 'erp_eeg'
-            epoch_inputs = ['erp']
+            #epoch_inputs = ['erp']
             continuous_inputs = ['eeg']
 
+        TextStore:
+            epoch_inputs = ['erp']
+
     Extension:
-        id = EXPERIMENT + '.tokens'
+        id = manifest.id + '.tokens'
         point = 'psi.token.tokens'
 
         Cos2Envelope: tone_burst:
@@ -70,7 +75,7 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
                 hide = ['polarity', 'phase']
 
     Extension:
-        id = EXPERIMENT + '.io'
+        id = manifest.id + '.io'
         point = 'psi.controller.io'
 
         QueuedEpochOutput: output:
@@ -79,12 +84,12 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
             token = tone_burst
             configurable = False
             target_name = C.output_channel
-            queue ::
+            initialized ::
                 # Once the queue has been configured in one of the
                 # subclasses, hook it up to the ExtractEpochs input so that
                 # they communicate properly.
-                self.queue.connect(extract.added_queue.append, 'added')
-                self.queue.connect(extract.removed_queue.append, 'removed')
+                self.connect(extract.added_queue.append, 'added')
+                self.connect(extract.removed_queue.append, 'removed')
             complete ::
                 controller = workbench.get_plugin('psi.controller')
                 deferred_call(controller.invoke_actions, output.name + '_end')
@@ -122,7 +127,7 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
                             mode = C.reject_mode
 
     Extension:
-        id = EXPERIMENT + '.context'
+        id = manifest.id + '.context'
         point = 'psi.context.items'
 
         ContextGroup:
@@ -233,7 +238,7 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
                 scope = 'experiment'
 
     Extension:
-        id = EXPERIMENT + '.actions'
+        id = manifest.id + '.actions'
         point = 'psi.controller.actions'
 
         ExperimentAction:
@@ -247,10 +252,9 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
             kwargs = {'selector': 'default', 'cycles': 1}
 
         ExperimentAction:
-            event = 'experiment_start'
+            event = 'engines_configured'
             command = 'target.start'
             kwargs = {'delay': 1}
-            weight = 60
 
         ExperimentAction:
             event = 'valid_erp_acquired'

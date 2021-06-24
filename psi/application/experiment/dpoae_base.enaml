@@ -10,7 +10,7 @@ from enaml.core.api import d_
 from enaml.widgets.api import Container, DockItem, Label
 from enaml.workbench.api import Extension
 
-from psi.context.api import (CartesianProduct, ContextGroup, EnumParameter,
+from psi.context.api import (ContextGroup, EnumParameter,
                              Expression, Parameter, Result)
 
 from psi.controller.calibration.util import tone_power_conv
@@ -27,7 +27,8 @@ EXPERIMENT = __name__.rsplit('.', 1)[-1]
 
 
 @coroutine
-def process(n_time, n_fft, input, workbench, status_widget, target):
+def process(n_time, n_fft, input, workbench, trial_widget, trials_widget,
+            target):
     context = workbench.get_plugin('psi.context')
     controller = workbench.get_plugin('psi.controller')
     core = workbench.get_plugin('enaml.workbench.core')
@@ -35,6 +36,9 @@ def process(n_time, n_fft, input, workbench, status_widget, target):
     time_data = []
     fft_data = {}
     total_samples = 0
+    n_trials = 0
+    n_trial = 0
+    ts_start = None
 
     while True:
         data = (yield)
@@ -42,10 +46,17 @@ def process(n_time, n_fft, input, workbench, status_widget, target):
             time_data = []
             fft_data = {}
             total_samples = 0
+            n_trial = 0
+            ts_start = None
             continue
+
+        if ts_start is None:
+            ts_start = data.metadata['t0_sample'] / data.metadata['fs']
+            metadata = data.metadata.copy()
 
         time_data.append(data)
         total_samples += data.shape[-1]
+        n_trial += 1
 
         # Process acquired time segments once we have what we need
         if len(time_data) == n_time:
@@ -58,7 +69,7 @@ def process(n_time, n_fft, input, workbench, status_widget, target):
             dpoae = 2 * f1 - f2
 
             resolution = input.fs / mean_time.shape[-1]
-            nf_frequencies = [f*resolution+dpoae for f in range(-2, 3)]
+            nf_frequencies = [f*resolution+dpoae for f in (-2, -1, 1, 2)]
             frequencies = [f1, f2, dpoae] + nf_frequencies
 
             rms = tone_power_conv(mean_time, input.fs, frequencies)
@@ -80,29 +91,31 @@ def process(n_time, n_fft, input, workbench, status_widget, target):
                         value = np.mean(fft_data[key])
                         context.set_value(key, value)
 
-                    context.set_value('ts_end',
-                                      total_samples / input.fs)
+                    context.set_value('ts_end', ts_start + total_samples / input.fs)
+                    context.set_value('ts_start', ts_start)
 
                     values = context.get_values()
+                    values.update(metadata)
                     data = [values]
                     target(data)
                     fft_data = {}
-                    controller.invoke_actions('dpoae_acquired',
-                                              kw={'data': data})
+                    ts_start = None
+                    controller.invoke_actions('dpoae_acquired', kw={'data': data})
                     parameters = {'data': values}
+                    n_trials += 1
                     core.invoke_command('dpoae_store.save', parameters=parameters)
             else:
                 log.debug('DPOAE reject')
 
         # Post current status to the GUI
-        def update(n_time, n_fft, status_widget):
-            status_widget.n_time = n_time
-            status_widget.n_fft = n_fft
+        def update_pb(n, widget):
+            widget.value = n
 
-        if status_widget is not None:
-            nt = len(time_data)
-            nf = len(fft_data.get('f1_level', []))
-            deferred_call(update, nt, nf, status_widget)
+        if trial_widget is not None:
+            deferred_call(update_pb, n_trial, trial_widget)
+
+        if trials_widget is not None:
+            deferred_call(update_pb, n_trials, trials_widget)
 
 
 class AnalyzeDPOAE(Input):
@@ -111,7 +124,8 @@ class AnalyzeDPOAE(Input):
     n_time = d_(Int(-1)).tag(metadata=True)
 
     wb = d_(Value())
-    status_widget = d_(Value())
+    trial_widget = d_(Value())
+    trials_widget = d_(Value())
 
     # Required to ensure that the entire processing chain is activated.
     force_active = True
@@ -119,7 +133,7 @@ class AnalyzeDPOAE(Input):
     def configure_callback(self):
         cb = super().configure_callback()
         return process(self.n_time, self.n_fft, self, self.wb,
-                       self.status_widget, cb).send
+                       self.trial_widget, self.trials_widget, cb).send
 
 
 enamldef DPOAEManifest(ControllerManifest): manifest:
@@ -144,7 +158,7 @@ enamldef DPOAEManifest(ControllerManifest): manifest:
             show_widget = True
 
     Extension:
-        id = EXPERIMENT + '.tokens'
+        id = 'tokens'
         point = 'psi.token.tokens'
 
         Cos2Envelope: tone:
@@ -181,6 +195,11 @@ enamldef DPOAEManifest(ControllerManifest): manifest:
             source ::
                 channel.gain = C.dpoae_microphone_input_gain
 
+            Blocked:
+                # Duration (in seconds) of snippets to analyze
+                name = 'microphone_blocked'
+                duration = 0.5
+
             Capture:
                 # Begin capturing microphone signal once DPOAE starts. Linked
                 # using an ExperimentAction.
@@ -201,17 +220,12 @@ enamldef DPOAEManifest(ControllerManifest): manifest:
                             wb = workbench
                             n_fft = C.n_fft
                             n_time = C.n_time
-                            status_widget = workbench\
+                            trial_widget = workbench\
                                 .get_plugin('enaml.workbench.ui')\
-                                .window.find('dpoae_status')
-
-    Extension:
-        id = EXPERIMENT + '.selectors'
-        point = 'psi.context.selectors'
-
-        CartesianProduct:
-            name = 'default'
-            label = 'DPOAE'
+                                .window.find('dpoae_trial_pb')
+                            trials_widget = workbench\
+                                .get_plugin('enaml.workbench.ui')\
+                                .window.find('dpoae_trials_pb')
 
     Extension:
         id = EXPERIMENT + '.context'
@@ -386,7 +400,7 @@ enamldef DPOAEManifest(ControllerManifest): manifest:
 
         # Once engines are configured, start the experiment!
         ExperimentAction:
-            event = 'engines_started'
+            event = 'engines_configured'
             command = 'dpoae.start'
             kwargs = {'delay': 0.5}
 
