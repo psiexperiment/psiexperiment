@@ -8,8 +8,6 @@ from scipy import signal
 
 from psi import get_config
 from psi.context.api import Parameter, EnumParameter
-from psi.controller.calibration.util import rms
-
 from .block import EpochBlock, ContinuousBlock
 
 
@@ -288,8 +286,6 @@ class SAMEnvelopeFactory(Modulator):
         vars(self).update(locals())
         self.eq_phase = sam_eq_phase(delay, depth, direction)
         self.eq_power = sam_eq_power(depth)
-        log.debug('SAM equivalent phase is %f and equivalent power is %f',
-                  self.eq_phase, self.eq_power)
         self.reset()
 
     def reset(self):
@@ -492,8 +488,6 @@ class ToneFactory(Carrier):
             self.sf = level
         else:
             self.sf = calibration.get_sf(frequency, level)*np.sqrt(2)
-        m = 'Scaling factor for tone with level %f, frequency %f and polarity %r is %f'
-        log.debug(m, self.level, self.frequency, self.polarity, self.sf)
         self.reset()
 
     def reset(self):
