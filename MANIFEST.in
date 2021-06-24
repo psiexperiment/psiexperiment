@@ -1,5 +1,5 @@
 include psi/experiment/psi-logo.png
-recursive-include psi/controller/engines/tdt/*.rcx
+recursive-include psi/controller/engines/tdt *.rcx
 recursive-include psi *.enaml
 recursive-include psi/templates *.txt
 include versioneer.py
