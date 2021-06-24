@@ -214,6 +214,22 @@ class QueuedEpochOutput(BufferedOutput):
     complete = d_(Event(), writable=False)
     paused = Bool(False)
 
+    removed_callbacks = List()
+
+    def connect(self, cb, event='added'):
+        if event == 'added':
+            self.callbacks.append(cb)
+        elif event == 'removed':
+            self.removed_callbacks.append(cb)
+
+    def notify_removed(self, data):
+        if not self.removed_callbacks:
+            return
+        d = data.copy()
+        d['t0'] += self.filter_delay
+        for cb in self.removed_callbacks:
+            cb(d)
+
     def rebuffer(self, time, delay=0):
         self.queue.cancel(time, delay)
         self.queue.rewind_samples(time)
@@ -241,7 +257,8 @@ class QueuedEpochOutput(BufferedOutput):
     def _update_queue(self):
         if self.queue is not None and self.target is not None:
             self.queue.set_fs(self.fs)
-            self.queue.connect(self.notify)
+            self.queue.connect(self.notify, 'added')
+            self.queue.connect(self.notify_removed, 'removed')
 
     def get_next_samples(self, samples):
         if self.active:
@@ -249,8 +266,7 @@ class QueuedEpochOutput(BufferedOutput):
             if self.queue.is_empty():
                 self.complete = True
                 self.active = False
-                log.debug('Queue empty. Output %s no longer active.',
-                          self.name)
+                log.debug('Queue empty. Output %s no longer active.', self.name)
         else:
             waveform = np.zeros(samples, dtype=np.double)
         return waveform
