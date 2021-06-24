@@ -11,5 +11,5 @@ from .calibration import (Calibration, CalibrationError, calibration_registry,
 from .calibrate import ChirpCalibrate, ToneCalibrate
 from .chirp import chirp_sens
 from .plugin import CalibrationPlugin
-from .tone import process_tone, tone_sens
+from .tone import process_tone, tone_power_conv, tone_sens
 from .util import db, dbi, load_calibration, rms
