@@ -83,15 +83,16 @@ class AbstractSignalQueue:
 
     def rewind_samples(self, t):
         # Reset the samples
+        log.debug('Current queue time is %.3f. Attempting to rewind queue to %.3f.', self.get_ts(), t)
         t_samples = round(t * self._fs)
         t0_samples = round(self._t0 * self._fs)
         new_sample = t_samples - t0_samples
+        log.debug('Current queue sample is %d. New queue sample is %d.', self._samples, new_sample)
         if new_sample > self._samples:
-            raise ValueError('Cannot rewind past last sample generated')
+            raise ValueError(f'Cannot rewind past last sample generated. Requested {t:.3f}s, last sample was {self.get_ts():.3f}s.')
         self._samples = t_samples - t0_samples
         log.debug('Rewound queue samples back to %d', self._samples)
-        log.debug('Absolute sample %d, relative sample %d', t_samples,
-                  t0_samples)
+        log.debug('Absolute sample %d, relative sample %d', t_samples, t0_samples)
 
     def pause(self, t=None):
         log.debug('Pausing queue')
@@ -151,12 +152,13 @@ class AbstractSignalQueue:
     def resume(self, t=None):
         """
         Resumes generating trials from queue
+
         Parameters
         ----------
         t : float
             Time, in sec, to resume generating trials from queue.
         """
-        log.debug('Resuming queue')
+        log.debug('Resuming queue. Current timestamp is %.3f.', self.get_ts())
         if t is not None:
             self.rewind_samples(t)
         self._paused = False
@@ -184,6 +186,7 @@ class AbstractSignalQueue:
         data = {
             'source': copy.deepcopy(source),
             'trials': trials,
+            'requested_trials': trials,
             'delays': as_iterator(delays),
             'duration': duration,
             'metadata': metadata,
@@ -222,7 +225,16 @@ class AbstractSignalQueue:
         return len(self._ordering)
 
     def count_trials(self):
-        return sum(v['trials'] for v in self._data.values())
+        '''
+        Count remaining trials
+        '''
+        return int(sum(v['trials'] for v in self._data.values()))
+
+    def count_requested_trials(self):
+        '''
+        Count total trials
+        '''
+        return int(sum(v['requested_trials'] for v in self._data.values()))
 
     def next_key(self):
         raise NotImplementedError
