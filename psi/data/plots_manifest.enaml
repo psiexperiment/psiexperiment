@@ -4,9 +4,12 @@ log = logging.getLogger(__name__)
 from functools import partial
 
 from atom.api import Typed, set_default
-from enaml.core.api import Include, d_, Looper
-from enaml.widgets.api import (Container, DockItem, Field, Form, Label,
-                               Notebook, Page, RawWidget)
+from enaml.application import deferred_call
+from enaml.core.api import Conditional, Include, d_, Looper
+from enaml.styling import StyleSheet, Style, Setter
+from enaml.widgets.api import (ButtonGroup, CheckBox, Container, DockItem, Field, Form,
+                               HGroup, Label, Notebook, Page, PushButton,
+                               RawWidget)
 from enaml.workbench.api import Extension, Workbench
 from enaml.workbench.core.api import Command
 
@@ -16,6 +19,7 @@ pg.setConfigOption('foreground', 'k')
 from psi.core.enaml.api import PSIManifest
 from psi.controller.api import ExperimentAction
 from psi.context.context_item import OrderedContextMeta
+from psi.experiment.api import ItemPreferences
 
 
 class PGCanvas(RawWidget):
@@ -36,55 +40,11 @@ class PGCanvas(RawWidget):
 
 
 def update_plot(plot, event):
-    plot.update()
-
-
-def set_groups(container, event):
-    container.workbench = event.workbench
-    context = event.workbench.get_plugin('psi.context')
-    container.iterable = sorted(context.unique_values(container.group))
-    container.refresh_items()
-
-
-enamldef MultiPlotContainerManifest(PSIManifest): manifest:
-
-    Extension:
-        id = manifest.id + '.commands'
-        point = 'enaml.workbench.core.commands'
-
-        Command:
-            id = manifest.contribution.name + '.set_groups'
-            handler = partial(set_groups, manifest.contribution)
-
-    Extension:
-        id = manifest.id + 'actions'
-        point = 'psi.controller.actions'
-
-        ExperimentAction:
-            event = 'context_initialized'
-            command = manifest.contribution.name + '.set_groups'
-
-    Extension:
-        id = manifest.id + '.workspace'
-        point = 'psi.experiment.workspace'
-
-        DockItem:
-            name << manifest.contribution.name
-            title << manifest.contribution.label
-            closable = False
-            Container:
-                Notebook:
-                    tab_style = 'preferences'
-                    tabs_closable = False
-                    tabs_movable = False
-                    Looper:
-                        iterable << manifest.contribution.containers.items()
-                        Page:
-                            title << str(loop_item[0])
-                            Container:
-                                PGCanvas:
-                                    name << manifest.contribution.name + '.canvas'
-                                    component = loop_item[1]
+    try:
+        plot.update()
+    except Exception as e:
+        log.debug('The following exception was discarded')
+        log.exception(e)
 
 
 enamldef BasePlotContainerManifest(PSIManifest): manifest:
@@ -106,10 +66,40 @@ enamldef BasePlotContainerManifest(PSIManifest): manifest:
             title << manifest.contribution.label
             closable = False
 
+            StyleSheet:
+                Style:
+                    style_class = 'current'
+                    Setter:
+                        field = 'font-weight'
+                        value = 'bold'
+
             Container:
-                PGCanvas: canvas:
-                    name << manifest.contribution.name + '_canvas'
-                    component << manifest.contribution.container
+                Conditional:
+                    condition << bool(manifest.contribution.buttons)
+                    HGroup:
+                        spacing = 0
+                        padding = 0
+                        Conditional:
+                            condition << manifest.contribution.allow_auto_select
+                            PushButton:
+                                text = 'Auto select'
+                                style_class << 'current' if manifest.contribution.auto_select else ''
+                                clicked ::
+                                    manifest.contribution.auto_select = True
+
+                        Looper:
+                            iterable << manifest.contribution.buttons[:]
+                            PushButton: pb:
+                                text = manifest.contribution.fmt_button(loop_item)
+                                style_class << 'current' if manifest.contribution.current_button == loop_item else ''
+                                clicked ::
+                                    manifest.contribution.auto_select = False
+                                    manifest.contribution.current_button = loop_item
+
+                Container:
+                    PGCanvas: canvas:
+                        name << manifest.contribution.name + '_canvas'
+                        component << manifest.contribution.container
 
 
 enamldef TimeseriesPlotManifest(PSIManifest): manifest:
@@ -182,4 +172,49 @@ enamldef BasePlotManifest(PSIManifest): manifest:
 
 
 enamldef DataFramePlotManifest(PSIManifest): manifest:
+    # This overrides attempts to load the BasePlotManifest
     pass
+
+
+def set_group_keys(container, event):
+    context = event.workbench.get_plugin('psi.context')
+    # Required to set value change notification
+    container.tab_keys = []
+    container.plot_keys = []
+    container.tab_keys = sorted(context.unique_values(container.tab_grouping))
+    container.plot_keys = sorted(context.unique_values(container.plot_grouping))
+    log.debug('Found tab keys %r', container.tab_keys)
+    log.debug('Found plot keys %r', container.plot_keys)
+
+
+enamldef ViewBoxManifest(PSIManifest): manifest:
+
+    Conditional:
+        condition << manifest.contribution.save_limits
+
+        Extension:
+            id = manifest.id + '.preferences'
+            point = 'psi.experiment.preferences'
+            ItemPreferences:
+                name << manifest.contribution.name
+                item << manifest.contribution
+                auto_save = ['y_min', 'y_max']
+
+
+enamldef StackedEpochAveragePlotManifest(BasePlotManifest): manifest:
+
+    Extension:
+        id = manifest.id + '.stacked_commands'
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = manifest.contribution.name + '.set_groups'
+            handler = partial(set_group_keys, manifest.contribution)
+
+    Extension:
+        id = manifest.id + '.stacked_actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'context_initialized'
+            command = manifest.contribution.name + '.set_groups'
