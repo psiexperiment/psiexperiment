@@ -330,7 +330,9 @@ def blocked(block_size, target):
         if n >= block_size:
             merged = concatenate(data, axis=-1)
             while merged.shape[-1] >= block_size:
-                target(merged[..., :block_size])
+                block = merged[..., :block_size]
+                block.metadata['block_size'] = block_size
+                target(block)
                 merged = merged[..., block_size:]
             data = [merged]
             n = merged.shape[-1]
