@@ -127,8 +127,8 @@ class AbstractSignalQueue:
         '''
         to_requeue = []
         for info in self._generated[::-1]:
-            if info['t0'] < t:
-                break
+            if (info['t0'] + info['duration']) <= t:
+                continue
             if info['decrement']:
                 to_requeue.append(info['key'])
 
