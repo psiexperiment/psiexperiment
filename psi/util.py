@@ -117,11 +117,22 @@ def get_dependencies(expression):
 class SignalBuffer:
 
     def __init__(self, fs, size, fill_value=np.nan, dtype=np.double):
+        '''
+
+        Parameters
+        ----------
+        fs : float
+            Sampling rate of buffered signal
+        size : float
+            Duration of buffer in sec
+        fill_value
+        dtype
+        '''
         log.debug('Creating signal buffer with fs=%f and size=%f', fs, size)
         self._lock = threading.RLock()
         self._buffer_fs = fs
         self._buffer_size = size
-        self._buffer_samples = round(fs*size)
+        self._buffer_samples = int(np.ceil(fs*size))
         self._buffer = np.full(self._buffer_samples, fill_value, dtype=dtype)
         self._fill_value = fill_value
         self._samples = 0
