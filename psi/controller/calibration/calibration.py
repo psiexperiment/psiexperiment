@@ -13,7 +13,7 @@ import pandas as pd
 import logging
 log = logging.getLogger(__name__)
 
-from atom.api import Atom, Callable, Float, Property, Typed, Value
+from atom.api import Atom, Callable, Dict, Float, Property, Typed, Value
 from enaml.core.api import Declarative, d_
 from psi import SimpleState
 
@@ -144,7 +144,7 @@ class Calibration(Atom):
     sensitivity : 1D array
         Sensitivity of system in dB(V/Pa).
     '''
-    source = Value()
+    attrs = Dict().tag(metadata=True)
 
     @classmethod
     def as_attenuation(cls, vrms=1, **kwargs):
@@ -259,7 +259,7 @@ class FlatCalibration(Calibration):
     @classmethod
     def from_mv_pa(cls, mv_pa, **kwargs):
         sens = util.db(mv_pa*1e-3)
-        return cls(sensitivity=sens, **kwargs)
+        return cls(sens, **kwargs)
 
     def get_sens(self, frequency):
         return self.sensitivity-self.fixed_gain
@@ -297,6 +297,8 @@ class InterpCalibration(Calibration):
         For input calibrations, the gain must be negative (e.g. if the
         microphone amplifier is set to 40 dB gain, then provide -40 as the
         value).
+    attrs : {None, dict}
+        Extra attrs that will be saved alongside the calibration.
     '''
 
     frequency = Typed(np.ndarray).tag(metadata=True)
@@ -304,14 +306,14 @@ class InterpCalibration(Calibration):
     fixed_gain = Float(0).tag(metadata=True)
     _interp = Callable()
 
-    def __init__(self, frequency, sensitivity, fixed_gain=0, source=None):
+    def __init__(self, frequency, sensitivity, fixed_gain=0, attrs=None):
+        if attrs is None:
+            attrs = {}
         self.frequency = np.asarray(frequency)
         self.sensitivity = np.asarray(sensitivity)
         self.fixed_gain = fixed_gain
-        self._interp = interp1d(frequency, sensitivity, 'linear',
-                                bounds_error=False)
-        if source is not None:
-            self.source = Path(source)
+        self.attrs = attrs
+        self._interp = interp1d(frequency, sensitivity, 'linear', bounds_error=False)
 
     def get_sens(self, frequency):
         # Since sensitivity is in dB(V/Pa), subtracting fixed_gain from
@@ -325,7 +327,9 @@ class PointCalibration(Calibration):
     sensitivity = Typed(np.ndarray).tag(metadata=True)
     fixed_gain = Float(0).tag(metadata=True)
 
-    def __init__(self, frequency, sensitivity, fixed_gain=0, source=None):
+    def __init__(self, frequency, sensitivity, fixed_gain=0, attrs=None):
+        if attrs is None:
+            attrs = {}
         if np.isscalar(frequency):
             frequency = [frequency]
         if np.isscalar(sensitivity):
@@ -333,8 +337,7 @@ class PointCalibration(Calibration):
         self.frequency = np.array(frequency)
         self.sensitivity = np.array(sensitivity)
         self.fixed_gain = fixed_gain
-        if source is not None:
-            self.source = Path(source)
+        self.attrs = attrs
 
     def get_sens(self, frequency):
         if np.iterable(frequency):
@@ -361,8 +364,12 @@ class PointCalibration(Calibration):
         m = sensitivity['hw_ao_chirp_level'] == output_gain
         mic_freq = sensitivity.loc[m, 'frequency'].values
         mic_sens = sensitivity.loc[m, 'sens'].values
-        source = 'psi_chirp', folder, output_gain
-        return cls(mic_freq, mic_sens, source=source, **kwargs)
+        attrs = {
+            'type': 'psi_chirp',
+            'filename': str(folder),
+            'output_gain': output_gain,
+        }
+        return cls(mic_freq, mic_sens, attrs=attrs, **kwargs)
 
 
 class EPLCalibration(InterpCalibration):
