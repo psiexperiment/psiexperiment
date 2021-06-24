@@ -1,26 +1,57 @@
+import logging
+log = logging.getLogger(__name__)
+
+from enaml.application import timed_call
 from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import Branding
 
 from psi.context.api import SequenceSelector
-from psi.controller.base_manifest import BaseManifest
+from psi.controller.api import ControllerManifest as BaseControllerManifest
 from psi.controller.api import EpochOutput, ContinuousOutput
 
 from psi.context.api import ContextGroup, Parameter
+from psi.data.api import ResultPlot, PlotContainer, ViewBox
 from psi.token.primitives import BandlimitedNoise, Cos2Envelope, SAMEnvelope
 
 
-enamldef ControllerManifest(BaseManifest): manifest:
+frequencies = iter([4000, 8000, 16000])
+levels = iter(range(10, 80, 10))
+
+
+def update_data(f1, f2):
+    global levels
+    i = next(levels)
+    data = {
+        'secondary_tone_level': i,
+        'secondary_tone_frequency': 4e3,
+        'f2_level': i,
+        'f1_level': i+10,
+    }
+    f2._data_acquired([data])
+    f1._data_acquired([data])
+    timed_call(1000, update_data, f1, f2)
+
+
+enamldef ControllerManifest(BaseControllerManifest): manifest:
 
     id = 'psi.controller'
 
     Extension:
-        id = 'branding'
+        id = 'simple.branding'
         point = 'enaml.workbench.ui.branding'
         Branding:
             title = 'Demo'
 
     Extension:
-        id = 'tokens'
+        id = 'simple.commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = 'start_data_generator'
+            handler = start_data_generator
+
+    Extension:
+        id = 'simple.tokens'
         point = 'psi.token.tokens'
 
         BandlimitedNoise:
@@ -39,7 +70,7 @@ enamldef ControllerManifest(BaseManifest): manifest:
                     label = 'SAM carrier'
 
     Extension:
-        id = 'io'
+        id = 'simple.io'
         point = 'psi.controller.io'
 
         ContinuousOutput:
@@ -53,8 +84,42 @@ enamldef ControllerManifest(BaseManifest): manifest:
             target_name = 'speaker'
 
     Extension:
-        id = 'selector'
+        id = 'simple.selector'
         point = 'psi.context.selectors'
 
         SequenceSelector:
             name = 'default'
+
+    Extension:
+        id = 'simple.plots'
+        point = 'psi.data.plots'
+
+        PlotContainer: pc:
+            name = 'dpoae_results'
+            label = 'DPOAE input-output functions'
+
+            ViewBox: vb:
+                ResultPlot: f2:
+                    source_name = 'analyze_dpoae'
+                    x_column = 'secondary_tone_level'
+                    pen_width = 2
+                    tab_grouping = 'secondary_tone_frequency'
+                    label = 'F2'
+                    y_column = 'f2_level'
+                    pen_color = 'indianred'
+
+                    initialized ::
+                        f2._data_cache = {}
+                        f2.selected_tab = 4e3
+                        f1._data_cache = {}
+                        f1.selected_tab = 4e3
+                        timed_call(1000, update_data, f1, f2)
+
+                ResultPlot: f1:
+                    source_name = 'analyze_dpoae'
+                    x_column = 'secondary_tone_level'
+                    pen_width = 2
+                    tab_grouping = 'secondary_tone_frequency'
+                    label = 'F1'
+                    y_column = 'f1_level'
+                    pen_color = 'darkgreen'
