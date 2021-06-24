@@ -2,14 +2,16 @@ import logging
 log = logging.getLogger(__name__)
 
 import enaml
-from enaml.stdlib.message_box import critical
-from enaml.widgets.api import Action, ToolBar
-from enaml.workbench.api import Extension, ExtensionPoint
+from enaml.application import deferred_call
+from enaml.stdlib.message_box import critical, information
+from enaml.widgets.api import Action, Label, ToolBar
+from enaml.workbench.api import Extension, ExtensionPoint, PluginManifest
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, Branding, MenuItem
 
 from ..util import rpc
 
+from psi.experiment.api import StatusItem
 from .plugin import ControllerPlugin
 from .experiment_action import (ExperimentState, ExperimentEvent,
                                 ExperimentAction)
@@ -113,6 +115,14 @@ class ControllerManifestBase(ExperimentManifest):
         return get_hw_ai_choices(self.workbench)
 
 
+STATE_MAP = {
+    'initialized': 'Ready to start',
+    'running': 'Acquiring data',
+    'paused': 'Acquisition paused',
+    'stopped': 'Acquisition complete',
+}
+
+
 enamldef ControllerManifest(ControllerManifestBase): manifest:
     '''
     Defines the core functionality that most controller plugins will share
@@ -145,6 +155,16 @@ enamldef ControllerManifest(ControllerManifestBase): manifest:
         point = 'enaml.workbench.ui.branding'
         Branding:
             title << manifest.window_title
+
+    Extension:
+        id = manifest.id + '.status'
+        point = 'psi.experiment.status'
+        rank = 0
+
+        StatusItem:
+            label = 'Status'
+            Label:
+                text << STATE_MAP[workbench.get_plugin('psi.controller').experiment_state]
 
     Extension:
         id = 'commands'
