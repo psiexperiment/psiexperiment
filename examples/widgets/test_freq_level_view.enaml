@@ -1,0 +1,19 @@
+from enaml.widgets.api import Window
+
+from psi.application.experiment.cfts_mixins import FreqLevelSelector, FreqLevelContainer
+from psi.context.api import Parameter
+
+
+def create_selector():
+    level_param = Parameter(name='level')
+    freq_param = Parameter(name='freq')
+    selector = FreqLevelSelector(level_name='level', freq_name='freq')
+    selector.append_item(level_param)
+    selector.append_item(freq_param)
+    return selector
+
+
+enamldef Main(Window): main:
+
+    FreqLevelContainer: container:
+        selector = create_selector()

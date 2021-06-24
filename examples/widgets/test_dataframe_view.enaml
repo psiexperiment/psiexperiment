@@ -80,6 +80,33 @@ enamldef Main(Window): main:
                                 {'mod_depth': 2, 'reward_volume': 8},
                             ]
 
+                VGroup:
+                    Label:
+                        text = 'Double-click on a cell to edit value.'
+                    ListTable: table:
+                        select_behavior = 'rows'
+                        select_mode = 'contiguous'
+                        editable = True
+                        column_info << main.column_info
+                        column_name = 'Progress'
+                        data = ['File 1', 'File 2']
+
+                        attr frac = 0.2
+
+                        get_cell_color => (row, col):
+                            return 'lightgreen'
+
+                        get_cell_frac => (row, col):
+                            if row == 0:
+                                return frac
+                            return 0
+
+                    PushButton:
+                        text = 'Increment progress'
+                        clicked ::
+                            table.frac = min(table.frac + 0.2, 1)
+                            table.update = True
+
             HGroup: group:
                 attr selected = []
                 VGroup:
