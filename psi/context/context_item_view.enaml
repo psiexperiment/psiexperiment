@@ -38,6 +38,7 @@ enamldef ContextItemField(Field):
     validator << ContextItemValidator(
         plugin=workbench.get_plugin('psi.context'),
         item=context_item)
+    submit_triggers = ['lost_focus', 'return_pressed', 'auto_sync']
 
 
 ################################################################################
