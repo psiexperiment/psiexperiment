@@ -223,6 +223,7 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gains=0,
 
         df = pd.DataFrame(channel_result)
         df['channel_name'] = ai_channel.name
+        df['input_channel_gain'] = ai_channel.gain
         result.append(df)
 
     return pd.concat(result).set_index(['channel_name', 'frequency'])
