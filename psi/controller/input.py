@@ -205,7 +205,7 @@ def calibrate(calibration, target):
 class CalibratedInput(ContinuousInput):
 
     def _get_calibration(self):
-        return FlatCalibration()
+        return FlatCalibration(0)
 
     def configure_callback(self):
         cb = super().configure_callback()
