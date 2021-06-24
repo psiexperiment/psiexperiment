@@ -28,16 +28,29 @@ class InputData(np.ndarray):
         obj.metadata = metadata if metadata else {}
         return obj
 
+    def __getitem__(self, s):
+        obj = super().__getitem__(s)
+        if isinstance(s, tuple):
+            s = s[-1]
+        if s.start is not None:
+            obj.metadata['t0_sample'] += s.start
+        if s.step is not None:
+            obj.metadata['fs'] /= s.step
+        return obj
+
     def __array_finalize__(self, obj):
         if obj is None: return
-        self.metadata = getattr(obj, 'metadata', None)
+        self.metadata = getattr(obj, 'metadata', {}).copy()
 
 
 def concatenate(input_data, axis=None):
+    ignore_keys = ('t0_sample',)
     b = input_data[0]
+    reference = {k: v for k, v in b.metadata.items() if k not in ignore_keys}
     for d in input_data[1:]:
-        if d.metadata != b.metadata:
-            log.debug('%r vs %r', d.metadata, b.metadata)
+        md = {k: v for k, v in d.metadata.items() if k not in ignore_keys}
+        if reference != md:
+            log.info('%r vs %r', reference, md)
             raise ValueError('Cannot combine InputData set')
     arrays = np.concatenate(input_data, axis=axis)
     return InputData(arrays, b.metadata)
