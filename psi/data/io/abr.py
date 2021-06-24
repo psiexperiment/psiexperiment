@@ -7,10 +7,12 @@ log = logging.getLogger(__name__)
 from functools import lru_cache, partialmethod, wraps
 import json
 import os.path
+from pathlib import Path
 import shutil
 import re
 from glob import glob
 import pickle
+import warnings
 
 import bcolz
 import numpy as np
@@ -96,10 +98,14 @@ class ABRFile(Recording):
 
     def __init__(self, *args, **kw):
         super().__init__(*args, **kw)
-        if 'eeg' not in self.carray_names:
-            raise ValueError('Missing eeg data')
-        if 'erp_metadata' not in self.ctable_names:
-            raise ValueError('Missing erp metadata')
+        try:
+            getattr(self, 'eeg')
+        except AttributeError:
+            raise ValueError('EEG data missing')
+        try:
+            getattr(self, 'erp_metadata')
+        except AttributeError:
+            raise ValueError('ERP metadata missing')
 
     def get_setting(self, setting_name):
         '''
@@ -185,8 +191,9 @@ class ABRFile(Recording):
 
     @cache
     def get_epochs(self, offset=0, duration=8.5e-3, detrend='constant',
-                   reject_threshold=None, reject_mode='absolute',
-                   columns='auto', averages=None):
+                   downsample=None, reject_threshold=None,
+                   reject_mode='absolute', columns='auto', averages=None,
+                   cb=None):
         '''
         Extract event-related epochs from EEG
 
@@ -196,15 +203,16 @@ class ABRFile(Recording):
         {epochs_docstring}
         '''
         fn = self.eeg.get_epochs
-        result = fn(self.erp_metadata, offset, duration, detrend, columns)
+        result = fn(self.erp_metadata, offset, duration, detrend,
+                    downsample=downsample, columns=columns, cb=cb)
         result = self._apply_reject(result, reject_threshold, reject_mode)
         result = self._apply_n(result, averages)
         return result
 
     @cache
     def get_random_segments(self, n, offset=0, duration=8.5e-3,
-                            detrend='constant', reject_threshold=None,
-                            reject_mode='absolute'):
+                            detrend='constant', downsample=None,
+                            reject_threshold=None, reject_mode='absolute'):
         '''
         Extract random segments from filtered EEG
 
@@ -215,15 +223,16 @@ class ABRFile(Recording):
         {common_docstring}
         '''
         fn = self.eeg.get_random_segments
-        result = fn(n, offset, duration, detrend)
+        result = fn(n, offset, duration, detrend, downsample=downsample)
         return self._apply_reject(result, reject_threshold, reject_mode)
 
     @cache
     def get_epochs_filtered(self, filter_lb=300, filter_ub=3000,
                             filter_order=1, offset=-1e-3, duration=10e-3,
                             detrend='constant', pad_duration=10e-3,
-                            reject_threshold=None, reject_mode='absolute',
-                            columns='auto', averages=None):
+                            downsample=None, reject_threshold=None,
+                            reject_mode='absolute', columns='auto',
+                            averages=None, cb=None):
         '''
         Extract event-related epochs from filtered EEG
 
@@ -235,7 +244,8 @@ class ABRFile(Recording):
         '''
         fn = self.eeg.get_epochs_filtered
         result = fn(self.erp_metadata, offset, duration, filter_lb, filter_ub,
-                    filter_order, detrend, pad_duration, columns)
+                    filter_order, detrend, pad_duration, downsample=downsample,
+                    columns=columns, cb=cb)
         result = self._apply_reject(result, reject_threshold, reject_mode)
         result = self._apply_n(result, averages)
         return result
@@ -245,6 +255,7 @@ class ABRFile(Recording):
                                      filter_order=1, offset=-1e-3,
                                      duration=10e-3, detrend='constant',
                                      pad_duration=10e-3,
+                                     downsample=None,
                                      reject_threshold=None,
                                      reject_mode='absolute'):
         '''
@@ -257,10 +268,9 @@ class ABRFile(Recording):
         {filter_docstring}
         {common_docstring}
         '''
-
         fn = self.eeg.get_random_segments_filtered
         result = fn(n, offset, duration, filter_lb, filter_ub, filter_order,
-                    detrend, pad_duration)
+                    detrend, pad_duration, downsample=downsample)
         return self._apply_reject(result, reject_threshold, reject_mode)
 
     def _apply_reject(self, result, reject_threshold, reject_mode):
@@ -353,7 +363,22 @@ class ABRSupersetFile:
         return pd.concat(result_set, keys=range(len(self._fh)), names=['file'])
 
 
-def load(base_path):
+def list_abr_experiments(base_path):
+    if is_abr_experiment(base_path, allow_superset=False):
+        return [base_path]
+
+    experiments = []
+    base_path = Path(base_path)
+    if base_path.is_file():
+        return experiments
+
+    for path in Path(base_path).iterdir():
+        if path.is_dir():
+            experiments.extend(list_abr_experiments(path))
+    return experiments
+
+
+def load(base_path, allow_superset=False):
     '''
     Load ABR data
 
@@ -361,6 +386,10 @@ def load(base_path):
     ----------
     base_path : string
         Path to folder
+    allow_superset : bool
+        If True, will merge all subfolders containing valid ABR data into a
+        single superset ABR file. If False, base_path must be a valid ABR
+        dataset.
 
     Returns
     -------
@@ -368,14 +397,17 @@ def load(base_path):
         Depending on folder, will return either an instance of `ABRFile` or
         `ABRSupersetFile`.
     '''
-    check = os.path.join(base_path, 'erp')
-    if os.path.exists(check):
+    # This supports backwards compatibility
+    check = os.path.join(base_path, 'erp_metadata')
+    check_csv = os.path.join(base_path, 'erp_metadata.csv')
+    if os.path.exists(check) or os.path.exists(check_csv):
         return ABRFile(base_path)
-    else:
+    if allow_superset:
         return ABRSupersetFile.from_folder(base_path)
+    raise IOError(f'{base_path} is not an ABR dataset')
 
 
-def is_abr_experiment(base_path):
+def is_abr_experiment(base_path, allow_superset=False):
     '''
     Checks if path contains valid ABR data
 
@@ -391,9 +423,9 @@ def is_abr_experiment(base_path):
         exist, False is returned.
     '''
     try:
-        load(path)
+        result = load(base_path, allow_superset)
         return True
-    except Exception:
+    except Exception as e:
         return False
 
 
@@ -424,6 +456,10 @@ common_docstring = '''
             provided value. To return all epochs, use `np.inf`.
         reject_mode : string
             Not imlemented
+        cb : {None, callable}
+            If a callable is provided, this will be called with the current
+            fraction of segments loaded from the file. This is useful when
+            loading many segments over a slow connection.
 '''.strip()
 
 
@@ -436,6 +472,9 @@ epochs_docstring = '''
             use the provided value. To return all epochs, use `np.inf`. For
             dual-polarity data, care will be taken to ensure the number of
             trials from each polarity match (even when set to `np.inf`).
+        bypass_cache : bool
+            If true, skip cache mechanism entirely. This also prevents a cache
+            file from being saved.
         refresh_cache : bool
             If true, recompute from raw EEG data. If false and data has already
             been cached, return cached results.
