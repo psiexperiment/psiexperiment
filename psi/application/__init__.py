@@ -13,7 +13,6 @@ import warnings
 
 import enaml
 from enaml.application import deferred_call
-from enaml.qt.qt_application import QtApplication
 with enaml.imports():
     from enaml.stdlib.message_box import critical
 
@@ -29,6 +28,7 @@ The error message is:
 
 {}
 '''
+
 
 
 class ExceptionHandler:
@@ -57,17 +57,33 @@ class ExceptionHandler:
 exception_handler = ExceptionHandler()
 
 
-def configure_logging(level, filename=None, debug_exclude=None):
+def configure_logging(level_console=None, level_file=None, filename=None,
+                      debug_exclude=None):
+
     log = logging.getLogger()
-    log.setLevel(level)
-    stream_handler = logging.StreamHandler()
+    if level_file is None and level_console is None:
+        return
+    elif level_file is None:
+        log.setLevel(level_console)
+    elif level_console is None:
+        log.setLevel(level_file)
+    else:
+        min_level = min(getattr(logging, level_console), getattr(logging, level_file))
+        log.setLevel(min_level)
+
     fmt = '{levelname:10s}: {threadName:11s} - {name:40s}:: {message}'
     formatter = logging.Formatter(fmt, style='{')
-    stream_handler.setFormatter(formatter)
-    log.addHandler(stream_handler)
-    if filename is not None:
+
+    if level_console is not None:
+        stream_handler = logging.StreamHandler()
+        stream_handler.setFormatter(formatter)
+        stream_handler.setLevel(level_console)
+        log.addHandler(stream_handler)
+
+    if filename is not None and level_file is not None:
         file_handler = logging.FileHandler(filename, 'w', 'UTF-8')
         file_handler.setFormatter(formatter)
+        file_handler.setLevel(level_file)
         log.addHandler(file_handler)
         exception_handler.logfile = filename
 
@@ -77,7 +93,7 @@ def configure_logging(level, filename=None, debug_exclude=None):
 
     tdt_logger = logging.getLogger('tdt')
     tdt_logger.setLevel('INFO')
-    sys.excepthook = exception_handler
+    sys.excepthook = _exception_notifier
 
 
 def warn_with_traceback(message, category, filename, lineno, file=None,
@@ -96,7 +112,10 @@ def _main(args):
         dt_string = dt.datetime.now().strftime('%Y-%m-%d %H%M')
         filename = '{} {}'.format(dt_string, args.experiment)
         log_root = get_config('LOG_ROOT')
-        configure_logging(args.debug_level, os.path.join(log_root, filename), args.debug_exclude)
+        configure_logging(args.debug_level_console,
+                          args.debug_level_file,
+                          os.path.join(log_root, filename),
+                          args.debug_exclude)
 
         log.debug('Logging configured')
         log.info('Logging information captured in {}'.format(filename))
@@ -160,10 +179,11 @@ def list_calibrations(io_file=None):
 
 def launch_experiment(args):
     set_config('ARGS', args)
+    set_config('PROFILE', args.profile)
     if args.profile:
-        from pyinstrument import Profiler
-        profiler = Profiler()
-        profiler.start()
+        import cProfile, pstats
+        pr = cProfile.Profile()
+        pr.enable()
 
     try:
         _main(args)
@@ -174,15 +194,15 @@ def launch_experiment(args):
             pdb.post_mortem(tb)
         else:
             log.exception(e)
-            app = QtApplication()
             critical(None, 'Error starting experiment', str(e))
-            app.start()
 
     if args.profile:
-        profiler.stop()
-        html = profiler.output_html()
-        with open('profile.html', 'w') as fh:
-            fh.write(html)
+        pr.disable()
+        path = get_config('LOG_ROOT') / 'main_thread.pstat'
+        pr.dump_stats(path)
+        stat_files = [str(p) for p in path.parent.glob('*.pstat')]
+        merged_stats = pstats.Stats(*stat_files)
+        merged_stats.dump_stats(path.parent / 'merged.pstat')
 
 
 def get_default_io():
@@ -264,8 +284,10 @@ def add_default_options(parser):
                         help='Debug mode?')
     parser.add_argument('--debug-warning', default=False, action='store_true',
                         help='Show warnings?')
-    parser.add_argument('--debug-level', type=str, default='INFO',
-                        help='Logging level')
+    parser.add_argument('--debug-level-console', type=str, default='INFO',
+                        help='Logging level for console')
+    parser.add_argument('--debug-level-file', type=str, default='INFO',
+                        help='Logging level for file')
     parser.add_argument('--debug-exclude', type=str, nargs='*',
                         help='Names to exclude from debugging')
     parser.add_argument('--pdb', default=False, action='store_true',
