@@ -36,8 +36,10 @@ class ContextLookup:
         self.__context_plugin = context_plugin
 
     def __getattr__(self, name):
-        value = self.__context_plugin.get_value(name)
-        return value
+        return self.__context_plugin.get_value(name)
+
+    def unique_values(self, item_name, iterator='default'):
+        return self.__context_plugin.unique_values(item_name, iterator)
 
 
 context_initialized_error = '''
@@ -89,7 +91,7 @@ class ContextPlugin(Plugin):
     # Return all expressions, including those for roved parameters
     all_expressions = Property()
 
-    lookup = Typed(ContextLookup, ())
+    lookup = Typed(ContextLookup)
 
     def _default_lookup(self):
         return ContextLookup(self)
@@ -111,6 +113,9 @@ class ContextPlugin(Plugin):
         point = self.workbench.get_extension_point(SELECTORS_POINT)
         for extension in point.extensions:
             for selector in extension.get_children(BaseSelector):
+                if selector.name in selectors:
+                    m = f'Already have a selector named "{selector.name}"'
+                    raise ValueError(m)
                 selectors[selector.name] = selector
                 selector.load_manifest(self.workbench)
         self.selectors = selectors
@@ -220,13 +225,13 @@ class ContextPlugin(Plugin):
 
         # This triggers an interesting "bug" where ContextMeta is set to track
         # roving items and we change one of the tokens. I don't have a great
-        # work-around right now. 
+        # work-around right now.
         oldvalue = change.get('oldvalue', {})
         newvalue = change.get('value', {})
         for i in oldvalue.values():
             i.unobserve('expression', self._observe_item_updated)
             i.unobserve('rove', self._observe_item_rove)
-            if getattr(i, 'rove', False): 
+            if getattr(i, 'rove', False):
                 if id(i) != id(newvalue.get(i.name, None)):
                     self.unrove_item(i)
         for i in newvalue.values():
@@ -238,12 +243,10 @@ class ContextPlugin(Plugin):
 
     @observe('symbols')
     def _update_selectors(self, event):
-        log.debug('Symbols updated')
         for selector in self.selectors.values():
             selector.symbols = self.symbols.copy()
 
     def _observe_item_updated(self, event):
-        log.debug('Item changed')
         self._check_for_changes()
 
     def _observe_item_rove(self, event):
@@ -283,6 +286,10 @@ class ContextPlugin(Plugin):
                 namespace.reset()
         else:
             yield namespace.get_values()
+
+    def n_values(self, iterator='default'):
+        iterable = self.iter_settings(iterator, 1)
+        return len([c for c in iterable])
 
     def unique_values(self, item_name, iterator='default'):
         iterable = self.iter_settings(iterator, 1)
@@ -416,6 +423,7 @@ class ContextPlugin(Plugin):
         self._namespace.update_symbols(self.symbols)
         self._iterators = self._get_iterators(cycles)
         self.changes_pending = False
+        log.debug('Applied changes')
 
     def revert_changes(self):
         log.debug('Reverting changes')
