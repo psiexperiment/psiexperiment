@@ -394,13 +394,11 @@ class Accumulate(ContinuousInput):
 def capture(fs, queue, target):
     s0 = 0
     t_start = None  # Time, in seconds, of capture start
-    s_next = None  # Sample number fo rcapture
-    active = False
+    s_next = None  # Sample number for capture
 
     while True:
         # Wait for new data to come in
         data = (yield)
-
         try:
             # We've recieved a new command. The command will either be None
             # (i.e., no more acquisition for a bit) or a floating-point value
@@ -720,13 +718,18 @@ def extract_epochs(fs, queue, epoch_size, poststim_time, buffer_size, target,
         # epoch_coroutines. If it doesn't exist, it may already have been
         # captured.
         skip = []
+        n_remove = 0
+        n_pop = 0
         while removed_queue:
             info = removed_queue.popleft()
             md = info['t0'], info['key']
             if md not in epoch_coroutines:
+                n_remove += 1
                 skip.append(md)
             else:
                 epoch_coroutines.pop(md)
+                n_pop += 1
+        log.debug('Marked %d epochs for removal, removed %d epochs', n_remove, n_pop)
 
         # Send the data to each coroutine. If a StopIteration occurs,
         # this means that the epoch has successfully been acquired and has
@@ -741,12 +744,16 @@ def extract_epochs(fs, queue, epoch_size, poststim_time, buffer_size, target,
         # Check to see if more epochs have been requested. Information will be
         # provided in seconds, but we need to convert this to number of
         # samples.
+        n_queued = 0
+        n_invalid = 0
         while queue:
             info = queue.popleft()
             key = info['t0'], info['key']
             if key in skip:
                 skip.remove(key)
+                n_invalid += 1
                 continue
+            n_queued += 1
 
             # Figure out how many samples to capture for that epoch
             t0 = round(info['t0'] * fs)
@@ -769,8 +776,8 @@ def extract_epochs(fs, queue, epoch_size, poststim_time, buffer_size, target,
                 epoch_coroutines[key] = epoch_coroutine
             except StopIteration:
                 pass
-        #else:
-            #log.debug('Current tlb: %.2f, t0: %.2f', tlb/fs, t0/fs)
+
+        log.debug('Queued %d epochs, %d were invalid', n_queued, n_invalid)
 
         tlb = tlb + data.shape[-1]
 
