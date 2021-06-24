@@ -5,7 +5,7 @@ with enaml.imports():
     from .display_value import DisplayValue
     from .event_log import EventLog
     from .epoch_counter import EpochCounter, GroupedEpochCounter
-    from .preferences_store import PreferencesStore
+    from .config_store import ConfigStore
     from .table_store import TableStore
     from .text_store import TextStore
     from .trial_log import TrialLog

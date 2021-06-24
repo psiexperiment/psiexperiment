@@ -231,7 +231,7 @@ class BColzStore(BaseStore):
     def process_ai_epochs(self, name, data):
         self._stores[name].append(data)
 
-    def create_ai_continuous(self, name, fs, dtype, **metadata):
+    def create_ai_continuous(self, name, fs, dtype, metadata):
         n = int(fs*60*60)
         filename = self.get_filename(name)
         log.debug('Saving %s to %s', name, filename)
@@ -245,7 +245,7 @@ class BColzStore(BaseStore):
         atexit.register(carray.flush)
 
     def create_ai_epochs(self, name, fs, epoch_size, dtype, context_items,
-                         **metadata):
+                         metadata):
         # Create signal data store
         n = int(fs*60*60)
         base = self.get_filename(name)
@@ -283,7 +283,8 @@ def prepare(sink, event):
         log.debug('\tCreating save file for epoch input %s', input_name)
         i = controller.get_input(input_name)
         md = declarative_to_dict(i, 'metadata')
-        sink.create_ai_epochs(context_items=context.context_items, **md)
+        sink.create_ai_epochs(i.name, i.fs, i.epoch_size, i.dtype,
+                              context.context_items, md)
         cb = partial(sink.process_ai_epochs, i.name)
         i.add_callback(cb)
 
@@ -291,7 +292,7 @@ def prepare(sink, event):
         log.debug('\tCreating save file for continuous input %s', input_name)
         i = controller.get_input(input_name)
         md = declarative_to_dict(i, 'metadata')
-        sink.create_ai_continuous(**md)
+        sink.create_ai_continuous(i.name, i.fs, i.dtype, md)
         cb = partial(sink.process_ai_continuous, i.name)
         i.add_callback(cb)
 
@@ -299,6 +300,7 @@ def prepare(sink, event):
 def flush(sink, event):
     for store in sink._stores.values():
         store.flush()
+    return 'Saved data to disk'
 
 
 enamldef BColzStoreManifest(PSIManifest): manifest:

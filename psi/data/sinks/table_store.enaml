@@ -13,7 +13,7 @@ from enaml.workbench.core.api import Command
 import pandas as pd
 
 from psi.context.api import OrderedContextMeta
-from psi.controller.api import ExperimentAction
+from psi.controller.api import ExperimentAction, ExperimentEvent
 from psi.core.enaml.api import PSIManifest
 
 from .base_store import BaseStore
@@ -44,7 +44,7 @@ class TableStore(BaseStore):
         self._store = path.open('w', newline='\n')
         atexit.register(self._store.close)
 
-    def _save_data(self, data, flush=False):
+    def _save_data(self, data):
         if isinstance(data, Mapping):
             df = pd.DataFrame(pd.Series(data)).T
         else:
@@ -62,7 +62,7 @@ class TableStore(BaseStore):
                                line_terminator='\n')
         self._store.write(csv_string)
         if flush:
-            self._store.flush()
+            self.flush()
 
     def _update_widget(self, data):
         if isinstance(data, Mapping):
@@ -70,11 +70,16 @@ class TableStore(BaseStore):
         else:
             self._data.extend(data)
 
-    def process_table(self, data, flush=False):
-        if self.save_data: 
-            self._save_data(data, flush)
-        if self.show_widget: 
+    def process_table(self, data):
+        if self.save_data:
+            self._save_data(data)
+        if self.show_widget:
             self._update_widget(data)
+        if flush:
+            self.flush()
+
+    def flush(self):
+        self._store.flush()
 
 
 def prepare(sink, event):
@@ -83,6 +88,12 @@ def prepare(sink, event):
 
 def save(sink, event):
     sink.process_table(event.parameters['data'])
+
+
+def flush(sink, event):
+    sink.flush()
+    controller = event.workbench.get_plugin('psi.controller')
+    controller.invoke_actions(f'{sink.name}_flushed')
 
 
 enamldef TableStoreManifest(PSIManifest): manifest:
@@ -99,6 +110,10 @@ enamldef TableStoreManifest(PSIManifest): manifest:
             id = contribution.name + '.save'
             handler = partial(save, contribution)
 
+        Command:
+            id = manifest.id + '.flush'
+            handler = partial(flush, contribution)
+
     Extension:
         id = manifest.id + '.actions'
         point = 'psi.controller.actions'
@@ -106,3 +121,11 @@ enamldef TableStoreManifest(PSIManifest): manifest:
         ExperimentAction:
             event = 'experiment_prepare'
             command = contribution.name + '.prepare'
+
+        ExperimentAction:
+            weight = 1000
+            event = 'experiment_end'
+            command = manifest.id + '.flush'
+
+        ExperimentEvent:
+            name = f'{manifest.contribution.name}_flushed'
