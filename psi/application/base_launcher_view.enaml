@@ -137,13 +137,6 @@ enamldef LauncherView(MainWindow): main:
 
     Container:
 
-        constraints = [
-            config_form.width == preferences_box.width == data_form.width == plugins_box.width,
-            config_form.left == preferences_box.left == data_form.left == plugins_box.left,
-            config_form.right == preferences_box.right == data_form.right == plugins_box.right,
-            vbox(config_form, preferences_box, plugins_box, data_form, button_bar),
-        ]
-
         Form: config_form:
             Label:
                 text = 'Hardware configuration'
