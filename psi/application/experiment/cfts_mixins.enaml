@@ -13,7 +13,7 @@ from enaml.core.api import Conditional, d_
 from enaml.layout.api import vbox
 from enaml.stdlib.fields import FloatField
 from enaml.widgets.api import Container, DockItem, HGroup, Label, ObjectCombo
-from enaml.workbench.api import Extension, ExperimentManifest
+from enaml.workbench.api import Extension
 
 from psi.context.api import (BaseSelector, BoolParameter, ContextGroup,
                              EnumParameter, Parameter)
@@ -25,7 +25,7 @@ from psi.controller.calibration.api import (chirp_sens, ChirpCalibrate,
                                             InterpCalibration,
                                             PointCalibration, tone_sens,
                                             ToneCalibrate)
-from psi.core.enaml.api import DataFrameTable, PSIManifest
+from psi.core.enaml.api import DataFrameTable, ExperimentManifest, PSIManifest
 from psi.data.plots import (ChannelPlot, FFTChannelPlot, FFTContainer,
                             TimeContainer, ViewBox)
 from psi.data.sinks.api import BColzStore, DisplayValue, TextStore
@@ -388,13 +388,13 @@ enamldef InEarCalibrationMixinManifest(ExperimentManifest): manifest:
             iti = 0
 
 
-enamldef ABREarCalibrationMixinManifest(ExperimentManifest): manifest:
+enamldef ABRInEarCalibrationMixinManifest(InEarCalibrationMixinManifest): manifest:
 
     experiment = 'abr'
     outputs = {'target': ['target_tone_frequency']}
 
 
-enamldef DPOAEInEarCalibrationMixinManifest(ExperimentManifest): manifest:
+enamldef DPOAEInEarCalibrationMixinManifest(InEarCalibrationMixinManifest): manifest:
 
     experiment = 'dpoae'
     outputs = {
