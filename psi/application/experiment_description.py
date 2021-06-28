@@ -77,7 +77,7 @@ ParadigmDescription(
 ParadigmDescription(
     # This is the default, simple ABR experiment that most users will want.  
     'abr_io', 'ABR (input-output)', 'ear', [
-        (PATH + 'abr_io_simple.ABRIOSimpleManifest',),
+        (PATH + 'abr_io.ABRIOSimpleManifest',),
         (PATH + 'cfts_mixins.TemperatureMixinManifest', True),
         (PATH + 'cfts_mixins.EEGViewMixinManifest', True),
         (PATH + 'cfts_mixins.ABRInEarCalibrationMixinManifest', True),
@@ -87,7 +87,7 @@ ParadigmDescription(
 
 ParadigmDescription(
     'dpoae_io', 'DPOAE input-output', 'ear', [
-        (PATH + 'dpoae_io.ControllerManifest',),
+        (PATH + 'dpoae_io.DPOAEIOSimpleManifest',),
         (PATH + 'cfts_mixins.TemperatureMixinManifest', True),
         (PATH + 'cfts_mixins.DPOAEInEarCalibrationMixinManifest', True),
         (PATH + 'cfts_mixins.MicrophoneSignalViewMixinManifest', True),
