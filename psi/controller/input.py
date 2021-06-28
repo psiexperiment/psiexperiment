@@ -30,12 +30,17 @@ class InputData(np.ndarray):
 
     def __getitem__(self, s):
         obj = super().__getitem__(s)
+        # This will be the case when s is just an integer, not a slice.
+        if not hasattr(obj, 'metadata'):
+            return obj
         if isinstance(s, tuple):
             s = s[-1]
-        if s.start is not None:
-            obj.metadata['t0_sample'] += s.start
-        if s.step is not None:
-            obj.metadata['fs'] /= s.step
+        if isinstance(s, slice):
+            if s.start is not None and 't0_sample' in obj.metadata:
+                print(s.start, obj.shape[-1])
+                obj.metadata['t0_sample'] += (s.start % self.shape[-1])
+            if s.step is not None and 'fs' in obj.metadata:
+                obj.metadata['fs'] /= s.step
         return obj
 
     def __array_finalize__(self, obj):
