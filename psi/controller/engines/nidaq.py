@@ -1153,6 +1153,9 @@ class NIDAQEngine(Engine):
     def update_hw_ao(self, name, offset):
         # Get the next set of samples to upload to the buffer. Ignore the
         # channel name because we need to update all channels simultaneously.
+        if offset > self.total_samples_written:
+            return
+
         available = self.get_space_available()
         samples = available - (offset - self.total_samples_written)
         if samples <= 0:
