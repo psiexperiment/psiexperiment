@@ -1,6 +1,9 @@
 import logging
 log = logging.getLogger(__name__)
 
+import json
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 from scipy import signal
@@ -428,16 +431,31 @@ def save_calibration(channels, filename):
         dump(settings, fh, indent=4)
 
 
+def load_calibration_data(filename):
+    from psi.controller.calibration.api import calibration_registry
+    settings = json.loads(Path(filename).read_text())
+    calibrations = {}
+    for c_name, c_calibration in settings.items():
+        # This is will deal with legacy calibration configs in which the source
+        # was a top-level key rather than being stored as an attribute.
+        if 'source' in c_calibration:
+            attrs = c_calibration.setdefault('attrs', {})
+            attrs['source'] = c_calibration.pop('source')
+
+        # json-tricks did some fancy stuff to Numpy arrays. Need to fix this.
+        for k, v in c_calibration.items():
+            if isinstance(v, dict) and '__ndarray__' in v:
+                c_calibration[k] = np.asarray(v['__ndarray__'], dtype=v['dtype'])
+
+        calibrations[c_name] = calibration_registry.from_dict(**c_calibration)
+    return calibrations
+
+
 def load_calibration(filename, channels):
     '''
     Load calibration configuration for hardware from json file
     '''
-    from json import load
-    from psi.controller.calibration.api import calibration_registry
-    with open(filename, 'r') as fh:
-        settings = load(fh)
-    channels = {c.name: c for c in channels}
-    for c_name, c_calibration in settings.items():
-        log.debug('Loading calibration %s with data %r', c_name, c_calibration)
-        channels[c_name].calibration = \
-            calibration_registry.from_dict(**c_calibration)
+    calibrations = load_calibration_data(filename)
+    for c in channels:
+        if c.name in calibrations:
+            c.calibration = calibrations[c.name]
