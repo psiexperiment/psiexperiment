@@ -123,6 +123,9 @@ STATE_MAP = {
 }
 
 
+PLUGIN_ID = 'psi.base_controller.'
+
+
 enamldef ControllerManifest(ControllerManifestBase): manifest:
     '''
     Defines the core functionality that most controller plugins will share
@@ -151,13 +154,13 @@ enamldef ControllerManifest(ControllerManifestBase): manifest:
         id = 'psi.controller.actions'
 
     Extension:
-        id = manifest.id + '.branding'
+        id = PLUGIN_ID + '.branding'
         point = 'enaml.workbench.ui.branding'
         Branding:
             title << manifest.window_title
 
     Extension:
-        id = manifest.id + '.status'
+        id = PLUGIN_ID + '.status'
         point = 'psi.experiment.status'
         rank = 0
 
@@ -167,7 +170,7 @@ enamldef ControllerManifest(ControllerManifestBase): manifest:
                 text << STATE_MAP[workbench.get_plugin('psi.controller').experiment_state]
 
     Extension:
-        id = 'commands'
+        id = PLUGIN_ID + '.commands'
         point = 'enaml.workbench.core.commands'
 
         Command:
@@ -221,7 +224,7 @@ enamldef ControllerManifest(ControllerManifestBase): manifest:
 
     # Uses unicode symbols as icons for sake of simplicity.
     Extension:
-        id = 'toolbar'
+        id = PLUGIN_ID + '.toolbar'
         rank = 1
         point = 'psi.experiment.toolbar'
 
@@ -259,7 +262,7 @@ enamldef ControllerManifest(ControllerManifestBase): manifest:
                     plugin.invoke_command('psi.controller.request_apply')
 
     Extension:
-        id = 'base_menu'
+        id = PLUGIN_ID + '.menu'
         point = 'enaml.workbench.ui.actions'
         MenuItem:
             path = '/equipment'
@@ -270,7 +273,7 @@ enamldef ControllerManifest(ControllerManifestBase): manifest:
             label = 'Outputs'
 
     Extension:
-        id = 'base_actions'
+        id = PLUGIN_ID + '.actions'
         point = 'psi.controller.actions'
         rank = 10
 

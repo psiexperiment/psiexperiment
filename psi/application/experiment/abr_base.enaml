@@ -49,10 +49,8 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
     Subclasses must add a command, `psi.controller.configure_experiment` that
     creates and configures the target queue.
     '''
-    id = EXPERIMENT
-
     Extension:
-        id = manifest.id + '.store'
+        id = EXPERIMENT + '.store'
         point = 'psi.data.sinks'
 
         BColzStore:
@@ -64,7 +62,7 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
             epoch_inputs = ['erp']
 
     Extension:
-        id = manifest.id + '.tokens'
+        id = EXPERIMENT + '.tokens'
         point = 'psi.token.tokens'
 
         Cos2Envelope: tone_burst:
@@ -75,7 +73,7 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
                 hide = ['polarity', 'phase']
 
     Extension:
-        id = manifest.id + '.io'
+        id = EXPERIMENT + '.io'
         point = 'psi.controller.io'
 
         QueuedEpochOutput: output:
@@ -127,7 +125,7 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
                             mode = C.reject_mode
 
     Extension:
-        id = manifest.id + '.context'
+        id = EXPERIMENT + '.abr.context'
         point = 'psi.context.items'
 
         ContextGroup:
@@ -238,7 +236,7 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
                 scope = 'experiment'
 
     Extension:
-        id = manifest.id + '.actions'
+        id = EXPERIMENT + '.actions'
         point = 'psi.controller.actions'
 
         ExperimentAction:
