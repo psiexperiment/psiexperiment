@@ -47,7 +47,7 @@ template CalibrationTemplate(calibration, MemberType: GolayCalibration):
         align_widths = False
 
         Label:
-            text << str(calibration.source.name if calibration.source else 'No calibration loaded')
+            text << calibration.attrs.get('source', 'No calibration loaded')
 
         PushButton:
             text = 'Change'
@@ -66,7 +66,7 @@ template CalibrationTemplate(calibration, MemberType: ChirpCalibration):
         align_widths = False
 
         Label:
-            text << str(calibration.source.name if calibration.source else 'No calibration loaded')
+            text << calibration.attrs.get('source', 'No calibration loaded')
 
         PushButton:
             text = 'Change'
@@ -85,7 +85,7 @@ template CalibrationTemplate(calibration, MemberType: CochlearCalibration):
         align_widths = False
 
         Label:
-            text << str(calibration.source.name if calibration.source else 'No calibration loaded')
+            text << calibration.attrs.get('source', 'No calibration loaded')
 
         PushButton:
             text = 'Change'
@@ -104,7 +104,7 @@ template CalibrationTemplate(calibration, MemberType: EPLCalibration):
         align_widths = False
 
         Label:
-            text << str(calibration.source.name if calibration.source else 'No calibration loaded')
+            text << calibration.attrs.get('source', 'No calibration loaded')
 
         PushButton:
             text = 'Change'

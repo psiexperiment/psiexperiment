@@ -12,4 +12,4 @@ from .calibrate import ChirpCalibrate, ToneCalibrate
 from .chirp import chirp_sens
 from .plugin import CalibrationPlugin
 from .tone import process_tone, tone_power_conv, tone_sens
-from .util import db, dbi, load_calibration, rms
+from .util import db, dbi, load_calibration, load_calibration_data, rms
