@@ -93,7 +93,7 @@ def configure_logging(level_console=None, level_file=None, filename=None,
 
     tdt_logger = logging.getLogger('tdt')
     tdt_logger.setLevel('INFO')
-    sys.excepthook = _exception_notifier
+    sys.excepthook = exception_handler
 
 
 def warn_with_traceback(message, category, filename, lineno, file=None,
