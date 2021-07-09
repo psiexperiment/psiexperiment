@@ -800,7 +800,6 @@ class FixedTextItem(pg.TextItem):
 
         t = pt.inverted()[0]
         # reset translation
-        log.warning('***** ,,, **** M11: %r, M22: %r', t.m11(), t.m22())
         t.setMatrix(1, t.m12(), t.m13(), t.m21(), 1, t.m23(), 0, 0, t.m33())
 
         # apply rotation
@@ -837,9 +836,16 @@ class GroupMixin(ColorCycleMixin):
 
     n_update = d_(Int(1))
 
-    tab_grouping = d_(Str())
-    plot_grouping = d_(Str())
+    #: List of attributes that define the tab groups
+    tab_grouping = d_(List())
+
+    #: List of attributes that define the plot groups
+    plot_grouping = d_(List())
+
+    #: List of existing tab keys
     tab_keys = d_(List())
+
+    #: List of existing plot keys
     plot_keys = d_(List())
 
     #: Which tab is currently selected?
@@ -856,14 +862,9 @@ class GroupMixin(ColorCycleMixin):
     #: group criteria.
     @d_func
     def group_key(self, md):
-        if self.plot_grouping and self.tab_grouping:
-            return md[self.tab_grouping], md[self.plot_grouping]
-        elif self.plot_grouping:
-            return (None, md[self.plot_grouping])
-        elif self.tab_grouping:
-            return (md[self.tab_grouping], None)
-        else:
-            raise NotImplementedError
+        plot_key = tuple(md[a] for a in self.plot_grouping)
+        tab_key = tuple(md[a] for a in self.tab_grouping)
+        return tab_key, plot_key
 
     @d_func
     def fmt_plot_label(self, key):
@@ -872,6 +873,9 @@ class GroupMixin(ColorCycleMixin):
     def _observe_allow_auto_select(self, event):
         if not self.allow_auto_select:
             self.auto_select = False
+
+    def _default_selected_tab(self):
+        return ()
 
     def _observe_selected_tab(self, event):
         self.update()
@@ -976,13 +980,14 @@ class EpochGroupMixin(GroupMixin):
             self.observe('duration', self._cache_x)
             self._reset_plots()
             self._cache_x()
-            self.update(tab_changed=True)
 
     def _observe_selected_tab(self, event):
         self.update(tab_changed=True)
 
     def update(self, event=None, tab_changed=False):
         todo = []
+        if self._x is None:
+            return
         for pk in self.plot_keys:
             plot = self.get_plot(pk)
             key = (self.selected_tab, pk)
@@ -992,8 +997,11 @@ class EpochGroupMixin(GroupMixin):
                 needs_update = current_n >= (last_n + self.n_update)
                 if tab_changed or needs_update:
                     data = self._data_cache[key]
-                    y = self._y(data)
                     self._data_updated[key] = len(data)
+                    if data:
+                        y = self._y(data)
+                    else:
+                        y = np.zeros_like(self._x)
                     todo.append((plot.setData, self._x, y))
             except KeyError:
                 if tab_changed:

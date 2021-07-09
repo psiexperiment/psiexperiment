@@ -181,8 +181,11 @@ def set_group_keys(container, event):
     # Required to set value change notification
     container.tab_keys = []
     container.plot_keys = []
-    container.tab_keys = sorted(context.unique_values(container.tab_grouping))
-    container.plot_keys = sorted(context.unique_values(container.plot_grouping))
+    if container.tab_grouping:
+        container.tab_keys = sorted(context.unique_values(container.tab_grouping))
+    if container.plot_grouping:
+        log.debug(container.plot_grouping)
+        container.plot_keys = sorted(context.unique_values(list(container.plot_grouping)))
     log.debug('Found tab keys %r', container.tab_keys)
     log.debug('Found plot keys %r', container.plot_keys)
 
@@ -201,7 +204,7 @@ enamldef ViewBoxManifest(PSIManifest): manifest:
                 auto_save = ['y_min', 'y_max']
 
 
-enamldef StackedEpochAveragePlotManifest(BasePlotManifest): manifest:
+enamldef GroupMixinManifest(BasePlotManifest): manifest:
 
     Extension:
         id = manifest.id + '.stacked_commands'
