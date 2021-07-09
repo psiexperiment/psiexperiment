@@ -34,27 +34,30 @@ The error message is:
 class ExceptionHandler:
 
     def __init__(self):
-        self.workspace = None
+        self.workbench = None
         self.logfile = None
 
     def __call__(self, *args):
         log.exception("Uncaught exception", exc_info=args)
+
         if self.workbench is not None:
             controller = self.workbench.get_plugin('psi.controller')
             controller.stop_experiment()
-            ui = self.workbench.get_plugin('enaml.workbench.ui')
-            if self.logfile is not None:
-                log_mesg = f'The log file has been saved to {self.logfile}'
-            else:
-                log_mesg = 'Unfortunately, no log file was saved.'
+            window = self.workbench.get_plugin('enaml.workbench.ui').window
+        else:
+            window = None
 
-            mesg = mesg_template.format(args[1], log_mesg)
-            deferred_call(critical, ui.window, 'Oops :(', mesg)
-
+        if self.logfile is not None:
+            log_mesg = f'The log file has been saved to {self.logfile}'
+        else:
+            log_mesg = 'Unfortunately, no log file was saved.'
+        mesg = mesg_template.format(args[1], log_mesg)
+        deferred_call(critical, window, 'Oops :(', mesg)
         sys.__excepthook__(*args)
 
 
 exception_handler = ExceptionHandler()
+sys.excepthook = exception_handler
 
 
 def configure_logging(level_console=None, level_file=None, filename=None,
