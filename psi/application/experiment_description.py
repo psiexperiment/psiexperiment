@@ -106,7 +106,7 @@ ParadigmDescription(
 
 
 ParadigmDescription(
-    'speaker_calibration_chirp', 'Speaker calibration (chirp)', 'ear', [
+    'inear_speaker_calibration_chirp', 'In-ear speaker calibration (chirp)', 'ear', [
         (PATH + 'speaker_calibration.BaseSpeakerCalibrationManifest',),
         (PATH + 'calibration_mixins.ChirpMixin',),
         (PATH + 'calibration_mixins.ToneValidateMixin',),
