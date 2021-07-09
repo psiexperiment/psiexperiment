@@ -17,6 +17,8 @@ from psi.core.enaml.api import load_manifest, load_manifest_from_file
 
 class PSIWorkbench(Workbench):
 
+    io_manifest_class = Value()
+
     def register_core_plugins(self, io_manifest, controller_manifests):
         # Note, the get_plugin calls appear to be necessary to properly
         # initialize parts of the application before new plugins are loaded.
@@ -32,8 +34,8 @@ class PSIWorkbench(Workbench):
             self.get_plugin('enaml.workbench.ui')
             self.get_plugin('enaml.workbench.core')
 
-            manifest_class = load_manifest_from_file(io_manifest, 'IOManifest')
-            self.register(manifest_class())
+            self.io_manifest_class = load_manifest_from_file(io_manifest, 'IOManifest')
+            self.register(self.io_manifest_class())
 
             manifests = []
             for manifest in controller_manifests:

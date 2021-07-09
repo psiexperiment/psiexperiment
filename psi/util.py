@@ -131,8 +131,11 @@ def coroutine(func):
     return start
 
 
-def copy_declarative(old, **kw):
+def copy_declarative(old, exclude=None, **kw):
     attributes = get_tagged_values(old, 'metadata', exclude_properties=True)
+    if exclude is not None:
+        for k in exclude:
+            attributes.pop(k, None)
     attributes.update(kw)
     new = old.__class__(**attributes)
     return new

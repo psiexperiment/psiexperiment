@@ -252,5 +252,5 @@ class Engine(PSIContribution):
         if channel_names is not None:
             for channel_name in channel_names:
                 channel = self.get_channel(channel_name)
-                copy_declarative(channel, parent=new)
+                new_channel = copy_declarative(channel, parent=new, exclude=['inputs', 'outputs'])
         return new
