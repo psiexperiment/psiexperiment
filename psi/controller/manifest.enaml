@@ -145,7 +145,6 @@ enamldef ControllerManifest(ControllerManifestBase): manifest:
     factory = ControllerPlugin
 
     attr window_title = 'psiexperiment'
-    attr C
 
     ExtensionPoint:
         id = 'psi.controller.io'

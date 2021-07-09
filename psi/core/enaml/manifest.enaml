@@ -1,4 +1,4 @@
-from atom.api import Bool, Property, Str, Typed
+from atom.api import Bool, Property, Str, Typed, Value
 
 from enaml.core.api import d_
 from enaml.workbench.api import PluginManifest
@@ -11,6 +11,7 @@ class ExperimentManifest(PluginManifest):
     name = d_(Str())
     title = d_(Str())
     required = d_(Bool(False))
+    C = d_(Value())
 
     def _default_name(self):
         return self.id
@@ -19,16 +20,12 @@ class ExperimentManifest(PluginManifest):
         return self.name.replace('_', ' ').capitalize()
 
 
-class _PSIManifest(PluginManifest):
+class PSIManifest(PluginManifest):
 
     contribution = Typed(PSIContribution)
     id = Property(cached=True)
+    C = d_(Value())
 
     def _get_id(self):
         class_type = self.__class__.__name__
         return f'{self.contribution.name}.{class_type}'
-
-
-enamldef PSIManifest(_PSIManifest): manifest:
-
-    attr C

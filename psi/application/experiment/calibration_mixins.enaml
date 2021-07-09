@@ -232,7 +232,6 @@ def validate_spl(workbench, ao_channel, ai_channel, frequencies, spl):
 enamldef GolayMixin(ExperimentManifest): manifest:
 
     id = 'golay'
-    attr C
     required = True
 
     Extension:
@@ -404,8 +403,6 @@ enamldef ChirpMixin(ExperimentManifest): manifest:
     id = 'chirp'
     required = True
 
-    attr C
-
     Extension:
         id = manifest.id + '.tokens'
         point = 'psi.token.tokens'
@@ -457,8 +454,6 @@ enamldef ToneMixin(ExperimentManifest): manifest:
 
     id = 'tone'
     required = True
-
-    attr C
 
     Extension:
         id = manifest.id + '.tokens'
