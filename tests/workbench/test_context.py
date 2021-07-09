@@ -48,6 +48,13 @@ def test_unique_values(workbench):
     assert result == expected
 
 
+def test_multiple_unique_values(workbench):
+    context = workbench.get_plugin('psi.context')
+    result = context.unique_values(['repetitions', 'level'])
+    expected = {(2, 60.0), (10, 60.0), (15, 60.0), (20, 60.0)}
+    assert result == expected
+
+
 def test_update(workbench):
     '''
     Tests whether the change detection algorithm works as intended.

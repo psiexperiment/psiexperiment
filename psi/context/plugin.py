@@ -182,7 +182,6 @@ class ContextPlugin(Plugin):
 
         for meta in metas:
             context_meta[meta.name] = meta
-            log.debug('%s: %r %r', meta.name, id(meta), id(meta.values))
 
         for expression in expressions:
             try:
@@ -291,11 +290,24 @@ class ContextPlugin(Plugin):
         iterable = self.iter_settings(iterator, 1)
         return len([c for c in iterable])
 
-    def unique_values(self, item_name, iterator='default'):
-        iterable = self.iter_settings(iterator, 1)
-        items = [c[item_name] for c in iterable]
-        values = set(items)
+    def unique_values(self, item_names, iterator='default'):
+        if isinstance(item_names, str):
+            item_names = [item_names]
+            extract = True
+        else:
+            extract = False
+
+        values = set()
+        for setting in self.iter_settings(iterator, 1):
+            if isinstance(item_names, str):
+                values.add(setting[item_names])
+            else:
+                values.add(tuple(setting[n] for n in item_names))
         log.debug('Found %d unique values: %r', len(values), values)
+
+        if extract:
+            values = {v[0] for v in values}
+
         return values
 
     def get_item(self, item_name):
