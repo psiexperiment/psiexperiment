@@ -374,24 +374,24 @@ class PointCalibration(Calibration):
 
 class EPLCalibration(InterpCalibration):
 
-    source = Typed(Path).tag(metadata=True)
-
     @classmethod
-    def load_epl(cls, filename):
+    def load_data(cls, filename):
         filename = Path(filename)
         calibration = pd.io.parsers.read_csv(filename, skiprows=14,
                                              delimiter='\t')
         freq = calibration['Freq(Hz)']
         spl = calibration['Mag(dB)']
         return {
+            'attrs': {
+                'source': filename
+            },
             'frequency': freq,
             'spl': spl,
-            'source': filename,
         }
 
     @classmethod
-    def from_epl(cls, filename, **kwargs):
-        data = cls.load_epl(filename)
+    def load(cls, filename, **kwargs):
+        data = cls.load_data(filename)
         data.update(kwargs)
         return cls.from_spl(**data)
 
@@ -399,20 +399,22 @@ class EPLCalibration(InterpCalibration):
 class CochlearCalibration(InterpCalibration):
 
     @classmethod
-    def load_cochlear(cls, filename):
+    def load_data(cls, filename):
         import tables
         with tables.open_file(filename, 'r') as fh:
             mic_freq = np.asarray(fh.get_node('/frequency').read())
             mic_sens = np.asarray(fh.get_node('/exp_mic_sens').read())
             return {
+                'attrs': {
+                    'source': filename
+                },
                 'frequency': mic_freq,
                 'sensitivity': mic_sens,
-                'source': Path(filename)
             }
 
     @classmethod
-    def from_cochlear(cls, filename, **kwargs):
-        data = cls.load_cochlear(filename)
+    def load(cls, filename, **kwargs):
+        data = cls.load_data(filename)
         data.update(kwargs)
         return cls(**kwargs)
 
@@ -421,7 +423,6 @@ class GolayCalibration(InterpCalibration):
 
     fs = Float().tag(metadata=True)
     phase = Typed(np.ndarray).tag(metadata=True)
-    source = Typed(Path).tag(metadata=True)
 
     def __init__(self, frequency, sensitivity, fs=None, phase=None,
                  fixed_gain=0, **kwargs):
@@ -430,16 +431,16 @@ class GolayCalibration(InterpCalibration):
         if fs is not None:
             self.fs = fs
         if phase is not None:
-            self.phase = phase
+            self.phase = np.asarray(phase)
 
     @staticmethod
-    def load_psi_golay(folder, n_bits=None, output_gain=None):
+    def load_data(folder, n_bits=None, output_gain=None):
         from psi.data.io.calibration import CalibrationFile
         fh = CalibrationFile(folder)
         return fh._get_golay_data(n_bits, output_gain)
 
     @classmethod
-    def from_psi_golay(cls, folder, n_bits=None, output_gain=None, **kwargs):
+    def load(cls, folder, n_bits=None, output_gain=None, **kwargs):
         from psi.data.io.calibration import CalibrationFile
         fh = CalibrationFile(folder)
         return fh.get_golay_calibration(n_bits, output_gain)
@@ -482,10 +483,8 @@ class GolayCalibration(InterpCalibration):
 
 class ChirpCalibration(InterpCalibration):
 
-    source = Typed(Path).tag(metadata=True)
-
     @staticmethod
-    def load_psi_chirp(folder, output_gain=None):
+    def load_data(folder, output_gain=None):
         folder = Path(folder)
         sensitivity = pd.io.parsers.read_csv(folder / 'chirp_summary.csv')
         if output_gain is None:
@@ -495,15 +494,18 @@ class ChirpCalibration(InterpCalibration):
         mic_freq = sensitivity.loc[m, 'frequency'].values
         mic_sens = sensitivity.loc[m, 'sens'].values
         mic_phase = sensitivity.loc[m, 'phase'].values
-        source = 'psi_chirp', folder, output_gain
         return {
-            'source': folder,
+            'attrs': {
+                'source': folder,
+                'output_gain': output_gain,
+                'calibration_type': 'psi_chirp',
+            },
             'frequency': mic_freq,
             'sensitivity': mic_sens,
         }
 
     @classmethod
-    def from_psi_chirp(cls, folder, n_bits=None, output_gain=None, **kwargs):
+    def load(cls, folder, n_bits=None, output_gain=None, **kwargs):
         data = cls.load_psi_golay(folder, n_bits, output_gain)
         data.update(kwargs)
         return cls(**data)
@@ -574,8 +576,7 @@ class CalibrationRegistry:
 calibration_registry = CalibrationRegistry()
 calibration_registry.register_basic()
 calibration_registry.register(EPLCalibration, 'EPL calibration')
-calibration_registry.register(CochlearCalibration,
-                              'Golay calibration (old Cochlear format)')
+calibration_registry.register(CochlearCalibration, 'Golay calibration (old Cochlear format)')
 
 
 if __name__ == '__main__':

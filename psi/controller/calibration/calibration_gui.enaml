@@ -21,6 +21,45 @@ from psi.controller.channel import HardwareAIChannel
 from psi.controller.calibration import util
 
 
+enamldef FileCalibrationGroup(HGroup):
+
+    attr cal_path = str(get_config('CAL_ROOT'))
+    attr mode = 'directory'
+    attr calibration
+
+    padding = 0
+    align_widths = False
+
+    Label: label:
+        text << str(calibration.attrs.get('source', 'No calibration loaded'))
+
+    PushButton:
+        text = 'Change'
+        clicked ::
+            if mode == 'directory':
+                path = FileDialogEx.get_existing_directory(current_path=cal_path)
+            elif mode == 'file':
+                path = FileDialogEx.get_open_file_name(current_path=cal_path)
+            if path:
+                for k, v in calibration.load_data(path).items():
+                    setattr(calibration, k, v)
+                    1/0
+
+
+template CalibrationTemplate(calibration, MemberType):
+
+    FileCalibrationGroup:
+        calibration = calibration
+
+
+template CalibrationTemplate(calibration, MemberType: EPLCalibration):
+
+    FileCalibrationGroup:
+        cal_path = 'C:/Data/Probe Tube Calibrations'
+        mode = 'file'
+        calibration = calibration
+
+
 template CalibrationTemplate(calibration, MemberType: UnityCalibration):
 
     Label:
@@ -35,85 +74,8 @@ template CalibrationTemplate(calibration, MemberType: FlatCalibration):
 
         FloatField:
             value := calibration.mv_pa
-
         Label:
             text = 'mV/Pa'
-
-
-template CalibrationTemplate(calibration, MemberType: GolayCalibration):
-
-    HGroup:
-        padding = 0
-        align_widths = False
-
-        Label:
-            text << calibration.attrs.get('source', 'No calibration loaded')
-
-        PushButton:
-            text = 'Change'
-            clicked ::
-                cal_path = str(get_config('CAL_ROOT'))
-                path = FileDialogEx.get_existing_directory(current_path=cal_path)
-                if path:
-                    for k, v in calibration.load_psi_golay(path).items():
-                        setattr(calibration, k, v)
-
-
-template CalibrationTemplate(calibration, MemberType: ChirpCalibration):
-
-    HGroup:
-        padding = 0
-        align_widths = False
-
-        Label:
-            text << calibration.attrs.get('source', 'No calibration loaded')
-
-        PushButton:
-            text = 'Change'
-            clicked ::
-                cal_path = str(get_config('CAL_ROOT'))
-                path = FileDialogEx.get_existing_directory(current_path=cal_path)
-                if path:
-                    for k, v in calibration.load_psi_chirp(path).items():
-                        setattr(calibration, k, v)
-
-
-template CalibrationTemplate(calibration, MemberType: CochlearCalibration):
-
-    HGroup:
-        padding = 0
-        align_widths = False
-
-        Label:
-            text << calibration.attrs.get('source', 'No calibration loaded')
-
-        PushButton:
-            text = 'Change'
-            clicked ::
-                cal_path = str(get_config('CAL_ROOT'))
-                path = FileDialogEx.get_open_file_name(current_path=cal_path)
-                if path:
-                    for k, v in calibration.load_cochlear(path).items():
-                        setattr(calibration, k, v)
-
-
-template CalibrationTemplate(calibration, MemberType: EPLCalibration):
-
-    HGroup:
-        padding = 0
-        align_widths = False
-
-        Label:
-            text << calibration.attrs.get('source', 'No calibration loaded')
-
-        PushButton:
-            text = 'Change'
-            clicked ::
-                cal_path = 'C:/Data/Probe Tube Calibrations'
-                path = FileDialogEx.get_open_file_name(current_path=cal_path)
-                if path:
-                    for k, v in calibration.load_epl(path).items():
-                        setattr(calibration, k, v)
 
 
 enamldef SavePopup(PopupView): popup:
@@ -124,26 +86,31 @@ enamldef SavePopup(PopupView): popup:
     attr channels
 
     Container:
-        Form:
-            Label:
-                text = 'Name'
+        constraints = [
+            hbox(*children),
+            align('v_center', *children),
+            align('width', save_button, cancel_button),
+        ]
 
-            Field:
-                text := file_name
+        Label: name_label:
+            text = 'Name'
 
-            PushButton:
-                text = 'Save'
-                clicked ::
-                    json_path = io_file.parent / io_file.stem
-                    json_path.mkdir(exist_ok=True, parents=True)
-                    json_file = (json_path / file_name).with_suffix('.json')
-                    util.save_calibration(channels, json_file)
-                    popup.close()
+        Field: name_field:
+            text := file_name
 
-            PushButton:
-                text = 'Cancel'
-                clicked ::
-                    popup.close()
+        PushButton: save_button:
+            text = 'Save'
+            clicked ::
+                json_path = io_file.parent / io_file.stem
+                json_path.mkdir(exist_ok=True, parents=True)
+                json_file = (json_path / file_name).with_suffix('.json')
+                util.save_calibration(channels, json_file)
+                popup.close()
+
+        PushButton: cancel_button:
+            text = 'Cancel'
+            clicked ::
+                popup.close()
 
 
 enamldef Main(MainWindow): window:
@@ -156,6 +123,7 @@ enamldef Main(MainWindow): window:
 
         constraints = [
             vbox(channel_list, calibration_view, hbox(save_button, spacer, close_button)),
+
         ]
 
         ObjectCombo: channel_list:

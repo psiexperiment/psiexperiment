@@ -424,16 +424,16 @@ def save_calibration(channels, filename):
     for channel in channels:
         metadata = get_tagged_values(channel.calibration, 'metadata')
         metadata['calibration_type'] = channel.calibration.__class__.__name__
-        if 'source' in metadata:
-            metadata['source'] = str(metadata['source'])
         settings[channel.name] = metadata
+
     with open(filename, 'w') as fh:
-        dump(settings, fh, indent=4)
+        dump(settings, fh, indent=4, cls=CalibrationEncoder)
 
 
 def load_calibration_data(filename):
     from psi.controller.calibration.api import calibration_registry
-    settings = json.loads(Path(filename).read_text())
+    settings = json.loads(Path(filename).read_text(),
+                          object_hook=calibration_decoder_hook)
     calibrations = {}
     for c_name, c_calibration in settings.items():
         # This is will deal with legacy calibration configs in which the source
@@ -441,12 +441,6 @@ def load_calibration_data(filename):
         if 'source' in c_calibration:
             attrs = c_calibration.setdefault('attrs', {})
             attrs['source'] = c_calibration.pop('source')
-
-        # json-tricks did some fancy stuff to Numpy arrays. Need to fix this.
-        for k, v in c_calibration.items():
-            if isinstance(v, dict) and '__ndarray__' in v:
-                c_calibration[k] = np.asarray(v['__ndarray__'], dtype=v['dtype'])
-
         calibrations[c_name] = calibration_registry.from_dict(**c_calibration)
     return calibrations
 
@@ -459,3 +453,25 @@ def load_calibration(filename, channels):
     for c in channels:
         if c.name in calibrations:
             c.calibration = calibrations[c.name]
+
+
+def calibration_decoder_hook(obj):
+    if isinstance(obj, dict) and '__ndarray__' in obj:
+        return np.asarray(obj['__ndarray__'], dtype=obj['dtype'])
+    else:
+        return obj
+
+
+class CalibrationEncoder(json.JSONEncoder):
+
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, Path):
+            return str(obj)
+        else:
+            return super().default(obj)

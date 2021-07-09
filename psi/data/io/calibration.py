@@ -85,10 +85,13 @@ class CalibrationFile(Recording):
         mic_freq = sensitivity.loc[m, 'frequency'].values
         mic_sens = sensitivity.loc[m, 'sens'].values
         mic_phase = sensitivity.loc[m, 'phase'].values
-        #source = 'psi_golay', self.base_folder, n_bits, output_gain
         epoch = getattr(self, epoch_name)
         return {
-            'source': self.base_path,
+            'attrs': {
+                'source': self.base_path,
+                'n_bits': n_bits,
+                'output_gain': output_gain,
+            },
             'frequency': mic_freq,
             'sensitivity': mic_sens,
             'phase': mic_phase,
