@@ -1,6 +1,7 @@
 import logging
 log = logging.getLogger(__name__)
 
+from functools import partial
 import operator
 from collections import defaultdict
 
@@ -10,6 +11,7 @@ from atom.api import Typed, Event, Str, Int, List, Dict
 from enaml.application import deferred_call
 from enaml.core.api import d_
 from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
 from enaml.widgets.api import Container, DockItem, Form, Label, ProgressBar
 
 from ..sink import SinkWithSource, SinkWithSourceManifest
@@ -56,38 +58,26 @@ class GroupedEpochCounter(EpochCounter):
         current_n = sum(min(c, self.requested_group_n) for c in self.counts.values())
         def update():
             self.current_n = current_n
-
         deferred_call(update)
+
+
+def update_counter(contribution, event):
+    controller = event.workbench.get_plugin('psi.controller')
+    output = controller.get_output(event.parameters['output'])
+    contribution.requested_n = output.queue.count_requested_trials()
 
 
 enamldef EpochCounterManifest(SinkWithSourceManifest): manifest:
 
     Extension:
-        id = 'workspace'
-        point = 'psi.experiment.workspace'
-        DockItem: di:
-            name << manifest.contribution.name
-            title << manifest.contribution.label
-            Form:
-                Label:
-                    text = 'Epochs acquired'
-                Label:
-                    text << str(manifest.contribution.current_n)
-
-
-def group_label_format(groups, extra_groups):
-    groups = groups + extra_groups
-    if not groups:
-        return 'No groups specified'
-    t = 'Grouped by {}'
-    groups = ', '.join(g.compact_label for g in groups)
-    return t.format(groups.lower())
-
-
-enamldef GroupedEpochCounterManifest(SinkWithSourceManifest): manifest:
+        id = manifest.id + '.commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = 'psi.data.sinks.update_counter'
+            handler = partial(update_counter, manifest.contribution)
 
     Extension:
-        id = 'workspace'
+        id = manifest.id + '.workspace'
         point = 'psi.experiment.status'
         rank = 10
 

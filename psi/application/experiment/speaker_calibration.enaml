@@ -21,7 +21,7 @@ from psi.data.plots import (EpochTimeContainer,
                             GroupedEpochPhasePlot)
 
 from psi.controller.calibration.api import FlatCalibration
-from psi.data.sinks.epoch_counter import GroupedEpochCounter
+from psi.data.sinks.api import EpochCounter
 from psi.token.primitives import Chirp, Cos2Envelope, Tone
 
 
@@ -116,6 +116,11 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
             kwargs = {'selector': 'default', 'cycles': 1}
 
         ExperimentAction:
+            event = 'hw_ao_queue_ready'
+            command = 'psi.data.sinks.update_counter'
+            kwargs = {'output': 'hw_ao'}
+
+        ExperimentAction:
             event = 'experiment_start'
             command = 'hw_ao.start'
             kwargs = {'delay': 0.25}
@@ -129,11 +134,10 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
         id = EXPERIMENT + '.sink'
         point = 'psi.data.sinks'
 
-        GroupedEpochCounter:
+        EpochCounter:
             name = 'epoch_counter'
             label = 'N epochs'
             source_name = 'epoch'
-            groups << epoch_group
 
     Extension:
         id = EXPERIMENT + '.plots'
@@ -144,14 +148,16 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
             label = 'Signal'
 
             ViewBox:
+                name = 'epoch_time_viewbox'
                 label = 'Signal (V)'
+                save_limits = True
 
                 GroupedEpochAveragePlot: ea_plot:
                     name = 'epoch_average'
                     label = 'Signal'
                     source_name = 'epoch'
                     pen_color_cycle = 'palettable.cartocolors.qualitative.Bold_10'
-                    groups << epoch_group
+                    plot_grouping << [g.name for g in epoch_group.values]
 
         FFTContainer:
             name = 'calibration_result'
@@ -162,10 +168,12 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
             ViewBox:
                 name = 'spl_result'
                 label = 'Speaker output (dB SPL)'
+                save_limits = True
 
             ViewBox:
                 name = 'sens_result'
                 label = 'Speaker sensitivity (dB SPL/V)'
+                save_limits = True
 
         FFTContainer:
             name = 'epoch_psd_container'
@@ -174,12 +182,16 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
             freq_ub = 50000
 
             ViewBox:
+                name = 'epoch_psd_viewbox'
+                save_limits = True
+                label = 'Signal (dB re 1V)'
+
                 GroupedEpochFFTPlot:
                     name = 'epoch_psd_average'
                     label = 'PSD'
                     source_name = 'epoch'
                     pen_color_cycle := ea_plot.pen_color_cycle
-                    groups << epoch_group
+                    plot_grouping << [g.name for g in epoch_group.values]
 
         FFTContainer:
             name = 'epoch_phase_container'
@@ -188,8 +200,11 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
             freq_ub = 50000
 
             ViewBox:
+                name = 'epoch_phase_viewbox'
+                label = 'Phase (radians)'
                 y_min = 100
                 y_max = -800
+                save_limits = True
 
                 GroupedEpochPhasePlot:
                     unwrap = True
@@ -197,4 +212,4 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
                     label = 'Phase (unwrapped)'
                     source_name = 'epoch'
                     pen_color_cycle := ea_plot.pen_color_cycle
-                    groups << epoch_group
+                    plot_grouping << [g.name for g in epoch_group.values]
