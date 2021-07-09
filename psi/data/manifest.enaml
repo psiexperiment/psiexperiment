@@ -30,7 +30,6 @@ def attach_source(event):
     source_name_attr = event.parameters.get('source_name_attr', 'source_name')
     source_name = getattr(obj, source_name_attr)
     obj.source = controller.get_input(source_name)
-    log.debug('Attached source')
 
 
 def format_container(event):
