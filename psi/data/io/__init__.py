@@ -61,8 +61,7 @@ class Recording:
     _ttable_indices = {}
 
     def __init__(self, base_path):
-        bp = Path(base_path)
-        self.base_path = bp
+        self.base_path = Path(base_path)
         self._refresh_names()
 
     def _refresh_names(self):
@@ -120,18 +119,20 @@ class Recording:
 
 class Signal:
 
-    def get_epochs(self, md, offset, duration, detrend=None, columns='auto'):
+    def get_epochs(self, md, offset, duration, detrend=None, downsample=None,
+                   columns='auto', cb=None):
         fn = self.get_segments
         return self._get_epochs(fn, md, offset, duration, detrend=detrend,
-                                columns=columns)
+                                downsample=downsample, columns=columns, cb=cb)
 
     def get_epochs_filtered(self, md, offset, duration, filter_lb, filter_ub,
                             filter_order=1, detrend='constant',
-                            pad_duration=10e-3, columns='auto'):
+                            pad_duration=10e-3, downsample=None,
+                            columns='auto', cb=None):
         fn = self.get_segments_filtered
         return self._get_epochs(fn, md, offset, duration, filter_lb, filter_ub,
                                 filter_order, detrend, pad_duration,
-                                columns=columns)
+                                downsample=downsample, columns=columns, cb=cb)
 
     def _get_epochs(self, fn, md, *args, columns='auto', **kwargs):
         if columns == 'auto':
@@ -143,41 +144,71 @@ class Signal:
         df.index = pd.MultiIndex.from_arrays(arrays, names=columns + ['t0'])
         return df
 
-    def get_segments(self, times, offset, duration, detrend=None):
+    def get_segments(self, times, offset, duration, detrend=None,
+                     downsample=None, cb=None, cb_n=1000, allow_partial=False):
+        if cb is None:
+            cb = lambda *a, **kw: None
+
         times = np.asarray(times)
         indices = np.round((times + offset) * self.fs).astype('i')
         samples = round(duration * self.fs)
 
-        m = (indices >= 0) & ((indices + samples) < self.shape[-1])
-        if not m.all():
-            i = np.flatnonzero(~m)
-            log.warn('Missing epochs %d', i)
+        if not allow_partial:
+            m = (indices >= 0) & ((indices + samples) < self.shape[-1])
+            if not m.all():
+                i = np.flatnonzero(~m)
+                log.warn('Missing epochs %d', i)
+            indices = indices[m]
+            index = pd.Index(times[m], name='t0')
+        else:
+            index = pd.Index(times, name='t0')
 
-        values = np.concatenate([self[i:i+samples][np.newaxis] \
-                                 for i in indices[m]])
+        values = []
+        n = len(indices)
+        for j, i in enumerate(indices):
+            v = self[i:i+samples]
+            pad_n = samples - len(v)
+            if pad_n:
+                v = np.pad(v, (0, pad_n), constant_values=np.nan)
+            values.append(v[np.newaxis])
+            if ((j+1) % cb_n) == 0:
+                cb((j+1)/n)
+        cb((j+1)/n)
+        values = np.concatenate(values)
+
         if detrend is not None:
             values = signal.detrend(values, axis=-1, type=detrend)
 
-        t = np.arange(samples)/self.fs + offset
+        if downsample is not None:
+            values = signal.decimate(values, downsample, axis=-1)
+            fs = self.fs / downsample
+            samples = values.shape[-1]
+        else:
+            fs = self.fs
+
+        t = np.arange(samples)/fs + offset
         columns = pd.Index(t, name='time')
-        index = pd.Index(times[m], name='t0')
         df = pd.DataFrame(values, index=index, columns=columns)
         return df.reindex(times)
 
-    def _get_segments_filtered(self, fn, offset, duration, filter_lb, filter_ub,
-                               filter_order=1, detrend='constant',
-                               pad_duration=10e-3):
-        Wn = (filter_lb/(0.5*self.fs), filter_ub/(0.5*self.fs))
+    def _get_segments_filtered(self, fn, offset, duration, filter_lb,
+                               filter_ub, filter_order=1, detrend='constant',
+                               pad_duration=10e-3, downsample=None, cb=None):
+
+        fs = self.fs if downsample is None else self.fs / downsample
+        Wn = (filter_lb/(0.5*fs), filter_ub/(0.5*fs))
         b, a = signal.iirfilter(filter_order, Wn, btype='band', ftype='butter')
-        df = fn(offset-pad_duration, duration+pad_duration, detrend)
+        df = fn(offset-pad_duration, duration+pad_duration, detrend,
+                downsample=downsample, cb=cb)
         df[:] = signal.filtfilt(b, a, df.values, axis=-1)
         return df.loc[:, offset:offset+duration]
 
-    def get_random_segments(self, n, offset, duration, detrend):
+    def get_random_segments(self, n, offset, duration, detrend, downsample):
         t_min = -offset
         t_max = self.duration-duration-offset
         times = np.random.uniform(t_min, t_max, size=n)
-        return self.get_segments(times, offset, duration, detrend)
+        return self.get_segments(times, offset, duration, detrend,
+                                 downsample=downsample)
 
     def get_segments_filtered(self, times, *args, **kwargs):
         fn = functools.partial(self.get_segments, times)
