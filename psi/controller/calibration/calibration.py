@@ -259,7 +259,7 @@ class FlatCalibration(Calibration):
     @classmethod
     def from_mv_pa(cls, mv_pa, **kwargs):
         sens = util.db(mv_pa*1e-3)
-        return cls(sens, **kwargs)
+        return cls(sensitivity=sens, **kwargs)
 
     def get_sens(self, frequency):
         return self.sensitivity-self.fixed_gain
