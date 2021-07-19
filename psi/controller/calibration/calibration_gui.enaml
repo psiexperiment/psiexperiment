@@ -43,7 +43,6 @@ enamldef FileCalibrationGroup(HGroup):
             if path:
                 for k, v in calibration.load_data(path).items():
                     setattr(calibration, k, v)
-                    1/0
 
 
 template CalibrationTemplate(calibration, MemberType):
