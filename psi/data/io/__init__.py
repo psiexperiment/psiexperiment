@@ -169,12 +169,17 @@ class Signal:
             v = self[i:i+samples]
             pad_n = samples - len(v)
             if pad_n:
-                v = np.pad(v, (0, pad_n), constant_values=np.nan)
+                v = np.pad(v, (0, pad_n), mode='constant',
+                           constant_values=np.nan)
             values.append(v[np.newaxis])
             if ((j+1) % cb_n) == 0:
                 cb((j+1)/n)
         cb((j+1)/n)
-        values = np.concatenate(values)
+
+        # We need to ensure that data is cast to double since there are some
+        # rare edge-cases in which precision is lost when filtering and
+        # downsampling.
+        values = np.concatenate(values).astype('double')
 
         if detrend is not None:
             values = signal.detrend(values, axis=-1, type=detrend)
