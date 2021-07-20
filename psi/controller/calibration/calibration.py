@@ -354,7 +354,6 @@ class PointCalibration(Calibration):
             raise CalibrationError(m)
         return self.sensitivity[i]-self.fixed_gain
 
-
     @classmethod
     def from_psi_chirp(cls, folder, output_gain=None, **kwargs):
         filename = os.path.join(folder, 'chirp_sensitivity.csv')
