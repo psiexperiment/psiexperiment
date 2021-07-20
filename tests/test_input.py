@@ -53,7 +53,7 @@ def test_pipeline(data, pipeline):
     assert len(data) == 1
     assert data[0].shape == (4, 10)
     assert np.array_equal(expected, data[0])
-    assert data[0].metadata == expected.metadata
+    assert data[0].metadata == {'n': 5, 'block_size': 10}
 
 
 def test_pipeline_flush(data, pipeline):
@@ -70,4 +70,20 @@ def test_pipeline_flush(data, pipeline):
     assert len(data) == 1
     assert data[0].shape == (4, 10)
     assert np.array_equal(expected, data[0])
-    assert data[0].metadata == expected.metadata
+    assert data[0].metadata == {'n': 5, 'block_size': 10}
+
+
+def test_slice():
+    r = np.random.uniform(size=100)
+    d = InputData(r, {'t0_sample': 10, 'fs': 100})
+    assert d[::2].metadata == {'t0_sample': 10, 'fs': 50}
+    assert d[::4].metadata == {'t0_sample': 10, 'fs': 25}
+    assert d[:4:].metadata == {'t0_sample': 10, 'fs': 100}
+    assert d[1::2].metadata == {'t0_sample': 11, 'fs': 50}
+    assert d[10::2].metadata == {'t0_sample': 20, 'fs': 50}
+    assert d[10] == r[10]
+    assert np.all(d[:10] == r[:10])
+    assert d[-10::2].metadata == {'t0_sample': 100, 'fs': 50}
+    assert d[-20::2].metadata == {'t0_sample': 90, 'fs': 50}
+    assert d[-20::].metadata == {'t0_sample': 90, 'fs': 100}
+    assert d[-20::-2].metadata == {'t0_sample': 90, 'fs': -50}
