@@ -251,8 +251,9 @@ def hw_ao_helper(cb, task, event_type, cb_samples, cb_data):
     return 0
 
 
-def hw_ai_helper(cb, channels, discard, task, event_type=None, cb_samples=None,
-                 cb_data=None):
+def hw_ai_helper(cb, channels, discard, fs, task, event_type=None,
+                 cb_samples=None, cb_data=None):
+
     uint32 = ctypes.c_uint32()
     mx.DAQmxGetReadAvailSampPerChan(task, uint32)
     available_samples = uint32.value
@@ -278,7 +279,8 @@ def hw_ai_helper(cb, channels, discard, task, event_type=None, cb_samples=None,
 
     data = read_hw_ai(task, available_samples, channels, cb_samples)
     if data is not None:
-        data = InputData(data)
+        metadata = {'t0_sample': read_position-discard, 'fs': fs}
+        data = InputData(data, metadata=metadata)
         cb(data)
     return 0
 
@@ -580,7 +582,7 @@ def setup_hw_ai(channels, callback_duration, callback, task_name='hw_ao'):
         # Not a supported property. Set filter delay to 0 by default.
         filter_delay = 0
 
-    task._cb = partial(hw_ai_helper, callback, n_channels, filter_delay)
+    task._cb = partial(hw_ai_helper, callback, n_channels, filter_delay, fs)
     task._cb_ptr = mx.DAQmxEveryNSamplesEventCallbackPtr(task._cb)
     mx.DAQmxRegisterEveryNSamplesEvent(
         task, mx.DAQmx_Val_Acquired_Into_Buffer, int(callback_samples), 0,
@@ -678,9 +680,15 @@ def halt_on_error(f):
             f(self, *args, **kwargs)
         except Exception as e:
             log.exception(e)
-            self.stop()
-            for cb in self._callbacks.get('done', []):
-                cb()
+            try:
+                self.stop()
+                for cb in self._callbacks.get('done', []):
+                    cb()
+            except:
+                pass
+            # Be sure to raise the exception so it can be recaptured by our
+            # custom excepthook handler
+            raise
     return wrapper
 
 
