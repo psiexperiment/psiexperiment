@@ -343,3 +343,28 @@ def octave_space(lb, ub, step, mode='nearest'):
 
 class ConfigurationException(Exception):
     pass
+
+
+def psi_json_decoder_hook(obj):
+    '''
+    This adds support for loading legacy files generated using json-tricks
+    '''
+    if isinstance(obj, dict) and '__ndarray__' in obj:
+        return np.asarray(obj['__ndarray__'], dtype=obj['dtype'])
+    else:
+        return obj
+
+
+class PSIJsonEncoder(json.JSONEncoder):
+
+    def default(self, obj):
+        if isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        elif isinstance(obj, Path):
+            return str(obj)
+        else:
+            return super().default(obj)

@@ -19,6 +19,7 @@ import numpy as np
 import pandas as pd
 from scipy import signal
 
+from psi.util import PSIJsonEncoder
 from . import Recording
 from .bcolz_tools import repair_carray_size
 
@@ -52,7 +53,7 @@ def cache(f, name=None):
         bound_args.apply_defaults()
         cache_kwargs = dict(bound_args.arguments)
         cache_kwargs.pop('self')
-        string = json.dumps(cache_kwargs, sort_keys=True, allow_nan=True)
+        string = json.dumps(cache_kwargs, sort_keys=True, allow_nan=True, cls=PSIJsonEncoder)
         uuid = hash(string)
 
         cache_path = self.base_path / 'cache'

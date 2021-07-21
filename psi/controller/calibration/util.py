@@ -9,7 +9,7 @@ import pandas as pd
 from scipy import signal
 from fractions import gcd
 
-from psi.util import as_numeric
+from psi.util import as_numeric, psi_json_decoder_hook, PSIJsonEncoder
 
 
 def db(target, reference=1):
@@ -427,13 +427,13 @@ def save_calibration(channels, filename):
         settings[channel.name] = metadata
 
     with open(filename, 'w') as fh:
-        dump(settings, fh, indent=4, cls=CalibrationEncoder)
+        dump(settings, fh, indent=4, cls=PSIJsonEncoder)
 
 
 def load_calibration_data(filename):
     from psi.controller.calibration.api import calibration_registry
     settings = json.loads(Path(filename).read_text(),
-                          object_hook=calibration_decoder_hook)
+                          object_hook=psi_json_decoder_hook)
     calibrations = {}
     for c_name, c_calibration in settings.items():
         # This is will deal with legacy calibration configs in which the source
@@ -455,23 +455,3 @@ def load_calibration(filename, channels):
             c.calibration = calibrations[c.name]
 
 
-def calibration_decoder_hook(obj):
-    if isinstance(obj, dict) and '__ndarray__' in obj:
-        return np.asarray(obj['__ndarray__'], dtype=obj['dtype'])
-    else:
-        return obj
-
-
-class CalibrationEncoder(json.JSONEncoder):
-
-    def default(self, obj):
-        if isinstance(obj, np.integer):
-            return int(obj)
-        elif isinstance(obj, np.floating):
-            return float(obj)
-        elif isinstance(obj, np.ndarray):
-            return obj.tolist()
-        elif isinstance(obj, Path):
-            return str(obj)
-        else:
-            return super().default(obj)
