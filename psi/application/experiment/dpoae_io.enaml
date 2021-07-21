@@ -61,7 +61,7 @@ enamldef DPOAEIOBaseManifest(DPOAEManifest): manifest:
         ExperimentAction:
             event = 'context_next_setting'
             command = 'dpoae.start'
-            kwargs = {'delay': 1.0, 'clear_delay': 0.5}
+            kwargs = {'delay': 1.0}
 
         ExperimentAction:
             event = 'context_complete'

@@ -1,1 +1,1 @@
-from .dpoae import isodp_th_criterions
+from .summarize_dpoae import isodp_th_criterions

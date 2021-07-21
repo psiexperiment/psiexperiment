@@ -208,7 +208,7 @@ enamldef DPOAEManifest(ControllerManifest): manifest:
                 Discard:
                     # Discard the onset portion of the DPOAE
                     name = 'discard'
-                    duration << C.secondary_tone_rise_time * 2
+                    duration << C.secondary_tone_rise_time * 4
 
                     Blocked:
                         # Duration (in seconds) of snippets to analyze

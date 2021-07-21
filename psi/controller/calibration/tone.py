@@ -124,9 +124,6 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gains=0,
     from psi.controller.api import ExtractEpochs, FIFOSignalQueue
 
     frequencies = np.asarray(frequencies)
-
-    log.debug('Creating FlatCalibration as attenuation value with Vrms %f',
-              vrms)
     calibration = FlatCalibration.as_attenuation(vrms=vrms)
 
     # Create a copy of the engine containing only the channels required for
@@ -158,11 +155,8 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gains=0,
         md = {'gain': gain, 'frequency': frequency}
         queue.append(waveform, repetitions, iti, metadata=md)
         sf = calibration.get_sf(frequency, gain) * np.sqrt(2)
-        log.debug('Scaling factor for %f Hz with gain %f is %f', frequency,
-                  gain, sf)
         max_sf = max(max_sf, sf)
     ao_channel.expected_range = (-max_sf*1.1, max_sf*1.1)
-    log.debug('Expected range for AO is %r', ao_channel.expected_range)
 
     factory = SilenceFactory()
     waveform = factory.next(samples)

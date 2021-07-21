@@ -546,7 +546,7 @@ class SilenceFactory(Carrier):
 
     Notes
     -----
-    The fill_value can be set to a number other than one for testing (e.g., to
+    The fill_value can be set to a number other than zero for testing (e.g., to
     characterize the effect of a transformation).
     '''
 

@@ -1,56 +1,56 @@
 import argparse
 import datetime as dt
 from glob import glob
+from math import ceil
 import json
 import os.path
 from pathlib import Path
 
+
+import enaml
+with enaml.imports():
+    from enaml.stdlib.message_box import information
+
+from enaml.qt.qt_application import QtApplication
+
+import matplotlib as mp
+import matplotlib.pyplot as pl
 import numpy as np
 import pandas as pd
 
 from psi.data.io import abr
+from psi import get_config
 
 
 columns = ['frequency', 'level', 'polarity']
 
 
-def process_folder(folder, filter_settings=None):
-    glob_pattern = os.path.join(folder, '*abr*')
-    filenames = glob(glob_pattern)
-    process_files(filenames, filter_settings=filter_settings)
+def get_file_template(filename, offset, duration, filter_settings, n_epochs,
+                      suffix=None, simple_filename=True, include_path=True):
 
+    base = f'{filename.name}'
+    if include_path:
+        base = str(filename / base)
 
-def process_files(filenames, offset=-0.001, duration=0.01,
-                  filter_settings=None, reprocess=False):
-    for filename in filenames:
-        try:
-            processed = process_file(filename, offset, duration,
-                                     filter_settings, reprocess)
-            if processed:
-                print(f'\nProcessed {filename}\n')
-            else:
-                print('*', end='', flush=True)
-        except Exception as e:
-            raise
-            print(f'\nError processing {filename}\n{e}\n')
-
-
-def _get_file_template(fh, offset, duration, filter_settings, suffix=None,
-                       simple_filename=True):
     if simple_filename:
-        return 'ABR {}.csv'
+        return f'{base} {{}}'
 
-    base_string = f'ABR {offset*1e3:.1f}ms to {(offset+duration)*1e3:.1f}ms'
+    base_string = f'{base} {offset*1e3:.1f}ms to {(offset+duration)*1e3:.1f}ms'
+
+    if n_epochs:
+        base_string = f'{base_string} {n_epochs} averages'
+
+    fh = abr.load(filename)
     if filter_settings == 'saved':
         settings = _get_filter(fh)
         if not settings['digital_filter']:
-            filter_string = None
+            filter_string = 'no filter'
         else:
             lb = settings['lb']
             ub = settings['ub']
             filter_string = f'{lb:.0f}Hz to {ub:.0f}Hz filter'
     elif filter_settings is None:
-        filter_string = None
+        filter_string = 'no filter'
     else:
         lb = filter_settings['lb']
         ub = filter_settings['ub']
@@ -59,15 +59,11 @@ def _get_file_template(fh, offset, duration, filter_settings, suffix=None,
         if order != 1:
             filter_string = f'{order:.0f} order {filter_string}'
 
-    if filter_string is None:
-        file_string = f'{base_string}'
-    else:
-        file_string = f'{base_string} with {filter_string}'
-
+    file_string = f'{base_string} with {filter_string}'
     if suffix is not None:
         file_string = f'{file_string} {suffix}'
 
-    return f'{file_string} {{}}.csv'
+    return f'{file_string} {{}}'
 
 
 def _get_filter(fh):
@@ -82,12 +78,16 @@ def _get_filter(fh):
         'order': 1,
     }
 
-def _get_epochs(fh, offset, duration, filter_settings, reject_ratio=None):
+
+def _get_epochs(fh, offset, duration, filter_settings, reject_ratio=None,
+                downsample=None, cb=None):
     # We need to do the rejects in this code so that we can obtain the
     # information for generating the CSV files. Set reject_threshold to np.inf
     # to ensure that nothing gets rejected.
     kwargs = {'offset': offset, 'duration': duration, 'columns': columns,
-              'reject_threshold': np.inf}
+              'reject_threshold': np.inf, 'downsample': downsample, 'cb': cb,
+              'bypass_cache': True}
+
     if filter_settings is None:
         return fh.get_epochs(**kwargs)
 
@@ -100,6 +100,7 @@ def _get_epochs(fh, offset, duration, filter_settings, reject_ratio=None):
         order = settings['order']
         kwargs.update({'filter_lb': lb, 'filter_ub': ub, 'filter_order': order})
         return fh.get_epochs_filtered(**kwargs)
+
     lb = filter_settings['lb']
     ub = filter_settings['ub']
     order = filter_settings['order']
@@ -107,37 +108,52 @@ def _get_epochs(fh, offset, duration, filter_settings, reject_ratio=None):
     return fh.get_epochs_filtered(**kwargs)
 
 
-def _match_epochs(*epochs):
+def is_processed(filename, offset, duration, filter_settings, n_epochs,
+                 suffix=None, simple_filename=True, export_single_trial=False,
+                 processed_directory=None, directory_depth=None):
 
-    def _match_n(df):
-        grouping = df.groupby(['dataset', 'polarity'])
-        n = grouping.size().unstack()
-        if len(n) < 2:
-            return None
-        n = n.values.ravel().min()
-        return pd.concat([g.iloc[:n] for _, g in grouping])
+    file_template = get_file_template(filename, offset, duration,
+                                      filter_settings, n_epochs, suffix,
+                                      simple_filename, processed_directory,
+                                      directory_depth)
 
-    epochs = pd.concat(epochs, keys=range(len(epochs)), names=['dataset'])
-    matched = epochs.groupby(['frequency', 'level']).apply(_match_n)
-    return [d.reset_index('dataset', drop=True) for _, d in \
-              matched.groupby('dataset', group_keys=False)]
+    suffixes = ['waveforms.pdf', 'average waveforms.csv',
+                'processing settings.json', 'experiment settings.json']
+    if export_single_trial:
+        suffixes.append('individual waveforms.csv')
 
-
-def is_processed(filename, offset, duration, filter_settings, suffix=None,
-                 simple_filename=True):
-    t = _get_file_template(filename, offset, duration, filter_settings, suffix,
-                           simple_filename)
-    file_template = os.path.join(filename, t)
-    raw_epoch_file = file_template.format('individual waveforms')
-    mean_epoch_file = file_template.format('average waveforms')
-    n_epoch_file = file_template.format('number of epochs')
-    return os.path.exists(raw_epoch_file) and \
-        os.path.exists(mean_epoch_file) and \
-        os.path.exists(n_epoch_file)
+    for suffix in suffixes:
+        filename = Path(file_template.format(suffix))
+        if not filename.exists():
+            return False
+    return True
 
 
-def process_file(filename, offset, duration, filter_settings, reprocess=False,
-                 n_epochs='auto', suffix=None, simple_filename=True):
+def add_trial(epochs):
+    '''
+    This adds trial number on a per-stim-level/frequency basis
+    '''
+    def number_trials(subset):
+        subset = subset.sort_index(level='t0')
+        idx = subset.index.to_frame()
+        i = len(idx.columns) - 1
+        idx.insert(i, 'trial', np.arange(len(idx)))
+        subset.index = pd.MultiIndex.from_frame(idx)
+        return subset
+
+    levels = list(epochs.index.names[:-1])
+    if 'polarity' in levels:
+        levels.remove('polarity')
+
+    return epochs.groupby(levels, group_keys=False).apply(number_trials)
+
+
+def process_file(filename, offset=-1e-3, duration=10e-3,
+                 filter_settings='saved', n_epochs='auto', suffix=None,
+                 simple_filename=True, export_single_trial=False, cb=None,
+                 file_template=None, target_fs=12.5e3, analysis_window=None,
+                 latency_correction=0, gain_correction=1, debug_mode=False,
+                 plot_waveforms_cb=None):
     '''
     Extract ABR epochs, filter and save result to CSV files
 
@@ -159,83 +175,154 @@ def process_file(filename, offset, duration, filter_settings, reprocess=False,
         filter settings that were saved in the ABR file. If a dictionary, must
         contain 'lb' (the lower bound of the passband in Hz) and 'ub' (the
         upper bound of the passband in Hz).
-    reprocess : bool
-        If True, reprocess the file even if it already has been processed for
-        the specified filter settings.
     n_epochs : {None, 'auto', int, dict}
         If None, all epochs will be used. If 'auto', use the value defined at
         acquisition time. If integer, will limit the number of epochs per
-        frequency and level to this number. If dict, the key must be a tuple of
-        (frequency, level) and the value will indicate the number of epochs to
-        use.
+        frequency and level to this number.
     suffix : {None, str}
         Suffix to use when creating save filenames.
     simple_filename : bool
-        Pass
+        If True, do not embed settings used for processing data in filename.
+    export_single_trial : bool
+        If True, export single trials.
+    cb : {None, callable}
+        If a callable, takes one value (the estimate of percent done as a
+        fraction).
+    file_template : {None, str}
+        Template that will be used to determine names (and path) of processed
+        files.
+    target_fs : float
+        Closest sampling rate to target
+    analysis_window : Ignored
+        This is ignored for now. Primarily used to allow acceptance of the
+        queue since we add analysis window for GUI purposes.
+    latency_correction : float
+        Correction, in seconds, to apply to timing of ABR. This allows us to
+        retroactively correct for any ADC or DAC delays that were present in
+        the acquisition system.
+    gain_correction : float
+        Correction to apply to the scaling of the waveform. This allows us to
+        retroactively correct for differences in gain that were present in the
+        acquisition system.
+    debug_mode : bool
+        This is reserved for internal use only. This mode will load the epochs
+        and return them without saving to disk.
+    plot_waveforms_cb : {Callable, None}
+        Callback that takes three arguments. Epoch mean dataframe, path to file
+        to save figures in, and name of file.
     '''
+    # Define the callback as a no-op if not provided.
+    if cb is None:
+        cb = lambda x: x
+
     settings = locals()
+    filename = Path(filename)
+
+    # Cleanup settings so that it is JSON-serializable
+    settings.pop('cb')
     settings['filename'] = str(settings['filename'])
     settings['creation_time'] = dt.datetime.now().isoformat()
+
     fh = abr.load(filename)
     if len(fh.erp_metadata) == 0:
         raise IOError('No data in file')
 
-    t = _get_file_template(fh, offset, duration, filter_settings, suffix,
-                           simple_filename)
-    file_template = os.path.join(filename, t)
-    raw_epoch_file = file_template.format('individual waveforms')
-    mean_epoch_file = file_template.format('average waveforms')
-    n_epoch_file = file_template.format('number of epochs')
-    reject_ratio_file = file_template.format('reject ratio')
-    settings_file = Path(file_template.format('processing settings')).with_suffix('.json')
+    # This is a hack to ensure that native Python types are returned instead of
+    # Numpy ones. Newer versions of Pandas have fixed this issue, though.
+    md = fh.erp_metadata.iloc[:1].to_dict('records')[0]
+    for column in columns:
+        del md[column]
+    del md['t0']
 
-    # Check to see if all of them exist before reprocessing
-    if not reprocess and \
-            (os.path.exists(raw_epoch_file) and \
-             os.path.exists(mean_epoch_file) and \
-             os.path.exists(n_epoch_file) and \
-             os.path.exists(reject_ratio_file)):
-        return False
+    downsample = int(ceil(fh.eeg.fs / target_fs))
+    settings['downsample'] = downsample
+    settings['actual_fs'] = fh.eeg.fs / downsample
 
-    # Load the epochs
-    epochs = _get_epochs(fh, offset, duration, filter_settings)
+    if n_epochs is not None:
+        if n_epochs == 'auto':
+            n_epochs = fh.get_setting('averages')
+
+    cb(0)
+    if file_template is None:
+        file_template = get_file_template(
+            filename, offset, duration, filter_settings, n_epochs, suffix,
+            simple_filename)
+    raw_epoch_file = Path(file_template.format('individual waveforms.csv'))
+    mean_epoch_file = Path(file_template.format('average waveforms.csv'))
+    settings_file = Path(file_template.format('processing settings.json'))
+    experiment_file = Path(file_template.format('experiment settings.json'))
+    figure_file = Path(file_template.format('waveforms.pdf'))
+
+    # Load the epochs. The callbacks for loading the epochs return a value in
+    # the range 0 ... 1. Since this only represents "half" the total work we
+    # need to do, rescale to the range 0 ... 0.5.
+    def cb_rescale(frac):
+        nonlocal cb
+        cb(frac * 0.5)
+
+    epochs = _get_epochs(fh, offset + latency_correction, duration,
+                         filter_settings, cb=cb_rescale, downsample=downsample)
+
+    if gain_correction != 1:
+        epochs = epochs * gain_correction
+
+    if latency_correction != 0:
+        new_idx = [(*r[:-1], r[-1] - latency_correction) for r in epochs.index]
+        new_idx = pd.MultiIndex.from_tuples(new_idx, names=epochs.index.names)
+        new_col = epochs.columns - latency_correction
+        epochs = pd.DataFrame(epochs.values, index=new_idx, columns=new_col)
+
+    if debug_mode:
+        return epochs
 
     # Apply the reject
     reject_threshold = fh.get_setting('reject_threshold')
     m = np.abs(epochs) < reject_threshold
     m = m.all(axis=1)
     epochs = epochs.loc[m]
+    cb(0.6)
 
     if n_epochs is not None:
-        if n_epochs == 'auto':
-            n_epochs = fh.get_setting('averages')
         n = int(np.floor(n_epochs / 2))
-        epochs = epochs.groupby(columns) \
+        epochs = epochs.groupby(columns, group_keys=False) \
             .apply(lambda x: x.iloc[:n])
+    cb(0.7)
 
+    epoch_mean = epochs.groupby(columns).mean().groupby(columns[:-1]).mean()
     epoch_reject_ratio = 1-m.groupby(columns[:-1]).mean()
-    epoch_mean = epochs.groupby(columns).mean() \
-        .groupby(columns[:-1]).mean()
-
-    # Write the data to CSV files
-    epoch_reject_ratio.name = 'epoch_reject_ratio'
-    epoch_reject_ratio.to_csv(reject_ratio_file, header=True)
-    epoch_reject_ratio.name = 'epoch_n'
     epoch_n = epochs.groupby(columns[:-1]).size()
-    epoch_n.to_csv(n_epoch_file, header=True)
+    epoch_info = pd.DataFrame({
+        'epoch_n': epoch_n,
+        'epoch_reject_ratio': epoch_reject_ratio,
+    })
+    if not np.all(epoch_mean.index == epoch_info.index):
+        raise ValueError('Programming issue. Please contact developer.')
+
+    # Merge in the N and reject ratio into the index for epoch_mean
+    epoch_info = epoch_info.set_index(['epoch_n', 'epoch_reject_ratio'],
+                                      append=True)
+    epoch_mean.index = epoch_info.index
     epoch_mean.columns.name = 'time'
-    epoch_mean.T.to_csv(mean_epoch_file)
-    epochs.columns.name = 'time'
-    epochs.T.to_csv(raw_epoch_file)
+
+    # Write the data to CSV and JSON files
+    settings_file.parent.mkdir(exist_ok=True, parents=True)
     settings_file.write_text(json.dumps(settings, indent=2))
+    experiment_file.parent.mkdir(exist_ok=True, parents=True)
+    experiment_file.write_text(json.dumps(md, indent=2))
+
+    epoch_mean.T.to_csv(mean_epoch_file)
+    cb(0.8)
+    if export_single_trial:
+        epochs = add_trial(epochs)
+        epochs.columns.name = 'time'
+        epochs.T.to_csv(raw_epoch_file)
+
+    cb(0.9)
+    if plot_waveforms_cb is not None:
+        plot_waveforms_cb(epoch_mean, figure_file, filename.name)
+
+    cb(1.0)
     return True
-
-
-def main_auto():
-    parser = argparse.ArgumentParser('Filter and summarize ABR files in folder')
-    parser.add_argument('folder', type=str, help='Folder containing ABR data')
-    args = parser.parse_args()
-    process_folder(args.folder, filter_settings='saved')
 
 
 def main():
@@ -273,19 +360,3 @@ def main():
         filter_settings = None
     process_files(args.filenames, args.offset, args.duration, filter_settings,
                   args.reprocess)
-
-
-def main_gui():
-    import enaml
-    from enaml.qt.qt_application import QtApplication
-    with enaml.imports():
-        from .summarize_abr_gui import SummarizeABRGui
-
-    app = QtApplication()
-    view = SummarizeABRGui()
-    view.show()
-    app.start()
-
-
-if __name__ == '__main__':
-    main_gui()

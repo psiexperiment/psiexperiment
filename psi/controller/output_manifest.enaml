@@ -242,7 +242,7 @@ def _start_synchronized(synchronized, event):
 
     if notify_end:
         controller.invoke_actions('{}_end'.format(synchronized.name),
-                                  start+delay)
+                                  start+clear_delay)
 
     controller.invoke_actions('{}_start'.format(synchronized.name),
                               start+delay)

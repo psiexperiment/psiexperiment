@@ -169,12 +169,17 @@ class Signal:
             v = self[i:i+samples]
             pad_n = samples - len(v)
             if pad_n:
-                v = np.pad(v, (0, pad_n), constant_values=np.nan)
+                v = np.pad(v, (0, pad_n), mode='constant',
+                           constant_values=np.nan)
             values.append(v[np.newaxis])
             if ((j+1) % cb_n) == 0:
                 cb((j+1)/n)
         cb((j+1)/n)
-        values = np.concatenate(values)
+
+        # We need to ensure that data is cast to double since there are some
+        # rare edge-cases in which precision is lost when filtering and
+        # downsampling.
+        values = np.concatenate(values).astype('double')
 
         if detrend is not None:
             values = signal.detrend(values, axis=-1, type=detrend)
@@ -200,8 +205,15 @@ class Signal:
         b, a = signal.iirfilter(filter_order, Wn, btype='band', ftype='butter')
         df = fn(offset-pad_duration, duration+pad_duration, detrend,
                 downsample=downsample, cb=cb)
-        df[:] = signal.filtfilt(b, a, df.values, axis=-1)
-        return df.loc[:, offset:offset+duration]
+
+        # Attempting to write values *back* into the original df (e.g., via
+        # df[:] = result) can take up quite a bit of memory for some bizzare
+        # reason (possibly a bug in a specific version of Pandas). To get
+        # around this limitation, we should just create a new dataframe with
+        # the same index and columns.
+        filt = signal.filtfilt(b, a, df.values, axis=-1)
+        df_filt = pd.DataFrame(filt, index=df.index, columns=df.columns)
+        return df_filt.loc[:, offset:offset+duration]
 
     def get_random_segments(self, n, offset, duration, detrend, downsample):
         t_min = -offset
