@@ -878,7 +878,7 @@ class GroupMixin(ColorCycleMixin):
         return ()
 
     def _observe_selected_tab(self, event):
-        self.update()
+        self.update(tab_changed=True)
 
     @observe('last_seen_key', 'auto_select')
     def _update_selected_tab(self, event):
@@ -999,14 +999,15 @@ class EpochGroupMixin(GroupMixin):
                     data = self._data_cache[key]
                     self._data_updated[key] = len(data)
                     if data:
+                        x = self._x
                         y = self._y(data)
                     else:
-                        y = np.zeros_like(self._x)
-                    todo.append((plot.setData, self._x, y))
+                        x = y = np.array([])
+                    todo.append((plot.setData, x, y))
             except KeyError:
                 if tab_changed:
-                    y = np.zeros_like(self.x_)
-                    todo.append((plot.setData, self._x, y))
+                    x = y = np.array([])
+                    todo.append((plot.setData, x, y))
 
         def update():
             for setter, x, y in todo:
@@ -1145,29 +1146,22 @@ class ResultPlot(GroupMixin, SinglePlot):
         for d in data:
             key = self.group_key(d)
             if key is not None:
-                cache = self._data_cache.setdefault(key[0], {'x': [], 'y': []})
+                cache = self._data_cache.setdefault(key, {'x': [], 'y': []})
                 cache['x'].append(d[self.x_column])
                 cache['y'].append(d[self.y_column])
         self.last_seen_key = key
         self.update()
 
     def update(self, event=None, tab_changed=False):
-        if not self._data_cache:
-            x = np.array([])
-            y = np.array([])
-        elif self.selected_tab not in self._data_cache:
-            x = np.array([])
-            y = np.array([])
-        else:
-            data = self._data_cache[self.selected_tab]
-            x = np.array(data['x'])
-            y = np.array(data['y'])
-
+        default = {'x': [], 'y': []}
+        key = (self.selected_tab, ())
+        data = self._data_cache.get(key, default)
+        x = np.array(data['x'])
+        y = np.array(data['y'])
         if self.average:
             d = pd.DataFrame({'x': x, 'y': y}).groupby('x')['y'].mean()
             x = d.index.values
             y = d.values
-
         deferred_call(self.plot.setData, x, y)
 
     def _default_plot(self):

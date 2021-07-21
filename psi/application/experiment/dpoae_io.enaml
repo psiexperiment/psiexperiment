@@ -75,7 +75,7 @@ enamldef DPOAEIOBaseManifest(DPOAEManifest): manifest:
             name = 'dpoae_io_container'
             label = 'DPOAE input-output functions'
             fmt_button => (key):
-                return '{} Hz'.format(key)
+                return '{} Hz'.format(key[0])
 
             ViewBox: vb:
                 name = 'dpoae_io_viewbox'
@@ -86,7 +86,7 @@ enamldef DPOAEIOBaseManifest(DPOAEManifest): manifest:
                     source_name = 'analyze_dpoae'
                     x_column = 'secondary_tone_level'
                     pen_width = 2
-                    tab_grouping = 'secondary_tone_frequency'
+                    tab_grouping = ['secondary_tone_frequency']
                     tab_keys >> pc.buttons
                     selected_tab := pc.current_button
                     auto_select := pc.auto_select
@@ -187,7 +187,6 @@ def configure_dpoaeio_gui(event):
     vb = data.find_viewbox('dpoae_io_viewbox')
     pc = data.find_plot_container('dpoae_io_container')
 
-    pc.buttons = sorted(f2)
     pc.x_min = min(levels) - 10
     pc.x_max = max(levels) + 10
     vb.y_min = min(vb.y_min, min(levels) - 10)
