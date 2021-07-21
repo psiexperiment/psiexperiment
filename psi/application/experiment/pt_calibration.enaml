@@ -403,7 +403,7 @@ enamldef PTManifest(ControllerManifest): manifest:
                     label = 'PT epoch average plot'
                     source_name = 'pt_epoch'
                     pen_color_cycle = ['black', 'red']
-                    groups << epoch_groups
+                    plot_grouping << [g.name for g in epoch_group.values]
 
             ViewBox:
                 y_min = -0.01
@@ -414,7 +414,7 @@ enamldef PTManifest(ControllerManifest): manifest:
                     label = 'Cal. epoch average plot'
                     source_name = 'cal_epoch'
                     pen_color_cycle = ['black', 'red']
-                    groups << epoch_groups
+                    plot_grouping << [g.name for g in epoch_group.values]
 
         FFTContainer:
             name = 'calibration_result'
