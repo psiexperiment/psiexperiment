@@ -10,6 +10,7 @@ requirements = [
     'palettable',
     'pyqtgraph',
     'scipy',
+    'tqdm',
     'pandas',
     'matplotlib',
 ]

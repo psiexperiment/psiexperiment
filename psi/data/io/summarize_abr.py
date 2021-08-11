@@ -17,6 +17,7 @@ import matplotlib as mp
 import matplotlib.pyplot as pl
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 
 from psi.data.io import abr
 from psi import get_config
@@ -185,9 +186,9 @@ def process_file(filename, offset=-1e-3, duration=10e-3,
         If True, do not embed settings used for processing data in filename.
     export_single_trial : bool
         If True, export single trials.
-    cb : {None, callable}
+    cb : {None, 'tqdm', callable}
         If a callable, takes one value (the estimate of percent done as a
-        fraction).
+        fraction). If 'tqdm', progress will be printed to the console.
     file_template : {None, str}
         Template that will be used to determine names (and path) of processed
         files.
@@ -211,11 +212,20 @@ def process_file(filename, offset=-1e-3, duration=10e-3,
         Callback that takes three arguments. Epoch mean dataframe, path to file
         to save figures in, and name of file.
     '''
-    # Define the callback as a no-op if not provided.
+    settings = locals()
+
+    # Define the callback as a no-op if not provided or sets up tqdm if requested.
     if cb is None:
         cb = lambda x: x
+    elif cb == 'tqdm':
+        pbar = tqdm(total=100, bar_format='{l_bar}{bar}[{elapsed}<{remaining}]')
+        def cb(frac):
+            nonlocal pbar
+            frac *= 100
+            pbar.update(frac - pbar.n)
+            if frac == 100:
+                pbar.close()
 
-    settings = locals()
     filename = Path(filename)
 
     # Cleanup settings so that it is JSON-serializable
@@ -280,8 +290,8 @@ def process_file(filename, offset=-1e-3, duration=10e-3,
     m = np.abs(epochs) < reject_threshold
     m = m.all(axis=1)
     epochs = epochs.loc[m]
-    cb(0.6)
 
+    cb(0.6)
     if n_epochs is not None:
         n = int(np.floor(n_epochs / 2))
         epochs = epochs.groupby(columns, group_keys=False) \
