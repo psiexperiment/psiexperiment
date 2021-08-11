@@ -23,7 +23,8 @@ from psi.data.io import abr
 from psi import get_config
 
 
-columns = ['frequency', 'level', 'polarity']
+COLUMNS = ['frequency', 'level', 'polarity']
+
 
 
 def get_file_template(filename, offset, duration, filter_settings, n_epochs,
@@ -85,7 +86,7 @@ def _get_epochs(fh, offset, duration, filter_settings, reject_ratio=None,
     # We need to do the rejects in this code so that we can obtain the
     # information for generating the CSV files. Set reject_threshold to np.inf
     # to ensure that nothing gets rejected.
-    kwargs = {'offset': offset, 'duration': duration, 'columns': columns,
+    kwargs = {'offset': offset, 'duration': duration, 'columns': COLUMNS,
               'reject_threshold': np.inf, 'downsample': downsample, 'cb': cb,
               'bypass_cache': True}
 
@@ -240,7 +241,7 @@ def process_file(filename, offset=-1e-3, duration=10e-3,
     # This is a hack to ensure that native Python types are returned instead of
     # Numpy ones. Newer versions of Pandas have fixed this issue, though.
     md = fh.erp_metadata.iloc[:1].to_dict('records')[0]
-    for column in columns:
+    for column in COLUMNS:
         del md[column]
     del md['t0']
 
@@ -294,13 +295,14 @@ def process_file(filename, offset=-1e-3, duration=10e-3,
     cb(0.6)
     if n_epochs is not None:
         n = int(np.floor(n_epochs / 2))
-        epochs = epochs.groupby(columns, group_keys=False) \
+        epochs = epochs.groupby(COLUMNS, group_keys=False) \
             .apply(lambda x: x.iloc[:n])
     cb(0.7)
 
-    epoch_mean = epochs.groupby(columns).mean().groupby(columns[:-1]).mean()
-    epoch_reject_ratio = 1-m.groupby(columns[:-1]).mean()
-    epoch_n = epochs.groupby(columns[:-1]).size()
+    epoch_mean = epochs.groupby(COLUMNS).mean().groupby(COLUMNS[:-1]).mean()
+
+    epoch_reject_ratio = 1-m.groupby(COLUMNS[:-1]).mean()
+    epoch_n = epochs.groupby(COLUMNS[:-1]).size()
     epoch_info = pd.DataFrame({
         'epoch_n': epoch_n,
         'epoch_reject_ratio': epoch_reject_ratio,
