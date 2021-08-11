@@ -11,6 +11,7 @@ from pathlib import Path
 import shutil
 import re
 from glob import glob
+import hashlib
 import pickle
 import warnings
 
@@ -49,12 +50,16 @@ def cache(f, name=None):
             return f(self, *args, **kwargs)
 
         cb = kwargs.pop('cb', None)
+
         bound_args = s.bind(self, *args, **kwargs)
         bound_args.apply_defaults()
         cache_kwargs = dict(bound_args.arguments)
         cache_kwargs.pop('self')
-        string = json.dumps(cache_kwargs, sort_keys=True, allow_nan=True, cls=PSIJsonEncoder)
-        uuid = hash(string)
+        cache_kwargs.pop('cb')
+
+        string = json.dumps(cache_kwargs, sort_keys=True, allow_nan=True,
+                            cls=PSIJsonEncoder)
+        uuid = hashlib.sha256(string.encode('utf8')).hexdigest()
 
         cache_path = self.base_path / 'cache'
         cache_path.mkdir(parents=True, exist_ok=True)
