@@ -70,7 +70,7 @@ def cache(f, name=None):
         try:
             if not refresh_cache and cache_file.exists():
                 result = pd.read_pickle(cache_file)
-                with open(kwargs_cache_file, 'wb') as fh:
+                with open(kwargs_cache_file, 'rb') as fh:
                     cache_kwargs = pickle.load(fh)
                     if cache_kwargs != kwargs:
                         raise ValueError('Cache is corrupted')
