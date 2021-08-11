@@ -28,16 +28,16 @@ COLUMNS = ['frequency', 'level', 'polarity']
 
 
 def get_file_template(filename, offset, duration, filter_settings, n_epochs,
-                      suffix=None, simple_filename=True, include_path=True):
+                      prefix='ABR', simple_filename=True,
+                      include_filename=True):
 
-    base = f'{filename.name}'
-    if include_path:
-        base = str(filename / base)
+    if prefix:
+        prefix += ' '
 
     if simple_filename:
-        return f'{base} {{}}'
+        return f'{prefix}{{}}'
 
-    base_string = f'{base} {offset*1e3:.1f}ms to {(offset+duration)*1e3:.1f}ms'
+    base_string = f'{prefix}{offset*1e3:.1f}ms to {(offset+duration)*1e3:.1f}ms'
 
     if n_epochs:
         base_string = f'{base_string} {n_epochs} averages'
@@ -88,7 +88,7 @@ def _get_epochs(fh, offset, duration, filter_settings, reject_ratio=None,
     # to ensure that nothing gets rejected.
     kwargs = {'offset': offset, 'duration': duration, 'columns': COLUMNS,
               'reject_threshold': np.inf, 'downsample': downsample, 'cb': cb,
-              'bypass_cache': True}
+              'bypass_cache': False}
 
     if filter_settings is None:
         return fh.get_epochs(**kwargs)
@@ -110,14 +110,15 @@ def _get_epochs(fh, offset, duration, filter_settings, reject_ratio=None,
     return fh.get_epochs_filtered(**kwargs)
 
 
-def is_processed(filename, offset, duration, filter_settings, n_epochs,
-                 suffix=None, simple_filename=True, export_single_trial=False,
+def is_processed(filename, offset, duration, filter_settings, n_epochs=None,
+                 simple_filename=True, export_single_trial=False,
                  processed_directory=None, directory_depth=None):
 
     file_template = get_file_template(filename, offset, duration,
-                                      filter_settings, n_epochs, suffix,
-                                      simple_filename, processed_directory,
-                                      directory_depth)
+                                      filter_settings, n_epochs,
+                                      simple_filename=simple_filename,
+                                      include_filename=False)
+    file_template = str(filename / file_template)
 
     suffixes = ['waveforms.pdf', 'average waveforms.csv',
                 'processing settings.json', 'experiment settings.json']
@@ -150,8 +151,32 @@ def add_trial(epochs):
     return epochs.groupby(levels, group_keys=False).apply(number_trials)
 
 
+def process_folder(folder, filter_settings=None):
+    if abr.is_abr_experiment(folder):
+        files = [folder]
+    else:
+        files = list(Path(folder).glob('*abr_io*'))
+    process_files(files, filter_settings=filter_settings, cb='tqdm')
+
+
+def process_files(filenames, offset=-0.001, duration=0.01,
+                  filter_settings=None, cb='tqdm'):
+    success = []
+    error = []
+    for filename in tqdm(filenames):
+        try:
+            processed = process_file(filename, offset=offset,
+                                     duration=duration,
+                                     filter_settings=filter_settings, cb=cb)
+            success.append(filename)
+        except Exception as e:
+            raise e
+            error.append((filename, e))
+    print(f'Successfully processed {len(success)} files with {len(error)} errors')
+
+
 def process_file(filename, offset=-1e-3, duration=10e-3,
-                 filter_settings='saved', n_epochs='auto', suffix=None,
+                 filter_settings='saved', n_epochs='auto',
                  simple_filename=True, export_single_trial=False, cb=None,
                  file_template=None, target_fs=12.5e3, analysis_window=None,
                  latency_correction=0, gain_correction=1, debug_mode=False,
@@ -181,8 +206,6 @@ def process_file(filename, offset=-1e-3, duration=10e-3,
         If None, all epochs will be used. If 'auto', use the value defined at
         acquisition time. If integer, will limit the number of epochs per
         frequency and level to this number.
-    suffix : {None, str}
-        Suffix to use when creating save filenames.
     simple_filename : bool
         If True, do not embed settings used for processing data in filename.
     export_single_trial : bool
@@ -256,8 +279,10 @@ def process_file(filename, offset=-1e-3, duration=10e-3,
     cb(0)
     if file_template is None:
         file_template = get_file_template(
-            filename, offset, duration, filter_settings, n_epochs, suffix,
-            simple_filename)
+            filename, offset, duration, filter_settings, n_epochs,
+            simple_filename=simple_filename, include_filename=False)
+        file_template = str(filename / file_template)
+
     raw_epoch_file = Path(file_template.format('individual waveforms.csv'))
     mean_epoch_file = Path(file_template.format('average waveforms.csv'))
     settings_file = Path(file_template.format('processing settings.json'))
@@ -372,3 +397,21 @@ def main():
         filter_settings = None
     process_files(args.filenames, args.offset, args.duration, filter_settings,
                   args.reprocess)
+
+def main_auto():
+    parser = argparse.ArgumentParser('Filter and summarize ABR files in folder')
+    parser.add_argument('folder', type=str, help='Folder containing ABR data')
+    args = parser.parse_args()
+    process_folder(args.folder, filter_settings='saved')
+
+
+def main_gui():
+    import enaml
+    from enaml.qt.qt_application import QtApplication
+    with enaml.imports():
+        from .summarize_abr_gui import SummarizeABRGui
+
+    app = QtApplication()
+    view = SummarizeABRGui()
+    view.show()
+    app.start()
