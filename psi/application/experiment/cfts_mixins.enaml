@@ -19,7 +19,6 @@ from psi.context.api import (BaseSelector, BoolParameter, ContextGroup,
                              EnumParameter, Parameter)
 from psi.controller.api import (ContinuousInput, Detrend, Downsample,
                                 EpochOutput, ExperimentAction, ExtractEpochs,
-                                get_hw_ai_choices, get_hw_ao_choices,
                                 IIRFilter, Input, RejectEpochs)
 from psi.controller.calibration.api import (chirp_sens, ChirpCalibrate,
                                             InterpCalibration,
