@@ -210,12 +210,12 @@ def calibrate(calibration, target):
 class CalibratedInput(ContinuousInput):
 
     def _get_calibration(self):
-        return FlatCalibration(0)
+        return self.source.calibration
 
     def configure_callback(self):
         cb = super().configure_callback()
         log.debug('Configuring CalibratedInput %s', self.name)
-        return calibrate(self.source.calibration, cb).send
+        return calibrate(self.calibration, cb).send
 
 
 @coroutine
