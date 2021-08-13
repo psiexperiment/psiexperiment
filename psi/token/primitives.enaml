@@ -342,7 +342,7 @@ def _calculate_bandlimited_noise_filter(fs, fl, fh, fls, fhs,
                                         stopband_attenuation):
     Wp = np.array([fl, fh])/(0.5*fs)
     Ws = np.array([fls, fhs])/(0.5*fs)
-    b, a = signal.iirdesign(Wp, Ws, passband_attenuation, stopband_attenuation) 
+    b, a = signal.iirdesign(Wp, Ws, passband_attenuation, stopband_attenuation)
     if np.any(np.abs(np.roots(a)) >= 1):
         raise ValueError('Unstable filter coefficients')
     zi = signal.lfilter_zi(b, a)
