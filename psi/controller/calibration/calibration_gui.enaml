@@ -59,6 +59,13 @@ template CalibrationTemplate(calibration, MemberType: EPLCalibration):
         calibration = calibration
 
 
+template CalibrationTemplate(calibration, MemberType: CochlearCalibration):
+
+    FileCalibrationGroup:
+        mode = 'file'
+        calibration = calibration
+
+
 template CalibrationTemplate(calibration, MemberType: UnityCalibration):
 
     Label:
