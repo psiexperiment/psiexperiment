@@ -169,7 +169,7 @@ ParadigmDescription(
 #################################################################################
 ParadigmDescription(
     'noise_exposure', 'Noise exposure', 'cohort', [
-        (PATH + 'noise_exposure.ControllerManifest',),
+        (PATH + 'noise_exposure.NoiseControllerManifest',),
     ],
 )
 
