@@ -257,9 +257,10 @@ enamldef PistonphoneCalibrationManifest(ControllerManifest): manifest:
             delay = 0
 
             ViewBox:
+                label = 'Signal (V)'
                 y_min = -2.5
                 y_max = 2.5
-                label = 'Signal (V)'
+                save_limits = True
 
                 ChannelPlot:
                     pen_color = 'k'
@@ -274,3 +275,4 @@ enamldef PistonphoneCalibrationManifest(ControllerManifest): manifest:
             ViewBox:
                 name = 'fft'
                 label = 'PSD (dB re 1V)'
+                save_limits = True
