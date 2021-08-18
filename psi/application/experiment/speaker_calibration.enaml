@@ -123,7 +123,7 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
         ExperimentAction:
             event = 'experiment_start'
             command = 'hw_ao.start'
-            kwargs = {'delay': 0.25}
+            kwargs = {'delay': 1}
             weight = 60
 
         ExperimentAction:
