@@ -3,7 +3,10 @@ import pytest
 import numpy as np
 import enaml
 
-from psi.controller.calibration.api import CalibrationNFError, CalibrationTHDError, process_tone
+from psi.controller.calibration.api import (
+    CalibrationNFError, CalibrationTHDError, process_tone, UnityCalibration
+)
+
 from psi.controller.calibration import util
 
 
@@ -163,3 +166,13 @@ def test_process_tone():
 
     with pytest.raises(CalibrationTHDError):
         result = process_tone(fs, signal, f1, max_thd=1)
+
+
+def test_unity_calibration():
+    calibration = UnityCalibration()
+    assert calibration.get_sf(1000, 0) == 1
+    assert calibration.get_sf(1000, 20) == 10
+    assert calibration.get_sf(1000, 40) == 100
+    assert calibration.get_spl(1000, 1) == 0
+    assert calibration.get_spl(1000, 10) == 20
+    assert calibration.get_spl(1000, 100) == 40

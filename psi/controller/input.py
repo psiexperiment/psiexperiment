@@ -208,9 +208,24 @@ def calibrate(calibration, target):
 
 
 class CalibratedInput(ContinuousInput):
+    '''
+    Applies calibration to input
 
+    Currently assumes that calibration is flat across frequency.
+
+    If input is from a microphone and the microphone calibration transforms
+    from Vrms to Pascals, then the output of this block will be in Pascals.
+    '''
     def _get_calibration(self):
-        return FlatCalibration(0)
+        # Input is now calibrated, and no additional transforms need to be
+        # performed by downstream inputs. Note that the calibration from the
+        # source for this input is used (i.e., not *this* calibration). So,
+        # calibration is now 1 unit per 1 Pa. (i.e., dB(1/1Pa) gives us a
+        # sensitivity of 0). This works beause you can show that:
+        # >>> FlatCalibration(sensitivity=0).get_spl(1)
+        # 93.9794
+        # Which is consistent with 1 Pa = 94 dB SPL
+        return FlatCalibration(sensitivity=0)
 
     def configure_callback(self):
         cb = super().configure_callback()

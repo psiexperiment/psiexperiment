@@ -90,7 +90,7 @@ def find_channels(engines):
     channels = {}
     for e in engines.values():
         for c in e.get_channels(active=False):
-            channels[c.name] = c
+            channels[c.reference] = c
     return channels
 
 

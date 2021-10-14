@@ -18,6 +18,13 @@ class Channel(PSIContribution):
     #: Globally-unique name of channel used for identification
     name = d_(Str()).tag(metadata=True)
 
+    #: Code assigned by subclasses to identify channel type
+    type_code = Str()
+
+    #: Unique reference label used for tracking identity throughout
+    #: psiexperiment
+    reference = Str().tag(metadata=True)
+
     #: Label of channel used in GUI
     label = d_(Str()).tag(metadata=True)
 
@@ -45,6 +52,12 @@ class Channel(PSIContribution):
     calibration_user_editable = d_(Bool(False)).tag(metadata=True)
 
     filter_delay = d_(Float(0).tag(metadata=True))
+
+    def _observe_name(self, event):
+        self.reference = self._default_reference()
+
+    def _default_reference(self):
+        return f'{self.type_code}::{self.name}'
 
     def _default_calibration(self):
         return UnityCalibration()
@@ -178,6 +191,8 @@ class CounterChannel(CounterMixin, Channel):
 
 class HardwareAOChannel(AnalogMixin, OutputMixin, HardwareMixin, Channel):
 
+    type_code = 'hw_ao'
+
     def get_samples(self, offset, samples, out=None):
         if out is None:
             out = np.empty(samples, dtype=np.double)
@@ -189,17 +204,22 @@ class HardwareAOChannel(AnalogMixin, OutputMixin, HardwareMixin, Channel):
 
 
 class SoftwareAOChannel(AnalogMixin, OutputMixin, SoftwareMixin, Channel):
-    pass
+
+    type_code = 'sw_ao'
 
 
 class HardwareAIChannel(AnalogMixin, InputMixin, HardwareMixin, Channel):
 
-    # Gain in dB of channel (e.g., due to a microphone preamp). The signal will
-    # be scaled down before further processing.
+    type_code = 'hw_ai'
+
+    #: Gain in dB of channel (e.g., due to a microphone preamp). The signal
+    #: will be scaled down before further processing.
     gain = d_(Float()).tag(metadata=True)
 
 
 class SoftwareAIChannel(AnalogMixin, InputMixin, SoftwareMixin, Channel):
+
+    type_code = 'sw_ai'
 
     # Gain in dB of channel (e.g., due to a microphone preamp). The signal will
     # be scaled down before further processing.
@@ -207,16 +227,20 @@ class SoftwareAIChannel(AnalogMixin, InputMixin, SoftwareMixin, Channel):
 
 
 class HardwareDOChannel(DigitalMixin, OutputMixin, HardwareMixin, Channel):
-    pass
+
+    type_code = 'hw_do'
 
 
 class SoftwareDOChannel(DigitalMixin, OutputMixin, SoftwareMixin, Channel):
-    pass
+
+    type_code = 'sw_do'
 
 
 class HardwareDIChannel(DigitalMixin, InputMixin, HardwareMixin, Channel):
-    pass
+
+    type_code = 'hw_di'
 
 
 class SoftwareDIChannel(DigitalMixin, InputMixin, SoftwareMixin, Channel):
-    pass
+
+    type_code = 'sw_di'
