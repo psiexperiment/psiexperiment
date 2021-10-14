@@ -1,8 +1,9 @@
 from pathlib import Path
+from threading import Thread
 import urllib.parse
 import urllib.request
 
-from atom.api import Atom, Bool, Enum, Float, List, observe, Property
+from atom.api import Atom, Bool, Enum, Event, Float, List, observe, Property
 from enaml.core.api import Looper
 from enaml.layout.api import hbox, spacer, vbox
 from enaml.widgets.api import (FileDialogEx, MainWindow, HGroup, Form, Label,
@@ -82,6 +83,8 @@ class ProcessSettings(Atom):
     duration = Property()
     filter_settings = Property()
 
+    updated = Event()
+
     def _get_offset(self):
         return self.time_lb
 
@@ -112,12 +115,28 @@ class ProcessSettings(Atom):
         progressbar.maximum = len(info)
         for j, i in enumerate(info):
             try:
-                process_file(i['path'], *args)
-                i['status'] = 'processed'
+                def runner():
+                    nonlocal i
+                    nonlocal args
+                    nonlocal self
+                    def cb(frac):
+                        nonlocal i
+                        nonlocal self
+                        i['progress'] = frac
+                        print('inside main callback %f', frac)
+                        self.updated = True
+
+                    process_file(i['path'], *args, cb=cb)
+                    i['status'] = 'processed'
+                    self.updated = True
+
+                thread = Thread(target=runner)
+                thread.start()
             except Exception as e:
-                raise
                 i['status'] = 'error'
                 i['status_message'] = str(e)
+                self.updated = True
+
             progressbar.value = j+1
 
 
@@ -225,6 +244,8 @@ enamldef SummarizeABRGui(MainWindow):
                         text = 'ms'
 
             ListDictTable: table:
+                updated << setting.updated
+
                 columns = ['filename', 'rate', 'ordering', 'averages',
                            'reject_threshold', 'filter_info']
                 column_info = {
@@ -237,11 +258,21 @@ enamldef SummarizeABRGui(MainWindow):
                 }
                 header_resize_mode = 'contents'
                 data << setting.info
+
                 get_cell_color => (row, col):
+                    status = setting.info[row].get('status', 0)
                     status_map = dict(processed='lightgreen',
                                       unprocessed='white',
                                       error='lightpink')
                     return status_map[setting.info[row]['status']]
+
+                get_cell_frac => (row, col):
+                    if self.columns[col] != 'filename':
+                        return 1
+                    frac = setting.info[row].get('progress', 0)
+                    print(frac)
+                    return frac
+
                 select_behavior = 'rows'
                 selection_changed ::
                     row = selected_coords[0][0]
