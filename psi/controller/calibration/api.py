@@ -4,7 +4,7 @@ from .calibration import (Calibration, CalibrationError, calibration_registry,
                           ChirpCalibration, CalibrationNFError,
                           CalibrationTHDError, CochlearCalibration,
                           EPLCalibration, FlatCalibration, from_bcolz_store,
-                          from_cochlear, from_epl, from_tone_sens,
+                          from_epl, from_tone_sens,
                           from_psi_chirp, from_psi_golay, from_bcolz_store,
                           GolayCalibration, InterpCalibration,
                           PointCalibration, UnityCalibration)
