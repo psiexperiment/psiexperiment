@@ -6,7 +6,7 @@ import threading
 import numpy as np
 
 from atom.api import (Str, Float, Bool, observe, Property, Int, Typed,
-                      Long, Value)
+                      Value)
 from enaml.core.api import Declarative, d_
 
 from psi.core.enaml.api import PSIContribution
