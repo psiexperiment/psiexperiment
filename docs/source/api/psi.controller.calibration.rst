@@ -4,14 +4,6 @@ psi.controller.calibration package
 Submodules
 ----------
 
-psi.controller.calibration.acquire module
------------------------------------------
-
-.. automodule:: psi.controller.calibration.acquire
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 psi.controller.calibration.api module
 -------------------------------------
 

@@ -87,12 +87,17 @@ What you get
    :hidden:
 
    installing
+   development
    io_manifest
    software/index.rst
 
 :doc:`installing`
 -----------------
 Instructions on installing psiexperiment and configuring your system.
+
+:doc:`development`
+------------------
+Suggestions for setting up psiexperiment for development.
 
 :doc:`io_manifest`
 ------------------

@@ -12,14 +12,6 @@ psi.controller.devices.api module
     :undoc-members:
     :show-inheritance:
 
-psi.controller.devices.opencv_camera module
--------------------------------------------
-
-.. automodule:: psi.controller.devices.opencv_camera
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
 psi.controller.devices.pellet_dispenser module
 ----------------------------------------------
 
