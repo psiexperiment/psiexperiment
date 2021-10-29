@@ -3,7 +3,7 @@ import versioneer
 
 
 requirements = [
-    'bcolz',
+    'psi-bcolz',
     'enaml',
     'joblib',
     'numpy',
