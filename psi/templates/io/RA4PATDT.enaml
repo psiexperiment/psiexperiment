@@ -1,0 +1,15 @@
+from enaml.workbench.api import PluginManifest, Extension
+
+from psi.controller.engines.tdt.standard_io import RA4PATDTEngine
+
+
+enamldef IOManifest(PluginManifest): manifest:
+    '''
+    Defines hardware configuration for a TDT RZ6 with a RA4PA amplifier
+    '''
+    Extension:
+        id = 'backend'
+        point = 'psi.controller.io'
+
+        RA4PATDTEngine:
+            pass

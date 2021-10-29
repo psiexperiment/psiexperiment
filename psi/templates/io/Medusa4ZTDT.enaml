@@ -1,0 +1,15 @@
+from enaml.workbench.api import PluginManifest, Extension
+
+from psi.controller.engines.tdt.standard_io import Medusa4ZTDTEngine
+
+
+enamldef IOManifest(PluginManifest): manifest:
+    '''
+    Defines hardware configuration for a TDT RZ6 with a Medusda 4Z amplifier
+    '''
+    Extension:
+        id = 'backend'
+        point = 'psi.controller.io'
+
+        Medusa4ZTDTEngine:
+            pass

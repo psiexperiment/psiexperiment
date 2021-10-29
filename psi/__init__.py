@@ -63,12 +63,14 @@ def get_config_file():
 
 
 def create_config(base_directory=None, log=None, data=None, processed=None,
-                  cal=None, preferences=None, layout=None, io=None):
+                  cal=None, preferences=None, layout=None, io=None,
+                  standard_io=None):
 
     # This approach allows code inspection to show valid function parameters
     # without hiding it behind an anonymous **kwargs definition.
     kwargs = locals()
     kwargs.pop('base_directory')
+    kwargs.pop('standard_io')
 
     # Figure out where to save everything
     target = get_config_file()
@@ -87,6 +89,24 @@ def create_config(base_directory=None, log=None, data=None, processed=None,
         'IO_ROOT': "BASE_DIRECTORY / 'io'",
     }
 
+    help_text = {
+        'LOG_ROOT': 'Location of log files for psiexperiment',
+        'DATA_ROOT': 'Location where experiment data is saved',
+        'PROCESSED_ROOT': 'Location where post-processed experiment data is saved',
+        'CAL_ROOT': 'Location where calibration data is saved',
+        'PREFERENCES_ROOT': 'Location where experiment-specific defaults are saved',
+        'LAYOUT_ROOT': 'Location where experiment-specific layouts are saved',
+        'IO_ROOT': 'Location where custom hardware configurations are saved',
+        'STANDARD_IO': 'List of standard hardware configurations the user can select from'
+    }
+
+    if standard_io is None:
+        defaults['STANDARD_IO'] = "[]"
+    else:
+        engine_string = ',\n'.join(f"    '{e}'" for e in standard_io)
+        standard_io = f"[\n{engine_string}\n]"
+        defaults['STANDARD_IO'] = standard_io
+
     for key, value in kwargs.items():
         if value is None:
             continue
@@ -94,7 +114,13 @@ def create_config(base_directory=None, log=None, data=None, processed=None,
         config_value = f"Path(r'{value}')"
         defaults[config_key] = config_value
 
-    paths = '\n'.join(f'{k} = {v}' for k, v in defaults.items())
+    lines = []
+    for k, v in defaults.items():
+        if k in help_text:
+            lines.append(f'# {help_text[k]}')
+        lines.append(f'{k} = {v}\n')
+    paths = '\n'.join(lines)
+
     config_template = Path(__file__).parent / 'templates' / 'config.txt'
     config_text = config_template.read_text()
     config_text = config_text.format(base_directory, paths)
@@ -162,14 +188,22 @@ Could not find setting "{}" in configuration. This may be because the
 configuration file is missing. Please run psi-config to create it.
 '''
 
+# Special singleton value that enables us to use `get_config` with None as the
+# default value. This value is a "flag" that, if used, indicates that the user
+# did not provide a default value.
+NoDefault = object()
 
-def get_config(setting=None):
+
+def get_config(setting=None, default_value=NoDefault):
     '''
     Get value of setting
     '''
     if setting is not None:
         try:
-            return getattr(_config, setting)
+            if default_value != NoDefault:
+                return getattr(_config, setting, default_value)
+            else:
+                return getattr(_config, setting)
         except AttributeError as e:
             if CONFIG_LOADED:
                 raise

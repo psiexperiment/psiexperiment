@@ -158,7 +158,10 @@ def list_preferences(experiment):
 
 def list_io():
     io_path = get_config('IO_ROOT')
-    return list(io_path.glob('*.enaml'))
+    result = list(io_path.glob('*.enaml'))
+    io_map = {p.stem: p for p in list_io_templates() if not p.stem.startswith('_')}
+    result.extend(io_map[c] for c in get_config('STANDARD_IO'))
+    return result
 
 
 def get_calibration_path(io_file):
@@ -218,7 +221,7 @@ def get_default_io():
     * If only one file is defined, return it
     * If more than one file is defined, check for one named "default" first. If
       none are named "default", check to see if one matches the hostname.
-    * Finally, raise ValueError if it cannot define a reasonalbe default.
+    * Finally, just return the first one found.
     '''
     system = get_config('SYSTEM')
     available_io = list_io()
@@ -240,7 +243,7 @@ def get_default_io():
             return io
 
     # Give up
-    raise ValueError('Could not identify default IO configuration')
+    return available_io[0]
 
 
 def get_default_calibration(io_file):
@@ -317,15 +320,28 @@ def parse_args(parser):
     return args
 
 
+def list_io_templates():
+    io_template_path = Path(__file__).parent.parent / 'templates' / 'io'
+    return list(io_template_path.glob('*.enaml'))
+
+
 def config():
     import argparse
     import psi
+
+    # Identify all the possible hardware configurations. Thoe prefixed by an
+    # underscore are not available for running directly as they need to be
+    # modified before use. All hardware configurations can be used as a
+    # template for a skeleton that's copied to the IO_ROOT folder.
+    io_template_paths = list_io_templates()
+    io_skeleton_choices = [p.stem.strip('_') for p in io_template_paths]
+    io_choices = [p.stem for p in io_template_paths if not p.stem.startswith('_')]
 
     def show_config(args):
         print(psi.get_config_file())
 
     def create_config(args):
-        psi.create_config(base_directory=args.base_directory)
+        psi.create_config(base_directory=args.base_directory, standard_io=args.io)
         if args.base_directory:
             psi.create_config_dirs()
 
@@ -335,25 +351,54 @@ def config():
     def create_io(args):
         psi.create_io_manifest(args.template)
 
-    parser = argparse.ArgumentParser('psi-config')
-    subparsers = parser.add_subparsers(dest='cmd')
+    parser = argparse.ArgumentParser(
+        'psi-config',
+        description='Configure psiexperiment'
+    )
+    subparsers = parser.add_subparsers(
+        dest='cmd',
+        description='Available actions',
+    )
     subparsers.required = True
 
-    show = subparsers.add_parser('show')
+    show = subparsers.add_parser(
+        'show',
+        description='Show location of config file.',
+    )
     show.set_defaults(func=show_config)
 
     create = subparsers.add_parser('create')
     create.set_defaults(func=create_config)
-    create.add_argument('--base-directory', type=str)
+    create.add_argument(
+        '--base-directory',
+        type=str,
+        help='Root directory to store data and settings for psiexperiment.'
+    )
+    create.add_argument(
+        '--io',
+        nargs='*',
+        type=str,
+        choices=io_choices,
+        help='Default hardware configurations.',
+    )
 
-    make = subparsers.add_parser('create-folders')
+    make = subparsers.add_parser(
+        'create-folders',
+        description='Create folders defined in the config file.',
+    )
     make.set_defaults(func=create_folders)
 
-    io_template_path = Path(__file__).parent.parent / 'templates' / 'io'
-    io_choices = [p.stem for p in io_template_path.glob('*.enaml')]
-    io = subparsers.add_parser('create-io')
+    io = subparsers.add_parser(
+        'create-io',
+        description='Creates a hardware configuration skeleton that you can edit'
+    )
     io.set_defaults(func=create_io)
-    io.add_argument('template', type=str, choices=io_choices)
+    io.add_argument(
+        'template',
+        type=str,
+        choices=io_skeleton_choices,
+        help='Template to use for hardware configuration skeleton.',
+    )
 
     args = parser.parse_args()
     args.func(args)
