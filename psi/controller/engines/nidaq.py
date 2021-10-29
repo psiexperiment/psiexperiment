@@ -1209,7 +1209,11 @@ class NIDAQEngine(Engine):
             raise
 
     def get_ts(self):
-        return self.sample_time()
+        try:
+            return self.sample_time()
+        except Exception as e:
+            log.exception(e)
+            return np.nan
 
     def start(self):
         if not self._configured:
