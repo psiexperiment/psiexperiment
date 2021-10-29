@@ -7,7 +7,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 from scipy import signal
-from fractions import gcd
+from fractions import math
 
 from psi.util import as_numeric, psi_json_decoder_hook, PSIJsonEncoder
 
@@ -409,7 +409,7 @@ def iir(psd, phase, frequency, cutoff=None, phase_correction=None,
 
 def truncated_ifft(spectrum, original_fs, truncated_fs):
     iir = np.fft.irfft(spectrum)
-    lcm = original_fs*truncated_fs/gcd(original_fs, truncated_fs)
+    lcm = original_fs*truncated_fs/math.gcd(original_fs, truncated_fs)
     up = lcm/truncated_fs
     down = lcm/original_fs
     iir = signal.resample_poly(iir, up, down)

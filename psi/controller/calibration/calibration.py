@@ -1,5 +1,4 @@
 import os.path
-from fractions import gcd
 import importlib
 from pathlib import Path
 
