@@ -1,0 +1,62 @@
+from enaml.workbench.api import PluginManifest, Extension
+
+from psi.controller.engines.nidaq import (NIDAQEngine,
+                                          NIDAQHardwareAIChannel,
+                                          NIDAQHardwareAOChannel)
+
+
+enamldef IOManifest(PluginManifest): manifest:
+
+    Extension:
+        id = 'backend'
+        point = 'psi.controller.io'
+
+        NIDAQEngine:
+            name = 'NI'
+            hw_ai_monitor_period = 0.125
+
+            NIDAQHardwareAIChannel:
+                label = 'Microphone 1'
+                name = 'microphone_1'
+                channel = 'Dev1/ai0'
+                start_trigger = '/Dev1/ao/StartTrigger'
+                fs = 100e3
+                expected_range = (-10, 10)
+                dtype = 'float64'
+                terminal_mode = 'RSE'
+                #terminal_coupling = 'AC'
+                unit = 'V'
+                calibration_user_editable = True
+
+            NIDAQHardwareAIChannel:
+                label = 'Microphone 2'
+                name = 'microphone_2'
+                channel = 'Dev1/ai1'
+                start_trigger = '/Dev1/ao/StartTrigger'
+                fs = 100e3
+                expected_range = (-10, 10)
+                dtype = 'float64'
+                terminal_mode = 'RSE'
+                #terminal_coupling = 'AC'
+                unit = 'V'
+                calibration_user_editable = True
+
+            NIDAQHardwareAOChannel:
+                label = 'Speaker 1'
+                name = 'speaker_1'
+                channel = '/Dev1/ao0'
+                fs = 100e3
+                expected_range = (-10, 10)
+                dtype = 'float64'
+                terminal_mode = 'RSE'
+                unit = 'V'
+
+            NIDAQHardwareAOChannel:
+                label = 'Speaker 2'
+                name = 'speaker_2'
+                channel = '/Dev1/ao1'
+                fs = 100e3
+                expected_range = (-10, 10)
+                dtype = 'float64'
+                terminal_mode = 'RSE'
+                unit = 'V'
