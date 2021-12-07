@@ -349,7 +349,9 @@ def config():
         psi.create_config_dirs()
 
     def create_io(args):
-        psi.create_io_manifest(args.template)
+        i = io_skeleton_choices.index(args.template)
+        template = io_template_paths[i].name
+        psi.create_io_manifest(template)
 
     parser = argparse.ArgumentParser(
         'psi-config',
