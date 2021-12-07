@@ -192,16 +192,17 @@ def compute_calibration_chirp(event):
     ao.channel.calibration = InterpCalibration(freq, sens)
 
 
-def level_to_gain(calibration, frequencies, spl):
+def level_to_gain(calibration, frequencies, spl, max_gain):
     gains = np.array([calibration.get_gain(f, spl) for f in frequencies])
-    mask = (gains <= -3) & np.isfinite(gains)
+    log.info('Gains required: %r', gains)
+    mask = (gains <= max_gain) & np.isfinite(gains)
     gains = gains[mask]
     frequencies = frequencies[mask]
     log.debug('Removed %d frequencies', (~mask).sum())
     return frequencies, gains
 
 
-def validate_spl(workbench, ao_channel, ai_channel, frequencies, spl):
+def validate_spl(workbench, ao_channel, ai_channel, frequencies, spl, max_gain):
     '''
     Validate SPL given a working calibration
     '''
@@ -210,7 +211,7 @@ def validate_spl(workbench, ao_channel, ai_channel, frequencies, spl):
     core = workbench.get_plugin('enaml.workbench.core')
 
     log.debug('Validating calibration by targeting %f dB SPL', spl)
-    frequencies, gains = level_to_gain(ao_channel.calibration, frequencies, spl)
+    frequencies, gains = level_to_gain(ao_channel.calibration, frequencies, spl, max_gain)
     if len(frequencies) == 0:
         log.debug('No frequencies available to calibrate. Please review target SPL.')
         return
@@ -225,7 +226,7 @@ def validate_spl(workbench, ao_channel, ai_channel, frequencies, spl):
     vb = data.find_viewbox('sens_result')
     deferred_call(plot_data, vb, result, 'sens', log_x=True, kind='scatter')
 
-    parameters = {'name': 'tone_sens', 'dataframe': result}
+    parameters = {'name': 'tone_sens', 'dataframe': result, 'overwrite': True}
     core.invoke_command('cal_data.save_dataframe', parameters=parameters)
 
 
@@ -329,10 +330,12 @@ def validate_spl_wrapper(event):
     freq_ub = settings['validation_end']
     octaves = settings['validation_octaves']
     validation_level = settings['validation_level']
+    safe_gain = settings['safe_gain']
     frequencies = octave_space(freq_lb*1e-3, freq_ub*1e-3, octaves,
                                'bounded')*1e3
+    log.info('Calibrating frequencies: %r', frequencies)
     validate_spl(event.workbench, ao.channel, ai.channel, frequencies,
-                 validation_level)
+                 validation_level, max_gain=safe_gain)
 
 
 enamldef ToneValidateMixin(ExperimentManifest): manifest:
@@ -376,6 +379,12 @@ enamldef ToneValidateMixin(ExperimentManifest): manifest:
                 name = 'validation_level'
                 label = 'Level to validate (dB SPL)'
                 default = 80.0
+                scope = 'experiment'
+
+            Parameter:
+                name = 'safe_gain'
+                label = 'Skip frequency if gain exceeds this level (dB)'
+                default = 0
                 scope = 'experiment'
 
     Extension:
