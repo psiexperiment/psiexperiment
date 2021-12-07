@@ -130,7 +130,7 @@ def create_config(base_directory=None, log=None, data=None, processed=None,
 def create_io_manifest(template):
     io_template = Path(__file__).parent / 'templates' / 'io' / template
     io_template = io_template.with_suffix('.enaml')
-    io = Path(get_config('IO_ROOT')) / template
+    io = Path(get_config('IO_ROOT')) / template.lstrip('_')
     io = io.with_suffix('.enaml')
     io.parent.mkdir(exist_ok=True, parents=True)
     io_text = io_template.read_text()
