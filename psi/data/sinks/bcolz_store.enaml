@@ -15,6 +15,7 @@ import pandas as pd
 
 from psi.core.enaml.api import PSIManifest
 from psi.controller.api import ExperimentAction
+from psi.data.io.bcolz_tools import carray_to_dataframe
 from psi.util import declarative_to_dict
 
 from .base_store import BaseStore
@@ -190,7 +191,7 @@ class EpochData(DataChannel):
         self.metadata.append(md_records)
 
     def get_epoch_groups(self, groups):
-        df = self.metadata.todataframe()
+        df = carray_to_dataframe(self.metadata)
         df['samples'] = np.round(df['duration']*self.fs).astype('i')
         df['offset'] = df['samples'].cumsum() - df.iloc[0]['samples']
         epochs = {}
