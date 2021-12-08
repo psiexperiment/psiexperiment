@@ -1,47 +1,44 @@
 import logging
 log = logging.getLogger(__name__)
 
-import atexit
-from functools import partial
+from pathlib import Path
 
 import bcolz
-from atom.api import Atom, Typed, List, Dict, Str, Float
-from enaml.core.api import d_
-from enaml.workbench.api import Extension
-from enaml.workbench.core.api import Command
+from atom.api import Bool, Dict, Typed
 import numpy as np
 import pandas as pd
-
-from psi.core.enaml.api import PSIManifest
-from psi.controller.api import ExperimentAction
-from psi.data.io.util import get_epoch_groups
-from psi.util import declarative_to_dict
 
 from .base_store import BaseEpochData, BaseStore
 
 
-class EpochData(BaseEpochData):
+class BcolzEpochData(BaseEpochData):
+
+    metadata_filename = Typed(Path)
+    dirty = Bool(False)
 
     def append(self, data):
         epochs, metadata = self._split_epochs_metadata(data)
         md_records = pd.DataFrame(metadata).to_records()
         epochs = np.concatenate(epochs, axis=0)
         self.data.append(epochs)
-        self.metadata.append(md_records)
+        self.metadata.extend(metadata)
+        self.dirty = True
 
     def flush(self):
-        self.data.flush()
-        self.metadata.flush()
+        if self.dirty:
+            self.data.flush()
+            df = pd.DataFrame(self.metadata)
+            table = bcolz.ctable.fromdataframe(df,
+                                               rootdir=self.metadata_filename)
+            table.flush()
+            self.dirty = False
 
 
 class BColzStore(BaseStore):
     '''
     Simple class for storing acquired trial data in hierarchy of bcolz folders.
     '''
-    name = d_(Str('bcolz_store'))
-
-    continuous_inputs = d_(List())
-    epoch_inputs = d_(List())
+    name = 'bcolz_store'
     _stores = Dict()
 
     def get_source(self, source_name):
@@ -65,11 +62,9 @@ class BColzStore(BaseStore):
         carray.attrs['fs'] = fs
         for key, value in metadata.items():
             carray.attrs[key] = value
-
         self._stores[name] = carray
-        atexit.register(carray.flush)
 
-    def create_ai_epochs(self, name, fs, dtype, context_items, metadata):
+    def create_ai_epochs(self, name, fs, dtype, metadata):
         # Create signal data store
         n = int(fs*60*60)
         base = self.get_filename(name)
@@ -81,13 +76,9 @@ class BColzStore(BaseStore):
             carray.attrs[key] = value
 
         # Create metadata store
-        filename = self.get_filename(name + '_metadata')
-        dtype = [(str(n), i.dtype) for n, i in context_items.items()]
-        dtype += [('t0', 'float64'), ('duration', 'float64')]
-        ctable = bcolz.zeros(0, rootdir=filename, mode='w', dtype=dtype)
-        store = EpochData(fs=fs, data=carray, metadata=ctable)
-        self._stores[name] = store
-        atexit.register(store.flush)
+        md_filename = self.get_filename(name + '_metadata')
+        self._stores[name] = BcolzEpochData(fs=fs, data=carray, metadata=[],
+                                            metadata_filename=md_filename)
 
     def finalize(self, workbench):
         # Save the settings file
@@ -96,59 +87,3 @@ class BColzStore(BaseStore):
         params = {'filename': filename}
         core = workbench.get_plugin('enaml.workbench.core')
         core.invoke_command(cmd, params)
-
-
-def prepare(sink, event):
-    log.debug('Preparing %s', sink.name)
-    controller = event.workbench.get_plugin('psi.controller')
-    context = event.workbench.get_plugin('psi.context')
-
-    for input_name in sink.epoch_inputs:
-        log.debug('\tCreating save file for epoch input %s', input_name)
-        i = controller.get_input(input_name)
-        md = declarative_to_dict(i, 'metadata')
-        sink.create_ai_epochs(i.name, i.fs, i.dtype, context.context_items, md)
-        cb = partial(sink.process_ai_epochs, i.name)
-        i.add_callback(cb)
-
-    for input_name in sink.continuous_inputs:
-        log.debug('\tCreating save file for continuous input %s', input_name)
-        i = controller.get_input(input_name)
-        md = declarative_to_dict(i, 'metadata')
-        sink.create_ai_continuous(i.name, i.fs, i.dtype, md)
-        cb = partial(sink.process_ai_continuous, i.name)
-        i.add_callback(cb)
-
-
-def flush(sink, event):
-    for store in sink._stores.values():
-        store.flush()
-    return 'Saved data to disk'
-
-
-enamldef BColzStoreManifest(PSIManifest): manifest:
-
-    Extension:
-        id = manifest.id + '.bcolz_commands'
-        point = 'enaml.workbench.core.commands'
-
-        Command:
-            id = manifest.id + '.prepare'
-            handler = partial(prepare, manifest.contribution)
-
-        Command:
-            id = manifest.id + '.flush'
-            handler = partial(flush, manifest.contribution)
-
-    Extension:
-        id = manifest.id + '.bcolz_actions'
-        point = 'psi.controller.actions'
-
-        ExperimentAction:
-            event = 'experiment_prepare'
-            command = manifest.id + '.prepare'
-
-        ExperimentAction:
-            weight = 1000
-            event = 'experiment_end'
-            command = manifest.id + '.flush'
