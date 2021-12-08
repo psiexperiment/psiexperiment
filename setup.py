@@ -3,7 +3,6 @@ import versioneer
 
 
 requirements = [
-    'bcolz',
     'enaml',
     'joblib',
     'numpy',
@@ -20,6 +19,9 @@ extras_require = {
     'ni': ['pydaqmx'],
     'docs': ['sphinx', 'sphinx_rtd_theme', 'pygments-enaml'],
     'test': ['pytest', 'pytest-benchmark'],
+    'bcolz-backend': ['bcolz'],
+    'legacy-bcolz-backend': ['blosc'],
+    'zarr-backend': ['zarr'],
 }
 
 
