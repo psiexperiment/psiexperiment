@@ -10,3 +10,4 @@ with enaml.imports():
     from .text_store import TextStore
     from .trial_log import TrialLog
     from .sdt_analysis import SDTAnalysis
+    from .zarr_store import ZarrStore

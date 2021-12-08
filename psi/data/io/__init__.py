@@ -75,18 +75,23 @@ class Recording:
         self.carray_names = {d.parent.stem for d in bp.glob('*/meta')}
         self.ctable_names = {d.parent.parent.stem for d in bp.glob('*/*/meta')}
         self.ttable_names = {d.stem for d in bp.glob('*.csv')}
+        self.zarr_names = {d.stem for d in bp.glob('*.zarr')}
 
     def __getattr__(self, attr):
+        if attr in self.zarr_names:
+            return self._load_zarr_signal(attr)
         if attr in self.carray_names:
             return self._load_bcolz_signal(attr)
         if attr in self.ctable_names:
             return self._load_bcolz_table(attr)
-        elif attr in self.ttable_names:
+        if attr in self.ttable_names:
             return self._load_text_table(attr)
         raise AttributeError
 
     def __repr__(self):
         lines = [f'Recording at {self.base_path.name} with:']
+        if self.zarr_names:
+            lines.append(f'* Zarr arrays {self.zarr_names}')
         if self.carray_names:
             lines.append(f'* Bcolz carrays {self.carray_names}')
         if self.ctable_names:
@@ -99,6 +104,11 @@ class Recording:
     def _load_bcolz_signal(self, name):
         from .bcolz_tools import BcolzSignal
         return BcolzSignal(self.base_path / name)
+
+    @functools.lru_cache()
+    def _load_zarr_signal(self, name):
+        from .zarr_tools import ZarrSignal
+        return ZarrSignal(self.base_path / name)
 
     @functools.lru_cache()
     def _load_bcolz_table(self, name):
