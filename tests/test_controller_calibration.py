@@ -3,6 +3,8 @@ import pytest
 import numpy as np
 import enaml
 
+from psiaudio.calibration import CalibrationNFError, CalibrationTHDError
+from psiaudio.util import process_tone
 from psi.controller.calibration.api import (
     CalibrationNFError, CalibrationTHDError, process_tone, UnityCalibration
 )
@@ -15,42 +17,6 @@ def make_tone(fs, f0, duration, phase=0):
     t = np.arange(n, dtype=np.double)/fs
     y = np.cos(2*np.pi*f0*t + phase)
     return y
-
-
-@pytest.mark.benchmark(group='tone-phase')
-def test_tone_phase_conv(benchmark):
-    fs = 100e3
-    f1 = 1e3
-    p1 = 0
-    t1 = make_tone(fs, f1, 1, p1)
-    benchmark(util.tone_phase_conv, t1, fs, f1)
-
-
-@pytest.mark.benchmark(group='tone-phase')
-def test_tone_phase_fft(benchmark):
-    fs = 100e3
-    f1 = 1e3
-    p1 = 0
-    t1 = make_tone(fs, f1, 1, p1)
-    benchmark(util.tone_phase_fft, t1, fs, f1)
-
-
-@pytest.mark.benchmark(group='tone-power')
-def test_tone_power_conv(benchmark):
-    fs = 100e3
-    f1 = 1e3
-    p1 = 0
-    t1 = make_tone(fs, f1, 1, p1)
-    benchmark(util.tone_power_conv, t1, fs, f1)
-
-
-@pytest.mark.benchmark(group='tone-power')
-def test_tone_power_fft(benchmark):
-    fs = 100e3
-    f1 = 1e3
-    p1 = 0
-    t1 = make_tone(fs, f1, 1, p1)
-    benchmark(util.tone_power_fft, t1, fs, f1)
 
 
 def test_tone_util():

@@ -292,7 +292,7 @@ class AbstractSignalQueue:
         return waveform
 
     def _get_samples_generator(self, samples):
-        samples = min(self._source.get_remaining_samples(), samples)
+        samples = min(self._source.n_samples_remaining(), samples)
         waveform = self._source.next(samples)
         if self._source.is_complete():
             self._source = None

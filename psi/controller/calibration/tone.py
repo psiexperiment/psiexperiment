@@ -12,7 +12,7 @@ from .calibration import (FlatCalibration, PointCalibration,
                           CalibrationTHDError, CalibrationNFError)
 
 
-from psi.token.primitives import ToneFactory, SilenceFactory
+from psiaudio.stim import ToneFactory, SilenceFactory
 
 
 def process_tone(fs, signal, frequency, min_snr=None, max_thd=None,

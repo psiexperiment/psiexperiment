@@ -2,7 +2,7 @@ import logging
 log = logging.getLogger(__name__)
 
 import atexit
-from collections import Mapping
+from collections.abc import Mapping
 from functools import partial
 
 from atom.api import Bool, ContainerList, Value

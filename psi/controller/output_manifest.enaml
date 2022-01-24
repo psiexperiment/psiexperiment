@@ -16,7 +16,7 @@ from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
 
 from psi.context.api import ContextGroup, Parameter
 from psi.experiment.api import ItemPreferences, Preferences
-from psi.token.primitives import FixedWaveform
+from psiaudio.stim import FixedWaveform
 
 from psi.core.enaml.api import PSIManifest
 from .experiment_action import ExperimentState, ExperimentEvent, ExperimentAction
@@ -78,8 +78,7 @@ def load_items(output, block):
 
 def generate_waveform(output, context):
     factory = initialize_factory(output, output.token, context)
-    samples = factory.get_remaining_samples()
-    return factory.next(samples)
+    return factory.get_samples_remaining()
 
 
 def initialize_factory(output, block, context):

@@ -7,7 +7,7 @@ from atom.api import (Bool, Float, Int, List, Property, Tuple, Typed, Str)
 from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
 
-from psi.controller.calibration.api import Calibration, UnityCalibration
+from psiaudio.calibration import BaseCalibration, FlatCalibration
 from .output import QueuedEpochOutput, ContinuousOutput, EpochOutput
 from ..core.enaml.api import PSIContribution
 from ..util import coroutine
@@ -45,7 +45,7 @@ class Channel(PSIContribution):
     engine = Property().tag(metadata=True)
 
     # Calibration of channel
-    calibration = d_(Typed(Calibration, factory=UnityCalibration))
+    calibration = d_(Typed(BaseCalibration, factory=FlatCalibration.unity))
     calibration.tag(metadata=True)
 
     # Can the user modify the channel calibration?

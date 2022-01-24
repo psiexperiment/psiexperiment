@@ -12,7 +12,7 @@ with enaml.imports():
     from psi.controller.calibration.api import FlatCalibration
     from psi.controller.api import (extract_epochs, FIFOSignalQueue,
                                     InterleavedFIFOSignalQueue)
-    from psi.token.primitives import Cos2EnvelopeFactory, ToneFactory
+    from psiaudio.stim import Cos2EnvelopeFactory, ToneFactory
 
 # fs = 100e3
 fs = 195312.5
@@ -22,8 +22,10 @@ isi = np.round(1 / rate, 5)
 
 def make_tone(frequency=250, duration=5e-3):
     calibration = FlatCalibration.as_attenuation()
-    tone = ToneFactory(fs, 0, frequency, 0, 1, calibration)
-    return Cos2EnvelopeFactory(fs, 0, 0.5e-3, duration, tone)
+    tone = ToneFactory(fs=fs, level=0, frequency=frequency,
+                       calibration=calibration)
+    return Cos2EnvelopeFactory(fs=fs, start_time=0, rise_time=0.5e-3,
+                               duration=duration, input_factory=tone)
 
 
 def make_queue(ordering, frequencies, trials, duration=5e-3, isi=isi):
@@ -85,8 +87,8 @@ def test_fifo_queue_pause_with_requeue():
     queue.connect(extractor_rem_conn.append, 'removed')
 
     # Generate the waveform template
-    n_t1 = t1.get_remaining_samples()
-    n_t2 = t2.get_remaining_samples()
+    n_t1 = t1.n_samples_remaining()
+    n_t2 = t2.n_samples_remaining()
     t1_waveform = t1.next(n_t1)
     t2_waveform = t2.next(n_t2)
 
@@ -425,8 +427,8 @@ def test_queue_partial_capture():
                                target=waveforms.extend)
 
     samples = int(fs)
-    tone_samples = t1.get_remaining_samples()
-    w1 = queue.pop_buffer(tone_samples / 2)
+    tone_samples = t1.n_samples_remaining()
+    w1 = queue.pop_buffer(int(tone_samples / 2))
     queue.pause(0.5 * tone_samples / fs)
     w2 = queue.pop_buffer(samples)
     extractor.send(w1)

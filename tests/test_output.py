@@ -2,7 +2,7 @@ import pytest
 
 import numpy as np
 
-from psi.token.primitives import Cos2EnvelopeFactory, ToneFactory
+from psiaudio.stim import Cos2EnvelopeFactory, ToneFactory
 
 
 @pytest.fixture()
@@ -26,12 +26,10 @@ def tb2(epoch_output):
 
 
 def test_epoch_output_buffer(epoch_output, tb1, tb2):
-    s = tb1.get_remaining_samples()
-    full_waveform1 = tb1.next(s)
+    full_waveform1 = tb1.get_samples_remaining()
     tb1.reset()
 
-    s = tb2.get_remaining_samples()
-    full_waveform2 = tb2.next(s)
+    full_waveform2 = tb2.get_samples_remaining()
     tb2.reset()
 
     epoch_output.source = tb1

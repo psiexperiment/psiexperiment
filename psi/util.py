@@ -11,6 +11,8 @@ import numpy as np
 import pandas as pd
 from atom.api import Atom, Property
 
+from psiaudio.calibration import BaseCalibration
+
 
 def as_numeric(x):
     if not isinstance(x, (np.ndarray, pd.DataFrame, pd.Series)):
@@ -87,6 +89,14 @@ def declarative_to_dict(value, tag_name, tag_value=True, include_dunder=True,
 
     if isinstance(value, list):
         return [declarative_to_dict(v, *args) for v in value]
+
+    if isinstance(value, BaseCalibration):
+        # Special case for the Calibration data since it's from psiaudio (and
+        # we do not wish to introduce extra dependencies in psiaudio).
+        attrs = [a for a in dir(value) if not \
+                 (a.startswith('_') or callable(getattr(value, a)))]
+        return {a: declarative_to_dict(getattr(value, a), *args) \
+                for a in attrs}
 
     if hasattr(value, '__dict__') or hasattr(value, '__slots__'):
         if include_dunder:

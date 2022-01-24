@@ -1,7 +1,7 @@
 import numpy as np
 import pytest
 
-from psi.token.primitives import Cos2EnvelopeFactory, ToneFactory
+from psiaudio.stim import Cos2EnvelopeFactory, ToneFactory
 
 
 @pytest.fixture()

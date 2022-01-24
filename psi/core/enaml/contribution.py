@@ -29,6 +29,9 @@ class PSIContribution(Declarative):
                 return load_manifest(location)
             except ImportError:
                 pass
+
+        # I'm not sure this can actually happen anymore since it should return
+        # the base `PSIManifest` class at a minimum.
         m = f'Could not find manifest for {cls.__module__}.{cls.__name__}'
         raise ImportError(m)
 

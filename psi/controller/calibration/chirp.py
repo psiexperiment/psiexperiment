@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 
 from psi.controller.calibration.calibration import FlatCalibration
-from psi.token.primitives import ChirpFactory, SilenceFactory
+from psiaudio.stim import ChirpFactory, SilenceFactory
 
 from .calibration import InterpCalibration
 from . import util

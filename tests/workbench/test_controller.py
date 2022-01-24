@@ -67,5 +67,7 @@ def test_filter_delay(controller):
     # Only the NIDAQ channels support the filter delay property right now. This
     # is because only the NDIAQ engine makes provisions to correct for the
     # filter delay.
-    channel = controller.get_channel('speaker_1')
-    assert channel.filter_delay_samples == 32.0
+    channel = controller.get_channel('hw_ao::speaker_1')
+    assert channel.filter_delay == 0
+    channel = controller.get_channel('hw_ao::speaker_2')
+    assert channel.filter_delay == 1e-3

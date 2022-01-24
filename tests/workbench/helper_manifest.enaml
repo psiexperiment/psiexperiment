@@ -11,9 +11,9 @@ from psi.controller.api import (ControllerManifest, Blocked, Downsample,
                                 HardwareAIChannel, HardwareAOChannel,
                                 IIRFilter, QueuedEpochOutput)
 
-from psi.controller.calibration.api import PointCalibration
 from psi.controller.engines.null import NullEngine
 from psi.token.primitives import Cos2Envelope, Tone
+from psiaudio.calibration import PointCalibration
 
 
 EVENT_RESULTS = []
