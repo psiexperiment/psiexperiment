@@ -9,13 +9,14 @@ from enaml.application import deferred_call
 from enaml.widgets.api import DockItem, Container
 from enaml.workbench.api import Extension, PluginManifest
 
+from psiaudio.util import db
+
 from psi.context.api import (ContextGroup, Parameter, BoolParameter, EnumParameter)
 from psi.controller.api import ExperimentAction
 from psi.controller.api import (ContinuousInput, ControllerManifest,
                                 ExtractEpochs, RejectEpochs, IIRFilter, Input,
                                 Detrend)
 from psi.controller.output import QueuedEpochOutput
-from psi.controller.calibration.util import db
 from psi.data.sinks.api import BColzStore, TextStore
 from psi.token.primitives import Cos2Envelope, Tone
 

@@ -12,7 +12,7 @@ from psi.controller.calibration import (EPLCalibration, FlatCalibration,
                                         GolayCalibration)
 from psi.controller.channel import HardwareAIChannel
 
-from psi.controller.calibration import util
+from psiaudio import util
 
 
 def get_calibration_filename(calibration, member_type):

@@ -10,10 +10,10 @@ from enaml.core.api import d_
 from enaml.widgets.api import Container, DockItem, Label
 from enaml.workbench.api import Extension
 
+from psiaudio.util import tone_power_conv
+
 from psi.context.api import (ContextGroup, EnumParameter,
                              Expression, Parameter, Result)
-
-from psi.controller.calibration.util import tone_power_conv
 from psi.controller.api import (Blocked, Capture, concatenate, ContinuousInput,
                                 ControllerManifest, coroutine, Discard,
                                 EpochOutput, ExperimentAction, ExperimentEvent,

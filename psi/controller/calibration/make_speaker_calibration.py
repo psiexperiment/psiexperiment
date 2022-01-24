@@ -2,7 +2,7 @@ import argparse
 import tables as tb
 import pylab as pl
 
-from psi.controller.calibration import util
+from psiaudio import util
 
 
 if __name__ == '__main__':

@@ -17,9 +17,8 @@ from psi.context.api import (ContextGroup, EnumParameter, OrderedContextMeta,
                              Parameter, SequenceSelector)
 
 from psi.controller.api import ExperimentAction
-from psi.controller.calibration.util import (psd, psd_freq, db, dbi,
-                                             golay_pair, summarize_golay,
-                                             golay_tf)
+from psiaudio.util import (psd, psd_freq, db, dbi, golay_pair, summarize_golay,
+                           golay_tf)
 
 from psi.controller.api import (ControllerManifest, SelectorQueuedEpochOutput,
                                 QueuedEpochOutput, ExtractEpochs, Input,

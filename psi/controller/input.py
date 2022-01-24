@@ -13,9 +13,11 @@ from atom.api import (Str, Float, Typed, Int, Property, Enum, Bool,
                       Callable, List)
 from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
+
+from psiaudio.util import dbi, patodb
+
 from ..util import coroutine
 from .channel import Channel
-from .calibration.util import dbi, patodb
 
 from psi.core.enaml.api import PSIContribution
 from psi.controller.calibration.api import FlatCalibration

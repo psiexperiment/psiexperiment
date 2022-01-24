@@ -17,7 +17,7 @@ from psi.controller.api import (ExperimentAction, FIFOSignalQueue,
                                 generate_waveform, InterleavedFIFOSignalQueue,
                                 SelectorQueuedEpochOutput, QueuedEpochOutput)
 from psi.controller.calibration.api import FlatCalibration, InterpCalibration
-from psi.controller.calibration import util
+from psiaudio import util
 
 from psi.core.enaml.api import ExperimentManifest
 from psi.token.primitives import Chirp, Cos2Envelope, Tone

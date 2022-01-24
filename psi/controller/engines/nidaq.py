@@ -43,7 +43,7 @@ from atom.api import (Float, Typed, Str, Int, Bool, Callable, Enum,
                       Property, Value)
 from enaml.core.api import Declarative, d_
 
-from ..calibration.util import dbi
+from psiaudio.util import dbi
 from ..engine import Engine
 from ..channel import (CounterChannel,
                        HardwareAIChannel, HardwareAOChannel, HardwareDIChannel,

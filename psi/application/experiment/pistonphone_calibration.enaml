@@ -8,11 +8,12 @@ from enaml.widgets.api import DockItem, Label, Form
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 
+from psiaudio import util
+
 from psi.context.api import ContextGroup, EnumParameter, Parameter, Result
 from psi.controller.api import (Blocked, ControllerManifest, ExperimentAction,
                                 get_hw_ai_choices)
 from psi.controller.calibration.api import UnityCalibration
-from psi.controller.calibration import util
 from psi.data.plots import (TimeContainer, ChannelPlot, ViewBox, FFTContainer,
                             FFTChannelPlot)
 

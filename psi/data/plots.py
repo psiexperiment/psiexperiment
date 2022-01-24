@@ -19,9 +19,10 @@ from enaml.colors import parse_color
 from enaml.core.api import Looper, Declarative, d_, d_func
 from enaml.qt.QtGui import QColor
 
-from psi.util import octave_space, SignalBuffer, ConfigurationException
+from psiaudio import util
+
+from psi.util import SignalBuffer, ConfigurationException
 from psi.core.enaml.api import load_manifests, PSIContribution
-from psi.controller.calibration import util
 from psi.context.context_item import ContextMeta
 
 
@@ -367,10 +368,10 @@ class FFTContainer(BasePlotContainer):
                                     np.log10(self.freq_ub),
                                     padding=0)
         if self.octave_spacing:
-            major_ticks = octave_space(self.freq_lb / 1e3, self.freq_ub / 1e3, 1.0)
+            major_ticks = util.octave_space(self.freq_lb / 1e3, self.freq_ub / 1e3, 1.0)
             major_ticklabs = [str(t) for t in major_ticks]
             major_ticklocs = np.log10(major_ticks * 1e3)
-            minor_ticks = octave_space(self.freq_lb / 1e3, self.freq_ub / 1e3, 0.125)
+            minor_ticks = util.octave_space(self.freq_lb / 1e3, self.freq_ub / 1e3, 0.125)
             minor_ticklabs = [str(t) for t in minor_ticks]
             minor_ticklocs = np.log10(minor_ticks * 1e3)
             ticks = [
