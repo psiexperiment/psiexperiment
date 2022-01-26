@@ -16,8 +16,7 @@ from psi.controller.calibration import util
 from psi.data.plots import (TimeContainer, ChannelPlot, ViewBox, FFTContainer,
                             FFTChannelPlot)
 
-from psi.data.sinks.bcolz_store import BColzStore
-from psi.data.sinks.text_store import TextStore
+from psi.data.sinks.api import TextStore, ZarrStore
 
 from enaml.application import deferred_call
 
@@ -103,7 +102,7 @@ enamldef PistonphoneCalibrationManifest(ControllerManifest): manifest:
         id = 'data'
         point = 'psi.data.sinks'
 
-        BColzStore:
+        ZarrStore:
             name = 'hw_ai'
             continuous_inputs = ['hw_ai']
 

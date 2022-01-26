@@ -27,7 +27,7 @@ from psi.controller.calibration.api import (chirp_sens, ChirpCalibrate,
 from psi.core.enaml.api import DataFrameTable, ExperimentManifest, PSIManifest
 from psi.data.plots import (ChannelPlot, FFTChannelPlot, FFTContainer,
                             TimeContainer, ViewBox)
-from psi.data.sinks.api import BColzStore, DisplayValue, TextStore
+from psi.data.sinks.api import DisplayValue, TextStore, ZarrStore
 from psi.token.api import BandlimitedNoise, Cos2Envelope, Gate, SquareWave
 
 
@@ -320,7 +320,7 @@ enamldef TemperatureMixinManifest(ExperimentManifest): manifest:
         id = 'temperature_data'
         point = 'psi.data.sinks'
 
-        BColzStore:
+        ZarrStore:
             name = 'temperature_store'
             continuous_inputs = ['temperature']
 

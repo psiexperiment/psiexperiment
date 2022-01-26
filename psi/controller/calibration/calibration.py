@@ -2,8 +2,6 @@ import os.path
 import importlib
 from pathlib import Path
 
-import bcolz
-
 from scipy.interpolate import interp1d
 from scipy import signal
 import numpy as np

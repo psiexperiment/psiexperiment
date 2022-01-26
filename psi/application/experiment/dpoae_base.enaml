@@ -21,7 +21,7 @@ from psi.controller.api import (Blocked, Capture, concatenate, ContinuousInput,
 
 from psi.token.primitives import Cos2Envelope, Tone
 
-from psi.data.sinks.api import BColzStore, EventLog, TableStore
+from psi.data.sinks.api import EventLog, TableStore, ZarrStore
 
 EXPERIMENT = __name__.rsplit('.', 1)[-1]
 
@@ -147,8 +147,8 @@ enamldef DPOAEManifest(ControllerManifest): manifest:
         id = EXPERIMENT + '.sinks'
         point = 'psi.data.sinks'
 
-        BColzStore:
-            name = EXPERIMENT + '.bcolz_store'
+        ZarrStore:
+            name = EXPERIMENT + '.zarr_store'
             continuous_inputs = ['microphone']
 
         TableStore:
