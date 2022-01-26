@@ -14,13 +14,14 @@ from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
 
+from psiaudio.queue import queues
+from psiaudio.stim import FixedWaveform
+
 from psi.context.api import ContextGroup, Parameter
 from psi.experiment.api import ItemPreferences, Preferences
-from psiaudio.stim import FixedWaveform
 
 from psi.core.enaml.api import PSIManifest
 from .experiment_action import ExperimentState, ExperimentEvent, ExperimentAction
-from .queue import queues
 
 
 def set_token(event, output, output_type):

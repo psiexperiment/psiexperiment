@@ -14,9 +14,9 @@ from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
 from enaml.workbench.api import Extension
 
-from ..util import coroutine, SignalBuffer
-from .queue import AbstractSignalQueue
+from psiaudio.queue import AbstractSignalQueue
 
+from psi.util import SignalBuffer
 from psi.core.enaml.api import PSIContribution
 
 import time

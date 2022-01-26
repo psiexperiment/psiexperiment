@@ -10,7 +10,6 @@ from enaml.core.api import Declarative, d_
 from psiaudio.calibration import BaseCalibration, FlatCalibration
 from .output import QueuedEpochOutput, ContinuousOutput, EpochOutput
 from ..core.enaml.api import PSIContribution
-from ..util import coroutine
 
 
 class Channel(PSIContribution):

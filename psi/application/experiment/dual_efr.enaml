@@ -7,6 +7,8 @@ import numpy as np
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 
+from psiaudio.queue import InterleavedFIFOSignalQueue
+
 from psi.context import choice
 from psi.context.api import ContextGroup, Parameter, Result
 from psi.context.selector import CartesianProduct
@@ -15,7 +17,6 @@ from psi.controller.api import ExperimentAction
 from psi.controller.base_manifest import BaseManifest
 from psi.controller.input import ExtractEpochs, Blocked, Accumulate, IIRFilter
 from psi.controller.output import QueuedEpochOutput
-from psi.controller.queue import InterleavedFIFOSignalQueue
 from psi.token.primitives import Tone, Silence, Cos2Envelope, SAMEnvelope
 
 from psi.util import copy_declarative

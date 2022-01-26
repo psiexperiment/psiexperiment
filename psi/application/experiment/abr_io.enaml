@@ -10,11 +10,12 @@ from enaml.widgets.api import Action, DockItem, ToolBar
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 
+from psiaudio import queue
+
 from psi.context.api import (BoolParameter, ContextGroup, EnumParameter,
                              OrderedContextMeta, Parameter)
 
 from psi.context.selector import CartesianProduct
-from psi.controller import queue
 from psi.controller.api import ExperimentAction
 from psi.data.plots import (StackedEpochAveragePlot, TimeContainer, ViewBox)
 from psi.data.sinks.api import GroupedEpochCounter

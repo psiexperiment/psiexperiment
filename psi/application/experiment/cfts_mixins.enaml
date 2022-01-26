@@ -15,15 +15,14 @@ from enaml.stdlib.fields import FloatField
 from enaml.widgets.api import Container, DockItem, HGroup, Label, ObjectCombo
 from enaml.workbench.api import Extension
 
+from psiaudio.calibration import InterpCalibration, PointCalibration
+
 from psi.context.api import (BaseSelector, BoolParameter, ContextGroup,
                              EnumParameter, Parameter)
 from psi.controller.api import (ContinuousInput, Detrend, Downsample,
                                 EpochOutput, ExperimentAction, ExtractEpochs,
                                 IIRFilter, Input, RejectEpochs)
-from psi.controller.calibration.api import (chirp_sens, ChirpCalibrate,
-                                            InterpCalibration,
-                                            PointCalibration, tone_sens,
-                                            ToneCalibrate)
+from psi.controller.calibration.api import (chirp_sens, ChirpCalibrate, tone_sens)
 from psi.core.enaml.api import DataFrameTable, ExperimentManifest, PSIManifest
 from psi.data.plots import (ChannelPlot, FFTChannelPlot, FFTContainer,
                             TimeContainer, ViewBox)

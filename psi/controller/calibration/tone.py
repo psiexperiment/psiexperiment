@@ -7,9 +7,9 @@ import time
 import numpy as np
 import pandas as pd
 
-from .util import tone_power_conv, tone_phase_conv, db
-from .calibration import (FlatCalibration, PointCalibration,
-                          CalibrationTHDError, CalibrationNFError)
+from psiaudio.util import tone_power_conv, tone_phase_conv, db
+from psiaudio.calibration import (FlatCalibration, PointCalibration,
+                                  CalibrationTHDError, CalibrationNFError)
 
 
 from psiaudio.stim import ToneFactory, SilenceFactory

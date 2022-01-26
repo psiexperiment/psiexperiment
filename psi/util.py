@@ -132,15 +132,6 @@ def dict_to_declarative(obj, info, skip_errors=False):
                     raise
 
 
-def coroutine(func):
-    '''Decorator to auto-start a coroutine.'''
-    def start(*args, **kwargs):
-        cr = func(*args, **kwargs)
-        next(cr)
-        return cr
-    return start
-
-
 def copy_declarative(old, exclude=None, **kw):
     attributes = get_tagged_values(old, 'metadata', exclude_properties=True)
     if exclude is not None:
