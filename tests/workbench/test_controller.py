@@ -5,10 +5,6 @@ with enaml.imports():
     from .helper_manifest import EVENT_RESULTS
 
 
-def test_invoke_action(benchmark, controller):
-    result = benchmark(controller.invoke_actions, 'dispense')
-
-
 def test_actions(controller):
     EVENT_RESULTS[:] = []
     controller.invoke_actions('dispense')

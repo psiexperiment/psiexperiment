@@ -316,4 +316,4 @@ class FileParameter(Parameter):
 
 class BoolParameter(Parameter):
 
-    dtype = np.bool
+    dtype = bool

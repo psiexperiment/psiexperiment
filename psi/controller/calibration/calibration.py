@@ -70,17 +70,12 @@ class CochlearCalibration(InterpCalibration):
 
 class GolayCalibration(InterpCalibration):
 
-    fs = Float().tag(metadata=True)
-    phase = Typed(np.ndarray).tag(metadata=True)
-
     def __init__(self, frequency, sensitivity, fs=None, phase=None,
                  fixed_gain=0, **kwargs):
-        super().__init__(frequency, sensitivity, fixed_gain, **kwargs)
+        super().__init__(frequency, sensitivity, fixed_gain, phase, **kwargs)
         # fs and phase are required for the IIR stuff
         if fs is not None:
             self.fs = fs
-        if phase is not None:
-            self.phase = np.asarray(phase)
 
     @staticmethod
     def load_data(folder, n_bits=None, output_gain=None):
