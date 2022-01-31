@@ -7,10 +7,11 @@ from enaml.application import deferred_call
 from enaml.workbench.api import PluginManifest, Extension, ExtensionPoint
 from enaml.workbench.core.api import Command
 
+from psiaudio.calibration import InterpCalibration, PointCalibration
+
 from psi.controller.experiment_action import ExperimentAction
 from psi.data.sinks.api import TextStore
 
-from .calibration import InterpCalibration, PointCalibration
 from .chirp import chirp_sens
 from .tone import tone_sens
 from .plugin import CalibrationPlugin

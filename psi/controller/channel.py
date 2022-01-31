@@ -62,7 +62,7 @@ class Channel(PSIContribution):
         return f'{self.type_code}::{self.name}'
 
     def _default_calibration(self):
-        return UnityCalibration()
+        return FlatCalibration.unity()
 
     def __init__(self, *args, **kwargs):
         # This is a hack due to the fact that name is defined as a Declarative
