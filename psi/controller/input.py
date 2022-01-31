@@ -112,6 +112,8 @@ class Input(PSIContribution):
         i.source = None
 
     def _get_fs(self):
+        if self.source is None:
+            raise AttributeError(f'No source specified for input {self.name}')
         return self.source.fs
 
     def _get_dtype(self):
