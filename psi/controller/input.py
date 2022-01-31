@@ -317,6 +317,8 @@ class IIRFilter(ContinuousInput):
     wn = Property().tag(metadata=True)
 
     def _get_wn(self):
+        log.debug('%s filter from %f to %f at Fs=%f', self.name,
+                  self.f_highpass, self.f_lowpass, self.fs)
         if self.btype == 'lowpass':
             log.debug('Lowpass at %r (fs=%r)', self.f_lowpass, self.fs)
             return self.f_lowpass / (0.5 * self.fs)
