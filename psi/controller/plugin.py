@@ -1,6 +1,7 @@
 import logging
 log = logging.getLogger(__name__)
 
+import collections
 from functools import partial
 import operator as op
 import threading
@@ -54,16 +55,31 @@ def find_devices(point):
     return devices
 
 
-engine_error = '''
-More than one engine named "{}"
+general_error = '''
+More than one {obj_type} named "{name}"
 
 To fix this, please review the IO manifest (i.e., hardware configuration) you
-selected and verify that all engines have unique names.
+selected and verify that all {obj_type}s have unique names.
 '''
+
+
+class ErrorDict(dict):
+
+    def __init__(self, obj_type, *args, **kwargs):
+        self.obj_type = obj_type
+        super().__init__(*args, **kwargs)
+
+
+    def __setitem__(self, key, value):
+        if key in self:
+            mesg = general_error.format(obj_type=self.obj_type, name=key)
+            raise ValueError(mesg)
+        return super().__setitem__(key, value)
+
 
 def find_engines(point):
     master_engine = None
-    engines = {}
+    engines = ErrorDict('engine')
     for extension in point.extensions:
         for e in extension.get_children(Engine):
             if e.name in engines:
@@ -87,7 +103,7 @@ def find_engines(point):
 
 
 def find_channels(engines):
-    channels = {}
+    channels = ErrorDict('channel')
     for e in engines.values():
         for c in e.get_channels(active=False):
             channels[c.reference] = c
@@ -95,14 +111,16 @@ def find_channels(engines):
 
 
 def find_outputs(channels, point):
-    outputs = {}
-    supporting = {}
+    outputs = ErrorDict('output')
+    supporting = ErrorDict('synchronized output')
 
     # Find all the outputs already connected to a channel
     for c in channels.values():
         if isinstance(c, OutputMixin):
             for o in c.children:
                 for oi in get_outputs(o):
+                    if oi.name in outputs:
+                        raise ValueError(output_error.format(oi.name))
                     outputs[oi.name] = oi
 
     # Find unconnected outputs and inputs (these are allowed so that we can
@@ -119,7 +137,7 @@ def find_outputs(channels, point):
 
 
 def find_inputs(channels, point):
-    inputs = {}
+    inputs = ErrorDict('input')
 
     # Find all the outputs already connected to a channel
     for c in channels.values():
