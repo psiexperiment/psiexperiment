@@ -1,0 +1,21 @@
+from .input import (Downsample, Edges, IIRFilter, Threshold)
+
+
+enamldef ADC(IIRFilter): acd:
+
+    alias q: ds.q
+    alias threshold: th.threshold
+    alias debounce: e.debounce
+
+    f_lowpass = 25
+    ftype = 'butter'
+    btype = 'lowpass'
+
+    Downsample: ds:
+        name << acd.name + '_analog'
+        q = 1000
+        Threshold: th:
+            threshold = 2.5
+            Edges: e:
+                name << acd.name + '_digital'
+                debounce = 2
