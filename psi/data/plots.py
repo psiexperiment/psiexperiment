@@ -684,8 +684,8 @@ class FFTChannelPlot(ChannelPlot):
             log.debug('Time span %f to %f', -self.time_span, 0)
             data = self._buffer.get_latest(-self.time_span, 0)
             psd = util.psd(data, self.source.fs, self.window)
-            spl = self.source.calibration.get_spl(self._x, psd)
-            deferred_call(self.plot.setData, self._x, spl)
+            db = self.source.calibration.get_db(self._x, psd)
+            deferred_call(self.plot.setData, self._x, db)
 
 
 class BaseTimeseriesPlot(SinglePlot):
