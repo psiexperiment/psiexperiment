@@ -21,7 +21,7 @@ from psi.controller.api import (ControllerManifest, ControllerPlugin,
 from psi.controller.devices.pellet_dispenser import PelletDispenser
 from psi.core.enaml.api import ExperimentManifest
 
-from psi.data.sinks.api import BColzStore, EventLog, SDTAnalysis, TrialLog
+from psi.data.sinks.api import BinaryStore, EventLog, SDTAnalysis, TrialLog
 
 
 ################################################################################
@@ -848,7 +848,7 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
         id = manifest.id + '.data'
         point = 'psi.data.sinks'
 
-        BColzStore:
+        BinaryStore:
             continuous_inputs = ['nose_poke_analog', 'reward_contact_analog']
 
         EventLog:
