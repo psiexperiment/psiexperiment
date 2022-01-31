@@ -408,12 +408,20 @@ def setup_hw_ao(channels, buffer_duration, callback_interval, callback,
     mx.DAQmxSetWriteRegenMode(task, mx.DAQmx_Val_DoNotAllowRegen)
     mx.DAQmxSetWriteRelativeTo(task, mx.DAQmx_Val_CurrWritePos)
 
-    callback_samples = round(fs*callback_interval)
+    callback_samples = int(round(fs*callback_interval))
 
     if buffer_duration is None:
+        log_ao.debug('Buffer duration not provided. Setting to 10x callback.')
         buffer_samples = round(callback_samples*10)
     else:
         buffer_samples = round(buffer_duration*fs)
+
+    # Now, make sure that buffer_samples is an integer multiple of callback_samples.
+    log_ao.debug('Requested buffer samples %d', buffer_samples)
+    n = int(round(buffer_samples / callback_samples))
+    buffer_samples = callback_samples * n
+    log_ao.debug('Coerced buffer samples to %d (%dx %d callback_samples)',
+                 buffer_samples, n, callback_samples)
 
     log_ao.debug('Setting output buffer size to %d samples', buffer_samples)
     mx.DAQmxSetBufOutputBufSize(task, buffer_samples)
