@@ -24,3 +24,4 @@ with enaml.imports():
     from .manifest import (ControllerManifest, ControllerPlugin,
                            get_hw_ai_choices, get_hw_ao_choices)
     from .output_manifest import generate_waveform
+    from .input_primitives import ADC
