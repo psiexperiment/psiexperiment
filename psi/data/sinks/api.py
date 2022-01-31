@@ -10,3 +10,8 @@ with enaml.imports():
     from .trial_log import TrialLog
     from .sdt_analysis import SDTAnalysis
     from .zarr_store import ZarrStore
+
+# This allows us to change the binary backend in future updates to
+# psiexperiment without affecting experiments that require a binary store (but
+# don't care specifically what the backing engine is).
+BinaryStore = ZarrStore
