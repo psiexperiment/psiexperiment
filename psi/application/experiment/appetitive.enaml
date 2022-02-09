@@ -109,27 +109,27 @@ enamldef ControllerManifest(BehaviorManifest): manifest:
         point = 'psi.controller.io'
 
         Input:
-            source_name = 'microphone'
+            source_name = 'hw_ai::microphone'
             name = 'microphone_raw'
 
         CalibratedInput:
-            source_name = 'microphone'
+            source_name = 'hw_ai::microphone'
             name = 'microphone_calibrated'
 
             IIRFilter:
-                f_lowpass = 40e3
-                f_highpass = 400
+                f_lowpass << fs / 2 * 0.8
+                f_highpass << 100
                 name = 'microphone_filtered'
 
         ContinuousOutput:
             name = 'background'
             label = 'Background'
-            target_name = 'speaker'
+            target_name = 'hw_ao::speaker'
 
         EpochOutput:
             name = 'target'
             label = 'Target'
-            target_name = 'speaker'
+            target_name = 'hw_ao::speaker'
 
     Extension:
         id = 'plots'
