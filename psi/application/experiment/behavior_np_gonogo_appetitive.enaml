@@ -12,18 +12,21 @@ from psi.data.plots import (EventPlot, FFTContainer, FFTChannelPlot, TimeContain
                             ChannelPlot, ViewBox, TimeseriesPlot)
 from psi.token.primitives import (BandlimitedNoise, Cos2Envelope, SAMEnvelope,
                                   Silence, Tone)
-from .behavior_base import BehaviorManifest
+from .behavior_np_gonogo import BehaviorManifest
 
 
 enamldef ControllerManifest(BehaviorManifest): manifest:
 
     id = 'psi.controller'
-    window_title = 'Appetitive Go-Nogo'
+    window_title = 'Appetitive nose-poke Go-Nogo'
 
     Extension:
         id = 'tokens'
         point = 'psi.token.tokens'
 
+        ###########################################
+        # Continuous tokens for background masking
+        ###########################################
         Silence:
             name = 'silence'
             label = 'Silence'
@@ -32,6 +35,9 @@ enamldef ControllerManifest(BehaviorManifest): manifest:
             name = 'continuous_bandlimited_noise'
             label = 'Continuous bandlimited noise'
 
+        ###########################################
+        # Tokens for target
+        ###########################################
         Cos2Envelope:
             name = 'bandlimited_sam_noise'
             label = 'Bandlimited SAM noise'
@@ -52,6 +58,12 @@ enamldef ControllerManifest(BehaviorManifest): manifest:
             SAMEnvelope:
                 Tone:
                     pass
+
+        Cos2Envelope:
+            name = 'tone'
+            label = 'Tone'
+            Tone:
+                pass
 
     Extension:
         id = 'actions'
