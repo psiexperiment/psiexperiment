@@ -382,139 +382,141 @@ class BehaviorPlugin(ControllerPlugin):
             # If the experiment is paused, don't do anything.
             return
 
-        if self.trial_state == TrialState.waiting_for_np_start:
-            if event in (Event.np_start, Event.digital_np_start):
-                # Animal has nose-poked in an attempt to initiate a trial.
-                self.trial_state = TrialState.waiting_for_np_duration
-                self.start_event_timer('np_duration', Event.np_duration_elapsed)
-                # If the animal does not maintain the nose-poke long enough,
-                # this value will be deleted.
-                self.trial_info['np_start'] = timestamp
+        getattr(self, f'handle_{self.trial_state.name}')(event)
 
-        elif self.trial_state == TrialState.waiting_for_np_duration:
-            if event in (Event.np_end, Event.digital_np_end):
-                # Animal has withdrawn from nose-poke too early. Cancel the
-                # timer so that it does not fire a 'event_np_duration_elapsed'.
-                log.debug('Animal withdrew too early')
-                self.stop_event_timer()
+    def handle_waiting_for_np_start(self, event):
+        if event in (Event.np_start, Event.digital_np_start):
+            # Animal has nose-poked in an attempt to initiate a trial.
+            self.trial_state = TrialState.waiting_for_np_duration
+            self.start_event_timer('np_duration', Event.np_duration_elapsed)
+            # If the animal does not maintain the nose-poke long enough,
+            # this value will be deleted.
+            self.trial_info['np_start'] = timestamp
+
+    def handle_waiting_for_np_duration(self, event):
+        if event in (Event.np_end, Event.digital_np_end):
+            # Animal has withdrawn from nose-poke too early. Cancel the
+            # timer so that it does not fire a 'event_np_duration_elapsed'.
+            log.debug('Animal withdrew too early')
+            self.stop_event_timer()
+            self.trial_state = TrialState.waiting_for_np_start
+            del self.trial_info['np_start']
+        elif event == Event.np_duration_elapsed:
+            log.debug('Animal initiated trial')
+            try:
+                self.start_trial()
+
+                # We want to deliver the reward immediately when in
+                # training mode so the food is already in the hopper. Not
+                # sure how *critical* this is?
+                if self.context.get_value('training_mode'):
+                    if self.trial_type.startswith('go'):
+                        self.invoke_actions('deliver_reward', self.get_ts())
+            except SystemError as e:
+                log.error('Unable to start trial!')
                 self.trial_state = TrialState.waiting_for_np_start
-                del self.trial_info['np_start']
-            elif event == Event.np_duration_elapsed:
-                log.debug('Animal initiated trial')
-                try:
-                    self.start_trial()
+                self.invoke_actions('trial_prepare')
 
-                    # We want to deliver the reward immediately when in
-                    # training mode so the food is already in the hopper. Not
-                    # sure how *critical* this is?
-                    if self.context.get_value('training_mode'):
-                        if self.trial_type.startswith('go'):
-                            self.invoke_actions('deliver_reward', self.get_ts())
-                except SystemError as e:
-                    log.error('Unable to start trial!')
-                    self.trial_state = TrialState.waiting_for_np_start
-                    self.invoke_actions('trial_prepare')
+    def handle_waiting_for_hold_period(self, event):
+        # All animal-initiated events (poke/reward) are ignored during this
+        # period but we may choose to record the time of nose-poke withdraw
+        # if it occurs.
+        if event in (Event.np_end, Event.digital_np_end):
+            # Record the time of nose-poke withdrawal if it is the first
+            # time since initiating a trial.
+            log.debug('Animal withdrew during hold period')
+            if 'np_end' not in self.trial_info:
+                log.debug('Recording np_end')
+                self.trial_info['np_end'] = timestamp
+        elif event == Event.hold_end:
+            log.debug('Animal maintained poke through hold period')
+            self.trial_state = TrialState.waiting_for_response
+            self.invoke_actions(Event.response_start.name, timestamp)
+            self.trial_info['response_start'] = timestamp
+            self.start_event_timer('response_duration',
+                                    Event.response_duration_elapsed)
 
-        elif self.trial_state == TrialState.waiting_for_hold_period:
-            # All animal-initiated events (poke/reward) are ignored during this
-            # period but we may choose to record the time of nose-poke withdraw
-            # if it occurs.
-            if event in (Event.np_end, Event.digital_np_end):
-                # Record the time of nose-poke withdrawal if it is the first
-                # time since initiating a trial.
-                log.debug('Animal withdrew during hold period')
-                if 'np_end' not in self.trial_info:
-                    log.debug('Recording np_end')
-                    self.trial_info['np_end'] = timestamp
-            elif event == Event.hold_end:
-                log.debug('Animal maintained poke through hold period')
-                self.trial_state = TrialState.waiting_for_response
-                self.invoke_actions(Event.response_start.name, timestamp)
-                self.trial_info['response_start'] = timestamp
-                self.start_event_timer('response_duration',
-                                       Event.response_duration_elapsed)
+    def handle_waiting_for_response(self, event):
+        # If the animal happened to initiate a nose-poke during the hold
+        # period above and is still maintaining the nose-poke, they have to
+        # manually withdraw and re-poke for us to process the event.
+        if timestamp <= self.trial_info['response_start']:
+            # Since we monitor the nose-poke and reward in 100 msec chunks,
+            # it's theoretically possible for there to be an old nose-poke
+            # in the event queue with a timestamp earlier than the response
+            # window that hasn't been handled yet. See session 1 of G12.4
+            # at around 931 seconds.  We are processing the
+            # "response_start" event, but then we generate a "response_end"
+            # event because of a detected nose-poke that actually occurs
+            # *before* the response_start event. Thus, the response_end
+            # event is saved as occuring before the nose poke. This will be
+            # very rare but we need to catch this and discard.
+            pass
+        elif event in (Event.np_end, Event.digital_np_end):
+            # Record the time of nose-poke withdrawal if it is the first
+            # time since initiating a trial.
+            log.debug('Animal withdrew during response period')
+            if 'np_end' not in self.trial_info:
+                log.debug('Recording np_end')
+                self.trial_info['np_end'] = timestamp
+        elif event in (Event.np_start, Event.digital_np_start):
+            log.debug('Animal repoked')
+            self.trial_info['response_ts'] = timestamp
+            self.invoke_actions(Event.response_end.name, timestamp)
+            self.end_trial(response='poke')
+            # At this point, trial_info should have been cleared by the
+            # `end_trial` function so that we can prepare for the next
+            # trial. Save the start of the nose-poke.
+            self.trial_info['np_start'] = timestamp
+        elif event in (Event.reward_start, Event.digital_reward_start):
+            log.debug('Animal went to reward')
+            self.invoke_actions(Event.response_end.name, timestamp)
+            self.trial_info['response_ts'] = timestamp
+            self.end_trial(response='reward')
+        elif event == Event.response_duration_elapsed:
+            log.debug('Animal provided no response')
+            self.invoke_actions(Event.response_end.name, timestamp)
+            self.trial_info['response_ts'] = np.nan
+            self.end_trial(response='no response')
 
-        elif self.trial_state == TrialState.waiting_for_response:
-            # If the animal happened to initiate a nose-poke during the hold
-            # period above and is still maintaining the nose-poke, they have to
-            # manually withdraw and re-poke for us to process the event.
-            if timestamp <= self.trial_info['response_start']:
-                # Since we monitor the nose-poke and reward in 100 msec chunks,
-                # it's theoretically possible for there to be an old nose-poke
-                # in the event queue with a timestamp earlier than the response
-                # window that hasn't been handled yet. See session 1 of G12.4
-                # at around 931 seconds.  We are processing the
-                # "response_start" event, but then we generate a "response_end"
-                # event because of a detected nose-poke that actually occurs
-                # *before* the response_start event. Thus, the response_end
-                # event is saved as occuring before the nose poke. This will be
-                # very rare but we need to catch this and discard.
-                pass
-            elif event in (Event.np_end, Event.digital_np_end):
-                # Record the time of nose-poke withdrawal if it is the first
-                # time since initiating a trial.
-                log.debug('Animal withdrew during response period')
-                if 'np_end' not in self.trial_info:
-                    log.debug('Recording np_end')
-                    self.trial_info['np_end'] = timestamp
-            elif event in (Event.np_start, Event.digital_np_start):
-                log.debug('Animal repoked')
-                self.trial_info['response_ts'] = timestamp
-                self.invoke_actions(Event.response_end.name, timestamp)
-                self.end_trial(response='poke')
-                # At this point, trial_info should have been cleared by the
-                # `end_trial` function so that we can prepare for the next
-                # trial. Save the start of the nose-poke.
-                self.trial_info['np_start'] = timestamp
-            elif event in (Event.reward_start, Event.digital_reward_start):
-                log.debug('Animal went to reward')
-                self.invoke_actions(Event.response_end.name, timestamp)
-                self.trial_info['response_ts'] = timestamp
-                self.end_trial(response='reward')
-            elif event == Event.response_duration_elapsed:
-                log.debug('Animal provided no response')
-                self.invoke_actions(Event.response_end.name, timestamp)
-                self.trial_info['response_ts'] = np.nan
-                self.end_trial(response='no response')
+    def handle_waiting_for_to(self, event):
+        if event == Event.to_duration_elapsed:
+            # Turn the light back on
+            self.trial_state = TrialState.waiting_for_iti
+            self.invoke_actions(Event.to_end.name, timestamp)
+            self.invoke_actions(Event.iti_start.name, self.get_ts())
+            self.start_event_timer('iti_duration', Event.iti_duration_elapsed)
+        elif event in (Event.reward_start, Event.np_start,
+                        Event.digital_np_start, Event.digital_reward_start):
+            # Animal repoked. Reset timeout duration.
+            log.debug('Resetting timeout duration')
+            self.stop_event_timer()
+            self.start_event_timer('to_duration', Event.to_duration_elapsed)
 
-        elif self.trial_state == TrialState.waiting_for_to:
-            if event == Event.to_duration_elapsed:
-                # Turn the light back on
-                self.trial_state = TrialState.waiting_for_iti
-                self.invoke_actions(Event.to_end.name, timestamp)
-                self.invoke_actions(Event.iti_start.name, self.get_ts())
-                self.start_event_timer('iti_duration', Event.iti_duration_elapsed)
-            elif event in (Event.reward_start, Event.np_start,
-                           Event.digital_np_start, Event.digital_reward_start):
-                # Animal repoked. Reset timeout duration.
-                log.debug('Resetting timeout duration')
-                self.stop_event_timer()
-                self.start_event_timer('to_duration', Event.to_duration_elapsed)
-
-        elif self.trial_state == TrialState.waiting_for_iti:
-            if event == Event.iti_duration_elapsed:
-                self.invoke_actions(Event.iti_end.name, timestamp)
-                if self._pause_requested:
-                    self.pause_experiment()
-                    self.trial_state = TrialState.waiting_for_resume
-                elif 'np_start' in self.trial_info:
-                    # The animal had initiated a nose-poke during the ITI.
-                    # Allow this to contribute towards the start of the next
-                    # trial by calculating how much is pending in the nose-poke
-                    # duration.
-                    self.trial_state = TrialState.waiting_for_np_duration
-                    current_poke_duration = self.get_ts()-self.trial_info['np_start']
-                    poke_duration = self.context.get_value('np_duration')
-                    remaining_poke_duration = poke_duration-current_poke_duration
-                    delta = max(0, remaining_poke_duration)
-                    self.start_event_timer(delta, Event.np_duration_elapsed)
-                else:
-                    self.trial_state = TrialState.waiting_for_np_start
-            elif event in (Event.np_end, Event.digital_np_end) \
-                and 'np_start' in self.trial_info:
-                del self.trial_info['np_start']
-            elif event in (Event.np_start, Event.digital_np_start):
-                self.trial_info['np_start'] = timestamp
+    def handle_waiting_for_iti(self, event):
+        if event == Event.iti_duration_elapsed:
+            self.invoke_actions(Event.iti_end.name, timestamp)
+            if self._pause_requested:
+                self.pause_experiment()
+                self.trial_state = TrialState.waiting_for_resume
+            elif 'np_start' in self.trial_info:
+                # The animal had initiated a nose-poke during the ITI.
+                # Allow this to contribute towards the start of the next
+                # trial by calculating how much is pending in the nose-poke
+                # duration.
+                self.trial_state = TrialState.waiting_for_np_duration
+                current_poke_duration = self.get_ts()-self.trial_info['np_start']
+                poke_duration = self.context.get_value('np_duration')
+                remaining_poke_duration = poke_duration-current_poke_duration
+                delta = max(0, remaining_poke_duration)
+                self.start_event_timer(delta, Event.np_duration_elapsed)
+            else:
+                self.trial_state = TrialState.waiting_for_np_start
+        elif event in (Event.np_end, Event.digital_np_end) \
+            and 'np_start' in self.trial_info:
+            del self.trial_info['np_start']
+        elif event in (Event.np_start, Event.digital_np_start):
+            self.trial_info['np_start'] = timestamp
 
     def start_event_timer(self, duration, event):
         # We call the timer `experiment_state` to ensure that it properly ends
@@ -604,7 +606,6 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
                         plugin.start_random_behavior()
                     else:
                         plugin.stop_random_behavior()
-
 
     # Parameters used by the appetitive Go-Nogo controller.
     Extension:
