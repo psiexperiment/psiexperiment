@@ -34,8 +34,7 @@ class Synchronized(PSIContribution):
         return set(o.engine for o in self.outputs)
 
 
-class Output(PSIContribution):
-
+class BaseOutput(PSIContribution):
     name = d_(Str()).tag(metadata=True)
     label = d_(Str()).tag(metadata=True)
 
@@ -43,6 +42,29 @@ class Output(PSIContribution):
     target = d_(Typed(Declarative).tag(metadata=True), writable=False)
     channel = Property().tag(metadata=True)
     engine = Property().tag(metadata=True)
+
+    def _get_engine(self):
+        if self.channel is None:
+            return None
+        else:
+            return self.channel.engine
+
+    def _get_channel(self):
+        from .channel import Channel
+        target = self.target
+        while True:
+            if target is None:
+                return None
+            elif isinstance(target, Channel):
+                return target
+            else:
+                target = target.target
+
+    def is_ready(self):
+        raise NotImplementedError
+
+
+class Output(BaseOutput):
 
     # These two are defined as properties because it's theoretically possible
     # for the output to transform these (e.g., an output could upsample
@@ -71,23 +93,6 @@ class Output(PSIContribution):
         for cb in self.callbacks:
             cb(d)
 
-    def _get_engine(self):
-        if self.channel is None:
-            return None
-        else:
-            return self.channel.engine
-
-    def _get_channel(self):
-        from .channel import Channel
-        target = self.target
-        while True:
-            if target is None:
-                return None
-            elif isinstance(target, Channel):
-                return target
-            else:
-                target = target.target
-
     def _get_filter_delay(self):
         return self.target.filter_delay
 
@@ -97,8 +102,6 @@ class Output(PSIContribution):
     def _get_calibration(self):
         return self.channel.calibration
 
-    def is_ready(self):
-        raise NotImplementedError
 
 
 class BufferedOutput(Output):
@@ -314,7 +317,8 @@ class ContinuousOutput(BufferedOutput):
             return np.zeros(samples, dtype=np.double)
 
 
-class DigitalOutput(Output):
+class DigitalOutput(BaseOutput):
+
     pass
 
 
