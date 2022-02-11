@@ -18,7 +18,6 @@ GONOGO_COLORS = {
     'nogo': 'lightpink',
     'nogo_repeat': 'pink',
 }
-GONOGO_COLORS = defaultdict(lambda x: 'white', **GONOGO_COLORS)
 
 
 class TrialLog(TableStore):
@@ -70,7 +69,7 @@ enamldef TrialLogManifest(TableStoreManifest): manifest:
                         data << manifest.contribution._data[:]
                         get_cell_color => (row, column):
                             tt = data[row]['trial_type']
-                            return GONOGO_COLORS[tt]
+                            return GONOGO_COLORS.get(tt, 'white')
                         autoscroll = True
                         columns_movable = False
                         header_resize_mode = 'contents'
