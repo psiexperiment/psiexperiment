@@ -19,11 +19,11 @@ def log_configuration(engine):
     info = ['Engine configuration']
     info.append('Engine {}'.format(engine.name))
     for channel in engine.get_channels(direction='input', active=True):
-        info.append('\t channel {}'.format(channel.name))
+        info.append('  channel {}'.format(channel.name))
         for i in channel.inputs:
-            info.append('\t\t input {}'.format(i.name))
+            info.append('   input {}'.format(i.name))
     for channel in engine.get_channels(direction='output', active=True):
-        info.append('\t channel {}'.format(channel.name))
+        info.append('  channel {}'.format(channel.name))
         for o in channel.outputs:
             info.append('\t\t output {}'.format(o.name))
     log.info('\n'.join(info))
