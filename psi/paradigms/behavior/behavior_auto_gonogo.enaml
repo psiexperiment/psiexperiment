@@ -16,7 +16,7 @@ from psi.controller.api import (ContinuousInput, ContinuousOutput,
                                 EpochOutput, ExperimentAction, ExperimentEvent,
                                 ExperimentState)
 
-from psi.token.primitives import (Cos2Envelope, Silence, Tone)
+from psi.token.primitives import (Cos2Envelope, Silence, Tone, WavSequence)
 
 from psi.data.sinks.api import BinaryStore
 
@@ -295,9 +295,17 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
             Tone:
                 hide = ['polarity', 'phase']
 
+        WavSequence:
+            name = 'wav_sequence'
+            label = 'Wav sequence'
+
     Extension:
         id = manifest.id + '.events'
         point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'engines_configured'
+            command = 'background.start'
 
         ExperimentAction:
             event = 'reward_contact_digital_acquired'

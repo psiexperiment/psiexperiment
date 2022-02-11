@@ -6,7 +6,7 @@ log = logging.getLogger(__name__)
 from psiaudio.stim import (BandlimitedNoiseFactory, ChirpFactory,
                            Cos2EnvelopeFactory, GateFactory,
                            SAMEnvelopeFactory, SquareWaveFactory,
-                           SilenceFactory, ToneFactory)
+                           SilenceFactory, ToneFactory, WavSequenceFactory)
 
 from psi.context.api import Parameter, EnumParameter
 from .block import EpochBlock, ContinuousBlock
@@ -219,3 +219,15 @@ enamldef Chirp(EpochBlock):
         name = 'duration'
         label = 'duration (sec)'
         default = 1/50.0
+
+
+enamldef WavSequence(ContinuousBlock):
+
+    factory = WavSequenceFactory
+    name = 'Sequence of wav files'
+    label = 'wavseq'
+
+    Parameter:
+        name = 'path'
+        label = 'folder'
+        dtype = 'S'
