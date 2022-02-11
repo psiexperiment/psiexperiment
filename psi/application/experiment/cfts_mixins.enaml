@@ -25,8 +25,7 @@ from psi.controller.api import (ContinuousInput, Detrend, Downsample,
 from psi.controller.calibration.api import (chirp_sens, ChirpCalibrate,
                                             ToneCalibrate, tone_sens)
 from psi.core.enaml.api import DataFrameTable, ExperimentManifest, PSIManifest
-from psi.data.plots import (ChannelPlot, FFTChannelPlot, FFTContainer,
-                            TimeContainer, ViewBox)
+from psi.data.plots import (ChannelPlot, TimeContainer, ViewBox)
 from psi.data.sinks.api import DisplayValue, TextStore, ZarrStore
 from psi.token.api import BandlimitedNoise, Cos2Envelope, Gate, SquareWave
 
@@ -209,73 +208,6 @@ enamldef FreqLevelSelectorManifest(PSIManifest): manifest:
             title = manifest.contribution.label
             FreqLevelContainer:
                 selector << manifest.contribution
-
-
-################################################################################
-# Microphone mixins
-################################################################################
-enamldef MicrophoneSignalViewMixinManifest(ExperimentManifest): manifest:
-
-    id = 'microphone_signal_view_mixin'
-    name = 'microphone_signal_view'
-    title = 'Microphone view (time)'
-
-    Extension:
-        id = 'plots'
-        point = 'psi.data.plots'
-
-        TimeContainer:
-            name << manifest.name + '_container'
-            label = 'Microphone signal'
-            span = 4
-            delay = 0.125
-
-            ViewBox:
-                name << manifest.name + '_view'
-                y_min = -0.2
-                y_max = 0.2
-                y_mode = 'mouse'
-                save_limits = True
-
-                ChannelPlot:
-                    name << manifest.name + '_plot'
-                    pen_color = 'k'
-                    source_name = 'microphone'
-
-
-enamldef MicrophoneFFTViewMixinManifest(ExperimentManifest): manifest:
-
-    id = 'microphone_fft_view_mixin'
-    name = 'microphone_fft_view'
-    title = 'Microphone view (PSD)'
-
-    alias fft_time_span: fft_plot.time_span
-    alias fft_freq_lb: fft_container.freq_lb
-    alias fft_freq_ub: fft_container.freq_ub
-    alias source_name: fft_plot.source_name
-
-    Extension:
-        id = manifest.id  + '.plots'
-        point = 'psi.data.plots'
-
-        FFTContainer: fft_container:
-            name << manifest.name + '_container'
-            label = 'FFT'
-            freq_lb = 5
-            freq_ub = 50000
-
-            ViewBox: fft_vb:
-                name << manifest.name + '_view'
-                y_min = -10
-                y_max = 100
-                y_mode = 'mouse'
-                save_limits = True
-
-                FFTChannelPlot: fft_plot:
-                    name << manifest.name + '_plot'
-                    source_name = 'microphone'
-                    pen_color = 'k'
-                    time_span = 0.25
 
 
 ################################################################################
