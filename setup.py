@@ -24,6 +24,7 @@ extras_require = {
     'bcolz-backend': ['bcolz'],
     'legacy-bcolz-backend': ['blosc'],
     'zarr-backend': ['zarr'],
+    'dev': ['coloredlogs'],
 }
 
 

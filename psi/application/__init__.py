@@ -64,6 +64,7 @@ def configure_logging(level_console=None, level_file=None, filename=None,
                       debug_exclude=None):
 
     log = logging.getLogger()
+
     if level_file is None and level_console is None:
         return
     elif level_file is None:
@@ -78,10 +79,14 @@ def configure_logging(level_console=None, level_file=None, filename=None,
     formatter = logging.Formatter(fmt, style='{')
 
     if level_console is not None:
-        stream_handler = logging.StreamHandler()
-        stream_handler.setFormatter(formatter)
-        stream_handler.setLevel(level_console)
-        log.addHandler(stream_handler)
+        try:
+            import coloredlogs
+            coloredlogs.install(level_console, logger=log)
+        except ImportError:
+            stream_handler = logging.StreamHandler()
+            stream_handler.setFormatter(formatter)
+            stream_handler.setLevel(level_console)
+            log.addHandler(stream_handler)
 
     if filename is not None and level_file is not None:
         file_handler = logging.FileHandler(filename, 'w', 'UTF-8')
@@ -311,7 +316,6 @@ def add_default_options(parser):
 
 def parse_args(parser):
     args = parser.parse_args()
-    print(args)
     if args.calibration is None:
         try:
             args.calibration = get_default_calibration(args.io)
