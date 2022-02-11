@@ -24,15 +24,18 @@ from .plugin import ExperimentPlugin
 
 PLUGIN_ID = 'psi.experiment'
 
+from .util import PREFERENCES_WILDCARD
+from .util import LAYOUT_WILDCARD
+
 
 layout_fd_kwargs = {
-    'name_filters': [get_config('LAYOUT_WILDCARD')],
+    'name_filters': [LAYOUT_WILDCARD],
     'current_path': get_config('LAYOUT_ROOT'),
 }
 
 
 preferences_fd_kwargs = {
-    'name_filters': [get_config('PREFERENCES_WILDCARD')],
+    'name_filters': [PREFERENCES_WILDCARD],
     'current_path': get_config('PREFERENCES_ROOT'),
 }
 
@@ -53,7 +56,7 @@ def get_default_filename(which):
 
 def save_layout(event):
     filename = FileDialogEx.get_save_file_name(
-        name_filters=[get_config('LAYOUT_WILDCARD')],
+        name_filters=[LAYOUT_WILDCARD],
         current_path=get_default_path('layout')
     )
     if filename:
@@ -71,7 +74,7 @@ def _save_layout(event, filename):
 
 def load_layout(event):
     filename = FileDialogEx.get_open_file_name(
-        name_filters=[get_config('LAYOUT_WILDCARD')],
+        name_filters=[LAYOUT_WILDCARD],
         current_path=get_default_path('layout')
     )
     if filename:
@@ -102,7 +105,7 @@ def save_preferences(event):
     filename = event.parameters.get('filename', None)
     if filename is None:
         filename = FileDialogEx.get_save_file_name(
-            name_filters=[get_config('PREFERENCES_WILDCARD')],
+            name_filters=[PREFERENCES_WILDCARD],
             current_path=get_default_path('preferences')
         )
     if filename:
@@ -121,7 +124,7 @@ def load_preferences(event):
     filename = event.parameters.get('filename', None)
     if filename is None:
         filename = FileDialogEx.get_open_file_name(
-            name_filters=[get_config('PREFERENCES_WILDCARD')],
+            name_filters=[PREFERENCES_WILDCARD],
             current_path=get_default_path('preferences')
         )
     if filename:
@@ -147,42 +150,6 @@ def get_default_preferences(event):
         _load_preferences(event, filename)
     except IOError:
         pass
-
-
-def open_shell(event):
-    from IPython.frontend.qt.console.rich_ipython_widget import RichIPythonWidget
-    from IPython.frontend.qt.inprocess import QtInProcessKernelManager
-    from IPython.lib import guisupport
-
-    kernel_manager = QtInProcessKernelManager()
-    kernel_manager.start_kernel()
-    kernel = kernel_manager.kernel
-    kernel.gui = 'qt'
-
-    kernel_client = kernel_manager.client()
-    kernel_client.start_channels()
-
-    def stop():
-        kernel_client.stop_channels()
-        kernel_manager.shutdown_kernel()
-        # here you should exit your application with a suitable call
-        sys.exit()
-
-    widget = RichIPythonWidget()
-    widget.kernel_manager = kernel_manager
-    widget.kernel_client = kernel_client
-    widget.exit_requested.connect(stop)
-    widget.setWindowTitle("IPython shell")
-
-    kernel.shell.push({'workbench': event.workbench})
-
-    ipython_widget = widget
-    ipython_widget.show()
-
-
-def set_theme(event):
-    ui = event.workbench.get_plugin('enaml.workbench.ui')
-    ui.workspace.dock_area.style = event.parameters['style']
 
 
 enamldef StatusDockItem(DockItem):
@@ -259,12 +226,6 @@ enamldef ExperimentManifest(PluginManifest): manifest:
         Command:
             id = 'psi.get_default_preferences'
             handler = get_default_preferences
-        Command:
-            id = 'psi.open_shell'
-            handler = open_shell
-        Command:
-            id = 'psi.set_theme'
-            handler = set_theme
 
     Extension:
         id = manifest.id + '.actions'

@@ -39,8 +39,6 @@ class PSIWorkbench(Workbench):
 
             manifests = []
             for manifest in controller_manifests:
-                manifest_class = load_manifest(manifest)
-                manifest = manifest_class()
                 manifests.append(manifest)
                 self.register(manifest)
 

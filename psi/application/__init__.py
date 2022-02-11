@@ -152,11 +152,11 @@ def _main(args):
 
 
 def list_preferences(experiment):
+    from psi.experiment.util import PREFERENCES_WILDCARD
     if not isinstance(experiment, str):
         experiment = experiment.name
     p_root = get_config('PREFERENCES_ROOT') / experiment
-    p_wildcard = get_config('PREFERENCES_WILDCARD')
-    p_glob = p_wildcard[:-1].split('(')[1]
+    p_glob = PREFERENCES_WILDCARD[:-1].split('(')[1]
     matches = p_root.glob(p_glob)
     return sorted(Path(p) for p in matches)
 
@@ -259,6 +259,18 @@ def get_default_calibration(io_file):
     raise ValueError('No default calibration configured for system')
 
 
+def load_paradigm_descriptions():
+    '''
+    Loads paradigm descriptions
+    '''
+    from psi.experiment.api import ParadigmDescription
+
+    default = list_paradigm_descriptions()
+    descriptions = get_config('PARADIGM_DESCRIPTIONS', default)
+    for description in descriptions:
+        importlib.import_module(description)
+
+
 def add_default_options(parser):
     import argparse
 
@@ -329,6 +341,25 @@ def list_io_templates():
     return list(io_template_path.glob('*.enaml'))
 
 
+def list_paradigm_descriptions():
+    '''
+    List default paradigms descriptions provided by psiexperiment
+
+    Returns
+    -------
+    modules : list of strings
+        List of strings identifying the module path for the description
+    '''
+    paradigm_path = Path(__file__).parent.parent / 'paradigms' / 'descriptions'
+    result = []
+    for filename in paradigm_path.glob('*.py'):
+        s = str(filename.with_suffix(''))
+        i = s.rfind('psi')
+        module = s[i:].replace('/', '.').replace('\\', '.')
+        result.append(module)
+    return result
+
+
 def config():
     import argparse
     import psi
@@ -341,11 +372,18 @@ def config():
     io_skeleton_choices = [p.stem.strip('_') for p in io_template_paths]
     io_choices = [p.stem for p in io_template_paths if not p.stem.startswith('_')]
 
+    paradigms = list_paradigm_descriptions()
+    paradigm_choices = {p.rsplit('.', 1)[1]: p for p in paradigms}
+
     def show_config(args):
         print(psi.get_config_file())
 
     def create_config(args):
-        psi.create_config(base_directory=args.base_directory, standard_io=args.io)
+        base_directory = args.base_directory.rstrip('\\')
+        paradigms = [paradigm_choices[p] for p in args.paradigm_description]
+
+        psi.create_config(base_directory=base_directory, standard_io=args.io,
+                          paradigm_descriptions=paradigms)
         if args.base_directory:
             psi.create_config_dirs()
 
@@ -387,6 +425,13 @@ def config():
         choices=io_choices,
         help='Default hardware configurations.',
     )
+    create.add_argument(
+        '--paradigm-description',
+        nargs='*',
+        type=str,
+        choices=list(paradigm_choices.keys()),
+        help='Default paradigm descriptions.',
+    )
 
     make = subparsers.add_parser(
         'create-folders',
@@ -408,3 +453,6 @@ def config():
 
     args = parser.parse_args()
     args.func(args)
+
+
+load_paradigm_descriptions()

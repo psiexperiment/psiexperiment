@@ -12,7 +12,6 @@ log = logging.getLogger(__name__)
 
 from atom.api import Atom, Callable, Dict, Float, Property, Typed, Value
 from enaml.core.api import Declarative, d_
-from psi import SimpleState
 
 from . import util
 
