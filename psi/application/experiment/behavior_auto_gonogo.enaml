@@ -1,0 +1,503 @@
+import logging
+log = logging.getLogger(__name__)
+
+import enum
+
+from atom.api import Int, Typed
+from enaml.widgets.api import Action, ToolBar
+from enaml.workbench.api import Extension
+import numpy as np
+
+from psi.context.api import (BoolParameter, ContextGroup, EnumParameter,
+                             SequenceSelector, Parameter, Result)
+
+from psi.controller.api import (ContinuousInput, ContinuousOutput,
+                                ControllerManifest, ControllerPlugin,
+                                EpochOutput, ExperimentAction, ExperimentEvent,
+                                ExperimentState)
+
+from psi.token.primitives import (Cos2Envelope, Silence, Tone)
+
+from psi.data.sinks.api import BinaryStore
+
+from .behavior_mixins import (BaseBehaviorPlugin, GoNogoTrialScore,
+                              GoNogoTrialType, TrialState)
+
+
+################################################################################
+# Supporting
+################################################################################
+class GoNogoTrialState(TrialState):
+    '''
+    Defines the possible states that the experiment can be in. We use an Enum to
+    minimize problems that arise from typos by the programmer (e.g., they may
+    accidentally set the state to "waiting_for_timeout" rather than
+    "waiting_for_to").
+    '''
+    waiting_for_resume = 'waiting for resume'
+    waiting_for_hold = 'waiting for hold'
+    waiting_for_response = 'waiting for response'
+    waiting_for_reward_pause = 'waiting for reward pause'
+    waiting_for_to = 'waiting for timeout'
+    waiting_for_iti = 'waiting for intertrial interval'
+
+
+class GoNogoResponse(enum.Enum):
+
+    no_response = 'no_response'
+    reward = 'reward'
+
+
+class GoNogoEvent(enum.Enum):
+    '''
+    Defines the possible events that may occur during the course of the
+    experiment.
+    '''
+    hold_start = 'hold started'
+    hold_duration_elapsed = 'hold duration elapsed'
+
+    response_start = 'response period started'
+    response_end = 'response timed out'
+    response_duration_elapsed = 'response duration elapsed'
+
+    reward_start = 'reward contact'
+    reward_end = 'withdrew from reward'
+
+    digital_reward_start = 'digital_reward_start'
+    digital_reward_end = 'digital_reward_end'
+
+    reward_pause_start = 'reward_pause_start'
+    reward_pause_end = 'reward_pause_end'
+    reward_pause_duration_elapsed = 'reward_pause_duration_elapsed'
+
+    to_start = 'timeout started'
+    to_end = 'timeout over'
+    to_duration_elapsed = 'timeout duration elapsed'
+
+    iti_start = 'ITI started'
+    iti_end = 'ITI over'
+    iti_duration_elapsed = 'ITI duration elapsed'
+
+    trial_start = 'trial start'
+    trial_end = 'trial end'
+
+
+################################################################################
+# Plugin
+################################################################################
+class BehaviorPlugin(BaseBehaviorPlugin):
+    '''
+    Plugin for controlling appetitive experiments that are based on a reward.
+    Eventually this should become generic enough that it can be used with
+    aversive experiments as well (it may already be sufficiently generic).
+    '''
+    # Used by the trial sequence selector to randomly select between go/nogo.
+    rng = Typed(np.random.RandomState)
+
+    consecutive_nogo = Int(0)
+
+    def _default_rng(self):
+        return np.random.RandomState()
+
+    def _default_trial_state(self):
+        return GoNogoTrialState.waiting_for_resume
+
+    event_map = {
+        ('rising', 'reward_contact'): GoNogoEvent.reward_start,
+        ('falling', 'reward_contact'): GoNogoEvent.reward_end,
+    }
+
+    selector_map = {
+        GoNogoTrialType.go: 'go',
+        GoNogoTrialType.go_warmup: 'remind',
+        GoNogoTrialType.go_warmup_remind: 'remind',
+        GoNogoTrialType.go_remind: 'remind',
+        GoNogoTrialType.go_forced: 'go',
+        GoNogoTrialType.nogo: 'nogo',
+        GoNogoTrialType.nogo_warmup: 'nogo',
+        GoNogoTrialType.nogo_forced: 'nogo',
+        GoNogoTrialType.nogo_repeat: 'nogo',
+    }
+
+    def next_trial_type(self):
+        '''
+        Determine next trial type (i.e., remind, warmup, nogo, go)
+        '''
+        min_nogo = self.context.get_value('min_nogo')
+        max_nogo = self.context.get_value('max_nogo')
+        n_remind = self.context.get_value('remind_trials')
+        n_warmup = self.context.get_value('warmup_trials')
+        p = self.context.get_value('go_probability')
+
+        if self.trial <= n_remind:
+            return GoNogoTrialType.go_warmup_remind
+        if self._remind_requested:
+            self._remind_requested = False
+            return GoNogoTrialType.go_remind
+        if self.trial <= n_remind + n_warmup:
+            return GoNogoTrialType.go_warmup if \
+                self.rng.uniform() <= p else GoNogoTrialType.nogo_warmup
+        elif self.consecutive_nogo < min_nogo:
+            return GoNogoTrialType.nogo_forced
+        elif self.consecutive_nogo >= max_nogo:
+            return GoNogoTrialType.go_forced
+        elif self.prior_score == GoNogoTrialScore.false_alarm:
+            return GoNogoTrialType.nogo_repeat
+        else:
+            return GoNogoTrialType.go if \
+                self.rng.uniform() <= p else GoNogoTrialType.nogo
+
+    def prepare_trial(self):
+        # Figure out next trial and set up selector.
+        self.trial += 1
+        self.trial_type = self.next_trial_type()
+        selector = self.selector_map[self.trial_type]
+        setting = self.context.next_setting(selector)
+        self.trial_info = {
+            'response_start': np.nan,
+            'response_ts': np.nan,
+            'trial_type': self.trial_type.value,
+        }
+        self.invoke_actions('trial_ready')
+
+    def start_trial(self):
+        # This is broken into a separate method to allow the toolbar to call
+        # this method for training.
+        ts = self.get_ts()
+        self.invoke_actions(GoNogoEvent.trial_start.name, ts)
+        self.advance_state('hold', ts)
+        self.trial_info['trial_start'] = ts
+
+    def handle_waiting_for_hold(self, event, timestamp):
+        if event in (GoNogoEvent.reward_start, GoNogoEvent.digital_reward_start):
+            pass
+            #self.trial_info['response_ts'] = timestamp
+            #self.end_trial(GoNogoResponse.reward, GoNogoTrialScore.false_alarm)
+        elif event == GoNogoEvent.hold_duration_elapsed:
+            self.advance_state('response', timestamp)
+            self.trial_info['response_start'] = timestamp
+
+    def handle_waiting_for_response(self, event, timestamp):
+        if event in (GoNogoEvent.reward_start, GoNogoEvent.digital_reward_start):
+            self.invoke_actions(GoNogoEvent.response_end.name, timestamp)
+            self.trial_info['response_ts'] = timestamp
+            if self.trial_type.value.startswith('nogo'):
+                score = GoNogoTrialScore.false_alarm
+            else:
+                score = GoNogoTrialScore.hit
+            log.warning('rewarde')
+            log.warning(self.trial_type)
+            log.warning(score)
+            self.end_trial(GoNogoResponse.reward, score)
+        elif event == GoNogoEvent.response_duration_elapsed:
+            self.invoke_actions(GoNogoEvent.response_end.name, timestamp)
+            self.trial_info['response_ts'] = np.nan
+            if self.trial_type.value.startswith('nogo'):
+                score = GoNogoTrialScore.correct_reject
+            else:
+                score = GoNogoTrialScore.miss
+            log.warning('no response')
+            log.warning(self.trial_type)
+            log.warning(score)
+            self.end_trial(GoNogoResponse.no_response, score)
+
+    def end_trial(self, response, score):
+        log.warning('In end trial')
+        self.stop_event_timer()
+        ts = self.get_ts()
+
+        self.prior_score = score
+        base_trial_type = self.trial_info['trial_type'].split('_', 1)[0]
+
+        self.consecutive_nogo = self.consecutive_nogo + 1 \
+            if base_trial_type == 'nogo' else 0
+
+        response_time = self.trial_info['response_ts']-self.trial_info['trial_start']
+        self.trial_info.update({
+            'response': response.value,
+            'score': score.value,
+            'correct': score in (GoNogoTrialScore.correct_reject, GoNogoTrialScore.hit),
+            'response_time': response_time,
+        })
+        self.trial_info.update(self.context.get_values())
+        self.invoke_actions('trial_end', ts, kw={'result': self.trial_info.copy()})
+
+        if score == GoNogoTrialScore.false_alarm:
+            self.advance_state('to', ts)
+        elif score == GoNogoTrialScore.hit:
+            self.advance_state('reward_pause', ts)
+        else:
+            self.advance_state('iti', ts)
+
+        # Apply pending changes that way any parameters (such as repeat_FA or
+        # go_probability) are reflected in determining the next trial type.
+        if self._apply_requested:
+            self._apply_changes(False)
+        self.invoke_actions('trial_prepare', ts)
+
+    def advance_state(self, state, timestamp):
+        self.trial_state = getattr(GoNogoTrialState, f'waiting_for_{state}')
+        action_name = getattr(GoNogoEvent, f'{state}_start').name
+        self.invoke_actions(action_name, timestamp)
+        duration = f'{state}_duration'
+        elapsed_event = getattr(GoNogoEvent, f'{state}_duration_elapsed')
+        self.start_event_timer(duration, elapsed_event)
+
+    def handle_waiting_for_reward_pause(self, event, timestamp):
+        if event == GoNogoEvent.reward_pause_duration_elapsed:
+            self.advance_state('iti', timestamp)
+        elif event in (GoNogoEvent.reward_start, GoNogoEvent.digital_reward_start):
+            # Animal repoked. Reset timeout duration.
+            self.start_event_timer('reward_pause_duration',
+                                   GoNogoEvent.reward_pause_duration_elapsed)
+
+    def handle_waiting_for_to(self, event, timestamp):
+        if event == GoNogoEvent.to_duration_elapsed:
+            # Turn the light back on
+            self.invoke_actions(GoNogoEvent.to_end.name, timestamp)
+            self.advance_state('iti', timestamp)
+        elif event in (GoNogoEvent.reward_start, GoNogoEvent.digital_reward_start):
+            # Animal repoked. Reset timeout duration.
+            self.start_event_timer('to_duration', GoNogoEvent.to_duration_elapsed)
+
+    def handle_waiting_for_iti(self, event, timestamp):
+        if event == GoNogoEvent.iti_duration_elapsed:
+            self.invoke_actions(GoNogoEvent.iti_end.name, timestamp)
+            if self._pause_requested:
+                self.pause_experiment()
+                self.trial_state = GoNogoTrialState.waiting_for_resume
+            else:
+                self.prepare_trial()
+
+
+################################################################################
+# Manifest
+################################################################################
+enamldef BehaviorManifest(ControllerManifest): manifest:
+    '''
+    Defines the core settings that any behavior experiment may require. Does
+    not include timeout/reward settings as those are provided by plugins.
+    '''
+    factory = BehaviorPlugin
+
+    Extension:
+        id = 'tokens'
+        point = 'psi.token.tokens'
+
+        Silence:
+            name = 'silence'
+            label = 'Silence'
+
+        Cos2Envelope:
+            name = 'tone'
+            label = 'Tone'
+            hide = ['start_time',]
+            Tone:
+                hide = ['polarity', 'phase']
+
+    Extension:
+        id = manifest.id + '.events'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'reward_contact_digital_acquired'
+            command = 'psi.controller.process_et'
+            kwargs = {'name': 'reward_contact'}
+
+        ExperimentAction:
+            event = 'engines_configured'
+            command = 'psi.controller.prepare_trial'
+
+        ExperimentAction:
+            event = 'trial_ready'
+            command = 'psi.controller.start_trial'
+
+        ExperimentAction:
+            # The operations required to actually generate and upload the token
+            # take some time, so we have to allow for a small delay.
+            event = 'trial_start'
+            command = 'target.start'
+            kwargs = {'delay': 0.25}
+            weight = 0
+
+    Extension:
+        id = manifest.id + '.data'
+        point = 'psi.data.sinks'
+
+        BinaryStore:
+            continuous_inputs = ['reward_contact_analog']
+
+    Extension:
+        id = 'io'
+        point = 'psi.controller.io'
+
+        ContinuousInput:
+            name = 'microphone'
+            source_name = 'hw_ai::microphone_1'
+
+        ContinuousOutput:
+            name = 'background'
+            label = 'Background'
+            target_name = 'hw_ao::speaker_1'
+
+        EpochOutput:
+            name = 'target'
+            label = 'Target'
+            target_name = 'hw_ao::speaker_1'
+
+    Extension:
+        id = manifest.id + '.items'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'trial'
+            label = 'Trial Settings'
+
+            Parameter:
+                name = 'iti_duration'
+                label = 'Intertrial interval (s)'
+                compact_label = 'ITI'
+                default = 0.1
+                expression = '0.1'
+            Parameter:
+                name = 'to_duration'
+                label = 'Timeout duration (s)'
+                compact_label = 'TO'
+                default = 1.0
+            Parameter:
+                name = 'response_duration'
+                label = 'Response duration (s)'
+                compact_label = 'Resp'
+                default = 3.0
+            Parameter:
+                name = 'hold_duration'
+                label = 'Hold duration (s)'
+                compact_label = 'Hold'
+                default = 0.0
+            Parameter:
+                name = 'reward_pause_duration'
+                label = 'Reward pause duration (s)'
+                compact_label = 'Reward'
+                default = 0.25
+
+        ContextGroup:
+            name = 'selector'
+            label = 'Next value'
+
+            Parameter:
+                name = 'min_nogo'
+                label = 'Min. consecutive nogo trials'
+                compact_label = 'Min. NoGO'
+                default = 2
+                scope = 'arbitrary'
+            Parameter:
+                name = 'max_nogo'
+                label = 'Max. consecutive nogo trials'
+                compact_label = 'Max. NoGO'
+                default = 5
+                scope = 'arbitrary'
+            Parameter:
+                name = 'go_probability'
+                label = 'Go probability'
+                compact_label = 'Pr'
+                default = 0.5
+                scope = 'arbitrary'
+            EnumParameter:
+                name = 'repeat_fa'
+                label = 'Repeat FA?'
+                compact_label = 'RFA'
+                default = 'yes'
+                scope = 'arbitrary'
+                choices = {'yes': True, 'no': False}
+            Parameter:
+                name = 'remind_trials'
+                label = 'Remind trials'
+                compact_label = 'N remind'
+                scope = 'experiment'
+                default = 10
+            Parameter:
+                name = 'warmup_trials'
+                label = 'Warmup trials'
+                compact_label = 'N warmup'
+                scope = 'experiment'
+                default = 20
+
+        ContextGroup:
+            name = 'results'
+            label = 'Trial results'
+            visible = True
+
+            Result:
+                name = 'response'
+                compact_label = 'Resp.'
+                dtype = 'S32'
+            Result:
+                name = 'trial_type'
+                compact_label = 'Type'
+                dtype = 'S32'
+            Result:
+                name = 'score'
+                dtype = 'S32'
+            Result:
+                name = 'correct'
+                compact_label = 'C'
+                dtype = 'bool'
+            Result:
+                name = 'response_ts'
+                label = 'Response timestamp'
+                compact_label = 'R|'
+                dtype = 'float64'
+            Result:
+                name = 'trial_start'
+                compact_label = 'T/'
+                dtype = 'float64'
+            Result:
+                name = 'response_time'
+                compact_label = 'Resp. time'
+                dtype = 'float64'
+
+    Extension:
+        id = manifest.id + '.actions'
+        point = 'psi.controller.actions'
+
+        ExperimentState:
+            name = 'digital_reward'
+        ExperimentState:
+            name = 'reward'
+        ExperimentState:
+            name = 'iti'
+        ExperimentState:
+            name = 'response'
+        ExperimentState:
+            name = 'to'
+        ExperimentEvent:
+            name = 'response_duration_elapsed'
+        ExperimentEvent:
+            name = 'iti_duration_elapsed'
+        ExperimentEvent:
+            name = 'to_duration_elapsed'
+        ExperimentEvent:
+            name = 'deliver_reward'
+        ExperimentEvent:
+            name = 'trial_ready'
+
+    Extension:
+        id = manifest.id + '.toolbar'
+        point = 'psi.experiment.toolbar'
+
+        ToolBar:
+            Action:
+                text = 'Remind'
+                triggered ::
+                    plugin = workbench.get_plugin('psi.controller')
+                    plugin.request_remind()
+                enabled <<  workbench.get_plugin('psi.controller').experiment_state \
+                    not in ('initialized', 'stopped')
+            Action:
+                text = 'Reward'
+                triggered ::
+                    plugin = workbench.get_plugin('psi.controller')
+                    plugin.handle_event(GoNogoEvent.digital_reward_start)
+                    plugin.handle_event(GoNogoEvent.digital_reward_end)
+                enabled << workbench.get_plugin('psi.controller').experiment_state \
+                    not in ('initialized', 'stopped')

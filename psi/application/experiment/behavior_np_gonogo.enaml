@@ -202,7 +202,6 @@ class BehaviorPlugin(ControllerPlugin):
         '''
         n_remind = self.context.get_value('remind_trials')
         n_warmup = self.context.get_value('warmup_trials')
-        max_nogo = self.context.get_value('max_nogo')
         go_probability = self.context.get_value('go_probability')
 
         if self.trial <= n_remind:

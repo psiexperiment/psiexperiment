@@ -555,19 +555,19 @@ class ControllerPlugin(Plugin):
     def apply_changes(self):
         raise NotImplementedError
 
+    def pause_experiment(self):
+        raise NotImplementedError
+
     def start_experiment(self):
-        self.invoke_actions('experiment_initialize')
-        self.invoke_actions('experiment_prepare')
-        self.invoke_actions('experiment_start')
+        deferred_call(self.invoke_actions, 'experiment_initialize')
+        deferred_call(self.invoke_actions, 'experiment_prepare')
+        deferred_call(self.invoke_actions, 'experiment_start')
         deferred_call(lambda: setattr(self, 'experiment_state', 'running'))
 
     def stop_experiment(self):
         results = self.invoke_actions('experiment_end', self.get_ts())
         deferred_call(lambda: setattr(self, 'experiment_state', 'stopped'))
         return results
-
-    def pause_experiment(self):
-        raise NotImplementedError
 
     def get_ts(self):
         return self._master_engine.get_ts()
@@ -576,7 +576,6 @@ class ControllerPlugin(Plugin):
         deferred_call(lambda: setattr(self, '_pause_ok', value))
 
     def start_timer(self, name, duration, callback):
-        log.debug('Starting %f sec. timer %s', duration, name)
         timer = QTimer()
         timer.timeout.connect(callback)
         timer.setSingleShot(True)

@@ -165,21 +165,21 @@ ParadigmDescription(
 
 
 #################################################################################
-## Noise exposure
-#################################################################################
-ParadigmDescription(
-    'noise_exposure', 'Noise exposure', 'cohort', [
-        (PATH + 'noise_exposure.NoiseControllerManifest',),
-    ],
-)
-
-
-#################################################################################
 ## Behavior
 #################################################################################
 ParadigmDescription(
     'appetitive_gonogo_food', 'Appetitive GO-NOGO food', 'animal', [
-        (PATH + 'appetitive.ControllerManifest',),
-        (PATH + 'behavior_base.PelletDispenserMixinManifest',),
+        (PATH + 'behavior_np_gonogo.BehaviorManifest',),
+        (PATH + 'behavior_mixins.PelletDispenserMixinManifest',),
+    ],
+)
+
+
+ParadigmDescription(
+    'auto_gonogo', 'Auto GO-NOGO', 'animal', [
+        (PATH + 'behavior_mixins.BaseGoNogoMixin',),
+        (PATH + 'behavior_auto_gonogo.BehaviorManifest',),
+        (PATH + 'microphone_mixins.MicrophoneSignalViewManifest',),
+        (PATH + 'microphone_mixins.MicrophoneFFTViewManifest',),
     ],
 )

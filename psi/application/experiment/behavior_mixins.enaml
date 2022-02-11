@@ -1,0 +1,352 @@
+import logging
+log = logging.getLogger(__name__)
+
+import enum
+from functools import partial
+
+from atom.api import Int, Str, Typed, Value
+from enaml.application import deferred_call
+from enaml.widgets.api import Label, VGroup
+from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
+
+from psi.context.api import (ContextGroup, EnumParameter,
+                             SequenceSelector, Parameter, Result)
+
+from psi.controller.api import (ControllerManifest, ControllerPlugin,
+                                ExperimentAction, ExperimentEvent,
+                                ExperimentState)
+
+from psi.controller.devices.pellet_dispenser import PelletDispenser
+from psi.core.enaml.api import ExperimentManifest
+from psi.data.sinks.api import EventLog, SDTAnalysis, TrialLog
+from psi.experiment.api import StatusItem
+from psi.util import rpc
+
+
+class TrialState(enum.Enum):
+    pass
+
+
+class TrialType(enum.Enum):
+    pass
+
+
+class GoNogoTrialType(TrialType):
+    '''
+    The go-nogo experiments consist of a "remind" phase in which only go trials
+    (drawn from the remind sequence) are presented. Once the specified number
+    of reminder trials are presented, the experiment moves into the "warmup"
+    phase during which go trials (drawn from the remind sequence) are drawn
+    with the specified go probability (i.e., nogo trials are also presented).
+    Once the warmup phase is complete, we move into the actual experiment in
+    which we draw go and nogo trials from the go and nogo sequences,
+    respectively.
+    '''
+
+    #: A regular go trial
+    go = 'go'
+
+    #: A go trial during the warmup period during the interval where go/nogo
+    #: trials are randomly selected.
+    go_warmup = 'go_warmup'
+
+    #: A go trial presented during the warmup period during the interval where
+    #: only go trials are presented.
+    go_warmup_remind = 'go_warmup_remind'
+
+    #: A go trial requested by the user that's drawm from the remind sequence.
+    go_remind = 'go_remind'
+
+    #: A go trial presented because the maximum number of consecutive nogo
+    #: trials have been reached.
+    go_forced = 'go_forced'
+
+    #: A regular nogo trial
+    nogo = 'nogo'
+
+    #: A nogo trial presented because the minimum number of consecutive nogo
+    #: trials has not been reached.
+    nogo_forced = 'nogo_forced'
+
+    #: A nogo trial repeated because the animal false alarmed.
+    nogo_repeat = 'nogo_repeat'
+
+    #: A nogo trial repeated because the animal false alarmed.
+    nogo_warmup = 'nogo_warmup'
+
+
+class GoNogoTrialScore(enum.Enum):
+    '''
+    Defines the different types of scores for each trial in a go-nogo
+    experiment
+    '''
+    hit = 'HIT'
+    miss = 'MISS'
+    correct_reject = 'CR'
+    false_alarm = 'FA'
+
+
+def get_status(trial, trial_type, experiment_state):
+    # Experiment not running
+    if experiment_state == 'paused':
+        return 'Experiment paused'
+    elif experiment_state == 'initialized':
+        return 'Waiting to start'
+    elif experiment_state == 'stopped':
+        return 'Experiment complete'
+
+    # Experiment running
+    if '_' in trial_type.value:
+        general, specific = trial_type.value.split('_', 1)
+        label = '{} ({})'.format(general, specific.replace('_', ' '))
+    else:
+        label = trial_type.value
+    return 'Trial {}: {}'.format(trial, label)
+
+
+def get_state(trial_state):
+    if trial_state is None:
+        return ''
+    else:
+        return trial_state.value.capitalize()
+
+
+def process_et(event):
+    plugin = event.workbench.get_plugin('psi.controller')
+    name = event.parameters['name']
+    for edge, ts in event.parameters['data']:
+        plugin.et_callback(name, edge, ts)
+
+
+def update_trial_log(event):
+    core = event.workbench.get_plugin('enaml.workbench.core')
+    core.invoke_command('trial_log.save', {'data': event.parameters['result']})
+    core.invoke_command('sdt_analysis.update', {'data': event.parameters['result']})
+
+
+enamldef BaseGoNogoMixin(ExperimentManifest): manifest:
+
+    id = 'base_gonogo_mixin'
+    required = True
+
+    Extension:
+        id = manifest.id + '.status'
+        point = 'psi.experiment.status'
+
+        StatusItem:
+            VGroup:
+                padding = 0
+                spacing = 0
+                Label:
+                    text << get_status(
+                        workbench.get_plugin('psi.controller').trial,
+                        workbench.get_plugin('psi.controller').trial_type,
+                        workbench.get_plugin('psi.controller').experiment_state,
+                    )
+                Label:
+                    text << get_state(
+                        workbench.get_plugin('psi.controller').trial_state
+                    )
+
+    Extension:
+        id = manifest.id + '.data'
+        point = 'psi.data.sinks'
+        EventLog:
+            pass
+        TrialLog:
+            show_widget = True
+        SDTAnalysis:
+            pass
+
+    Extension:
+        id = manifest.id + '.commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = 'psi.controller.process_et'
+            handler = process_et
+        Command:
+            id = 'psi.controller.update_trial_log'
+            handler = update_trial_log
+        Command:
+            id = 'psi.controller.prepare_trial'
+            handler = rpc('psi.controller', 'prepare_trial')
+        Command:
+            id = 'psi.controller.start_trial'
+            handler = rpc('psi.controller', 'start_trial')
+
+    Extension:
+        id = manifest.id + '.actions'
+        point = 'psi.controller.actions'
+
+        ExperimentState:
+            name = 'trial'
+
+        # This action is mandatory and must be executed before any other
+        # commands that require some information from context. By default, an
+        # infinite number of cycles are specified.
+        ExperimentAction:
+            event = 'experiment_initialize'
+            command = 'psi.context.initialize'
+            kwargs = {'selector': None}
+        ExperimentAction:
+            event = 'experiment_start'
+            command = 'psi.controller.set_pause_ok'
+            kwargs = {'value': True}
+        ExperimentAction:
+            event = 'experiment_end'
+            command = 'psi.controller.set_pause_ok'
+            kwargs = {'value': False}
+        ExperimentAction:
+            event = 'trial_end'
+            command = 'psi.controller.update_trial_log'
+
+    Extension:
+        id = 'selectors'
+        point = 'psi.context.selectors'
+        SequenceSelector:
+            name = 'go'
+            label = 'Go sequence'
+        SequenceSelector:
+            name = 'nogo'
+            label = 'Nogo sequence'
+        SequenceSelector:
+            name = 'remind'
+            label = 'Remind sequence'
+
+
+################################################################################
+# Useful plugins
+################################################################################
+enamldef PelletDispenserMixinManifest(ExperimentManifest): manifest:
+
+    id = 'pellet_dispenser'
+    required = True
+    name = 'Pellet dispenser'
+
+    Extension:
+        id = manifest.id + '.io'
+        point = 'psi.controller.io'
+
+        PelletDispenser:
+            name = 'food_dispenser'
+            label = 'Pellet dispenser'
+            output_name = 'food_dispense_trigger'
+
+
+################################################################################
+# Base controllers
+################################################################################
+class BaseBehaviorPlugin(ControllerPlugin):
+
+    #: Must define event_map as an attribute on the subclass. Keys will be a
+    #: tuple of (edge, event_type) where edge is either 'rising' or 'falling'
+    #: and event_type indicates the type of event (e.g., reward contact). The
+    #: key ('rising', 'reward_contact') indicates that a rising edge was
+    #: detected on the 'reward_contact' input, indicating that the animal has
+    #: begun attempting ot retrive a reward. See `handle_event`.
+    event_map = {}
+
+    #: Current trial number
+    trial = Int(0)
+
+    #: Type of trial (e.g., go, nogo, go_remind, nogo_repeat, etc.)
+    trial_type = Typed(TrialType)
+
+    #: What was the result of the prior trial? This is used in the event that
+    #: the next trial depends on the previous one.
+    prior_score = Value()
+
+    #: Info about the trial that will get saved to the trial log
+    trial_info = Typed(dict, ())
+
+    #: Current state of the trial (see BaseGoNogoTrialState for some possible
+    #: states).
+    trial_state = Typed(TrialState)
+
+    def pause_experiment(self):
+        return False
+
+    def apply_changes(self):
+        return False
+
+    def _pause_experiment(self):
+        self.experiment_state = 'paused'
+        self._pause_requested = False
+
+    def _apply_changes(self, new_trial=False):
+        self.context.apply_changes()
+        self._apply_requested = False
+        if new_trial:
+            selector = self.next_selector()
+            self.context.next_setting(selector, save_prior=False)
+            self.invoke_actions('trial_prepare', self.get_ts())
+        log.debug('applied changes')
+
+    def request_remind(self):
+        self._remind_requested = True
+        if self.can_modify():
+            selector = self.next_selector()
+            self.context.next_setting(selector, save_prior=False)
+            self.invoke_actions('trial_prepare', self.get_ts())
+            log.debug('applied changes')
+
+    def et_callback(self, name, edge, event_time):
+        log.debug('Detected {} on {} at {}'.format(edge, name, event_time))
+        event = self.event_map[edge, name]
+        self.handle_event(event, event_time)
+
+    def handle_event(self, event, timestamp=None):
+        # Ensure that we don't attempt to process several events at the same
+        # time. This essentially queues the events such that the next event
+        # doesn't get processed until `_handle_event` finishes processing the
+        # current one.
+
+        # Only events generated by NI-DAQmx callbacks will have a timestamp.
+        # Since we want all timing information to be in units of the analog
+        # output sample clock, we will capture the value of the sample clock
+        # if a timestamp is not provided. Since there will be some delay
+        # between the time the event occurs and the time we read the analog
+        # clock, the timestamp won't be super-accurate. However, it's not
+        # super-important since these events are not reference points around
+        # which we would do a perievent analysis. Important reference points
+        # would include nose-poke initiation and withdraw, reward contact,
+        # sound onset, lights on, lights off. These reference points will
+        # be tracked via NI-DAQmx or can be calculated (i.e., we know
+        # exactly when the target onset occurs because we precisely specify
+        # the location of the target in the analog output buffer).
+        try:
+            if timestamp is None:
+                timestamp = self.get_ts()
+            # TODO: let's keep this in the original thread? Should we just use
+            # a lock rather than a deferred call?
+            deferred_call(self._handle_event, event, timestamp)
+        except Exception as e:
+            log.exception(e)
+            raise
+
+    def _handle_event(self, event, timestamp):
+        '''
+        Give the current experiment state, process the appropriate response for
+        the event that occured. Depending on the experiment state, a particular
+        event may not be processed.
+        '''
+        log.debug('Recieved handle_event signal for {}'.format(event.name))
+        self.invoke_actions(event.name, timestamp)
+        if self.experiment_state == 'paused':
+            # If the experiment is paused, don't do anything.
+            return
+        getattr(self, f'handle_{self.trial_state.name}')(event, timestamp)
+
+    def start_event_timer(self, duration, event):
+        # We call the timer `experiment_state` to ensure that it properly ends
+        # any existing event-based timers.
+        if isinstance(duration, str):
+            duration = self.context.get_value(duration)
+        log.info('Timer for {} with duration {}'.format(event, duration))
+        callback = partial(self.handle_event, event)
+        deferred_call(self.stop_timer, 'event')
+        deferred_call(self.start_timer, 'experiment_state', duration, callback)
+
+    def stop_event_timer(self):
+        deferred_call(self.stop_timer, 'event')
