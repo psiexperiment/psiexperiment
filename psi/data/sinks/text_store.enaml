@@ -6,7 +6,7 @@ from functools import partial
 import json
 from pathlib import Path
 
-from atom.api import Bool, Dict, List, Typed
+from atom.api import Bool, Dict, List, set_default, Typed
 from enaml.core.api import d_
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
@@ -42,7 +42,7 @@ class TextStore(BaseStore):
     '''
     Simple class for storing data in human-readable formats (CSV and text)
     '''
-    name = 'text_store'
+    name = set_default('text_store')
     _stores = Dict()
 
     def get_source(self, name):

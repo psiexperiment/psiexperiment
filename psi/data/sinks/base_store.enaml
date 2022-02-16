@@ -7,7 +7,7 @@ from pathlib import Path
 import shutil
 import tempfile
 
-from atom.api import Atom, Float, List, Str, Typed
+from atom.api import Atom, Float, List, set_default, Str, Typed
 from enaml.core.api import d_
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
@@ -47,8 +47,9 @@ class BaseStore(Sink):
     '''
     Implements functions for creating filenames
     '''
+    name = set_default('base_store')
+
     base_path = Typed(Path)
-    name = d_(Str('base_store'))
     continuous_inputs = d_(List())
     epoch_inputs = d_(List())
 

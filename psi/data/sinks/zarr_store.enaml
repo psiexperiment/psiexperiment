@@ -2,7 +2,7 @@
 from functools import partial
 from pathlib import Path
 
-from atom.api import Bool, Dict, Typed
+from atom.api import Bool, Dict, set_default, Typed
 import numpy as np
 import pandas as pd
 import zarr
@@ -33,7 +33,7 @@ class ZarrStore(BaseStore):
     '''
     Simple class for storing acquired trial data in hierarchy of zarr folders.
     '''
-    name = 'zarr_store'
+    name = set_default('zarr_store')
     _stores = Dict()
 
     def get_source(self, name):
