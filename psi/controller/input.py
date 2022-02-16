@@ -89,6 +89,8 @@ class Input(PSIContribution):
 
     inputs = List().tag(metadata=True)
 
+    configured = Bool(False)
+
     def _default_name(self):
         if self.source is not None:
             base_name = self.source.name
@@ -139,6 +141,7 @@ class Input(PSIContribution):
     def configure(self):
         cb = self.configure_callback()
         self.engine.register_ai_callback(cb, self.channel.name)
+        self.configured = True
 
     def configure_callback(self):
         targets = [i.configure_callback() for i in self.inputs if i.active]
@@ -150,6 +153,10 @@ class Input(PSIContribution):
         return broadcast(*targets).send
 
     def add_callback(self, cb):
+        if self.configured:
+            m = f'{self.name} already configured. Cannot add callback.'
+            raise ValueError(m)
+
         callback = Callback(function=cb)
         self.add_input(callback)
 
