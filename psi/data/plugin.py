@@ -11,19 +11,21 @@ import numpy as np
 import pandas as pd
 
 from psi import get_config
-from psi.core.enaml.api import load_manifests
+from psi.core.enaml.api import load_manifests, PSIPlugin
 
 from .sink import Sink
 from .plots import BasePlotContainer
+
+import textwrap
 
 
 SINK_POINT = 'psi.data.sinks'
 PLOT_POINT = 'psi.data.plots'
 
 
-class DataPlugin(Plugin):
+class DataPlugin(PSIPlugin):
 
-    _sinks = Typed(list, [])
+    _sinks = Typed(dict, {})
     _containers = Typed(list, [])
 
     inputs = Typed(dict, {})
@@ -39,11 +41,14 @@ class DataPlugin(Plugin):
 
     def _refresh_sinks(self, event=None):
         log.debug('Refreshing sinks')
-        sinks = []
+        sinks = {}
         point = self.workbench.get_extension_point(SINK_POINT)
         for extension in point.extensions:
-            sinks.extend(extension.get_children(Sink))
-        load_manifests(sinks, self.workbench)
+            for sink in extension.get_children(Sink):
+                if sink.name in sinks:
+                    self.raise_duplicate_error(sink, 'name', extension)
+                sinks[sink.name] = sink
+        load_manifests(sinks.values(), self.workbench)
         self._sinks = sinks
 
     def _refresh_plots(self, event=None):
@@ -70,7 +75,7 @@ class DataPlugin(Plugin):
             .unobserve('extensions', self._refresh_plots)
 
     def set_base_path(self, base_path):
-        for sink in self._sinks:
+        for sink in self._sinks.values():
             sink.set_base_path(base_path)
 
     def find_plot_container(self, plot_container_name):
@@ -98,7 +103,7 @@ class DataPlugin(Plugin):
         raise AttributeError(m.format(plot_name))
 
     def find_sink(self, sink_name):
-        for sink in self._sinks:
-            if sink.name == sink_name:
-                return sink
-        raise AttributeError(f'Sink {sink_name} not available')
+        try:
+            return self._sinks[sink_name]
+        except KeyError:
+            raise AttributeError(f'Sink "{sink_name}" not available')
