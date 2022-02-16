@@ -34,27 +34,26 @@ def accumulate_actions(plugin):
     return '\n'.join(lines)
 
 
-def accumulate_io_tree(plugin):
-    accumulator = []
-    for channel in plugin._channels.values():
-        _accumulate_io_tree(accumulator, channel, prefix='')
-    return('\n  '.join(accumulator))
-
-
-def _accumulate_io_tree(accumulator, obj, prefix=''):
-    try:
-        accumulator.append(f'{prefix} * {obj.name}')
-    except:
-        accumulator.append(f'{prefix} * {obj.name}')
-    for i in getattr(obj, 'inputs', []):
-        _accumulate_io_tree(accumulator, i, f'{prefix} |')
-    for o in getattr(obj, 'outputs', []):
-        _accumulate_io_tree(accumulator, o, f'{prefix} |')
-
-
 def log_actions(event):
     plugin = event.workbench.get_plugin('psi.controller')
     log.info('\n' + accumulate_actions(plugin))
+
+
+def accumulate_io_tree(plugin):
+    accumulator = ['\n']
+    accumulator.append('Output')
+    for channel in plugin.get_channels(direction='output'):
+        _accumulate_io_tree(accumulator, channel, 'outputs', prefix='')
+    accumulator.append('Input')
+    for channel in plugin.get_channels(direction='input'):
+        _accumulate_io_tree(accumulator, channel, 'inputs', prefix='')
+    return('\n  '.join(accumulator))
+
+
+def _accumulate_io_tree(accumulator, obj, direction, prefix=''):
+    accumulator.append(f'{prefix} * {obj._default_name()} (fs={getattr(obj, "fs", None)})')
+    for i in getattr(obj, direction, []):
+        _accumulate_io_tree(accumulator, i, direction, f'{prefix} |')
 
 
 def log_io(event):
@@ -302,7 +301,7 @@ enamldef ControllerManifest(ControllerManifestBase): manifest:
             event = 'context_initialized'
             command = 'psi.controller.finalize_io'
         ExperimentAction:
-            event = 'context_initialized'
+            event = 'engines_configured'
             command = 'psi.controller.log_io'
         ExperimentAction:
             event = 'plugins_started'
