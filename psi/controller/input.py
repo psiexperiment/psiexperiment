@@ -39,7 +39,6 @@ class InputData(np.ndarray):
             s = s[-1]
         if isinstance(s, slice):
             if s.start is not None and 't0_sample' in obj.metadata:
-                print(s.start, obj.shape[-1])
                 obj.metadata['t0_sample'] += (s.start % self.shape[-1])
             if s.step is not None and 'fs' in obj.metadata:
                 obj.metadata['fs'] /= s.step
@@ -72,6 +71,7 @@ def broadcast(*targets):
 
 
 class Input(PSIContribution):
+
     name = d_(Str()).tag(metadata=True)
     label = d_(Str()).tag(metadata=True)
     force_active = d_(Bool(False)).tag(metadata=True)
