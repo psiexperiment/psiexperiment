@@ -100,10 +100,17 @@ class NIDAQHardwareAOChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
     #: Terminal mode
     terminal_mode = d_(Enum(*TERMINAL_MODES)).tag(metadata=True)
 
-    filter_delay = Property().tag(metadata=True)
-    filter_delay_samples = Property().tag(metadata=True)
     device_name = Property().tag(metadata=False)
 
+    def _get_device_name(self):
+        return self.channel.strip('/').split('/')[0]
+
+
+class NIDAQHardwareAOChannel4461(NIDAQHardwareAOChannel):
+    '''
+    Special channel that automatically compensates for filter delay of PXI 4461
+    card.
+    '''
     #: Filter delay lookup table for different sampling rates. The first column
     #: is the lower bound (exclusive) of the sampling rate (in samples/sec) for
     #: the filter delay (second column, in samples). The upper bound of the
@@ -121,8 +128,8 @@ class NIDAQHardwareAOChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
         (102.4e3, 32.0),
     ])
 
-    def _get_device_name(self):
-        return self.channel.strip('/').split('/')[0]
+    filter_delay = Property().tag(metadata=True)
+    filter_delay_samples = Property().tag(metadata=True)
 
     def _get_filter_delay_samples(self):
         i = np.flatnonzero(self.fs > self.FILTER_DELAY[:, 0])[-1]
