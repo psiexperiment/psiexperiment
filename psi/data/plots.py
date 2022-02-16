@@ -1046,7 +1046,7 @@ class GroupedEpochFFTPlot(EpochGroupMixin, BasePlot):
 
     def _y(self, epoch):
         y = np.mean(epoch, axis=0) if epoch else np.full_like(self._x, np.nan)
-        return self.source.calibration.get_spl(self._x, util.psd(y, self.source.fs))
+        return self.source.calibration.get_db(self._x, util.psd(y, self.source.fs))
 
 
 class GroupedEpochPhasePlot(EpochGroupMixin, BasePlot):
