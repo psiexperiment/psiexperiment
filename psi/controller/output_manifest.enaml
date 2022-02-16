@@ -686,7 +686,7 @@ enamldef SelectorQueuedEpochOutputManifest(QueuedEpochOutputManifest): manifest:
         point = 'psi.controller.actions'
 
         ExperimentAction:
-            event = 'experiment_prepare'
+            event = 'engines_configured'
             command = manifest.contribution.name + '.prepare_queue'
 
     Extension:

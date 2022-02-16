@@ -381,6 +381,7 @@ class ControllerPlugin(Plugin):
     def finalize_io(self):
         self._connect_outputs()
         self._connect_inputs()
+        self.invoke_actions('io_configured')
 
     def configure_engines(self):
         log.debug('Configuring engines')

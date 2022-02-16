@@ -108,7 +108,7 @@ enamldef TimeseriesPlotManifest(PSIManifest): manifest:
         id = manifest.id + '.actions'
         point = 'psi.controller.actions'
         ExperimentAction:
-            event = 'experiment_prepare'
+            event = 'io_configured'
             command = 'psi.data.attach_source'
             kwargs = {'obj': manifest.contribution}
 
@@ -158,7 +158,7 @@ enamldef BasePlotManifest(PSIManifest): manifest:
         point = 'psi.controller.actions'
 
         ExperimentAction:
-            event = 'experiment_prepare'
+            event = 'io_configured'
             command = 'psi.data.attach_source'
             kwargs = {'obj': manifest.contribution}
             weight = 15

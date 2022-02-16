@@ -117,7 +117,7 @@ enamldef ExtractEpochsManifest(InputManifest): manifest:
             name = manifest.contribution.name + '_queue'
 
         ExperimentAction:
-            event = 'experiment_prepare'
+            event = 'engines_configured'
             command = manifest.contribution.name + '.prepare'
 
 
