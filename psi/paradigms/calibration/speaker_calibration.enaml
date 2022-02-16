@@ -10,7 +10,7 @@ from psi.controller.api import (ControllerManifest, Blocked, ExperimentAction,
                                 ExtractEpochs, get_hw_ai_choices,
                                 get_hw_ao_choices, SelectorQueuedEpochOutput)
 
-from psi.data.sinks.api import BColzStore, TextStore
+from psi.data.sinks.api import BinaryStore, TextStore
 
 from psi.data.plots import (EpochTimeContainer,
                             ChannelPlot,
@@ -20,7 +20,7 @@ from psi.data.plots import (EpochTimeContainer,
                             GroupedEpochFFTPlot,
                             GroupedEpochPhasePlot)
 
-from psi.controller.calibration.api import FlatCalibration
+from psiaudio.calibration import FlatCalibration
 from psi.data.sinks.api import EpochCounter
 from psi.token.primitives import Chirp, Cos2Envelope, Tone
 
@@ -34,7 +34,7 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
         id = EXPERIMENT + '.data'
         point = 'psi.data.sinks'
 
-        BColzStore:
+        BinaryStore:
             name = 'mic_data'
             epoch_inputs = ['epoch']
             continuous_inputs = ['hw_ai']

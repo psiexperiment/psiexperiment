@@ -9,15 +9,15 @@ from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 
 from psiaudio import util
+from psiaudio.calibration import FlatCalibration
 
 from psi.context.api import ContextGroup, EnumParameter, Parameter, Result
 from psi.controller.api import (Blocked, ControllerManifest, ExperimentAction,
                                 get_hw_ai_choices)
-from psi.controller.calibration.api import UnityCalibration
 from psi.data.plots import (TimeContainer, ChannelPlot, ViewBox, FFTContainer,
                             FFTChannelPlot)
 
-from psi.data.sinks.api import TextStore, ZarrStore
+from psi.data.sinks.api import BinaryStore, TextStore
 
 from enaml.application import deferred_call
 
@@ -103,7 +103,7 @@ enamldef PistonphoneCalibrationManifest(ControllerManifest): manifest:
         id = 'data'
         point = 'psi.data.sinks'
 
-        ZarrStore:
+        BinaryStore:
             name = 'hw_ai'
             continuous_inputs = ['hw_ai']
 
@@ -123,7 +123,7 @@ enamldef PistonphoneCalibrationManifest(ControllerManifest): manifest:
                 # input channel.  TODO: Perhaps make the engine smarter in the
                 # future to handle these sort of edge-cases?
                 channel.start_trigger = ''
-                channel.calibration = UnityCalibration()
+                channel.calibration = FlatCalibration.unity()
                 channel.samples = round(C.sample_duration * channel.fs)
                 channel.gain = C.input_gain
                 complete_event = '{}_end'.format(channel.engine.name)

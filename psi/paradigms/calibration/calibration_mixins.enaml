@@ -13,15 +13,15 @@ from scipy import signal
 
 from psi.controller.calibration.tone import tone_spl
 from psi.context.api import BoolParameter, ContextGroup, Parameter
-from psi.controller.api import (ExperimentAction, FIFOSignalQueue,
-                                generate_waveform, InterleavedFIFOSignalQueue,
+from psi.controller.api import (ExperimentAction, generate_waveform,
                                 SelectorQueuedEpochOutput, QueuedEpochOutput)
-from psi.controller.calibration.api import FlatCalibration, InterpCalibration
+
 from psiaudio import util
+from psiaudio.calibration import FlatCalibration, InterpCalibration
+from psiaudio.queue import FIFOSignalQueue, InterleavedFIFOSignalQueue
 
 from psi.core.enaml.api import ExperimentManifest
 from psi.token.primitives import Chirp, Cos2Envelope, Tone
-from psi.util import octave_space
 
 
 def configure_hardware_golay(output, workbench, event=None):
@@ -182,7 +182,8 @@ def compute_calibration_chirp(event):
 
     freq_lb = context.get_value('hw_ao_chirp_start_frequency')
     freq_ub = context.get_value('hw_ao_chirp_end_frequency')
-    frequencies = octave_space(freq_lb*1e-3, freq_ub*1e-3, 0.125, 'bounded')*1e3
+    frequencies = util.octave_space(freq_lb*1e-3, freq_ub*1e-3, 0.125,
+                                    'bounded')*1e3
 
     # Save the calibration
     summary = pd.concat(summaries, keys=keys, names=grouping)
@@ -331,8 +332,8 @@ def validate_spl_wrapper(event):
     octaves = settings['validation_octaves']
     validation_level = settings['validation_level']
     safe_gain = settings['safe_gain']
-    frequencies = octave_space(freq_lb*1e-3, freq_ub*1e-3, octaves,
-                               'bounded')*1e3
+    frequencies = util.octave_space(freq_lb*1e-3, freq_ub*1e-3, octaves,
+                                    'bounded')*1e3
     log.info('Calibrating frequencies: %r', frequencies)
     validate_spl(event.workbench, ao.channel, ai.channel, frequencies,
                  validation_level, max_gain=safe_gain)
