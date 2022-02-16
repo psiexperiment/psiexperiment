@@ -36,21 +36,18 @@ class PSIContribution(Declarative):
         raise ImportError(m)
 
     def load_manifest(self, workbench):
-        if not self.load_manifest:
-            return
+        #if not self.load_manifest:
+        #    return
         try:
             manifest_class = self.find_manifest_class()
             manifest = manifest_class(contribution=self)
             workbench.register(manifest)
             m = 'Loaded manifest for contribution %s (%s) with ID %r'
-            log.info(m, self.name, manifest_class.__name__, manifest.id)
+            log.debug(m, self.name, manifest_class.__name__, manifest.id)
         except ImportError:
             m = 'No manifest defind for contribution %s'
             log.warn(m, self.name)
         except ValueError as e:
-            # Catch only "is already registered" exceptions.
-            if str(e).endswith('is already registered'):
-                m = 'Manifest already loaded for contribution %s'
-                log.debug(m, self.name)
-            else:
-                raise
+            m = f'Manifest "{manifest.id}" for plugin "{self.name}" already registered.'
+            raise ImportError(m) from e
+
