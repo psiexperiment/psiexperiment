@@ -326,6 +326,16 @@ def setup_timing(task, channels, delay=0):
     mx.DAQmxCfgSampClkTiming(task, sample_clock, fs, mx.DAQmx_Val_Rising,
                              sample_mode, samples)
 
+    properties = get_timing_config(task)
+    actual_fs = properties['sample clock rate']
+    if actual_fs != fs:
+        names = ', '.join(get_channel_property(channels, 'name', True))
+        m = f'Actual sample clock rate of {actual_fs} does not match ' \
+            f'requested sample clock rate of {fs} for {names}'
+        raise ValueError(m)
+
+    return properties
+
 
 def create_task(name=None):
     '''
@@ -385,8 +395,7 @@ def setup_hw_ao(channels, buffer_duration, callback_interval, callback,
         log.debug(f'Configuring line %s (%s) with voltage range %f-%f', line, name, vmin, vmax)
         mx.DAQmxCreateAOVoltageChan(task, line, name, vmin, vmax, mx.DAQmx_Val_Volts, '')
 
-    setup_timing(task, channels)
-    properties = get_timing_config(task)
+    properties = setup_timing(task, channels)
 
     result = ctypes.c_double()
     try:
@@ -556,8 +565,7 @@ def setup_hw_ai(channels, callback_duration, callback, task_name='hw_ao'):
     if terminal_coupling is not None:
         mx.DAQmxSetAICoupling(task, lines, terminal_coupling)
 
-    setup_timing(task, channels)
-    properties = get_timing_config(task)
+    properties = setup_timing(task, channels)
     log_ai.info('AI timing properties: %r', properties)
 
     result = ctypes.c_uint32()
