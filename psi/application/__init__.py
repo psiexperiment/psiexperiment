@@ -42,7 +42,10 @@ class ExceptionHandler:
 
         if self.workbench is not None:
             controller = self.workbench.get_plugin('psi.controller')
-            controller.stop_experiment()
+            try:
+                controller.stop_experiment()
+            except:
+                pass
             window = self.workbench.get_plugin('enaml.workbench.ui').window
         else:
             window = None
@@ -51,6 +54,7 @@ class ExceptionHandler:
             log_mesg = f'The log file has been saved to {self.logfile}'
         else:
             log_mesg = 'Unfortunately, no log file was saved.'
+
         mesg = mesg_template.format(args[1], log_mesg)
         deferred_call(critical, window, 'Oops :(', mesg)
         sys.__excepthook__(*args)
