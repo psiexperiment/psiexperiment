@@ -1,6 +1,8 @@
 import logging
 log = logging.getLogger(__name__)
 
+import re
+
 from atom.api import Str
 from enaml.core.api import Declarative, d_
 
@@ -16,6 +18,10 @@ class PSIContribution(Declarative):
     def _default_name(self):
         # Provide a default name if none is specified
         return self.parent.name + '.' + self.__class__.__name__
+
+    @classmethod
+    def valid_name(self, label):
+        return re.sub('\W|^(?=\d)', '_', label)
 
     @classmethod
     def find_manifest_class(cls):
