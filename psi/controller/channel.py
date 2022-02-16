@@ -53,7 +53,7 @@ class Channel(PSIContribution):
     filter_delay = d_(Float(0).tag(metadata=True))
 
     def _default_name(self):
-        raise NotImplementedError
+        return f'{self.name}_{self.__class__.__name__}'
 
     def _observe_name(self, event):
         self.reference = self._default_reference()

@@ -96,7 +96,7 @@ class Input(PSIContribution):
             base_name = self.source.name
         else:
             base_name = self.parent.name
-        return base_name + '_' + self.__class__.__name__.lower()
+        return f'{base_name}_{self.__class__.__name__}'
 
     def _default_label(self):
         return self.name.replace('_', ' ')
@@ -182,6 +182,9 @@ class EpochInput(Input):
 
 class Callback(Input):
     function = d_(Callable())
+
+    def _default_name(self):
+        return str(self.function)
 
     def configure_callback(self):
         log.debug('Configuring callback for {}'.format(self.name))
