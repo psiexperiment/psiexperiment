@@ -3,7 +3,7 @@ log = logging.getLogger(__name__)
 
 import re
 
-from atom.api import Str
+from atom.api import Bool, Str
 from enaml.core.api import Declarative, d_
 
 from .util import load_manifest
@@ -14,6 +14,7 @@ class PSIContribution(Declarative):
     name = d_(Str())
     label = d_(Str())
     manifest = d_(Str())
+    registered = Bool(False)
 
     def _default_name(self):
         # Provide a default name if none is specified
@@ -42,12 +43,13 @@ class PSIContribution(Declarative):
         raise ImportError(m)
 
     def load_manifest(self, workbench):
-        #if not self.load_manifest:
-        #    return
+        if self.registered:
+            return
         try:
             manifest_class = self.find_manifest_class()
             manifest = manifest_class(contribution=self)
             workbench.register(manifest)
+            self.registered = True
             m = 'Loaded manifest for contribution %s (%s) with ID %r'
             log.debug(m, self.name, manifest_class.__name__, manifest.id)
         except ImportError:
@@ -56,4 +58,3 @@ class PSIContribution(Declarative):
         except ValueError as e:
             m = f'Manifest "{manifest.id}" for plugin "{self.name}" already registered.'
             raise ImportError(m) from e
-
