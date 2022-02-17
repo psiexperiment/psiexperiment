@@ -17,6 +17,8 @@ from .context_item import (
     ContextItem, ContextGroup, Expression, Parameter, ContextMeta
 )
 
+
+from psi.core.enaml.api import PSIPlugin
 from .expression import ExpressionNamespace
 from .selector import BaseSelector
 from .symbol import Symbol
@@ -50,7 +52,7 @@ appropriate time (usually in response to the `experiment_initialize` action).
 See the manual on creating your own experiment if you need further guidance.
 '''
 
-class ContextPlugin(Plugin):
+class ContextPlugin(PSIPlugin):
     '''
     Plugin that provides a sequence of values that can be used by a controller
     to determine the experiment context_items.
@@ -58,7 +60,7 @@ class ContextPlugin(Plugin):
     context_groups = Typed(dict, {})
     context_items = Typed(dict, {})
     context_meta = Typed(dict, {})
-    context_expressions = Typed(list, [])
+    context_expressions = Typed(dict, {})
 
     # True if some of the context_meta items are user-configurable.
     context_meta_editable = Bool(False)
@@ -129,61 +131,43 @@ class ContextPlugin(Plugin):
         self.symbols = symbols
 
     def _refresh_items(self, event=None):
-        context_groups = {}
-        context_items = {}
-        context_meta = {}
-        context_expressions = {}
-        items = []
-        groups = []
-        metas = []
-        expressions = []
-
         # First, find all ContextItem, ContextGroup, ContextMeta and
         # Expressions.
-        point = self.workbench.get_extension_point(ITEMS_POINT)
-        for extension in point.extensions:
-            log.debug('Found extension %s', extension.id)
-            groups.extend(extension.get_children(ContextGroup))
-            items.extend(extension.get_children(ContextItem))
-            metas.extend(extension.get_children(ContextMeta))
-            expressions.extend(extension.get_children(Expression))
+        context_groups = self.load_plugins(ITEMS_POINT, ContextGroup, 'name')
+        context_items = self.load_plugins(ITEMS_POINT, ContextItem, 'name')
+        context_meta = self.load_plugins(ITEMS_POINT, ContextMeta, 'name')
+        context_expressions = self.load_plugins(ITEMS_POINT, Expression, 'parameter')
 
         # Now, loop through the groups and find all ContextItems defined under
         # the group. If the group has already been defined in another
-        # contribution, raise an error and exit.
-        groups_added = []
-        for group in groups:
-            if group.name in context_groups:
-                raise ValueError(f'Context group {group.name} already defined')
-            groups_added.append(group.name)
-            context_groups[group.name] = group
-            group.items = []
-            for item in group.children:
-                item.set_group(group)
-        log.debug('Added context groups: %s', ', '.join(groups_added))
-
-        # Now, go through all "orphan" context items where the group has not
-        # been assigned yet.
-        for item in items:
-            if item.group_name not in context_groups:
-                m = f'Missing group "{item.group_name}" for item {item.name}'
-                raise ValueError(m)
-            item.set_group(context_groups[item.group_name])
-
-        # Now, create a dictionary of all context items. The groups are just
-        # for display purposes. Internally, all context items are treated
-        # equally.
+        # contribution, raise an error. Also, build up the ContextItems
+        # dictionary so that we have a list of all the context items we want to
+        # display.
         for group in context_groups.values():
             for item in group.items:
+                if item not in group.children:
+                    item.set_group(None)
+            for item in group.children:
                 if item.name in context_items:
                     m = f'Context item {item.name} already defined'
                     raise ValueError(m)
-                context_items[item.name] = item
+                else:
+                    context_items[item.name] = item
+                if item not in group.items:
+                    item.set_group(group)
 
-        for meta in metas:
-            context_meta[meta.name] = meta
+        # Now, go through all "orphan" context items where the group has not
+        # been assigned yet.
+        for item in context_items.values():
+            if item.group is not None:
+                continue
+            if item.group_name not in context_groups:
+                m = f'Missing group "{item.group_name}" for item {item.name}'
+                raise ValueError(m)
+            group = context_groups[item.group_name]
+            item.set_group(group)
 
-        for expression in expressions:
+        for expression in context_expressions.values():
             try:
                 item = context_items.pop(expression.parameter)
                 item.set_group(None)
@@ -192,11 +176,12 @@ class ContextPlugin(Plugin):
                          expression.parameter, expression.expression)
 
         load_manifests(context_groups.values(), self.workbench)
-        self.context_expressions = expressions
+        self.context_expressions = context_expressions
         self.context_items = context_items
         self.context_groups = context_groups
         self.context_meta = context_meta
         self.context_meta_editable = len(self.get_metas(editable=True)) > 0
+
 
     def _bind_observers(self):
         self.workbench.get_extension_point(SELECTORS_POINT) \
@@ -452,7 +437,7 @@ class ContextPlugin(Plugin):
 
     def _get_expressions(self):
         e = {n: i.expression for n, i in self.parameters.items() if not i.rove}
-        e.update({n.parameter: n.expression for n in self.context_expressions})
+        e.update({n.parameter: n.expression for n in self.context_expressions.items()})
         return e
 
     def get_gui_selector_state(self):
