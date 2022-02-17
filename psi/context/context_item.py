@@ -158,7 +158,9 @@ class ContextItem(Declarative):
 
     group = d_(Typed(ContextGroup))
 
-    # Name of the group to display the item under.
+    #: Name of the group to display the item under. This should never be
+    #: overwitten even if we remove the item from the group (e.g., when
+    #: loading/unloading plugin tokens).
     group_name = d_(Str())
 
     # Compact label where there is less space in the GUI (e.g., under a column
@@ -197,13 +199,9 @@ class ContextItem(Declarative):
     def set_group(self, group):
         if self.group is not None and self.group != group:
             self.group.remove_item(self)
-
         self.group = group
         if self.group is not None:
             self.group.add_item(self)
-            self.group_name = self.group.name
-        else:
-            self.group_name = ''
 
 
 class Result(ContextItem):
