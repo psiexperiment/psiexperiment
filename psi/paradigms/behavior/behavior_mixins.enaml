@@ -135,19 +135,20 @@ enamldef BaseGoNogoMixin(ExperimentManifest): manifest:
         point = 'psi.experiment.status'
 
         StatusItem:
-            VGroup:
-                padding = 0
-                spacing = 0
-                Label:
-                    text << get_status(
-                        workbench.get_plugin('psi.controller').trial,
-                        workbench.get_plugin('psi.controller').trial_type,
-                        workbench.get_plugin('psi.controller').experiment_state,
-                    )
-                Label:
-                    text << get_state(
-                        workbench.get_plugin('psi.controller').trial_state
-                    )
+            label = 'Experiment state'
+            Label:
+                text << get_status(
+                    workbench.get_plugin('psi.controller').trial,
+                    workbench.get_plugin('psi.controller').trial_type,
+                    workbench.get_plugin('psi.controller').experiment_state,
+                )
+
+        StatusItem:
+            label = 'Trial state'
+            Label:
+                text << get_state(
+                    workbench.get_plugin('psi.controller').trial_state
+                )
 
     Extension:
         id = manifest.id + '.data'
