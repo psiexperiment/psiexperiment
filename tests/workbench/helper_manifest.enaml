@@ -46,6 +46,30 @@ enamldef DuplicateContextItemManifest(ExperimentManifest):
             group_name = 'default'
 
 
+enamldef ContextItemOption1(ExperimentManifest):
+
+    Extension:
+        id = 'helper_items'
+        point = 'psi.context.items'
+
+        Parameter:
+            name = 'repetitions_1'
+            default = 80
+            group_name = 'default'
+
+
+enamldef ContextItemOption2(ExperimentManifest):
+
+    Extension:
+        id = 'helper_items'
+        point = 'psi.context.items'
+
+        Parameter:
+            name = 'repetitions_2'
+            default = 80
+            group_name = 'default'
+
+
 enamldef HelperManifest(ControllerManifest): manifest:
 
     Extension:
