@@ -1,3 +1,5 @@
+# Defines the manifest classes that are needed by test_core.py to load the
+# manifests.
 from psi.core.enaml.api import PSIContribution, PSIManifest
 
 

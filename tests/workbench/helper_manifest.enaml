@@ -40,6 +40,7 @@ enamldef HelperManifest(ControllerManifest): manifest:
                 dtype = 'float32'
 
                 Blocked:
+                    name = 'microphone_blocked'
                     duration = 0.25
 
                     Downsample:

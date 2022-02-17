@@ -32,7 +32,7 @@ def test_actions(controller):
 def test_default_name(controller):
     i = controller.get_input('microphone_filtered')
     assert i.name == 'microphone_filtered'
-    assert i.source.name == 'microphone_blocked_downsample'
+    assert i.source.name == 'microphone_blocked_Downsample'
 
 
 def test_input_metadata(controller):
