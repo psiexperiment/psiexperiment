@@ -128,7 +128,7 @@ STATE_MAP = {
 }
 
 
-PLUGIN_ID = 'psi.base_controller.'
+PLUGIN_ID = 'psi.base_controller'
 
 
 enamldef ControllerManifest(ControllerManifestBase): manifest:
