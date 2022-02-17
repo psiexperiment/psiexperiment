@@ -11,7 +11,12 @@ with enaml.imports():
     from psi.data.manifest import DataManifest
     from psi.token.manifest import TokenManifest
     from psi.experiment.manifest import ExperimentManifest
-    from .helper_manifest import HelperManifest
+    from . import helper_manifest as manifests
+
+
+@pytest.fixture
+def helpers():
+    return manifests
 
 
 @pytest.fixture(scope='session')
@@ -27,7 +32,7 @@ def workbench(app):
     workbench.register(DataManifest())
     workbench.register(TokenManifest())
     workbench.register(ExperimentManifest())
-    workbench.register(HelperManifest())
+    workbench.register(manifests.HelperManifest())
 
     context = workbench.get_plugin('psi.context')
     item = context.context_items['repetitions']

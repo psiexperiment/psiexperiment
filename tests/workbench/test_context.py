@@ -90,3 +90,15 @@ def test_update(workbench):
     context.selectors['default'].set_value(0, item, '5')
     assert context.changes_pending == True
     assert context.selectors['default'].get_value(0, item) == '5'
+
+
+def test_duplicate_context_groups(workbench, helpers):
+    error = 'ContextGroup with the same name has already been registered'
+    with pytest.raises(ValueError, match=error):
+        workbench.register(helpers.DuplicateContextGroupManifest())
+
+
+def test_duplicate_context_items(workbench, helpers):
+    error = 'Parameter with the same name has already been registered'
+    with pytest.raises(ValueError, match=error):
+        workbench.register(helpers.DuplicateContextItemManifest())
