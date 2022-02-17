@@ -1,6 +1,8 @@
 import logging
 log = logging.getLogger(__name__)
 
+import textwrap
+
 from atom.api import Typed
 from enaml.application import deferred_call
 from enaml.layout.api import InsertItem
@@ -9,6 +11,7 @@ from enaml.workbench.plugin import Plugin
 from enaml.widgets.api import Action, DockItem, ToolBar
 from enaml.widgets.toolkit_object import ToolkitObject
 
+from psi.core.enaml.api import PSIPlugin
 from .preferences import Preferences
 from .status_item import StatusItem
 
@@ -33,12 +36,12 @@ class MissingDockLayoutValidator(DockLayoutValidator):
         return
 
 
-class ExperimentPlugin(Plugin):
+class ExperimentPlugin(PSIPlugin):
 
     _preferences = Typed(list)
     _workspace_contributions = Typed(list)
     _toolbars = Typed(list)
-    _status_items = Typed(list)
+    _status_items = Typed(dict)
 
     def start(self):
         log.debug('Starting experiment plugin')
@@ -97,14 +100,9 @@ class ExperimentPlugin(Plugin):
         self._preferences = preferences
 
     def _refresh_status(self, event=None):
-        log.debug('Refreshing status')
-        point = self.workbench.get_extension_point(STATUS_POINT)
-        status_items_added = []
-        for extension in point.extensions:
-            for item in extension.get_children(StatusItem):
-                item.load_manifest(self.workbench)
-                status_items_added.append(item)
-        self._status_items = status_items_added
+        status_items = self.load_plugins(STATUS_POINT, StatusItem, 'label')
+        self.load_manifests(status_items.values())
+        self._status_items = status_items
 
     def _bind_observers(self):
         self.workbench.get_extension_point(PREFERENCES_POINT) \

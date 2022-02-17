@@ -160,7 +160,7 @@ enamldef StatusDockItem(DockItem):
 
     Form:
         Looper:
-            iterable << plugin._status_items
+            iterable << plugin._status_items.values()
             Label:
                 text << loop_item.label
             HGroup:
