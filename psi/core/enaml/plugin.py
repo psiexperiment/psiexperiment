@@ -5,6 +5,8 @@ import textwrap
 
 from enaml.workbench.api import Plugin
 
+from .util import load_manifests
+
 
 class PSIPlugin(Plugin):
 
@@ -31,3 +33,6 @@ class PSIPlugin(Plugin):
                     self.raise_duplicate_error(item, unique_attr, extension)
                 items[attr] = item
         return items
+
+    def load_manifests(self, items):
+        load_manifests(items, self.workbench)
