@@ -65,6 +65,15 @@ class ExperimentActionBase(Declarative):
     # Arguments to pass to command by keyword
     kwargs = d_(Dict())
 
+    def _get_params(self, **kwargs):
+        kwargs.update(self.kwargs)
+        params = {}
+        for k, v in kwargs.items():
+            if getattr(v, 'is_lookup', False):
+                v = v()
+            params[k] = v
+        return params
+
     def _default_dependencies(self):
         return get_dependencies(self.event)
 
@@ -81,15 +90,20 @@ class ExperimentActionBase(Declarative):
 
 class ExperimentAction(ExperimentActionBase):
 
-    # Command to invoke
+    #: Command to invoke
     command = d_(Str())
 
-    def invoke(self, core, kwargs):
-        kwargs = kwargs.copy()
-        kwargs.update(self.kwargs)
-        core.invoke_command(action.command, parameters=kwargs)
+    def invoke(self, core, **kwargs):
+        params = self._get_params(**kwargs)
+        log.debug('Calling command %s with params %r', self.command, params)
+        core.invoke_command(self.command, parameters=params)
 
 
 class ExperimentCallback(ExperimentActionBase):
 
+    #: Callback to invoke
     callback = d_(Callable())
+
+    def invoke(self, core, **kwargs):
+        params = self._get_params(**kwargs)
+        self.callback(**params)

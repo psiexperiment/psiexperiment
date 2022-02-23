@@ -1,8 +1,9 @@
 import logging
 log = logging.getLogger(__name__)
 
-import pickle as pickle
 from copy import deepcopy
+from functools import partial
+import pickle as pickle
 
 import numpy as np
 
@@ -42,6 +43,11 @@ class ContextLookup:
 
     def unique_values(self, item_name, iterator='default'):
         return self.__context_plugin.unique_values(item_name, iterator)
+
+    def lookup(self, attr):
+        cb = partial(getattr, self, attr)
+        cb.is_lookup = True
+        return cb
 
 
 context_initialized_error = '''
