@@ -522,19 +522,10 @@ class ControllerPlugin(Plugin):
         return results
 
     def _invoke_action(self, action, event_name, timestamp, kw):
-        # Add the event name and timestamp to the parameters passed to the
-        # command.
-        kwargs = action.kwargs.copy()
-        kwargs['timestamp'] = timestamp
-        kwargs['event'] = event_name
-        if kw is not None:
-            kwargs.update(kw)
-        if isinstance(action, ExperimentAction):
-            log.debug('Calling command %s', action.command)
-            return self.core.invoke_command(action.command, parameters=kwargs)
-        elif isinstance(action, ExperimentCallback):
-            log.debug('Invoking callback %r', action.callback)
-            return action.callback(**kwargs)
+        if kw is None:
+            kw = {}
+        return action.invoke(self.core, timestamp=timestamp, event=event_name,
+                             **kw)
 
     def request_apply(self):
         if not self.apply_changes():
