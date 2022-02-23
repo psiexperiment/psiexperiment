@@ -88,7 +88,6 @@ class ContextPlugin(PSIPlugin):
 
     _iterators = Typed(dict, ())
     _namespace = Typed(ExpressionNamespace, ())
-    _prior_values = Typed(list, ())
 
     # Subset of context_items that are parameters
     parameters = Property()
@@ -344,23 +343,19 @@ class ContextPlugin(PSIPlugin):
         self.next_selector_setting(selector)
         self.set_values(results)
 
-    def next_setting(self, selector=None, save_prior=True):
+    def next_setting(self, selector=None):
         '''
         Load next set of expressions. If there are no selectors defined, then
         this essentially clears the namespace and allows expresssions to be
         recomputed.
         '''
         log.debug('Loading next setting')
-        if save_prior:
-            prior_values = self._prior_values[:]
-            prior_values.append(self.get_values())
-            self._prior_values = prior_values
         self._namespace.reset()
 
         if selector is None:
             return
         try:
-            log.debug('Configuring next setting from selector %s', selector)
+            log.info('Configuring next setting from selector %s', selector)
             expressions = next(self._iterators[selector])
             expressions = {i.name: e for i, e in expressions.items()}
             self._namespace.update_expressions(expressions)
@@ -369,25 +364,18 @@ class ContextPlugin(PSIPlugin):
             log.debug(m)
             raise
 
-    def get_value(self, context_name, trial=None):
+    def get_value(self, context_name):
         if not self.initialized:
             raise ValueError(context_initialized_error)
-        if trial is not None:
-            try:
-                return self._prior_values[trial][context_name]
-            except IndexError:
-                return None
         try:
             return self._namespace.get_value(context_name)
         except KeyError as e:
             m = f'{context_name} not defined.'
             raise ValueError(m) from e
 
-    def get_values(self, context_names=None, trial=None):
+    def get_values(self, context_names=None):
         if not self.initialized:
             raise ValueError(context_initialized_error)
-        if trial is not None:
-            return self._prior_values[trial]
         return self._namespace.get_values(names=context_names)
 
     def set_value(self, context_name, value):
@@ -395,11 +383,6 @@ class ContextPlugin(PSIPlugin):
 
     def set_values(self, values):
         self._namespace.set_values(values)
-
-    def value_changed(self, context_name):
-        old = self.get_value(context_name, trial=-1)
-        new = self.get_value(context_name)
-        return old != new
 
     def _check_for_changes(self):
         log.debug('Checking for changes')

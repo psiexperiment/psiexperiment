@@ -62,7 +62,7 @@ def initialize(event):
     cycles = event.parameters.get('cycles', np.inf)
     selector = event.parameters.get('selector', None)
     context.apply_changes(cycles=cycles)
-    context.next_setting(selector=selector, save_prior=False)
+    context.next_setting(selector=selector)
     context.initialized = True
     controller.invoke_actions('context_initialized')
 
@@ -72,7 +72,7 @@ def next_setting(event):
     context = event.workbench.get_plugin(PLUGIN_ID)
     p = event.parameters
     try:
-        context.next_setting(selector=p['selector'], save_prior=p['save_prior'])
+        context.next_setting(selector=p['selector'])
         controller.invoke_actions('context_next_setting')
     except StopIteration:
         controller.invoke_actions('context_complete')
