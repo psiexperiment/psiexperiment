@@ -9,6 +9,15 @@ from enaml.workbench.api import Workbench
 
 with enaml.imports():
     from enaml.stdlib.message_box import critical
+    from enaml.workbench.core.core_manifest import CoreManifest
+    from enaml.workbench.ui.ui_manifest import UIManifest
+
+    from psi.context.manifest import ContextManifest
+    from psi.data.manifest import DataManifest
+    from psi.experiment.manifest import ExperimentManifest
+    from psi.token.manifest import TokenManifest
+    from psi.controller.calibration.manifest import CalibrationManifest
+
     from . import error_style
 
 from psi import set_config
@@ -23,47 +32,38 @@ class PSIWorkbench(Workbench):
         # Note, the get_plugin calls appear to be necessary to properly
         # initialize parts of the application before new plugins are loaded.
         # This is likely some sort of bug or poor design on my part.
-        with enaml.imports():
-            from enaml.workbench.core.core_manifest import CoreManifest
-            from enaml.workbench.ui.ui_manifest import UIManifest
-            from psi.experiment.manifest import ExperimentManifest
+        self.register(ExperimentManifest())
+        self.register(ContextManifest())
+        self.register(DataManifest())
+        self.register(TokenManifest())
+        self.register(CalibrationManifest())
+        self.register(CoreManifest())
+        self.register(UIManifest())
 
-            self.register(ExperimentManifest())
-            self.register(CoreManifest())
-            self.register(UIManifest())
-            self.get_plugin('enaml.workbench.ui')
-            self.get_plugin('enaml.workbench.core')
+        self.get_plugin('enaml.workbench.ui')
+        self.get_plugin('enaml.workbench.core')
 
-            self.io_manifest_class = load_manifest_from_file(io_manifest, 'IOManifest')
-            io_manifest = self.io_manifest_class()
-            self.register(io_manifest)
+        self.io_manifest_class = load_manifest_from_file(io_manifest, 'IOManifest')
+        io_manifest = self.io_manifest_class()
+        self.register(io_manifest)
 
-            manifests = [io_manifest]
-            for manifest in controller_manifests:
-                manifests.append(manifest)
-                self.register(manifest)
+        manifests = [io_manifest]
+        for manifest in controller_manifests:
+            log.info('Registering %r', manifest)
+            manifests.append(manifest)
+            self.register(manifest)
 
-            from psi.context.manifest import ContextManifest
-            from psi.data.manifest import DataManifest
-            from psi.token.manifest import TokenManifest
-            from psi.controller.calibration.manifest import CalibrationManifest
+        # Required to bootstrap plugin loading
+        self.get_plugin('psi.controller')
+        self.get_plugin('psi.controller.calibration')
+        context = self.get_plugin('psi.context')
 
-            self.register(ContextManifest())
-            self.register(DataManifest())
-            self.register(TokenManifest())
-            self.register(CalibrationManifest())
-
-            # Required to bootstrap plugin loading
-            self.get_plugin('psi.controller')
-            self.get_plugin('psi.controller.calibration')
-            context = self.get_plugin('psi.context')
-
-            # Now, bind context to any manifests that want it (TODO, I should
-            # have a core PSIManifest that everything inherits from so this
-            # check isn't necessary).
-            for manifest in manifests:
-                if hasattr(manifest, 'C'):
-                    manifest.C = context.lookup
+        # Now, bind context to any manifests that want it (TODO, I should
+        # have a core PSIManifest that everything inherits from so this
+        # check isn't necessary).
+        for manifest in manifests:
+            if hasattr(manifest, 'C'):
+                manifest.C = context.lookup
 
     def start_workspace(self,
                         experiment_name,
