@@ -8,16 +8,18 @@ from enaml.widgets.api import Action, ToolBar
 from enaml.workbench.api import Extension
 import numpy as np
 
-from psi.context.api import (BoolParameter, ContextGroup, EnumParameter,
-                             SequenceSelector, Parameter, Result)
+from psi.context.api import (BoolParameter, ContextGroup, SequenceSelector,
+                             Parameter, Result)
 
 from psi.controller.api import (ContinuousInput, ContinuousOutput,
                                 ControllerManifest, ControllerPlugin,
                                 EpochOutput, ExperimentAction, ExperimentEvent,
-                                ExperimentState)
+                                ExperimentState, Trigger, Toggle)
 
 from psi.token.primitives import (Cos2Envelope, Silence, Tone, WavSequence)
 
+from psi.data.plots import (EventPlot, FFTContainer, FFTChannelPlot, TimeContainer,
+                            ChannelPlot, ViewBox, TimeseriesPlot)
 from psi.data.sinks.api import BinaryStore
 
 from .behavior_mixins import (BaseBehaviorPlugin, GoNogoTrialScore,
@@ -148,6 +150,7 @@ class BehaviorPlugin(BaseBehaviorPlugin):
                 self.rng.uniform() <= p else GoNogoTrialType.nogo
 
     def prepare_trial(self):
+        log.info('Preparing for next trial')
         # Figure out next trial and set up selector.
         self.trial += 1
         self.trial_type = self.next_trial_type()
@@ -161,6 +164,7 @@ class BehaviorPlugin(BaseBehaviorPlugin):
         self.invoke_actions('trial_ready')
 
     def start_trial(self):
+        log.info('Starting next trial')
         # This is broken into a separate method to allow the toolbar to call
         # this method for training.
         ts = self.get_ts()
@@ -170,10 +174,15 @@ class BehaviorPlugin(BaseBehaviorPlugin):
 
     def handle_waiting_for_hold(self, event, timestamp):
         if event in (GoNogoEvent.reward_start, GoNogoEvent.digital_reward_start):
+            log.info('Ignoring early response')
+            # TODO: score as early response
             pass
-            #self.trial_info['response_ts'] = timestamp
-            #self.end_trial(GoNogoResponse.reward, GoNogoTrialScore.false_alarm)
         elif event == GoNogoEvent.hold_duration_elapsed:
+            log.info('Hold duration over')
+            # If we are in training mode, deliver a reward preemptively
+            if self.context.get_value('training_mode') and \
+                    self.trial_type.value.startswith('go'):
+                self.invoke_actions('deliver_reward')
             self.advance_state('response', timestamp)
             self.trial_info['response_start'] = timestamp
 
@@ -185,9 +194,10 @@ class BehaviorPlugin(BaseBehaviorPlugin):
                 score = GoNogoTrialScore.false_alarm
             else:
                 score = GoNogoTrialScore.hit
-            log.warning('rewarde')
-            log.warning(self.trial_type)
-            log.warning(score)
+                # If we are in training mode, the reward has already been
+                # delivered.
+                if not self.context.get_value('training_mode'):
+                    self.invoke_actions('deliver_reward')
             self.end_trial(GoNogoResponse.reward, score)
         elif event == GoNogoEvent.response_duration_elapsed:
             self.invoke_actions(GoNogoEvent.response_end.name, timestamp)
@@ -196,13 +206,9 @@ class BehaviorPlugin(BaseBehaviorPlugin):
                 score = GoNogoTrialScore.correct_reject
             else:
                 score = GoNogoTrialScore.miss
-            log.warning('no response')
-            log.warning(self.trial_type)
-            log.warning(score)
             self.end_trial(GoNogoResponse.no_response, score)
 
     def end_trial(self, response, score):
-        log.warning('In end trial')
         self.stop_event_timer()
         ts = self.get_ts()
 
@@ -261,7 +267,11 @@ class BehaviorPlugin(BaseBehaviorPlugin):
             self.start_event_timer('to_duration', GoNogoEvent.to_duration_elapsed)
 
     def handle_waiting_for_iti(self, event, timestamp):
-        if event == GoNogoEvent.iti_duration_elapsed:
+        if event in (GoNogoEvent.reward_start, GoNogoEvent.digital_reward_start):
+            # Animal attempted to get reward. Reset ITI interval.
+            self.start_event_timer('iti_duration',
+                                   GoNogoEvent.iti_duration_elapsed)
+        elif event == GoNogoEvent.iti_duration_elapsed:
             self.invoke_actions(GoNogoEvent.iti_end.name, timestamp)
             if self._pause_requested:
                 self.pause_experiment()
@@ -281,7 +291,7 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
     factory = BehaviorPlugin
 
     Extension:
-        id = 'tokens'
+        id = manifest.id + '.tokens'
         point = 'psi.token.tokens'
 
         Silence:
@@ -362,11 +372,14 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
             label = 'Trial Settings'
 
             Parameter:
+                name = 'snr'
+                label = 'SNR (dB)'
+                default = 10
+            Parameter:
                 name = 'iti_duration'
                 label = 'Intertrial interval (s)'
                 compact_label = 'ITI'
                 default = 0.1
-                expression = '0.1'
             Parameter:
                 name = 'to_duration'
                 label = 'Timeout duration (s)'
@@ -387,6 +400,11 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
                 label = 'Reward pause duration (s)'
                 compact_label = 'Reward'
                 default = 0.25
+            BoolParameter:
+                name = 'training_mode'
+                label = 'Training mode'
+                scope = 'experiment'
+                default = True
 
         ContextGroup:
             name = 'selector'
@@ -410,13 +428,12 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
                 compact_label = 'Pr'
                 default = 0.5
                 scope = 'arbitrary'
-            EnumParameter:
+            BoolParameter:
                 name = 'repeat_fa'
                 label = 'Repeat FA?'
                 compact_label = 'RFA'
-                default = 'yes'
                 scope = 'arbitrary'
-                choices = {'yes': True, 'no': False}
+                default = True
             Parameter:
                 name = 'remind_trials'
                 label = 'Remind trials'
@@ -509,3 +526,46 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
                     plugin.handle_event(GoNogoEvent.digital_reward_end)
                 enabled << workbench.get_plugin('psi.controller').experiment_state \
                     not in ('initialized', 'stopped')
+
+    Extension:
+        id = 'plots'
+        point = 'psi.data.plots'
+
+        FFTContainer:
+            name = 'microphone_fft_container'
+            label = 'Microphone FFT'
+            freq_lb = 5
+            freq_ub = 24000
+
+            ViewBox:
+                name = 'microphone_fft'
+                y_min = -120
+                y_max = 100
+
+                FFTChannelPlot:
+                    source_name = 'microphone'
+                    pen_color = 'k'
+                    time_span = 1
+
+        TimeContainer:
+            name = 'trial_plot_container'
+            label = 'Trial timing'
+            span = 10
+
+            ViewBox:
+                name = 'microphone'
+                y_min = -1
+                y_max = 1
+
+                ChannelPlot:
+                    source_name = 'microphone'
+                    pen_color = 'k'
+
+            ViewBox:
+                name = 'reward_contact'
+                y_min = 0
+                y_max = 5
+
+                ChannelPlot:
+                    source_name = 'reward_contact_analog'
+                    pen_color = 'blue'
