@@ -328,7 +328,6 @@ class Trigger(DigitalOutput):
 
     def fire(self, duration):
         if self.engine.configured:
-            log.warning(f'Triggering for {duration}')
             self.engine.fire_sw_do(self.channel.name, duration=duration)
             self.total_fired += 1
 
