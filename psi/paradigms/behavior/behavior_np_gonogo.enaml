@@ -18,7 +18,6 @@ from psi.context.api import (BoolParameter, ContextGroup, EnumParameter,
 from psi.controller.api import (ControllerManifest, ControllerPlugin,
                                 ExperimentAction, ExperimentEvent,
                                 ExperimentState)
-from psi.controller.devices.pellet_dispenser import PelletDispenser
 from psi.core.enaml.api import ExperimentManifest
 
 from psi.data.sinks.api import BinaryStore, EventLog, SDTAnalysis, TrialLog
@@ -859,22 +858,3 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
 
         SDTAnalysis:
             pass
-
-
-################################################################################
-# Useful plugins
-################################################################################
-enamldef PelletDispenserMixinManifest(ExperimentManifest): manifest:
-
-    id = 'pellet_dispenser'
-    required = True
-    name = 'Pellet dispenser'
-
-    Extension:
-        id = manifest.id + '.io'
-        point = 'psi.controller.io'
-
-        PelletDispenser:
-            name = 'food_dispenser'
-            label = 'Pellet dispenser'
-            output_name = 'food_dispense_trigger'
