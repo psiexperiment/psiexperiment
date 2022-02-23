@@ -150,7 +150,7 @@ class ContextItem(Declarative):
     name = d_(Str())
 
     # Long-format label for display in the GUI. Include units were applicable.
-    label = d_(Str()).tag(preference=True)
+    label = d_(Str())
 
     # Datatype of the value. Required for properly initializing some data
     # plugins (e.g., those that save data to a HDF5 file).
@@ -165,10 +165,10 @@ class ContextItem(Declarative):
 
     # Compact label where there is less space in the GUI (e.g., under a column
     # heading for example).
-    compact_label = d_(Str()).tag(preference=True)
+    compact_label = d_(Str())
 
     # Is this visible via the standard configuration menus?
-    visible = d_(Bool(True)).tag(preference=True)
+    visible = d_(Bool(True))
 
     # Can this be configured by the user? This will typically be False if the
     # experiment configuration has contributed an Expression that assigns the
