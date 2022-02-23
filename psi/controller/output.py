@@ -324,11 +324,13 @@ class DigitalOutput(BaseOutput):
 
 class Trigger(DigitalOutput):
 
-    duration = d_(Float(0.1)).tag(metadata=True)
+    total_fired = d_(Int(0), writable=False)
 
-    def fire(self):
+    def fire(self, duration):
         if self.engine.configured:
-            self.engine.fire_sw_do(self.channel.name, duration=self.duration)
+            log.warning(f'Triggering for {duration}')
+            self.engine.fire_sw_do(self.channel.name, duration=duration)
+            self.total_fired += 1
 
 
 class Toggle(DigitalOutput):
