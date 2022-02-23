@@ -263,7 +263,7 @@ enamldef ControllerManifest(ControllerManifestBase): manifest:
                     and not workbench.get_plugin('psi.controller')._apply_requested \
                     and workbench.get_plugin('psi.controller').experiment_state \
                     in ('running', 'paused')
-                triggered :: 
+                triggered ::
                     plugin = workbench.get_plugin('enaml.workbench.core')
                     plugin.invoke_command('psi.controller.request_apply')
 
