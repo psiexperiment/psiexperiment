@@ -364,15 +364,11 @@ class BaseBehaviorPlugin(ControllerPlugin):
         # be tracked via NI-DAQmx or can be calculated (i.e., we know
         # exactly when the target onset occurs because we precisely specify
         # the location of the target in the analog output buffer).
-        try:
-            if timestamp is None:
-                timestamp = self.get_ts()
-            # TODO: let's keep this in the original thread? Should we just use
-            # a lock rather than a deferred call?
-            deferred_call(self._handle_event, event, timestamp)
-        except Exception as e:
-            log.exception(e)
-            raise
+        if timestamp is None:
+            timestamp = self.get_ts()
+        # TODO: let's keep this in the original thread? Should we just use
+        # a lock rather than a deferred call?
+        deferred_call(self._handle_event, event, timestamp)
 
     def _handle_event(self, event, timestamp):
         '''
