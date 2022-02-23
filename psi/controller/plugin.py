@@ -19,7 +19,6 @@ from .channel import Channel, OutputMixin, InputMixin
 from .engine import Engine
 from .output import Output, Synchronized
 from .input import Input
-from .device import Device
 
 from .experiment_action import (ExperimentAction, ExperimentActionBase,
                                 ExperimentCallback, ExperimentEvent,
@@ -45,14 +44,6 @@ def get_outputs(output):
         outputs.extend(get_outputs(child))
     outputs.append(output)
     return outputs
-
-
-def find_devices(point):
-    devices = {}
-    for extension in point.extensions:
-        for device in extension.get_children(Device):
-            devices[device.name] = device
-    return devices
 
 
 general_error = '''
@@ -194,9 +185,6 @@ class ControllerPlugin(Plugin):
     # Available inputs
     _inputs = Typed(dict, {})
 
-    # Available devices
-    _devices = Typed(dict, {})
-
     # This determines which engine is responsible for the clock
     _master_engine = Typed(Engine)
 
@@ -246,7 +234,6 @@ class ControllerPlugin(Plugin):
         log.debug('Loading IO')
         point = self.workbench.get_extension_point(IO_POINT)
 
-        self._devices = find_devices(point)
         self._engines, self._master_engine = find_engines(point)
         self._channels = find_channels(self._engines)
         self._outputs, self._supporting = find_outputs(self._channels, point)
@@ -254,9 +241,6 @@ class ControllerPlugin(Plugin):
 
         for c in self._channels.values():
             c.load_manifest(self.workbench)
-
-        for d in self._devices.values():
-            d.load_manifest(self.workbench)
 
         for s in self._supporting.values():
             s.load_manifest(self.workbench)
