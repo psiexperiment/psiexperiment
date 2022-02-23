@@ -169,8 +169,7 @@ enamldef StatusDockItem(DockItem):
                 Include:
                     objects << loop_item.children
 
-
-def status_dockitem_factory(plugin, workbench, workspace):
+def status_dockitem_factory(plugin):
     return [StatusDockItem(plugin=plugin)]
 
 
@@ -314,6 +313,7 @@ enamldef ExperimentManifest(PluginManifest): manifest:
         id = 'status'
 
     Extension:
+        # Provides the default Status DockItem pane.
         id = manifest.id + '.workspace'
         point = 'psi.experiment.workspace'
         factory = status_dockitem_factory

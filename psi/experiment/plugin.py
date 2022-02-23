@@ -56,7 +56,8 @@ class ExperimentPlugin(PSIPlugin):
 
     def _refresh_workspace(self, event=None):
         ui = self.workbench.get_plugin('enaml.workbench.ui')
-        items = self.load_plugins(WORKSPACE_POINT, DockItem, 'name')
+        items = self.load_plugins(WORKSPACE_POINT, DockItem, 'name',
+                                  plugin=self)
         for item in items.values():
             item.set_parent(ui.workspace.dock_area)
             op = InsertItem(item=item.name)
