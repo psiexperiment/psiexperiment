@@ -154,7 +154,7 @@ enamldef BaseGoNogoMixin(ExperimentManifest): manifest:
         id = manifest.id + '.data'
         point = 'psi.data.sinks'
         EventLog:
-            pass
+            show_widget = True
         TrialLog:
             show_widget = True
         SDTAnalysis:
