@@ -221,7 +221,8 @@ enamldef ContextManifest(PluginManifest): manifest:
                 log.debug('Setting meta states')
                 for meta in plugin.context_meta.values():
                     state = meta_state.get(meta.name, {})
-                    items = [plugin.context_items[n] for n in state]
+                    items = [plugin.context_items[n] for n in state \
+                             if n in plugin.context_items]
                     try:
                         # This is a hack. By forcing a getattr of meta.values,
                         # we force a creation event. Then, when we assign items
