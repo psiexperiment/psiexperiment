@@ -6,7 +6,7 @@ CORE_PATH = 'psi.paradigms.core.'
 
 
 ParadigmDescription(
-    'appetitive_gonogo_food', 'Appetitive GO-NOGO food', 'animal', [
+    'appetitive-gonogo-food', 'Appetitive GO-NOGO food', 'animal', [
         (PATH + 'behavior_np_gonogo.BehaviorManifest',),
         (PATH + 'behavior_mixins.PelletDispenser',),
     ],
@@ -14,7 +14,7 @@ ParadigmDescription(
 
 
 ParadigmDescription(
-    'auto_gonogo', 'Auto GO-NOGO', 'animal', [
+    'auto-gonogo', 'Auto GO-NOGO', 'animal', [
         (PATH + 'behavior_auto_gonogo.BehaviorManifest',),
         (PATH + 'behavior_mixins.BaseGoNogoMixin',),
         (PATH + 'behavior_mixins.WaterBolusDispenser',),
