@@ -9,7 +9,7 @@ from copy import deepcopy
 from enaml.core.api import Looper
 from enaml.layout.api import VSplitLayout, TabLayout
 from enaml.styling import StyleSheet, Style, Setter
-from enaml.widgets.api import (Container, DockArea, DockItem, VGroup, HGroup,
+from enaml.widgets.api import (Container, DockArea, VGroup, HGroup,
                                Label, FileDialogEx, Action)
 from enaml.workbench.api import Extension, ExtensionPoint, PluginManifest
 from enaml.workbench.core.api import Command
