@@ -121,7 +121,9 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gains=0,
 
     log.debug('Computing tone power for %r using inputs %r', ao_channel_name,
               ai_channel_names)
-    from psi.controller.api import ExtractEpochs, FIFOSignalQueue
+
+    from psiaudio.queue import FIFOSignalQueue
+    from psi.controller.api import ExtractEpochs
 
     frequencies = np.asarray(frequencies)
     calibration = FlatCalibration.as_attenuation(vrms=vrms)
