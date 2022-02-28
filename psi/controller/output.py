@@ -35,6 +35,7 @@ class Synchronized(PSIContribution):
 
 
 class BaseOutput(PSIContribution):
+
     name = d_(Str()).tag(metadata=True)
     label = d_(Str()).tag(metadata=True)
 
@@ -42,6 +43,9 @@ class BaseOutput(PSIContribution):
     target = d_(Typed(Declarative).tag(metadata=True), writable=False)
     channel = Property().tag(metadata=True)
     engine = Property().tag(metadata=True)
+
+    def _default_label(self):
+        return self.name
 
     def _get_engine(self):
         if self.channel is None:
