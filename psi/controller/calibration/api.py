@@ -1,9 +1,3 @@
-import enaml
-
-from .calibration import (calibration_registry, ChirpCalibration,
-                          CochlearCalibration, EPLCalibration,
-                          GolayCalibration,)
-
 from .calibrate import ChirpCalibrate, ToneCalibrate
 from .chirp import chirp_sens
 from .plugin import CalibrationPlugin

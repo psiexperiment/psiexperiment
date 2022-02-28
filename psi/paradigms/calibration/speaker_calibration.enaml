@@ -136,7 +136,6 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
 
         EpochCounter:
             name = 'epoch_counter'
-            label = 'N epochs'
             source_name = 'epoch'
 
     Extension:

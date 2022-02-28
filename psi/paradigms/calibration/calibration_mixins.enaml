@@ -33,6 +33,7 @@ def configure_hardware_golay(output, workbench, event=None):
     '''
     context = workbench.get_plugin('psi.context')
     controller = workbench.get_plugin('psi.controller')
+    data = workbench.get_plugin('psi.data')
 
     max_sf = 0
     for setting in context.iter_settings('default', 1):
@@ -58,6 +59,8 @@ def configure_hardware_golay(output, workbench, event=None):
         output.queue.append(b, n_trials, delays, metadata=setting)
 
     output.channel.expected_range = (-max_sf*1.1, max_sf*1.1)
+    counter = data.find_sink('epoch_counter')
+    deferred_call(setattr, counter, 'requested_n', n_trials * 2)
 
 
 def plot_data(vb, summary, y_name, *args, **kwargs):
@@ -99,7 +102,7 @@ def compute_spl_golay(workbench, event):
         # Calculate SPL
         freq = summary['frequency']
         psd = summary['psd']
-        spl = ai.channel.calibration.get_spl(freq, psd)
+        spl = ai.channel.calibration.get_db(freq, psd)
         if smoothing_window > 0:
             w = signal.hamming(smoothing_window)
             w /= w.sum()
@@ -153,7 +156,7 @@ def compute_calibration_chirp(event):
         freq = util.psd_freq(epochs, source.fs)
         resp_psd = util.psd(epochs, source.fs).mean(axis=0)
         resp_phase = util.phase(epochs, source.fs).mean(axis=0)
-        spl = ai.channel.calibration.get_spl(freq, resp_psd)
+        spl = ai.channel.calibration.get_db(freq, resp_psd)
 
         settings['hw_ao_chirp_level'] = chirp_level
         chirp = generate_waveform(ao, settings)
