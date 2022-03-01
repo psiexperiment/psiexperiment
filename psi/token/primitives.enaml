@@ -231,3 +231,8 @@ enamldef WavSequence(ContinuousBlock):
         name = 'path'
         label = 'folder'
         dtype = 'S'
+
+    Parameter:
+        name = 'level'
+        label = 'level (dB peSPL)'
+        dtype = 'double'
