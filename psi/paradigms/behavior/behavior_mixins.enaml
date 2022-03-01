@@ -85,7 +85,7 @@ class GoNogoTrialScore(enum.Enum):
     false_alarm = 'FA'
 
 
-def get_status(trial, trial_type, experiment_state):
+def get_status(trial, trial_type, trial_state, experiment_state):
     # Experiment not running
     if experiment_state == 'paused':
         return 'Experiment paused'
@@ -94,13 +94,15 @@ def get_status(trial, trial_type, experiment_state):
     elif experiment_state == 'stopped':
         return 'Experiment complete'
 
+    state = '' if trial_state is None else trial_state.value
+
     # Experiment running
     if '_' in trial_type.value:
         general, specific = trial_type.value.split('_', 1)
         label = '{} ({})'.format(general, specific.replace('_', ' '))
     else:
         label = trial_type.value
-    return 'Trial {}: {}'.format(trial, label)
+    return 'Trial {} {} - {}'.format(trial, label, state)
 
 
 def get_state(trial_state):
@@ -138,14 +140,8 @@ enamldef BaseGoNogoMixin(ExperimentManifest): manifest:
                 text << get_status(
                     workbench.get_plugin('psi.controller').trial,
                     workbench.get_plugin('psi.controller').trial_type,
+                    workbench.get_plugin('psi.controller').trial_state,
                     workbench.get_plugin('psi.controller').experiment_state,
-                )
-
-        StatusItem:
-            label = 'Trial state'
-            Label:
-                text << get_state(
-                    workbench.get_plugin('psi.controller').trial_state
                 )
 
     Extension:
