@@ -11,7 +11,6 @@ from enaml.workbench.ui.api import ActionItem, Branding, MenuItem
 
 from ..util import rpc
 
-from psi.experiment.api import StatusItem
 from .plugin import ControllerPlugin
 from .experiment_action import (ExperimentState, ExperimentEvent,
                                 ExperimentAction)
@@ -119,14 +118,6 @@ class ControllerManifestBase(ExperimentManifest):
         return get_hw_ai_choices(self.workbench)
 
 
-STATE_MAP = {
-    'initialized': 'Ready to start',
-    'running': 'Acquiring data',
-    'paused': 'Acquisition paused',
-    'stopped': 'Acquisition complete',
-}
-
-
 PLUGIN_ID = 'psi.base_controller'
 
 
@@ -161,16 +152,6 @@ enamldef ControllerManifest(ControllerManifestBase): manifest:
         point = 'enaml.workbench.ui.branding'
         Branding:
             title << manifest.window_title
-
-    Extension:
-        id = PLUGIN_ID + '.status'
-        point = 'psi.experiment.status'
-        rank = 0
-
-        StatusItem:
-            label = 'Status'
-            Label:
-                text << STATE_MAP[workbench.get_plugin('psi.controller').experiment_state]
 
     Extension:
         id = PLUGIN_ID + '.commands'
