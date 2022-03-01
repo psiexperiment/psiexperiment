@@ -135,6 +135,7 @@ template ParameterTemplate(context_item, MemberType, scope: 'experiment'):
             .experiment_state not in ('running', 'paused') and \
             context_item.editable
         Label: label:
+            tool_tip << context_item.name
             text << context_item.label
         WidgetDynamicTemplate:
             pass
@@ -208,7 +209,7 @@ enamldef ContextItem(Container): container:
             PushButton: pb:
                 constraints = [pb.width == 20]
                 text << 'C'
-                clicked:: 
+                clicked::
                     context_meta = workbench.get_plugin('psi.context').get_metas(editable=True)
                     cm_popup = ContextMetaPopup(parent=self,
                                                 context_meta=context_meta,
