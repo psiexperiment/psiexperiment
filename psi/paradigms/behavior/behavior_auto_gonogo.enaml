@@ -3,7 +3,8 @@ log = logging.getLogger(__name__)
 
 import enum
 
-from atom.api import Int, Typed
+from atom.api import Bool, Int, Typed
+from enaml.core.api import d_
 from enaml.widgets.api import Action, ToolBar
 from enaml.workbench.api import Extension
 import numpy as np
@@ -37,6 +38,7 @@ class GoNogoTrialState(TrialState):
     "waiting_for_to").
     '''
     waiting_for_resume = 'waiting for resume'
+    waiting_for_trial_start = 'waiting for trial start'
     waiting_for_hold = 'waiting for hold'
     waiting_for_response = 'waiting for response'
     waiting_for_reward_pause = 'waiting for reward pause'
@@ -96,6 +98,8 @@ class BehaviorPlugin(BaseBehaviorPlugin):
     # Used by the trial sequence selector to randomly select between go/nogo.
     rng = Typed(np.random.RandomState)
 
+    manual_control = d_(Bool(), writable=False)
+
     consecutive_nogo = Int(0)
 
     def _default_rng(self):
@@ -111,6 +115,7 @@ class BehaviorPlugin(BaseBehaviorPlugin):
 
     selector_map = {
         GoNogoTrialType.go: 'go',
+        GoNogoTrialType.go_manual: 'go',
         GoNogoTrialType.go_warmup: 'remind',
         GoNogoTrialType.go_warmup_remind: 'remind',
         GoNogoTrialType.go_remind: 'remind',
@@ -120,6 +125,13 @@ class BehaviorPlugin(BaseBehaviorPlugin):
         GoNogoTrialType.nogo_forced: 'nogo',
         GoNogoTrialType.nogo_repeat: 'nogo',
     }
+
+    def apply_changes(self):
+        if self.trial_state in (GoNogoTrialState.waiting_for_trial_start,
+                                GoNogoTrialState.waiting_for_iti):
+            self._apply_changes()
+            return True
+        return False
 
     def next_trial_type(self):
         '''
@@ -149,19 +161,31 @@ class BehaviorPlugin(BaseBehaviorPlugin):
             return GoNogoTrialType.go if \
                 self.rng.uniform() <= p else GoNogoTrialType.nogo
 
-    def prepare_trial(self):
-        log.info('Preparing for next trial')
+    def prepare_trial(self, trial_type=None, auto_start=False):
+        log.info('Preparing for next trial (trial_type %r, auto_start %r)',
+                 trial_type, auto_start)
         # Figure out next trial and set up selector.
         self.trial += 1
-        self.trial_type = self.next_trial_type()
+        if trial_type is None:
+            self.trial_type = self.next_trial_type()
+        else:
+            self.trial_type = trial_type
         selector = self.selector_map[self.trial_type]
         setting = self.context.next_setting(selector)
+        self.manual_control = self.context.get_value('manual_control')
         self.trial_info = {
             'response_start': np.nan,
             'response_ts': np.nan,
             'trial_type': self.trial_type.value,
         }
+        self.trial_state = GoNogoTrialState.waiting_for_trial_start
         self.invoke_actions('trial_ready')
+        if auto_start or not self.manual_control:
+            self.start_trial()
+
+    def request_trial(self, trial_type):
+        log.info('Requesting trial')
+        self.prepare_trial(trial_type=trial_type, auto_start=True)
 
     def start_trial(self):
         log.info('Starting next trial')
@@ -239,7 +263,6 @@ class BehaviorPlugin(BaseBehaviorPlugin):
         # go_probability) are reflected in determining the next trial type.
         if self._apply_requested:
             self._apply_changes(False)
-        self.invoke_actions('trial_prepare', ts)
 
     def advance_state(self, state, timestamp):
         self.trial_state = getattr(GoNogoTrialState, f'waiting_for_{state}')
@@ -248,6 +271,9 @@ class BehaviorPlugin(BaseBehaviorPlugin):
         duration = f'{state}_duration'
         elapsed_event = getattr(GoNogoEvent, f'{state}_duration_elapsed')
         self.start_event_timer(duration, elapsed_event)
+
+    def handle_waiting_for_trial_start(self, event, timestamp):
+        pass
 
     def handle_waiting_for_reward_pause(self, event, timestamp):
         if event == GoNogoEvent.reward_pause_duration_elapsed:
@@ -327,10 +353,6 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
             command = 'psi.controller.prepare_trial'
 
         ExperimentAction:
-            event = 'trial_ready'
-            command = 'psi.controller.start_trial'
-
-        ExperimentAction:
             # The operations required to actually generate and upload the token
             # take some time, so we have to allow for a small delay.
             event = 'trial_start'
@@ -403,8 +425,13 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
             BoolParameter:
                 name = 'training_mode'
                 label = 'Training mode'
-                scope = 'experiment'
+                scope = 'arbitrary'
                 default = True
+            BoolParameter:
+                name = 'manual_control'
+                label = 'Manual control?'
+                scope = 'arbitrary'
+                default = False
 
         ContextGroup:
             name = 'selector'
@@ -512,20 +539,20 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
 
         ToolBar:
             Action:
-                text = 'Remind'
+                text = 'Request Remind'
                 triggered ::
                     plugin = workbench.get_plugin('psi.controller')
                     plugin.request_remind()
-                enabled <<  workbench.get_plugin('psi.controller').experiment_state \
-                    not in ('initialized', 'stopped')
-            Action:
-                text = 'Reward'
-                triggered ::
-                    plugin = workbench.get_plugin('psi.controller')
-                    plugin.handle_event(GoNogoEvent.digital_reward_start)
-                    plugin.handle_event(GoNogoEvent.digital_reward_end)
                 enabled << workbench.get_plugin('psi.controller').experiment_state \
                     not in ('initialized', 'stopped')
+            Action:
+                text = 'Start Trial'
+                triggered ::
+                    plugin = workbench.get_plugin('psi.controller')
+                    plugin.request_trial(GoNogoTrialType.go_manual)
+                enabled << workbench.get_plugin('psi.controller').experiment_state \
+                    not in ('initialized', 'stopped') \
+                    and workbench.get_plugin('psi.controller').manual_control
 
     Extension:
         id = 'plots'

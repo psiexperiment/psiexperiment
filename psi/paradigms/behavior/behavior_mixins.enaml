@@ -56,6 +56,9 @@ class GoNogoTrialType(TrialType):
     #: A go trial requested by the user that's drawm from the remind sequence.
     go_remind = 'go_remind'
 
+    #: A go trial manually initiated by the user (e.g., for shaping purposes).
+    go_manual = 'go_manual'
+
     #: A go trial presented because the maximum number of consecutive nogo
     #: trials have been reached.
     go_forced = 'go_forced'
@@ -313,28 +316,23 @@ class BaseBehaviorPlugin(ControllerPlugin):
         return False
 
     def apply_changes(self):
-        return False
+        raise NotImplementedError
 
     def _pause_experiment(self):
         self.experiment_state = 'paused'
         self._pause_requested = False
 
-    def _apply_changes(self, new_trial=False):
+    def _apply_changes(self, prepare_trial=True):
+        log.info('Applying changes')
         self.context.apply_changes()
         self._apply_requested = False
-        if new_trial:
-            selector = self.next_selector()
-            self.context.next_setting(selector, save_prior=False)
-            self.invoke_actions('trial_prepare', self.get_ts())
-        log.debug('applied changes')
+        if prepare_trial:
+            self.prepare_trial()
 
     def request_remind(self):
         self._remind_requested = True
         if self.can_modify():
-            selector = self.next_selector()
-            self.context.next_setting(selector, save_prior=False)
-            self.invoke_actions('trial_prepare', self.get_ts())
-            log.debug('applied changes')
+            self.prepare_trial(auto_start=True)
 
     def et_callback(self, name, edge, event_time):
         log.debug('Detected {} on {} at {}'.format(edge, name, event_time))
