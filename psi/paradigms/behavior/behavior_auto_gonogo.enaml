@@ -41,7 +41,6 @@ class GoNogoTrialState(TrialState):
     waiting_for_trial_start = 'waiting for trial start'
     waiting_for_hold = 'waiting for hold'
     waiting_for_response = 'waiting for response'
-    waiting_for_reward_pause = 'waiting for reward pause'
     waiting_for_to = 'waiting for timeout'
     waiting_for_iti = 'waiting for intertrial interval'
 
@@ -69,10 +68,6 @@ class GoNogoEvent(enum.Enum):
 
     digital_reward_start = 'digital_reward_start'
     digital_reward_end = 'digital_reward_end'
-
-    reward_pause_start = 'reward_pause_start'
-    reward_pause_end = 'reward_pause_end'
-    reward_pause_duration_elapsed = 'reward_pause_duration_elapsed'
 
     to_start = 'timeout started'
     to_end = 'timeout over'
@@ -254,8 +249,6 @@ class BehaviorPlugin(BaseBehaviorPlugin):
 
         if score == GoNogoTrialScore.false_alarm:
             self.advance_state('to', ts)
-        elif score == GoNogoTrialScore.hit:
-            self.advance_state('reward_pause', ts)
         else:
             self.advance_state('iti', ts)
 
@@ -274,14 +267,6 @@ class BehaviorPlugin(BaseBehaviorPlugin):
 
     def handle_waiting_for_trial_start(self, event, timestamp):
         pass
-
-    def handle_waiting_for_reward_pause(self, event, timestamp):
-        if event == GoNogoEvent.reward_pause_duration_elapsed:
-            self.advance_state('iti', timestamp)
-        elif event in (GoNogoEvent.reward_start, GoNogoEvent.digital_reward_start):
-            # Animal repoked. Reset timeout duration.
-            self.start_event_timer('reward_pause_duration',
-                                   GoNogoEvent.reward_pause_duration_elapsed)
 
     def handle_waiting_for_to(self, event, timestamp):
         if event == GoNogoEvent.to_duration_elapsed:
@@ -391,7 +376,7 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
 
         ContextGroup:
             name = 'trial'
-            label = 'Trial Settings'
+            label = 'Trial'
 
             Parameter:
                 name = 'snr'
@@ -417,11 +402,6 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
                 label = 'Hold duration (s)'
                 compact_label = 'Hold'
                 default = 0.0
-            Parameter:
-                name = 'reward_pause_duration'
-                label = 'Reward pause duration (s)'
-                compact_label = 'Reward'
-                default = 0.25
             BoolParameter:
                 name = 'training_mode'
                 label = 'Training mode'
@@ -477,7 +457,6 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
         ContextGroup:
             name = 'results'
             label = 'Trial results'
-            visible = True
 
             Result:
                 name = 'response'
