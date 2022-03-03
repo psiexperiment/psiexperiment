@@ -4,6 +4,7 @@ log = logging.getLogger(__name__)
 import enum
 
 from atom.api import Bool, Int, Typed
+from enaml.application import timed_call
 from enaml.core.api import d_
 from enaml.widgets.api import Action, ToolBar
 from enaml.workbench.api import Extension
@@ -324,6 +325,27 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
         id = manifest.id + '.events'
         point = 'psi.controller.actions'
 
+        ExperimentState:
+            name = 'digital_reward'
+        ExperimentState:
+            name = 'reward'
+        ExperimentState:
+            name = 'iti'
+        ExperimentState:
+            name = 'response'
+        ExperimentState:
+            name = 'to'
+        ExperimentEvent:
+            name = 'response_duration_elapsed'
+        ExperimentEvent:
+            name = 'iti_duration_elapsed'
+        ExperimentEvent:
+            name = 'to_duration_elapsed'
+        ExperimentEvent:
+            name = 'deliver_reward'
+        ExperimentEvent:
+            name = 'trial_ready'
+
         ExperimentAction:
             event = 'engines_configured'
             command = 'background.start'
@@ -336,6 +358,18 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
         ExperimentAction:
             event = 'engines_configured'
             command = 'psi.controller.prepare_trial'
+
+        ExperimentAction:
+            event = 'engines_started'
+            command = 'room_light_toggle.on'
+
+        ExperimentAction:
+            event = 'to_start'
+            command = 'room_light_toggle.off'
+
+        ExperimentAction:
+            event = 'to_end'
+            command = 'room_light_toggle.on'
 
         ExperimentAction:
             # The operations required to actually generate and upload the token
@@ -488,31 +522,6 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
                 dtype = 'float64'
 
     Extension:
-        id = manifest.id + '.actions'
-        point = 'psi.controller.actions'
-
-        ExperimentState:
-            name = 'digital_reward'
-        ExperimentState:
-            name = 'reward'
-        ExperimentState:
-            name = 'iti'
-        ExperimentState:
-            name = 'response'
-        ExperimentState:
-            name = 'to'
-        ExperimentEvent:
-            name = 'response_duration_elapsed'
-        ExperimentEvent:
-            name = 'iti_duration_elapsed'
-        ExperimentEvent:
-            name = 'to_duration_elapsed'
-        ExperimentEvent:
-            name = 'deliver_reward'
-        ExperimentEvent:
-            name = 'trial_ready'
-
-    Extension:
         id = manifest.id + '.toolbar'
         point = 'psi.experiment.toolbar'
 
@@ -520,18 +529,20 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
             Action:
                 text = 'Request Remind'
                 triggered ::
-                    plugin = workbench.get_plugin('psi.controller')
-                    plugin.request_remind()
-                enabled << workbench.get_plugin('psi.controller').experiment_state \
-                    not in ('initialized', 'stopped')
+                    controller.request_remind()
+                enabled << controller.experiment_state not in ('initialized', 'stopped')
             Action:
                 text = 'Start Trial'
                 triggered ::
-                    plugin = workbench.get_plugin('psi.controller')
-                    plugin.request_trial(GoNogoTrialType.go_manual)
-                enabled << workbench.get_plugin('psi.controller').experiment_state \
-                    not in ('initialized', 'stopped') \
-                    and workbench.get_plugin('psi.controller').manual_control
+                    controller.request_trial(GoNogoTrialType.go_manual)
+                enabled << controller.experiment_state not in ('initialized', 'stopped') \
+                    and controller.manual_control
+            Action:
+                text = 'Simulate lick'
+                triggered ::
+                    controller.handle_event(GoNogoEvent.digital_reward_start)
+                    timed_call(100, controller.handle_event, GoNogoEvent.digital_reward_end)
+                enabled << controller.experiment_state not in ('initialized', 'stopped')
 
     Extension:
         id = 'plots'
