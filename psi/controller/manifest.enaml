@@ -88,15 +88,6 @@ def invoke_actions(event):
     controller.invoke_actions(event_name, timestamp)
 
 
-def configure_calibration(event):
-    controller = event.workbench.get_plugin('psi.controller')
-    channels = list(controller._channels.values())
-    with enaml.imports():
-        from psi.controller.calibration.calibration_gui import Main
-        window = Main(channels=channels, modality='application_modal')
-        result = window.show()
-
-
 def get_hw_ao_choices(workbench):
     plugin = workbench.get_plugin('psi.controller')
     channels = plugin.get_channels('analog', 'output', 'hardware', False)
@@ -204,10 +195,6 @@ enamldef ControllerManifest(ControllerManifestBase): manifest:
         Command:
             id = 'psi.controller.invoke_actions'
             handler = invoke_actions
-
-        Command:
-            id = 'psi.controller.configure_calibration'
-            handler = configure_calibration
 
     # Uses unicode symbols as icons for sake of simplicity.
     Extension:
