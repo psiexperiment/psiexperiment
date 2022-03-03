@@ -59,6 +59,12 @@ def log_io(event):
     log.info('\n' + accumulate_io_tree(plugin))
 
 
+def log_commands(event):
+    plugin = event.workbench.get_plugin('enaml.workbench.core')
+    commands = '\n * '.join(sorted(plugin._commands.keys()))
+    log.info('\n' + commands)
+
+
 def start_experiment(event):
     try:
         controller = event.workbench.get_plugin('psi.controller')
@@ -193,6 +199,9 @@ enamldef ControllerManifest(ControllerManifestBase): manifest:
             id = 'psi.controller.log_actions'
             handler = log_actions
         Command:
+            id = 'psi.controller.log_commands'
+            handler = log_commands
+        Command:
             id = 'psi.controller.invoke_actions'
             handler = invoke_actions
 
@@ -275,6 +284,9 @@ enamldef ControllerManifest(ControllerManifestBase): manifest:
         ExperimentAction:
             event = 'plugins_started'
             command = 'psi.controller.log_actions'
+        ExperimentAction:
+            event = 'plugins_started'
+            command = 'psi.controller.log_commands'
         ExperimentAction:
             event = 'experiment_prepare'
             command = 'psi.controller.configure_engines'
