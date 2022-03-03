@@ -11,7 +11,9 @@ class ExperimentManifest(PluginManifest):
     name = d_(Str())
     title = d_(Str())
     required = d_(Bool(False))
-    C = d_(Value())
+
+    C = d_(Value(), writable=False)
+    controller = d_(Value(), writable=False)
 
     def _default_name(self):
         return self.id
@@ -25,6 +27,7 @@ class PSIManifest(PluginManifest):
     contribution = Typed(PSIContribution)
     id = Property(cached=True)
     C = d_(Value())
+    controller = d_(Value(), writable=False)
 
     def _get_id(self):
         class_type = self.__class__.__name__

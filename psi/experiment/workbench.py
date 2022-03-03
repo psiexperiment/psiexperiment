@@ -54,7 +54,7 @@ class PSIWorkbench(Workbench):
             self.register(manifest)
 
         # Required to bootstrap plugin loading
-        self.get_plugin('psi.controller')
+        controller = self.get_plugin('psi.controller')
         self.get_plugin('psi.controller.calibration')
         context = self.get_plugin('psi.context')
 
@@ -62,8 +62,8 @@ class PSIWorkbench(Workbench):
         # have a core PSIManifest that everything inherits from so this
         # check isn't necessary).
         for manifest in manifests:
-            if hasattr(manifest, 'C'):
-                manifest.C = context.lookup
+            manifest.C = context.lookup
+            manifest.controller = controller
 
     def start_workspace(self,
                         experiment_name,
