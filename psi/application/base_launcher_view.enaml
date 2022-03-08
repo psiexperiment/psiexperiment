@@ -50,7 +50,7 @@ def load_defaults(launcher, experiments):
 
         es_settings = settings.pop('experiment', {})
         for experiment in experiments:
-            t_settings = es_settings.get(experiment.type, {})
+            t_settings = es_settings.get(experiment.experiment_type, {})
             e_settings = t_settings.get(experiment.name, {})
             for plugin in experiment.plugins:
                 p_settings = e_settings.get(plugin.name, {})
@@ -77,7 +77,7 @@ def set_defaults(launcher, experiments):
     # Now, handle the experiment-specific settings
     es_settings = settings.setdefault('experiment', {})
     for experiment in experiments:
-        t_settings = es_settings.setdefault(experiment.type, {})
+        t_settings = es_settings.setdefault(experiment.experiment_type, {})
         e_settings = t_settings.setdefault(experiment.name, {})
         for plugin in experiment.plugins:
             p_settings = e_settings.setdefault(plugin.name, {})
