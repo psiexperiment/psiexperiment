@@ -122,12 +122,6 @@ enamldef ControllerManifest(ControllerManifestBase): manifest:
     '''
     Defines the core functionality that most controller plugins will share
     (start, stop, pause, apply/revert settings).
-
-    Available commands:
-
-    * set_pause_ok(value): Sets an internal flag that indicates that the
-      experiment is now in a state where it can be paused by the user. When
-      the flag is set, the "Pause" button in the toolbar becomes active.
     '''
     # Set attrs that guide experiment description
     name = 'controller'
@@ -173,9 +167,6 @@ enamldef ControllerManifest(ControllerManifestBase): manifest:
         Command:
             id = 'psi.controller.request_resume'
             handler = rpc('psi.controller', 'request_resume')
-        Command:
-            id = 'psi.controller.set_pause_ok'
-            handler = rpc('psi.controller', 'set_pause_ok')
 
         Command:
             id = 'psi.controller.configure_engines'
@@ -235,10 +226,9 @@ enamldef ControllerManifest(ControllerManifestBase): manifest:
             # (i.e., in between trials). 
             Action:
                 text = 'Apply'
-                enabled << workbench.get_plugin('psi.context').changes_pending \
-                    and not workbench.get_plugin('psi.controller')._apply_requested \
-                    and workbench.get_plugin('psi.controller').experiment_state \
-                    in ('running', 'paused')
+                enabled << context.changes_pending \
+                    and not controller._apply_requested \
+                    and controller.experiment_state in ('running', 'paused')
                 triggered ::
                     plugin = workbench.get_plugin('enaml.workbench.core')
                     plugin.invoke_command('psi.controller.request_apply')
@@ -263,6 +253,10 @@ enamldef ControllerManifest(ControllerManifestBase): manifest:
             name = 'experiment_initialize'
         ExperimentState:
             name = 'experiment'
+        ExperimentEvent:
+            name = 'experiment_paused'
+        ExperimentEvent:
+            name = 'experiment_resumed'
         ExperimentEvent:
             name = 'io_configured'
         ExperimentEvent:

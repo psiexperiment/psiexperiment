@@ -98,6 +98,10 @@ class BehaviorPlugin(BaseBehaviorPlugin):
 
     consecutive_nogo = Int(0)
 
+    def request_trial(self, trial_type):
+        log.info('Requesting trial')
+        self.prepare_trial(trial_type=trial_type, auto_start=True)
+
     def _default_rng(self):
         return np.random.RandomState()
 
@@ -179,10 +183,6 @@ class BehaviorPlugin(BaseBehaviorPlugin):
         if auto_start or not self.manual_control:
             self.start_trial()
 
-    def request_trial(self, trial_type):
-        log.info('Requesting trial')
-        self.prepare_trial(trial_type=trial_type, auto_start=True)
-
     def start_trial(self):
         log.info('Starting next trial')
         # This is broken into a separate method to allow the toolbar to call
@@ -202,7 +202,7 @@ class BehaviorPlugin(BaseBehaviorPlugin):
             # If we are in training mode, deliver a reward preemptively
             if self.context.get_value('training_mode') and \
                     self.trial_type.value.startswith('go'):
-                self.invoke_actions('deliver_reward')
+                self.invoke_actions('deliver_reward', timestamp)
             self.advance_state('response', timestamp)
             self.trial_info['response_start'] = timestamp
 
@@ -217,7 +217,7 @@ class BehaviorPlugin(BaseBehaviorPlugin):
                 # If we are in training mode, the reward has already been
                 # delivered.
                 if not self.context.get_value('training_mode'):
-                    self.invoke_actions('deliver_reward')
+                    self.invoke_actions('deliver_reward', timestamp)
             self.end_trial(GoNogoResponse.reward, score)
         elif event == GoNogoEvent.response_duration_elapsed:
             self.invoke_actions(GoNogoEvent.response_end.name, timestamp)
@@ -368,8 +368,26 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
             command = 'room_light_toggle.off'
 
         ExperimentAction:
+            event = 'to_start'
+            command = 'background.pause'
+
+        ExperimentAction:
             event = 'to_end'
             command = 'room_light_toggle.on'
+
+        ExperimentAction:
+            event = 'to_end'
+            command = 'background.resume'
+
+        ExperimentAction:
+            event = 'experiment_paused'
+            command = 'background.pause'
+            kwargs = {'delay': 0.25}
+
+        ExperimentAction:
+            event = 'experiment_resumed'
+            command = 'background.resume'
+            kwargs = {'delay': 0.25}
 
         ExperimentAction:
             # The operations required to actually generate and upload the token
@@ -530,12 +548,12 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
                 text = 'Request Remind'
                 triggered ::
                     controller.request_remind()
-                enabled << controller.experiment_state not in ('initialized', 'stopped')
+                enabled << controller.experiment_state  == 'running'
             Action:
                 text = 'Start Trial'
                 triggered ::
                     controller.request_trial(GoNogoTrialType.go_manual)
-                enabled << controller.experiment_state not in ('initialized', 'stopped') \
+                enabled << controller.experiment_state == 'running' \
                     and controller.manual_control
             Action:
                 text = 'Simulate lick'
@@ -543,6 +561,17 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
                     controller.handle_event(GoNogoEvent.digital_reward_start)
                     timed_call(100, controller.handle_event, GoNogoEvent.digital_reward_end)
                 enabled << controller.experiment_state not in ('initialized', 'stopped')
+            Action:
+                text = 'Pause'
+                enabled << controller.experiment_state not in ('initialized', 'stopped')
+                checkable = True
+                toggled ::
+                    if checked:
+                        log.info('Requesting pause')
+                        controller.request_pause()
+                    else:
+                        log.info('Requesting resume')
+                        controller.request_resume()
 
     Extension:
         id = 'plots'

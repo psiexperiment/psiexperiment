@@ -3,7 +3,7 @@ log = logging.getLogger(__name__)
 import enum
 from functools import partial
 
-from atom.api import Int, Str, Typed, Value
+from atom.api import Bool, Int, Str, Typed, Value
 from enaml.application import deferred_call
 from enaml.widgets.api import Action, Label, VGroup
 from enaml.workbench.api import Extension
@@ -188,14 +188,6 @@ enamldef BaseGoNogoMixin(ExperimentManifest): manifest:
             command = 'psi.context.initialize'
             kwargs = {'selector': None}
         ExperimentAction:
-            event = 'experiment_start'
-            command = 'psi.controller.set_pause_ok'
-            kwargs = {'value': True}
-        ExperimentAction:
-            event = 'experiment_end'
-            command = 'psi.controller.set_pause_ok'
-            kwargs = {'value': False}
-        ExperimentAction:
             event = 'trial_end'
             command = 'psi.controller.update_trial_log'
 
@@ -295,6 +287,9 @@ class BaseBehaviorPlugin(ControllerPlugin):
     #: begun attempting ot retrive a reward. See `handle_event`.
     event_map = {}
 
+    #: Has a remind trial been requested?
+    _remind_requested = Bool(False)
+
     #: Current trial number
     trial = Int(0)
 
@@ -312,15 +307,33 @@ class BaseBehaviorPlugin(ControllerPlugin):
     #: states).
     trial_state = Typed(TrialState)
 
-    def pause_experiment(self):
-        return False
+    def can_modify(self):
+        return True
 
-    def apply_changes(self):
-        raise NotImplementedError
+    def pause_experiment(self):
+        if self.can_modify():
+            self._pause_experiment()
+            return True
+        return False
 
     def _pause_experiment(self):
         self.experiment_state = 'paused'
         self._pause_requested = False
+        self.invoke_actions('experiment_paused', self.get_ts())
+
+    def resume_experiment(self):
+        if self.can_modify():
+            self._resume_experiment()
+            return True
+        return False
+
+    def _resume_experiment(self):
+        self.experiment_state = 'running'
+        self._resume_requested = False
+        self.invoke_actions('experiment_resumed', self.get_ts())
+
+    def apply_changes(self):
+        raise NotImplementedError
 
     def _apply_changes(self, prepare_trial=True):
         log.info('Applying changes')

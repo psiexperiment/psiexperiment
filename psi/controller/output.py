@@ -114,6 +114,7 @@ class BufferedOutput(Output):
     buffer_size = Property().tag(metadata=True)
     active = Bool(False).tag(metadata=True)
     source = Typed(object).tag(metadata=True)
+    paused = Bool(False)
 
     _buffer = Typed(SignalBuffer)
     _offset = Int(0)
@@ -172,6 +173,7 @@ class BufferedOutput(Output):
     def activate(self, offset):
         log.trace('Activating %s at %d', self.name, offset)
         self.active = True
+        self.paused = False
         self._offset = offset
         self._buffer.invalidate_samples(offset)
 
@@ -186,6 +188,20 @@ class BufferedOutput(Output):
 
     def get_duration(self):
         return self.source.get_duration()
+
+    def rebuffer(self, time, delay=0):
+        offset = round(time * self.fs)
+        self._buffer.invalidate_samples(offset)
+        log.info('Rebuffering starting at %f (%d samples). Output pause state is %r', time, offset, self.paused)
+        self.engine.update_hw_ao(self.channel.name, offset)
+
+    def pause(self, time):
+        self.paused = True
+        self.rebuffer(time)
+
+    def resume(self, time):
+        self.paused = False
+        self.rebuffer(time)
 
 
 class EpochOutput(BufferedOutput):
@@ -240,19 +256,15 @@ class QueuedEpochOutput(BufferedOutput):
     def rebuffer(self, time, delay=0):
         self.queue.cancel(time, delay)
         self.queue.rewind_samples(time)
-        offset = round(time * self.fs)
-        self._buffer.invalidate_samples(offset)
-        self.engine.update_hw_ao(self.channel.name, offset)
+        super().rebuffer(time, delay)
 
     def pause(self, time):
         self.queue.pause(time)
-        self.rebuffer(time)
-        self.paused = True
+        super().pause(time)
 
     def resume(self, time, delay=0):
         self.queue.resume(time)
-        self.rebuffer(time, delay)
-        self.paused = False
+        super().resume(time)
 
     def _observe_queue(self, event):
         self.source = self.queue
@@ -315,7 +327,8 @@ class SelectorQueuedEpochOutput(QueuedEpochOutput):
 class ContinuousOutput(BufferedOutput):
 
     def get_next_samples(self, samples):
-        if self.active:
+        log.info('%r %r %d', self.paused, self.active, samples)
+        if not self.paused and self.active:
             return self.source.next(samples)
         else:
             return np.zeros(samples, dtype=np.double)

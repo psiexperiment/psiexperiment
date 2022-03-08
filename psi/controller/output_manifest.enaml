@@ -423,6 +423,26 @@ def decrement_key(event, output):
         controller.invoke_actions('keys_complete', keys)
 
 
+def output_pause(event, output):
+    delay = event.parameters.get('delay', 1)
+    controller = event.workbench.get_plugin('psi.controller')
+    with output.engine.lock:
+        time = output.engine.get_ts() + delay
+        log.debug('Pausing output %s at %f', output.name, time)
+        output.pause(time)
+        controller.invoke_actions(output.name + '_paused', time)
+
+
+def output_resume(event, output):
+    delay = event.parameters.get('delay', 1)
+    controller = event.workbench.get_plugin('psi.controller')
+    with output.engine.lock:
+        time = output.engine.get_ts() + delay
+        log.debug('Pausing output %s at %f', output.name, time)
+        output.resume(time)
+        controller.invoke_actions(output.name + '_resumed', time)
+
+
 enamldef SynchronizedManifest(PSIManifest): manifest:
 
     Extension:
@@ -466,6 +486,12 @@ enamldef AnalogOutputManifest(PSIManifest): manifest:
         Command:
             id = manifest.contribution.name + '.clear'
             handler = partial(clear_output, output=contribution)
+        Command:
+            id = manifest.contribution.name + '.pause'
+            handler = partial(output_pause, output=contribution)
+        Command:
+            id = manifest.contribution.name + '.resume'
+            handler = partial(output_resume, output=contribution)
 
     Conditional:
         condition << manifest.contribution.configurable
@@ -575,20 +601,6 @@ def get_pause_text(contribution, is_paused):
     return '{} {}'.format(base, contribution.name)
 
 
-def toggle_pause(event, output):
-    controller = event.workbench.get_plugin('psi.controller')
-    with output.engine.lock:
-        time = output.engine.get_ts() + 1
-        if output.paused:
-            log.debug('Resuming queue for output %s at %f', output.name, time)
-            output.resume(time)
-            controller.invoke_actions(output.name + '_resumed', time)
-        else:
-            log.debug('Pausing queue for output %s at %f', output.name, time)
-            output.pause(time)
-            controller.invoke_actions(output.name + '_paused', time)
-
-
 enamldef QueuedEpochOutputManifest(EpochOutputManifest): manifest:
 
     Extension:
@@ -600,9 +612,6 @@ enamldef QueuedEpochOutputManifest(EpochOutputManifest): manifest:
         Command:
             id = manifest.contribution.name + '.decrement_key'
             handler = partial(decrement_key, output=contribution)
-        Command:
-            id = manifest.contribution.name + '.toggle_pause'
-            handler = partial(toggle_pause, output=contribution)
 
     Extension:
         id = '.'.join((manifest.id, manifest.__class__.__name__, '.actions'))

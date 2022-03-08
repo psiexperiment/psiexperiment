@@ -164,11 +164,8 @@ class ControllerPlugin(Plugin):
     # flags indicate changes or requests from the user are pending and should
     # be processed when the opportunity arises (e.g., at the end of the trial).
     _apply_requested = Bool(False)
-    _remind_requested = Bool(False)
     _pause_requested = Bool(False)
-
-    # Can the experiment be paused?
-    _pause_ok = Bool(False)
+    _resume_requested = Bool(False)
 
     # Available engines
     _engines = Typed(dict, {})
@@ -507,6 +504,7 @@ class ControllerPlugin(Plugin):
             if action.match(context):
                 log.debug('... invoking action %s', action)
                 result = self._invoke_action(action, event_name, timestamp, kw)
+                log.info('RESULT %r', result)
                 results.append(result)
         return results
 
@@ -521,22 +519,23 @@ class ControllerPlugin(Plugin):
             log.debug('Apply requested')
             deferred_call(lambda: setattr(self, '_apply_requested', True))
 
-    def request_remind(self):
-        deferred_call(lambda: setattr(self, '_remind_requested', True))
-
     def request_pause(self):
         if not self.pause_experiment():
             log.debug('Pause requested')
             deferred_call(lambda: setattr(self, '_pause_requested', True))
 
     def request_resume(self):
-        self._pause_requested = False
-        deferred_call(lambda: setattr(self, 'experiment_state', 'running'))
+        if not self.resume_experiment():
+            log.debug('Resume requested')
+            deferred_call(lambda: setattr(self, '_resume_requested', True))
 
     def apply_changes(self):
         raise NotImplementedError
 
     def pause_experiment(self):
+        raise NotImplementedError
+
+    def resume_experiment(self):
         raise NotImplementedError
 
     def start_experiment(self):
@@ -552,9 +551,6 @@ class ControllerPlugin(Plugin):
 
     def get_ts(self):
         return self._master_engine.get_ts()
-
-    def set_pause_ok(self, value):
-        deferred_call(lambda: setattr(self, '_pause_ok', value))
 
     def start_timer(self, name, duration, callback):
         timer = QTimer()
