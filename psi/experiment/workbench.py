@@ -63,6 +63,7 @@ class PSIWorkbench(Workbench):
         # check isn't necessary).
         for manifest in manifests:
             manifest.C = context.lookup
+            manifest.context = context
             manifest.controller = controller
 
     def start_workspace(self,
