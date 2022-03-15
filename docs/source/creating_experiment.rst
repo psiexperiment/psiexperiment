@@ -61,6 +61,7 @@ Your experiment configuration file will define `EXPERIMENT`, which is the name o
 
 Let's take a closer look at each of the extensions.
 
+
 Actions
 .......
 
@@ -86,6 +87,7 @@ When you press the `start` button on the toolbar, this fires a sequence of three
 
 Under the hood, the controller will configure the engines during the `experiment_prepare` phase. If you want to configure one of the outputs (in this case, `dpoae`) during this phase, be sure to bind it to the `engine_configured` event to ensure it gets executed after the engine is configured (the engine must be configured before it can properly receive waveform samples from the outputs).
 
+
 Sequence of events during an experiment
 .......................................
 * `plugins_started` - All plugins have finished loading. Now, you can perform actions that may require access to another plugin; however, do not assume that the plugins have finished initializing. A number of logging actions are tied to this step.
@@ -101,7 +103,6 @@ Sequence of events during an experiment
 * `experiment_start` - Starts the data acquisition engines.
 
 * `experiment_end` - Stops the data acquisition engines.
-
 
 
 The power of actions
@@ -156,5 +157,22 @@ All subclasses of `PSIManifest` have access to the attached `contribution` (an i
 
 Common gotchas
 --------------
-* Outputs and inputs are configured *only if they are deemed active*. If the output of a particular processing chain (e.g., microphone to IIR filter to extract epochs) is not saved to a data store or plotted, then it's assumed it is not used. The controller will then opmit this particular processing chain from the configuration to alleviate system load. This allows us to design intensive processing chains but allow the user to disable them easily by not plotting the result. However, this can be a bit tricky when defining your own custom sinks For example, there's no target for `AnalyzeDPOAE` in `dpoae_base.enaml` (TODO finish).
+* Outputs and inputs are configured *only if they are deemed active*. If the output of a particular processing chain (e.g., microphone to IIR filter to extract epochs) is not saved to a data store or plotted, then it's assumed it is not used. The controller will then omit this particular processing chain from the configuration to alleviate system load. This allows us to design intensive processing chains but allow the user to disable them easily by not plotting the result. However, this can be a bit tricky when defining your own custom sinks For example, there's no target for `AnalyzeDPOAE` in `dpoae_base.enaml` (TODO finish).
 * When adding new attributes to subclasses of `Declarative`, be sure to use `d_` as appropriate otherwise you will get a `TypeError` when attempting to assign to the attribute in an Enaml file.
+* Use `set_default` when setting default values for classes derived from `Atom` (hint, `Declarative` is a subclass of `Atom`). 
+* Even if you define a `ContinuousOutput`, you still need to configure it to start using an `ExperimentAction`. Assuming your continuous output is named "masker", then it's as simple as adding the following action:
+
+.. code-block:: enaml
+
+    ExperimentAction:
+        event = 'engines_configured'
+        command = 'masker.start'
+
+* You must always call `psi.context.initialize`. This is not automatically done for you for a variety of reasons. Usually it's sufficient to insert the following action:
+
+.. code-block:: enaml
+
+    ExperimentAction:
+        event = 'experiment_initialize'
+        command = 'psi.context.initialize'
+        kwargs = {'selector': None}
