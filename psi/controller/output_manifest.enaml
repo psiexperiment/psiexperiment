@@ -632,7 +632,7 @@ enamldef QueuedEpochOutputManifest(EpochOutputManifest): manifest:
             Action:
                 text << get_pause_text(manifest.contribution,
                                        manifest.contribution.paused)
-                enabled << workbench.get_plugin('psi.controller').experiment_state == 'running'
+                enabled << controller.experiment_state == 'running'
                 triggered ::
                     core = workbench.get_plugin('enaml.workbench.core')
                     core.invoke_command(manifest.contribution.name + '.toggle_pause')
