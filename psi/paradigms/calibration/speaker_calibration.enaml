@@ -7,8 +7,7 @@ from psi.context.api import (ContextGroup, EnumParameter, OrderedContextMeta,
                              Parameter, SequenceSelector)
 
 from psi.controller.api import (ControllerManifest, Blocked, ExperimentAction,
-                                ExtractEpochs, get_hw_ai_choices,
-                                get_hw_ao_choices, SelectorQueuedEpochOutput)
+                                ExtractEpochs, SelectorQueuedEpochOutput)
 
 from psi.data.sinks.api import BinaryStore, TextStore
 
@@ -59,40 +58,6 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
     Extension:
         id = EXPERIMENT + '.context'
         point = 'psi.context.items'
-
-        ContextGroup:
-            name = 'calibration'
-            label = 'Calibration'
-
-            EnumParameter:
-                name = 'output_channel'
-                label = 'Output channel'
-                compact_label = 'ao'
-                choices << get_hw_ao_choices(workbench)
-                scope = 'experiment'
-
-            EnumParameter:
-                name = 'input_channel'
-                label = 'Input channel'
-                compact_label = 'input'
-                choices << get_hw_ai_choices(workbench)
-                scope = 'experiment'
-
-            Parameter:
-                name = 'input_gain'
-                label = 'Input gain (dB)'
-                compact_label = 'ai_gain'
-                dtype = 'float64'
-                default = 40
-                scope = 'experiment'
-
-            Parameter:
-                name = 'input_range'
-                label = 'Expected input range (Vpp)'
-                compact_label = 'ai_range'
-                dtype = 'float64'
-                default = 10
-                scope = 'experiment'
 
         OrderedContextMeta: epoch_group:
             name = 'epoch_group'

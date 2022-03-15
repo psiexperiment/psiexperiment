@@ -1,0 +1,50 @@
+from enaml.workbench.api import Extension
+
+from psi.context.api import ContextGroup, EnumParameter, Parameter
+from psi.controller.api import (CalibratedInput, ContinuousOutput,
+                                ControllerManifest, ExperimentAction)
+from psi.token.api import Tone
+
+
+EXPERIMENT = 'amplifier_calibration'
+
+
+enamldef AmplifierCalibrationManifest(ControllerManifest): manifest:
+
+    Extension:
+        id = manifest.id + '.tokens'
+        point = 'psi.token.tokens'
+
+        Tone: tone:
+            label = 'Tone'
+
+    Extension:
+        id = manifest.id + '.io'
+        point = 'psi.controller.io'
+
+        ContinuousOutput: hw_ao:
+            name = 'speaker'
+            label = 'Speaker'
+            configurable = True
+            token = tone
+            target_name << C.output_channel
+
+        CalibratedInput: hw_ai:
+            name = 'microphone'
+            label = 'Microphone'
+            source_name << C.input_channel
+            source ::
+                channel.gain = C.input_gain
+
+    Extension:
+        id = EXPERIMENT + '.actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'experiment_initialize'
+            command = 'psi.context.initialize'
+            kwargs = {'selector': None}
+
+        ExperimentAction:
+            event = 'engines_configured'
+            command = 'speaker.start'

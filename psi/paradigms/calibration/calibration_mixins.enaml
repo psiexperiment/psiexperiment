@@ -12,8 +12,9 @@ import pandas as pd
 from scipy import signal
 
 from psi.controller.calibration.tone import tone_spl
-from psi.context.api import BoolParameter, ContextGroup, Parameter
+from psi.context.api import BoolParameter, EnumParameter, ContextGroup, Parameter
 from psi.controller.api import (ExperimentAction, generate_waveform,
+                                get_hw_ai_choices, get_hw_ao_choices,
                                 SelectorQueuedEpochOutput, QueuedEpochOutput)
 
 from psiaudio import util
@@ -234,6 +235,49 @@ def validate_spl(workbench, ao_channel, ai_channel, frequencies, spl, max_gain):
     core.invoke_command('cal_data.save_dataframe', parameters=parameters)
 
 
+enamldef ChannelSettingMixins(ExperimentManifest): manifest:
+
+    id = 'calibration_mixins_channel_settings'
+    required = True
+
+    Extension:
+        id = manifest.id + '.context'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'calibration'
+            label = 'Calibration'
+
+            EnumParameter:
+                name = 'output_channel'
+                label = 'Output channel'
+                compact_label = 'ao'
+                choices << get_hw_ao_choices(workbench)
+                scope = 'experiment'
+
+            EnumParameter:
+                name = 'input_channel'
+                label = 'Input channel'
+                compact_label = 'input'
+                choices << get_hw_ai_choices(workbench)
+                scope = 'experiment'
+
+            Parameter:
+                name = 'input_gain'
+                label = 'Input gain (dB)'
+                compact_label = 'ai_gain'
+                dtype = 'float64'
+                default = 40
+                scope = 'experiment'
+
+            Parameter:
+                name = 'input_range'
+                label = 'Expected input range (Vpp)'
+                compact_label = 'ai_range'
+                dtype = 'float64'
+                default = 10
+                scope = 'experiment'
+
 enamldef GolayMixin(ExperimentManifest): manifest:
 
     id = 'golay'
@@ -398,7 +442,7 @@ enamldef ToneValidateMixin(ExperimentManifest): manifest:
         ToolBar:
             Action:
                 text = 'Validate'
-                enabled << workbench.get_plugin('psi.controller').experiment_state == 'stopped'
+                enabled << controller.experiment_state == 'stopped'
                 triggered ::
                     core = workbench.get_plugin('enaml.workbench.core')
                     core.invoke_command('psi.calibration.validate')
