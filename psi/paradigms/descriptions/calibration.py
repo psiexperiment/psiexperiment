@@ -37,6 +37,14 @@ ParadigmDescription(
 ParadigmDescription(
     'pistonphone_calibration', 'Pistonphone calibration', 'calibration', [
         (PATH + 'pistonphone_calibration.PistonphoneCalibrationManifest',),
+        (CORE_PATH + 'microphone_mixins.MicrophoneSignalViewManifest',
+         {'required': True,
+          'attrs': {'source_name': 'hw_ai', 'time_span': 8, 'y_label': 'PSD (dB re 1V)'},
+          }),
+        (CORE_PATH + 'microphone_mixins.MicrophoneFFTViewManifest',
+         {'required': True,
+          'attrs': {'source_name': 'hw_ai', 'y_label': 'PSD (dB re 1V)'}
+          }),
     ]
 )
 

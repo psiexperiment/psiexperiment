@@ -32,9 +32,11 @@ class ParadigmManager:
 
 class PluginDescription:
 
-    def __init__(self, manifest, selected=False, required=None, name=None, title=None):
-        manifest = load_manifest(manifest)()
-        self.manifest = manifest
+    def __init__(self, manifest, selected=False, required=None, name=None,
+                 title=None, attrs=None):
+        if attrs is None:
+            attrs = {}
+        self.manifest = load_manifest(manifest)(**attrs)
         self.selected = selected
 
         # Default values are loaded directly from the PluginManifest if the

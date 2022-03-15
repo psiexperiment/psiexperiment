@@ -79,7 +79,7 @@ def calculate_sens(event):
     }
 
     def plot_data(data=data, summary=summary):
-        vb = data.find_viewbox('fft')
+        vb = data.find_viewbox('microphone_fft_view_view')
         x = np.log10(summary['frequency'])
 
         y = util.db(summary['psd_hanning'])
@@ -245,34 +245,3 @@ enamldef PistonphoneCalibrationManifest(ControllerManifest): manifest:
                         text = 'Mic. sens. (mV/Pa)'
                     Label:
                         text << '{:.4f}'.format(results.get('mic sens peak (mV/Pa)', ''))
-
-    Extension:
-        id = 'plots'
-        point = 'psi.data.plots'
-
-        TimeContainer:
-            name = 'time_container'
-            label = 'Signal'
-            span = 8
-            delay = 0
-
-            ViewBox:
-                label = 'Signal (V)'
-                y_min = -2.5
-                y_max = 2.5
-                save_limits = True
-
-                ChannelPlot:
-                    pen_color = 'k'
-                    source_name = 'hw_ai'
-
-        FFTContainer:
-            name = 'fft_container'
-            label = 'FFT'
-            freq_lb = 950.0
-            freq_ub = 1050.0
-
-            ViewBox:
-                name = 'fft'
-                label = 'PSD (dB re 1V)'
-                save_limits = True
