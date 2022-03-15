@@ -50,6 +50,14 @@ class PluginDescription:
             setattr(self, attr, getattr(self.manifest, attr))
 
 
+def get_plugin_description(args):
+    if len(args) == 1:
+        return PluginDescription(*args)
+    if len(args) == 2:
+        return PluginDescription(args[0], **args[1])
+    raise ValueError('Unsupported plugin description format')
+
+
 class ParadigmDescription:
 
     def __init__(self, name, title, experiment_type, plugin_info):
@@ -74,7 +82,7 @@ class ParadigmDescription:
 
         global paradigm_manager
         try:
-            self.plugins = [PluginDescription(*pi) for pi in plugin_info]
+            self.plugins = [get_plugin_description(d) for d in plugin_info]
             paradigm_manager.register(self)
         except Exception as exc:
             paradigm_manager.register(self, exc)

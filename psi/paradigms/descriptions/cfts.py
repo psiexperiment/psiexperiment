@@ -10,9 +10,12 @@ ParadigmDescription(
     # This is a much more flexible, more powerful ABR experiment interface.
     'abr_io_editable', 'Configurable ABR (input-output)', 'ear', [
         (CFTS_PATH + 'abr_io.ABRIOManifest',),
-        (CFTS_PATH + 'cfts_mixins.TemperatureMixinManifest', True),
-        (CFTS_PATH + 'cfts_mixins.EEGViewMixinManifest', True),
-        (CFTS_PATH + 'cfts_mixins.ABRInEarCalibrationMixinManifest', True),
+        (CFTS_PATH + 'cfts_mixins.TemperatureMixinManifest', 
+         {'selected': True}),
+        (CFTS_PATH + 'cfts_mixins.EEGViewMixinManifest', 
+         {'selected': True}),
+        (CFTS_PATH + 'cfts_mixins.ABRInEarCalibrationMixinManifest',
+         {'selected': True}),
     ]
 )
 
@@ -21,9 +24,12 @@ ParadigmDescription(
     # This is the default, simple ABR experiment that most users will want.  
     'abr_io', 'ABR (input-output)', 'ear', [
         (CFTS_PATH + 'abr_io.ABRIOSimpleManifest',),
-        (CFTS_PATH + 'cfts_mixins.TemperatureMixinManifest', True),
-        (CFTS_PATH + 'cfts_mixins.EEGViewMixinManifest', True),
-        (CFTS_PATH + 'cfts_mixins.ABRInEarCalibrationMixinManifest', True),
+        (CFTS_PATH + 'cfts_mixins.TemperatureMixinManifest',
+         {'selected': True}),
+        (CFTS_PATH + 'cfts_mixins.EEGViewMixinManifest',
+         {'selected': True}),
+        (CFTS_PATH + 'cfts_mixins.ABRInEarCalibrationMixinManifest',
+         {'selected': True}),
     ]
 )
 
@@ -31,10 +37,14 @@ ParadigmDescription(
 ParadigmDescription(
     'dpoae_io', 'DPOAE input-output', 'ear', [
         (CFTS_PATH + 'dpoae_io.DPOAEIOSimpleManifest',),
-        (CFTS_PATH + 'cfts_mixins.TemperatureMixinManifest', True),
-        (CFTS_PATH + 'cfts_mixins.DPOAEInEarCalibrationMixinManifest', True),
-        (CORE_PATH + 'microphone_mixins.MicrophoneSignalViewManifest', True),
-        (CORE_PATH + 'microphone_mixins.MicrophoneFFTViewManifest', True),
+        (CFTS_PATH + 'cfts_mixins.TemperatureMixinManifest',
+         {'selected': True}),
+        (CFTS_PATH + 'cfts_mixins.DPOAEInEarCalibrationMixinManifest',
+         {'selected': True}),
+        (CORE_PATH + 'microphone_mixins.MicrophoneSignalViewManifest',
+         {'selected': True}),
+        (CORE_PATH + 'microphone_mixins.MicrophoneFFTViewManifest',
+         {'selected': True}),
     ]
 )
 
@@ -42,8 +52,10 @@ ParadigmDescription(
 ParadigmDescription(
     'efr', 'EFR (SAM)', 'ear', [
         (CFTS_PATH + 'efr.EFRManifest',),
-        (CORE_PATH + 'microphone_mixins.MicrophoneSignalViewManifest', True),
-        (CORE_PATH + 'microphone_mixins.MicrophoneFFTViewManifest', True),
+        (CORE_PATH + 'microphone_mixins.MicrophoneSignalViewManifest',
+         {'selected': True}),
+        (CORE_PATH + 'microphone_mixins.MicrophoneFFTViewManifest',
+         {'selected': True}),
     ],
 )
 
