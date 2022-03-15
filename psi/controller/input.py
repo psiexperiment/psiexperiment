@@ -218,7 +218,7 @@ def calibrate(calibration, target):
     log.debug('Setting sensitivity for CalibratedInput to %f', sens)
     while True:
         data = (yield)
-        target(data / sens)
+        target(data * sens)
 
 
 class CalibratedInput(ContinuousInput):
