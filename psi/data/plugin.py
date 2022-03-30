@@ -31,6 +31,8 @@ class DataPlugin(PSIPlugin):
     inputs = Typed(dict, {})
     context_info = Typed(dict, {})
 
+    base_path = Typed(Path)
+
     def start(self):
         self._refresh_sinks()
         self._refresh_plots()
@@ -75,6 +77,7 @@ class DataPlugin(PSIPlugin):
             .unobserve('extensions', self._refresh_plots)
 
     def set_base_path(self, base_path):
+        self.base_path = Path(base_path)
         for sink in self._sinks.values():
             sink.set_base_path(base_path)
 
