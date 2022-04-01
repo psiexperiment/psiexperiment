@@ -1,0 +1,99 @@
+from functools import partial
+from pathlib import Path
+
+from atom.api import Typed
+from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
+
+from psi.context.api import Result
+from psi.controller.api import ExperimentAction
+from psi.core.enaml.api import ExperimentManifest, PSIManifest
+from psi.data.api import Sink
+
+from psivideo.client import SyncVideoClient
+
+
+class VideoSink(Sink):
+
+    client = Typed(SyncVideoClient, {})
+    video_filename = Typed(Path)
+
+    def start_client(self):
+        self.client.connect()
+
+    def set_base_path(self, base_path):
+        self.video_filename = Path(base_path) / 'recording.avi'
+
+    def start_recording(self):
+        self.client.start(self.video_filename)
+
+    def stop_recording(self):
+        self.client.stop()
+
+    def get_frames_written(self):
+        return self.client.get_frames_written()
+
+
+def update_frames_written(client, event):
+    frames = client.get_frames_written()
+    context = event.workbench.get_plugin('psi.context')
+    context.set_value('psivideo_frames_written', frames)
+
+
+enamldef VideoSinkManifest(PSIManifest): manifest:
+
+    Extension:
+        id = manifest.id + '.commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = 'psivideo.start_client'
+            handler = lambda e: manifest.contribution.start_client()
+        Command:
+            id = 'psivideo.start_recording'
+            handler = lambda e: manifest.contribution.start_recording()
+        Command:
+            id = 'psivideo.stop_recording'
+            handler = lambda e: manifest.contribution.stop_recording()
+        Command:
+            id = 'psivideo.update_frames_written'
+            handler = partial(update_frames_written, manifest.contribution)
+
+
+enamldef PSIVideo(ExperimentManifest): manifest:
+
+    id = 'psivideo'
+    name = 'psivideo'
+    title = 'PSIVideo'
+
+    Extension:
+        id = manifest.id + '.sinks'
+        point = 'psi.data.sinks'
+
+        VideoSink:
+            name = 'psivideo'
+
+    Extension:
+        id = manifest.id + '.actions'
+        point = 'psi.controller.actions'
+        ExperimentAction:
+            event = 'plugins_started'
+            command = 'psivideo.start_client'
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'psivideo.start_recording'
+        ExperimentAction:
+            event = 'experiment_end'
+            command = 'psivideo.stop_recording'
+        ExperimentAction:
+            event = 'trial_start'
+            command = 'psivideo.update_frames_written'
+
+    Extension:
+        id = manifest.id + '.parameters'
+        point = 'psi.context.items'
+
+        Result:
+            name = 'psivideo_frames_written'
+            label = 'Video frames written'
+            compact_label = 'Frames'
+            group_name = 'results'

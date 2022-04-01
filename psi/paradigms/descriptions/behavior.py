@@ -18,7 +18,7 @@ ParadigmDescription(
         (PATH + 'behavior_auto_gonogo.BehaviorManifest',),
         (PATH + 'behavior_mixins.BaseGoNogoMixin',),
         (PATH + 'behavior_mixins.WaterBolusDispenser',),
-        (PATH + 'behavior_mixins.PSIVideo',),
+        (CORE_PATH + 'video_mixins.PSIVideo',),
         (CORE_PATH + 'microphone_mixins.MicrophoneSignalViewManifest',),
         (CORE_PATH + 'microphone_mixins.MicrophoneFFTViewManifest',),
     ],
