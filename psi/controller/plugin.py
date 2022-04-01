@@ -504,7 +504,6 @@ class ControllerPlugin(Plugin):
             if action.match(context):
                 log.debug('... invoking action %s', action)
                 result = self._invoke_action(action, event_name, timestamp, kw)
-                log.info('RESULT %r', result)
                 results.append(result)
         return results
 

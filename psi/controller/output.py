@@ -192,7 +192,6 @@ class BufferedOutput(Output):
     def rebuffer(self, time, delay=0):
         offset = round(time * self.fs)
         self._buffer.invalidate_samples(offset)
-        log.info('Rebuffering starting at %f (%d samples). Output pause state is %r', time, offset, self.paused)
         self.engine.update_hw_ao(self.channel.name, offset)
 
     def pause(self, time):
@@ -327,7 +326,6 @@ class SelectorQueuedEpochOutput(QueuedEpochOutput):
 class ContinuousOutput(BufferedOutput):
 
     def get_next_samples(self, samples):
-        log.info('%r %r %d', self.paused, self.active, samples)
         if not self.paused and self.active:
             return self.source.next(samples)
         else:
