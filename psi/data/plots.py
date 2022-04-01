@@ -615,7 +615,8 @@ class ChannelPlot(SinglePlot):
                     deferred_call(self.plot.setData, t, d)
         else:
             t = t[:len(data)]
-            deferred_call(self.plot.setData, t, data)
+            if t.shape == data.shape:
+                deferred_call(self.plot.setData, t, data)
 
 
 def _reshape_for_decimate(data, downsample):
@@ -685,7 +686,8 @@ class FFTChannelPlot(ChannelPlot):
             data = self._buffer.get_latest(-self.time_span, 0)
             psd = util.psd(data, self.source.fs, self.window)
             db = self.source.calibration.get_db(self._x, psd)
-            deferred_call(self.plot.setData, self._x, db)
+            if self._x.shape == db.shape:
+                deferred_call(self.plot.setData, self._x, db)
 
 
 class BaseTimeseriesPlot(SinglePlot):
@@ -1004,7 +1006,8 @@ class EpochGroupMixin(GroupMixin):
                         y = self._y(data)
                     else:
                         x = y = np.array([])
-                    todo.append((plot.setData, x, y))
+                    if x.shape == y.shape:
+                        todo.append((plot.setData, x, y))
             except KeyError:
                 if tab_changed:
                     x = y = np.array([])
@@ -1163,7 +1166,8 @@ class ResultPlot(GroupMixin, SinglePlot):
             d = pd.DataFrame({'x': x, 'y': y}).groupby('x')['y'].mean()
             x = d.index.values
             y = d.values
-        deferred_call(self.plot.setData, x, y)
+        if x.shape == y.shape:
+            deferred_call(self.plot.setData, x, y)
 
     def _default_plot(self):
         symbol_code = self.SYMBOL_MAP[self.symbol]
