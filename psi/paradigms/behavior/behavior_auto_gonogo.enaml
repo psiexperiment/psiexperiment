@@ -382,19 +382,19 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
         ExperimentAction:
             event = 'experiment_paused'
             command = 'background.pause'
-            kwargs = {'delay': 0.25}
+            kwargs = {'delay': 0.5}
 
         ExperimentAction:
             event = 'experiment_resumed'
             command = 'background.resume'
-            kwargs = {'delay': 0.25}
+            kwargs = {'delay': 0.5}
 
         ExperimentAction:
             # The operations required to actually generate and upload the token
             # take some time, so we have to allow for a small delay.
             event = 'trial_start'
             command = 'target.start'
-            kwargs = {'delay': 0.25}
+            kwargs = {'delay': 0.5}
             weight = 0
 
     Extension:
