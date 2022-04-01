@@ -457,6 +457,3 @@ def config():
 
     args = parser.parse_args()
     args.func(args)
-
-
-load_paradigm_descriptions()

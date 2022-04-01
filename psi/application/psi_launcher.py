@@ -1,7 +1,7 @@
 import argparse
 
 from psi.application import (add_default_options, launch_experiment,
-                             parse_args)
+                             load_paradigm_descriptions, parse_args)
 
 from psi.experiment.api import paradigm_manager
 
@@ -23,6 +23,7 @@ def main():
             for plugin_name in value:
                 namespace.controller.enable_plugin(plugin_name)
 
+    load_paradigm_descriptions()
     parser = argparse.ArgumentParser(description='Run experiment')
     parser.add_argument('experiment', type=str, help='Experiment to run',
                         choices=paradigm_manager.available_paradigms(),
