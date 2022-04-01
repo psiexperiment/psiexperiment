@@ -3,7 +3,7 @@ import versioneer
 
 
 requirements = [
-    'enaml[qt5-pyqt]',
+    'enaml[qt6-pyqt]',
     'joblib',
     'numpy',
     'palettable',
