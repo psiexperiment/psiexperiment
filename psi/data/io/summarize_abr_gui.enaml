@@ -111,22 +111,25 @@ class ProcessSettings(Atom):
         if not self.reprocess:
             info = [i for i in info if i['status'] != 'processed']
 
-        args = self.offset, self.duration, self.filter_settings, self.reprocess
+        kwargs = {
+            'offset': self.offset,
+            'duration': self.duration,
+            'filter_settings': self.filter_settings,
+        }
         progressbar.maximum = len(info)
         for j, i in enumerate(info):
             try:
                 def runner():
                     nonlocal i
-                    nonlocal args
+                    nonlocal kwargs
                     nonlocal self
                     def cb(frac):
                         nonlocal i
                         nonlocal self
                         i['progress'] = frac
-                        print('inside main callback %f', frac)
                         self.updated = True
 
-                    process_file(i['path'], *args, cb=cb)
+                    process_file(i['path'], cb=cb, **kwargs)
                     i['status'] = 'processed'
                     self.updated = True
 
@@ -269,9 +272,7 @@ enamldef SummarizeABRGui(MainWindow):
                 get_cell_frac => (row, col):
                     if self.columns[col] != 'filename':
                         return 1
-                    frac = setting.info[row].get('progress', 0)
-                    print(frac)
-                    return frac
+                    return setting.info[row].get('progress', 0)
 
                 select_behavior = 'rows'
                 selection_changed ::
