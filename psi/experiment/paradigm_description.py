@@ -2,7 +2,9 @@ from psi.core.enaml.api import load_manifest
 
 
 class ParadigmManager:
-
+    '''
+    Core class for managing experiment paradigms available to psiexperiment
+    '''
     def __init__(self):
         self.paradigms = {}
         self.broken_paradigms = {}
@@ -11,22 +13,48 @@ class ParadigmManager:
         self.paradigms[paradigm.name] = paradigm
         if exception is not None:
             raise
-            #self.paradigm_errors[paradigm.name] = exception
-
-    def available_paradigms(self):
-        return list(self.paradigms.keys())
-
-    def iter_paradigms(self, experiment_type=None):
-        for paradigm in self.paradigms.values():
-            if experiment_type is None:
-                yield paradigm
-            elif paradigm.experiment_type == experiment_type:
-                yield paradigm
 
     def list_paradigms(self, experiment_type=None):
-        return list(self.iter_paradigms(experiment_type))
+        '''
+        Iterate through available experiment paradigms
+
+        Parameters
+        ----------
+        experiment_type : {None, str}
+            If None, yield all paradigms. If experiment_type is
+            specified, yield only paradigms matching that experiment type.
+
+        Returns
+        -------
+        iterator
+            Iterator over set of matching paradigm descriptions
+        '''
+        matches = []
+        for paradigm in self.paradigms.values():
+            if experiment_type is None:
+                matches.append(paradigm)
+            elif paradigm.experiment_type == experiment_type:
+                matches.append(paradigm)
+        return matches
+
+    def list_paradigm_names(self, experiment_type=None):
+        matches = self.list_paradigms()
+        return sorted(m.name for m in matches)
 
     def get_paradigm(self, name):
+        '''
+        Return definition for experiment paradigm
+
+        Parameters
+        ----------
+        name : str
+            Name of experiment paradigm to return
+
+        Returns
+        -------
+        description
+            Instance of ParadigmDescription for the experiment paradigm
+        '''
         return self.paradigms[name]
 
 
@@ -52,14 +80,6 @@ class PluginDescription:
             setattr(self, attr, getattr(self.manifest, attr))
 
 
-def get_plugin_description(args):
-    if len(args) == 1:
-        return PluginDescription(*args)
-    if len(args) == 2:
-        return PluginDescription(args[0], **args[1])
-    raise ValueError('Unsupported plugin description format')
-
-
 class ParadigmDescription:
 
     def __init__(self, name, title, experiment_type, plugin_info):
@@ -77,6 +97,9 @@ class ParadigmDescription:
         experiment_type : {'ear', 'animal', 'cohort', 'calibration', str}
             Type of experiment. This is mainly used to organize the list of
             available experments in different user interfaces.
+        plugin_info : list
+            List of tuples containing information about the plugins that are
+            available for this particular paradigm.
         '''
         self.name = name
         self.title = title
@@ -84,9 +107,10 @@ class ParadigmDescription:
 
         global paradigm_manager
         try:
-            self.plugins = [get_plugin_description(d) for d in plugin_info]
+            self.plugins = [PluginDescription(**d) for d in plugin_info]
             paradigm_manager.register(self)
         except Exception as exc:
+            print(plugin_info)
             paradigm_manager.register(self, exc)
 
     def enable_plugin(self, plugin_name):

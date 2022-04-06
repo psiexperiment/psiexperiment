@@ -17,7 +17,7 @@ from psi.controller.api import (ContinuousInput, ControllerManifest,
                                 ExtractEpochs, RejectEpochs, IIRFilter, Input,
                                 Detrend)
 from psi.controller.output import QueuedEpochOutput
-from psi.data.sinks.api import BColzStore, TextStore
+from psi.data.sinks.api import BinaryStore, TextStore
 from psi.token.primitives import Cos2Envelope, Tone
 
 
@@ -53,7 +53,7 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
         id = EXPERIMENT + '.store'
         point = 'psi.data.sinks'
 
-        BColzStore:
+        BinaryStore:
             name = 'erp_eeg'
             #epoch_inputs = ['erp']
             continuous_inputs = ['eeg']

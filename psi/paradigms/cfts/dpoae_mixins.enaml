@@ -18,9 +18,6 @@ from psi.data.io.api import isodp_th_criterions
 from psi.data.plots import DataFramePlot, FFTContainer, ViewBox
 from psi.data.sinks.base_store import BaseStore
 
-from .cfts_mixins import MicrophoneFFTViewMixinManifest
-
-
 KEEP_COLS = ['secondary_tone_frequency', 'secondary_tone_level',
              'dpoae_level', 'dpoae_noise_floor', 'f2_level']
 
@@ -136,11 +133,3 @@ enamldef DPOAEThresholdManifest(PSIManifest): manifest:
                         'threshold': {'label': 'Th. (dB SPL)'},
                     }
                     columns = list(column_info.keys())
-
-
-enamldef DPOAEMicrophoneFFTViewMixinManifest(MicrophoneFFTViewMixinManifest): manifest:
-
-    id = 'dpoae_microphone_fft_mixin'
-    name = 'dpoae_microphone_fft'
-    source_name = 'microphone'
-    fft_time_span = 0.25
