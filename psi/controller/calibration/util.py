@@ -1,38 +1,48 @@
 import logging
 log = logging.getLogger(__name__)
 
+import importlib
 import json
 from pathlib import Path
 
 import numpy as np
-from psi.util import psi_json_decoder_hook, PSIJsonEncoder
+from psi.util import get_tagged_values, psi_json_decoder_hook, PSIJsonEncoder
 
 
 def save_calibration(channels, filename):
-    from psi.util import get_tagged_values
-    from json import dump
     settings = {}
     for channel in channels:
         metadata = get_tagged_values(channel.calibration, 'metadata')
         metadata['calibration_type'] = channel.calibration.__class__.__name__
         settings[channel.name] = metadata
 
-    with open(filename, 'w') as fh:
-        dump(settings, fh, indent=4, cls=PSIJsonEncoder)
+    filename.write_text(json.dumps(settings, fh, indent=4, cls=PSIJsonEncoder))
+
+
+def fix_legacy(calibration_type, metadata):
+    if calibration_type == 'GolayCalibration':
+        calibration_type = 'psiaudio.calibration.InterpCalibration'
+        metadata['attrs'] = {
+            'source': metadata.pop('source'),
+            'fs': metadata.pop('fs')
+        }
+    elif calibration_type == 'FlatCalibration':
+        calibration_type = 'psiaudio.calibration.FlatCalibration'
+    else:
+        raise ValueError(f'Unrecognized legacy format {calibration_type}')
+    return calibration_type, metadata
 
 
 def load_calibration_data(filename):
-    from psi.controller.calibration.api import calibration_registry
-    settings = json.loads(Path(filename).read_text(),
-                          object_hook=psi_json_decoder_hook)
+    #from psi.controller.calibration.api import calibration_registry
+    settings = json.loads(Path(filename).read_text(), object_hook=psi_json_decoder_hook)
     calibrations = {}
-    for c_name, c_calibration in settings.items():
-        # This is will deal with legacy calibration configs in which the source
-        # was a top-level key rather than being stored as an attribute.
-        if 'source' in c_calibration:
-            attrs = c_calibration.setdefault('attrs', {})
-            attrs['source'] = c_calibration.pop('source')
-        calibrations[c_name] = calibration_registry.from_dict(**c_calibration)
+    for name, metadata in settings.items():
+        calibration_type = metadata.pop('calibration_type')
+        calibration_type, metadata = fix_legacy(calibration_type, metadata)
+        cal_module, cal_name = calibration_type.rsplit('.', 1)
+        cal_class = getattr(importlib.import_module(cal_module), cal_name)
+        calibrations[name] = cal_class(**metadata)
     return calibrations
 
 
