@@ -555,7 +555,7 @@ class ControllerPlugin(Plugin):
         timer = QTimer()
         timer.timeout.connect(callback)
         timer.setSingleShot(True)
-        timer.start(duration*1e3)
+        timer.start(int(duration*1e3))
         self._timers[name] = timer
 
     def stop_timer(self, name):
