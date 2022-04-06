@@ -22,11 +22,14 @@ with enaml.imports():
 
 from psi import set_config
 from psi.core.enaml.api import load_manifest, load_manifest_from_file
+from psi.core.enaml import manifest
 
 
 class PSIWorkbench(Workbench):
 
     io_manifest_class = Value()
+    context_plugin = Value()
+    controller_plugin = Value()
 
     def register_core_plugins(self, io_manifest, controller_manifests):
         # Note, the get_plugin calls appear to be necessary to properly
@@ -54,17 +57,23 @@ class PSIWorkbench(Workbench):
             self.register(manifest)
 
         # Required to bootstrap plugin loading
-        controller = self.get_plugin('psi.controller')
+        self.controller_plugin = self.get_plugin('psi.controller')
         self.get_plugin('psi.controller.calibration')
-        context = self.get_plugin('psi.context')
+        self.context_plugin = self.get_plugin('psi.context')
 
-        # Now, bind context to any manifests that want it (TODO, I should
-        # have a core PSIManifest that everything inherits from so this
-        # check isn't necessary).
-        for manifest in manifests:
-            manifest.C = context.lookup
-            manifest.context = context
-            manifest.controller = controller
+        for manifest in self._manifests.values():
+            if hasattr(manifest, 'C'):
+                # Now, bind information to the manifests
+                manifest.C = self.context_plugin.lookup
+                manifest.context = self.context_plugin
+                manifest.controller = self.controller_plugin
+
+    def register(self, manifest):
+        if self.context_plugin is not None and hasattr(manifest, 'C'):
+            manifest.C = self.context_plugin.lookup
+            manifest.context = self.context_plugin
+            manifest.controller = self.controller_plugin
+        super().register(manifest)
 
     def start_workspace(self,
                         experiment_name,
