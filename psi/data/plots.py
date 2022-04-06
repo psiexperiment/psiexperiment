@@ -19,9 +19,10 @@ from enaml.colors import parse_color
 from enaml.core.api import Looper, Declarative, d_, d_func
 from enaml.qt.QtGui import QColor
 
-from psi.util import octave_space, SignalBuffer, ConfigurationException
+from psiaudio import util
+
+from psi.util import SignalBuffer, ConfigurationException
 from psi.core.enaml.api import load_manifests, PSIContribution
-from psi.controller.calibration import util
 from psi.context.context_item import ContextMeta
 
 
@@ -367,10 +368,10 @@ class FFTContainer(BasePlotContainer):
                                     np.log10(self.freq_ub),
                                     padding=0)
         if self.octave_spacing:
-            major_ticks = octave_space(self.freq_lb / 1e3, self.freq_ub / 1e3, 1.0)
+            major_ticks = util.octave_space(self.freq_lb / 1e3, self.freq_ub / 1e3, 1.0)
             major_ticklabs = [str(t) for t in major_ticks]
             major_ticklocs = np.log10(major_ticks * 1e3)
-            minor_ticks = octave_space(self.freq_lb / 1e3, self.freq_ub / 1e3, 0.125)
+            minor_ticks = util.octave_space(self.freq_lb / 1e3, self.freq_ub / 1e3, 0.125)
             minor_ticklabs = [str(t) for t in minor_ticks]
             minor_ticklocs = np.log10(minor_ticks * 1e3)
             ticks = [
@@ -614,7 +615,8 @@ class ChannelPlot(SinglePlot):
                     deferred_call(self.plot.setData, t, d)
         else:
             t = t[:len(data)]
-            deferred_call(self.plot.setData, t, data)
+            if t.shape == data.shape:
+                deferred_call(self.plot.setData, t, data)
 
 
 def _reshape_for_decimate(data, downsample):
@@ -683,8 +685,9 @@ class FFTChannelPlot(ChannelPlot):
             log.debug('Time span %f to %f', -self.time_span, 0)
             data = self._buffer.get_latest(-self.time_span, 0)
             psd = util.psd(data, self.source.fs, self.window)
-            spl = self.source.calibration.get_spl(self._x, psd)
-            deferred_call(self.plot.setData, self._x, spl)
+            db = self.source.calibration.get_db(self._x, psd)
+            if self._x.shape == db.shape:
+                deferred_call(self.plot.setData, self._x, db)
 
 
 class BaseTimeseriesPlot(SinglePlot):
@@ -1003,7 +1006,8 @@ class EpochGroupMixin(GroupMixin):
                         y = self._y(data)
                     else:
                         x = y = np.array([])
-                    todo.append((plot.setData, x, y))
+                    if x.shape == y.shape:
+                        todo.append((plot.setData, x, y))
             except KeyError:
                 if tab_changed:
                     x = y = np.array([])
@@ -1045,7 +1049,7 @@ class GroupedEpochFFTPlot(EpochGroupMixin, BasePlot):
 
     def _y(self, epoch):
         y = np.mean(epoch, axis=0) if epoch else np.full_like(self._x, np.nan)
-        return self.source.calibration.get_spl(self._x, util.psd(y, self.source.fs))
+        return self.source.calibration.get_db(self._x, util.psd(y, self.source.fs))
 
 
 class GroupedEpochPhasePlot(EpochGroupMixin, BasePlot):
@@ -1162,7 +1166,8 @@ class ResultPlot(GroupMixin, SinglePlot):
             d = pd.DataFrame({'x': x, 'y': y}).groupby('x')['y'].mean()
             x = d.index.values
             y = d.values
-        deferred_call(self.plot.setData, x, y)
+        if x.shape == y.shape:
+            deferred_call(self.plot.setData, x, y)
 
     def _default_plot(self):
         symbol_code = self.SYMBOL_MAP[self.symbol]

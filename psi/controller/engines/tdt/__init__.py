@@ -23,7 +23,7 @@ from atom.api import (Float, Typed, Str, Int, Bool, Callable, Enum,
 from enaml.core.api import Declarative, d_
 
 from psi import get_config
-from psi.controller.calibration.util import dbi
+from psiaudio.util import dbi
 from psi.controller.api import (Engine, HardwareAIChannel, HardwareAOChannel)
 from psi.controller.input import InputData
 

@@ -5,10 +5,6 @@ with enaml.imports():
     from .helper_manifest import EVENT_RESULTS
 
 
-def test_invoke_action(benchmark, controller):
-    result = benchmark(controller.invoke_actions, 'dispense')
-
-
 def test_actions(controller):
     EVENT_RESULTS[:] = []
     controller.invoke_actions('dispense')
@@ -36,7 +32,7 @@ def test_actions(controller):
 def test_default_name(controller):
     i = controller.get_input('microphone_filtered')
     assert i.name == 'microphone_filtered'
-    assert i.source.name == 'microphone_blocked_downsample'
+    assert i.source.name == 'microphone_blocked_Downsample'
 
 
 def test_input_metadata(controller):
@@ -67,5 +63,7 @@ def test_filter_delay(controller):
     # Only the NIDAQ channels support the filter delay property right now. This
     # is because only the NDIAQ engine makes provisions to correct for the
     # filter delay.
-    channel = controller.get_channel('speaker_1')
-    assert channel.filter_delay_samples == 32.0
+    channel = controller.get_channel('hw_ao::speaker_1')
+    assert channel.filter_delay == 0
+    channel = controller.get_channel('hw_ao::speaker_2')
+    assert channel.filter_delay == 1e-3

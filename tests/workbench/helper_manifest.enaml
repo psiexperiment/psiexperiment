@@ -10,10 +10,11 @@ from psi.controller.api import (ControllerManifest, Blocked, Downsample,
                                 ExperimentState, ExtractEpochs,
                                 HardwareAIChannel, HardwareAOChannel,
                                 IIRFilter, QueuedEpochOutput)
+from psi.core.enaml.api import ExperimentManifest
 
-from psi.controller.calibration.api import PointCalibration
 from psi.controller.engines.null import NullEngine
 from psi.token.primitives import Cos2Envelope, Tone
+from psiaudio.calibration import PointCalibration
 
 
 EVENT_RESULTS = []
@@ -22,6 +23,51 @@ EVENT_RESULTS = []
 def store_result(event):
     global EVENT_RESULTS
     EVENT_RESULTS.append(event.parameters['result'])
+
+
+enamldef DuplicateContextGroupManifest(ExperimentManifest):
+
+    Extension:
+        id = 'helper_items'
+        point = 'psi.context.items'
+        ContextGroup:
+            name = 'default'
+
+
+enamldef DuplicateContextItemManifest(ExperimentManifest):
+
+    Extension:
+        id = 'helper_items'
+        point = 'psi.context.items'
+
+        Parameter:
+            name = 'repetitions'
+            default = 80
+            group_name = 'default'
+
+
+enamldef ContextItemOption1(ExperimentManifest):
+
+    Extension:
+        id = 'helper_items'
+        point = 'psi.context.items'
+
+        Parameter:
+            name = 'repetitions_1'
+            default = 80
+            group_name = 'default'
+
+
+enamldef ContextItemOption2(ExperimentManifest):
+
+    Extension:
+        id = 'helper_items'
+        point = 'psi.context.items'
+
+        Parameter:
+            name = 'repetitions_2'
+            default = 80
+            group_name = 'default'
 
 
 enamldef HelperManifest(ControllerManifest): manifest:
@@ -40,6 +86,7 @@ enamldef HelperManifest(ControllerManifest): manifest:
                 dtype = 'float32'
 
                 Blocked:
+                    name = 'microphone_blocked'
                     duration = 0.25
 
                     Downsample:

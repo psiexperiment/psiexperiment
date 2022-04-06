@@ -27,13 +27,18 @@ Create environment-specific environment variables and folders for your source co
 .. code-block:: doscon
 
     mkdir %USERPROFILE%\projects\psi-dev
-    conda env config vars set -n psi-dev PSI_CONFIG=%USERPROFILE%/projects/psi-dev
+    conda env config vars set -n psi-dev PSI_CONFIG=%USERPROFILE%/projects/psi-dev/conf
+
+Follow the instructions in the command prompt to reactivate your environment and load the environment variable you just set, i.e.,:
+
+.. code-block:: doscon
+
+    conda activate psi-dev
 
 Make sure it worked properly:
 
 .. code-block:: doscon
 
-    conda activate psi-dev
     psi-config show
 
 Now create your config as described in the :doc:`install instructions<installing.rst>`.

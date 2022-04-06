@@ -1,6 +1,7 @@
 import logging
 log = logging.getLogger(__name__)
 
+from collections import OrderedDict
 import functools
 from glob import glob
 import json
@@ -49,7 +50,7 @@ def load_ctable_as_df(path, decode=True, archive=True):
     if os.path.exists(csv_path):
         return pd.io.parsers.read_csv(csv_path)
     table = bcolz.ctable(rootdir=path)
-    df = table.todataframe()
+    df = carray_to_dataframe(table)
     if decode:
         for c in table.cols:
             if table[c].dtype.char == 'S':
@@ -57,6 +58,22 @@ def load_ctable_as_df(path, decode=True, archive=True):
 
     if archive:
         df.to_csv(csv_path, index=False)
+    return df
+
+
+def carray_to_dataframe(ctable, columns=None, orient='columns'):
+    # Right now only legacy bcolz is here.
+    if orient == 'index':
+        keys = ctable.names
+    else:
+        keys = ctable.names if columns is None else columns
+        columns = None
+
+    # Use a generator here to minimize the number of column copies
+    # existing simultaneously in-memory
+    df = pd.DataFrame.from_dict(
+        OrderedDict((key, ctable[key][:]) for key in keys),
+        columns=columns, orient=orient)
     return df
 
 

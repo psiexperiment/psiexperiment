@@ -3,8 +3,7 @@ import versioneer
 
 
 requirements = [
-    'psi-bcolz',
-    'enaml',
+    'enaml[qt6-pyqt]',
     'joblib',
     'numpy',
     'palettable',
@@ -12,14 +11,20 @@ requirements = [
     'scipy',
     'tqdm',
     'pandas',
+    'pyyaml',
     'matplotlib',
 ]
 
 
 extras_require = {
     'ni': ['pydaqmx'],
+    'tdt': ['tdtpy'],
     'docs': ['sphinx', 'sphinx_rtd_theme', 'pygments-enaml'],
-    'test': ['pytest', 'pytest-benchmark'],
+    'test': ['pytest'],
+    'bcolz-backend': ['bcolz'],
+    'legacy-bcolz-backend': ['blosc'],
+    'zarr-backend': ['zarr'],
+    'dev': ['coloredlogs'],
 }
 
 

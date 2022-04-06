@@ -8,7 +8,7 @@ from psi.experiment.api import ItemPreferences
 from .table_store import TableStore, TableStoreManifest
 
 class EventLog(TableStore):
-    
+
     name = 'event_log'
     label= 'Event Log'
 
@@ -40,7 +40,7 @@ enamldef EventLogManifest(TableStoreManifest): manifest:
                         data << manifest.contribution._data[:]
                         columns = ['event', 'timestamp']
                         column_info = {
-                            'event': {'label': 'Event'}, 
+                            'event': {'label': 'Event'},
                             'timestamp': {'label': 'Time', 'to_string': '{:.2f}'.format}
                         }
 

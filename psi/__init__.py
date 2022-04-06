@@ -1,11 +1,7 @@
 import logging
+import importlib.util
 import os
 from pathlib import Path
-
-from atom.api import Event
-
-_config = {}
-
 
 # Set up a verbose debugger level for tracing
 TRACE_LEVEL_NUM = 5
@@ -23,26 +19,8 @@ log.addHandler(logging.NullHandler())
 # Flag indicating whether user configuration file was loaded.
 CONFIG_LOADED = False
 
-
-exclude = ['_d_storage', '_d_engine', '_flags', '_parent', '_children']
-
-
-class SimpleState(object):
-
-    def __getstate__(self):
-        state = super(SimpleState, self).__getstate__()
-        for k, v in self.members().items():
-            if isinstance(v, Event):
-                del state[k]
-            elif k in exclude:
-                del state[k]
-            elif v.metadata and v.metadata.get('transient', False):
-                del state[k]
-        return state
-
-    def __setstate__(self, state):
-        for key, value in state.items():
-            setattr(self, key, value)
+# Container for configuration variables
+_config = {}
 
 
 def get_config_folder():
@@ -64,13 +42,14 @@ def get_config_file():
 
 def create_config(base_directory=None, log=None, data=None, processed=None,
                   cal=None, preferences=None, layout=None, io=None,
-                  standard_io=None):
+                  standard_io=None, paradigm_descriptions=None):
 
     # This approach allows code inspection to show valid function parameters
     # without hiding it behind an anonymous **kwargs definition.
     kwargs = locals()
     kwargs.pop('base_directory')
     kwargs.pop('standard_io')
+    kwargs.pop('paradigm_descriptions')
 
     # Figure out where to save everything
     target = get_config_file()
@@ -119,8 +98,15 @@ def create_config(base_directory=None, log=None, data=None, processed=None,
         if k in help_text:
             lines.append(f'# {help_text[k]}')
         lines.append(f'{k} = {v}\n')
-    paths = '\n'.join(lines)
 
+    if paradigm_descriptions is not None:
+        lines.append('# List of module paths containing experiment paradigm descriptions')
+        lines.append('PARADIGM_DESCRIPTIONS = [')
+        for description in paradigm_descriptions:
+            lines.append(f'    "{description}",')
+        lines.append(']\n')
+
+    paths = '\n'.join(lines)
     config_template = Path(__file__).parent / 'templates' / 'config.txt'
     config_text = config_template.read_text()
     config_text = config_text.format(base_directory, paths)
@@ -139,7 +125,7 @@ def create_io_manifest(template):
 
 def create_config_dirs():
     config = load_config()
-    for name, value in vars(config).items():
+    for name, value in config.items():
         if name.endswith('_ROOT'):
             Path(value).mkdir(exist_ok=True, parents=True)
 
@@ -147,27 +133,17 @@ def create_config_dirs():
 def load_config():
     # Load the default settings
     global CONFIG_LOADED
-    import importlib.util
-    from os import environ
-    from . import config
 
+    config = {}
     config_path = get_config_file()
     if config_path.exists():
-        try:
-            spec = importlib.util.spec_from_file_location('settings', config_path)
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-            for name, value in vars(module).items():
-                if name == name.upper():
-                    setattr(config, name, value)
-            CONFIG_LOADED = True
-        except Exception as e:
-            log.exception(e)
+        spec = importlib.util.spec_from_file_location('settings', config_path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        config.update({n: v for n, v in vars(module).items() if n == n.upper()})
+        CONFIG_LOADED = True
 
-    for name, value in vars(config).items():
-        if name == name.upper():
-            log.debug('CONFIG %s : %r', name, value)
-
+    log.debug('CONFIG: %r', config)
     return config
 
 
@@ -180,7 +156,7 @@ def set_config(setting, value):
     '''
     Set value of setting
     '''
-    setattr(_config, setting, value)
+    _config[setting] = value
 
 
 CFG_ERR_MESG = '''
@@ -201,18 +177,16 @@ def get_config(setting=None, default_value=NoDefault):
     if setting is not None:
         try:
             if default_value != NoDefault:
-                return getattr(_config, setting, default_value)
+                return _config.get(setting, default_value)
             else:
-                return getattr(_config, setting)
+                return _config[setting]
         except AttributeError as e:
             if CONFIG_LOADED:
                 raise
             mesg = CFG_ERR_MESG.strip().format(setting)
             raise SystemError(mesg) from e
     else:
-        setting_names = [s for s in dir(_config) if s.upper() == s]
-        setting_values = [getattr(_config, s) for s in setting_names]
-        return dict(zip(setting_names, setting_values))
+        return _config.copy()
 
 
 reload_config()

@@ -1,0 +1,556 @@
+import logging
+log = logging.getLogger(__name__)
+
+from functools import partial
+
+from enaml.application import deferred_call, timed_call
+from enaml.widgets.api import Action, ToolBar
+from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
+import numpy as np
+import pandas as pd
+from scipy import signal
+
+from psi.controller.calibration.tone import tone_spl
+from psi.context.api import BoolParameter, EnumParameter, ContextGroup, Parameter
+from psi.controller.api import (ExperimentAction, generate_waveform,
+                                get_hw_ai_choices, get_hw_ao_choices,
+                                SelectorQueuedEpochOutput, QueuedEpochOutput)
+
+from psiaudio import util
+from psiaudio.calibration import FlatCalibration, InterpCalibration
+from psiaudio.queue import FIFOSignalQueue, InterleavedFIFOSignalQueue
+
+from psi.core.enaml.api import ExperimentManifest
+from psi.token.primitives import Chirp, Cos2Envelope, Tone
+
+
+def configure_hardware_golay(output, workbench, event=None):
+    '''
+    Configure hardware and queue for Golay
+
+    Since ordering of stimuli for Golay is slightly more complicated, we
+    manually generate the queue here.
+    '''
+    context = workbench.get_plugin('psi.context')
+    controller = workbench.get_plugin('psi.controller')
+    data = workbench.get_plugin('psi.data')
+
+    max_sf = 0
+    for setting in context.iter_settings('default', 1):
+        n = setting['n_bits']
+        gain = setting['output_gain']
+
+        n_fft = setting['fft_averages']
+        n_waveform = setting['waveform_averages']
+        n_discard = setting['discard']
+        n_trials = n_fft*n_waveform + n_discard
+
+        iti = setting['iti']
+        ab_delay = setting['ab_delay']
+        delays = [iti] * n_trials
+        delays[-1] = ab_delay
+
+        sf = output.channel.calibration.get_sf(None, gain)
+        max_sf = max(max_sf, sf)
+        a, b = util.golay_pair(n)
+        a *= sf
+        b *= sf
+        output.queue.append(a, n_trials, delays, metadata=setting)
+        output.queue.append(b, n_trials, delays, metadata=setting)
+
+    output.channel.expected_range = (-max_sf*1.1, max_sf*1.1)
+    counter = data.find_sink('epoch_counter')
+    deferred_call(setattr, counter, 'requested_n', n_trials * 2)
+
+
+def plot_data(vb, summary, y_name, *args, **kwargs):
+    vb.plot(summary['frequency'], summary[y_name], *args, **kwargs)
+
+
+def compute_spl_golay(workbench, event):
+    log.debug('Computing SPL for Golay')
+    core = workbench.get_plugin('enaml.workbench.core')
+    context = workbench.get_plugin('psi.context')
+    controller = workbench.get_plugin('psi.controller')
+    data = workbench.get_plugin('psi.data')
+
+    ai = controller.get_input('hw_ai')
+    ao = controller.get_output('hw_ao')
+
+    source = data.find_sink('mic_data').get_source('epoch')
+    grouping = ['n_bits', 'output_gain']
+    waveforms = source.get_epoch_groups(grouping)
+
+    n_fft = context.get_value('fft_averages')
+    n_waveforms = context.get_value('waveform_averages')
+    n_discard = context.get_value('discard')
+    smoothing_window = context.get_value('smoothing_window')
+
+    n = n_discard + n_waveforms * n_fft
+
+    vb_spl = data.find_viewbox('spl_result')
+    vb_sens = data.find_viewbox('sens_result')
+    keys = []
+    summaries = []
+    for (n_bits, output_gain), epochs in waveforms.items():
+        a, b = util.golay_pair(n_bits)
+        mic_a = epochs[n_discard:n]
+        mic_b = epochs[n_discard+n:]
+        summary = util.summarize_golay(source.fs, a, b, mic_a, mic_b,
+                                       n_waveforms)
+
+        # Calculate SPL
+        freq = summary['frequency']
+        psd = summary['psd']
+        spl = ai.channel.calibration.get_db(freq, psd)
+        if smoothing_window > 0:
+            w = signal.hamming(smoothing_window)
+            w /= w.sum()
+            spl = np.convolve(spl, w, mode='same')
+
+        # This seems to give the correct answer. I think we assume that the
+        # Golay has a RMS of 1 across all frequencies?
+        sens = output_gain-spl-util.db(20e-6)
+        summary.update({
+            'spl': spl,
+            'sens': sens,
+        })
+
+        deferred_call(plot_data, vb_spl, summary, 'spl', log_x=True)
+        deferred_call(plot_data, vb_sens, summary, 'sens', log_x=True)
+
+        keys.append((n_bits, output_gain))
+        summary = pd.DataFrame(summary).set_index('frequency')
+        summaries.append(summary)
+
+    summary = pd.concat(summaries, keys=keys, names=grouping)
+    params = {'dataframe': summary, 'name': 'golay_sens'}
+    core.invoke_command('cal_data.save_dataframe', params)
+
+    # We need to update the channel with the calibration in case we want to
+    # verify the calibration afterwards.
+    ao.channel.calibration = InterpCalibration(freq, sens)
+
+
+def compute_calibration_chirp(event):
+    core = event.workbench.get_plugin('enaml.workbench.core')
+    context = event.workbench.get_plugin('psi.context')
+    controller = event.workbench.get_plugin('psi.controller')
+    data = event.workbench.get_plugin('psi.data')
+
+    ai = controller.get_input('hw_ai')
+    ao = controller.get_output('hw_ao')
+    settings = context.get_values()
+
+    source = data.find_sink('mic_data').get_source('epoch')
+    grouping = ['hw_ao_chirp_level']
+    waveforms = source.get_epoch_groups(grouping)
+
+    vb_spl = data.find_viewbox('spl_result')
+    vb_sens = data.find_viewbox('sens_result')
+    keys = []
+    summaries = []
+    for chirp_level, epochs in waveforms.items():
+        if chirp_level == -400:
+            continue
+        freq = util.psd_freq(epochs, source.fs)
+        resp_psd = util.psd(epochs, source.fs).mean(axis=0)
+        resp_phase = util.phase(epochs, source.fs).mean(axis=0)
+        spl = ai.channel.calibration.get_db(freq, resp_psd)
+
+        settings['hw_ao_chirp_level'] = chirp_level
+        chirp = generate_waveform(ao, settings)
+        signal_psd = util.psd(chirp, source.fs)
+        signal_phase = util.phase(chirp, source.fs)
+        phase = resp_phase-signal_phase
+
+        sens = util.db(signal_psd)-spl-util.db(20e-6)
+        summary = pd.DataFrame({
+            'frequency': freq,
+            'response_psd': resp_psd,
+            'response_phase': resp_phase,
+            'signal_psd': signal_psd,
+            'signal_phase': signal_phase,
+            'spl': spl,
+            'sens': sens,
+            'phase': phase,
+        })
+
+        deferred_call(plot_data, vb_spl, summary, 'spl', log_x=True)
+        deferred_call(plot_data, vb_sens, summary, 'sens', log_x=True)
+
+        keys.append(chirp_level)
+        summary = summary.set_index('frequency')
+        summaries.append(summary)
+
+    freq_lb = context.get_value('hw_ao_chirp_start_frequency')
+    freq_ub = context.get_value('hw_ao_chirp_end_frequency')
+    frequencies = util.octave_space(freq_lb*1e-3, freq_ub*1e-3, 0.125,
+                                    'bounded')*1e3
+
+    # Save the calibration
+    summary = pd.concat(summaries, keys=keys, names=grouping)
+    params = {'dataframe': summary, 'name': 'chirp_sens'}
+    core.invoke_command('cal_data.save_dataframe', params)
+
+    ao.channel.calibration = InterpCalibration(freq, sens)
+
+
+def level_to_gain(calibration, frequencies, spl, max_gain):
+    gains = np.array([calibration.get_gain(f, spl) for f in frequencies])
+    log.info('Gains required: %r', gains)
+    mask = (gains <= max_gain) & np.isfinite(gains)
+    gains = gains[mask]
+    frequencies = frequencies[mask]
+    log.debug('Removed %d frequencies', (~mask).sum())
+    return frequencies, gains
+
+
+def validate_spl(workbench, ao_channel, ai_channel, frequencies, spl, max_gain):
+    '''
+    Validate SPL given a working calibration
+    '''
+    log.debug('Starting SPL validation')
+    data = workbench.get_plugin('psi.data')
+    core = workbench.get_plugin('enaml.workbench.core')
+
+    log.debug('Validating calibration by targeting %f dB SPL', spl)
+    frequencies, gains = level_to_gain(ao_channel.calibration, frequencies, spl, max_gain)
+    if len(frequencies) == 0:
+        log.debug('No frequencies available to calibrate. Please review target SPL.')
+        return
+    result = tone_spl(ao_channel.engine, frequencies, gains=gains,
+                      ao_channel_name=ao_channel.name,
+                      ai_channel_names=[ai_channel.name])
+    result = result.reset_index()
+    result['gain'] = gains
+    result['sens'] = gains-result['spl']-util.db(20e-6)
+    vb = data.find_viewbox('spl_result')
+    deferred_call(plot_data, vb, result, 'spl', log_x=True, kind='scatter')
+    vb = data.find_viewbox('sens_result')
+    deferred_call(plot_data, vb, result, 'sens', log_x=True, kind='scatter')
+
+    parameters = {'name': 'tone_sens', 'dataframe': result, 'overwrite': True}
+    core.invoke_command('cal_data.save_dataframe', parameters=parameters)
+
+
+enamldef ChannelSettingMixins(ExperimentManifest): manifest:
+
+    id = 'calibration_mixins_channel_settings'
+    required = True
+
+    Extension:
+        id = manifest.id + '.context'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'calibration'
+            label = 'Calibration'
+
+            EnumParameter:
+                name = 'output_channel'
+                label = 'Output channel'
+                compact_label = 'ao'
+                choices << get_hw_ao_choices(workbench)
+                scope = 'experiment'
+
+            EnumParameter:
+                name = 'input_channel'
+                label = 'Input channel'
+                compact_label = 'input'
+                choices << get_hw_ai_choices(workbench)
+                scope = 'experiment'
+
+            Parameter:
+                name = 'input_gain'
+                label = 'Input gain (dB)'
+                compact_label = 'ai_gain'
+                dtype = 'float64'
+                default = 40
+                scope = 'experiment'
+
+            Parameter:
+                name = 'input_range'
+                label = 'Expected input range (Vpp)'
+                compact_label = 'ai_range'
+                dtype = 'float64'
+                default = 10
+                scope = 'experiment'
+
+enamldef GolayMixin(ExperimentManifest): manifest:
+
+    id = 'golay'
+    required = True
+
+    Extension:
+        id = manifest.id + '.io'
+        point = 'psi.controller.io'
+
+        QueuedEpochOutput: hw_ao:
+            name = 'hw_ao'
+            auto_decrement = True
+            configurable = False
+            target_name = C.output_channel
+            target ::
+                channel.calibration = FlatCalibration.as_attenuation()
+                self.queue = FIFOSignalQueue()
+                # This needs to be done manually otherwise it doesn't happen
+                # until after this block exits, creating a race condition. How
+                # to fix?
+                self.queue.set_fs(self.fs)
+
+                controller = workbench.get_plugin('psi.controller')
+                epoch = controller.get_input('epoch')
+                self.queue.connect(epoch.added_queue.append)
+                configure_hardware_golay(hw_ao, workbench)
+                cb = partial(compute_spl_golay, workbench)
+                epoch.observe('complete', cb)
+
+    Extension:
+        id = manifest.id + '.items'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'golay'
+            label = 'Golay'
+
+            Parameter:
+                name = 'n_bits'
+                label = 'Number of bits for Golay'
+                default = 14
+                scope = 'trial'
+
+            Parameter:
+                name = 'fft_averages'
+                label = 'FFT averages'
+                default = 4
+                scope = 'experiment'
+
+            Parameter:
+                name = 'waveform_averages'
+                label = 'Waveform averages'
+                default = 2
+                scope = 'experiment'
+
+            Parameter:
+                name = 'discard'
+                label = 'Repetitions to discard'
+                default = 2
+                scope = 'experiment'
+
+            Parameter:
+                name = 'iti'
+                label = 'Delay between repetitions (sec)'
+                default = 1e-5
+                scope = 'experiment'
+
+            Parameter:
+                name = 'ab_delay'
+                label = 'Delay between A and B code (sec)'
+                default = 1
+                scope = 'experiment'
+
+            Parameter:
+                name = 'output_gain'
+                label = 'Output gain'
+                default = -20
+                scope = 'trial'
+
+            Parameter:
+                name = 'smoothing_window'
+                label = 'Smoothing window'
+                default = 10
+                scope = 'trial'
+
+
+def validate_spl_wrapper(event):
+    core = event.workbench.get_plugin('enaml.workbench.core')
+    context = event.workbench.get_plugin('psi.context')
+    controller = event.workbench.get_plugin('psi.controller')
+    data = event.workbench.get_plugin('psi.data')
+
+    ai = controller.get_input('hw_ai')
+    ao = controller.get_output('hw_ao')
+    settings = context.get_values()
+
+    freq_lb = settings['validation_start']
+    freq_ub = settings['validation_end']
+    octaves = settings['validation_octaves']
+    validation_level = settings['validation_level']
+    safe_gain = settings['safe_gain']
+    frequencies = util.octave_space(freq_lb*1e-3, freq_ub*1e-3, octaves,
+                                    'bounded')*1e3
+    log.info('Calibrating frequencies: %r', frequencies)
+    validate_spl(event.workbench, ao.channel, ai.channel, frequencies,
+                 validation_level, max_gain=safe_gain)
+
+
+enamldef ToneValidateMixin(ExperimentManifest): manifest:
+    '''
+    This mixin requires a `calibration_result` FFT container with `spl_result`
+    and `spl_sens` viewboxes defined (the idea being that the main plugin may
+    want to plot its own calibration information, and then we use this plugin
+    to plot the tone verification on the same plot).
+    '''
+
+    id = 'tone_validate'
+    required = True
+
+    Extension:
+        id = manifest.id + '.items'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'validation'
+            label = 'Validation Settings'
+
+            Parameter:
+                name = 'validation_start'
+                label = 'Start frequency'
+                default = 500.0
+                scope = 'experiment'
+
+            Parameter:
+                name = 'validation_end'
+                label = 'Start frequency'
+                default = 50000.0
+                scope = 'experiment'
+
+            Parameter:
+                name = 'validation_octaves'
+                label = 'Octave step'
+                default = 0.125
+                scope = 'experiment'
+
+            Parameter:
+                name = 'validation_level'
+                label = 'Level to validate (dB SPL)'
+                default = 80.0
+                scope = 'experiment'
+
+            Parameter:
+                name = 'safe_gain'
+                label = 'Skip frequency if gain exceeds this level (dB)'
+                default = 0
+                scope = 'experiment'
+
+    Extension:
+        id = manifest.id + '.toolbar'
+        point = 'psi.experiment.toolbar'
+
+        ToolBar:
+            Action:
+                text = 'Validate'
+                enabled << controller.experiment_state == 'stopped'
+                triggered ::
+                    core = workbench.get_plugin('enaml.workbench.core')
+                    core.invoke_command('psi.calibration.validate')
+
+    Extension:
+        id = manifest.id + '.commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = 'psi.calibration.validate'
+            handler = validate_spl_wrapper
+
+
+enamldef ChirpMixin(ExperimentManifest): manifest:
+
+    id = 'chirp'
+    required = True
+
+    Extension:
+        id = manifest.id + '.tokens'
+        point = 'psi.token.tokens'
+
+        Chirp: chirp:
+            pass
+
+    Extension:
+        id = manifest.id + '.io'
+        point = 'psi.controller.io'
+
+        SelectorQueuedEpochOutput: hw_ao:
+            name = 'hw_ao'
+            label = 'Output'
+            configurable = False
+            token = chirp
+            auto_decrement = True
+            selector_name = 'default'
+            target_name << C.output_channel
+            target ::
+                # Set up the channel and the queue
+                channel.calibration = FlatCalibration.as_attenuation()
+                queue = InterleavedFIFOSignalQueue()
+
+                # Connect to the epoch input
+                controller = workbench.get_plugin('psi.controller')
+                epoch = controller.get_input('epoch')
+                epoch.poststim_time = 0
+                self.connect(epoch.added_queue.append)
+
+    Extension:
+        id = manifest.id + '.commands'
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = 'psi.controller.compute_calibration'
+            handler = compute_calibration_chirp
+
+    Extension:
+        id = manifest.id + '.actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'epoch_queue_end'
+            command = 'psi.controller.compute_calibration'
+
+
+enamldef ToneMixin(ExperimentManifest): manifest:
+
+    id = 'tone'
+    required = True
+
+    Extension:
+        id = manifest.id + '.tokens'
+        point = 'psi.token.tokens'
+
+        Cos2Envelope: tone_pip:
+            label = 'Tone pip'
+            Tone:
+                pass
+
+    Extension:
+        id = manifest.id + '.items'
+        point = 'psi.context.items'
+
+        BoolParameter:
+            name = 'level_as_attenuation'
+            label = 'Specify stimulus level as attenuation (dB)?'
+            default = False
+            scope = 'experiment'
+            group_name = 'calibration'
+
+    Extension:
+        id = manifest.id + '.io'
+        point = 'psi.controller.io'
+
+        SelectorQueuedEpochOutput: hw_ao:
+            name = 'hw_ao'
+            label = 'Output'
+            configurable = False
+            auto_decrement = True
+            selector_name = 'default'
+            token = tone_pip
+            target_name << C.output_channel
+            target ::
+                if C.level_as_attenuation:
+                    log.debug('Setting output to use attenuation values')
+                    channel.calibration = FlatCalibration.as_attenuation()
+
+                queue = InterleavedFIFOSignalQueue()
+                controller = workbench.get_plugin('psi.controller')
+                epoch = controller.get_input('epoch')
+                epoch.poststim_time = 10e-3
+                self.connect(epoch.added_queue.append)

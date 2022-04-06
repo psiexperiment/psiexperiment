@@ -15,20 +15,6 @@ from .channel import (Channel, AnalogMixin, DigitalMixin, HardwareMixin,
                       SoftwareMixin, OutputMixin, InputMixin, CounterMixin)
 
 
-def log_configuration(engine):
-    info = ['Engine configuration']
-    info.append('Engine {}'.format(engine.name))
-    for channel in engine.get_channels(direction='input', active=True):
-        info.append('\t channel {}'.format(channel.name))
-        for i in channel.inputs:
-            info.append('\t\t input {}'.format(i.name))
-    for channel in engine.get_channels(direction='output', active=True):
-        info.append('\t channel {}'.format(channel.name))
-        for o in channel.outputs:
-            info.append('\t\t output {}'.format(o.name))
-    log.info('\n'.join(info))
-
-
 class LogLock:
 
     def __init__(self, name):
@@ -169,7 +155,6 @@ class Engine(PSIContribution):
         channel.set_parent(None)
 
     def configure(self):
-        log_configuration(self)
         for channel in self.get_channels():
             log.debug('Configuring channel {}'.format(channel.name))
             channel.configure()

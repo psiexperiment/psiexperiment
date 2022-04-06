@@ -103,7 +103,7 @@ enamldef ControllerManifest(BaseControllerManifest): manifest:
                     source_name = 'analyze_dpoae'
                     x_column = 'secondary_tone_level'
                     pen_width = 2
-                    tab_grouping = 'secondary_tone_frequency'
+                    tab_grouping = ['secondary_tone_frequency']
                     label = 'F2'
                     y_column = 'f2_level'
                     pen_color = 'indianred'
@@ -119,7 +119,7 @@ enamldef ControllerManifest(BaseControllerManifest): manifest:
                     source_name = 'analyze_dpoae'
                     x_column = 'secondary_tone_level'
                     pen_width = 2
-                    tab_grouping = 'secondary_tone_frequency'
+                    tab_grouping = ['secondary_tone_frequency']
                     label = 'F1'
                     y_column = 'f1_level'
                     pen_color = 'darkgreen'

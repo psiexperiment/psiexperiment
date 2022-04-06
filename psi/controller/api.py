@@ -17,9 +17,6 @@ from .output import (Synchronized, ContinuousOutput, EpochOutput,
 from .experiment_action import (ExperimentAction, ExperimentCallback,
                                 ExperimentEvent, ExperimentState)
 
-from .queue import (FIFOSignalQueue,
-                    GroupedFIFOSignalQueue, InterleavedFIFOSignalQueue)
-
 
 import enaml
 with enaml.imports():
@@ -27,3 +24,4 @@ with enaml.imports():
     from .manifest import (ControllerManifest, ControllerPlugin,
                            get_hw_ai_choices, get_hw_ao_choices)
     from .output_manifest import generate_waveform
+    from .input_primitives import ADC

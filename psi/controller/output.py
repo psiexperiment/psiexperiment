@@ -14,9 +14,9 @@ from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
 from enaml.workbench.api import Extension
 
-from ..util import coroutine, SignalBuffer
-from .queue import AbstractSignalQueue
+from psiaudio.queue import AbstractSignalQueue
 
+from psi.util import SignalBuffer
 from psi.core.enaml.api import PSIContribution
 
 import time
@@ -34,7 +34,7 @@ class Synchronized(PSIContribution):
         return set(o.engine for o in self.outputs)
 
 
-class Output(PSIContribution):
+class BaseOutput(PSIContribution):
 
     name = d_(Str()).tag(metadata=True)
     label = d_(Str()).tag(metadata=True)
@@ -43,6 +43,32 @@ class Output(PSIContribution):
     target = d_(Typed(Declarative).tag(metadata=True), writable=False)
     channel = Property().tag(metadata=True)
     engine = Property().tag(metadata=True)
+
+    def _default_label(self):
+        return self.name
+
+    def _get_engine(self):
+        if self.channel is None:
+            return None
+        else:
+            return self.channel.engine
+
+    def _get_channel(self):
+        from .channel import Channel
+        target = self.target
+        while True:
+            if target is None:
+                return None
+            elif isinstance(target, Channel):
+                return target
+            else:
+                target = target.target
+
+    def is_ready(self):
+        raise NotImplementedError
+
+
+class Output(BaseOutput):
 
     # These two are defined as properties because it's theoretically possible
     # for the output to transform these (e.g., an output could upsample
@@ -71,23 +97,6 @@ class Output(PSIContribution):
         for cb in self.callbacks:
             cb(d)
 
-    def _get_engine(self):
-        if self.channel is None:
-            return None
-        else:
-            return self.channel.engine
-
-    def _get_channel(self):
-        from .channel import Channel
-        target = self.target
-        while True:
-            if target is None:
-                return None
-            elif isinstance(target, Channel):
-                return target
-            else:
-                target = target.target
-
     def _get_filter_delay(self):
         return self.target.filter_delay
 
@@ -97,8 +106,6 @@ class Output(PSIContribution):
     def _get_calibration(self):
         return self.channel.calibration
 
-    def is_ready(self):
-        raise NotImplementedError
 
 
 class BufferedOutput(Output):
@@ -107,6 +114,7 @@ class BufferedOutput(Output):
     buffer_size = Property().tag(metadata=True)
     active = Bool(False).tag(metadata=True)
     source = Typed(object).tag(metadata=True)
+    paused = Bool(False)
 
     _buffer = Typed(SignalBuffer)
     _offset = Int(0)
@@ -165,6 +173,7 @@ class BufferedOutput(Output):
     def activate(self, offset):
         log.trace('Activating %s at %d', self.name, offset)
         self.active = True
+        self.paused = False
         self._offset = offset
         self._buffer.invalidate_samples(offset)
 
@@ -179,6 +188,19 @@ class BufferedOutput(Output):
 
     def get_duration(self):
         return self.source.get_duration()
+
+    def rebuffer(self, time, delay=0):
+        offset = round(time * self.fs)
+        self._buffer.invalidate_samples(offset)
+        self.engine.update_hw_ao(self.channel.name, offset)
+
+    def pause(self, time):
+        self.paused = True
+        self.rebuffer(time)
+
+    def resume(self, time):
+        self.paused = False
+        self.rebuffer(time)
 
 
 class EpochOutput(BufferedOutput):
@@ -233,19 +255,15 @@ class QueuedEpochOutput(BufferedOutput):
     def rebuffer(self, time, delay=0):
         self.queue.cancel(time, delay)
         self.queue.rewind_samples(time)
-        offset = round(time * self.fs)
-        self._buffer.invalidate_samples(offset)
-        self.engine.update_hw_ao(self.channel.name, offset)
+        super().rebuffer(time, delay)
 
     def pause(self, time):
         self.queue.pause(time)
-        self.rebuffer(time)
-        self.paused = True
+        super().pause(time)
 
     def resume(self, time, delay=0):
         self.queue.resume(time)
-        self.rebuffer(time, delay)
-        self.paused = False
+        super().resume(time)
 
     def _observe_queue(self, event):
         self.source = self.queue
@@ -308,23 +326,25 @@ class SelectorQueuedEpochOutput(QueuedEpochOutput):
 class ContinuousOutput(BufferedOutput):
 
     def get_next_samples(self, samples):
-        if self.active:
+        if not self.paused and self.active:
             return self.source.next(samples)
         else:
             return np.zeros(samples, dtype=np.double)
 
 
-class DigitalOutput(Output):
+class DigitalOutput(BaseOutput):
+
     pass
 
 
 class Trigger(DigitalOutput):
 
-    duration = d_(Float(0.1)).tag(metadata=True)
+    total_fired = d_(Int(0), writable=False)
 
-    def fire(self):
+    def fire(self, duration):
         if self.engine.configured:
-            self.engine.fire_sw_do(self.channel.name, duration=self.duration)
+            self.engine.fire_sw_do(self.channel.name, duration=duration)
+            self.total_fired += 1
 
 
 class Toggle(DigitalOutput):

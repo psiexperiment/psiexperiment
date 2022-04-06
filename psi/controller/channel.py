@@ -7,10 +7,9 @@ from atom.api import (Bool, Float, Int, List, Property, Tuple, Typed, Str)
 from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
 
-from psi.controller.calibration.api import Calibration, UnityCalibration
+from psiaudio.calibration import BaseCalibration, FlatCalibration
 from .output import QueuedEpochOutput, ContinuousOutput, EpochOutput
 from ..core.enaml.api import PSIContribution
-from ..util import coroutine
 
 
 class Channel(PSIContribution):
@@ -45,7 +44,7 @@ class Channel(PSIContribution):
     engine = Property().tag(metadata=True)
 
     # Calibration of channel
-    calibration = d_(Typed(Calibration, factory=UnityCalibration))
+    calibration = d_(Typed(BaseCalibration, factory=FlatCalibration.unity))
     calibration.tag(metadata=True)
 
     # Can the user modify the channel calibration?
@@ -58,9 +57,6 @@ class Channel(PSIContribution):
 
     def _default_reference(self):
         return f'{self.type_code}::{self.name}'
-
-    def _default_calibration(self):
-        return UnityCalibration()
 
     def __init__(self, *args, **kwargs):
         # This is a hack due to the fact that name is defined as a Declarative

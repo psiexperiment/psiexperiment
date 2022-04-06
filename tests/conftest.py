@@ -1,8 +1,10 @@
 import pytest
 
-from psi.controller.calibration.api import FlatCalibration
+from psiaudio.queue import InterleavedFIFOSignalQueue
+
+from psiaudio.calibration import FlatCalibration
 from psi.controller.api import (EpochOutput, HardwareAOChannel,
-                                InterleavedFIFOSignalQueue, QueuedEpochOutput)
+                                QueuedEpochOutput)
 from psi.controller.engines.null import NullEngine
 
 

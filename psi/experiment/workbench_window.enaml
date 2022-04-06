@@ -9,8 +9,8 @@ from .util import main_icon
 enamldef ExperimentWorkbenchWindow(WorkbenchWindow):
     '''
     Customize the workbench window:
-        * Add toolbars and a status bar
-        * Ensure that the experiment is stopped before closing window
+    * Add toolbars and a status bar
+    * Ensure that the experiment is stopped before closing window
     '''
     icon = main_icon
 
@@ -22,7 +22,7 @@ enamldef ExperimentWorkbenchWindow(WorkbenchWindow):
             warning(self, 'Experiment running', m)
 
     Include:
-        objects << window_model.workspace.toolbars
+        objects << list(workbench.get_plugin('psi.experiment')._toolbars.values())
 
     StatusBar:
         name = 'status_bar'

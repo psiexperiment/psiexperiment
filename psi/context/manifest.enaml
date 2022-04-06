@@ -9,7 +9,7 @@ from copy import deepcopy
 from enaml.core.api import Looper
 from enaml.layout.api import VSplitLayout, TabLayout
 from enaml.styling import StyleSheet, Style, Setter
-from enaml.widgets.api import (Container, DockArea, DockItem, VGroup, HGroup,
+from enaml.widgets.api import (Container, DockArea, VGroup, HGroup,
                                Label, FileDialogEx, Action)
 from enaml.workbench.api import Extension, ExtensionPoint, PluginManifest
 from enaml.workbench.core.api import Command
@@ -62,7 +62,7 @@ def initialize(event):
     cycles = event.parameters.get('cycles', np.inf)
     selector = event.parameters.get('selector', None)
     context.apply_changes(cycles=cycles)
-    context.next_setting(selector=selector, save_prior=False)
+    context.next_setting(selector=selector)
     context.initialized = True
     controller.invoke_actions('context_initialized')
 
@@ -72,7 +72,7 @@ def next_setting(event):
     context = event.workbench.get_plugin(PLUGIN_ID)
     p = event.parameters
     try:
-        context.next_setting(selector=p['selector'], save_prior=p['save_prior'])
+        context.next_setting(selector=p['selector'])
         controller.invoke_actions('context_next_setting')
     except StopIteration:
         controller.invoke_actions('context_complete')
@@ -221,7 +221,8 @@ enamldef ContextManifest(PluginManifest): manifest:
                 log.debug('Setting meta states')
                 for meta in plugin.context_meta.values():
                     state = meta_state.get(meta.name, {})
-                    items = [plugin.context_items[n] for n in state]
+                    items = [plugin.context_items[n] for n in state \
+                             if n in plugin.context_items]
                     try:
                         # This is a hack. By forcing a getattr of meta.values,
                         # we force a creation event. Then, when we assign items

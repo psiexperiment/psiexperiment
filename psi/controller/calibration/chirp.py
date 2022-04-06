@@ -4,10 +4,9 @@ import time
 import numpy as np
 import pandas as pd
 
-from psi.controller.calibration.calibration import FlatCalibration
-from psi.token.primitives import ChirpFactory, SilenceFactory
+from psiaudio.calibration import FlatCalibration, InterpCalibration
+from psiaudio.stim import ChirpFactory, SilenceFactory
 
-from .calibration import InterpCalibration
 from . import util
 
 
@@ -121,11 +120,6 @@ def chirp_power(engine, ao_channel_name, ai_channel_names, start_frequency=500,
             'chirp_rms': chirp_psd,
             'snr': util.db(mean_psd.loc[gain] / mean_psd.loc[-400]),
         })
-        #result_waveforms[ai_channel.name] = waveforms
-
-    #result_waveforms = pd.concat(result_waveforms.values(),
-    #                             keys=result_waveforms.keys(),
-    #                             names=['channel'])
 
     result_psd = pd.concat(result_psd.values(), keys=result_psd.keys(),
                            names=['channel'])

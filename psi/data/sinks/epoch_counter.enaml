@@ -25,7 +25,7 @@ from psi.experiment.api import StatusItem
 class EpochCounter(SinkWithSource):
 
     current_n = Int()
-    requested_n = Int(100)
+    requested_n = Int()
 
     def _update_data(self, epochs):
         n = len(epochs)

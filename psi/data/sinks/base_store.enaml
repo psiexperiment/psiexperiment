@@ -2,20 +2,56 @@ import logging
 log = logging.getLogger(__name__)
 
 import atexit
+from functools import partial
 from pathlib import Path
 import shutil
 import tempfile
 
-from atom.api import Typed
+from atom.api import Atom, Float, List, set_default, Str, Typed
+from enaml.core.api import d_
+from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
+
+from psi.core.enaml.api import PSIManifest
+from psi.controller.api import ExperimentAction
+from psi.util import declarative_to_dict
 
 from ..sink import Sink
+from ..io.util import get_epoch_groups
+
+
+class BaseEpochData(Atom):
+
+    fs = Float()
+    data = Typed(object)
+    metadata = Typed(object)
+
+    def _split_epochs_metadata(self, data):
+        epochs = []
+        metadata = []
+        for d in data:
+            epochs.append(d['signal'])
+            md = d['info']['metadata'].copy()
+            md['t0'] = d['info']['t0']
+            md['duration'] = d['info']['duration']
+            if 'calibration' in md:
+                del md['calibration']
+            metadata.append(md)
+        return epochs, metadata
+
+    def get_epoch_groups(self, grouping):
+        return get_epoch_groups(self.fs, grouping, self.metadata, self.data)
 
 
 class BaseStore(Sink):
     '''
     Implements functions for creating filenames
     '''
+    name = set_default('base_store')
+
     base_path = Typed(Path)
+    continuous_inputs = d_(List())
+    epoch_inputs = d_(List())
 
     def _default_base_path(self):
         # Create a temporary folder. Be sure to delete when the program exits.
@@ -29,4 +65,78 @@ class BaseStore(Sink):
         return path
 
     def set_base_path(self, base_path):
+        atexit.register(self.flush)
         self.base_path = Path(base_path)
+
+    def get_source(self, name):
+        raise NotImplementedError
+
+    def process_ai_epochs(self, name, data):
+        raise NotImplementedError
+
+    def process_ai_continuous(self, name, data):
+        raise NotImplementedError
+
+    def create_ai_continuous(self, name, fs, dtype, metadata):
+        raise NotImplementedError
+
+    def create_ai_epochs(self, name, fs, dtype, metadata):
+        raise NotImplementedError
+
+    def flush(self):
+        for store in self._stores.values():
+            if hasattr(store, 'flush'):
+                store.flush()
+
+
+def prepare(sink, event):
+    controller = event.workbench.get_plugin('psi.controller')
+
+    for input_name in sink.epoch_inputs:
+        log.debug('\tCreating save file for epoch input %s', input_name)
+        i = controller.get_input(input_name)
+        md = declarative_to_dict(i, 'metadata')
+        sink.create_ai_epochs(i.name, i.fs, i.dtype, md)
+        cb = partial(sink.process_ai_epochs, i.name)
+        i.add_callback(cb)
+
+    for input_name in sink.continuous_inputs:
+        log.debug('\tCreating save file for continuous input %s', input_name)
+        i = controller.get_input(input_name)
+        md = declarative_to_dict(i, 'metadata')
+        sink.create_ai_continuous(i.name, i.fs, i.dtype, md)
+        cb = partial(sink.process_ai_continuous, i.name)
+        i.add_callback(cb)
+
+
+def flush(sink, event):
+    sink.flush()
+    return 'Saved data to disk'
+
+
+enamldef BaseStoreManifest(PSIManifest): manifest:
+
+    Extension:
+        id = manifest.id + '.base_store_commands'
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = manifest.id + '.prepare'
+            handler = partial(prepare, manifest.contribution)
+
+        Command:
+            id = manifest.id + '.flush'
+            handler = partial(flush, manifest.contribution)
+
+    Extension:
+        id = manifest.id + '.base_store_actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = manifest.id + '.prepare'
+
+        ExperimentAction:
+            weight = 1000
+            event = 'experiment_end'
+            command = manifest.id + '.flush'

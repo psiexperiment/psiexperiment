@@ -22,14 +22,12 @@ def context():
     }
 
 
-def test_evaluate_simple(benchmark, simple_experiment_action, context):
-    result = benchmark(simple_experiment_action.match, context)
-    assert result == True
+def test_evaluate_simple(simple_experiment_action, context):
+    assert simple_experiment_action.match(context) == True
 
 
-def test_evaluate_complex(benchmark, complex_experiment_action, context):
-    result = benchmark(complex_experiment_action.match, context)
-    assert result == True
+def test_evaluate_complex(complex_experiment_action, context):
+    assert complex_experiment_action.match(context) == True
 
 
 def test_evaluate(complex_experiment_action):

@@ -1,7 +1,9 @@
 import logging
 log = logging.getLogger(__name__)
 
-from atom.api import Str
+import re
+
+from atom.api import Bool, Str
 from enaml.core.api import Declarative, d_
 
 from .util import load_manifest
@@ -12,10 +14,15 @@ class PSIContribution(Declarative):
     name = d_(Str())
     label = d_(Str())
     manifest = d_(Str())
+    registered = Bool(False)
 
     def _default_name(self):
         # Provide a default name if none is specified
         return self.parent.name + '.' + self.__class__.__name__
+
+    @classmethod
+    def valid_name(self, label):
+        return re.sub('\W|^(?=\d)', '_', label)
 
     @classmethod
     def find_manifest_class(cls):
@@ -29,25 +36,25 @@ class PSIContribution(Declarative):
                 return load_manifest(location)
             except ImportError:
                 pass
+
+        # I'm not sure this can actually happen anymore since it should return
+        # the base `PSIManifest` class at a minimum.
         m = f'Could not find manifest for {cls.__module__}.{cls.__name__}'
         raise ImportError(m)
 
     def load_manifest(self, workbench):
-        if not self.load_manifest:
+        if self.registered:
             return
         try:
             manifest_class = self.find_manifest_class()
             manifest = manifest_class(contribution=self)
             workbench.register(manifest)
+            self.registered = True
             m = 'Loaded manifest for contribution %s (%s) with ID %r'
-            log.info(m, self.name, manifest_class.__name__, manifest.id)
+            log.debug(m, self.name, manifest_class.__name__, manifest.id)
         except ImportError:
             m = 'No manifest defind for contribution %s'
             log.warn(m, self.name)
         except ValueError as e:
-            # Catch only "is already registered" exceptions.
-            if str(e).endswith('is already registered'):
-                m = 'Manifest already loaded for contribution %s'
-                log.debug(m, self.name)
-            else:
-                raise
+            m = f'Manifest "{manifest.id}" for plugin "{self.name}" already registered.'
+            raise ImportError(m) from e

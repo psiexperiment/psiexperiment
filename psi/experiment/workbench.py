@@ -9,62 +9,71 @@ from enaml.workbench.api import Workbench
 
 with enaml.imports():
     from enaml.stdlib.message_box import critical
+    from enaml.workbench.core.core_manifest import CoreManifest
+    from enaml.workbench.ui.ui_manifest import UIManifest
+
+    from psi.context.manifest import ContextManifest
+    from psi.data.manifest import DataManifest
+    from psi.experiment.manifest import ExperimentManifest
+    from psi.token.manifest import TokenManifest
+    from psi.controller.calibration.manifest import CalibrationManifest
+
     from . import error_style
 
 from psi import set_config
 from psi.core.enaml.api import load_manifest, load_manifest_from_file
+from psi.core.enaml import manifest
 
 
 class PSIWorkbench(Workbench):
 
     io_manifest_class = Value()
+    context_plugin = Value()
+    controller_plugin = Value()
 
     def register_core_plugins(self, io_manifest, controller_manifests):
         # Note, the get_plugin calls appear to be necessary to properly
         # initialize parts of the application before new plugins are loaded.
         # This is likely some sort of bug or poor design on my part.
-        with enaml.imports():
-            from enaml.workbench.core.core_manifest import CoreManifest
-            from enaml.workbench.ui.ui_manifest import UIManifest
-            from psi.experiment.manifest import ExperimentManifest
+        self.register(ExperimentManifest())
+        self.register(ContextManifest())
+        self.register(DataManifest())
+        self.register(TokenManifest())
+        self.register(CalibrationManifest())
+        self.register(CoreManifest())
+        self.register(UIManifest())
 
-            self.register(ExperimentManifest())
-            self.register(CoreManifest())
-            self.register(UIManifest())
-            self.get_plugin('enaml.workbench.ui')
-            self.get_plugin('enaml.workbench.core')
+        self.get_plugin('enaml.workbench.ui')
+        self.get_plugin('enaml.workbench.core')
 
-            self.io_manifest_class = load_manifest_from_file(io_manifest, 'IOManifest')
-            self.register(self.io_manifest_class())
+        self.io_manifest_class = load_manifest_from_file(io_manifest, 'IOManifest')
+        io_manifest = self.io_manifest_class()
+        self.register(io_manifest)
 
-            manifests = []
-            for manifest in controller_manifests:
-                manifest_class = load_manifest(manifest)
-                manifest = manifest_class()
-                manifests.append(manifest)
-                self.register(manifest)
+        manifests = [io_manifest]
+        for manifest in controller_manifests:
+            log.info('Registering %r', manifest)
+            manifests.append(manifest)
+            self.register(manifest)
 
-            from psi.context.manifest import ContextManifest
-            from psi.data.manifest import DataManifest
-            from psi.token.manifest import TokenManifest
-            from psi.controller.calibration.manifest import CalibrationManifest
+        # Required to bootstrap plugin loading
+        self.controller_plugin = self.get_plugin('psi.controller')
+        self.get_plugin('psi.controller.calibration')
+        self.context_plugin = self.get_plugin('psi.context')
 
-            self.register(ContextManifest())
-            self.register(DataManifest())
-            self.register(TokenManifest())
-            self.register(CalibrationManifest())
+        for manifest in self._manifests.values():
+            if hasattr(manifest, 'C'):
+                # Now, bind information to the manifests
+                manifest.C = self.context_plugin.lookup
+                manifest.context = self.context_plugin
+                manifest.controller = self.controller_plugin
 
-            # Required to bootstrap plugin loading
-            self.get_plugin('psi.controller')
-            self.get_plugin('psi.controller.calibration')
-            context = self.get_plugin('psi.context')
-
-            # Now, bind context to any manifests that want it (TODO, I should
-            # have a core PSIManifest that everything inherits from so this
-            # check isn't necessary).
-            for manifest in manifests:
-                if hasattr(manifest, 'C'):
-                    manifest.C = context.lookup
+    def register(self, manifest):
+        if self.context_plugin is not None and hasattr(manifest, 'C'):
+            manifest.C = self.context_plugin.lookup
+            manifest.context = self.context_plugin
+            manifest.controller = self.controller_plugin
+        super().register(manifest)
 
     def start_workspace(self,
                         experiment_name,
@@ -77,31 +86,24 @@ class PSIWorkbench(Workbench):
                         layout_file=None,
                         calibration_file=None):
 
-        # TODO: Hack alert ... don't store this information in a shared config
-        # file. It's essentially a global variable.
-        set_config('EXPERIMENT', experiment_name)
-
         ui = self.get_plugin('enaml.workbench.ui')
         core = self.get_plugin('enaml.workbench.core')
+        commands = [] if commands is None else [(c,) for c in commands]
 
         # Load preferences
         if load_preferences and preferences_file is not None:
-            deferred_call(core.invoke_command, 'psi.load_preferences',
-                          {'filename': preferences_file})
+            commands.append(('psi.load_preferences', {'filename': preferences_file}))
         elif load_preferences and preferences_file is None:
-            deferred_call(core.invoke_command, 'psi.get_default_preferences')
+            commands.append(('psi.get_default_preferences',))
 
         # Load layout
         if load_layout and layout_file is not None:
-            deferred_call(core.invoke_command, 'psi.load_layout',
-                          {'filename': layout_file})
+            commands.append(('psi.load_layout', {'filename': layout_file}))
         elif load_layout and layout_file is None:
-            deferred_call(core.invoke_command, 'psi.get_default_layout')
+            commands.append(('psi.get_default_layout',))
 
-        # Exec commands
-        if commands is not None:
-            for command in commands:
-                deferred_call(core.invoke_command, command)
+        for command in commands:
+            deferred_call(core.invoke_command, *command)
 
         controller = self.get_plugin('psi.controller')
 

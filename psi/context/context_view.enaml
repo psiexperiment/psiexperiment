@@ -14,8 +14,6 @@ from .context_item_view import ContextItem
 ################################################################################
 def get_style_classes(plugin, context_name):
     styles = []
-    if plugin.value_changed(context_name):
-        styles.append('changed')
     if getattr(plugin.context_items[context_name], 'rove', False):
         styles.append('roving')
     return ' '.join(styles)

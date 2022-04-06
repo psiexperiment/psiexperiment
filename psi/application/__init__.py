@@ -42,7 +42,10 @@ class ExceptionHandler:
 
         if self.workbench is not None:
             controller = self.workbench.get_plugin('psi.controller')
-            controller.stop_experiment()
+            try:
+                controller.stop_experiment()
+            except:
+                pass
             window = self.workbench.get_plugin('enaml.workbench.ui').window
         else:
             window = None
@@ -51,6 +54,7 @@ class ExceptionHandler:
             log_mesg = f'The log file has been saved to {self.logfile}'
         else:
             log_mesg = 'Unfortunately, no log file was saved.'
+
         mesg = mesg_template.format(args[1], log_mesg)
         deferred_call(critical, window, 'Oops :(', mesg)
         sys.__excepthook__(*args)
@@ -64,6 +68,7 @@ def configure_logging(level_console=None, level_file=None, filename=None,
                       debug_exclude=None):
 
     log = logging.getLogger()
+
     if level_file is None and level_console is None:
         return
     elif level_file is None:
@@ -78,10 +83,14 @@ def configure_logging(level_console=None, level_file=None, filename=None,
     formatter = logging.Formatter(fmt, style='{')
 
     if level_console is not None:
-        stream_handler = logging.StreamHandler()
-        stream_handler.setFormatter(formatter)
-        stream_handler.setLevel(level_console)
-        log.addHandler(stream_handler)
+        try:
+            import coloredlogs
+            coloredlogs.install(level_console, logger=log)
+        except ImportError:
+            stream_handler = logging.StreamHandler()
+            stream_handler.setFormatter(formatter)
+            stream_handler.setLevel(level_console)
+            log.addHandler(stream_handler)
 
     if filename is not None and level_file is not None:
         file_handler = logging.FileHandler(filename, 'w', 'UTF-8')
@@ -147,11 +156,11 @@ def _main(args):
 
 
 def list_preferences(experiment):
+    from psi.experiment.util import PREFERENCES_WILDCARD
     if not isinstance(experiment, str):
         experiment = experiment.name
     p_root = get_config('PREFERENCES_ROOT') / experiment
-    p_wildcard = get_config('PREFERENCES_WILDCARD')
-    p_glob = p_wildcard[:-1].split('(')[1]
+    p_glob = PREFERENCES_WILDCARD[:-1].split('(')[1]
     matches = p_root.glob(p_glob)
     return sorted(Path(p) for p in matches)
 
@@ -254,6 +263,18 @@ def get_default_calibration(io_file):
     raise ValueError('No default calibration configured for system')
 
 
+def load_paradigm_descriptions():
+    '''
+    Loads paradigm descriptions
+    '''
+    from psi.experiment.api import ParadigmDescription
+
+    default = list_paradigm_descriptions()
+    descriptions = get_config('PARADIGM_DESCRIPTIONS', default)
+    for description in descriptions:
+        importlib.import_module(description)
+
+
 def add_default_options(parser):
     import argparse
 
@@ -311,7 +332,6 @@ def add_default_options(parser):
 
 def parse_args(parser):
     args = parser.parse_args()
-    print(args)
     if args.calibration is None:
         try:
             args.calibration = get_default_calibration(args.io)
@@ -323,6 +343,25 @@ def parse_args(parser):
 def list_io_templates():
     io_template_path = Path(__file__).parent.parent / 'templates' / 'io'
     return list(io_template_path.glob('*.enaml'))
+
+
+def list_paradigm_descriptions():
+    '''
+    List default paradigms descriptions provided by psiexperiment
+
+    Returns
+    -------
+    modules : list of strings
+        List of strings identifying the module path for the description
+    '''
+    paradigm_path = Path(__file__).parent.parent / 'paradigms' / 'descriptions'
+    result = []
+    for filename in paradigm_path.glob('*.py'):
+        s = str(filename.with_suffix(''))
+        i = s.rfind('psi')
+        module = s[i:].replace('/', '.').replace('\\', '.')
+        result.append(module)
+    return result
 
 
 def config():
@@ -337,11 +376,18 @@ def config():
     io_skeleton_choices = [p.stem.strip('_') for p in io_template_paths]
     io_choices = [p.stem for p in io_template_paths if not p.stem.startswith('_')]
 
+    paradigms = list_paradigm_descriptions()
+    paradigm_choices = {p.rsplit('.', 1)[1]: p for p in paradigms}
+
     def show_config(args):
         print(psi.get_config_file())
 
     def create_config(args):
-        psi.create_config(base_directory=args.base_directory, standard_io=args.io)
+        base_directory = args.base_directory.rstrip('\\')
+        paradigms = [paradigm_choices[p] for p in args.paradigm_description]
+
+        psi.create_config(base_directory=base_directory, standard_io=args.io,
+                          paradigm_descriptions=paradigms)
         if args.base_directory:
             psi.create_config_dirs()
 
@@ -382,6 +428,13 @@ def config():
         type=str,
         choices=io_choices,
         help='Default hardware configurations.',
+    )
+    create.add_argument(
+        '--paradigm-description',
+        nargs='*',
+        type=str,
+        choices=list(paradigm_choices.keys()),
+        help='Default paradigm descriptions.',
     )
 
     make = subparsers.add_parser(

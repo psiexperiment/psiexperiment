@@ -10,7 +10,7 @@ from psi.controller.util import acquire
 from psi.controller.calibration.api import FlatCalibration
 from psi.controller.calibration.util import load_calibration, psd
 from psi.core.enaml.api import load_manifest_from_file
-from psi.token.primitives import ChirpFactory
+from psiaudio.stim import ChirpFactory
 
 
 io_file = 'c:/psi/io/pika.enaml'
@@ -32,7 +32,7 @@ factory = ChirpFactory(fs=speaker_channel.fs,
                        level=-30,
                        calibration=FlatCalibration.as_attenuation())
 
-n = factory.get_remaining_samples()
+n = factory.n_samples_remaining()
 chirp_waveform = factory.next(n)
 
 result = acquire(audio_engine, chirp_waveform, 'speaker_1',

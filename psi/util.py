@@ -11,6 +11,8 @@ import numpy as np
 import pandas as pd
 from atom.api import Atom, Property
 
+from psiaudio.calibration import BaseCalibration
+
 
 def as_numeric(x):
     if not isinstance(x, (np.ndarray, pd.DataFrame, pd.Series)):
@@ -88,6 +90,14 @@ def declarative_to_dict(value, tag_name, tag_value=True, include_dunder=True,
     if isinstance(value, list):
         return [declarative_to_dict(v, *args) for v in value]
 
+    if isinstance(value, BaseCalibration):
+        # Special case for the Calibration data since it's from psiaudio (and
+        # we do not wish to introduce extra dependencies in psiaudio).
+        attrs = [a for a in dir(value) if not \
+                 (a.startswith('_') or callable(getattr(value, a)))]
+        return {a: declarative_to_dict(getattr(value, a), *args) \
+                for a in attrs}
+
     if hasattr(value, '__dict__') or hasattr(value, '__slots__'):
         if include_dunder:
             return {
@@ -120,15 +130,6 @@ def dict_to_declarative(obj, info, skip_errors=False):
             except Exception as e:
                 if not skip_errors:
                     raise
-
-
-def coroutine(func):
-    '''Decorator to auto-start a coroutine.'''
-    def start(*args, **kwargs):
-        cr = func(*args, **kwargs)
-        next(cr)
-        return cr
-    return start
 
 
 def copy_declarative(old, exclude=None, **kw):
@@ -311,34 +312,6 @@ class SignalBuffer:
     def get_samples_ub(self):
         with self._lock:
             return self._samples
-
-
-def octave_space(lb, ub, step, mode='nearest'):
-    '''
-    >>> freq = octave_space(4, 32, 1)
-    >>> print(freq)
-    [ 4.  8. 16. 32.]
-
-    >>> freq = octave_space(0.5, 50.0, 0.25, 'nearest')
-    >>> print(round(min(freq), 2))
-    0.5
-    >>> print(round(max(freq), 2))
-    53.82
-
-    >>> freq = octave_space(0.5, 50.0, 0.25, 'bounded')
-    >>> print(round(min(freq), 2))
-    0.5
-    >>> print(round(max(freq), 2))
-    45.25
-    '''
-    if mode == 'nearest':
-        lbi = round(np.log2(lb) / step) * step
-        ubi = round(np.log2(ub) / step) * step
-    elif mode == 'bounded':
-        lbi = np.ceil(np.log2(lb) / step) * step
-        ubi = np.floor(np.log2(ub) / step) * step
-    x = np.arange(lbi, ubi+step, step)
-    return 2**x
 
 
 class ConfigurationException(Exception):

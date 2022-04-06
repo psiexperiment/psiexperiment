@@ -43,7 +43,7 @@ from atom.api import (Float, Typed, Str, Int, Bool, Callable, Enum,
                       Property, Value)
 from enaml.core.api import Declarative, d_
 
-from ..calibration.util import dbi
+from psiaudio.util import dbi
 from ..engine import Engine
 from ..channel import (CounterChannel,
                        HardwareAIChannel, HardwareAOChannel, HardwareDIChannel,
@@ -100,10 +100,17 @@ class NIDAQHardwareAOChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
     #: Terminal mode
     terminal_mode = d_(Enum(*TERMINAL_MODES)).tag(metadata=True)
 
-    filter_delay = Property().tag(metadata=True)
-    filter_delay_samples = Property().tag(metadata=True)
     device_name = Property().tag(metadata=False)
 
+    def _get_device_name(self):
+        return self.channel.strip('/').split('/')[0]
+
+
+class NIDAQHardwareAOChannel4461(NIDAQHardwareAOChannel):
+    '''
+    Special channel that automatically compensates for filter delay of PXI 4461
+    card.
+    '''
     #: Filter delay lookup table for different sampling rates. The first column
     #: is the lower bound (exclusive) of the sampling rate (in samples/sec) for
     #: the filter delay (second column, in samples). The upper bound of the
@@ -121,8 +128,8 @@ class NIDAQHardwareAOChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
         (102.4e3, 32.0),
     ])
 
-    def _get_device_name(self):
-        return self.channel.strip('/').split('/')[0]
+    filter_delay = Property().tag(metadata=True)
+    filter_delay_samples = Property().tag(metadata=True)
 
     def _get_filter_delay_samples(self):
         i = np.flatnonzero(self.fs > self.FILTER_DELAY[:, 0])[-1]
@@ -326,6 +333,16 @@ def setup_timing(task, channels, delay=0):
     mx.DAQmxCfgSampClkTiming(task, sample_clock, fs, mx.DAQmx_Val_Rising,
                              sample_mode, samples)
 
+    properties = get_timing_config(task)
+    actual_fs = properties['sample clock rate']
+    if actual_fs != fs:
+        names = ', '.join(get_channel_property(channels, 'name', True))
+        m = f'Actual sample clock rate of {actual_fs} does not match ' \
+            f'requested sample clock rate of {fs} for {names}'
+        raise ValueError(m)
+
+    return properties
+
 
 def create_task(name=None):
     '''
@@ -385,8 +402,7 @@ def setup_hw_ao(channels, buffer_duration, callback_interval, callback,
         log.debug(f'Configuring line %s (%s) with voltage range %f-%f', line, name, vmin, vmax)
         mx.DAQmxCreateAOVoltageChan(task, line, name, vmin, vmax, mx.DAQmx_Val_Volts, '')
 
-    setup_timing(task, channels)
-    properties = get_timing_config(task)
+    properties = setup_timing(task, channels)
 
     result = ctypes.c_double()
     try:
@@ -408,12 +424,20 @@ def setup_hw_ao(channels, buffer_duration, callback_interval, callback,
     mx.DAQmxSetWriteRegenMode(task, mx.DAQmx_Val_DoNotAllowRegen)
     mx.DAQmxSetWriteRelativeTo(task, mx.DAQmx_Val_CurrWritePos)
 
-    callback_samples = round(fs*callback_interval)
+    callback_samples = int(round(fs*callback_interval))
 
     if buffer_duration is None:
+        log_ao.debug('Buffer duration not provided. Setting to 10x callback.')
         buffer_samples = round(callback_samples*10)
     else:
         buffer_samples = round(buffer_duration*fs)
+
+    # Now, make sure that buffer_samples is an integer multiple of callback_samples.
+    log_ao.debug('Requested buffer samples %d', buffer_samples)
+    n = int(round(buffer_samples / callback_samples))
+    buffer_samples = callback_samples * n
+    log_ao.debug('Coerced buffer samples to %d (%dx %d callback_samples)',
+                 buffer_samples, n, callback_samples)
 
     log_ao.debug('Setting output buffer size to %d samples', buffer_samples)
     mx.DAQmxSetBufOutputBufSize(task, buffer_samples)
@@ -548,8 +572,7 @@ def setup_hw_ai(channels, callback_duration, callback, task_name='hw_ao'):
     if terminal_coupling is not None:
         mx.DAQmxSetAICoupling(task, lines, terminal_coupling)
 
-    setup_timing(task, channels)
-    properties = get_timing_config(task)
+    properties = setup_timing(task, channels)
     log_ai.info('AI timing properties: %r', properties)
 
     result = ctypes.c_uint32()

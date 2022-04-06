@@ -18,9 +18,9 @@ with enaml.imports():
 from psi import get_config
 from psi.util import get_tagged_values
 from psi.application import (get_default_io, list_calibrations, list_io,
-                             list_preferences)
-from psi.application.experiment_description import (get_experiments,
-                                                    ParadigmDescription)
+                             list_preferences, load_paradigm_descriptions)
+
+from psi.experiment.api import ParadigmDescription, paradigm_manager
 
 
 class SimpleLauncher(Atom):
@@ -53,7 +53,7 @@ class SimpleLauncher(Atom):
         return self.experiment_choices[0]
 
     def _default_experiment_choices(self):
-        return get_experiments(self.experiment_type)
+        return paradigm_manager.list_paradigms(self.experiment_type)
 
     def _default_available_io(self):
         return list_io()
@@ -195,6 +195,7 @@ class EarLauncher(AnimalLauncher):
 
 def launch(klass, experiment_type, root_folder='DATA_ROOT', view_klass=None):
     app = QtApplication()
+    load_paradigm_descriptions()
     try:
         if root_folder.endswith('_ROOT'):
             root_folder = get_config(root_folder)

@@ -1,0 +1,179 @@
+import logging
+log = logging.getLogger(__name__)
+
+from enaml.workbench.api import Extension
+
+from psi.context.api import (ContextGroup, EnumParameter, OrderedContextMeta,
+                             Parameter, SequenceSelector)
+
+from psi.controller.api import (ControllerManifest, Blocked, ExperimentAction,
+                                ExtractEpochs, SelectorQueuedEpochOutput)
+
+from psi.data.sinks.api import BinaryStore, TextStore
+
+from psi.data.plots import (EpochTimeContainer,
+                            ChannelPlot,
+                            GroupedEpochAveragePlot,
+                            ChannelPlot, ViewBox,
+                            FFTContainer,
+                            GroupedEpochFFTPlot,
+                            GroupedEpochPhasePlot)
+
+from psiaudio.calibration import FlatCalibration
+from psi.data.sinks.api import EpochCounter
+from psi.token.primitives import Chirp, Cos2Envelope, Tone
+
+
+EXPERIMENT = 'base_speaker_calibration'
+
+
+enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
+
+    Extension:
+        id = EXPERIMENT + '.data'
+        point = 'psi.data.sinks'
+
+        BinaryStore:
+            name = 'mic_data'
+            epoch_inputs = ['epoch']
+            continuous_inputs = ['hw_ai']
+
+        TextStore:
+            name = 'cal_data'
+
+    Extension:
+        id = EXPERIMENT + '.io'
+        point = 'psi.controller.io'
+
+        Blocked: hw_ai:
+            duration = 0.1
+            name = 'hw_ai'
+            source_name << C.input_channel
+            source ::
+                channel.gain = C.input_gain
+
+            ExtractEpochs: extract:
+                name = 'epoch'
+
+    Extension:
+        id = EXPERIMENT + '.context'
+        point = 'psi.context.items'
+
+        OrderedContextMeta: epoch_group:
+            name = 'epoch_group'
+            label = 'Epoch groups'
+
+    Extension:
+        id = EXPERIMENT + '.selectors'
+        point = 'psi.context.selectors'
+
+        SequenceSelector:
+            name = 'default'
+            label = 'Sequence'
+
+    Extension:
+        id = EXPERIMENT + '.actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'experiment_initialize'
+            command = 'psi.context.initialize'
+            kwargs = {'selector': 'default', 'cycles': 1}
+
+        ExperimentAction:
+            event = 'hw_ao_queue_ready'
+            command = 'psi.data.sinks.update_counter'
+            kwargs = {'output': 'hw_ao'}
+
+        ExperimentAction:
+            event = 'experiment_start'
+            command = 'hw_ao.start'
+            kwargs = {'delay': 1}
+            weight = 60
+
+        ExperimentAction:
+            event = 'epoch_queue_end'
+            command = 'psi.controller.stop'
+
+    Extension:
+        id = EXPERIMENT + '.sink'
+        point = 'psi.data.sinks'
+
+        EpochCounter:
+            name = 'epoch_counter'
+            source_name = 'epoch'
+
+    Extension:
+        id = EXPERIMENT + '.plots'
+        point = 'psi.data.plots'
+
+        EpochTimeContainer:
+            name = 'epoch_container'
+            label = 'Signal'
+
+            ViewBox:
+                name = 'epoch_time_viewbox'
+                label = 'Signal (V)'
+                save_limits = True
+
+                GroupedEpochAveragePlot: ea_plot:
+                    name = 'epoch_average'
+                    label = 'Signal'
+                    source_name = 'epoch'
+                    pen_color_cycle = 'palettable.cartocolors.qualitative.Bold_10'
+                    plot_grouping << [g.name for g in epoch_group.values]
+
+        FFTContainer:
+            name = 'calibration_result'
+            label = 'Speaker calibration'
+            freq_lb = 50.0
+            freq_ub = 50000
+
+            ViewBox:
+                name = 'spl_result'
+                label = 'Speaker output (dB SPL)'
+                save_limits = True
+
+            ViewBox:
+                name = 'sens_result'
+                label = 'Speaker sensitivity (dB SPL/V)'
+                save_limits = True
+
+        FFTContainer:
+            name = 'epoch_psd_container'
+            label = 'PSD'
+            freq_lb = 50.0
+            freq_ub = 50000
+
+            ViewBox:
+                name = 'epoch_psd_viewbox'
+                save_limits = True
+                label = 'Signal (dB re 1V)'
+
+                GroupedEpochFFTPlot:
+                    name = 'epoch_psd_average'
+                    label = 'PSD'
+                    source_name = 'epoch'
+                    pen_color_cycle := ea_plot.pen_color_cycle
+                    plot_grouping << [g.name for g in epoch_group.values]
+
+        FFTContainer:
+            name = 'epoch_phase_container'
+            label = 'Phase'
+            freq_lb = 50.0
+            freq_ub = 50000
+
+            ViewBox:
+                name = 'epoch_phase_viewbox'
+                label = 'Phase (radians)'
+                y_min = 100
+                y_max = -800
+                save_limits = True
+
+                GroupedEpochPhasePlot:
+                    unwrap = True
+                    name = 'epoch_phase_average_unwrap'
+                    label = 'Phase (unwrapped)'
+                    source_name = 'epoch'
+                    pen_color_cycle := ea_plot.pen_color_cycle
+                    plot_grouping << [g.name for g in epoch_group.values]

@@ -5,8 +5,8 @@ import numpy as np
 import enaml
 from enaml.workbench.api import Workbench
 
-from psi.controller.calibration.api import InterpCalibration
-from psi.controller.api import InterleavedFIFOSignalQueue
+from psiaudio.calibration import InterpCalibration
+from psiaudio.queue import InterleavedFIFOSignalQueue
 
 
 @pytest.fixture

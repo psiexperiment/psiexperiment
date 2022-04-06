@@ -6,7 +6,7 @@ from functools import partial
 import json
 from pathlib import Path
 
-from atom.api import List
+from atom.api import Bool, Dict, List, set_default, Typed
 from enaml.core.api import d_
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
@@ -16,18 +16,40 @@ from psi.controller.api import ExperimentAction
 from psi.core.enaml.api import PSIManifest
 from psi.util import declarative_to_dict
 
-from .base_store import BaseStore
+from .base_store import BaseEpochData, BaseStore
+
+
+class TextEpochData(BaseEpochData):
+
+    metadata_filename = Typed(Path)
+    dirty = Bool(False)
+
+    def append(self, data):
+        _, metadata = self._split_epochs_metadata(data)
+        self.metadata.extend(metadata)
+        self.dirty = True
+
+    def flush(self):
+        if self.dirty:
+            pd.DataFrame(self.metadata).to_csv(self.metadata_filename)
+            self.dirty = False
+
+    def get_epoch_groups(self, grouping):
+        raise TypeError('TextStore does not support loading epoch signal')
 
 
 class TextStore(BaseStore):
     '''
     Simple class for storing data in human-readable formats (CSV and text)
     '''
-    info = {}
-    filenames = {}
+    name = set_default('text_store')
+    _stores = Dict()
 
-    # List of epoch inputs to capture *metadata* for.
-    epoch_inputs = d_(List())
+    def get_source(self, name):
+        try:
+            return self._stores[name]
+        except KeyError as e:
+            raise AttributeError(name)
 
     def save_dataframe(self, name, dataframe, overwrite=False):
         path = self.get_filename(name, '.csv')
@@ -44,33 +66,19 @@ class TextStore(BaseStore):
             json.dump(mapping, fh, sort_keys=True, indent=4)
         return path
 
-    def create_ai_epochs(self, name, **metadata):
+    def create_ai_epochs(self, name, fs, dtype, metadata):
         # Write the metadata to a file
         filename = Path(self.get_filename(f'{name}_metadata', '.json'))
         filename.write_text(json.dumps(metadata))
         log.debug('Saved epoch metadata %s attrs to %s', name, filename)
 
         # Set up the output file for the epoch info
-        self.info[name] = []
-        self.filenames[name] = self.get_filename(f'{name}_metadata', '.csv')
-        atexit.register(self.save_ai_epochs, name)
+        md_filename = self.get_filename(f'{name}_metadata', '.csv')
+        self._stores[name] = TextEpochData(metadata=[],
+                                           metadata_filename=md_filename)
 
     def process_ai_epochs(self, name, data):
-        metadata = []
-        for d in data:
-            md = d['info']['metadata'].copy()
-            md['t0'] = d['info']['t0']
-            md['duration'] = d['info']['duration']
-            if 'calibration' in md:
-                del md['calibration']
-            metadata.append(md)
-        self.info[name].extend(metadata)
-
-    def save_ai_epochs(self, name):
-        info = self.info[name]
-        filename = self.filenames[name]
-        pd.DataFrame(info).to_csv(filename)
-        log.debug('Saved epoch metadata %s to %s', name, filename)
+        self._stores[name].append(data)
 
 
 def save_mapping(sink, event):
@@ -85,25 +93,6 @@ def save_dataframe(sink, event):
                                event.parameters.get('overwrite', False))
 
 
-def prepare(sink, event):
-    log.debug('Preparing %s', sink.name)
-    controller = event.workbench.get_plugin('psi.controller')
-
-    for input_name in sink.epoch_inputs:
-        log.debug('\tCreating save file for epoch input metadata %s', input_name)
-        i = controller.get_input(input_name)
-        md = declarative_to_dict(i, 'metadata')
-        sink.create_ai_epochs(**md)
-        cb = partial(sink.process_ai_epochs, i.name)
-        i.add_callback(cb)
-
-
-def flush(sink, event):
-    for name in sink.epoch_inputs:
-        sink.save_ai_epochs(name)
-    return 'Saved data to disk'
-
-
 enamldef TextStoreManifest(PSIManifest): manifest:
 
     Extension:
@@ -115,20 +104,3 @@ enamldef TextStoreManifest(PSIManifest): manifest:
         Command:
             id = contribution.name + '.save_mapping'
             handler = partial(save_mapping, manifest.contribution)
-        Command:
-            id = manifest.id + '.prepare'
-            handler = partial(prepare, manifest.contribution)
-        Command:
-            id = manifest.id + '.flush'
-            handler = partial(flush, manifest.contribution)
-
-    Extension:
-        id = manifest.id + '.text_actions'
-        point = 'psi.controller.actions'
-        ExperimentAction:
-            event = 'experiment_prepare'
-            command = manifest.id + '.prepare'
-        ExperimentAction:
-            weight = 1000
-            event = 'experiment_end'
-            command = manifest.id + '.flush'

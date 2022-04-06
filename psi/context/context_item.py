@@ -113,11 +113,6 @@ class ContextGroup(PSIContribution):
     # Items in context
     items = List()
 
-    has_visible_items = d_(Bool(False))
-
-    def _check_visible(self):
-        self.has_visible_items = bool(self.visible_items())
-
     def visible_items(self):
         if not self.visible:
             return []
@@ -126,7 +121,6 @@ class ContextGroup(PSIContribution):
     def add_item(self, item):
         if item not in self.items:
             self.items = self.items[:] + [item]
-            self._check_visible()
         else:
             raise ValueError(f'Item {item.name} already in group')
 
@@ -135,7 +129,6 @@ class ContextGroup(PSIContribution):
             items = self.items[:]
             items.remove(item)
             self.items = items
-            self._check_visible()
 
 
 ################################################################################
@@ -150,7 +143,7 @@ class ContextItem(Declarative):
     name = d_(Str())
 
     # Long-format label for display in the GUI. Include units were applicable.
-    label = d_(Str()).tag(preference=True)
+    label = d_(Str())
 
     # Datatype of the value. Required for properly initializing some data
     # plugins (e.g., those that save data to a HDF5 file).
@@ -158,15 +151,17 @@ class ContextItem(Declarative):
 
     group = d_(Typed(ContextGroup))
 
-    # Name of the group to display the item under.
+    #: Name of the group to display the item under. This should never be
+    #: overwitten even if we remove the item from the group (e.g., when
+    #: loading/unloading plugin tokens).
     group_name = d_(Str())
 
     # Compact label where there is less space in the GUI (e.g., under a column
     # heading for example).
-    compact_label = d_(Str()).tag(preference=True)
+    compact_label = d_(Str())
 
     # Is this visible via the standard configuration menus?
-    visible = d_(Bool(True)).tag(preference=True)
+    visible = d_(Bool(True))
 
     # Can this be configured by the user? This will typically be False if the
     # experiment configuration has contributed an Expression that assigns the
@@ -197,13 +192,9 @@ class ContextItem(Declarative):
     def set_group(self, group):
         if self.group is not None and self.group != group:
             self.group.remove_item(self)
-
         self.group = group
         if self.group is not None:
             self.group.add_item(self)
-            self.group_name = self.group.name
-        else:
-            self.group_name = ''
 
 
 class Result(ContextItem):
@@ -316,4 +307,4 @@ class FileParameter(Parameter):
 
 class BoolParameter(Parameter):
 
-    dtype = np.bool
+    dtype = bool

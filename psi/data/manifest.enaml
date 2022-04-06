@@ -36,6 +36,12 @@ def format_container(event):
     event.parameters['obj'].format_container()
 
 
+def log_sinks(event):
+    plugin = event.workbench.get_plugin('psi.data')
+    sink_names = ', '.join(plugin._sinks.keys())
+    log.info('Available sinks: %s', sink_names)
+
+
 enamldef DataManifest(PluginManifest): manifest:
 
     id = 'psi.data'
@@ -48,7 +54,7 @@ enamldef DataManifest(PluginManifest): manifest:
         id = 'plots'
 
     Extension:
-        id = manifest.id + 'commands'
+        id = manifest.id + '.commands'
         point = 'enaml.workbench.core.commands'
         Command:
             id = manifest.id + '.set_base_path'
@@ -59,6 +65,17 @@ enamldef DataManifest(PluginManifest): manifest:
         Command:
             id = manifest.id + '.format_container'
             handler = format_container
+        Command:
+            id = manifest.id + '.log_sinks'
+            handler = log_sinks
+
+    Extension:
+        id = manifest.id + '.actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'context_initialized'
+            command = 'psi.data.log_sinks'
 
     Extension:
         id = manifest.id + '.sinks'

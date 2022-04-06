@@ -90,3 +90,37 @@ def test_update(workbench):
     context.selectors['default'].set_value(0, item, '5')
     assert context.changes_pending == True
     assert context.selectors['default'].get_value(0, item) == '5'
+
+
+def test_duplicate_context_groups(workbench, helpers):
+    error = 'ContextGroup with the same name has already been registered'
+    with pytest.raises(ValueError, match=error):
+        workbench.register(helpers.DuplicateContextGroupManifest())
+
+
+def test_duplicate_context_items(workbench, helpers):
+    error = 'Parameter with the same name has already been registered'
+    with pytest.raises(ValueError, match=error):
+        workbench.register(helpers.DuplicateContextItemManifest())
+
+
+def test_register_unregister_context_items(workbench, helpers):
+    plugin = workbench.get_plugin('psi.context')
+
+    def _check_items(plugin, include, exclude):
+        item_names = [i.name for i in plugin.context_groups['default'].items]
+        for item in include:
+            assert item in item_names
+        for item in exclude:
+            assert item not in item_names
+
+    option1 = helpers.ContextItemOption1()
+    option2 = helpers.ContextItemOption2()
+    workbench.register(option1)
+    _check_items(plugin, ['repetitions_1'], ['repetitions_2'])
+    workbench.unregister(option1.id)
+    _check_items(plugin, [], ['repetitions_1', 'repetitions_2'])
+    workbench.register(option2)
+    _check_items(plugin, ['repetitions_2'], ['repetitions_1'])
+    workbench.unregister(option2.id)
+    _check_items(plugin, [], ['repetitions_1', 'repetitions_2'])

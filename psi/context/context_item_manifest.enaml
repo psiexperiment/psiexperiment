@@ -37,4 +37,4 @@ enamldef ContextGroupManifest(PSIManifest): manifest:
             ContextDockItem:
                 group << manifest.contribution
                 name << manifest.contribution.name
-                title << manifest.contribution.label
+                title << f'{manifest.contribution.label} settings'

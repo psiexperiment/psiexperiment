@@ -7,12 +7,12 @@ import time
 import numpy as np
 import pandas as pd
 
-from .util import tone_power_conv, tone_phase_conv, db
-from .calibration import (FlatCalibration, PointCalibration,
-                          CalibrationTHDError, CalibrationNFError)
+from psiaudio.util import tone_power_conv, tone_phase_conv, db
+from psiaudio.calibration import (FlatCalibration, PointCalibration,
+                                  CalibrationTHDError, CalibrationNFError)
 
 
-from psi.token.primitives import ToneFactory, SilenceFactory
+from psiaudio.stim import ToneFactory, SilenceFactory
 
 
 def process_tone(fs, signal, frequency, min_snr=None, max_thd=None,
@@ -121,7 +121,9 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gains=0,
 
     log.debug('Computing tone power for %r using inputs %r', ao_channel_name,
               ai_channel_names)
-    from psi.controller.api import ExtractEpochs, FIFOSignalQueue
+
+    from psiaudio.queue import FIFOSignalQueue
+    from psi.controller.api import ExtractEpochs
 
     frequencies = np.asarray(frequencies)
     calibration = FlatCalibration.as_attenuation(vrms=vrms)

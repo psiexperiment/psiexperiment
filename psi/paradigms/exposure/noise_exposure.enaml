@@ -1,0 +1,184 @@
+import logging
+log = logging.getLogger(__name__)
+
+import numpy as np
+
+from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
+from enaml.workbench.ui.api import Branding
+
+from psi.context.api import ContextGroup, EnumParameter, Parameter
+from psi.controller.api import (ControllerManifest, EpochOutput,
+                                ExperimentAction, ExperimentState,
+                                get_hw_ai_choices)
+
+from psi.controller.input import (Input, IIRFilter, CalibratedInput, RMS, SPL)
+
+from psi.data.plots import (TimeContainer, ChannelPlot, FFTContainer,
+                            FFTChannelPlot, ViewBox)
+
+from psi.data.sinks.api import ZarrStore
+from psi.token.primitives import Cos2Envelope, BandlimitedNoise
+
+
+def configure_hardware(event):
+    context = event.workbench.get_plugin('psi.context')
+    controller = event.workbench.get_plugin('psi.controller')
+    channel_name = context.get_value('microphone_channel')
+    channel = controller.get_channel(channel_name)
+    channel.gain = context.get_value('microphone_gain')
+
+
+enamldef NoiseControllerManifest(ControllerManifest): manifest:
+
+    id = 'psi.controller'
+
+    Extension:
+        id = 'noise_exposure_stores'
+        point = 'psi.data.sinks'
+
+        ZarrStore:
+            continuous_inputs = ['microphone', 'noise_level']
+
+    Extension:
+        id = 'tokens'
+        point = 'psi.token.tokens'
+
+        Cos2Envelope: noise:
+            name = 'bandlimited_noise_burst'
+            label = 'Bandlimited noise'
+            BandlimitedNoise:
+                pass
+
+    Extension:
+        id = 'io'
+        point = 'psi.controller.io'
+
+        EpochOutput:
+            name = 'exposure'
+            label = 'Exposure'
+            target_name = 'hw_ao::speaker'
+            token = noise
+            configurable = False
+
+        Input:
+            name = 'microphone'
+            source_name << C.microphone_channel
+
+            CalibratedInput:
+                name = 'calibrated_microphone'
+
+                IIRFilter:
+                    btype = 'highpass'
+                    ftype = 'butter'
+                    N = 2
+                    f_highpass = 100
+                    name = 'filtered_microphone'
+                    RMS:
+                        name = 'RMS'
+                        duration = 1
+                        SPL: spl:
+                            name = 'noise_level'
+
+    Extension:
+        id = 'calibration_commands'
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = 'psi.controller.configure_hardware'
+            handler = configure_hardware
+
+    Extension:
+        id = 'context'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'hardware'
+            label = 'Hardware settings'
+
+            EnumParameter:
+                name = 'microphone_channel'
+                label = 'Microphone channel'
+                choices << get_hw_ai_choices(workbench)
+                scope = 'experiment'
+
+            Parameter:
+                name = 'microphone_gain'
+                label = 'Microphone gain'
+                default = 0
+
+    Extension:
+        id = 'actions'
+        point = 'psi.controller.actions'
+        rank = 100
+
+        ExperimentAction:
+            event = 'experiment_initialize'
+            command = 'psi.context.initialize'
+            kwargs = {'selector': None}
+
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'psi.controller.configure_hardware'
+            weight = 10
+
+        ExperimentAction:
+            event = 'engines_configured'
+            command = 'exposure.prepare'
+
+        ExperimentAction:
+            event = 'experiment_start'
+            command = 'exposure.start'
+            kwargs = {'start': 2}
+
+        ExperimentAction:
+            event = 'exposure_end'
+            command = 'psi.controller.stop'
+
+    Extension:
+        id = 'plots'
+        point = 'psi.data.plots'
+
+        TimeContainer:
+            name = 'microphone_container'
+            label = 'Microphone'
+            delay = 1
+            span = 10
+
+            ViewBox:
+                label = 'Microphone (Pa)'
+                y_min = -10
+                y_max = 10
+
+                ChannelPlot:
+                    source_name = 'filtered_microphone'
+
+        TimeContainer:
+            name = 'noise_level_container'
+            label = 'Noise level'
+            delay = 0
+            span = 600
+
+            ViewBox:
+                label = 'Noise level (dB SPL)'
+                save_limits = True
+                y_min = 108
+                y_max = 118
+
+                ChannelPlot:
+                    source_name = 'noise_level'
+
+        FFTContainer:
+            name = 'fft_plot_container'
+            label = 'FFT'
+            freq_lb = 0.1e3
+            freq_ub = 10e3
+
+            ViewBox:
+                label = 'PSD (dB SPL)'
+                y_min = 0
+                y_max = 100
+
+                FFTChannelPlot:
+                    source_name = 'filtered_microphone'
+                    time_span = 2

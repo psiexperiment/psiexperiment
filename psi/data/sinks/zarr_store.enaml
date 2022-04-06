@@ -1,0 +1,87 @@
+
+from functools import partial
+from pathlib import Path
+
+from atom.api import Bool, Dict, set_default, Typed
+import numpy as np
+import pandas as pd
+import zarr
+
+
+from .base_store import BaseEpochData, BaseStore
+
+
+class ZarrEpochData(BaseEpochData):
+
+    metadata_filename = Typed(Path)
+    dirty = Bool(False)
+
+    def append(self, data):
+        epochs, metadata = self._split_epochs_metadata(data)
+        epochs = np.concatenate(epochs, axis=-1)
+        self.data.append(epochs, axis=epochs.ndim-1)
+        self.metadata.extend(metadata)
+        self.dirty = True
+
+    def flush(self):
+        if self.dirty:
+            pd.DataFrame(self.metadata).to_csv(self.metadata_filename)
+            self.dirty = False
+
+
+class ZarrStore(BaseStore):
+    '''
+    Simple class for storing acquired trial data in hierarchy of zarr folders.
+    '''
+    name = set_default('zarr_store')
+    _stores = Dict()
+
+    def get_source(self, name):
+        try:
+            return self._stores[name]
+        except KeyError as e:
+            raise AttributeError(name)
+
+    def process_ai_continuous(self, name, data):
+        self._stores[name].append(data, axis=data.ndim-1)
+
+    def process_ai_epochs(self, name, data):
+        self._stores[name].append(data)
+
+    def _create_array(self, name, fs, dtype, metadata):
+        filename = self.get_filename(name).with_suffix('.zarr')
+
+        channels = metadata.get('n_channels', None)
+        if channels is None:
+            time_chunksize = (2 ** 20) / np.dtype(dtype).itemsize
+            time_chunksize = int(round(time_chunksize))
+            shape = (0,)
+            chunkshape = (time_chunksize,)
+        else:
+            time_chunksize = (2 ** 20) / np.dtype(dtype).itemsize / channels
+            shape = (channels, 0)
+            time_chunksize = int(round(time_chunksize))
+            chunkshape = (None, time_chunksize)
+        zarray = zarr.create(shape, store=str(filename), dtype=dtype,
+                             chunks=chunkshape)
+        zarray.attrs['fs'] = fs
+        for key, value in metadata.items():
+            zarray.attrs[key] = value
+        return zarray
+
+    def create_ai_continuous(self, name, fs, dtype, metadata):
+        self._stores[name] = self._create_array(name, fs, dtype, metadata)
+
+    def create_ai_epochs(self, name, fs, dtype, metadata):
+        zarray = self._create_array(name, fs, dtype, metadata)
+        md_filename = self.get_filename(f'{name}_metadata', '.csv')
+        self._stores[name] = ZarrEpochData(fs=fs, data=zarray, metadata=[],
+                                       metadata_filename=md_filename)
+
+    def finalize(self, workbench):
+        # Save the settings file
+        cmd = 'psi.save_preferences'
+        filename = self.base_path / 'final'
+        params = {'filename': filename}
+        core = workbench.get_plugin('enaml.workbench.core')
+        core.invoke_command(cmd, params)

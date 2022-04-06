@@ -6,8 +6,8 @@ def main():
     workbench = PSIWorkbench()
 
     io_manifest = 'io_manifest.IOManifest'
-    controller_manifest = 'simple_experiment.ControllerManifest'
-    workbench.register_core_plugins(io_manifest, controller_manifest)
+    controller_manifests = ['simple_experiment.ControllerManifest']
+    workbench.register_core_plugins(io_manifest, controller_manifests)
     workbench.start_workspace('demo')
 
 

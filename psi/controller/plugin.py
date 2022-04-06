@@ -1,6 +1,7 @@
 import logging
 log = logging.getLogger(__name__)
 
+import collections
 from functools import partial
 import operator as op
 import threading
@@ -18,7 +19,6 @@ from .channel import Channel, OutputMixin, InputMixin
 from .engine import Engine
 from .output import Output, Synchronized
 from .input import Input
-from .device import Device
 
 from .experiment_action import (ExperimentAction, ExperimentActionBase,
                                 ExperimentCallback, ExperimentEvent,
@@ -46,24 +46,31 @@ def get_outputs(output):
     return outputs
 
 
-def find_devices(point):
-    devices = {}
-    for extension in point.extensions:
-        for device in extension.get_children(Device):
-            devices[device.name] = device
-    return devices
-
-
-engine_error = '''
-More than one engine named "{}"
+general_error = '''
+More than one {obj_type} named "{name}"
 
 To fix this, please review the IO manifest (i.e., hardware configuration) you
-selected and verify that all engines have unique names.
+selected and verify that all {obj_type}s have unique names.
 '''
+
+
+class ErrorDict(dict):
+
+    def __init__(self, obj_type, *args, **kwargs):
+        self.obj_type = obj_type
+        super().__init__(*args, **kwargs)
+
+
+    def __setitem__(self, key, value):
+        if key in self:
+            mesg = general_error.format(obj_type=self.obj_type, name=key)
+            raise ValueError(mesg)
+        return super().__setitem__(key, value)
+
 
 def find_engines(point):
     master_engine = None
-    engines = {}
+    engines = ErrorDict('engine')
     for extension in point.extensions:
         for e in extension.get_children(Engine):
             if e.name in engines:
@@ -87,7 +94,7 @@ def find_engines(point):
 
 
 def find_channels(engines):
-    channels = {}
+    channels = ErrorDict('channel')
     for e in engines.values():
         for c in e.get_channels(active=False):
             channels[c.reference] = c
@@ -95,14 +102,16 @@ def find_channels(engines):
 
 
 def find_outputs(channels, point):
-    outputs = {}
-    supporting = {}
+    outputs = ErrorDict('output')
+    supporting = ErrorDict('synchronized output')
 
     # Find all the outputs already connected to a channel
     for c in channels.values():
         if isinstance(c, OutputMixin):
             for o in c.children:
                 for oi in get_outputs(o):
+                    if oi.name in outputs:
+                        raise ValueError(output_error.format(oi.name))
                     outputs[oi.name] = oi
 
     # Find unconnected outputs and inputs (these are allowed so that we can
@@ -119,7 +128,7 @@ def find_outputs(channels, point):
 
 
 def find_inputs(channels, point):
-    inputs = {}
+    inputs = ErrorDict('input')
 
     # Find all the outputs already connected to a channel
     for c in channels.values():
@@ -155,11 +164,8 @@ class ControllerPlugin(Plugin):
     # flags indicate changes or requests from the user are pending and should
     # be processed when the opportunity arises (e.g., at the end of the trial).
     _apply_requested = Bool(False)
-    _remind_requested = Bool(False)
     _pause_requested = Bool(False)
-
-    # Can the experiment be paused?
-    _pause_ok = Bool(False)
+    _resume_requested = Bool(False)
 
     # Available engines
     _engines = Typed(dict, {})
@@ -175,9 +181,6 @@ class ControllerPlugin(Plugin):
 
     # Available inputs
     _inputs = Typed(dict, {})
-
-    # Available devices
-    _devices = Typed(dict, {})
 
     # This determines which engine is responsible for the clock
     _master_engine = Typed(Engine)
@@ -228,7 +231,6 @@ class ControllerPlugin(Plugin):
         log.debug('Loading IO')
         point = self.workbench.get_extension_point(IO_POINT)
 
-        self._devices = find_devices(point)
         self._engines, self._master_engine = find_engines(point)
         self._channels = find_channels(self._engines)
         self._outputs, self._supporting = find_outputs(self._channels, point)
@@ -236,9 +238,6 @@ class ControllerPlugin(Plugin):
 
         for c in self._channels.values():
             c.load_manifest(self.workbench)
-
-        for d in self._devices.values():
-            d.load_manifest(self.workbench)
 
         for s in self._supporting.values():
             s.load_manifest(self.workbench)
@@ -363,6 +362,7 @@ class ControllerPlugin(Plugin):
     def finalize_io(self):
         self._connect_outputs()
         self._connect_inputs()
+        self.invoke_actions('io_configured')
 
     def configure_engines(self):
         log.debug('Configuring engines')
@@ -396,7 +396,12 @@ class ControllerPlugin(Plugin):
             engine.reset()
 
     def get_output(self, output_name):
-        return self._outputs[output_name]
+        try:
+            return self._outputs[output_name]
+        except KeyError as e:
+            outputs = ', '.join(self._outputs.keys())
+            m = f'No such output "{output_name}". Valid outputs are {outputs}'
+            raise ValueError(m) from e
 
     def get_input(self, input_name):
         return self._inputs[input_name]
@@ -503,27 +508,15 @@ class ControllerPlugin(Plugin):
         return results
 
     def _invoke_action(self, action, event_name, timestamp, kw):
-        # Add the event name and timestamp to the parameters passed to the
-        # command.
-        kwargs = action.kwargs.copy()
-        kwargs['timestamp'] = timestamp
-        kwargs['event'] = event_name
-        if kw is not None:
-            kwargs.update(kw)
-        if isinstance(action, ExperimentAction):
-            log.debug('Calling command %s', action.command)
-            return self.core.invoke_command(action.command, parameters=kwargs)
-        elif isinstance(action, ExperimentCallback):
-            log.debug('Invoking callback %r', action.callback)
-            return action.callback(**kwargs)
+        if kw is None:
+            kw = {}
+        return action.invoke(self.core, timestamp=timestamp, event=event_name,
+                             **kw)
 
     def request_apply(self):
         if not self.apply_changes():
             log.debug('Apply requested')
             deferred_call(lambda: setattr(self, '_apply_requested', True))
-
-    def request_remind(self):
-        deferred_call(lambda: setattr(self, '_remind_requested', True))
 
     def request_pause(self):
         if not self.pause_experiment():
@@ -531,16 +524,23 @@ class ControllerPlugin(Plugin):
             deferred_call(lambda: setattr(self, '_pause_requested', True))
 
     def request_resume(self):
-        self._pause_requested = False
-        deferred_call(lambda: setattr(self, 'experiment_state', 'running'))
+        if not self.resume_experiment():
+            log.debug('Resume requested')
+            deferred_call(lambda: setattr(self, '_resume_requested', True))
 
     def apply_changes(self):
         raise NotImplementedError
 
+    def pause_experiment(self):
+        raise NotImplementedError
+
+    def resume_experiment(self):
+        raise NotImplementedError
+
     def start_experiment(self):
-        self.invoke_actions('experiment_initialize')
-        self.invoke_actions('experiment_prepare')
-        self.invoke_actions('experiment_start')
+        deferred_call(self.invoke_actions, 'experiment_initialize')
+        deferred_call(self.invoke_actions, 'experiment_prepare')
+        deferred_call(self.invoke_actions, 'experiment_start')
         deferred_call(lambda: setattr(self, 'experiment_state', 'running'))
 
     def stop_experiment(self):
@@ -548,17 +548,10 @@ class ControllerPlugin(Plugin):
         deferred_call(lambda: setattr(self, 'experiment_state', 'stopped'))
         return results
 
-    def pause_experiment(self):
-        raise NotImplementedError
-
     def get_ts(self):
         return self._master_engine.get_ts()
 
-    def set_pause_ok(self, value):
-        deferred_call(lambda: setattr(self, '_pause_ok', value))
-
     def start_timer(self, name, duration, callback):
-        log.debug('Starting %f sec. timer %s', duration, name)
         timer = QTimer()
         timer.timeout.connect(callback)
         timer.setSingleShot(True)
