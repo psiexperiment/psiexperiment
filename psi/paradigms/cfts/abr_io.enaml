@@ -281,11 +281,6 @@ enamldef ABRIOBaseManifest(ABRBaseManifest): manifest:
             command = 'psi.controller.configure_plugins'
 
         ExperimentAction:
-            event = 'target_start'
-            command = 'psi.controller.set_pause_ok'
-            kwargs = {'value': True}
-
-        ExperimentAction:
             event = 'keys_complete'
             command = EXPERIMENT + '.rebuffer'
 
