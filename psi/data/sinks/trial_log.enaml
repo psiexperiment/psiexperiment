@@ -12,11 +12,16 @@ from .table_store import TableStore, TableStoreManifest
 
 
 GONOGO_COLORS = {
-    'go_remind': 'forestgreen',
     'go': 'lightgreen',
-    'go_forced': 'green',
+    'go_warmup': 'limegreen',
+    'go_forced': 'limegreen',
+    'go_remind': 'limegreen',
+    'go_manual': 'limegreen',
+
     'nogo': 'lightpink',
+    'nogo_forced': 'pink',
     'nogo_repeat': 'pink',
+    'nogo_warmup': 'pink',
 }
 
 
