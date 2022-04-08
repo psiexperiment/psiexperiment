@@ -335,7 +335,7 @@ def setup_timing(task, channels, delay=0):
 
     properties = get_timing_config(task)
     actual_fs = properties['sample clock rate']
-    if actual_fs != fs:
+    if round(actual_fs, 4) != fs:
         names = ', '.join(get_channel_property(channels, 'name', True))
         m = f'Actual sample clock rate of {actual_fs} does not match ' \
             f'requested sample clock rate of {fs} for {names}'
