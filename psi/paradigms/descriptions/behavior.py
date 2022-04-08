@@ -7,19 +7,19 @@ CORE_PATH = 'psi.paradigms.core.'
 
 ParadigmDescription(
     'appetitive_gonogo_food', 'Appetitive GO-NOGO food', 'animal', [
-        (PATH + 'behavior_np_gonogo.BehaviorManifest',),
-        (PATH + 'behavior_mixins.PelletDispenser',),
+        {'manifest': PATH + 'behavior_np_gonogo.BehaviorManifest'},
+        {'manifest': PATH + 'behavior_mixins.PelletDispenser'},
     ],
 )
 
 
 ParadigmDescription(
     'auto_gonogo', 'Auto GO-NOGO', 'animal', [
-        (PATH + 'behavior_auto_gonogo.BehaviorManifest',),
-        (PATH + 'behavior_mixins.BaseGoNogoMixin',),
-        (PATH + 'behavior_mixins.WaterBolusDispenser',),
-        (CORE_PATH + 'video_mixins.PSIVideo',),
-        (CORE_PATH + 'microphone_mixins.MicrophoneSignalViewManifest',),
-        (CORE_PATH + 'microphone_mixins.MicrophoneFFTViewManifest',),
+        {'manifest': PATH + 'behavior_auto_gonogo.BehaviorManifest'},
+        {'manifest': PATH + 'behavior_mixins.BaseGoNogoMixin'},
+        {'manifest': PATH + 'behavior_mixins.WaterBolusDispenser'},
+        #{'manifest': CORE_PATH + 'video_mixins.PSIVideo'},
+        {'manifest': CORE_PATH + 'microphone_mixins.MicrophoneSignalViewManifest'},
+        {'manifest': CORE_PATH + 'microphone_mixins.MicrophoneFFTViewManifest'},
     ],
 )
