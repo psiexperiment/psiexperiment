@@ -1,5 +1,11 @@
+import logging
+log = logging.getLogger(__name__)
+
+import atexit
 from functools import partial
 from pathlib import Path
+import shutil
+import tempfile
 
 from atom.api import Typed
 from enaml.workbench.api import Extension
@@ -16,19 +22,28 @@ from psivideo.client import SyncVideoClient
 class VideoSink(Sink):
 
     client = Typed(SyncVideoClient, {})
-    video_filename = Typed(Path)
+    base_path = Typed(Path)
+
+    def _default_base_path(self):
+        # Create a temporary folder. Be sure to delete when the program exits.
+        base_path = tempfile.mkdtemp()
+        atexit.register(shutil.rmtree, base_path)
+        return Path(base_path)
+
+    def set_base_path(self, base_path):
+        self.base_path = base_path
 
     def start_client(self):
         self.client.connect()
 
-    def set_base_path(self, base_path):
-        self.video_filename = Path(base_path) / 'recording.avi'
-
     def start_recording(self):
-        self.client.start(self.video_filename)
+        self.client.start(self.base_path / 'recording.avi')
 
     def stop_recording(self):
-        self.client.stop()
+        try:
+            self.client.stop()
+        except Exception as e:
+            log.exception(e)
 
     def get_frames_written(self):
         return self.client.get_frames_written()

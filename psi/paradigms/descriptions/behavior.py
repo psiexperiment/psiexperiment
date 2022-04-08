@@ -18,7 +18,7 @@ ParadigmDescription(
         {'manifest': PATH + 'behavior_auto_gonogo.BehaviorManifest'},
         {'manifest': PATH + 'behavior_mixins.BaseGoNogoMixin'},
         {'manifest': PATH + 'behavior_mixins.WaterBolusDispenser'},
-        #{'manifest': CORE_PATH + 'video_mixins.PSIVideo'},
+        {'manifest': CORE_PATH + 'video_mixins.PSIVideo'},
         {'manifest': CORE_PATH + 'microphone_mixins.MicrophoneSignalViewManifest'},
         {'manifest': CORE_PATH + 'microphone_mixins.MicrophoneFFTViewManifest'},
     ],
