@@ -30,7 +30,6 @@ The error message is:
 '''
 
 
-
 class ExceptionHandler:
 
     def __init__(self):
@@ -79,18 +78,27 @@ def configure_logging(level_console=None, level_file=None, filename=None,
         min_level = min(getattr(logging, level_console), getattr(logging, level_file))
         log.setLevel(min_level)
 
-    fmt = '{levelname:10s}: {threadName:11s} - {name:40s}:: {message}'
-    formatter = logging.Formatter(fmt, style='{')
-
     if level_console is not None:
         try:
+            level_styles = {
+                'trace': dict(color='cyan'),
+                'debug': dict(color='green'),
+                'info': dict(color='white'),
+                'warning': dict(color='yellow'),
+                'error': dict(color='magenta'),
+                'critical': dict(color='red'),
+            }
             import coloredlogs
-            coloredlogs.install(level_console, logger=log)
-        except ImportError:
+            coloredlogs.install(level=level_console, logger=log,
+                                level_styles=level_styles)
+        except ImportError as e:
             stream_handler = logging.StreamHandler()
             stream_handler.setFormatter(formatter)
             stream_handler.setLevel(level_console)
             log.addHandler(stream_handler)
+
+    fmt = '{levelname:10s}: {threadName:11s} - {name:40s}:: {message}'
+    formatter = logging.Formatter(fmt, style='{')
 
     if filename is not None and level_file is not None:
         file_handler = logging.FileHandler(filename, 'w', 'UTF-8')

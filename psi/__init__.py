@@ -3,15 +3,20 @@ import importlib.util
 import os
 from pathlib import Path
 
-# Set up a verbose debugger level for tracing
-TRACE_LEVEL_NUM = 5
-logging.addLevelName(TRACE_LEVEL_NUM, "TRACE")
-def trace(self, message, *args, **kws):
-    # Yes, logger takes its '*args' as 'args'.
-    if self.isEnabledFor(TRACE_LEVEL_NUM):
-        self._log(TRACE_LEVEL_NUM, message, args, **kws)
-logging.Logger.trace = trace
+def add_logging_level(name, level):
+    logging.addLevelName(level, name)
+    # This step is required for coloredlogs to properly map the level name
+    setattr(logging, name, level)
+    def trace(self, message, *args, **kws):
+        nonlocal level
+        # Yes, logger takes its '*args' as 'args'.
+        if self.isEnabledFor(level):
+            self._log(level, message, args, **kws)
+    logging.Logger.trace = trace
 
+
+# Set up a verbose debugger level for tracing
+add_logging_level('TRACE', 5)
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
 
