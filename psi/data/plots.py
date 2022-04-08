@@ -873,10 +873,6 @@ class GroupMixin(ColorCycleMixin):
     def fmt_plot_label(self, key):
         return None
 
-    def _observe_allow_auto_select(self, event):
-        if not self.allow_auto_select:
-            self.auto_select = False
-
     def _default_selected_tab(self):
         return ()
 
@@ -1243,7 +1239,7 @@ class DataFramePlot(ColorCycleMixin, PSIContribution):
                         label = ','.join(f'{n} {v}'
                                         for n, v in zip(self.grouping, group))
                     if group not in self._plot_cache:
-                        self._plot_cache[group] = self._default_plot(group, label)
+                        self._plot_cache[group] = self._make_plot(group, label)
                     x = values[self.x_column].values
                     y = values[self.y_column].values
                     x = self.container.x_transform(x)
@@ -1256,7 +1252,7 @@ class DataFramePlot(ColorCycleMixin, PSIContribution):
                 return
         else:
             if None not in self._plot_cache:
-                self._plot_cache[None] = self._default_plot(None)
+                self._plot_cache[None] = self._make_plot(None)
             x = self.data[self.x_column].values
             y = self.data[self.y_column].values
             x = self.container.x_transform(x)
@@ -1269,7 +1265,7 @@ class DataFramePlot(ColorCycleMixin, PSIContribution):
                 plot.setData(x, y)
         deferred_call(update)
 
-    def _default_plot(self, group, label=None):
+    def _make_plot(self, group, label=None):
         symbol_code = self.SYMBOL_MAP[self.symbol]
         color = self.get_pen_color(group)
         brush = pg.mkBrush(color)

@@ -218,14 +218,14 @@ class ContextPlugin(PSIPlugin):
         oldvalue = change.get('oldvalue', {})
         newvalue = change.get('value', {})
         for i in oldvalue.values():
-            i.unobserve('expression', self._observe_item_updated)
-            i.unobserve('rove', self._observe_item_rove)
+            i.unobserve('expression', self._item_updated)
+            i.unobserve('rove', self._item_roved)
             if getattr(i, 'rove', False):
                 if id(i) != id(newvalue.get(i.name, None)):
                     self.unrove_item(i)
         for i in newvalue.values():
-            i.observe('expression', self._observe_item_updated)
-            i.observe('rove', self._observe_item_rove)
+            i.observe('expression', self._item_updated)
+            i.observe('rove', self._item_roved)
             if getattr(i, 'rove', False):
                 if id(i) != id(oldvalue.get(i.name, None)):
                     self.rove_item(i)
@@ -235,10 +235,10 @@ class ContextPlugin(PSIPlugin):
         for selector in self.selectors.values():
             selector.symbols = self.symbols.copy()
 
-    def _observe_item_updated(self, event):
+    def _item_updated(self, event):
         self._check_for_changes()
 
-    def _observe_item_rove(self, event):
+    def _item_roved(self, event):
         if event['value']:
             log.debug('Roving {}'.format(event['object'].name))
             self.rove_item(event['object'])
@@ -250,11 +250,11 @@ class ContextPlugin(PSIPlugin):
     def _bind_selectors(self, change):
         log.debug('Binding selectors')
         for p in change.get('oldvalue', {}).values():
-            p.unobserve('updated', self._observe_selector_updated)
+            p.unobserve('updated', self._selector_updated)
         for p in change.get('value', {}).values():
-            p.observe('updated', self._observe_selector_updated)
+            p.observe('updated', self._selector_updated)
 
-    def _observe_selector_updated(self, event):
+    def _selector_updated(self, event):
         log.debug('Selectors updated')
         self._check_for_changes()
 

@@ -571,9 +571,6 @@ class EditableTable(RawWidget):
         # lose a reference to the actual list.
         self._reset_model()
 
-    def _observe_columns(self, event):
-        self._reset_model()
-
     def _observe_column_info(self, event):
         self._reset_model()
 
