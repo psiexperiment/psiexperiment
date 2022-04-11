@@ -364,6 +364,18 @@ class FFTContainer(BasePlotContainer):
 
     @observe('container', 'freq_lb', 'freq_ub')
     def _update_x_limits(self, event):
+        if not self.is_initialized:
+            # This addresses a segfault that occurs when attempting to load
+            # experiment manifests that use FFTContainer. If the Experiment
+            # manifest attempts to set freq_lb or freq_ub, then it will attempt
+            # to initialize everything else before the GUI is created, leading
+            # to a segfault (creating an AxisItem leads to attempting to call
+            # QGraphicsLabel.setHtml, which will segfault if there is no
+            # instance of QtApplcation). By ensuring we don't continue if the
+            # object is not initialized yet, we can properly load experiment
+            # manifests (e.g., so that `psi` can properly list the available
+            # paradigms).
+            return
         self.base_viewbox.setXRange(np.log10(self.freq_lb),
                                     np.log10(self.freq_ub),
                                     padding=0)
