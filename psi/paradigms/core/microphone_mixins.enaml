@@ -43,8 +43,8 @@ enamldef MicrophoneSignalViewManifest(ExperimentManifest): manifest:
 
 enamldef MicrophoneFFTViewManifest(ExperimentManifest): manifest:
 
-    id = 'microphone_fft_view'
-    name = 'microphone_fft_view'
+    id = 'microphone_fft'
+    name = 'microphone_fft'
     title = 'Microphone view (PSD)'
 
     alias fft_time_span: fft_plot.time_span

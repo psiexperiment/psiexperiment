@@ -577,22 +577,6 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
         id = 'plots'
         point = 'psi.data.plots'
 
-        FFTContainer:
-            name = 'microphone_fft_container'
-            label = 'Microphone FFT'
-            freq_lb = 5
-            freq_ub = 24000
-
-            ViewBox:
-                name = 'microphone_fft'
-                y_min = -120
-                y_max = 100
-
-                FFTChannelPlot:
-                    source_name = 'microphone'
-                    pen_color = 'k'
-                    time_span = 1
-
         TimeContainer:
             name = 'trial_plot_container'
             label = 'Trial timing'
