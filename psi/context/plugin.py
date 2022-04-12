@@ -426,7 +426,7 @@ class ContextPlugin(PSIPlugin):
 
     def _get_expressions(self):
         e = {n: i.expression for n, i in self.parameters.items() if not i.rove}
-        e.update({n.parameter: n.expression for n in self.context_expressions.items()})
+        e.update({n: i.expression for n, i in self.context_expressions.items()})
         return e
 
     def get_gui_selector_state(self):
