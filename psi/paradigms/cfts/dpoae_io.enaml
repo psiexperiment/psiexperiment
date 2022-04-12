@@ -45,9 +45,12 @@ enamldef DPOAEIOBaseManifest(DPOAEManifest): manifest:
         point = 'psi.context.items'
 
         Expression:
-            # Set tone duration to a very, very large number
+            # Set tone duration to one hour. If you need more than one hour,
+            # you need to check your settings! TODO: We should be able to set
+            # this to np.inf to indicate open-ended duration, but this is
+            # causing the program to hang. Need to track down the bug.
             parameter = 'secondary_tone_duration'
-            expression = '100e6'
+            expression = '3600'
 
     Extension:
         id = EXPERIMENT + '.actions'
