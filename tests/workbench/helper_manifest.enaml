@@ -70,7 +70,7 @@ enamldef ContextItemOption2(ExperimentManifest):
             group_name = 'default'
 
 
-enamldef HelperManifest(ControllerManifest): manifest:
+enamldef TestControllerManifest(ControllerManifest): manifest:
 
     Extension:
         id = 'helper_io'

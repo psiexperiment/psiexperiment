@@ -1,7 +1,7 @@
 import pytest
 
 import enaml
-from enaml.workbench.api import Workbench
+#from enaml.workbench.api import Workbench
 from enaml.qt.qt_application import QtApplication
 
 
@@ -10,6 +10,7 @@ with enaml.imports():
     from psi.context.manifest import ContextManifest
     from psi.data.manifest import DataManifest
     from psi.token.manifest import TokenManifest
+    from psi.experiment.api import PSIWorkbench
     from psi.experiment.manifest import ExperimentManifest
     from . import helper_manifest as manifests
 
@@ -26,13 +27,8 @@ def app():
 
 @pytest.fixture
 def workbench(app):
-    workbench = Workbench()
-    workbench.register(CoreManifest())
-    workbench.register(ContextManifest())
-    workbench.register(DataManifest())
-    workbench.register(TokenManifest())
-    workbench.register(ExperimentManifest())
-    workbench.register(manifests.HelperManifest())
+    workbench = PSIWorkbench()
+    workbench.register_core_plugins(None, [manifests.TestControllerManifest()])
 
     context = workbench.get_plugin('psi.context')
     item = context.context_items['repetitions']

@@ -46,11 +46,14 @@ class PSIWorkbench(Workbench):
         self.get_plugin('enaml.workbench.ui')
         self.get_plugin('enaml.workbench.core')
 
-        self.io_manifest_class = load_manifest_from_file(io_manifest, 'IOManifest')
-        io_manifest = self.io_manifest_class()
-        self.register(io_manifest)
+        if io_manifest is not None:
+            self.io_manifest_class = load_manifest_from_file(io_manifest, 'IOManifest')
+            io_manifest = self.io_manifest_class()
+            self.register(io_manifest)
+            manifests = [io_manifest]
+        else:
+            manifests = []
 
-        manifests = [io_manifest]
         for manifest in controller_manifests:
             log.info('Registering %r', manifest)
             manifests.append(manifest)
