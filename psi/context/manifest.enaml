@@ -52,8 +52,9 @@ def get_preferences(obj):
 
 def set_preferences(obj, preferences):
     for member in get_tagged_members(obj, 'preference'):
-        value = preferences.get(member)
-        setattr(obj, member, value)
+        if member in preferences:
+            value = preferences.get(member)
+            setattr(obj, member, value)
 
 
 def initialize(event):
