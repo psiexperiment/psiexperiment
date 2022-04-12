@@ -73,7 +73,7 @@ def process(n_time, n_fft, input, workbench, trial_widget, trials_widget,
             frequencies = [f1, f2, dpoae] + nf_frequencies
 
             rms = tone_power_conv(mean_time, input.fs, frequencies)
-            level = input.calibration.get_spl(frequencies, rms)
+            level = input.calibration.get_db(frequencies, rms)
             nf_level = np.mean(level[3:])
             f1_level, f2_level, dpoae_level = level[:3]
 
