@@ -16,13 +16,13 @@ def test_eval(workbench):
     # Ensure that we loop properly through the selector sequence
     context.apply_changes()
     for e in expected:
-        context.next_setting('default', save_prior=False)
+        context.next_setting('default')
         assert e == context.get_values()
 
     # Ensure that apply_changes restarts the selector sequence.
     context.apply_changes()
     for e in expected:
-        context.next_setting('default', save_prior=False)
+        context.next_setting('default')
         assert e == context.get_values()
 
     # Ensure that changes to expressions after apply_changes does not affect the
@@ -30,13 +30,13 @@ def test_eval(workbench):
     context.apply_changes()
     context.context_items['fc'].expression = '1e3'
     for e in expected:
-        context.next_setting('default', save_prior=False)
+        context.next_setting('default')
         assert e == context.get_values()
 
     # Now, the result should change.
     context.apply_changes()
     for e in expected:
-        context.next_setting('default', save_prior=False)
+        context.next_setting('default')
         e['fc'] = 1e3
         assert e == context.get_values()
 
@@ -65,19 +65,19 @@ def test_update(workbench):
     assert context.changes_pending == False
     assert context.get_value('level') == 60
 
-    context.next_setting('default', False)
+    context.next_setting('default')
     assert context.changes_pending == False
     assert context.get_value('level') == 60
     context.context_items['level'].expression = '32'
     assert context.changes_pending == True
     assert context.get_value('level') == 60
 
-    context.next_setting('default', False)
+    context.next_setting('default')
     assert context.changes_pending == True
     assert context.get_value('level') == 60
 
     context.apply_changes()
-    context.next_setting('default', False)
+    context.next_setting('default')
     assert context.changes_pending == False
     assert context.get_value('level') == 32
 
