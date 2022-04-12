@@ -4,7 +4,7 @@ log = logging.getLogger(__name__)
 import enaml
 
 with enaml.imports():
-    from psi.application.experiment.cfts_mixins import FreqLevelSelector
+    from psi.paradigms.cfts.cfts_mixins import FreqLevelSelector
     from psi.context.api import Parameter
 
 
@@ -42,7 +42,6 @@ def get_sequence(selector):
     for setting in selector.get_iterator():
         sequence.append(tuple(setting.values()))
     return sequence
-
 
 
 def test_freq_level_selector():
