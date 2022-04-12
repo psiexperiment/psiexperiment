@@ -147,6 +147,20 @@ def find_inputs(channels, point):
     return inputs
 
 
+def invoke_action(core, action, event_name, timestamp, kw, skip_errors=False):
+    try:
+        if kw is None: kw = {}
+        log.debug('Invoking action %s', action)
+        return action.invoke(core, timestamp=timestamp, event=event_name, **kw)
+    except Exception as e:
+        m = f'An error occured when invoking {action} in response to {event_name}'
+        log.error(m)
+        if not skip_errors:
+            raise RuntimeError(f'Error invoking action {action}') from e
+        else:
+            log.exception(e)
+
+
 class ControllerPlugin(Plugin):
 
     # Tracks the state of the controller.
@@ -479,13 +493,16 @@ class ControllerPlugin(Plugin):
                 return True
         return False
 
-    def _invoke_actions(self, event_name, timestamp=None, kw=None,
-                        skip_errors=False):
+    def _invoke_actions(self, event_name, timestamp=None, kw=None, skip_errors=False):
         log.debug('Triggering event {}'.format(event_name))
 
         if timestamp is not None:
+            # TODO: This seems like cruft. Keep? The original goal is to make
+            # sure this gets logged, but I feel like there are better ways to
+            # handle this.
             data = {'event': event_name, 'timestamp': timestamp}
-            self.invoke_actions('experiment_event', kw={'data': data})
+            self.invoke_actions('experiment_event', kw={'data': data},
+                                skip_errors=skip_errors)
 
         # If this is a stateful event, update the associated state.
         if event_name.endswith('_start'):
@@ -501,26 +518,20 @@ class ControllerPlugin(Plugin):
         context = self._action_context.copy()
         context[event_name] = True
 
+        # We ignore any missing variables in the ExperimentAction system when
+        # the experiment has not been fully initialized since these missing
+        # variables may not exist until the experiment is fully initialized.
+        # Further, if skip_errors is True, this usually indicates that we
+        # absolutely want actions to run through to the end if possible.
+        ignore_missing = skip_errors or \
+            (self.experiment_state == 'initialized')
         results = []
         for action in self._actions:
-            if action.match(context):
-                log.debug('... invoking action %s', action)
-                try:
-                    result = self._invoke_action(action, event_name, timestamp, kw)
-                except Exception as e:
-                    m = f'An error occured when invoking {action} in response to {event_name}'
-                    log.error(m)
-                    log.exception(e)
-                    if not skip_errors:
-                        raise RuntimeError(f'Error invoking action {action}') from e
-                results.append(result)
-        return results
+            if action.match(context, ignore_missing):
+                result = invoke_action(self.core, action, event_name,
+                                       timestamp, kw, ignore_missing)
 
-    def _invoke_action(self, action, event_name, timestamp, kw):
-        if kw is None:
-            kw = {}
-        return action.invoke(self.core, timestamp=timestamp, event=event_name,
-                             **kw)
+        return results
 
     def request_apply(self):
         if not self.apply_changes():
@@ -556,12 +567,12 @@ class ControllerPlugin(Plugin):
             self.invoke_actions('experiment_start')
             self.experiment_state = 'running'
         except Exception as e:
+            log.error('An error occured when attempting to start experiment. Stopping.')
             self.stop_experiment(True)
             raise
 
     def stop_experiment(self, skip_errors=False):
-        results = self.invoke_actions('experiment_end', self.get_ts(),
-                                      skip_errors=skip_errors)
+        results = self.invoke_actions('experiment_end', self.get_ts(), skip_errors=skip_errors)
         deferred_call(lambda: setattr(self, 'experiment_state', 'stopped'))
         return results
 
