@@ -55,7 +55,6 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
 
         BinaryStore:
             name = 'erp_eeg'
-            #epoch_inputs = ['erp']
             continuous_inputs = ['eeg']
 
         TextStore:
