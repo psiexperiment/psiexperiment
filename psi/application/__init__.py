@@ -42,7 +42,7 @@ class ExceptionHandler:
         if self.workbench is not None:
             controller = self.workbench.get_plugin('psi.controller')
             try:
-                controller.stop_experiment()
+                controller.stop_experiment(skip_errors=True)
             except:
                 pass
             window = self.workbench.get_plugin('enaml.workbench.ui').window

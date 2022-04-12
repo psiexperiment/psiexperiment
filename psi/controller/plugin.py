@@ -441,17 +441,18 @@ class ControllerPlugin(Plugin):
         load_calibration(calibration_file, channels)
 
     def invoke_actions(self, event_name, timestamp=None, delayed=False,
-                       cancel_existing=True, kw=None):
+                       cancel_existing=True, kw=None, skip_errors=False):
         log.debug('Invoking actions for %s', event_name)
         if cancel_existing:
             deferred_call(self.stop_timer, event_name)
         if delayed:
             delay = timestamp-self.get_ts()
             if delay > 0:
-                cb = lambda: self._invoke_actions(event_name, timestamp)
+                cb = lambda: self._invoke_actions(event_name, timestamp, kw,
+                                                  skip_errors)
                 deferred_call(self.start_timer, event_name, delay, cb)
                 return
-        return self._invoke_actions(event_name, timestamp, kw)
+        return self._invoke_actions(event_name, timestamp, kw, skip_errors)
 
     def event_used(self, event_name):
         '''
@@ -478,7 +479,8 @@ class ControllerPlugin(Plugin):
                 return True
         return False
 
-    def _invoke_actions(self, event_name, timestamp=None, kw=None):
+    def _invoke_actions(self, event_name, timestamp=None, kw=None,
+                        skip_errors=False):
         log.debug('Triggering event {}'.format(event_name))
 
         if timestamp is not None:
@@ -503,7 +505,14 @@ class ControllerPlugin(Plugin):
         for action in self._actions:
             if action.match(context):
                 log.debug('... invoking action %s', action)
-                result = self._invoke_action(action, event_name, timestamp, kw)
+                try:
+                    result = self._invoke_action(action, event_name, timestamp, kw)
+                except Exception as e:
+                    m = f'An error occured when invoking {action} in response to {event_name}'
+                    log.error(m)
+                    log.exception(e)
+                    if not skip_errors:
+                        raise RuntimeError(f'Error invoking action {action}') from e
                 results.append(result)
         return results
 
@@ -538,13 +547,21 @@ class ControllerPlugin(Plugin):
         raise NotImplementedError
 
     def start_experiment(self):
-        deferred_call(self.invoke_actions, 'experiment_initialize')
-        deferred_call(self.invoke_actions, 'experiment_prepare')
-        deferred_call(self.invoke_actions, 'experiment_start')
-        deferred_call(lambda: setattr(self, 'experiment_state', 'running'))
+        deferred_call(self._start_experiment)
 
-    def stop_experiment(self):
-        results = self.invoke_actions('experiment_end', self.get_ts())
+    def _start_experiment(self):
+        try:
+            self.invoke_actions('experiment_initialize')
+            self.invoke_actions('experiment_prepare')
+            self.invoke_actions('experiment_start')
+            self.experiment_state = 'running'
+        except Exception as e:
+            self.stop_experiment(True)
+            raise
+
+    def stop_experiment(self, skip_errors=False):
+        results = self.invoke_actions('experiment_end', self.get_ts(),
+                                      skip_errors=skip_errors)
         deferred_call(lambda: setattr(self, 'experiment_state', 'stopped'))
         return results
 
