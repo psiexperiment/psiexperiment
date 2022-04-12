@@ -66,25 +66,17 @@ def log_commands(event):
 
 
 def start_experiment(event):
-    try:
-        controller = event.workbench.get_plugin('psi.controller')
-        controller.start_experiment()
-    except Exception as e:
-        log.exception(e)
-        critical(None, 'Error starting experiment', str(e).strip())
+    controller = event.workbench.get_plugin('psi.controller')
+    controller.start_experiment()
 
 
 def stop_experiment(event):
-    try:
-        # Todo: this does not capture *everything* possible (e.g., stopping
-        # experiment leads to a cascade of actions).
-        controller = event.workbench.get_plugin('psi.controller')
-        results = set(controller.stop_experiment())
-        mesg = '\n'.join(r.strip() for r in results if r is not None)
-        deferred_call(information, None, 'Experiment done', mesg)
-    except Exception as e:
-        log.exception(e)
-        deferred_call(critical, None, 'Error stopping experiment', str(e).strip())
+    # Todo: this does not capture *everything* possible (e.g., stopping
+    # experiment leads to a cascade of actions).
+    controller = event.workbench.get_plugin('psi.controller')
+    results = set(controller.stop_experiment(skip_errors=True))
+    mesg = '\n'.join(r.strip() for r in results if r is not None)
+    deferred_call(information, None, 'Experiment done', mesg)
 
 
 def invoke_actions(event):
