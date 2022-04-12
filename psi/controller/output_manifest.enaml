@@ -630,12 +630,14 @@ enamldef QueuedEpochOutputManifest(EpochOutputManifest): manifest:
 
         ToolBar:
             Action:
+                checkable = True
                 text << get_pause_text(manifest.contribution,
                                        manifest.contribution.paused)
                 enabled << controller.experiment_state == 'running'
                 triggered ::
                     core = workbench.get_plugin('enaml.workbench.core')
-                    core.invoke_command(manifest.contribution.name + '.toggle_pause')
+                    cmd = '.pause' if checked else '.resume'
+                    core.invoke_command(manifest.contribution.name + cmd)
 
 
 enamldef SelectorQueuedEpochOutputManifest(QueuedEpochOutputManifest): manifest:
