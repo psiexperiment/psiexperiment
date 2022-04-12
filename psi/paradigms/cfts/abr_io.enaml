@@ -277,10 +277,6 @@ enamldef ABRIOBaseManifest(ABRBaseManifest): manifest:
         point = 'psi.controller.actions'
 
         ExperimentAction:
-            event = 'plugins_started'
-            command = 'psi.controller.configure_plugins'
-
-        ExperimentAction:
             event = 'keys_complete'
             command = EXPERIMENT + '.rebuffer'
 
@@ -371,6 +367,14 @@ def configure_abrio_simple(event):
 
 
 enamldef ABRIOSimpleManifest(ABRIOBaseManifest): manifest:
+
+    Extension:
+        id = EXPERIMENT_SIMPLE + '.actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'plugins_started'
+            command = 'psi.controller.configure_plugins'
 
     Extension:
         id = EXPERIMENT_SIMPLE + '.commands'

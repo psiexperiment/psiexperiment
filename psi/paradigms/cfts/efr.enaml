@@ -156,19 +156,11 @@ enamldef EFRManifest(ControllerManifest): manifest:
             delay = 0.5
 
             ViewBox:
+                name = 'eeg_viewbox'
                 y_min = -5
                 y_max = 5
 
                 ChannelPlot:
                     name = 'eeg_plot'
                     source_name = 'eeg'
-                    pen_color = 'k'
-
-            ViewBox:
-                y_min = -1
-                y_max = 1
-
-                ChannelPlot:
-                    name = 'microphone_plot'
-                    source_name = 'microphone_filtered'
                     pen_color = 'k'

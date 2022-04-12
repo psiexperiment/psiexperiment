@@ -210,38 +210,6 @@ enamldef FreqLevelSelectorManifest(PSIManifest): manifest:
                 selector << manifest.contribution
 
 
-################################################################################
-# EEG mixins
-################################################################################
-enamldef EEGViewMixinManifest(ExperimentManifest): manifest:
-
-    id = 'eeg_view_mixin'
-    name = 'eeg_view'
-    title = 'EEG display'
-
-    Extension:
-        id = 'plots'
-        point = 'psi.data.plots'
-
-        TimeContainer:
-            name << manifest.name + '_container'
-            label = 'Trial timing'
-            span = 2
-            delay = 0.125
-
-            ViewBox:
-                name << manifest.name + '_view'
-                y_min = -0.2
-                y_max = 0.2
-                y_mode = 'mouse'
-                save_limits = True
-
-                ChannelPlot:
-                    name << manifest.name + '_plot'
-                    pen_color = 'k'
-                    source_name = 'eeg_filtered'
-
-
 enamldef TemperatureMixinManifest(ExperimentManifest): manifest:
 
     id = 'temperature_mixin'
