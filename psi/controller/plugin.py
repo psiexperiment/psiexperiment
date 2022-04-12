@@ -552,11 +552,15 @@ class ControllerPlugin(Plugin):
         return self._master_engine.get_ts()
 
     def start_timer(self, name, duration, callback):
-        timer = QTimer()
-        timer.timeout.connect(callback)
-        timer.setSingleShot(True)
-        timer.start(int(duration*1e3))
-        self._timers[name] = timer
+        try:
+            timer = QTimer()
+            timer.timeout.connect(callback)
+            timer.setSingleShot(True)
+            timer.start(int(duration*1e3))
+            self._timers[name] = timer
+        except Exception as e:
+            log.error(f'Attempt to start timer {name} with duration {duration} sec failed')
+            raise
 
     def stop_timer(self, name):
         if self._timers.get(name) is not None:
