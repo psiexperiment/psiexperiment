@@ -40,12 +40,23 @@ Perhaps an input, output or device is missing from the IO configuration?
 '''
 
 
-def simple_match(key, context):
+def simple_match(key, context, ignore_missing=False):
     try:
         return context[key]
     except Exception as e:
+        if ignore_missing:
+            return
         new_exc = KeyError(missing_event_mesg.format(key=key))
         raise new_exc from e
+
+
+def eval_match(code, context, ignore_missing=False):
+    try:
+        return eval(code, context)
+    except Exception as e:
+        if ignore_missing:
+            return
+        raise
 
 
 class ExperimentActionBase(Declarative):
@@ -82,7 +93,7 @@ class ExperimentActionBase(Declarative):
         if len(self.dependencies) == 1:
             return partial(simple_match, self.dependencies[0])
         else:
-            return partial(eval, code)
+            return partial(eval_match, code)
 
     def __str__(self):
         return f'{self.event} (weight={self.weight}; kwargs={self.kwargs})'
