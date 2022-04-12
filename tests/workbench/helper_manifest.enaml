@@ -196,3 +196,34 @@ enamldef TestControllerManifest(ControllerManifest): manifest:
             name = 'tone_burst'
             Tone:
                 pass
+
+
+enamldef InvalidExperimentActionEval(ExperimentManifest):
+    '''
+    This is designed to test that the eval path properly raises the exception
+    '''
+
+    Extension:
+        id = 'invlaid_experiment_action_manifest'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'no_such_event and dispense'
+            command = 'store_result'
+            kwargs = {'result': event}
+
+
+enamldef InvalidExperimentActionSimpleMatch(ExperimentManifest):
+    '''
+    This is designed to test that the simple_match path properly raises the
+    exception
+    '''
+
+    Extension:
+        id = 'invlaid_experiment_action_manifest'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'no_such_event'
+            command = 'store_result'
+            kwargs = {'result': event}
