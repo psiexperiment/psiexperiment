@@ -24,17 +24,23 @@ def accumulate_actions(plugin):
         a = accumulator.setdefault(action.event, [])
         info = '{} (weight={})'.format(action, action.weight)
         a.append(info)
-    lines = ['Configured actions']
+    lines = []
     for event, actions in accumulator.items():
         lines.append(event)
         for action in actions:
             lines.append('  ' + action)
-    return '\n'.join(lines)
+    return lines
 
 
 def log_actions(event):
     plugin = event.workbench.get_plugin('psi.controller')
-    log.info('\n' + accumulate_actions(plugin))
+    log_with_header('Configured actions', accumulate_actions(plugin))
+
+
+def log_events(event):
+    plugin = event.workbench.get_plugin('psi.controller')
+    events = [f' * {e}' for e in sorted(plugin._events)]
+    log_with_header('Available events', events)
 
 
 def accumulate_io_tree(plugin):
@@ -56,13 +62,21 @@ def _accumulate_io_tree(accumulator, obj, direction, prefix=''):
 
 def log_io(event):
     plugin = event.workbench.get_plugin('psi.controller')
-    log.info('\n' + accumulate_io_tree(plugin))
+    log_with_header('IO configuration', accumulate_io_tree(plugin))
 
 
 def log_commands(event):
     plugin = event.workbench.get_plugin('enaml.workbench.core')
-    commands = '\n * '.join(sorted(plugin._commands.keys()))
-    log.info('\n' + commands)
+    commands = [f' * {s}' for s in sorted(plugin._commands.keys())]
+    log_with_header('Available commands', commands)
+
+
+def log_with_header(header, info):
+    hline = '*' * 80
+    text = f'* {header.ljust(76)} *'
+    header = '\n'.join([hline, text, hline])
+    info = '\n'.join(info)
+    log.info(f'\n{header}\n{info}')
 
 
 def start_experiment(event):
@@ -182,6 +196,9 @@ enamldef ControllerManifest(ControllerManifestBase): manifest:
             id = 'psi.controller.log_actions'
             handler = log_actions
         Command:
+            id = 'psi.controller.log_events'
+            handler = log_events
+        Command:
             id = 'psi.controller.log_commands'
             handler = log_commands
         Command:
@@ -266,9 +283,13 @@ enamldef ControllerManifest(ControllerManifestBase): manifest:
         ExperimentAction:
             event = 'engines_configured'
             command = 'psi.controller.log_io'
+            weight = 0
         ExperimentAction:
             event = 'plugins_started'
             command = 'psi.controller.log_actions'
+        ExperimentAction:
+            event = 'plugins_started'
+            command = 'psi.controller.log_events'
         ExperimentAction:
             event = 'plugins_started'
             command = 'psi.controller.log_commands'
