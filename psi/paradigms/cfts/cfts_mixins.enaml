@@ -19,9 +19,9 @@ from psiaudio.calibration import InterpCalibration, PointCalibration
 
 from psi.context.api import (BaseSelector, BoolParameter, ContextGroup,
                              EnumParameter, Parameter)
-from psi.controller.api import (ContinuousInput, Detrend, Downsample,
-                                EpochOutput, ExperimentAction, ExtractEpochs,
-                                IIRFilter, Input, RejectEpochs)
+from psi.controller.api import (get_hw_ai_choices, ContinuousInput, Detrend,
+                                Downsample, EpochOutput, ExperimentAction,
+                                ExtractEpochs, IIRFilter, Input, RejectEpochs)
 from psi.controller.calibration.api import (chirp_sens, ChirpCalibrate,
                                             ToneCalibrate, tone_sens)
 from psi.core.enaml.api import DataFrameTable, ExperimentManifest, PSIManifest
@@ -198,6 +198,8 @@ enamldef FreqLevelContainer(Container):
 
 
 enamldef FreqLevelSelectorManifest(PSIManifest): manifest:
+    # This manifest automatically gets loaded when you add the
+    # FreqLevelSelector to the psi.context.selectors extension point.
 
     Extension:
         id = 'selector.' + manifest.contribution.name
@@ -243,6 +245,113 @@ enamldef TemperatureMixinManifest(ExperimentManifest): manifest:
             Downsample:
                 name = 'temperature_decimated'
                 q = 500
+
+
+################################################################################
+# Hardware mixins
+################################################################################
+enamldef PTMicrophoneInput(ContinuousInput):
+    name = 'microphone'
+    source_name << C.pt_channel
+    source ::
+        channel.gain = C.pt_input_gain
+
+
+enamldef PTMicrophoneInputManifest(PSIManifest): manifest:
+
+    Extension:
+        id = manifest.id + '.context'
+        point = 'psi.context.items'
+
+        EnumParameter:
+            name = 'pt_channel'
+            label = 'Probe tube mic. channel'
+            choices = get_hw_ai_choices(workbench)
+            selected = next(iter(get_hw_ai_choices(workbench)))
+            scope = 'experiment'
+            group_name = 'hardware_settings'
+
+        Parameter:
+            name = 'pt_input_gain'
+            label = 'Probe tube input gain (dB)'
+            dtype = 'float64'
+            default = 40
+            scope = 'experiment'
+            group_name = 'hardware_settings'
+
+
+enamldef EEGInput(ContinuousInput):
+    source_name << C.eeg_channel
+    name = 'eeg'
+
+    IIRFilter:
+        name = 'eeg_filtered'
+        N = 2
+        btype = 'bandpass'
+        ftype = 'butter'
+        passthrough = not C.digital_filter
+        f_highpass = C.digital_highpass
+        f_lowpass = C.digital_lowpass
+
+
+enamldef EEGInputManifest(PSIManifest): manifest:
+
+    Extension:
+        id = manifest.id + '.context'
+        point = 'psi.context.items'
+
+        EnumParameter:
+            name = 'eeg_channel'
+            label = 'EEG channel'
+            compact_label = 'ai_eeg'
+            choices = get_hw_ai_choices(workbench)
+            selected = next(iter(get_hw_ai_choices(workbench)))
+            scope = 'experiment'
+            group_name = 'hardware_settings'
+
+        Parameter:
+            name = 'amplifier_highpass'
+            label = 'Amplifier highpass filter cutoff'
+            default = 10
+            scope = 'experiment'
+            group_name = 'hardware_settings'
+
+        Parameter:
+            name = 'amplifier_lowpass'
+            label = 'Amplifier lowpass filter cutoff'
+            default = 10e3
+            scope = 'experiment'
+            group_name = 'hardware_settings'
+
+        Parameter:
+            name = 'amplifier_gain'
+            label = 'Amplifier gain'
+            default = 100e3
+            scope = 'experiment'
+            group_name = 'hardware_settings'
+
+
+        ContextGroup:
+            name = 'digital_filter'
+            label = 'Digital filter settings'
+
+            BoolParameter:
+                name = 'digital_filter'
+                label = 'Digital filter?'
+                scope = 'experiment'
+                default = True
+
+            Parameter:
+                name = 'digital_highpass'
+                label = 'Digital highpass filter cutoff'
+                default = 300
+                scope = 'experiment'
+
+            Parameter:
+                name = 'digital_lowpass'
+                label = 'Digital lowpass filter cutoff'
+                default = 3000
+                scope = 'experiment'
 
 
 ################################################################################
@@ -299,4 +408,12 @@ enamldef DPOAEInEarCalibrationMixinManifest(InEarCalibrationMixinManifest): mani
     outputs = {
         'primary': ['primary_tone_frequency'],
         'secondary': ['secondary_tone_frequency'],
+    }
+
+
+enamldef EFRInEarCalibrationManifest(InEarCalibrationMixinManifest): manifest:
+
+    experiment = 'efr'
+    outputs = {
+        'primary': ['carrier_tone_frequency'],
     }

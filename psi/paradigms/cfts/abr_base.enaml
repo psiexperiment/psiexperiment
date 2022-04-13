@@ -20,6 +20,8 @@ from psi.controller.output import QueuedEpochOutput
 from psi.data.sinks.api import BinaryStore, TextStore
 from psi.token.primitives import Cos2Envelope, Tone
 
+from .cfts_mixins import EEGInput, PTMicrophoneInput
+
 
 def set_expected_range(context, target):
     # Now, identify the maximum level on a per-frequency setting
@@ -75,6 +77,9 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
         id = EXPERIMENT + '.io'
         point = 'psi.controller.io'
 
+        PTMicrophoneInput:
+            pass
+
         QueuedEpochOutput: output:
             name = 'target'
             label = 'Target'
@@ -91,37 +96,19 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
                 controller = workbench.get_plugin('psi.controller')
                 deferred_call(controller.invoke_actions, output.name + '_end')
 
-        ContinuousInput:
-            name = 'microphone'
-            source_name << C.pt_channel
-            source ::
-                channel.gain = C.pt_input_gain
+        EEGInput:
+            ExtractEpochs: extract:
+                name = 'erp'
+                epoch_size = 8.5e-3
 
-        Input:
-            source_name << C.eeg_channel
-            name = 'eeg'
+                Detrend:
+                    name = 'erp_detrend'
+                    mode = C.detrend_mode
 
-            IIRFilter:
-                name = 'eeg_filtered'
-                N = 2
-                btype = 'bandpass'
-                ftype = 'butter'
-                passthrough = not C.digital_filter
-                f_highpass = C.digital_highpass
-                f_lowpass = C.digital_lowpass
-
-                ExtractEpochs: extract:
-                    name = 'erp'
-                    epoch_size = 8.5e-3
-
-                    Detrend:
-                        name = 'erp_detrend'
-                        mode = C.detrend_mode
-
-                        RejectEpochs:
-                            name = 'valid_erp'
-                            threshold = C.reject_threshold
-                            mode = C.reject_mode
+                    RejectEpochs:
+                        name = 'valid_erp'
+                        threshold = C.reject_threshold
+                        mode = C.reject_mode
 
     Extension:
         id = EXPERIMENT + '.abr.context'
@@ -161,44 +148,8 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
                 scope = 'experiment'
 
         ContextGroup:
-            name = 'digital_filter'
-            label = 'Digital filter settings'
-
-            BoolParameter:
-                name = 'digital_filter'
-                label = 'Digital filter?'
-                scope = 'experiment'
-                default = True
-
-            Parameter:
-                name = 'digital_highpass'
-                label = 'Digital highpass filter cutoff'
-                default = 300
-                scope = 'experiment'
-
-            Parameter:
-                name = 'digital_lowpass'
-                label = 'Digital lowpass filter cutoff'
-                default = 3000
-                scope = 'experiment'
-
-        ContextGroup:
             name = 'hardware_settings'
             label = 'Hardware settings'
-
-            EnumParameter:
-                name = 'pt_channel'
-                label = 'Probe tube mic. channel'
-                choices = manifest.get_hw_ai_choices()
-                selected = next(iter(manifest.get_hw_ai_choices()))
-                scope = 'experiment'
-
-            Parameter:
-                name = 'pt_input_gain'
-                label = 'Probe tube input gain (dB)'
-                dtype = 'float64'
-                default = 40
-                scope = 'experiment'
 
             EnumParameter:
                 name = 'output_channel'
@@ -206,32 +157,6 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
                 compact_label = 'ao'
                 choices = manifest.get_hw_ao_choices()
                 selected = next(iter(manifest.get_hw_ao_choices()))
-                scope = 'experiment'
-
-            EnumParameter:
-                name = 'eeg_channel'
-                label = 'EEG channel'
-                compact_label = 'ai_eeg'
-                choices = manifest.get_hw_ai_choices()
-                selected = next(iter(manifest.get_hw_ai_choices()))
-                scope = 'experiment'
-
-            Parameter:
-                name = 'amplifier_highpass'
-                label = 'Amplifier highpass filter cutoff'
-                default = 10
-                scope = 'experiment'
-
-            Parameter:
-                name = 'amplifier_lowpass'
-                label = 'Amplifier lowpass filter cutoff'
-                default = 10e3
-                scope = 'experiment'
-
-            Parameter:
-                name = 'amplifier_gain'
-                label = 'Amplifier gain'
-                default = 100e3
                 scope = 'experiment'
 
     Extension:

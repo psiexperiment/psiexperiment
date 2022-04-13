@@ -23,6 +23,9 @@ from psi.token.primitives import Cos2Envelope, Tone
 
 from psi.data.sinks.api import EventLog, TableStore, BinaryStore
 
+from .cfts_mixins import PTMicrophoneInput
+
+
 EXPERIMENT = __name__.rsplit('.', 1)[-1]
 
 
@@ -189,12 +192,7 @@ enamldef DPOAEManifest(ControllerManifest): manifest:
                 configurable = False
                 token = tone
 
-        ContinuousInput:
-            name = 'microphone'
-            source_name = C.dpoae_microphone_channel
-            source ::
-                channel.gain = C.dpoae_microphone_input_gain
-
+        PTMicrophoneInput:
             Blocked:
                 # Duration (in seconds) of snippets to analyze
                 name = 'microphone_blocked'
@@ -293,8 +291,8 @@ enamldef DPOAEManifest(ControllerManifest): manifest:
             expression = 'rise_time'
 
         ContextGroup:
-            name = 'dpoae'
-            label = 'DPOAE settings'
+            name = 'hardware_settings'
+            label = 'Hardware Settings'
 
             EnumParameter:
                 name = 'primary_channel'
@@ -310,18 +308,9 @@ enamldef DPOAEManifest(ControllerManifest): manifest:
                 selected = next(iter(manifest.get_hw_ao_choices()))
                 scope = 'experiment'
 
-            EnumParameter:
-                name = 'dpoae_microphone_channel'
-                label = 'DPOAE microphone'
-                choices = manifest.get_hw_ai_choices()
-                scope = 'experiment'
-
-            Parameter:
-                name = 'dpoae_microphone_input_gain'
-                label = 'DPOAE microphone input gain'
-                dtype = 'float64'
-                default = 40
-                scope = 'experiment'
+        ContextGroup:
+            name = 'dpoae'
+            label = 'DPOAE settings'
 
             Parameter:
                 name = 'f2_frequency'
