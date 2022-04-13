@@ -57,7 +57,7 @@ def configure_epoch_input(input, event):
 enamldef InputManifest(PSIManifest): manifest:
 
     Extension:
-        id = 'input_commands.' + manifest.contribution.name
+        id = manifest.id + '.commands'
         point = 'enaml.workbench.core.commands'
 
         Command:
@@ -65,7 +65,7 @@ enamldef InputManifest(PSIManifest): manifest:
             handler = partial(prepare_event_callback, manifest.contribution)
 
     Extension:
-        id = 'actions.' + manifest.contribution.name
+        id = manifest.id + '.actions'
         point = 'psi.controller.actions'
 
         ExperimentEvent:
@@ -87,7 +87,7 @@ def capture_end(input, event):
 enamldef CaptureManifest(InputManifest): manifest:
 
     Extension:
-        id = 'capture_commands.' + manifest.contribution.name
+        id = manifest.id + '.commands'
         point = 'enaml.workbench.core.commands'
 
         Command:
@@ -102,7 +102,7 @@ enamldef CaptureManifest(InputManifest): manifest:
 enamldef ExtractEpochsManifest(InputManifest): manifest:
 
     Extension:
-        id = manifest.contribution.name + 'extract_epochs_manifest.commands'
+        id = manifest.id + '.extract_commands'
         point = 'enaml.workbench.core.commands'
 
         Command:
@@ -110,7 +110,7 @@ enamldef ExtractEpochsManifest(InputManifest): manifest:
             handler = partial(configure_epoch_input, manifest.contribution)
 
     Extension:
-        id = 'extract_epochs_actions.' + manifest.contribution.name
+        id = manifest.id + '.extract_actions'
         point = 'psi.controller.actions'
 
         ExperimentState:
