@@ -527,7 +527,7 @@ class ControllerPlugin(Plugin):
         for action in self._actions:
             if action.match(context, ignore_missing):
                 result = invoke_action(self.core, action, event_name,
-                                       timestamp, kw, ignore_missing)
+                                       timestamp, kw, skip_errors)
 
         return results
 
@@ -570,7 +570,8 @@ class ControllerPlugin(Plugin):
             raise
 
     def stop_experiment(self, skip_errors=False):
-        results = self.invoke_actions('experiment_end', self.get_ts(), skip_errors=skip_errors)
+        results = self.invoke_actions('experiment_end', self.get_ts(),
+                                      skip_errors=skip_errors)
         deferred_call(lambda: setattr(self, 'experiment_state', 'stopped'))
         return results
 
