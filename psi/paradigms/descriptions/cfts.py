@@ -86,14 +86,20 @@ ParadigmDescription(
 )
 
 
+efr_mixins = [temperature_mixin, eeg_mixin, microphone_mixin, microphone_fft_mixin]
+
+
 ParadigmDescription(
-    'efr', 'EFR (SAM)', 'ear', [
-        {'manifest': CFTS_PATH + 'efr.EFRManifest'},
-        temperature_mixin,
-        eeg_mixin,
-        microphone_mixin,
-        microphone_fft_mixin,
-    ],
+    'efr_sam', 'SAM EFR', 'ear', [
+        {'manifest': CFTS_PATH + 'efr.SAMEFRManifest'},
+    ] + efr_mixins,
+)
+
+
+ParadigmDescription(
+    'efr_ram', 'RAM EFR', 'ear', [
+        {'manifest': CFTS_PATH + 'efr.RAMEFRManifest'},
+    ] + efr_mixins,
 )
 
 
