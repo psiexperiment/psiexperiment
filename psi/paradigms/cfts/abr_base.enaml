@@ -16,11 +16,10 @@ from psi.controller.api import ExperimentAction
 from psi.controller.api import (ContinuousInput, ControllerManifest,
                                 ExtractEpochs, RejectEpochs, IIRFilter, Input,
                                 Detrend)
-from psi.controller.output import QueuedEpochOutput
 from psi.data.sinks.api import BinaryStore, TextStore
 from psi.token.primitives import Cos2Envelope, Tone
 
-from .cfts_mixins import EEGInput, PTMicrophoneInput
+from .cfts_mixins import EEGInput, PTMicrophoneInput, SpeakerOutput
 
 
 def set_expected_range(context, target):
@@ -80,12 +79,9 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
         PTMicrophoneInput:
             pass
 
-        QueuedEpochOutput: output:
-            name = 'target'
-            label = 'Target'
+        SpeakerOutput: output:
             token = tone_burst
             configurable = False
-            target_name = C.output_channel
             initialized ::
                 # Once the queue has been configured in one of the
                 # subclasses, hook it up to the ExtractEpochs input so that
@@ -97,6 +93,7 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
                 deferred_call(controller.invoke_actions, output.name + '_end')
 
         EEGInput:
+
             ExtractEpochs: extract:
                 name = 'erp'
                 epoch_size = 8.5e-3
@@ -145,18 +142,6 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
                 label = 'Reject threshold'
                 compact_label = 'Th'
                 default = 2.5
-                scope = 'experiment'
-
-        ContextGroup:
-            name = 'hardware_settings'
-            label = 'Hardware settings'
-
-            EnumParameter:
-                name = 'output_channel'
-                label = 'Output channel'
-                compact_label = 'ao'
-                choices = manifest.get_hw_ao_choices()
-                selected = next(iter(manifest.get_hw_ao_choices()))
                 scope = 'experiment'
 
     Extension:

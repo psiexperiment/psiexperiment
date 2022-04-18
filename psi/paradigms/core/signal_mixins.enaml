@@ -24,7 +24,7 @@ enamldef SignalViewManifest(ExperimentManifest): manifest:
 
         TimeContainer: time_container:
             name << manifest.name + '_container'
-            label = 'Microphone signal'
+            label << manifest.title
             span = 4
             delay = 0.125
 

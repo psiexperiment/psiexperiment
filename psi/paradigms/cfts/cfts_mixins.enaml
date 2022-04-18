@@ -1,6 +1,7 @@
 import logging
 log = logging.getLogger(__name__)
 
+from functools import partial
 import textwrap
 
 import numpy as np
@@ -10,6 +11,7 @@ from atom.api import Enum, Float, Property, Str
 
 from enaml.application import deferred_call
 from enaml.core.api import Conditional, d_
+from enaml.workbench.core.api import Command
 from enaml.layout.api import vbox
 from enaml.stdlib.fields import FloatField
 from enaml.widgets.api import Container, DockItem, HGroup, Label, ObjectCombo
@@ -19,9 +21,11 @@ from psiaudio.calibration import InterpCalibration, PointCalibration
 
 from psi.context.api import (BaseSelector, BoolParameter, ContextGroup,
                              EnumParameter, Parameter)
-from psi.controller.api import (get_hw_ai_choices, ContinuousInput, Detrend,
-                                Downsample, EpochOutput, ExperimentAction,
-                                ExtractEpochs, IIRFilter, Input, RejectEpochs)
+from psi.controller.api import (get_hw_ai_choices, get_hw_ao_choices,
+                                ContinuousInput, Detrend, Downsample,
+                                EpochOutput, ExperimentAction, ExtractEpochs,
+                                IIRFilter, Input, QueuedEpochOutput,
+                                QueuedEpochOutputManifest, RejectEpochs)
 from psi.controller.calibration.api import (chirp_sens, ChirpCalibrate,
                                             ToneCalibrate, tone_sens)
 from psi.core.enaml.api import DataFrameTable, ExperimentManifest, PSIManifest
@@ -197,12 +201,23 @@ enamldef FreqLevelContainer(Container):
                                     selector.freq_step)
 
 
+def configure_freq_level_selector_context(selector, event):
+    context = event.workbench.get_plugin('psi.context')
+    # Set frequency and level
+    freq = context.get_parameter(selector.freq_name)
+    level = context.get_parameter(selector.level_name)
+    for p in (freq, level):
+        p.visible = False
+        p.editable = False
+        p.rove = True
+
+
 enamldef FreqLevelSelectorManifest(PSIManifest): manifest:
     # This manifest automatically gets loaded when you add the
     # FreqLevelSelector to the psi.context.selectors extension point.
 
     Extension:
-        id = 'selector.' + manifest.contribution.name
+        id = manifest.contribution.name + '.workspace'
         point = 'psi.experiment.workspace'
 
         DockItem:
@@ -210,6 +225,21 @@ enamldef FreqLevelSelectorManifest(PSIManifest): manifest:
             title = manifest.contribution.label
             FreqLevelContainer:
                 selector << manifest.contribution
+
+    Extension:
+        id = manifest.contribution.name + '.commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = manifest.id + '.configure_context'
+            handler = partial(configure_freq_level_selector_context, contribution)
+
+    Extension:
+        id = manifest.contribution.name + '.actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'plugins_started'
+            command = manifest.id + '.configure_context'
 
 
 enamldef TemperatureMixinManifest(ExperimentManifest): manifest:
@@ -250,6 +280,33 @@ enamldef TemperatureMixinManifest(ExperimentManifest): manifest:
 ################################################################################
 # Hardware mixins
 ################################################################################
+enamldef SpeakerOutput(QueuedEpochOutput):
+
+    name = 'target'
+    label = 'Target'
+    configurable = False
+    target_name = C.target_output_channel
+
+
+enamldef SpeakerOutputManifest(QueuedEpochOutputManifest): manifest:
+
+    Extension:
+        id = manifest.id + '.context'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'hardware_settings'
+            label = 'Hardware'
+
+            EnumParameter:
+                name = f'{contribution.name}_output_channel'
+                label = f'{contribution.label} output channel'
+                compact_label = 'ao'
+                choices = get_hw_ao_choices(workbench)
+                selected = next(iter(get_hw_ao_choices(workbench)))
+                scope = 'experiment'
+
+
 enamldef PTMicrophoneInput(ContinuousInput):
     name = 'microphone'
     source_name << C.pt_channel
@@ -329,7 +386,6 @@ enamldef EEGInputManifest(PSIManifest): manifest:
             default = 100e3
             scope = 'experiment'
             group_name = 'hardware_settings'
-
 
         ContextGroup:
             name = 'digital_filter'
