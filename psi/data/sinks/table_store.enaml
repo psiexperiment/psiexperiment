@@ -79,6 +79,8 @@ class TableStore(BaseStore):
             self.flush()
 
     def flush(self):
+        if self._store.closed:
+            return
         self._store.flush()
 
 

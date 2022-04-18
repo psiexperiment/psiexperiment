@@ -16,7 +16,7 @@ from psi.controller.api import ExperimentAction
 from psi.core.enaml.api import PSIManifest
 from psi.util import declarative_to_dict
 
-from .base_store import BaseEpochData, BaseStore
+from .base_store import BaseEpochData, BaseStore, BaseStoreManifest
 
 
 class TextEpochData(BaseEpochData):
@@ -43,7 +43,6 @@ class TextStore(BaseStore):
     Simple class for storing data in human-readable formats (CSV and text)
     '''
     name = set_default('text_store')
-    _stores = Dict()
 
     def get_source(self, name):
         try:
@@ -70,7 +69,7 @@ class TextStore(BaseStore):
         # Write the metadata to a file
         filename = Path(self.get_filename(f'{name}_metadata', '.json'))
         filename.write_text(json.dumps(metadata))
-        log.debug('Saved epoch metadata %s attrs to %s', name, filename)
+        log.info('Saved epoch metadata %s attrs to %s', name, filename)
 
         # Set up the output file for the epoch info
         md_filename = self.get_filename(f'{name}_metadata', '.csv')
@@ -93,7 +92,7 @@ def save_dataframe(sink, event):
                                event.parameters.get('overwrite', False))
 
 
-enamldef TextStoreManifest(PSIManifest): manifest:
+enamldef TextStoreManifest(BaseStoreManifest): manifest:
 
     Extension:
         id = manifest.id + '.text_commands'
