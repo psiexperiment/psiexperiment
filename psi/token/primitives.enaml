@@ -5,8 +5,9 @@ log = logging.getLogger(__name__)
 
 from psiaudio.stim import (BandlimitedNoiseFactory, ChirpFactory,
                            Cos2EnvelopeFactory, GateFactory,
-                           SAMEnvelopeFactory, SquareWaveFactory,
-                           SilenceFactory, ToneFactory, WavSequenceFactory)
+                           SAMEnvelopeFactory, SquareWaveEnvelopeFactory,
+                           SquareWaveFactory, SilenceFactory, ToneFactory,
+                           WavSequenceFactory)
 
 from psi.context.api import Parameter, EnumParameter
 from .block import EpochBlock, ContinuousBlock
@@ -42,6 +43,31 @@ enamldef Cos2Envelope(Gate): block:
         label = 'rise time (s)'
         compact_label = 'env rise'
         default = 1.0
+
+
+enamldef SquareWaveEnvelope(ContinuousBlock): block:
+
+    factory = SquareWaveEnvelopeFactory
+    name = 'RAM'
+    label = 'RAM'
+
+    Parameter:
+        name = 'depth'
+        label = 'depth (frac.)'
+        compact_label = 'depth'
+        default = 1.0
+
+    Parameter:
+        name = 'fm'
+        label = 'Modulation frequency (Hz)'
+        compact_label = 'fm'
+        default = 5.0
+
+    Parameter:
+        name = 'duty_cycle'
+        label = 'Duty cycle (frac.)'
+        compact_label = 'dc'
+        default = 0.5
 
 
 enamldef SAMEnvelope(ContinuousBlock): block:
