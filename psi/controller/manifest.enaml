@@ -44,14 +44,13 @@ def log_events(event):
 
 
 def accumulate_io_tree(plugin):
-    accumulator = ['\n']
-    accumulator.append('Output')
+    accumulator = ['Output']
     for channel in plugin.get_channels(direction='output'):
         _accumulate_io_tree(accumulator, channel, 'outputs', prefix='')
     accumulator.append('Input')
     for channel in plugin.get_channels(direction='input'):
         _accumulate_io_tree(accumulator, channel, 'inputs', prefix='')
-    return('\n  '.join(accumulator))
+    return accumulator
 
 
 def _accumulate_io_tree(accumulator, obj, direction, prefix=''):
