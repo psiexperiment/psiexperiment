@@ -30,20 +30,14 @@ IO_POINT = 'psi.controller.io'
 ACTION_POINT = 'psi.controller.actions'
 
 
-def get_inputs(input):
-    inputs = []
-    for child in input.children:
-        inputs.extend(get_inputs(child))
-    inputs.append(input)
-    return inputs
-
-
-def get_outputs(output):
-    outputs = []
-    for child in output.children:
-        outputs.extend(get_outputs(child))
-    outputs.append(output)
-    return outputs
+def get_obj(o, klass):
+    objects = []
+    for child in o.children:
+        if isinstance(o, klass):
+            objects.extend(get_obj(child, klass))
+    if isinstance(o, klass):
+        objects.append(o)
+    return objects
 
 
 general_error = '''
@@ -109,7 +103,7 @@ def find_outputs(channels, point):
     for c in channels.values():
         if isinstance(c, OutputMixin):
             for o in c.children:
-                for oi in get_outputs(o):
+                for oi in get_obj(o, Output):
                     if oi.name in outputs:
                         raise ValueError(output_error.format(oi.name))
                     outputs[oi.name] = oi
@@ -134,14 +128,14 @@ def find_inputs(channels, point):
     for c in channels.values():
         if isinstance(c, InputMixin):
             for i in c.children:
-                for ci in get_inputs(i):
+                for ci in get_obj(i, Input):
                     inputs[ci.name] = ci
 
     for extension in point.extensions:
         for i in extension.get_children(Input):
             # Recurse through input tree. Currently we assume that
             # inputs can be nested/hierarchial while outputs are not.
-            for ci in get_inputs(i):
+            for ci in get_obj(i, Input):
                 inputs[ci.name] = ci
 
     return inputs
