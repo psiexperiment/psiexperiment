@@ -54,7 +54,11 @@ def set_preferences(obj, preferences):
     for member in get_tagged_members(obj, 'preference'):
         if member in preferences:
             value = preferences.get(member)
-            setattr(obj, member, value)
+            try:
+                setattr(obj, member, value)
+            except AttributeError:
+                m = f'Unable to restore saved value for {member} of {obj.name} ({obj})'
+                log.error(m)
 
 
 def initialize(event):
@@ -204,20 +208,17 @@ enamldef ContextManifest(PluginManifest): manifest:
                 for item in plugin.context_items.values():
                     if not item.editable:
                         continue
-                    try:
-                        group_state = parameter_state.get(item.group_name, {})
-                        state = group_state.get(item.name, {})
-                        set_preferences(item, state)
-                    except Exception as e:
-                        log.exception(e)
+                    group_state = parameter_state.get(item.group_name, {})
+                    state = group_state.get(item.name, {})
+                    set_preferences(item, state)
 
                 log.debug('Setting selector states')
                 for selector in plugin.selectors.values():
                     try:
                         state = selector_state.get(selector.name, {})
                         selector.__setstate__(state)
-                    except Exception as e:
-                        log.exception(e)
+                    except AttributeError as e:
+                        log.error(f'Unable to set saved state for selector {selector.name}')
 
                 log.debug('Setting meta states')
                 for meta in plugin.context_meta.values():
