@@ -101,19 +101,17 @@ template ContextItemTemplate(context_item, MemberType: Result):
             text << context_item.label
 
 
-def get_scope(context_item, workbench):
+def get_scope(default_scope, workbench):
     for selector in workbench.get_plugin('psi.context').selectors.values():
         if selector.user_managed:
-            return context_item.scope
+            return default_scope
     return 'experiment'
 
 
 template ContextItemTemplate(context_item, MemberType: Parameter):
     DynamicTemplate:
         base = ParameterTemplate
-        args = (context_item,
-                type(context_item),
-                get_scope(context_item, workbench))
+        args << (context_item, type(context_item), get_scope(context_item.scope, workbench))
 
 
 template ParameterTemplate(context_item, MemberType, scope):
