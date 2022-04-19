@@ -22,7 +22,7 @@ from psi.data.sinks.api import GroupedEpochCounter
 
 
 from .abr_base import ABRBaseManifest
-from .cfts_mixins import FreqLevelSelector
+from .cfts_mixins import CFTSSelector
 
 
 EXPERIMENT = __name__.rsplit('.', 1)[-1]
@@ -43,22 +43,36 @@ def octave_ordering(freqs):
     for i in range(n_groups):
         ordered.extend(freqs[i::n_groups])
     if not check_ordering(ordered):
-        raise ValueError('Unable to order frequencies appropriately')
+        ordered = ', '.join(str(f) for f in ordered)
+        raise ValueError(f'Unable to order frequencies appropriately. Attempted ordering {ordered}')
     return ordered
 
 
-def check_ordering(freqs):
+def check_ordering(freqs, min_octaves=0.99):
     '''
     Ensure that frequencies are spaced at least an octave apart
 
-    This also checks that the last frequency is an octave from the first
-    frequency.
+    Parameters
+    ----------
+    freqs : ordered sequence
+        Sequence of frequencies in the desired ordering.
+    min_octaves : float
+        Minimum octave spacing to enforce. Note that if y
+
+    Notes
+    -----
+    * If you are rounding frequencies to the nearest Hz, then you may need to
+      allow `min_octaves` to be slightly less than the desired octave spacing
+      to account for some small error.
+    * This also checks that the last frequency is an octave from the first
+      frequency.
     '''
     check = freqs.copy()
     # Ensure octave spacing between end of trial and beginning of next trial
     check += [check[0]]
     octaves = np.abs(np.diff(np.log2(check)))
-    return not np.any(octaves < 1)
+    log.error(str(octaves))
+    return not np.any(octaves < min_octaves)
 
 
 def add_setting(target, setting, averages, iti, key_map):
@@ -355,13 +369,6 @@ def configure_abrio_simple(event):
     averages.scope = 'experiment'
     rate.scope = 'experiment'
 
-    # Set frequency and level
-    freq = context.get_parameter('target_tone_frequency')
-    level = context.get_parameter('target_tone_level')
-    for p in (freq, level):
-        p.visible = False
-        p.editable = False
-        p.rove = True
     meta = context.get_meta('settings')
     meta.editable = False
 
@@ -387,8 +394,6 @@ enamldef ABRIOSimpleManifest(ABRIOBaseManifest): manifest:
         id = EXPERIMENT_SIMPLE + '.selectors'
         point = 'psi.context.selectors'
 
-        FreqLevelSelector:
-            name = 'default'
+        CFTSSelector:
             label = 'ABR stimuli'
-            freq_name = 'target_tone_frequency'
-            level_name = 'target_tone_level'
+            can_manage = ['target_tone_frequency', 'target_tone_level']

@@ -18,9 +18,11 @@ from enaml.widgets.api import Container, DockItem, HGroup, Label, ObjectCombo
 from enaml.workbench.api import Extension
 
 from psiaudio.calibration import InterpCalibration, PointCalibration
+from psiaudio.util import octave_space
 
 from psi.context.api import (BaseSelector, BoolParameter, ContextGroup,
-                             EnumParameter, Parameter)
+                             EnumParameter, FriendlyCartesianProduct,
+                             Parameter)
 from psi.controller.api import (get_hw_ai_choices, get_hw_ao_choices,
                                 ContinuousInput, Detrend, Downsample,
                                 EpochOutput, ExperimentAction, ExtractEpochs,
@@ -34,212 +36,53 @@ from psi.data.sinks.api import DisplayValue, TextStore, ZarrStore
 from psi.token.api import BandlimitedNoise, Cos2Envelope, Gate, SquareWave
 
 
+
 ################################################################################
 # Simple frequency and level selectors
 ################################################################################
-class FreqLevelSelector(BaseSelector):
+CONTEXT_ITEM_DETAIL = {
+    # ABR
+    'target_tone_frequency': {
+        'user_friendly_name': 'frequencies',
+        'step_unit': 'octave',
+        'unit': 'kHz',
+        'order_user_managed': False,
+        'transform_fn': lambda x: (x * 1e3).round(0),
+        'inverse_transform_fn': lambda x: x * 1e-3,
+        'round_values': True,
+        'range_fn': octave_space,
+    },
+    'target_tone_level': {
+        'user_friendly_name': 'levels',
+        'step_unit': 'dB',
+        'unit': 'dB SPL',
+        'order_user_managed': True,
+    },
 
-    freq_lb = Float(5.6).tag(preference=True)
-    freq_ub = Float(45.2).tag(preference=True)
-    freq_step = Float(0.5).tag(preference=True)
-
-    level_lb = Float(10.0).tag(preference=True)
-    level_ub = Float(80.0).tag(preference=True)
-    level_step = Float(5.0).tag(preference=True)
-    level_order = Enum('ascending', 'descending').tag(preference=True)
-
-    user_managed = False
-
-    #: Name of level parameter controlled by this selector
-    level_name = d_(Str())
-    level_param = Property()
-
-    #: Name of frequency parameter controlled by this selector
-    freq_name = d_(Str())
-    freq_param = Property()
-
-    def _get_level_param(self):
-        return self.find_item(self.level_name)
-
-    def _get_freq_param(self):
-        return self.find_item(self.freq_name)
-
-    def get_levels(self):
-        level_lb = self.level_lb
-        level_ub = self.level_ub
-        level_step = self.level_step
-        level_order = self.level_order
-        levels = np.arange(level_lb, level_ub + level_step / 2, level_step)
-        if level_order == 'descending':
-            levels = levels[::-1]
-        return levels
-
-    def get_freqs(self):
-        freq_lb = self.freq_lb
-        freq_ub = self.freq_ub
-        freq_step = self.freq_step
-
-        flb = np.log2(freq_lb)
-        fub = np.log2(freq_ub) + freq_step / 2
-        fi = np.round(np.arange(flb, fub, freq_step) / freq_step) * freq_step
-        freqs = (2 ** fi) * 1e3
-        freqs = freqs.astype('i')
-        return freqs
-
-    def get_iterator(self, cycles=None):
-        levels = self.get_levels()
-        freqs = self.get_freqs()
-
-        if cycles is None:
-            cycles = 1
-
-        for i in range(cycles):
-            for f in freqs:
-                for l in levels:
-                    yield {
-                        self.freq_param: f,
-                        self.level_param: l,
-                    }
+    # DPOAE
+    'f2_frequency': {
+        'user_friendly_name': 'F2 frequencies',
+        'step_unit': 'octave',
+        'unit': 'kHz',
+        'order_user_managed': False,
+        'transform_fn': lambda x: (x * 1e3).round(0),
+        'inverse_transform_fn': lambda x: x * 1e-3,
+        'round_values': True,
+        'range_fn': octave_space,
+    },
+    'f2_level': {
+        'user_friendly_name': 'levels',
+        'step_unit': 'dB',
+        'unit': 'dB SPL',
+        'order_user_managed': True,
+    },
+}
 
 
-def get_actual_freq(selector, *args):
-    freqs = selector.get_freqs()
-    lb = freqs[0] * 1e-3
-    ub = freqs[-1] * 1e-3
-    n = len(freqs)
-    mesg = f'''
-    Frequencies are rounded to the nearest {selector.freq_step} octave.
-    The current range of frequencies is {lb:.3f} to {ub:.3f} kHz for a total of
-    {n} frequencies.'''
-    return textwrap.fill(textwrap.dedent(mesg).strip())
+class CFTSSelector(FriendlyCartesianProduct):
 
-
-enamldef FreqLevelContainer(Container):
-
-    attr selector
-
-    layout_constraints => ():
-        fc = children[0].children
-        lc = children[1].children
-        ic = children[2].children
-
-        constraints = [a.width == b.width for a, b in zip(fc, lc)]
-        cbox = vbox(children[0], children[2], children[1])
-        constraints.append(cbox)
-        constraints.append(fc[0].left == lc[0].left)
-        constraints.append(fc[0].left == ic[0].left)
-        constraints.append(fc[0].width == ic[0].width)
-        return constraints
-
-    HGroup:
-        share_layout = True
-        constraints = [
-            freq_lb.width == 40,
-            freq_ub.width == 40,
-            freq_step.width == 40,
-        ]
-        spacing = 5
-        padding = 0
-        align_widths = False
-        Label:
-            text = 'Frequencies:'
-        FloatField: freq_lb:
-            value := selector.freq_lb
-            submit_triggers = ['lost_focus', 'return_pressed', 'auto_sync']
-        Label:
-            text = 'to'
-        FloatField: freq_ub:
-            value := selector.freq_ub
-            submit_triggers = ['lost_focus', 'return_pressed', 'auto_sync']
-        Label:
-            text = 'kHz in'
-        FloatField: freq_step:
-            value := selector.freq_step
-            submit_triggers = ['lost_focus', 'return_pressed', 'auto_sync']
-        Label:
-            text = 'octave steps'
-
-    HGroup:
-        share_layout = True
-        spacing = 5
-        padding = 0
-        align_widths = False
-        Label: level_label:
-            text = 'Levels:'
-        FloatField: level_lb:
-            value := selector.level_lb
-            submit_triggers = ['lost_focus', 'return_pressed', 'auto_sync']
-        Label:
-            text = 'to'
-        FloatField: level_ub:
-            value := selector.level_ub
-            submit_triggers = ['lost_focus', 'return_pressed', 'auto_sync']
-        Label:
-            text = 'dB SPL in'
-        FloatField: level_step:
-            value := selector.level_step
-            submit_triggers = ['lost_focus', 'return_pressed', 'auto_sync']
-        Label:
-            text = 'dB steps in '
-        ObjectCombo:
-            items << list(selector.get_member('level_order').items)
-            selected := selector.level_order
-        Label:
-            text = ' order'
-
-    HGroup:
-        share_layout = True
-        spacing = 5
-        padding = 0
-        align_widths = False
-        Label: actual_freq_text:
-            text = ''
-        Label:
-            text << get_actual_freq(selector,
-                                    selector.freq_lb,
-                                    selector.freq_ub,
-                                    selector.freq_step)
-
-
-def configure_freq_level_selector_context(selector, event):
-    context = event.workbench.get_plugin('psi.context')
-    # Set frequency and level
-    freq = context.get_parameter(selector.freq_name)
-    level = context.get_parameter(selector.level_name)
-    for p in (freq, level):
-        p.visible = False
-        p.editable = False
-        p.rove = True
-
-
-enamldef FreqLevelSelectorManifest(PSIManifest): manifest:
-    # This manifest automatically gets loaded when you add the
-    # FreqLevelSelector to the psi.context.selectors extension point.
-
-    Extension:
-        id = manifest.contribution.name + '.workspace'
-        point = 'psi.experiment.workspace'
-
-        DockItem:
-            name = manifest.contribution.name + '.selector'
-            title = manifest.contribution.label
-            FreqLevelContainer:
-                selector << manifest.contribution
-
-    Extension:
-        id = manifest.contribution.name + '.commands'
-        point = 'enaml.workbench.core.commands'
-        Command:
-            id = manifest.id + '.configure_context'
-            handler = partial(configure_freq_level_selector_context, contribution)
-
-    Extension:
-        id = manifest.contribution.name + '.actions'
-        point = 'psi.controller.actions'
-
-        ExperimentAction:
-            event = 'plugins_started'
-            command = manifest.id + '.configure_context'
+    context_detail = CONTEXT_ITEM_DETAIL
+    name = 'default'
 
 
 enamldef TemperatureMixinManifest(ExperimentManifest): manifest:
