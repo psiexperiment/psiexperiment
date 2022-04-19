@@ -8,7 +8,15 @@ with enaml.imports():
                                      )
 
 
-from psi.core.enaml.api import PSIContribution, PSIManifest
+from psi.core.enaml.api import (
+    ManifestNotFoundError,
+    PSIContribution,
+    PSIManifest
+)
+
+
+class PSITestContribution0(PSIContribution):
+    pass
 
 
 class PSITestContribution1(PSIContribution):
@@ -21,8 +29,12 @@ class PSITestContribution2(PSIContribution):
 
 def test_find_manifest():
     # Verify that it resturns the "base" manifest
+    contribution = PSITestContribution0()
+    assert contribution.find_manifest_class() == PSIManifest
+
     contribution = PSITestContribution1()
     assert contribution.find_manifest_class() == PSIManifest
+    assert False
 
     # Verify can find manifest in sidecar enaml file
     contribution = PSITestContribution2()
@@ -31,3 +43,5 @@ def test_find_manifest():
     # Verify that manifest can be found in same enaml file as contribution
     contribution = PSITestContribution3()
     assert contribution.find_manifest_class() == PSITestContribution3Manifest
+
+    assert False

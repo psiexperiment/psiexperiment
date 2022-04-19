@@ -1,22 +1,10 @@
 import logging
 log = logging.getLogger(__name__)
-import importlib.util
 
+import importlib.util
 from pathlib import Path
 
-import enaml
 from enaml.core import import_hooks
-
-
-def load_manifest(manifest_path):
-    try:
-        log.debug('Loading manifest %s', manifest_path)
-        module_name, manifest_name = manifest_path.rsplit('.', 1)
-        with enaml.imports():
-            module = importlib.import_module(module_name)
-        return getattr(module, manifest_name)
-    except AttributeError as e:
-        raise ImportError() from e
 
 
 def load_enaml_module_from_file(path):

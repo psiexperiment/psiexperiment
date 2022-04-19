@@ -1,0 +1,8 @@
+# This does not exist
+from enaml.stdlib.field import FloatField
+
+from psi.core.enaml.api import PSIManifest
+
+
+enamldef PSITestContribution4Manifest(PSIManifest):
+    pass
