@@ -2,6 +2,9 @@ import logging
 log = logging.getLogger(__name__)
 
 from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
+
+import numpy as np
 
 from psiaudio.queue import InterleavedFIFOSignalQueue
 
@@ -11,9 +14,31 @@ from psi.controller.input import ExtractEpochs
 from psi.token.primitives import Cos2Envelope, Gate, SAMEnvelope, SquareWaveEnvelope, Tone
 from psi.data.sinks.api import TextStore
 
-from .cfts_mixins import EEGInput, FreqLevelSelector, PTMicrophoneInput, SpeakerOutput
+from .cfts_mixins import CFTSSelector, EEGInput, PTMicrophoneInput, SpeakerOutput
 
 EXPERIMENT = __name__.rsplit('.', 1)[-1]
+
+
+def configure_experiment(event):
+    context = event.workbench.get_plugin('psi.context')
+    controller = event.workbench.get_plugin('psi.controller')
+    output = controller.get_output('target')
+    max_level = {}
+    for setting in context.iter_settings('default', 1):
+        output.add_setting(setting, averages=1, iti_duration=1)
+        frequency = setting['target_tone_frequency']
+        level = setting['target_tone_level']
+        max_level[frequency] = max(level, max_level.get(frequency, -np.inf))
+
+    # Then figure out the maximum scaling factor required for that level.
+    # Multiply to convert from RMS to peak to peak and add 1% headroom.
+    max_sf = {}
+    for frequency, level in max_level.items():
+        sf = output.calibration.get_sf(frequency, level)
+        max_sf[frequency] = sf
+    max_sf = max(max_sf.values()) * np.sqrt(2) * 1.01 * 2
+    log.info(max_sf)
+    output.channel.expected_range = (-max_sf, max_sf)
 
 
 enamldef BaseEFRManifest(ControllerManifest): manifest:
@@ -30,13 +55,16 @@ enamldef BaseEFRManifest(ControllerManifest): manifest:
             hide = ['start_time']
             SAMEnvelope:
                 hide = ['delay', 'direction']
+                name = 'mod'
                 Tone:
                     hide = ['polarity', 'phase']
 
         Gate:
             name = 'ram_tone'
             label = 'RAM tone'
+            hide = ['start_time']
             SquareWaveEnvelope:
+                name = 'mod'
                 Tone:
                     hide = ['polarity', 'phase']
 
@@ -64,19 +92,25 @@ enamldef BaseEFRManifest(ControllerManifest): manifest:
         id = EXPERIMENT + '.selectors'
         point = 'psi.context.selectors'
 
-        FreqLevelSelector:
-            name = 'default'
+        CFTSSelector:
             label = 'EFR stimuli'
-            freq_name = f'target_tone_frequency'
-            level_name = 'target_tone_level'
 
     Extension:
-        id = EXPERIMENT + '.context'
-        point = 'psi.context.items'
+        id = EXPERIMENT + '.commands'
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = 'psi.controller.configure_experiment'
+            handler = configure_experiment
 
     Extension:
         id = EXPERIMENT + '.actions'
         point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'psi.controller.configure_experiment'
+            weight = 11
 
         ExperimentAction:
             event = 'experiment_initialize'

@@ -41,7 +41,7 @@ from psi.token.api import BandlimitedNoise, Cos2Envelope, Gate, SquareWave
 # Simple frequency and level selectors
 ################################################################################
 CONTEXT_ITEM_DETAIL = {
-    # ABR
+    # ABR and SAM/RAM EFR
     'target_tone_frequency': {
         'user_friendly_name': 'frequencies',
         'step_unit': 'octave',
@@ -56,6 +56,14 @@ CONTEXT_ITEM_DETAIL = {
         'user_friendly_name': 'levels',
         'step_unit': 'dB',
         'unit': 'dB SPL',
+        'order_user_managed': True,
+    },
+
+    # SAM/RAM EFR
+    'target_mod_fm': {
+        'user_friendly_name': 'modulation frequencies',
+        'step_unit': 'Hz',
+        'unit': 'Hz',
         'order_user_managed': True,
     },
 
