@@ -1,14 +1,23 @@
 import logging
 log = logging.getLogger(__name__)
 
+from functools import partial
+import re
+import textwrap
+
 from atom.api import Typed
 from enaml.core.api import Include, Looper, d_
+from enaml.drag_drop import DragData, DropAction
 from enaml.layout.api import vbox, hbox, spacer, align
+from enaml.stdlib.fields import FloatField
+from enaml.styling import StyleSheet, Style, Setter
 from enaml.workbench.api import Extension
-from enaml.widgets.api import (PushButton, Field, Container, VGroup, Label,
-                               ObjectCombo, DockItem)
+from enaml.workbench.core.api import Command
+from enaml.widgets.api import (PushButton, Container, Field, Feature, VGroup,
+                               Label, ObjectCombo, DockItem)
 from enaml.validator import Validator
 
+from psi.controller.api import ExperimentAction
 from psi.core.enaml.editable_table_widget import EditableTable, ListTable
 from psi.core.enaml.api import PSIManifest
 
@@ -226,4 +235,192 @@ enamldef CartesianProductManifest(BaseSelectorManifest): manifest:
             title = manifest.contribution.label
 
             CartesianProductContainer:
+                selector = manifest.contribution
+
+
+################################################################################
+# FriendlyCartesianProduct
+################################################################################
+enamldef FriendlyCartesianProductField(FloatField):
+
+    attr which
+
+    value << float(selector.context_settings[item.name][which])
+    value ::
+        selector.context_settings[item.name][which] = value
+    submit_triggers = ['lost_focus', 'return_pressed', 'auto_sync']
+
+
+enamldef FriendlyCartesianStyleSheet(StyleSheet):
+    Style:
+        element = 'Container'
+        style_class = 'hover'
+        Setter:
+            field = 'background'
+            value = 'lightblue'
+
+
+enamldef FriendlyCartesianProductItem(Container):
+
+    attr item
+    attr selector
+
+    style_class = ''
+    features = Feature.DropEnabled | Feature.DragEnabled
+
+    drag_start => ():
+        data = DragData()
+        data.supported_actions = DropAction.Copy
+        data.mime_data.set_data('text/plain', f'::parameter::{item.name}'.encode('utf-8'))
+        return data
+
+    drag_enter => (event):
+        if event.mime_data().has_format('text/plain'):
+            data = event.mime_data().data('text/plain').decode('utf-8')
+            if not data.startswith('::parameter::'):
+                return
+            if data == f'::parameter::{item.name}':
+                return
+            else:
+                log.info("acceping action")
+                self.style_class = 'hover'
+                event.accept_proposed_action()
+
+    drag_leave => ():
+        self.style_class = ''
+
+    drop => (event):
+        self.style_class = ''
+        data = event.mime_data().data('text/plain').decode('utf-8')
+        param = data.rsplit('::', 1)[1]
+        selector.move_item_to(param, item.name)
+
+    layout_constraints => ():
+        first_row = children[:-1] + [spacer]
+        return [
+            children[1].left == children[-1].left,
+            align('v_center', *children[:-1]),
+            vbox(
+                hbox(*first_row, spacing=5),
+                children[-1],
+                spacing=5,
+            ),
+        ]
+
+    share_layout = True
+
+    Label:
+        text = selector.context_detail[item.name]['user_friendly_name'].capitalize()
+    FriendlyCartesianProductField: start_field:
+        which = 'start'
+    Label:
+        text = 'to'
+    FriendlyCartesianProductField: end_field:
+        which = 'end'
+    Label:
+        text = '{} in'.format(selector.context_detail[item.name]['unit'])
+    FriendlyCartesianProductField: step_field:
+        which = 'step'
+    Label:
+        text = '{} steps'.format(selector.context_detail[item.name].get('step_unit', ''))
+
+    Label: descr_label:
+        text << get_description(
+            selector,
+            item,
+            start_field.value,
+            end_field.value,
+            step_field.value,
+        )
+
+
+def get_description(selector, item, *args):
+    values = selector.get_values(item)
+    step = selector.context_settings[item.name]['step']
+    step_unit = selector.context_detail[item.name].get('step_unit', '')
+    unit = selector.context_detail[item.name]['unit']
+    label = selector.context_detail[item.name]['user_friendly_name']
+    round_values = selector.context_detail[item.name].get('round_values', False)
+    transform = selector.context_detail[item.name].get('transform_to_gui', lambda x: x)
+    values = [transform(v) for v in values]
+
+    if round_values:
+        round_mesg = f'{label.capitalize()} are rounded to the nearest {step} {step_unit}.'
+    else:
+        round_mesg = ''
+
+    mesg = f'''{round_mesg}The current range is {values[0]:.1f} to
+    {values[-1]:.1f} {unit} for a total of {len(values)} {label}.'''
+    mesg = re.sub(r'[\s\n\r]+', ' ', mesg).strip()
+    return textwrap.fill(mesg)
+
+
+enamldef FriendlyCartesianProductContainer(Container): container:
+
+    attr selector
+    padding = 0
+
+    FriendlyCartesianStyleSheet:
+        pass
+
+    layout_constraints => ():
+        widgets = self.visible_widgets()
+        if len(widgets) == 0:
+            return []
+
+        constraints = [vbox(*widgets, spacing=0)]
+        first_child = widgets[0]
+        first_row = first_child.visible_widgets()[:-1]
+        for a in first_row[1::2]:
+            constraints.append(a.width == 60)
+        for child in widgets[1:]:
+            row = child.visible_widgets()[:-1]
+            for a, b in zip(first_row, row):
+                constraints.append(a.width == b.width)
+        return constraints
+
+    Looper:
+        iterable << selector.context_items[:]
+        FriendlyCartesianProductItem:
+            item = loop_item
+            selector = container.selector
+
+
+def friendly_cartesian_product_update_context(selector, event):
+    context = event.workbench.get_plugin('psi.context')
+    for name, param in context.parameters.items():
+        if name not in selector.context_detail:
+            param.rove = False
+            param.scope = 'experiment'
+
+
+enamldef FriendlyCartesianProductManifest(BaseSelectorManifest): manifest:
+
+    Extension:
+        id = manifest.contribution.name + '.commands'
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = manifest.contribution.name + '.update_context'
+            handler = partial(friendly_cartesian_product_update_context,
+                              manifest.contribution)
+
+    Extension:
+        id = manifest.contribution.name + '.actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'plugins_started'
+            command = manifest.contribution.name + '.update_context'
+
+    Extension:
+        id = manifest.contribution.name + '.selector'
+        point = 'psi.experiment.workspace'
+
+        DockItem:
+            closable = False
+            name = manifest.contribution.name + '.selector'
+            title = manifest.contribution.label
+
+            FriendlyCartesianProductContainer:
                 selector = manifest.contribution

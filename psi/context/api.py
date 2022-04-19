@@ -4,5 +4,6 @@ from .context_item import (
 )
 
 from .selector import (
-    BaseSelector, CartesianProduct, SingleSetting, SequenceSelector
+    BaseSelector, CartesianProduct, FriendlyCartesianProduct, SingleSetting,
+    SequenceSelector
 )

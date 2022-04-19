@@ -109,7 +109,7 @@ import functools
 import itertools
 import operator
 
-from atom.api import Typed, Enum, Event, Bool, Property
+from atom.api import Bool, Dict, Enum, Event, Property, set_default, Typed
 from enaml.core.api import d_
 from psi.core.enaml.api import PSIContribution
 
@@ -399,6 +399,64 @@ class SequenceSelector(BaseSelector):
 
     def get_value(self, setting_index, item):
         return self.settings[setting_index][item.name]
+
+
+class FriendlyCartesianProduct(BaseSelector):
+    '''
+    Like the CartesianProduct selector, but offers a much more user-friendly
+    interface that allows for customizing the range and settings used.
+    '''
+    user_managed = set_default(True)
+
+    #: Tracks the user-configurable values (start, end, step, and ordering)
+    context_settings = Dict().tag(preference=True)
+
+    #: Programatically-set details (e.g., transforms, spacing, etc.)
+    context_detail = d_(Dict())
+
+    #: If empty, all context items are selectable. Otherwise, list context
+    #: items that can be selected for roving.
+    can_manage = d_(Typed(list, []))
+
+    def append_item(self, item):
+        detail = self.context_detail.get(item.name, {})
+        inverse_fn = detail.get('inverse_transform_fn', lambda x: x)
+
+        settings = self.context_settings.get(item.name, {})
+        settings.setdefault('start', item.default)
+        settings.setdefault('end', item.default)
+        settings.setdefault('start', inverse_fn(item.default))
+        settings.setdefault('end', inverse_fn(item.default))
+        settings.setdefault('step', 1)
+        self.context_settings[item.name] = settings
+
+        super().append_item(item)
+
+    def get_values(self, item, transform=False):
+        settings = self.context_settings[item.name]
+        detail = self.context_detail[item.name]
+        range_fn = detail.get('range_fn', lambda lb, ub, s: np.arange(lb, ub + s/2, s))
+        values = range_fn(settings['start'], settings['end'], settings['step'])
+        if transform:
+            transform_fn = detail.get('transform_fn', lambda x: x)
+            values = [transform_fn(v) for v in values]
+        return values
+
+    def get_settings(self):
+        values = [self.get_values(item, True) for item in self.context_items]
+        return [dict(zip(self.context_items, s)) for s in itertools.product(*values)]
+
+    @warn_empty
+    def get_iterator(self, cycles=np.inf):
+        return choice.exact_order(self.get_settings(), cycles)
+
+    def move_item_to(self, item_name, to_item_name):
+        item_names = [i.name for i in self.context_items]
+        a = item_names.index(item_name)
+        b = item_names.index(to_item_name)
+        context_items = self.context_items[:]
+        context_items.insert(b, context_items.pop(a))
+        self.context_items = context_items
 
 
 if __name__ == '__main__':
