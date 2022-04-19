@@ -22,24 +22,6 @@ from psi.token.primitives import Cos2Envelope, Tone
 from .cfts_mixins import EEGInput, PTMicrophoneInput, SpeakerOutput
 
 
-def set_expected_range(context, target):
-    # Now, identify the maximum level on a per-frequency setting
-    max_level = {}
-    for setting in context.iter_settings('default', 1):
-        frequency = setting['target_tone_frequency']
-        level = setting['target_tone_level']
-        max_level[frequency] = max(level, max_level.get(frequency, -np.inf))
-
-    # Then figure out the maximum scaling factor required for that level.
-    # Multiply to convert from RMS to peak to peak and add 1% headroom.
-    max_sf = {}
-    for frequency, level in max_level.items():
-        sf = target.calibration.get_sf(frequency, level)
-        max_sf[frequency] = sf
-    max_sf = max(max_sf.values()) * np.sqrt(2) * 1.01
-    target.channel.expected_range = (-max_sf, max_sf)
-
-
 EXPERIMENT = 'abr_base'
 
 
