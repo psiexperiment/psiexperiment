@@ -603,8 +603,10 @@ def get_pause_text(contribution, is_paused):
 
 enamldef QueuedEpochOutputManifest(EpochOutputManifest): manifest:
 
+    attr id_extra = '.queued_epoch_output'
+
     Extension:
-        id = manifest.id + '.commands'
+        id = manifest.id + id_extra + '.commands'
         point = 'enaml.workbench.core.commands'
         Command:
             id = manifest.contribution.name + '.prepare_queue'
@@ -614,7 +616,7 @@ enamldef QueuedEpochOutputManifest(EpochOutputManifest): manifest:
             handler = partial(decrement_key, output=contribution)
 
     Extension:
-        id = '.'.join((manifest.id, manifest.__class__.__name__, '.actions'))
+        id = manifest.id + id_extra + '.actions'
         point = 'psi.controller.actions'
 
         ExperimentEvent:

@@ -232,7 +232,12 @@ class EpochOutput(BufferedOutput):
 class QueuedEpochOutput(BufferedOutput):
 
     queue = d_(Typed(AbstractSignalQueue))
+    #: Automatically decrement the number of trials left to present? Set to
+    #: False if you plan to handle this yourself (e.g., in the case of artifact
+    #: reject).
     auto_decrement = d_(Bool(False)).tag(metadata=True)
+
+
     complete = d_(Event(), writable=False)
     paused = Bool(False)
 
