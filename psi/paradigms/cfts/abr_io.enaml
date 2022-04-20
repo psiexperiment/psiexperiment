@@ -11,6 +11,7 @@ from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 
 from psiaudio import queue
+from psiaudio.util import interleave_octaves
 
 from psi.context.api import (BoolParameter, ContextGroup, EnumParameter,
                              OrderedContextMeta, Parameter)
@@ -27,52 +28,6 @@ from .cfts_mixins import CFTSSelector
 
 EXPERIMENT = __name__.rsplit('.', 1)[-1]
 EXPERIMENT_SIMPLE = __name__.rsplit('.', 1)[-1] + '_simple'
-
-
-def octave_ordering(freqs):
-    '''
-    Return correct ordering for frequencies in interleaved paradigm
-    '''
-    freqs = list(freqs).copy()
-    freqs.sort()
-    space = np.median(np.diff(np.log2(freqs)))
-    freqs = freqs[::-1]
-    n_groups = int(np.round(1/space))
-
-    ordered = []
-    for i in range(n_groups):
-        ordered.extend(freqs[i::n_groups])
-    if not check_ordering(ordered):
-        ordered = ', '.join(str(f) for f in ordered)
-        raise ValueError(f'Unable to order frequencies appropriately. Attempted ordering {ordered}')
-    return ordered
-
-
-def check_ordering(freqs, min_octaves=0.99):
-    '''
-    Ensure that frequencies are spaced at least an octave apart
-
-    Parameters
-    ----------
-    freqs : ordered sequence
-        Sequence of frequencies in the desired ordering.
-    min_octaves : float
-        Minimum octave spacing to enforce. Note that if y
-
-    Notes
-    -----
-    * If you are rounding frequencies to the nearest Hz, then you may need to
-      allow `min_octaves` to be slightly less than the desired octave spacing
-      to account for some small error.
-    * This also checks that the last frequency is an octave from the first
-      frequency.
-    '''
-    check = freqs.copy()
-    # Ensure octave spacing between end of trial and beginning of next trial
-    check += [check[0]]
-    octaves = np.abs(np.diff(np.log2(check)))
-    log.error(str(octaves))
-    return not np.any(octaves < min_octaves)
 
 
 def add_setting(target, setting, averages, iti, key_map):
@@ -123,7 +78,7 @@ def configure_experiment(key_map, event):
     frequencies = {s[freq_name] for s in settings}
 
     if ordering.startswith('interleaved'):
-        int_freq = octave_ordering(frequencies)
+        int_freq = interleave_octaves(frequencies)
         sorters = {
             'interleaved_random': lambda a: (a[freq_name], a[level_name]),
             'interleaved_ramp': lambda a: (int_freq.index(a[freq_name]), a[level_name]),
