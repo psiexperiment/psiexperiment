@@ -352,3 +352,4 @@ enamldef ABRIOSimpleManifest(ABRIOBaseManifest): manifest:
         CFTSSelector:
             label = 'ABR stimuli'
             can_manage = ['target_tone_frequency', 'target_tone_level']
+            user_managed = False

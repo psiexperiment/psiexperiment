@@ -6,7 +6,7 @@ import re
 import textwrap
 
 from atom.api import Typed
-from enaml.core.api import Include, Looper, d_
+from enaml.core.api import Conditional, d_, Include, Looper
 from enaml.drag_drop import DragData, DropAction
 from enaml.layout.api import vbox, hbox, spacer, align
 from enaml.stdlib.fields import FloatField
@@ -266,7 +266,9 @@ enamldef FriendlyCartesianProductItem(Container):
     attr selector
 
     style_class = ''
-    features = Feature.DropEnabled | Feature.DragEnabled
+
+    features << (Feature.DropEnabled | Feature.DragEnabled) \
+        if selector.user_managed else 0x0
 
     drag_start => ():
         data = DragData()
@@ -387,11 +389,21 @@ enamldef FriendlyCartesianProductContainer(Container): container:
 
 
 def friendly_cartesian_product_update_context(selector, event):
+    # Updates context items to mark those that cannot be managed by the
+    # selector (because the information has not been provided in
+    # `context_detail`). These items cannot be roved, and the scope will be set
+    # to "experiment".
     context = event.workbench.get_plugin('psi.context')
     for name, param in context.parameters.items():
         if name not in selector.context_detail:
             param.rove = False
             param.scope = 'experiment'
+
+    # If the selector cannot be user managed, then we hide the already-selected
+    # context items (since it's unecessary clutter).
+    if not selector.user_managed:
+        for item in selector.context_items:
+            item.visible = False
 
 
 enamldef FriendlyCartesianProductManifest(BaseSelectorManifest): manifest:

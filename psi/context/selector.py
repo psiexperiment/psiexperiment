@@ -142,8 +142,10 @@ class BaseSelector(PSIContribution):
     def _default_name(self):
         return 'default'
 
-    # Can the user manage the selector by manually checking items to rove?
-    user_managed = Bool(True)
+    #: Can the user manage the selector by manually selecting items to rove in
+    #: the GUI? If False, the experiment paradigm needs to handle the selection
+    #: of the roving parameters.
+    user_managed = d_(Bool(True))
 
     context_items = Typed(list, [])
 
