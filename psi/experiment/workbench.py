@@ -1,6 +1,8 @@
 import logging
 log = logging.getLogger(__name__)
 
+import tempfile
+
 from atom.api import Value
 
 import enaml
@@ -110,10 +112,15 @@ class PSIWorkbench(Workbench):
 
         controller = self.get_plugin('psi.controller')
 
+        # Configure the path where the data is saved. If `is_temp` is True, the
+        # path will automatically be deleted at the end of the experiment.
         if base_path is not None:
-            controller.register_action('experiment_prepare',
-                                       'psi.data.set_base_path',
-                                       {'base_path': base_path})
+            params = {'base_path': base_path, 'is_temp': False}
+        else:
+            tmp_path = tempfile.mkdtemp()
+            params = {'base_path': tmp_path, 'is_temp': True}
+        controller.register_action('experiment_prepare',
+                                   'psi.data.set_base_path', params)
 
         if calibration_file is not None:
             controller.load_calibration(calibration_file)

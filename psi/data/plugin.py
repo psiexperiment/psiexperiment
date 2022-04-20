@@ -76,10 +76,10 @@ class DataPlugin(PSIPlugin):
         self.workbench.get_extension_point(PLOT_POINT) \
             .unobserve('extensions', self._refresh_plots)
 
-    def set_base_path(self, base_path):
+    def set_base_path(self, base_path, is_temp):
         self.base_path = Path(base_path)
         for sink in self._sinks.values():
-            sink.set_base_path(base_path)
+            sink.set_base_path(base_path, is_temp)
 
     def find_plot_container(self, plot_container_name):
         for container in self._containers:

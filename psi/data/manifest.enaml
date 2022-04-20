@@ -1,8 +1,10 @@
 import logging
 log = logging.getLogger(__name__)
 
+import atexit
 import datetime as dt
-import os
+from pathlib import Path
+import shutil
 
 import enaml
 from enaml.workbench.api import Extension, PluginManifest, ExtensionPoint
@@ -17,11 +19,24 @@ from .sinks.api import ConfigStore
 
 def set_base_path(event):
     base_path = event.parameters['base_path']
+    is_temp = event.parameters['is_temp']
+
     dt_string = dt.datetime.now().strftime('%Y%m%d-%H%M%S')
     base_path = base_path.format(date_time=dt_string)
     data = event.workbench.get_plugin('psi.data')
-    os.makedirs(base_path)
-    data.set_base_path(base_path)
+
+    base_path = Path(base_path)
+
+    # Be sure path exists and is empty.
+    if not base_path.exists():
+        base_path.mkdir()
+    elif len(list(base_path.iterdir())) != 0:
+        raise IOError('Base path exists and it is not empty')
+
+    if is_temp:
+        atexit.register(shutil.rmtree, base_path)
+
+    data.set_base_path(base_path, is_temp)
 
 
 def attach_source(event):

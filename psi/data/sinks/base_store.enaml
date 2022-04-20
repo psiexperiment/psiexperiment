@@ -7,7 +7,7 @@ from pathlib import Path
 import shutil
 import tempfile
 
-from atom.api import Atom, Dict, Float, List, set_default, Str, Typed
+from atom.api import Atom, Bool, Dict, Float, List, set_default, Str, Typed
 from enaml.core.api import d_
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
@@ -50,24 +50,20 @@ class BaseStore(Sink):
     name = set_default('base_store')
 
     base_path = Typed(Path)
+    is_temp = Bool()
     continuous_inputs = d_(List())
     epoch_inputs = d_(List())
     _stores = Dict()
-
-    def _default_base_path(self):
-        # Create a temporary folder. Be sure to delete when the program exits.
-        base_path = tempfile.mkdtemp()
-        atexit.register(shutil.rmtree, base_path)
-        return Path(base_path)
 
     def get_filename(self, name, suffix=''):
         path = (self.base_path / name).with_suffix(suffix)
         log.info('Saving %s to %s', name, path)
         return path
 
-    def set_base_path(self, base_path):
+    def set_base_path(self, base_path, is_temp):
         atexit.register(self.flush)
         self.base_path = Path(base_path)
+        self.is_temp = is_temp
 
     def get_source(self, name):
         raise NotImplementedError
@@ -112,7 +108,8 @@ def prepare(sink, event):
 
 def flush(sink, event):
     sink.flush()
-    return 'Saved data to disk'
+    if not sink.is_temp:
+        return 'Saved data to disk'
 
 
 enamldef BaseStoreManifest(PSIManifest): manifest:
