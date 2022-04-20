@@ -522,7 +522,7 @@ class ControllerPlugin(Plugin):
             if action.match(context, ignore_missing):
                 result = invoke_action(self.core, action, event_name,
                                        timestamp, kw, skip_errors)
-
+                results.append(result)
         return results
 
     def request_apply(self):

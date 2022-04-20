@@ -107,7 +107,7 @@ class ExperimentAction(ExperimentActionBase):
     def invoke(self, core, **kwargs):
         params = self._get_params(**kwargs)
         log.debug('Calling command %s with params %r', self.command, params)
-        core.invoke_command(self.command, parameters=params)
+        return core.invoke_command(self.command, parameters=params)
 
     def __str__(self):
         return f'ExperimentAction: {self.command}'
@@ -120,7 +120,7 @@ class ExperimentCallback(ExperimentActionBase):
 
     def invoke(self, core, **kwargs):
         params = self._get_params(**kwargs)
-        self.callback(**params)
+        return self.callback(**params)
 
     def __str__(self):
         return f'ExperimentCallback: {self.callback}'
