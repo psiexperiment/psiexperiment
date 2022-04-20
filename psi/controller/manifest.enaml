@@ -100,7 +100,8 @@ def stop_experiment(event):
     controller = event.workbench.get_plugin('psi.controller')
     results = set(controller.stop_experiment(skip_errors=True))
     mesg = '\n'.join(r.strip() for r in results if r is not None)
-    deferred_call(information, None, 'Experiment done', mesg)
+    if mesg:
+        deferred_call(information, None, 'Experiment done', mesg)
 
 
 def invoke_actions(event):
