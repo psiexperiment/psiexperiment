@@ -39,8 +39,19 @@ def log_actions(event):
 
 def log_events(event):
     plugin = event.workbench.get_plugin('psi.controller')
-    events = [f' * {e}' for e in sorted(plugin._events)]
-    log_with_header('Available events', events)
+    events = {}
+    max_base = 0
+    for e in sorted(plugin._events):
+        base, extra = e.split('_', 1)
+        max_base = max(len(base), max_base)
+        events.setdefault(base, []).append(extra)
+
+    lines = []
+    for event_base, event_list in events.items():
+        event_list = ','.join(event_list)
+        event_base = event_base.ljust(max_base)
+        lines.append(f" * {event_base}_{{{event_list}}}")
+    log_with_header('Available events', lines)
 
 
 def accumulate_io_tree(plugin):
