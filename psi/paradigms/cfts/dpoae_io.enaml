@@ -14,7 +14,7 @@ from psi.data.plots import (DataFramePlot, FFTContainer, ResultPlot,
                             PlotContainer, ViewBox)
 from psi.experiment.api import StatusItem
 
-from .cfts_mixins import FreqLevelSelector
+from .cfts_mixins import CFTSSelector
 from .dpoae_base import DPOAEManifest
 from .dpoae_mixins import DPOAEThreshold
 
@@ -235,8 +235,6 @@ enamldef DPOAEIOSimpleManifest(DPOAEIOBaseManifest): manifest:
         id = EXPERIMENT_SIMPLE + '.selectors'
         point = 'psi.context.selectors'
 
-        FreqLevelSelector:
+        CFTSSelector:
             name = 'default'
             label = 'DPOAE stimuli'
-            freq_name = 'f2_frequency'
-            level_name = 'f2_level'

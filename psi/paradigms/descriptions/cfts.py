@@ -76,7 +76,7 @@ ParadigmDescription(
 
 
 ParadigmDescription(
-    'dpoae_io', 'DPOAE input-output', 'ear', [
+    'dpoae_io', 'DPOAE (input-output)', 'ear', [
         {'manifest': CFTS_PATH + 'dpoae_io.DPOAEIOSimpleManifest'},
         temperature_mixin,
         microphone_mixin,
@@ -106,6 +106,7 @@ ParadigmDescription(
 ParadigmDescription(
     'inear_speaker_calibration_chirp', 'In-ear speaker calibration (chirp)', 'ear', [
         {'manifest': CAL_PATH + 'speaker_calibration.BaseSpeakerCalibrationManifest'},
+        {'manifest': CAL_PATH + 'calibration_mixins.ChannelSettingMixins'},
         {'manifest': CAL_PATH + 'calibration_mixins.ChirpMixin'},
         {'manifest': CAL_PATH + 'calibration_mixins.ToneValidateMixin'},
     ]
