@@ -1,6 +1,7 @@
 import logging
 log = logging.getLogger(__name__)
 
+from enaml.widgets.api import ProgressBar
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 
@@ -8,11 +9,10 @@ import numpy as np
 
 from psiaudio.queue import InterleavedFIFOSignalQueue
 
-from psi.context.selector import CartesianProduct
-from psi.controller.api import ControllerManifest, ExperimentAction
-from psi.controller.input import ExtractEpochs
+from psi.controller.api import ControllerManifest, ExtractEpochs, ExperimentAction
+from psi.experiment.api import StatusItem
 from psi.token.primitives import Cos2Envelope, Gate, SAMEnvelope, SquareWaveEnvelope, Tone
-from psi.data.sinks.api import TextStore
+from psi.data.sinks.api import EpochCounter, TextStore
 
 from .cfts_mixins import CFTSSelector, EEGInput, PTMicrophoneInput, SpeakerOutput
 
@@ -22,6 +22,8 @@ EXPERIMENT = __name__.rsplit('.', 1)[-1]
 def configure_experiment(event):
     context = event.workbench.get_plugin('psi.context')
     controller = event.workbench.get_plugin('psi.controller')
+    data = event.workbench.get_plugin('psi.data')
+
     output = controller.get_output('target')
     max_level = {}
     for setting in context.iter_settings('default', 1):
@@ -39,6 +41,9 @@ def configure_experiment(event):
     max_sf = max(max_sf.values()) * np.sqrt(2) * 1.01 * 2
     log.info(max_sf)
     output.channel.expected_range = (-max_sf, max_sf)
+
+    counter = data.find_sink('efr_counter')
+    counter.requested_n = output.queue.count_requested_trials()
 
 
 enamldef BaseEFRManifest(ControllerManifest): manifest:
@@ -79,7 +84,7 @@ enamldef BaseEFRManifest(ControllerManifest): manifest:
             queue = InterleavedFIFOSignalQueue()
             auto_decrement = True
             token << workbench.get_plugin('psi.token').get_token(selected_token)
-            queue ::
+            initialized ::
                 self.queue.connect(extract.added_queue.append, 'added')
                 self.queue.connect(extract.removed_queue.append, 'removed')
 
@@ -130,9 +135,33 @@ enamldef BaseEFRManifest(ControllerManifest): manifest:
         id = EXPERIMENT + '.data'
         point = 'psi.data.sinks'
 
+        EpochCounter: counter:
+            name = 'efr_counter'
+            label = 'EFRs acquired'
+            source_name = 'erp'
+
         TextStore:
             name = 'erp_metadata_store'
             epoch_inputs = ['erp']
+
+    Extension:
+        id = EXPERIMENT + '.workspace'
+        point = 'psi.experiment.status'
+        rank = 10
+
+        StatusItem:
+            label = 'Current trial'
+
+            ProgressBar: pb_trial:
+                name = 'dpoae_trial_pb'
+                text_visible = True
+
+        #StatusItem:
+        #    label = 'Trials '
+
+        #    ProgressBar: pb_trials:
+        #        name = 'dpoae_trials_pb'
+        #        text_visible = True
 
 
 enamldef SAMEFRManifest(BaseEFRManifest):
