@@ -68,12 +68,12 @@ class ExperimentActionBase(Declarative):
 
     match = Callable()
 
-    # Defines order of invocation. Less than 100 invokes before default. Higher
-    # than 100 invokes after default. Note that if concurrent is True, then
-    # order of execution is not guaranteed.
+    #: Defines order of invocation. Less than 100 invokes before default. Higher
+    #: than 100 invokes after default. Note that if concurrent is True, then
+    #: order of execution is not guaranteed.
     weight = d_(Int(50))
 
-    # Arguments to pass to command by keyword
+    #: Arguments to pass to command by keyword
     kwargs = d_(Dict())
 
     def _get_params(self, **kwargs):
