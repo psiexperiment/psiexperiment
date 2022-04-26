@@ -193,10 +193,6 @@ enamldef DPOAEManifest(ControllerManifest): manifest:
                 token = tone
 
         PTMicrophoneInput:
-            Blocked:
-                # Duration (in seconds) of snippets to analyze
-                name = 'microphone_blocked'
-                duration = 0.5
 
             Capture:
                 # Begin capturing microphone signal once DPOAE starts. Linked
