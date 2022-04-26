@@ -22,10 +22,10 @@ def save_calibration(channels, filename):
 def fix_legacy(calibration_type, metadata):
     if calibration_type == 'GolayCalibration':
         calibration_type = 'psiaudio.calibration.InterpCalibration'
-        metadata['attrs'] = {
-            'source': metadata.pop('source'),
-            'fs': metadata.pop('fs')
-        }
+        attrs = metadata.setdefault('attrs', {})
+        for key in ('source', 'fs'):
+            if key in metadata:
+                attrs[key] = metadata.pop(key)
     elif calibration_type == 'FlatCalibration':
         calibration_type = 'psiaudio.calibration.FlatCalibration'
     else:
