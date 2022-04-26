@@ -57,7 +57,7 @@ def configure_epoch_input(input, event):
 enamldef InputManifest(PSIManifest): manifest:
 
     Extension:
-        id = manifest.id + '.commands'
+        id = manifest.id + '.input.commands'
         point = 'enaml.workbench.core.commands'
 
         Command:
@@ -87,7 +87,7 @@ def capture_end(input, event):
 enamldef CaptureManifest(InputManifest): manifest:
 
     Extension:
-        id = manifest.id + '.commands'
+        id = manifest.id + '.capture.commands'
         point = 'enaml.workbench.core.commands'
 
         Command:
