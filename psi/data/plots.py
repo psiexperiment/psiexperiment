@@ -694,7 +694,7 @@ class FFTChannelPlot(ChannelPlot):
 
     def update(self, event=None):
         if self._buffer.get_time_ub() >= self.time_span:
-            log.debug('Time span %f to %f', -self.time_span, 0)
+            log.trace('Time span %f to %f', -self.time_span, 0)
             data = self._buffer.get_latest(-self.time_span, 0)
             psd = util.psd(data, self.source.fs, self.window)
             db = self.source.calibration.get_db(self._x, psd)
