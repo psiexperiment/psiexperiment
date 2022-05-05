@@ -49,6 +49,11 @@ class SimpleLauncher(Atom):
     available_calibrations = List()
     available_preferences = List()
 
+    # This is a bit weird, but to set the default value to not be the first
+    # item in the list, you have to call the instance with the value you want
+    # to be default.
+    logging_level = Enum('trace', 'debug', 'info', 'warning', 'error')('info')
+
     def _default_experiment(self):
         return self.experiment_choices[0]
 
@@ -165,6 +170,8 @@ class SimpleLauncher(Atom):
             args.extend(['--calibration', str(self.calibration)])
         for plugin in plugins:
             args.extend(['--plugins', plugin])
+        args.extend(['--debug-level-console', self.logging_level.upper()])
+
         log.info('Launching subprocess: %s', ' '.join(args))
         print(' '.join(args))
         subprocess.check_output(args)

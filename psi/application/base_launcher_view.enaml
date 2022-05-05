@@ -8,8 +8,8 @@ import enaml
 from enaml.core.api import Conditional, Include, Looper
 from enaml.layout.api import vbox
 from enaml.stdlib.message_box import critical
-from enaml.widgets.api import (Action, CheckBox, Container, Field, Form,
-                               GroupBox, HGroup, Label, MainWindow, Menu,
+from enaml.widgets.api import (Action, ActionGroup, CheckBox, Container, Field,
+                               Form, GroupBox, HGroup, Label, MainWindow, Menu,
                                MenuBar, ObjectCombo, PopupView, PushButton,
                                VGroup)
 
@@ -134,6 +134,17 @@ enamldef LauncherView(MainWindow): main:
                 text = 'Set as default\tCtrl+D'
                 triggered ::
                     set_defaults(launcher, launcher.experiment_choices)
+        Menu:
+            title = '&Debug'
+            ActionGroup:
+                Looper:
+                    iterable = launcher.get_member('logging_level').items
+                    Action:
+                        checkable = True
+                        text = loop_item
+                        checked ::
+                            launcher.logging_level = loop_item
+                        checked << launcher.logging_level == loop_item
 
     Container:
 
