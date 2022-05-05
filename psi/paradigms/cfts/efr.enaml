@@ -8,11 +8,14 @@ from enaml.workbench.core.api import Command
 import numpy as np
 
 from psiaudio.queue import InterleavedFIFOSignalQueue
+from psiaudio import util
 
-from psi.controller.api import ControllerManifest, ExtractEpochs, ExperimentAction
+from psi.controller.api import (ControllerManifest, Coroutine, coroutine,
+                                ExtractEpochs, ExperimentAction, Input)
 from psi.experiment.api import StatusItem
 from psi.token.primitives import Cos2Envelope, Gate, SAMEnvelope, SquareWaveEnvelope, Tone
 from psi.data.sinks.api import EpochCounter, TextStore
+from psi.data.api import FFTContainer, GroupedEpochFFTPlot, ViewBox
 
 from .cfts_mixins import CFTSSelector, EEGInput, PTMicrophoneInput, SpeakerOutput
 
@@ -44,6 +47,25 @@ def configure_experiment(event):
 
     counter = data.find_sink('efr_counter')
     counter.requested_n = output.queue.count_requested_trials()
+
+
+@coroutine
+def analyze_eeg(token, fs, target):
+    if token == 'sam_tone':
+        harmonics = np.arange(1, 2)
+    elif token == 'ram_tone':
+        harmonics = np.arange(1, 7)
+    else:
+        raise ValueError(f'Unrecognized token type "{token}"')
+
+    while True:
+        for epoch in (yield):
+            averages = int(round(epoch['info']['duration'] / 100e-3))
+            signal = epoch['signal'].reshape((averages, -1))
+            psd = util.db(util.psd_df(signal, fs)).mean(axis=0)
+            md = epoch['info']['metadata'].copy()
+            frequencies = md['target_mod_fm'] * harmonics
+            log.error(psd.loc[frequencies])
 
 
 enamldef BaseEFRManifest(ControllerManifest): manifest:
@@ -92,6 +114,9 @@ enamldef BaseEFRManifest(ControllerManifest): manifest:
             ExtractEpochs: extract:
                 epoch_size = getattr(C, f'target_{selected_token}_duration')
                 name = 'erp'
+                Coroutine:
+                    args = (selected_token, self.fs,)
+                    coroutine = analyze_eeg
 
     Extension:
         id = EXPERIMENT + '.selectors'
@@ -149,19 +174,27 @@ enamldef BaseEFRManifest(ControllerManifest): manifest:
         point = 'psi.experiment.status'
         rank = 10
 
-        StatusItem:
-            label = 'Current trial'
+    Extension:
+        id = EXPERIMENT + '.plots'
+        point = 'psi.data.plots'
 
-            ProgressBar: pb_trial:
-                name = 'dpoae_trial_pb'
-                text_visible = True
+        FFTContainer: fft_container:
+            label = 'EEG FFT'
+            name = 'eeg_fft_container'
 
-        #StatusItem:
-        #    label = 'Trials '
+            ViewBox:
+                name = 'eeg_fft_viewbox'
 
-        #    ProgressBar: pb_trials:
-        #        name = 'dpoae_trials_pb'
-        #        text_visible = True
+                GroupedEpochFFTPlot:
+                    name = 'eeg_fft_plot'
+                    source_name = 'erp'
+                    tab_grouping = ['target_tone_frequency', 'target_tone_level']
+                    waveform_averages << int(duration / 100e-3)
+
+                    # TODO: This is pretty hackish ...
+                    tab_keys >> fft_container.buttons
+                    selected_tab := fft_container.current_button
+                    auto_select := fft_container.auto_select
 
 
 enamldef SAMEFRManifest(BaseEFRManifest):
