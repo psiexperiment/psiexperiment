@@ -170,31 +170,6 @@ class ChannelDataRange(BaseDataRange):
         self.current_time = max(self.current_times.values())
 
 
-def create_container(children, x_axis=None):
-    log.debug('Creating graphics layout')
-    container = pg.GraphicsLayout()
-    container.setSpacing(10)
-
-    # Add the x and y axes to the layout, along with the viewbox.
-    for i, child in enumerate(children):
-        log.debug('... child %d with viewbox %r', i, child.viewbox)
-        container.addItem(child.y_axis, i, 0)
-        container.addItem(child.viewbox, i, 1)
-        try:
-            container.addItem(child.viewbox_norm, i, 1)
-        except AttributeError:
-            pass
-
-    if x_axis is not None:
-        container.addItem(x_axis, i+1, 1)
-
-    # Link the child viewboxes together
-    for child in children[1:]:
-        child.viewbox.setXLink(children[0].viewbox)
-
-    return container
-
-
 ################################################################################
 # Containers (defines a shared set of containers across axes)
 ################################################################################
@@ -239,6 +214,9 @@ class BasePlotContainer(PSIContribution):
             container.addItem(child.y_axis, i, 0)
             container.addItem(child.viewbox, i, 1)
             try:
+                # This raises an "already taken" QGridLayoutEngine error. The
+                # obvious explanation is because the current viewbox also
+                # occupies this cell.
                 container.addItem(child.viewbox_norm, i, 1)
             except AttributeError:
                 pass

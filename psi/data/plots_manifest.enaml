@@ -146,13 +146,6 @@ enamldef BasePlotManifest(PSIManifest): manifest:
             kwargs = {'obj': manifest.contribution}
             weight = 15
 
-        ExperimentAction:
-            # This final update ensures that we always plot new data (otherwise
-            # sometimes the final segment doesn't get plotted due to thread
-            # race conditions).
-            event = 'experiment_end'
-            command = manifest.contribution.name + '_update'
-
 
 enamldef DataFramePlotManifest(PSIManifest): manifest:
     # This overrides attempts to load the BasePlotManifest
