@@ -47,10 +47,6 @@ def attach_source(event):
     obj.source = controller.get_input(source_name)
 
 
-def format_container(event):
-    event.parameters['obj'].format_container()
-
-
 def log_sinks(event):
     plugin = event.workbench.get_plugin('psi.data')
     sink_names = ', '.join(plugin._sinks.keys())
@@ -77,9 +73,6 @@ enamldef DataManifest(PluginManifest): manifest:
         Command:
             id = manifest.id + '.attach_source'
             handler = attach_source
-        Command:
-            id = manifest.id + '.format_container'
-            handler = format_container
         Command:
             id = manifest.id + '.log_sinks'
             handler = log_sinks

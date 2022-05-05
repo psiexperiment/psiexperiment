@@ -279,9 +279,6 @@ class BasePlotContainer(PSIContribution):
             if child.name == name:
                 return child
 
-    def format_container(self):
-        pass
-
     def _reset_plots(self):
         pass
 
@@ -319,7 +316,7 @@ class BaseTimeContainer(BasePlotContainer):
 
     def _default_x_axis(self):
         x_axis = super()._default_x_axis()
-        x_axis.setLabel('Time', unitPrefix='sec.')
+        x_axis.setLabel('Time', units='s')
         return x_axis
 
     def update(self, event=None):
@@ -396,7 +393,7 @@ class FFTContainer(BasePlotContainer):
 
     def _default_x_axis(self):
         x_axis = super()._default_x_axis()
-        x_axis.setLabel('Frequency (kHz)')
+        x_axis.setLabel('Frequency', units='Hz')
         x_axis.logTickStrings = format_log_ticks
         x_axis.setLogMode(True)
         return x_axis
@@ -412,7 +409,6 @@ class ViewBox(PSIContribution):
 
     viewbox = Typed(pg.ViewBox)
     viewbox_norm = Typed(pg.ViewBox)
-
     y_axis = Typed(pg.AxisItem)
 
     y_min = d_(Float(0))
@@ -1046,6 +1042,8 @@ class GroupedEpochAveragePlot(EpochGroupMixin, BasePlot):
 
 class GroupedEpochFFTPlot(EpochGroupMixin, BasePlot):
 
+    waveform_averages = d_(Int(1))
+
     def _default_name(self):
         return self.source_name + '_grouped_epoch_fft_plot'
 
@@ -1053,11 +1051,12 @@ class GroupedEpochFFTPlot(EpochGroupMixin, BasePlot):
         # Cache the frequency points. Must be in units of log for PyQtGraph.
         # TODO: This could be a utility function stored in the parent?
         if self.source.fs and self.duration:
-            self._x = get_x_fft(self.source.fs, self.duration)
+            self._x = get_x_fft(self.source.fs, self.duration / self.waveform_averages)
 
     def _y(self, epoch):
         y = np.mean(epoch, axis=0) if epoch else np.full_like(self._x, np.nan)
-        return self.source.calibration.get_db(self._x, util.psd(y, self.source.fs))
+        psd = util.psd(y, self.source.fs, waveform_averages=self.waveform_averages)
+        return self.source.calibration.get_db(self._x, psd)
 
 
 class GroupedEpochPhasePlot(EpochGroupMixin, BasePlot):

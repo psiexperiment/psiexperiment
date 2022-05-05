@@ -39,23 +39,40 @@ class PGCanvas(RawWidget):
         self.view.setCentralItem(event['value'])
 
 
-def update_plot(plot, event):
-    try:
-        plot.update()
-    except Exception as e:
-        log.debug('The following exception was discarded')
-        log.exception(e)
+enamldef PlotGroupSelectButtons(Container):
+
+    attr contribution
+
+    StyleSheet:
+        Style:
+            style_class = 'current'
+            Setter:
+                field = 'font-weight'
+                value = 'bold'
+
+    HGroup:
+        spacing = 0
+        padding = 0
+
+        Conditional:
+            condition << contribution.allow_auto_select
+            PushButton:
+                text = 'Auto select'
+                style_class << 'current' if contribution.auto_select else ''
+                clicked ::
+                    contribution.auto_select = True
+
+        Looper:
+            iterable << contribution.buttons[:]
+            PushButton: pb:
+                text = contribution.fmt_button(loop_item)
+                style_class << 'current' if contribution.current_button == loop_item else ''
+                clicked ::
+                    contribution.auto_select = False
+                    contribution.current_button = loop_item
 
 
 enamldef BasePlotContainerManifest(PSIManifest): manifest:
-
-    Extension:
-        id = manifest.id + '.actions'
-        point = 'psi.controller.actions'
-        ExperimentAction:
-            event = 'context_initialized'
-            command = 'psi.data.format_container'
-            kwargs = {'obj': manifest.contribution}
 
     Extension:
         id = manifest.id + 'workspace'
@@ -66,40 +83,14 @@ enamldef BasePlotContainerManifest(PSIManifest): manifest:
             title << manifest.contribution.label
             closable = False
 
-            StyleSheet:
-                Style:
-                    style_class = 'current'
-                    Setter:
-                        field = 'font-weight'
-                        value = 'bold'
-
             Container:
                 Conditional:
                     condition << bool(manifest.contribution.buttons)
-                    HGroup:
-                        spacing = 0
-                        padding = 0
-                        Conditional:
-                            condition << manifest.contribution.allow_auto_select
-                            PushButton:
-                                text = 'Auto select'
-                                style_class << 'current' if manifest.contribution.auto_select else ''
-                                clicked ::
-                                    manifest.contribution.auto_select = True
-
-                        Looper:
-                            iterable << manifest.contribution.buttons[:]
-                            PushButton: pb:
-                                text = manifest.contribution.fmt_button(loop_item)
-                                style_class << 'current' if manifest.contribution.current_button == loop_item else ''
-                                clicked ::
-                                    manifest.contribution.auto_select = False
-                                    manifest.contribution.current_button = loop_item
-
-                Container:
-                    PGCanvas: canvas:
-                        name << manifest.contribution.name + '_canvas'
-                        component << manifest.contribution.container
+                    PlotGroupSelectButtons:
+                        contribution << manifest.contribution
+                PGCanvas: canvas:
+                    name << manifest.contribution.name + '_canvas'
+                    component << manifest.contribution.container
 
 
 enamldef TimeseriesPlotManifest(PSIManifest): manifest:
@@ -144,14 +135,6 @@ enamldef EventPlotManifest(PSIManifest): manifest:
 
 
 enamldef BasePlotManifest(PSIManifest): manifest:
-
-    Extension:
-        id = manifest.id + '.commands'
-        point = 'enaml.workbench.core.commands'
-
-        Command:
-            id = manifest.contribution.name + '_update'
-            handler = partial(update_plot, manifest.contribution)
 
     Extension:
         id = manifest.id + '.actions'
