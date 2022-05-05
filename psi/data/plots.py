@@ -977,23 +977,18 @@ class EpochGroupMixin(GroupMixin):
         for pk in self.plot_keys:
             plot = self.get_plot(pk)
             key = (self.selected_tab, pk)
-            try:
-                last_n = self._data_updated[key]
-                current_n = self._data_count[key]
-                needs_update = current_n >= (last_n + self.n_update)
-                if tab_changed or needs_update:
-                    data = self._data_cache[key]
-                    self._data_updated[key] = len(data)
-                    if data:
-                        x = self._x
-                        y = self._y(data)
-                    else:
-                        x = y = np.array([])
-                    if x.shape == y.shape:
-                        todo.append((plot.setData, x, y))
-            except KeyError:
-                if tab_changed:
+            last_n = self._data_updated[key]
+            current_n = self._data_count[key]
+            needs_update = current_n >= (last_n + self.n_update)
+            if tab_changed or needs_update:
+                data = self._data_cache[key]
+                self._data_updated[key] = len(data)
+                if data:
+                    x = self._x
+                    y = self._y(data)
+                else:
                     x = y = np.array([])
+                if x.shape == y.shape:
                     todo.append((plot.setData, x, y))
 
         def update():
