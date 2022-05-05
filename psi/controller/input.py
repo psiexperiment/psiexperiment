@@ -4,7 +4,7 @@ log = logging.getLogger(__name__)
 
 from collections import deque
 from functools import partial
-from queue import Empty, Queue
+#from queue import Empty, Queue
 
 import numpy as np
 from scipy import signal
@@ -441,17 +441,18 @@ def capture(fs, queue, target):
             # We've recieved a new command. The command will either be None
             # (i.e., no more acquisition for a bit) or a floating-point value
             # (indicating when next acquisition should begin).
-            t_start = queue.get(block=False)
-            if t_start is not None:
-                log.debug('Starting capture at %f', t_start)
+            info = queue.popleft()
+            if info is not None:
+                t_start = info['t0']
                 s_next = round(t_start * fs)
                 target(Ellipsis)
-            elif t_start is None:
+                log.error('Starting capture at %f', t_start)
+            elif info is None:
                 log.debug('Ending capture')
                 s_next = None
-            elif t_start < t0:
-                raise SystemError('Data lost')
-        except Empty:
+            else:
+                raise ValueError('Unsupported queue input %r', info)
+        except IndexError:
             pass
 
         if (s_next is not None) and (s_next >= s0):
@@ -466,10 +467,16 @@ def capture(fs, queue, target):
 
 
 class Capture(ContinuousInput):
-    queue = Typed(Queue)
+
+    #: This is used internally by the CaptureManifest to notify Capture that
+    #: new trials have been enqueued.
+    queue = Typed(deque, ())
+
+    #: The event that indicates beginning of capture. If left blank, the
+    #: programmer is responsible for explicitly hooking up the event.
+    start_event = d_(Str())
 
     def configure_callback(self):
-        self.queue = Queue()
         cb = super().configure_callback()
         return capture(self.fs, self.queue, cb).send
 

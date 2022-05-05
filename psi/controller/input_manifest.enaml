@@ -1,8 +1,6 @@
 import logging
 log = logging.getLogger(__name__)
-
-from functools import partial
-
+from functools import partial 
 import numpy as np
 
 from atom.api import Property
@@ -76,14 +74,6 @@ enamldef InputManifest(PSIManifest): manifest:
             command = manifest.contribution.name + '.prepare_event_callback'
 
 
-def capture_start(input, event):
-    input.queue.put(event.parameters['timestamp'])
-
-
-def capture_end(input, event):
-    input.queue.put(None)
-
-
 enamldef CaptureManifest(InputManifest): manifest:
 
     Extension:
@@ -92,11 +82,22 @@ enamldef CaptureManifest(InputManifest): manifest:
 
         Command:
             id = manifest.contribution.name + '.start'
-            handler = partial(capture_start, manifest.contribution)
+            handler = lambda e: manifest.contribution.queue.append({'t0': e.parameters['timestamp']})
 
         Command:
             id = manifest.contribution.name + '.end'
-            handler = partial(capture_end, manifest.contribution)
+            handler = lambda e: manifest.contribution.queue.append(None)
+
+    Conditional:
+        condition << bool(manifest.contribution.start_event)
+
+        Extension:
+            id = manifest.id + '.capture.actions'
+
+            # Start acquiring data when the event is triggered.
+            ExperimentAction:
+                event = manifest.contribution.start_event
+                command = manifest.contribution.name + '.start'
 
 
 enamldef ExtractEpochsManifest(InputManifest): manifest:
