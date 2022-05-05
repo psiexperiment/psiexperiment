@@ -395,7 +395,7 @@ class ViewBox(PSIContribution):
     y_mode = d_(Enum('mouse', 'fixed'))
 
     data_range = Property()
-    save_limits = d_(Bool(False))
+    save_limits = d_(Bool(True))
 
     @observe('y_min', 'y_max')
     def _update_limits(self, event=None):
