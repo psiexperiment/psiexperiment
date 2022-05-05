@@ -5,10 +5,11 @@ from .channel import (Channel, HardwareAIChannel, HardwareAOChannel,
 from .engine import Engine
 
 from .input import (Input, ContinuousInput, EventInput, EpochInput, Callback,
-                    CalibratedInput, RMS, SPL, IIRFilter, Blocked, Accumulate,
-                    Capture, Downsample, Decimate, Discard, Threshold, Average,
-                    Delay, Transform, Edges, ExtractEpochs, RejectEpochs,
-                    Detrend, concatenate, coroutine, extract_epochs)
+                    CalibratedInput, Coroutine, RMS, SPL, IIRFilter, Blocked,
+                    Accumulate, Capture, Downsample, Decimate, Discard,
+                    Threshold, Average, Delay, Transform, Edges, ExtractEpochs,
+                    RejectEpochs, Detrend, concatenate, coroutine,
+                    extract_epochs)
 
 from .output import (Synchronized, ContinuousOutput, EpochOutput,
                      QueuedEpochOutput, SelectorQueuedEpochOutput,

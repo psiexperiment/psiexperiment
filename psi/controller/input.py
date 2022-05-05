@@ -10,7 +10,7 @@ import numpy as np
 from scipy import signal
 
 from atom.api import (Str, Float, Typed, Int, Property, Enum, Bool,
-                      Callable, List)
+                      Callable, List, Tuple, set_default)
 from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
 
@@ -642,6 +642,16 @@ class Transform(ContinuousInput):
     def configure_callback(self):
         cb = super().configure_callback()
         return transform(self.function, cb).send
+
+
+class Coroutine(Input):
+    coroutine = d_(Callable())
+    args = d_(Tuple())
+    force_active = set_default(True)
+
+    def configure_callback(self):
+        cb = super().configure_callback()
+        return self.coroutine(*self.args, cb).send
 
 
 ################################################################################
