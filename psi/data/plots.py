@@ -184,6 +184,7 @@ class BasePlotContainer(PSIContribution):
     x_transform = Callable()
 
     buttons = d_(List())
+    max_buttons = d_(Int(8))
     current_button = d_(Value())
     allow_auto_select = d_(Bool(True))
     auto_select = d_(Bool(True))

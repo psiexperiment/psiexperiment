@@ -6,9 +6,9 @@ from functools import partial
 from atom.api import Typed, set_default
 from enaml.application import deferred_call
 from enaml.core.api import Conditional, Include, d_, Looper
-from enaml.styling import StyleSheet, Style, Setter
+from enaml.layout.api import spacer
 from enaml.widgets.api import (ButtonGroup, CheckBox, Container, DockItem, Field, Form,
-                               HGroup, Label, Notebook, Page, PushButton,
+                               HGroup, Label, ObjectCombo, PushButton,
                                RawWidget)
 from enaml.workbench.api import Extension, Workbench
 from enaml.workbench.core.api import Command
@@ -43,33 +43,37 @@ enamldef PlotGroupSelectButtons(Container):
 
     attr contribution
 
-    StyleSheet:
-        Style:
-            style_class = 'current'
-            Setter:
-                field = 'font-weight'
-                value = 'bold'
-
     HGroup:
         spacing = 0
         padding = 0
+        align_widths = False
+        trailing_spacer = spacer(0)
 
         Conditional:
             condition << contribution.allow_auto_select
             PushButton:
                 text = 'Auto select'
-                style_class << 'current' if contribution.auto_select else ''
-                clicked ::
-                    contribution.auto_select = True
+                checkable = True
+                checked := contribution.auto_select
 
-        Looper:
-            iterable << contribution.buttons[:]
-            PushButton: pb:
-                text = contribution.fmt_button(loop_item)
-                style_class << 'current' if contribution.current_button == loop_item else ''
-                clicked ::
-                    contribution.auto_select = False
-                    contribution.current_button = loop_item
+        Conditional:
+            condition << len(contribution.buttons) <= contribution.max_buttons
+            Looper:
+                iterable << contribution.buttons[:]
+                PushButton: pb:
+                    checkable = True
+                    checked << contribution.current_button == loop_item
+                    text = contribution.fmt_button(loop_item)
+                    clicked ::
+                        contribution.auto_select = False
+                        contribution.current_button = loop_item
+
+        Conditional:
+            condition << len(contribution.buttons) > contribution.max_buttons
+            ObjectCombo: oc:
+                selected := contribution.current_button
+                to_string = contribution.fmt_button
+                items << contribution.buttons[:]
 
 
 enamldef BasePlotContainerManifest(PSIManifest): manifest:
@@ -162,6 +166,8 @@ def set_group_keys(container, event):
     if container.plot_grouping:
         log.debug(container.plot_grouping)
         container.plot_keys = sorted(context.unique_values(list(container.plot_grouping)))
+    else:
+        container.plot_keys = [()]
     log.debug('Found tab keys %r', container.tab_keys)
     log.debug('Found plot keys %r', container.plot_keys)
 
