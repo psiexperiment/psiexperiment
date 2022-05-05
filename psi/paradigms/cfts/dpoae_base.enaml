@@ -198,6 +198,7 @@ enamldef DPOAEManifest(ControllerManifest): manifest:
                 # Begin capturing microphone signal once DPOAE starts. Linked
                 # using an ExperimentAction.
                 name = 'dpoae_capture'
+                start_event = 'dpoae_start'
 
                 Discard:
                     # Discard the onset portion of the DPOAE
@@ -388,8 +389,3 @@ enamldef DPOAEManifest(ControllerManifest): manifest:
             event = 'engines_configured'
             command = 'dpoae.start'
             kwargs = {'delay': 0.5}
-
-        # Start acquiring microphone data when the DPOAE begins.
-        ExperimentAction:
-            event = 'dpoae_start'
-            command = 'dpoae_capture.start'

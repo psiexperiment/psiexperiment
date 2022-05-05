@@ -93,6 +93,7 @@ enamldef CaptureManifest(InputManifest): manifest:
 
         Extension:
             id = manifest.id + '.capture.actions'
+            point = 'psi.controller.actions'
 
             # Start acquiring data when the event is triggered.
             ExperimentAction:
