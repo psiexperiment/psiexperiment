@@ -784,11 +784,6 @@ enamldef ToggleManifest(PSIManifest): manifest:
 ################################################################################
 # TriggerManifest
 ################################################################################
-def fire(event, output):
-    duration = event.parameters['duration']
-    output.fire(duration)
-
-
 enamldef TriggerManifest(PSIManifest): manifest:
 
     Extension:
@@ -796,4 +791,5 @@ enamldef TriggerManifest(PSIManifest): manifest:
         point = 'enaml.workbench.core.commands'
         Command:
             id = f'{manifest.contribution.name}.fire'
-            handler = partial(fire, output=manifest.contribution)
+            handler = lambda e: \
+                manifest.contribution.fire(e.parameters.get('duration'))

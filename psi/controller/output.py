@@ -344,9 +344,16 @@ class DigitalOutput(BaseOutput):
 
 class Trigger(DigitalOutput):
 
+    #: Total number of triggers.
     total_fired = d_(Int(0), writable=False)
 
-    def fire(self, duration):
+    #: Specifies the default duration for the trigger. This can be overridden
+    #: by specifying a duration when calling `fire`.
+    duration = d_(Float(0.1))
+
+    def fire(self, duration=None):
+        if duration is None:
+            duration = self.duration
         if self.engine.configured:
             self.engine.fire_sw_do(self.channel.name, duration=duration)
             self.total_fired += 1
