@@ -93,6 +93,11 @@ class PSIWorkbench(Workbench):
 
         ui = self.get_plugin('enaml.workbench.ui')
         core = self.get_plugin('enaml.workbench.core')
+        controller = self.get_plugin('psi.controller')
+
+        ui.select_workspace(workspace)
+        ui.show_window()
+
         commands = [] if commands is None else [(c,) for c in commands]
 
         # Load preferences
@@ -110,7 +115,6 @@ class PSIWorkbench(Workbench):
         for command in commands:
             deferred_call(core.invoke_command, *command)
 
-        controller = self.get_plugin('psi.controller')
 
         # Configure the path where the data is saved. If `is_temp` is True, the
         # path will automatically be deleted at the end of the experiment.
@@ -126,8 +130,6 @@ class PSIWorkbench(Workbench):
             controller.load_calibration(calibration_file)
 
         # Now, open workspace
-        ui.select_workspace(workspace)
-        ui.show_window()
         if base_path is None:
             ui.workspace.dock_area.style = 'error'
         ui.start_application()

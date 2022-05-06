@@ -22,18 +22,10 @@ STATUS_POINT = 'psi.experiment.status'
 PREFERENCES_POINT = 'psi.experiment.preferences'
 
 
-# TODO: There's a bizzare bug in the warnings system that causes the global
-# namespace for the module invoking the validator to be cleared.
-DockLayoutValidator.warn = lambda *args, **kw: None
-
-
 class MissingDockLayoutValidator(DockLayoutValidator):
 
     def result(self, node):
         return self._available - self._seen_items
-
-    def warn(self, message):
-        return
 
 
 class ExperimentPlugin(PSIPlugin):
@@ -58,10 +50,14 @@ class ExperimentPlugin(PSIPlugin):
         ui = self.workbench.get_plugin('enaml.workbench.ui')
         items = self.load_plugins(WORKSPACE_POINT, DockItem, 'name',
                                   plugin=self)
+
+        ops = []
         for item in items.values():
+            log.error(f'Inserting item {item}')
             item.set_parent(ui.workspace.dock_area)
-            op = InsertItem(item=item.name)
-            ui.workspace.dock_area.update_layout(op)
+            ops.append(InsertItem(item=item.name))
+
+        deferred_call(ui.workspace.dock_area.update_layout, ops)
         self._workspace_contributions = items
 
     def _refresh_toolbars(self, event=None):
@@ -133,7 +129,7 @@ class ExperimentPlugin(PSIPlugin):
                 'dock_layout': ui.workspace.dock_area.save_layout()}
 
     def set_layout(self, layout):
-        log.debug('Setting layout')
+        log.warning('Setting layout')
         ui = self.workbench.get_plugin('enaml.workbench.ui')
         try:
             ui._window.set_geometry(layout['geometry'])
@@ -147,11 +143,12 @@ class ExperimentPlugin(PSIPlugin):
 
         available = [i.name for i in ui.workspace.dock_area.dock_items()]
         missing = MissingDockLayoutValidator(available)(layout['dock_layout'])
+        ops = []
         for item in missing:
             log.debug('{} missing from saved dock layout'.format(item))
-            op = InsertItem(item=item)
-            deferred_call(ui.workspace.dock_area.update_layout, op)
+            ops.append(InsertItem(item=item))
         ui.workspace.dock_area.layout = layout['dock_layout']
+        deferred_call(ui.workspace.dock_area.update_layout, ops)
 
     def _bind_observers(self):
         self.workbench.get_extension_point(PREFERENCES_POINT) \

@@ -16,7 +16,6 @@ class ExperimentWorkspace(Workspace):
         self.content = Container()
         self.dock_area = DockArea(name='dock_area')
         self.dock_area.set_parent(self.content)
-        log.debug('Starting experiment workspace')
         deferred_call(self.plugins_started)
 
     def plugins_started(self):
