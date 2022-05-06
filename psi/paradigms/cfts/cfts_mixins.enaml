@@ -12,7 +12,8 @@ from psi.controller.calibration.api import ToneCalibrate
 from psi.core.enaml.api import ExperimentManifest
 from psi.data.sinks.api import DisplayValue, BinaryStore
 
-from ..core.io_mixins import ChannelInput, ChannelInputManifest, ChannelOutput
+from ..core.io_mixins import ChannelInput, ChannelInputManifest, \
+    QueuedEpochChannelOutput
 
 
 ################################################################################
@@ -109,12 +110,17 @@ enamldef TemperatureMixinManifest(ExperimentManifest): manifest:
 ################################################################################
 # Hardware mixins
 ################################################################################
-enamldef PTMicrophoneInput(InputChannel):
-    name = 'pt'
+enamldef SpeakerOutput(QueuedEpochChannelOutput):
+    name = 'target'
+    label = 'Target'
+
+
+enamldef PTMicrophoneInput(ChannelInput):
+    name = 'microphone'
     label = 'Probe tube mic.'
 
 
-enamldef EEGInput(InputChannel):
+enamldef EEGInput(ChannelInput):
     name = 'eeg'
     label = 'EEG'
     show_gain_setting = False
@@ -129,10 +135,10 @@ enamldef EEGInput(InputChannel):
         f_lowpass = C.digital_lowpass
 
 
-enamldef EEGInputManifest(InputChannelManifest): manifest:
+enamldef EEGInputManifest(ChannelInputManifest): manifest:
 
     Extension:
-        id = manifest.id + '.context'
+        id = manifest.id + '.eeg.context'
         point = 'psi.context.items'
 
         Parameter:
