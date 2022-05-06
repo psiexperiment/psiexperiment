@@ -1,0 +1,93 @@
+from enaml.core.api import Conditional
+from enaml.workbench.api import Extension
+
+from psi.controller.api import (EpochOutput, EpochOutputManifest,
+                                get_hw_ai_choices, get_hw_ao_choices,
+                                ContinuousInput, QueuedEpochOutput,
+                                QueuedEpochOutputManifest)
+from psi.core.enaml.api import PSIManifest
+from psi.context.api import ContextGroup, EnumParameter, Parameter
+
+
+enamldef OutputChannelExtension(Extension):
+
+    attr manifest
+    id = manifest.id + '.context'
+    point = 'psi.context.items'
+
+    ContextGroup:
+        name = 'hardware_settings'
+        label = 'Hardware'
+
+        EnumParameter:
+            name = f'{contribution.name}_output_channel'
+            label = f'{contribution.label} output channel'
+            compact_label = 'ao'
+            choices = get_hw_ao_choices(workbench)
+            selected = next(iter(get_hw_ao_choices(workbench)))
+            scope = 'experiment'
+
+
+enamldef EpochChannelOutput(EpochOutput):
+
+    name = 'output'
+    label = 'Output'
+    configurable = False
+    target_name = getattr(C, f'{name}_output_channel')
+
+
+enamldef EpochChannelOutputManifest(EpochOutputManifest): manifest:
+
+    OutputChannelExtension:
+        manifest = manifest
+
+
+enamldef QueuedEpochChannelOutput(QueuedEpochOutput):
+
+    name = 'output'
+    label = 'Output'
+    configurable = False
+    target_name = getattr(C, f'{name}_output_channel')
+
+
+enamldef QueuedEpochChannelOutputManifest(QueuedEpochOutputManifest): manifest:
+
+    OutputChannelExtension:
+        manifest = manifest
+
+
+enamldef ChannelInput(ContinuousInput):
+
+    attr show_gain_setting = True
+    name = 'input'
+    label = 'Input'
+
+    source_name = getattr(C, f'{name}_channel')
+    source ::
+        channel.gain = getattr(C, f'{name}_input_gain')
+
+
+enamldef ChannelInputManifest(PSIManifest): manifest:
+
+    Extension:
+        id = manifest.id + '.context'
+        point = 'psi.context.items'
+
+        EnumParameter:
+            name = f'{manifest.contribution.name}_channel'
+            label = f'{manifest.contribution.label} channel'
+            choices = get_hw_ai_choices(workbench)
+            selected = next(iter(get_hw_ai_choices(workbench)))
+            scope = 'experiment'
+            group_name = 'hardware_settings'
+
+        Conditional:
+            condition << manifest.contribution.show_gain_setting
+
+            Parameter:
+                name = f'{manifest.contribution.name}_input_gain'
+                label = f'{manifest.contribution.label} input gain (dB)'
+                dtype = 'float64'
+                default = 40
+                scope = 'experiment'
+                group_name = 'hardware_settings'

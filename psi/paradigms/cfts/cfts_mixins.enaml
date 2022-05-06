@@ -1,40 +1,18 @@
 import logging
 log = logging.getLogger(__name__)
 
-from functools import partial
-import textwrap
-
-import numpy as np
-import pandas as pd
-
-from atom.api import Enum, Float, Property, Str
-
-from enaml.application import deferred_call
-from enaml.core.api import Conditional, d_
-from enaml.workbench.core.api import Command
-from enaml.layout.api import vbox
-from enaml.stdlib.fields import FloatField
-from enaml.widgets.api import Container, DockItem, HGroup, Label, ObjectCombo
 from enaml.workbench.api import Extension
 
-from psiaudio.calibration import InterpCalibration, PointCalibration
 from psiaudio.util import octave_space
 
-from psi.context.api import (BaseSelector, BoolParameter, ContextGroup,
-                             EnumParameter, FriendlyCartesianProduct,
-                             Parameter)
-from psi.controller.api import (get_hw_ai_choices, get_hw_ao_choices,
-                                ContinuousInput, Detrend, Downsample,
-                                EpochOutput, ExperimentAction, ExtractEpochs,
-                                IIRFilter, Input, QueuedEpochOutput,
-                                QueuedEpochOutputManifest, RejectEpochs)
-from psi.controller.calibration.api import (chirp_sens, ChirpCalibrate,
-                                            ToneCalibrate, tone_sens)
-from psi.core.enaml.api import DataFrameTable, ExperimentManifest, PSIManifest
-from psi.data.plots import (ChannelPlot, TimeContainer, ViewBox)
-from psi.data.sinks.api import DisplayValue, TextStore, ZarrStore
-from psi.token.api import BandlimitedNoise, Cos2Envelope, Gate, SquareWave
+from psi.context.api import (BoolParameter, ContextGroup,
+                             FriendlyCartesianProduct, Parameter)
+from psi.controller.api import Downsample, IIRFilter
+from psi.controller.calibration.api import ToneCalibrate
+from psi.core.enaml.api import ExperimentManifest
+from psi.data.sinks.api import DisplayValue, BinaryStore
 
+from ..core.io_mixins import ChannelInput, ChannelInputManifest, ChannelOutput
 
 
 ################################################################################
@@ -103,7 +81,7 @@ enamldef TemperatureMixinManifest(ExperimentManifest): manifest:
         id = 'temperature_data'
         point = 'psi.data.sinks'
 
-        ZarrStore:
+        BinaryStore:
             name = 'temperature_store'
             continuous_inputs = ['temperature']
 
@@ -131,66 +109,15 @@ enamldef TemperatureMixinManifest(ExperimentManifest): manifest:
 ################################################################################
 # Hardware mixins
 ################################################################################
-enamldef SpeakerOutput(QueuedEpochOutput):
-
-    name = 'target'
-    label = 'Target'
-    configurable = False
-    target_name = C.target_output_channel
+enamldef PTMicrophoneInput(InputChannel):
+    name = 'pt'
+    label = 'Probe tube mic.'
 
 
-enamldef SpeakerOutputManifest(QueuedEpochOutputManifest): manifest:
-
-    Extension:
-        id = manifest.id + '.context'
-        point = 'psi.context.items'
-
-        ContextGroup:
-            name = 'hardware_settings'
-            label = 'Hardware'
-
-            EnumParameter:
-                name = f'{contribution.name}_output_channel'
-                label = f'{contribution.label} output channel'
-                compact_label = 'ao'
-                choices = get_hw_ao_choices(workbench)
-                selected = next(iter(get_hw_ao_choices(workbench)))
-                scope = 'experiment'
-
-
-enamldef PTMicrophoneInput(ContinuousInput):
-    name = 'microphone'
-    source_name << C.pt_channel
-    source ::
-        channel.gain = C.pt_input_gain
-
-
-enamldef PTMicrophoneInputManifest(PSIManifest): manifest:
-
-    Extension:
-        id = manifest.id + '.context'
-        point = 'psi.context.items'
-
-        EnumParameter:
-            name = 'pt_channel'
-            label = 'Probe tube mic. channel'
-            choices = get_hw_ai_choices(workbench)
-            selected = next(iter(get_hw_ai_choices(workbench)))
-            scope = 'experiment'
-            group_name = 'hardware_settings'
-
-        Parameter:
-            name = 'pt_input_gain'
-            label = 'Probe tube input gain (dB)'
-            dtype = 'float64'
-            default = 40
-            scope = 'experiment'
-            group_name = 'hardware_settings'
-
-
-enamldef EEGInput(ContinuousInput):
-    source_name << C.eeg_channel
+enamldef EEGInput(InputChannel):
     name = 'eeg'
+    label = 'EEG'
+    show_gain_setting = False
 
     IIRFilter:
         name = 'eeg_filtered'
@@ -202,20 +129,11 @@ enamldef EEGInput(ContinuousInput):
         f_lowpass = C.digital_lowpass
 
 
-enamldef EEGInputManifest(PSIManifest): manifest:
+enamldef EEGInputManifest(InputChannelManifest): manifest:
 
     Extension:
         id = manifest.id + '.context'
         point = 'psi.context.items'
-
-        EnumParameter:
-            name = 'eeg_channel'
-            label = 'EEG channel'
-            compact_label = 'ai_eeg'
-            choices = get_hw_ai_choices(workbench)
-            selected = next(iter(get_hw_ai_choices(workbench)))
-            scope = 'experiment'
-            group_name = 'hardware_settings'
 
         Parameter:
             name = 'amplifier_highpass'

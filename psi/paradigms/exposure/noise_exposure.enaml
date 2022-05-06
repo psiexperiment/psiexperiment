@@ -17,16 +17,10 @@ from psi.controller.input import (Input, IIRFilter, CalibratedInput, RMS, SPL)
 from psi.data.plots import (TimeContainer, ChannelPlot, FFTContainer,
                             FFTChannelPlot, ViewBox)
 
-from psi.data.sinks.api import ZarrStore
+from psi.data.sinks.api import BinaryStore
 from psi.token.primitives import Cos2Envelope, BandlimitedNoise
 
-
-def configure_hardware(event):
-    context = event.workbench.get_plugin('psi.context')
-    controller = event.workbench.get_plugin('psi.controller')
-    channel_name = context.get_value('microphone_channel')
-    channel = controller.get_channel(channel_name)
-    channel.gain = context.get_value('microphone_gain')
+from ..core.io_mixins import ChannelInput, EpochChannelOutput
 
 
 enamldef NoiseControllerManifest(ControllerManifest): manifest:
@@ -37,7 +31,7 @@ enamldef NoiseControllerManifest(ControllerManifest): manifest:
         id = 'noise_exposure_stores'
         point = 'psi.data.sinks'
 
-        ZarrStore:
+        BinaryStore:
             continuous_inputs = ['microphone', 'noise_level']
 
     Extension:
@@ -54,58 +48,29 @@ enamldef NoiseControllerManifest(ControllerManifest): manifest:
         id = 'io'
         point = 'psi.controller.io'
 
-        EpochOutput:
+        EpochChannelOutput:
             name = 'exposure'
             label = 'Exposure'
-            target_name = 'hw_ao::speaker'
             token = noise
             configurable = False
 
-        Input:
-            name = 'microphone'
-            source_name << C.microphone_channel
+        ChannelInput:
+            name = 'microphone_raw'
 
             CalibratedInput:
-                name = 'calibrated_microphone'
+                name = 'microphone'
 
                 IIRFilter:
                     btype = 'highpass'
                     ftype = 'butter'
                     N = 2
                     f_highpass = 100
-                    name = 'filtered_microphone'
+                    name = 'microphone_filtered'
                     RMS:
                         name = 'RMS'
                         duration = 1
                         SPL: spl:
                             name = 'noise_level'
-
-    Extension:
-        id = 'calibration_commands'
-        point = 'enaml.workbench.core.commands'
-
-        Command:
-            id = 'psi.controller.configure_hardware'
-            handler = configure_hardware
-
-    Extension:
-        id = 'context'
-        point = 'psi.context.items'
-
-        ContextGroup:
-            name = 'hardware'
-            label = 'Hardware settings'
-
-            EnumParameter:
-                name = 'microphone_channel'
-                label = 'Microphone channel'
-                choices << get_hw_ai_choices(workbench)
-                scope = 'experiment'
-
-            Parameter:
-                name = 'microphone_gain'
-                label = 'Microphone gain'
-                default = 0
 
     Extension:
         id = 'actions'
@@ -116,11 +81,6 @@ enamldef NoiseControllerManifest(ControllerManifest): manifest:
             event = 'experiment_initialize'
             command = 'psi.context.initialize'
             kwargs = {'selector': None}
-
-        ExperimentAction:
-            event = 'experiment_prepare'
-            command = 'psi.controller.configure_hardware'
-            weight = 10
 
         ExperimentAction:
             event = 'engines_configured'
@@ -140,20 +100,6 @@ enamldef NoiseControllerManifest(ControllerManifest): manifest:
         point = 'psi.data.plots'
 
         TimeContainer:
-            name = 'microphone_container'
-            label = 'Microphone'
-            delay = 1
-            span = 10
-
-            ViewBox:
-                label = 'Microphone (Pa)'
-                y_min = -10
-                y_max = 10
-
-                ChannelPlot:
-                    source_name = 'filtered_microphone'
-
-        TimeContainer:
             name = 'noise_level_container'
             label = 'Noise level'
             delay = 0
@@ -167,18 +113,3 @@ enamldef NoiseControllerManifest(ControllerManifest): manifest:
 
                 ChannelPlot:
                     source_name = 'noise_level'
-
-        FFTContainer:
-            name = 'fft_plot_container'
-            label = 'FFT'
-            freq_lb = 0.1e3
-            freq_ub = 10e3
-
-            ViewBox:
-                label = 'PSD (dB SPL)'
-                y_min = 0
-                y_max = 100
-
-                FFTChannelPlot:
-                    source_name = 'filtered_microphone'
-                    time_span = 2
