@@ -11,11 +11,13 @@ from psiaudio.queue import InterleavedFIFOSignalQueue
 from psiaudio import util
 
 from psi.controller.api import (ControllerManifest, Coroutine, coroutine,
-                                ExtractEpochs, ExperimentAction, Input)
+                                ExperimentEvent, ExtractEpochs,
+                                ExperimentAction, Input)
 from psi.experiment.api import StatusItem
 from psi.token.primitives import Cos2Envelope, Gate, SAMEnvelope, SquareWaveEnvelope, Tone
 from psi.data.sinks.api import EpochCounter, TextStore
-from psi.data.api import FFTContainer, GroupedEpochFFTPlot, ViewBox
+from psi.data.api import (FFTContainer, GroupedEpochFFTPlot, PlotContainer,
+                          ResultPlot, ViewBox)
 
 from .cfts_mixins import CFTSSelector, EEGInput, PTMicrophoneInput, SpeakerOutput
 
@@ -50,7 +52,7 @@ def configure_experiment(event):
 
 
 @coroutine
-def analyze_eeg(token, fs, target):
+def analyze_efr(token, fs, target):
     if token == 'sam_tone':
         harmonics = np.arange(1, 2)
     elif token == 'ram_tone':
@@ -60,12 +62,18 @@ def analyze_eeg(token, fs, target):
 
     while True:
         for epoch in (yield):
-            averages = int(round(epoch['info']['duration'] / 100e-3))
-            signal = epoch['signal'].reshape((averages, -1))
-            psd = util.db(util.psd_df(signal, fs)).mean(axis=0)
             md = epoch['info']['metadata'].copy()
             frequencies = md['target_mod_fm'] * harmonics
-            log.error(psd.loc[frequencies])
+
+            averages = int(round(epoch['info']['duration'] / 100e-3))
+            signal = epoch['signal'].reshape((averages, -1))
+            psd = util.psd_df(signal, fs).mean(axis=0)
+            md['efr_amplitude'] = util.db(psd.loc[frequencies].sum())
+            log.error(md)
+            target([md])
+
+            #controller.invoke_actions('efr_acquired', kw={'data': data})
+            #core.invoke_command('efr_store.save', parameters={'data': md})
 
 
 enamldef BaseEFRManifest(ControllerManifest): manifest:
@@ -115,8 +123,9 @@ enamldef BaseEFRManifest(ControllerManifest): manifest:
                 epoch_size = getattr(C, f'target_{selected_token}_duration')
                 name = 'erp'
                 Coroutine:
+                    name = 'analyze_efr'
                     args = (selected_token, self.fs,)
-                    coroutine = analyze_eeg
+                    coroutine = analyze_efr
 
     Extension:
         id = EXPERIMENT + '.selectors'
@@ -136,6 +145,9 @@ enamldef BaseEFRManifest(ControllerManifest): manifest:
     Extension:
         id = EXPERIMENT + '.actions'
         point = 'psi.controller.actions'
+
+        ExperimentEvent:
+            name = 'efr_acquired'
 
         ExperimentAction:
             event = 'experiment_prepare'
@@ -177,6 +189,30 @@ enamldef BaseEFRManifest(ControllerManifest): manifest:
     Extension:
         id = EXPERIMENT + '.plots'
         point = 'psi.data.plots'
+
+        PlotContainer: pc:
+            name = 'efr_io_container'
+            label = 'EFR input-output functions'
+            x_min = 0
+            x_max = 1100
+
+            ViewBox: vb:
+                name = 'efr_io_viewbox'
+                y_mode = 'mouse'
+                save_limits = True
+
+                ResultPlot: grp:
+                    source_name = 'analyze_efr'
+                    x_column = 'target_mod_fm'
+                    y_column = 'efr_amplitude'
+                    pen_width = 2
+                    tab_grouping = ['target_tone_frequency']
+                    tab_keys >> pc.buttons
+                    selected_tab := pc.current_button
+                    auto_select := pc.auto_select
+                    #label = 'F2'
+                    #y_column = 'f2_level'
+                    #pen_color = 'indianred'
 
         FFTContainer: fft_container:
             label = 'EEG FFT'

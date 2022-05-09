@@ -53,7 +53,6 @@ class ExperimentPlugin(PSIPlugin):
 
         ops = []
         for item in items.values():
-            log.error(f'Inserting item {item}')
             item.set_parent(ui.workspace.dock_area)
             ops.append(InsertItem(item=item.name))
 

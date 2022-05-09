@@ -373,8 +373,10 @@ def start_output(event, output):
         log.debug('Compensating %s start event for filter delay %f',
                   output.name, filter_delay)
         controller = event.workbench.get_plugin('psi.controller')
+
+        kw = {'duration': duration, 't0_end': start+delay+duration}
         controller.invoke_actions('{}_start'.format(output.name),
-                                  start+delay+filter_delay)
+                                  start+delay+filter_delay, kw=kw)
         if duration is not np.inf:
             controller.invoke_actions('{}_end'.format(output.name),
                                       start+delay+duration, delayed=True)

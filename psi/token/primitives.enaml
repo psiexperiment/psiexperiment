@@ -3,8 +3,8 @@ from __future__ import division
 import logging
 log = logging.getLogger(__name__)
 
-from psiaudio.stim import (BandlimitedNoiseFactory, ChirpFactory,
-                           Cos2EnvelopeFactory, GateFactory,
+from psiaudio.stim import (BandlimitedNoiseFactory, BroadbandNoiseFactory,
+                           ChirpFactory, Cos2EnvelopeFactory, GateFactory,
                            SAMEnvelopeFactory, SquareWaveEnvelopeFactory,
                            SquareWaveFactory, SilenceFactory, ToneFactory,
                            WavSequenceFactory)
@@ -102,11 +102,11 @@ enamldef SAMEnvelope(ContinuousBlock): block:
         choices = {'positive': 1, 'negative': -1}
 
 
-enamldef BandlimitedNoise(ContinuousBlock):
+enamldef BroadbandNoise(ContinuousBlock):
 
-    factory = BandlimitedNoiseFactory
-    name = 'bandlimited_noise'
-    label = 'bandlimited noise'
+    factory = BroadbandNoiseFactory
+    name = 'broadband_noise'
+    label = 'broadband noise'
 
     Parameter:
         name = 'level'
@@ -119,6 +119,18 @@ enamldef BandlimitedNoise(ContinuousBlock):
         label = 'random seed'
         compact_label = 'seed'
         default = 1
+
+    EnumParameter:
+        name = 'equalize'
+        default = 'yes'
+        choices = {'yes': True, 'no': False}
+
+
+enamldef BandlimitedNoise(BroadbandNoise):
+
+    factory = BandlimitedNoiseFactory
+    name = 'bandlimited_noise'
+    label = 'bandlimited noise'
 
     Parameter:
         name = 'fl'
@@ -149,11 +161,6 @@ enamldef BandlimitedNoise(ContinuousBlock):
         label = 'stopband attenuation (dB)'
         compact_label = 'stop. atten.'
         default = 90.0
-
-    EnumParameter:
-        name = 'equalize'
-        default = 'yes'
-        choices = {'yes': True, 'no': False}
 
 
 enamldef Tone(ContinuousBlock):

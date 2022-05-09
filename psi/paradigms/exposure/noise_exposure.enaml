@@ -3,24 +3,44 @@ log = logging.getLogger(__name__)
 
 import numpy as np
 
+from enaml.widgets.api import ProgressBar
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import Branding
 
+from psiaudio.pipeline import coroutine
 from psi.context.api import ContextGroup, EnumParameter, Parameter
 from psi.controller.api import (ControllerManifest, EpochOutput,
-                                ExperimentAction, ExperimentState,
-                                get_hw_ai_choices)
+                                ExperimentAction, ExperimentCallback)
 
-from psi.controller.input import (Input, IIRFilter, CalibratedInput, RMS, SPL)
+from psi.controller.input import (Coroutine, Input, IIRFilter, CalibratedInput,
+                                  RMS, SPL)
 
 from psi.data.plots import (TimeContainer, ChannelPlot, FFTContainer,
                             FFTChannelPlot, ViewBox)
 
 from psi.data.sinks.api import BinaryStore
-from psi.token.primitives import Cos2Envelope, BandlimitedNoise
+from psi.experiment.api import StatusItem
+from psi.token.primitives import Cos2Envelope, BandlimitedNoise, BroadbandNoise
 
 from ..core.io_mixins import ChannelInput, EpochChannelOutput
+
+EXPERIMENT = __name__.rsplit('.', 1)[-1]
+
+
+def configure_experiment(pb, fs, t0_end, **kwargs):
+    pb.maximum = int(round(t0_end * fs))
+
+
+@coroutine
+def update_progress(pb, target):
+    samples = 0
+    while True:
+        data = (yield)
+        log.info(data)
+        samples += data.shape[-1]
+        pb.value = samples
+        target(data)
 
 
 enamldef NoiseControllerManifest(ControllerManifest): manifest:
@@ -38,21 +58,26 @@ enamldef NoiseControllerManifest(ControllerManifest): manifest:
         id = 'tokens'
         point = 'psi.token.tokens'
 
-        Cos2Envelope: noise:
+        Cos2Envelope: bandlimited_noise:
             name = 'bandlimited_noise_burst'
             label = 'Bandlimited noise'
             BandlimitedNoise:
+                pass
+
+        Cos2Envelope: broadband_noise:
+            name = 'broadband_noise_burst'
+            label = 'Broadband noise'
+            BroadbandNoise:
                 pass
 
     Extension:
         id = 'io'
         point = 'psi.controller.io'
 
-        EpochChannelOutput:
+        EpochChannelOutput: output:
             name = 'exposure'
             label = 'Exposure'
-            token = noise
-            configurable = False
+            configurable = True
 
         ChannelInput:
             name = 'microphone_raw'
@@ -72,8 +97,25 @@ enamldef NoiseControllerManifest(ControllerManifest): manifest:
                         SPL: spl:
                             name = 'noise_level'
 
+            Coroutine:
+                name = 'update_progress'
+                args = (pb_experiment,)
+                coroutine = update_progress
+
+
     Extension:
-        id = 'actions'
+        id = EXPERIMENT + '.workspace'
+        point = 'psi.experiment.status'
+
+        StatusItem:
+            label = 'Exposure status'
+
+            ProgressBar: pb_experiment:
+                name = 'noise_progress'
+                text_visible = True
+
+    Extension:
+        id = EXPERIMENT + '.actions'
         point = 'psi.controller.actions'
         rank = 100
 
@@ -81,6 +123,11 @@ enamldef NoiseControllerManifest(ControllerManifest): manifest:
             event = 'experiment_initialize'
             command = 'psi.context.initialize'
             kwargs = {'selector': None}
+
+        ExperimentCallback:
+            event = 'exposure_start'
+            callback = configure_experiment
+            kwargs = {'pb': pb_experiment, 'fs': output.fs}
 
         ExperimentAction:
             event = 'engines_configured'
