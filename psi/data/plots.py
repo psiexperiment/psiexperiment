@@ -267,6 +267,9 @@ class PlotContainer(BasePlotContainer):
     x_min = d_(Float(0))
     x_max = d_(Float(0))
 
+    def initialized(self, event=None):
+        deferred_call(self.format_container)
+
     @observe('x_min', 'x_max')
     def format_container(self, event=None):
         # If we want to specify values relative to a psi context variable, we
