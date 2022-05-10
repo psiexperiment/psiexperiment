@@ -107,14 +107,16 @@ class Output(BaseOutput):
         return self.channel.calibration
 
 
-
 class BufferedOutput(Output):
 
     dtype = Str('double').tag(metadata=True)
     buffer_size = Property().tag(metadata=True)
     active = Bool(False).tag(metadata=True)
-    source = Typed(object).tag(metadata=True)
     paused = Bool(False)
+
+    #: This is managed by the manifest
+    source = Typed(object).tag(metadata=True)
+    source_md = Dict()
 
     _buffer = Typed(SignalBuffer)
     _offset = Int(0)
