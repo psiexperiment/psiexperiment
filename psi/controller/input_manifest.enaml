@@ -82,7 +82,8 @@ enamldef CaptureManifest(InputManifest): manifest:
 
         Command:
             id = manifest.contribution.name + '.start'
-            handler = lambda e: manifest.contribution.queue.append({'t0': e.parameters['timestamp']})
+            handler = lambda e: manifest.contribution.queue \
+                .append({'t0': e.parameters['timestamp']})
 
         Command:
             id = manifest.contribution.name + '.end'

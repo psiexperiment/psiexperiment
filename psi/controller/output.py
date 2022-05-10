@@ -1,25 +1,18 @@
 import logging
 log = logging.getLogger(__name__)
 
-from types import GeneratorType
-from functools import partial
-
 import numpy as np
 
-from atom.api import (Str, Enum, Event, Typed, Property, Float, Int, Bool,
-                      List)
+from atom.api import (Str, Dict, Event, Typed, Property, Float, Int,
+                      Bool, List)
 
 import enaml
-from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
-from enaml.workbench.api import Extension
 
 from psiaudio.queue import AbstractSignalQueue
 
 from psi.util import SignalBuffer
 from psi.core.enaml.api import PSIContribution
-
-import time
 
 
 class Synchronized(PSIContribution):
