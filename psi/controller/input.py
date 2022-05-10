@@ -713,6 +713,11 @@ class ExtractEpochs(EpochInput):
 
     complete = Bool(False)
 
+    #: The event that indicates beginning of an epoch. If left blank, the
+    #: programmer is responsible for explicitly hooking up the event (e.g.,
+    #: such as to a queue) or calling `.
+    epoch_event = d_(Str())
+
     def mark_complete(self):
         self.complete = True
 
