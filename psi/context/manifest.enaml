@@ -22,7 +22,7 @@ from psi.experiment.api import Preferences
 
 from .plugin import ContextPlugin
 from .symbol import ImportedSymbol, Function
-from .context_item import Parameter
+from .context_item import ContextGroup, Parameter
 
 from ..util import rpc, get_tagged_members, get_tagged_values
 from .. import get_config
@@ -99,7 +99,17 @@ enamldef ContextManifest(PluginManifest): manifest:
         id = 'symbols'
 
     Extension:
-        id = 'default_symbols'
+        name = PLUGIN_ID + '.default_items'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            # This is a commonly used group that many plugins may wish to
+            # contribute to.
+            name = 'hardware_settings'
+            label = 'Hardware Settings'
+
+    Extension:
+        id = PLUGIN_ID + '.default_symbols'
         point = 'psi.context.symbols'
         ImportedSymbol:
             name = 'np'
