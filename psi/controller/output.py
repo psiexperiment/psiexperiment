@@ -294,22 +294,27 @@ class QueuedEpochOutput(BufferedOutput):
             waveform = np.zeros(samples, dtype=np.double)
         return waveform
 
-    def add_setting(self, setting, averages=None, iti_duration=None):
+    def add_setting(self, setting, averages=None, iti_duration=None,
+                    total_duration=None):
+
+        if iti_duration is not None and total_duration is not None:
+            raise ValueError('Cannot specify both iti_duration and total_duration')
+        elif iti_duration is None and total_duration is None:
+            raise ValueError('must specify either iti_duration or total_duration')
+
         with enaml.imports():
+            # TODO: HACK ALERT!
             from .output_manifest import initialize_factory
 
         # Make a copy to ensure that we don't accidentally modify in-place
         context = setting.copy()
 
-        if averages is None:
-            averages = context.pop(f'{self.name}_averages')
-        if iti_duration is None:
-            iti_duration = context.pop(f'{self.name}_iti_duration')
-
         # I'm not in love with this since it requires hooking into the
         # manifest system.
         factory = initialize_factory(self, self.token, context)
         duration = factory.get_duration()
+        if total_duration is not None:
+            iti_duration = total_duration - duration
         return self.queue.append(factory, averages, iti_duration, duration,
                                  setting.copy())
 
