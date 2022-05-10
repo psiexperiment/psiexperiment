@@ -162,6 +162,12 @@ enamldef BandlimitedNoise(BroadbandNoise):
         compact_label = 'stop. atten.'
         default = 90.0
 
+    Parameter:
+        name = 'polarity'
+        label = 'polarity'
+        compact_label = 'pol.'
+        default = 1
+
 
 enamldef Tone(ContinuousBlock):
 
