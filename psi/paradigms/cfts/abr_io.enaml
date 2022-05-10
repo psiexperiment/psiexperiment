@@ -246,7 +246,7 @@ enamldef ABRIOBaseManifest(ABRBaseManifest): manifest:
         point = 'psi.controller.actions'
 
         ExperimentAction:
-            event = 'keys_complete'
+            event = 'target_keys_complete'
             command = EXPERIMENT + '.rebuffer'
 
     Extension:

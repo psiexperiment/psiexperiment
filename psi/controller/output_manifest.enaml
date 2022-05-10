@@ -422,7 +422,7 @@ def decrement_key(event, output):
     if complete_keys:
         log.debug('Queued keys complete: %r', complete_keys)
         controller = event.workbench.get_plugin('psi.controller')
-        controller.invoke_actions('keys_complete', keys)
+        controller.invoke_actions(f'{output.name}_keys_complete', keys)
 
 
 def output_pause(event, output):
@@ -625,7 +625,7 @@ enamldef QueuedEpochOutputManifest(EpochOutputManifest): manifest:
             name = f'{manifest.contribution.name}_queue_ready'
 
         ExperimentEvent:
-            name = 'keys_complete'
+            name = f'{manifest.contribution.name}_keys_complete'
 
     # Uses unicode symbols as icons for sake of simplicity.
     Extension:
