@@ -13,6 +13,7 @@ from atom.api import (Str, Float, Typed, Int, Property, Enum, Bool,
                       Callable, List, Tuple, set_default)
 from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
+import xarray as xr
 
 from psiaudio.calibration import FlatCalibration
 from psiaudio.pipeline import coroutine, extract_epochs
@@ -21,45 +22,6 @@ from psiaudio.util import dbi, patodb
 from .channel import Channel
 
 from psi.core.enaml.api import PSIContribution
-
-
-class InputData(np.ndarray):
-
-    def __new__(cls, input_array, metadata=None):
-        obj = np.asarray(input_array).view(cls)
-        obj.metadata = metadata if metadata else {}
-        return obj
-
-    def __getitem__(self, s):
-        obj = super().__getitem__(s)
-        # This will be the case when s is just an integer, not a slice.
-        if not hasattr(obj, 'metadata'):
-            return obj
-        if isinstance(s, tuple):
-            s = s[-1]
-        if isinstance(s, slice):
-            if s.start is not None and 't0_sample' in obj.metadata:
-                obj.metadata['t0_sample'] += (s.start % self.shape[-1])
-            if s.step is not None and 'fs' in obj.metadata:
-                obj.metadata['fs'] /= s.step
-        return obj
-
-    def __array_finalize__(self, obj):
-        if obj is None: return
-        self.metadata = getattr(obj, 'metadata', {}).copy()
-
-
-def concatenate(input_data, axis=None):
-    ignore_keys = ('t0_sample',)
-    b = input_data[0]
-    reference = {k: v for k, v in b.metadata.items() if k not in ignore_keys}
-    for d in input_data[1:]:
-        md = {k: v for k, v in d.metadata.items() if k not in ignore_keys}
-        if reference != md:
-            log.info('%r vs %r', reference, md)
-            raise ValueError('Cannot combine InputData set')
-    arrays = np.concatenate(input_data, axis=axis)
-    return InputData(arrays, b.metadata)
 
 
 @coroutine
@@ -305,7 +267,8 @@ def iirfilter(N, Wn, rp, rs, btype, ftype, target):
     zo = zi * y[0]
 
     while True:
-        y, zo = signal.lfilter(b, a, y, zi=zo)
+        #y, zo = signal.lfilter(b, a, y, zi=zo)
+        y = xd.apply_ufunc(signal.lfilter, b, a, y, kwargs={'zi': zo})
         target(y)
         y = (yield)
 
@@ -751,7 +714,7 @@ def reject_epochs(reject_threshold, mode, status, valid_target):
     while True:
         epochs = (yield)
         # Check for valid epochs and send them if there are any
-        valid = [e for e in epochs if accept(e['signal'])]
+        valid = [e for e in epochs if accept(e)]
         if len(valid):
             valid_target(valid)
 
@@ -792,17 +755,13 @@ class RejectEpochs(EpochInput):
 
 @coroutine
 def detrend(mode, target):
-    if mode is None:
-        do_detrend = lambda x: x
-    else:
-        do_detrend = partial(signal.detrend, type=mode)
+    kwargs = {'axis': -1, 'type': mode}
     while True:
         epochs = []
         for epoch in (yield):
-            epoch = {
-                'signal': do_detrend(epoch['signal']),
-                'info': epoch['info']
-            }
+            if mode is not None:
+                epochs = xr.apply_ufunc(signal.detrend, epoch, kwargs=kwargs)
+            epochs['attrs']['detrend_type'] = mode
             epochs.append(epoch)
         target(epochs)
 

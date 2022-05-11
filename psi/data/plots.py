@@ -1132,6 +1132,9 @@ class ResultPlot(GroupMixin, SinglePlot):
 
     def _data_acquired(self, data):
         for d in data:
+            if 'info' in d:
+                d = d['info']['metadata']
+
             key = self.group_key(d)
             if key is not None:
                 cache = self._data_cache.setdefault(key, {'x': [], 'y': []})

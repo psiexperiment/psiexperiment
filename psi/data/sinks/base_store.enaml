@@ -11,6 +11,7 @@ from atom.api import Atom, Bool, Dict, Float, List, set_default, Str, Typed
 from enaml.core.api import d_
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
+import numpy as np
 
 from psi.core.enaml.api import PSIManifest
 from psi.controller.api import ExperimentAction
@@ -30,10 +31,9 @@ class BaseEpochData(Atom):
         epochs = []
         metadata = []
         for d in data:
-            epochs.append(d['signal'])
-            md = d['info']['metadata'].copy()
-            md['t0'] = d['info']['t0']
-            md['duration'] = d['info']['duration']
+            epochs.append(np.asarray(d))
+            md = d.info.copy()
+            md.update(d.metadata)
             if 'calibration' in md:
                 del md['calibration']
             metadata.append(md)
