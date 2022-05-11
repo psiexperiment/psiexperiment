@@ -334,6 +334,17 @@ def setup_timing(task, channels, delay=0):
 
     properties = get_timing_config(task)
     actual_fs = properties['sample clock rate']
+
+    # By rounding to the fourth digit, we can ensure a worst-case timing offset
+    # of 4.32 samples over the course of 24 hours (i.e., 5e-5 * 60 * 60 * 24
+    # where 5e-5 is the maximum possible difference between actual and
+    # requested sampling rate when rounding, 60 * 60 converts sample rate error
+    # per second to sample rate error per hour and 24 is the number of hours in
+    # a day). To get the actual timing drift over 24 hours, multiply by the
+    # actual sample rate. If sample rate is 10 kHz, timing drift over one day
+    # would be 432 usec. If sample rate is 200 kHz, timing drift would be 22
+    # usec. This seems well within the accuracy needed by most auditory
+    # experiments.
     if round(actual_fs, 4) != round(fs, 4):
         names = ', '.join(get_channel_property(channels, 'name', True))
         m = f'Actual sample clock rate of {actual_fs} does not match ' \
