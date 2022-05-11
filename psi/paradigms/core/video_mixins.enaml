@@ -45,14 +45,15 @@ class VideoSink(Sink):
         except Exception as e:
             log.exception(e)
 
-    def get_frames_written(self):
-        return self.client.get_frames_written()
+    def get_timing(self):
+        return self.client.get_timing()
 
 
-def update_frames_written(client, event):
-    frames = client.get_frames_written()
+def get_timing(client, event):
+    info = client.get_timing()
     context = event.workbench.get_plugin('psi.context')
-    context.set_value('psivideo_frames_written', frames)
+    context.set_value('psivideo_frames_written', info['frame_number'])
+    context.set_value('psivideo_frame_ts', info['timestamp'])
 
 
 enamldef VideoSinkManifest(PSIManifest): manifest:
@@ -70,8 +71,8 @@ enamldef VideoSinkManifest(PSIManifest): manifest:
             id = 'psivideo.stop_recording'
             handler = lambda e: manifest.contribution.stop_recording()
         Command:
-            id = 'psivideo.update_frames_written'
-            handler = partial(update_frames_written, manifest.contribution)
+            id = 'psivideo.get_timing'
+            handler = partial(get_timing, manifest.contribution)
 
 
 enamldef PSIVideo(ExperimentManifest): manifest:
@@ -101,7 +102,7 @@ enamldef PSIVideo(ExperimentManifest): manifest:
             command = 'psivideo.stop_recording'
         ExperimentAction:
             event = 'trial_start'
-            command = 'psivideo.update_frames_written'
+            command = 'psivideo.get_timing'
 
     Extension:
         id = manifest.id + '.parameters'
@@ -111,4 +112,10 @@ enamldef PSIVideo(ExperimentManifest): manifest:
             name = 'psivideo_frames_written'
             label = 'Video frames written'
             compact_label = 'Frames'
+            group_name = 'results'
+
+        Result:
+            name = 'psivideo_frame_ts'
+            label = 'Video frame timestamp'
+            compact_label = 'Video TS'
             group_name = 'results'
