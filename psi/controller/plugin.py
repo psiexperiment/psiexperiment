@@ -17,13 +17,12 @@ from enaml.workbench.plugin import Plugin
 from .calibration.util import load_calibration
 from .channel import Channel, OutputMixin, InputMixin
 from .engine import Engine
-from .output import Output, Synchronized
+from .output import BaseOutput, Synchronized
 from .input import Input
 
 from .experiment_action import (ExperimentAction, ExperimentActionBase,
                                 ExperimentCallback, ExperimentEvent,
                                 ExperimentState)
-from .output import ContinuousOutput, EpochOutput
 
 
 IO_POINT = 'psi.controller.io'
@@ -32,11 +31,11 @@ ACTION_POINT = 'psi.controller.actions'
 
 def get_obj(o, klass):
     objects = []
-    for child in o.children:
-        if isinstance(o, klass):
-            objects.extend(get_obj(child, klass))
     if isinstance(o, klass):
         objects.append(o)
+    for child in o.children:
+        if isinstance(child, klass):
+            objects.extend(get_obj(child, klass))
     return objects
 
 
@@ -103,7 +102,7 @@ def find_outputs(channels, point):
     for c in channels.values():
         if isinstance(c, OutputMixin):
             for o in c.children:
-                for oi in get_obj(o, Output):
+                for oi in get_obj(o, BaseOutput):
                     if oi.name in outputs:
                         raise ValueError(output_error.format(oi.name))
                     outputs[oi.name] = oi
@@ -111,7 +110,7 @@ def find_outputs(channels, point):
     # Find unconnected outputs and inputs (these are allowed so that we can
     # split processing hierarchies across multiple manifests).
     for extension in point.extensions:
-        for o in extension.get_children(Output):
+        for o in extension.get_children(BaseOutput):
             outputs[o.name] = o
         for s in extension.get_children(Synchronized):
             supporting[s.name] = s
