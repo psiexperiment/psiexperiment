@@ -14,7 +14,7 @@ from psiaudio.util import tone_power_conv
 
 from psi.context.api import (ContextGroup, EnumParameter,
                              Expression, Parameter, Result)
-from psi.controller.api import (Blocked, Capture, concatenate, ContinuousInput,
+from psi.controller.api import (Blocked, Capture, ContinuousInput,
                                 ControllerManifest, coroutine, Discard,
                                 EpochOutput, ExperimentAction, ExperimentEvent,
                                 Input, Synchronized)
@@ -63,6 +63,7 @@ def process(n_time, n_fft, input, workbench, trial_widget, trials_widget,
 
         # Process acquired time segments once we have what we need
         if len(time_data) == n_time:
+            # TODO: FIXME
             mean_time = concatenate(time_data, axis=0)
             time_data = []
 
@@ -287,23 +288,21 @@ enamldef DPOAEManifest(ControllerManifest): manifest:
             parameter = 'primary_tone_rise_time'
             expression = 'rise_time'
 
-        ContextGroup:
-            name = 'hardware_settings'
-            label = 'Hardware Settings'
+        EnumParameter:
+            name = 'primary_channel'
+            label = 'Output channel (primary)'
+            choices = manifest.get_hw_ao_choices()
+            selected = next(iter(manifest.get_hw_ao_choices()))
+            scope = 'experiment'
+            group_name = 'hardware_settings'
 
-            EnumParameter:
-                name = 'primary_channel'
-                label = 'Output channel (primary)'
-                choices = manifest.get_hw_ao_choices()
-                selected = next(iter(manifest.get_hw_ao_choices()))
-                scope = 'experiment'
-
-            EnumParameter:
-                name = 'secondary_channel'
-                label = 'Output channel (secondary)'
-                choices = manifest.get_hw_ao_choices()
-                selected = next(iter(manifest.get_hw_ao_choices()))
-                scope = 'experiment'
+        EnumParameter:
+            name = 'secondary_channel'
+            label = 'Output channel (secondary)'
+            choices = manifest.get_hw_ao_choices()
+            selected = next(iter(manifest.get_hw_ao_choices()))
+            scope = 'experiment'
+            group_name = 'hardware_settings'
 
         ContextGroup:
             name = 'dpoae'

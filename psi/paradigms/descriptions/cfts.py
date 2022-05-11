@@ -26,15 +26,15 @@ temperature_mixin = {
 }
 
 
-ParadigmDescription(
-    # This is a much more flexible, more powerful ABR experiment interface.
-    'abr_io_editable', 'Configurable ABR (input-output)', 'ear', [
-        {'manifest': CFTS_PATH + 'abr_io.ABRIOManifest'},
-        temperature_mixin,
-        eeg_mixin,
-        {'manifest': CFTS_PATH + 'cfts_mixins.ABRInEarCalibrationMixinManifest', 'selected': True},
-    ]
-)
+#ParadigmDescription(
+#    # This is a much more flexible, more powerful ABR experiment interface.
+#    'abr_io_editable', 'Configurable ABR (input-output)', 'ear', [
+#        {'manifest': CFTS_PATH + 'abr_io.ABRIOManifest'},
+#        temperature_mixin,
+#        eeg_mixin,
+#        {'manifest': CFTS_PATH + 'cfts_mixins.ABRInEarCalibrationMixinManifest', 'selected': True},
+#    ]
+#)
 
 
 ParadigmDescription(
@@ -59,7 +59,8 @@ ParadigmDescription(
 )
 
 
-efr_mixins = [temperature_mixin, eeg_mixin, microphone_mixin, microphone_fft_mixin]
+base_mixins = [temperature_mixin, microphone_mixin, microphone_fft_mixin]
+efr_mixins = base_mixins + [eeg_mixin]
 
 
 ParadigmDescription(
@@ -73,6 +74,21 @@ ParadigmDescription(
     'efr_ram', 'RAM EFR', 'ear', [
         {'manifest': CFTS_PATH + 'efr.RAMEFRManifest'},
     ] + efr_mixins,
+)
+
+
+
+ParadigmDescription(
+    'memr_simultaneous', 'MEMR (simultaneous)', 'ear', [
+        {'manifest': CFTS_PATH + 'memr.SimultaneousMEMRManifest'},
+    ] + base_mixins,
+)
+
+
+ParadigmDescription(
+    'memr_interleaved', 'MEMR (interleaved)', 'ear', [
+        {'manifest': CFTS_PATH + 'memr.InterleavedMEMRManifest'},
+    ] + base_mixins,
 )
 
 

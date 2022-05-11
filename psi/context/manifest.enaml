@@ -2,30 +2,18 @@ import logging
 log = logging.getLogger(__name__)
 
 import numpy as np
-import pickle
-import os.path
-from copy import deepcopy
 
-from enaml.core.api import Looper
-from enaml.layout.api import VSplitLayout, TabLayout
-from enaml.styling import StyleSheet, Style, Setter
-from enaml.widgets.api import (Container, DockArea, VGroup, HGroup,
-                               Label, FileDialogEx, Action)
 from enaml.workbench.api import Extension, ExtensionPoint, PluginManifest
 from enaml.workbench.core.api import Command
-from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
-from enaml.layout.api import FloatItem
-from enaml.application import deferred_call
 
 from psi.controller.api import ExperimentEvent
 from psi.experiment.api import Preferences
 
 from .plugin import ContextPlugin
 from .symbol import ImportedSymbol, Function
-from .context_item import ContextGroup, Parameter
+from .context_item import ContextGroup
 
 from ..util import rpc, get_tagged_members, get_tagged_values
-from .. import get_config
 
 
 PLUGIN_ID = 'psi.context'
@@ -106,7 +94,7 @@ enamldef ContextManifest(PluginManifest): manifest:
             # This is a commonly used group that many plugins may wish to
             # contribute to.
             name = 'hardware_settings'
-            label = 'Hardware Settings'
+            label = 'Hardware'
 
     Extension:
         id = PLUGIN_ID + '.default_symbols'
@@ -167,13 +155,10 @@ enamldef ContextManifest(PluginManifest): manifest:
     Extension:
         id = 'context_actions'
         point = 'psi.controller.actions'
-
         ExperimentEvent:
             name = 'context_complete'
-
         ExperimentEvent:
             name = 'context_initialized'
-
         ExperimentEvent:
             name = 'context_next_setting'
 

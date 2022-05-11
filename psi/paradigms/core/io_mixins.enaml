@@ -15,17 +15,14 @@ enamldef OutputChannelExtension(Extension):
     id = manifest.id + '.context'
     point = 'psi.context.items'
 
-    ContextGroup:
-        name = 'hardware_settings'
-        label = 'Hardware'
-
-        EnumParameter:
-            name = f'{contribution.name}_output_channel'
-            label = f'{contribution.label} output channel'
-            compact_label = 'ao'
-            choices = get_hw_ao_choices(workbench)
-            selected = next(iter(get_hw_ao_choices(workbench)))
-            scope = 'experiment'
+    EnumParameter:
+        name = f'{contribution.name}_output_channel'
+        label = f'{contribution.label} output channel'
+        compact_label = 'ao'
+        choices = get_hw_ao_choices(workbench)
+        selected = next(iter(get_hw_ao_choices(workbench)))
+        scope = 'experiment'
+        group_name = 'hardware_settings'
 
 
 enamldef EpochChannelOutput(EpochOutput):

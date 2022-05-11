@@ -63,6 +63,13 @@ CONTEXT_ITEM_DETAIL = {
         'unit': 'dB SPL',
         'order_user_managed': True,
     },
+
+    # MEMR
+    'probe_chirp_level': {
+        'user_friendly_name': 'Chirp level',
+        'step_unit': 'dB',
+        'unit': 'dB SPL',
+    }
 }
 
 

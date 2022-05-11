@@ -36,8 +36,7 @@ def configure_experiment(event):
         frequency = setting['target_tone_frequency']
         level = setting['target_tone_level']
         max_level[frequency] = max(level, max_level.get(frequency, -np.inf))
-
-    # Then figure out the maximum scaling factor required for that level.
+# Then figure out the maximum scaling factor required for that level.
     # Multiply to convert from RMS to peak to peak and add 1% headroom.
     max_sf = {}
     for frequency, level in max_level.items():
@@ -69,11 +68,10 @@ def analyze_efr(token, fs, target):
             signal = epoch['signal'].reshape((averages, -1))
             psd = util.psd_df(signal, fs).mean(axis=0)
             md['efr_amplitude'] = util.db(psd.loc[frequencies].sum())
-            log.error(md)
-            target([md])
 
-            #controller.invoke_actions('efr_acquired', kw={'data': data})
-            #core.invoke_command('efr_store.save', parameters={'data': md})
+            new_epoch = epoch.copy()
+            new_epoch['info']['metadata'] = md
+            target([new_epoch])
 
 
 enamldef BaseEFRManifest(ControllerManifest): manifest:
@@ -179,7 +177,7 @@ enamldef BaseEFRManifest(ControllerManifest): manifest:
 
         TextStore:
             name = 'erp_metadata_store'
-            epoch_inputs = ['erp']
+            epoch_inputs = ['analyze_efr']
 
     Extension:
         id = EXPERIMENT + '.workspace'

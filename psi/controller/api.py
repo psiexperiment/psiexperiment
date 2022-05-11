@@ -8,7 +8,7 @@ from .input import (Input, ContinuousInput, EventInput, EpochInput, Callback,
                     CalibratedInput, Coroutine, RMS, SPL, IIRFilter, Blocked,
                     Accumulate, Capture, Downsample, Decimate, Discard,
                     Threshold, Average, Delay, Transform, Edges, ExtractEpochs,
-                    RejectEpochs, Detrend, concatenate, coroutine,
+                    RejectEpochs, Detrend, coroutine,
                     extract_epochs)
 
 from .output import (Synchronized, ContinuousOutput, EpochOutput,

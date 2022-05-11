@@ -1,0 +1,354 @@
+import logging
+log = logging.getLogger(__name__)
+
+from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
+
+import numpy as np
+
+from psiaudio.pipeline import coroutine
+from psiaudio.queue import GroupedFIFOSignalQueue
+
+from psi.context.api import ContextGroup, Expression, Parameter
+from psi.controller.api import (Blocked, ControllerManifest,
+                                Coroutine, ExperimentAction, ExtractEpochs,
+                                Synchronized)
+from psi.token.primitives import BandlimitedNoise, Chirp, Cos2Envelope, Repeat
+from psi.data.sinks.api import TextStore
+
+from .cfts_mixins import CFTSSelector, EEGInput, PTMicrophoneInput
+from ..core.io_mixins import EpochChannelOutput, QueuedEpochChannelOutput
+
+EXPERIMENT = __name__.rsplit('.', 1)[-1]
+
+
+def configure_interleaved_memr(event):
+    context = event.workbench.get_plugin('psi.context')
+    controller = event.workbench.get_plugin('psi.controller')
+
+    probe = controller.get_output('probe')
+    elicitor = controller.get_output('elicitor')
+    probe.queue = GroupedFIFOSignalQueue(2)
+    elicitor.queue = GroupedFIFOSignalQueue(2)
+
+    for setting in context.iter_settings('default', 1):
+        averages = min(1, int(round(setting['trial_n'] // 2)))
+        trial_duration = setting['trial_period']
+        for polarity in (1, -1):
+            setting['elicitor_bandlimited_noise_polarity'] = polarity
+            probe.add_setting(setting, averages=averages, total_duration=trial_duration)
+            elicitor.add_setting(setting, averages=averages, total_duration=trial_duration)
+
+        #frequency = setting['target_tone_frequency']
+        #level = setting['target_tone_level']
+        #max_level[frequency] = max(level, max_level.get(frequency, -np.inf))
+
+    # Then figure out the maximum scaling factor required for that level.
+    # Multiply to convert from RMS to peak to peak and add 1% headroom.
+    #max_sf = {}
+    #for frequency, level in max_level.items():
+    #    sf = output.calibration.get_sf(frequency, level)
+    #    max_sf[frequency] = sf
+    #max_sf = max(max_sf.values()) * np.sqrt(2) * 1.01 * 2
+    #log.info(max_sf)
+    #output.channel.expected_range = (-max_sf, max_sf)
+
+
+def configure_simultaneous_memr(event):
+    context = event.workbench.get_plugin('psi.context')
+    controller = event.workbench.get_plugin('psi.controller')
+
+    probe = controller.get_output('probe')
+    elicitor = controller.get_output('elicitor')
+    probe.queue = GroupedFIFOSignalQueue(2)
+    elicitor.queue = GroupedFIFOSignalQueue(2)
+
+    for setting in context.iter_settings('default', 1):
+        averages = min(1, int(round(setting['trial_n'] // 2)))
+        trial_duration = setting['trial_duration']
+        trial_iti = 1
+        for polarity in (1, -1):
+            setting['elicitor_bandlimited_noise_polarity'] = polarity
+            probe.add_setting(setting, averages=averages, total_duration=trial_duration + trial_iti)
+            elicitor.add_setting(setting, averages=averages, total_duration=trial_duration + trial_iti)
+
+        #frequency = setting['target_tone_frequency']
+        #level = setting['target_tone_level']
+        #max_level[frequency] = max(level, max_level.get(frequency, -np.inf))
+
+    # Then figure out the maximum scaling factor required for that level.
+    # Multiply to convert from RMS to peak to peak and add 1% headroom.
+    #max_sf = {}
+    #for frequency, level in max_level.items():
+    #    sf = output.calibration.get_sf(frequency, level)
+    #    max_sf[frequency] = sf
+    #max_sf = max(max_sf.values()) * np.sqrt(2) * 1.01 * 2
+    #log.info(max_sf)
+    #output.channel.expected_range = (-max_sf, max_sf)
+
+
+
+
+@coroutine
+def analyze_interleaved_memr(fs, target):
+    while True:
+        for data in (yield):
+            target([data])
+            #probe_n = data.metadata['probe_repeat_n']
+            #chirps = data.reshape((probe_n, -1))
+            #log.error(chirps.shape)
+
+
+@coroutine
+def analyze_simultaneous_memr(fs, target):
+    while True:
+        for data in (yield):
+            target([data])
+            #probe_n = data.metadata['probe_repeat_n']
+            #chirps = data.reshape((probe_n, -1))
+            #log.error(chirps.shape)
+
+
+
+enamldef BaseMEMRManifest(ControllerManifest): manifest:
+
+    attr configure_experiment_cb
+    attr analyze_memr_cb
+
+    Extension:
+        id = EXPERIMENT + '.tokens'
+        point = 'psi.token.tokens'
+
+        Repeat: probe:
+            name = 'chirp'
+            hide = ['skip_n']
+            Chirp:
+                pass
+
+    Extension:
+        id = EXPERIMENT + '.io'
+        point = 'psi.controller.io'
+
+        PTMicrophoneInput:
+
+            ExtractEpochs: extract:
+                name = 'memr_trials'
+
+                Coroutine:
+                    name = 'memr'
+                    coroutine = analyze_memr_cb
+                    args = (fs,)
+
+        Synchronized:
+            name = 'memr_stim'
+
+            QueuedEpochChannelOutput:
+                name = 'probe'
+                label = 'Probe'
+                auto_decrement = True
+                token = probe
+                queue ::
+                    self.connect(extract.added_queue.append, 'added')
+                    self.connect(extract.removed_queue.append, 'removed')
+
+            QueuedEpochChannelOutput:
+                name = 'elicitor'
+                label = 'Elicitor'
+                token = workbench.get_plugin('psi.token').get_token('noise')
+                auto_decrement = True
+
+    Extension:
+        id = EXPERIMENT + '.selectors'
+        point = 'psi.context.selectors'
+
+        CFTSSelector:
+            label = 'MEMR stimuli'
+
+    Extension:
+        id = EXPERIMENT + '.commands'
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = 'psi.controller.configure_experiment'
+            handler = configure_experiment_cb
+
+    Extension:
+        id = EXPERIMENT + '.actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'psi.controller.configure_experiment'
+            weight = 11
+
+        ExperimentAction:
+            event = 'experiment_initialize'
+            command = 'psi.context.initialize'
+            kwargs = {'selector': 'default', 'cycles': 1}
+
+        ExperimentAction:
+            event = 'engines_configured'
+            command = 'memr_stim.start'
+            kwargs = {'delay': 0.5}
+
+    Extension:
+        id = EXPERIMENT + '.data'
+        point = 'psi.data.sinks'
+
+        TextStore:
+            name = 'memr_store'
+            epoch_inputs = ['memr']
+
+
+enamldef SimultaneousMEMRManifest(BaseMEMRManifest):
+
+    analyze_memr_cb = analyze_simultaneous_memr
+    configure_experiment_cb = configure_simultaneous_memr
+
+    Extension:
+        id = EXPERIMENT + '.simultaneous.tokens'
+        point = 'psi.token.tokens'
+
+        Cos2Envelope: elicitor:
+            name = 'noise'
+            BandlimitedNoise:
+                pass
+
+    Extension:
+        id = EXPERIMENT + '.simultaneous.context'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'memr'
+            label = 'MEMR'
+
+            Parameter:
+                name = 'trial_duration'
+                label = 'Trial duration'
+                default = 11
+
+            Parameter:
+                name = 'trial_n'
+                label = 'Number of trials'
+                default = 2
+
+            Parameter:
+                name = 'probe_rate'
+                label = 'Probe rate'
+                default = 40
+
+            Parameter:
+                name = 'elicitor_onset'
+                label = 'Elicitor onset'
+                default = 6
+
+            Parameter:
+                name = 'elicitor_duration'
+                label = 'Elicitor duration'
+                default = 3
+
+        Expression:
+            parameter = 'probe_chirp_n'
+            expression = 'trial_duration * probe_rate'
+
+        Expression:
+            parameter = 'probe_chirp_rate'
+            expression = 'probe_rate'
+
+        Expression:
+            parameter = 'elicitor_noise_start_time'
+            expression = 'elicitor_onset'
+
+        Expression:
+            parameter = 'elicitor_noise_duration'
+            expression = 'elicitor_duration'
+
+
+enamldef InterleavedMEMRManifest(BaseMEMRManifest):
+
+    analyze_memr_cb = analyze_interleaved_memr
+    configure_experiment_cb = configure_interleaved_memr
+
+    Extension:
+        id = EXPERIMENT + '.interleaved.tokens'
+        point = 'psi.token.tokens'
+
+        Repeat: elicitor:
+            name = 'noise'
+            Cos2Envelope:
+                BandlimitedNoise:
+                    pass
+
+    Extension:
+        id = EXPERIMENT + '.interleaved.context'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'memr'
+            label = 'MEMR'
+
+            Parameter:
+                name = 'elicitor_n'
+                label = 'Elicitor pulses'
+                default = 4
+
+            Parameter:
+                name = 'repeat_period'
+                label = 'Stim repeat period'
+                default = 186e-3
+
+            Parameter:
+                name = 'trial_period'
+                label = 'Trial repeat period'
+                default = 1.580
+
+            Parameter:
+                name = 'trial_n'
+                label = 'Number of trials'
+                default = 2
+
+            Parameter:
+                name = 'elicitor_duration'
+                label = 'Elicitor duration'
+                default = 116e-3
+
+            Parameter:
+                name = 'analysis_window'
+                label = 'Analysis window'
+                default = 46.4e-3
+
+        Expression:
+            parameter = 'probe_chirp_n'
+            expression = 'elicitor_n + 1'
+
+        Expression:
+            parameter = 'probe_chirp_skip_n'
+            expression = '0'
+
+        Expression:
+            parameter = 'probe_chirp_rate'
+            expression = '1 / repeat_period'
+
+        Expression:
+            parameter = 'elicitor_noise_n'
+            expression = 'elicitor_n'
+
+        Expression:
+            parameter = 'elicitor_noise_rate'
+            expression = '1 / repeat_period'
+
+        Expression:
+            parameter = 'elicitor_noise_skip_n'
+            expression = '0'
+
+        Expression:
+            parameter = 'elicitor_envelope_duration'
+            expression = 'elicitor_duration'
+
+        Expression:
+            parameter = 'elicitor_envelope_rise_time'
+            expression = '5e-3'
+
+        Expression:
+            parameter = 'elicitor_envelope_start_time'
+            expression = 'repeat_period - elicitor_duration - analysis_window'
