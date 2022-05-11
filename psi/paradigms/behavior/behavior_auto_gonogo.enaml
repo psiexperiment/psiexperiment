@@ -3,7 +3,7 @@ log = logging.getLogger(__name__)
 
 import enum
 
-from atom.api import Bool, Int, Typed
+from atom.api import Bool, Int, Str, Typed
 from enaml.application import timed_call
 from enaml.core.api import d_
 from enaml.widgets.api import Action, ToolBar
@@ -44,12 +44,14 @@ class GoNogoTrialState(TrialState):
     waiting_for_response = 'waiting for response'
     waiting_for_to = 'waiting for timeout'
     waiting_for_iti = 'waiting for intertrial interval'
+    waiting_for_reward_end = 'waiting for animal to break spout contact'
 
 
 class GoNogoResponse(enum.Enum):
 
     no_response = 'no_response'
     reward = 'reward'
+    early_reward = 'early_reward'
 
 
 class GoNogoEvent(enum.Enum):
@@ -97,6 +99,8 @@ class BehaviorPlugin(BaseBehaviorPlugin):
     manual_control = d_(Bool(), writable=False)
 
     consecutive_nogo = Int(0)
+
+    next_trial_state = Str()
 
     def request_trial(self, trial_type):
         log.info('Requesting trial')
@@ -194,9 +198,7 @@ class BehaviorPlugin(BaseBehaviorPlugin):
 
     def handle_waiting_for_hold(self, event, timestamp):
         if event in (GoNogoEvent.reward_start, GoNogoEvent.digital_reward_start):
-            log.info('Ignoring early response')
-            # TODO: score as early response
-            pass
+            self.end_trial(GoNogoResponse.early_reward, GoNogoTrialScore.false_alarm)
         elif event == GoNogoEvent.hold_duration_elapsed:
             log.info('Hold duration over')
             # If we are in training mode, deliver a reward preemptively
@@ -249,7 +251,7 @@ class BehaviorPlugin(BaseBehaviorPlugin):
         self.invoke_actions('trial_end', ts, kw={'result': self.trial_info.copy()})
 
         if score == GoNogoTrialScore.false_alarm:
-            self.advance_state('to', ts)
+            self.start_timeout(ts)
         else:
             self.advance_state('iti', ts)
 
@@ -257,6 +259,10 @@ class BehaviorPlugin(BaseBehaviorPlugin):
         # go_probability) are reflected in determining the next trial type.
         if self._apply_requested:
             self._apply_changes(False)
+
+    def start_timeout(self, timestamp):
+        self.invoke_actions(GoNogoEvent.to_start.name, timestamp)
+        self.start_wait_for_reward_end(timestamp, 'to')
 
     def advance_state(self, state, timestamp):
         self.trial_state = getattr(GoNogoTrialState, f'waiting_for_{state}')
@@ -266,23 +272,34 @@ class BehaviorPlugin(BaseBehaviorPlugin):
         elapsed_event = getattr(GoNogoEvent, f'{state}_duration_elapsed')
         self.start_event_timer(duration, elapsed_event)
 
+    def handle_waiting_for_reward_end(self, event, timestamp):
+        if event in (GoNogoEvent.reward_end, GoNogoEvent.digital_reward_end):
+            self.advance_state(self.next_trial_state, timestamp)
+
     def handle_waiting_for_trial_start(self, event, timestamp):
         pass
 
+    def start_wait_for_reward_end(self, timestamp, next_state):
+        self.trial_state = GoNogoTrialState.waiting_for_reward_end
+        self.next_trial_state = next_state
+
     def handle_waiting_for_to(self, event, timestamp):
+        log.error(event)
         if event == GoNogoEvent.to_duration_elapsed:
             # Turn the light back on
             self.invoke_actions(GoNogoEvent.to_end.name, timestamp)
             self.advance_state('iti', timestamp)
         elif event in (GoNogoEvent.reward_start, GoNogoEvent.digital_reward_start):
-            # Animal repoked. Reset timeout duration.
-            self.start_event_timer('to_duration', GoNogoEvent.to_duration_elapsed)
+            # Animal repoked. Cancel timeout timer and wait for animal to
+            # disconnect from lick spout.
+            self.stop_event_timer()
+            self.start_wait_for_reward_end(timestamp, 'to')
 
     def handle_waiting_for_iti(self, event, timestamp):
         if event in (GoNogoEvent.reward_start, GoNogoEvent.digital_reward_start):
             # Animal attempted to get reward. Reset ITI interval.
-            self.start_event_timer('iti_duration',
-                                   GoNogoEvent.iti_duration_elapsed)
+            self.stop_event_timer()
+            self.start_wait_for_reward_end(timestamp, 'iti')
         elif event == GoNogoEvent.iti_duration_elapsed:
             self.invoke_actions(GoNogoEvent.iti_end.name, timestamp)
             if self._pause_requested:
@@ -557,9 +574,12 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
                     and controller.manual_control
             Action:
                 text = 'Simulate lick'
-                triggered ::
-                    controller.handle_event(GoNogoEvent.digital_reward_start)
-                    timed_call(100, controller.handle_event, GoNogoEvent.digital_reward_end)
+                checkable = True
+                toggled ::
+                    if checked:
+                        controller.handle_event(GoNogoEvent.digital_reward_start)
+                    else:
+                        controller.handle_event(GoNogoEvent.digital_reward_end)
                 enabled << controller.experiment_state not in ('initialized', 'stopped')
             Action:
                 text = 'Pause'
