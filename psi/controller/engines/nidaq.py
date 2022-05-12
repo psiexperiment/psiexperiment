@@ -292,7 +292,6 @@ def hw_ai_helper(cb, channels, discard, fs, channel_names, task,
             'time': samples * fs,
         }
         data = DataArray(data, coords=coords, attrs=metadata)
-        log.error(data)
         cb(data)
     return 0
 
