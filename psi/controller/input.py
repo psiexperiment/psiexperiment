@@ -4,7 +4,6 @@ log = logging.getLogger(__name__)
 
 from collections import deque
 from functools import partial
-#from queue import Empty, Queue
 
 import numpy as np
 from scipy import signal
@@ -26,6 +25,12 @@ from psi.core.enaml.api import PSIContribution
 
 @coroutine
 def broadcast(*targets):
+    '''
+    Send the data to mulitple targets
+
+    This is used internally by `Input` when it sees that it has multiple
+    downstream targets to handle sending the data to each target.
+    '''
     while True:
         data = (yield)
         for target in targets:
@@ -34,10 +39,7 @@ def broadcast(*targets):
 
 class Input(PSIContribution):
 
-    name = d_(Str()).tag(metadata=True)
-    label = d_(Str()).tag(metadata=True)
     force_active = d_(Bool(False)).tag(metadata=True)
-
     source_name = d_(Str()).tag(metadata=True)
     source = d_(Typed(Declarative).tag(metadata=True), writable=False)
     channel = Property().tag(metadata=True)
@@ -59,9 +61,6 @@ class Input(PSIContribution):
         else:
             base_name = self.parent.name
         return f'{base_name}_{self.__class__.__name__}'
-
-    def _default_label(self):
-        return self.name.replace('_', ' ')
 
     def add_input(self, i):
         if i in self.inputs:
@@ -143,6 +142,7 @@ class EpochInput(Input):
 
 
 class Callback(Input):
+
     function = d_(Callable())
 
     def _default_name(self):
@@ -160,27 +160,12 @@ class Callback(Input):
 # Continuous input types
 ################################################################################
 @coroutine
-def custom_input(function, target):
-    while True:
-        data = (yield)
-        function(data, target)
-
-
-class CustomInput(Input):
-    function = d_(Callable())
-
-    def configure_callback(self):
-        cb = super().configure_callback()
-        return custom_input(self.function, cb).send
-
-
-@coroutine
 def calibrate(calibration, target):
     sens = dbi(calibration.get_sens(1000))
-    log.debug('Setting sensitivity for CalibratedInput to %f', sens)
     while True:
-        data = (yield)
-        target(data * sens)
+        data = (yield) * sens
+        data.attrs['calibrated'] = True
+        target(data)
 
 
 class CalibratedInput(ContinuousInput):
@@ -205,25 +190,12 @@ class CalibratedInput(ContinuousInput):
 
     def configure_callback(self):
         cb = super().configure_callback()
-        log.debug('Configuring CalibratedInput %s', self.name)
         return calibrate(self.source.calibration, cb).send
 
 
-@coroutine
-def rms(n, target):
-    data = None
-    while True:
-        if data is None:
-            data = (yield)
-        else:
-            data = np.concatenate((data, (yield)), axis=-1)
-        while data.shape[-1] >= n:
-            result = np.mean(data[..., :n] ** 2, axis=0) ** 0.5
-            target(result[np.newaxis])
-            data = data[..., n:]
-
-
 class RMS(ContinuousInput):
+
+    #: Duration of window to calculate RMS for
     duration = d_(Float()).tag(metadata=True)
 
     def _get_fs(self):
@@ -231,46 +203,11 @@ class RMS(ContinuousInput):
         return self.source.fs / n
 
     def configure_callback(self):
-        n = round(self.duration * self.source.fs)
+        # Be sure to defer to the source for the sampling rate since `self.fs`
+        # reports the decimated sampling rate.
         cb = super().configure_callback()
-        return rms(n, cb).send
+        return pipeline.rms(self.source.fs, self.duration, cb).send
 
-
-@coroutine
-def spl(target, sens):
-    v_to_pa = dbi(sens)
-    while True:
-        data = (yield)
-        data /= v_to_pa
-        spl = patodb(data)
-        target(spl)
-
-
-class SPL(ContinuousInput):
-
-    def configure_callback(self):
-        cb = super().configure_callback()
-        sens = self.calibration.get_sens(1000)
-        return spl(cb, sens).send
-
-
-@coroutine
-def iirfilter(N, Wn, rp, rs, btype, ftype, target):
-    b, a = signal.iirfilter(N, Wn, rp, rs, btype, ftype=ftype)
-    if np.any(np.abs(np.roots(a)) > 1):
-        raise ValueError('Unstable filter coefficients')
-
-    # Initialize the state of the filter and scale it by y[0] to avoid a
-    # transient.
-    zi = signal.lfilter_zi(b, a)
-    y = (yield)
-    zo = zi * y[0]
-
-    while True:
-        #y, zo = signal.lfilter(b, a, y, zi=zo)
-        y = xd.apply_ufunc(signal.lfilter, b, a, y, kwargs={'zi': zo})
-        target(y)
-        y = (yield)
 
 
 class IIRFilter(ContinuousInput):
@@ -287,54 +224,23 @@ class IIRFilter(ContinuousInput):
         metadata=True)
     f_highpass = d_(Float()).tag(metadata=True)
     f_lowpass = d_(Float()).tag(metadata=True)
-    wn = Property().tag(metadata=True)
 
-    def _get_wn(self):
-        log.debug('%s filter from %f to %f at Fs=%f', self.name,
-                  self.f_highpass, self.f_lowpass, self.fs)
+    Wn = Property().tag(metadata=True)
+
+    def _get_Wn(self):
         if self.btype == 'lowpass':
-            log.debug('Lowpass at %r (fs=%r)', self.f_lowpass, self.fs)
-            return self.f_lowpass / (0.5 * self.fs)
+            return self.f_lowpass
         elif self.btype == 'highpass':
-            log.debug('Highpass at %r (fs=%r)', self.f_lowpass, self.fs)
-            return self.f_highpass / (0.5 * self.fs)
+            return self.f_highpass
         else:
-            log.debug('Bandpass %r to %r (fs=%r)', self.f_highpass,
-                      self.f_lowpass, self.fs)
-            return (self.f_highpass / (0.5 * self.fs),
-                    self.f_lowpass / (0.5 * self.fs))
+            return (self.f_highpass, self.f_lowpass)
 
     def configure_callback(self):
         cb = super().configure_callback()
         if self.passthrough:
             return cb
-        return iirfilter(self.N, self.wn, None, None, self.btype, self.ftype,
-                         cb).send
-
-
-@coroutine
-def blocked(block_size, target):
-    data = []
-    n = 0
-
-    while True:
-        d = (yield)
-        if d is Ellipsis:
-            data = []
-            target(d)
-            continue
-
-        n += d.shape[-1]
-        data.append(d)
-        if n >= block_size:
-            merged = concatenate(data, axis=-1)
-            while merged.shape[-1] >= block_size:
-                block = merged[..., :block_size]
-                block.metadata['block_size'] = block_size
-                target(block)
-                merged = merged[..., block_size:]
-            data = [merged]
-            n = merged.shape[-1]
+        return pipeline.iirfilter(self.fs, self.N, self.Wn, None, None,
+                                  self.btype, self.ftype, cb).send
 
 
 class Blocked(ContinuousInput):
@@ -349,7 +255,7 @@ class Blocked(ContinuousInput):
             raise ValueError(m)
         cb = super().configure_callback()
         block_size = round(self.duration * self.fs)
-        return blocked(block_size, cb).send
+        return pipeline.blocked(block_size, cb).send
 
 
 @coroutine
