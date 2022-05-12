@@ -70,17 +70,31 @@ def find_manifest_class(obj):
 
 class PSIContribution(Declarative):
 
+    #: Name of contribution. Should be unique among all contributions for that
+    #: subclass as it is typically used by the plugins to find a particular
+    #: contribution.
     name = d_(Str())
+
+    #: Label of contribution. Not required, but a good idea as it affects how
+    #: the contribution may be represented in the user interface.
     label = d_(Str())
     manifest = d_(Str())
     registered = Bool(False)
 
     def _default_name(self):
-        # Provide a default name if none is specified
+        # Provide a default name if none is specified TODO: make this mandatory
+        # (i.e., no default?)
         return self.parent.name + '.' + self.__class__.__name__
+
+    def _default_label(self):
+        return self.name.replace('_', ' ')
 
     @classmethod
     def valid_name(self, label):
+        '''
+        Can be used to convert a label provided to a valid name
+        '''
+        # TODO: Get rid of this?
         return re.sub('\W|^(?=\d)', '_', label)
 
     def find_manifest_class(self):
