@@ -659,18 +659,6 @@ class RejectEpochs(EpochInput):
         return reject_epochs(self.threshold, self.mode, self, valid_cb).send
 
 
-@coroutine
-def detrend(mode, target):
-    kwargs = {'axis': -1, 'type': mode}
-    while True:
-        epochs = []
-        for epoch in (yield):
-            if mode is not None:
-                epochs = xr.apply_ufunc(signal.detrend, epoch, kwargs=kwargs)
-            epochs['attrs']['detrend_type'] = mode
-            epochs.append(epoch)
-        target(epochs)
-
 
 class Detrend(EpochInput):
     '''
@@ -687,4 +675,4 @@ class Detrend(EpochInput):
 
     def configure_callback(self):
         cb = super().configure_callback()
-        return detrend(self.mode, cb).send
+        return pipeline.detrend(self.mode, cb).send
