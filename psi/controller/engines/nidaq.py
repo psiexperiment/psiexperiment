@@ -40,8 +40,8 @@ from atom.api import (Float, Typed, Str, Int, Bool, Callable, Enum,
 from enaml.core.api import Declarative, d_
 import numpy as np
 import PyDAQmx as mx
-from xarray import DataArray
 
+from psiaudio.pipeline import PipelineData
 from psiaudio.util import dbi
 from ..engine import Engine
 from ..channel import (CounterChannel,
@@ -285,13 +285,8 @@ def hw_ai_helper(cb, channels, discard, fs, channel_names, task,
 
     data = read_hw_ai(task, available_samples, channels, cb_samples)
     if data is not None:
-        metadata = {'t0_sample': read_position-discard, 'fs': fs}
-        samples = np.arange(data.shape[-1]) + read_position - discard
-        coords = {
-            'channel': channel_names,
-            'time': samples * fs,
-        }
-        data = DataArray(data, coords=coords, attrs=metadata)
+        s0 = read_position - discard
+        data = PipelineData(data, fs=fs, s0=s0, channel=channel_names)
         cb(data)
     return 0
 

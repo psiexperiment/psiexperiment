@@ -32,8 +32,7 @@ class BaseEpochData(Atom):
         metadata = []
         for d in data:
             epochs.append(np.asarray(d))
-            md = d.info.copy()
-            md.update(d.metadata)
+            md = d.metadata.copy()
             if 'calibration' in md:
                 del md['calibration']
             metadata.append(md)

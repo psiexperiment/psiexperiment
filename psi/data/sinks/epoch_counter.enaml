@@ -52,8 +52,7 @@ class GroupedEpochCounter(EpochCounter):
 
     def _update_data(self, epochs):
         for e in epochs:
-            md = e['info']['metadata']
-            key = self.get_key(md)
+            key = self.get_key(e.metadata)
             self.counts[key] += 1
         current_n = sum(min(c, self.requested_group_n) for c in self.counts.values())
         def update():

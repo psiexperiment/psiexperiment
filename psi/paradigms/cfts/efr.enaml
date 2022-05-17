@@ -61,16 +61,17 @@ def analyze_efr(token, fs, target):
 
     while True:
         for epoch in (yield):
-            md = epoch['info']['metadata'].copy()
-            frequencies = md['target_mod_fm'] * harmonics
-
-            averages = int(round(epoch['info']['duration'] / 100e-3))
-            signal = epoch['signal'].reshape((averages, -1))
-            psd = util.psd_df(signal, fs).mean(axis=0)
-            md['efr_amplitude'] = util.db(psd.loc[frequencies].sum())
-
+            md = epoch.metadata.copy()
             new_epoch = epoch.copy()
-            new_epoch['info']['metadata'] = md
+            epoch = np.asarray(epoch)
+
+            frequencies = md['target_mod_fm'] * harmonics
+            averages = int(round(md['duration'] / 100e-3))
+            signal = epoch.reshape((averages, -1))
+            psd = util.psd_df(signal, fs).mean(axis=0)
+
+            md['efr_amplitude'] = util.db(psd.loc[frequencies].sum())
+            new_epoch.metadata = md
             target([new_epoch])
 
 

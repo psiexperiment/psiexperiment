@@ -10,6 +10,7 @@ from enaml.core.api import d_
 from enaml.widgets.api import Container, DockItem, Label
 from enaml.workbench.api import Extension
 
+from psiaudio.pipeline import concat
 from psiaudio.util import tone_power_conv
 
 from psi.context.api import (ContextGroup, EnumParameter,
@@ -54,7 +55,7 @@ def process(n_time, n_fft, input, workbench, trial_widget, trials_widget,
             continue
 
         if ts_start is None:
-            ts_start = data.metadata['t0_sample'] / data.metadata['fs']
+            ts_start = data.s0 / data.fs
             metadata = data.metadata.copy()
 
         time_data.append(data)
@@ -64,7 +65,7 @@ def process(n_time, n_fft, input, workbench, trial_widget, trials_widget,
         # Process acquired time segments once we have what we need
         if len(time_data) == n_time:
             # TODO: FIXME
-            mean_time = concatenate(time_data, axis=0)
+            mean_time = concat(time_data, axis='time')
             time_data = []
 
             f1 = context.get_value('primary_tone_frequency')

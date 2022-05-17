@@ -20,6 +20,7 @@ from enaml.core.api import Looper, Declarative, d_, d_func
 from enaml.qt.QtGui import QColor
 
 from psiaudio import util
+from psiaudio.pipeline import concat, PipelineData
 
 from psi.util import SignalBuffer, ConfigurationException
 from psi.core.enaml.api import load_manifests, PSIContribution
@@ -128,7 +129,7 @@ class EpochDataRange(BaseDataRange):
     max_duration = Float()
 
     def source_added(self, data, source):
-        n = [len(d['signal']) for d in data]
+        n = [len(d) for d in data]
         max_duration = max(n) / source.fs
         self.max_duration = max(max_duration, self.max_duration)
 
@@ -923,9 +924,10 @@ class GroupMixin(ColorCycleMixin):
 class EpochGroupMixin(GroupMixin):
 
     duration = Float()
+    channel = d_(Int(0))
 
     def _y(self, epoch):
-        return np.mean(epoch, axis=0) if len(epoch) \
+        return epoch.mean(axis='epoch')[self.channel] if len(epoch) \
             else np.full_like(self._x, np.nan)
 
     def _update_duration(self, event=None):
@@ -933,14 +935,13 @@ class EpochGroupMixin(GroupMixin):
 
     def _epochs_acquired(self, epochs):
         for d in epochs:
-            key = self.group_key(d['info']['metadata'])
+            key = self.group_key(d.metadata)
             if key is not None:
-                signal = d['signal']
-                self._data_cache[key].append(signal)
+                self._data_cache[key].append(d)
                 self._data_count[key] += 1
 
                 # Track number of samples
-                n = max(self._data_n_samples[key], len(signal))
+                n = max(self._data_n_samples[key], d.shape[-1])
                 self._data_n_samples[key] = n
 
         self.last_seen_key = key
@@ -988,7 +989,7 @@ class EpochGroupMixin(GroupMixin):
                 self._data_updated[key] = len(data)
                 if data:
                     x = self._x
-                    y = self._y(data)
+                    y = self._y(concat(data, axis='epoch'))
                 else:
                     x = y = np.array([])
                 if x.shape == y.shape:
@@ -1031,7 +1032,7 @@ class GroupedEpochFFTPlot(EpochGroupMixin, BasePlot):
             self._x = get_x_fft(self.source.fs, self.duration / self.waveform_averages)
 
     def _y(self, epoch):
-        y = np.mean(epoch, axis=0) if epoch else np.full_like(self._x, np.nan)
+        y = super()._y(epoch)
         psd = util.psd(y, self.source.fs, waveform_averages=self.waveform_averages)
         return self.source.calibration.get_db(self._x, psd)
 
@@ -1050,7 +1051,7 @@ class GroupedEpochPhasePlot(EpochGroupMixin, BasePlot):
             self._x = get_x_fft(self.source.fs, self.duration)
 
     def _y(self, epoch):
-        y = np.mean(epoch, axis=0) if epoch else np.full_like(self._x, np.nan)
+        y = super()._y(epoch)
         return util.phase(y, self.source.fs, unwrap=self.unwrap)
 
 
@@ -1132,9 +1133,8 @@ class ResultPlot(GroupMixin, SinglePlot):
 
     def _data_acquired(self, data):
         for d in data:
-            if 'info' in d:
-                d = d['info']['metadata']
-
+            if isinstance(d, PipelineData):
+                d = d.metadata
             key = self.group_key(d)
             if key is not None:
                 cache = self._data_cache.setdefault(key, {'x': [], 'y': []})

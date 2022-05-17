@@ -408,7 +408,7 @@ def clear_output(event, output):
 
 def decrement_key(event, output):
     with output.engine.lock:
-        keys = [e['info']['key'] for e in event.parameters['data']]
+        keys = [e.metadata['key'] for e in event.parameters['data']]
         counts = Counter(keys)
         complete_keys = []
         for key, count in counts.items():

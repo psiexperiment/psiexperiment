@@ -15,26 +15,14 @@ from enaml.core.api import Declarative, d_
 import xarray as xr
 
 from psiaudio.calibration import FlatCalibration
-from psiaudio.pipeline import coroutine, extract_epochs
+from psiaudio import pipeline
+from psiaudio.pipeline import coroutine
 from psiaudio.util import dbi, patodb
 
 from .channel import Channel
 
 from psi.core.enaml.api import PSIContribution
 
-
-@coroutine
-def broadcast(*targets):
-    '''
-    Send the data to mulitple targets
-
-    This is used internally by `Input` when it sees that it has multiple
-    downstream targets to handle sending the data to each target.
-    '''
-    while True:
-        data = (yield)
-        for target in targets:
-            target(data)
 
 
 class Input(PSIContribution):
@@ -111,7 +99,7 @@ class Input(PSIContribution):
         if len(targets) == 1:
             return targets[0]
         # If we have more than one target, need to add a broadcaster
-        return broadcast(*targets).send
+        return pipeline.broadcast(*targets).send
 
     def add_callback(self, cb):
         if self.configured:
@@ -142,7 +130,6 @@ class EpochInput(Input):
 
 
 class Callback(Input):
-
     function = d_(Callable())
 
     def _default_name(self):
@@ -500,17 +487,23 @@ class Delay(ContinuousInput):
 @coroutine
 def transform(function, target):
     while True:
-        data = (yield)
-        transformed_data = function(data)
-        target(transformed_data)
+        target(function((yield)))
 
 
 class Transform(ContinuousInput):
+
     function = d_(Callable())
 
     def configure_callback(self):
         cb = super().configure_callback()
         return transform(self.function, cb).send
+
+
+class SPL(Transform):
+
+    def _default_function(self):
+        v_to_pa = dbi(self.calibration.get_sens(1000))
+        return lambda x: patodb(x / v_to_pa)
 
 
 class Coroutine(Input):
@@ -595,9 +588,9 @@ class ExtractEpochs(EpochInput):
             m = f'ExtractEpochs {self.name} has an infinite epoch size'
             raise ValueError(m)
         cb = super().configure_callback()
-        return extract_epochs(self.fs, self.added_queue, self.epoch_size,
-                              self.poststim_time, self.buffer_size, cb,
-                              self.mark_complete, self.removed_queue).send
+        return pipeline.extract_epochs(
+            self.fs, self.added_queue, self.epoch_size, self.poststim_time,
+            self.buffer_size, cb, self.mark_complete, self.removed_queue).send
 
     def _get_duration(self):
         return self.epoch_size + self.poststim_time
