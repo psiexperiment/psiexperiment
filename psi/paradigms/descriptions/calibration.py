@@ -37,11 +37,11 @@ ParadigmDescription(
 ParadigmDescription(
     'pistonphone_calibration', 'Pistonphone calibration', 'calibration', [
         {'manifest': PATH + 'pistonphone_calibration.PistonphoneCalibrationManifest'},
-        {'manifest': CORE_PATH + 'microphone_mixins.MicrophoneSignalViewManifest',
+        {'manifest': CORE_PATH + 'signal_mixins.SignalViewManifest',
          'required': True,
          'attrs': {'source_name': 'hw_ai', 'time_span': 8, 'y_label': 'PSD (dB re 1V)'},
          },
-        {'manifest': CORE_PATH + 'microphone_mixins.MicrophoneFFTViewManifest',
+        {'manifest': CORE_PATH + 'signal_mixins.SignalFFTViewManifest',
          'required': True,
          'attrs': {'source_name': 'hw_ai', 'y_label': 'PSD (dB re 1V)'}
          },
@@ -53,10 +53,10 @@ ParadigmDescription(
     'amplifier_calibration', 'Amplifier calibration', 'calibration', [
         {'manifest': PATH + 'amplifier_calibration.AmplifierCalibrationManifest'},
         {'manifest': PATH + 'calibration_mixins.ChannelSettingMixins'},
-        {'manifest': CORE_PATH + 'microphone_mixins.MicrophoneFFTViewManifest',
+        {'manifest': CORE_PATH + 'signal_mixins.SignalFFTViewManifest',
          'required': True
          },
-        {'manifest': CORE_PATH + 'microphone_mixins.MicrophoneSignalViewManifest',
+        {'manifest': CORE_PATH + 'signal_mixins.SignalViewManifest',
          'required': True
          },
     ]
