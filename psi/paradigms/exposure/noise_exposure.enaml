@@ -34,12 +34,10 @@ def configure_experiment(pb, fs, t0_end, **kwargs):
 
 @coroutine
 def update_progress(pb, target):
-    samples = 0
+    pb.value = 0
     while True:
         data = (yield)
-        log.info(data)
-        samples += data.shape[-1]
-        pb.value = samples
+        pb.value += data.shape[-1]
         target(data)
 
 
