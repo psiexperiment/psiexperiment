@@ -74,6 +74,9 @@ class PSIWorkbench(Workbench):
                 manifest.controller = self.controller_plugin
 
     def register(self, manifest):
+        if isinstance(manifest, str):
+            manifest = load_manifest(manifest)()
+
         if self.context_plugin is not None and hasattr(manifest, 'C'):
             manifest.C = self.context_plugin.lookup
             manifest.context = self.context_plugin

@@ -36,7 +36,7 @@ def configure_experiment(event):
         frequency = setting['target_tone_frequency']
         level = setting['target_tone_level']
         max_level[frequency] = max(level, max_level.get(frequency, -np.inf))
-# Then figure out the maximum scaling factor required for that level.
+    # Then figure out the maximum scaling factor required for that level.
     # Multiply to convert from RMS to peak to peak and add 1% headroom.
     max_sf = {}
     for frequency, level in max_level.items():

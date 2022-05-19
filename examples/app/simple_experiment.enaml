@@ -10,7 +10,7 @@ from psi.context.api import SequenceSelector
 from psi.controller.api import ControllerManifest as BaseControllerManifest
 from psi.controller.api import EpochOutput, ContinuousOutput
 
-from psi.context.api import ContextGroup, Parameter
+from psi.context.api import ContextGroup, ContextRow, Parameter
 from psi.data.api import ResultPlot, PlotContainer, ViewBox
 from psi.token.primitives import BandlimitedNoise, Cos2Envelope, SAMEnvelope
 
@@ -43,12 +43,12 @@ enamldef ControllerManifest(BaseControllerManifest): manifest:
         Branding:
             title = 'Demo'
 
-    Extension:
-        id = 'simple.commands'
-        point = 'enaml.workbench.core.commands'
-        Command:
-            id = 'start_data_generator'
-            handler = start_data_generator
+    #Extension:
+    #    id = 'simple.commands'
+    #    point = 'enaml.workbench.core.commands'
+    #    Command:
+    #        id = 'start_data_generator'
+    #        handler = start_data_generator
 
     Extension:
         id = 'simple.tokens'
@@ -70,6 +70,24 @@ enamldef ControllerManifest(BaseControllerManifest): manifest:
                     label = 'SAM carrier'
 
     Extension:
+        id = 'simple.context'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            label = 'My variables'
+
+            ParameterRange:
+                name = 'frequency'
+                label = 'Passband'
+                default = 1
+
+            #ParameterRange:
+            #    name = 'frequency'
+            #    label = 'Passband'
+            #    default_low = 1
+            #    default_high = 10
+
+    Extension:
         id = 'simple.io'
         point = 'psi.controller.io'
 
@@ -88,7 +106,7 @@ enamldef ControllerManifest(BaseControllerManifest): manifest:
         point = 'psi.context.selectors'
 
         SequenceSelector:
-            name = 'default'
+            label = 'Values to test!'
 
     Extension:
         id = 'simple.plots'

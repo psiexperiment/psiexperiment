@@ -10,7 +10,7 @@ from enaml.validator import Validator
 
 from .context_item import (Result, Parameter, EnumParameter, FileParameter,
                            BoolParameter, OrderedContextMeta,
-                           UnorderedContextMeta)
+                           UnorderedContextMeta, ContextRow)
 
 from .expression import ExpressionNamespace
 
@@ -31,14 +31,6 @@ class ContextItemValidator(Validator):
             return True
         except:
             return False
-
-
-enamldef ContextItemField(Field):
-    text := context_item.expression
-    validator << ContextItemValidator(
-        plugin=workbench.get_plugin('psi.context'),
-        item=context_item)
-    submit_triggers = ['lost_focus', 'return_pressed', 'auto_sync']
 
 
 ################################################################################
@@ -92,6 +84,21 @@ enamldef ContextMetaPopup(PopupView): cm_popup:
 ################################################################################
 # ContextItemTemplate
 ################################################################################
+template ContextItemTemplate(row, MemberType: ContextRow):
+    HGroup: group:
+        spacing = 0
+        padding = 0
+        align_widths = False
+        Label:
+            text << str(row.items)
+        VGroup:
+            Looper:
+                iterable << row.items
+                DynamicTemplate: t:
+                    base = ContextItemTemplate
+                    args = (context_item, type(context_item))
+
+
 template ContextItemTemplate(context_item, MemberType: Result):
     HGroup: group:
         spacing = 0
@@ -164,8 +171,10 @@ enamldef WidgetDynamicTemplate(DynamicTemplate):
 
 
 template WidgetTemplate(context_item, MemberType):
-    ContextItemField: widget:
-        pass
+    Field:
+        text := context_item.expression
+        validator << ContextItemValidator(plugin=workbench.get_plugin('psi.context'), item=context_item)
+        submit_triggers = ['lost_focus', 'return_pressed', 'auto_sync']
 
 
 template WidgetTemplate(context_item, MemberType: EnumParameter):

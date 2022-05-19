@@ -78,7 +78,8 @@ class PSIContribution(Declarative):
     #: Label of contribution. Not required, but a good idea as it affects how
     #: the contribution may be represented in the user interface.
     label = d_(Str())
-    manifest = d_(Str())
+
+    #: Flag indicating whether item has already been registered.
     registered = Bool(False)
 
     def _default_name(self):

@@ -1,5 +1,5 @@
 from .context_item import (
-    BoolParameter, ContextGroup, ContextMeta, EnumParameter, Expression,
+    BoolParameter, ContextGroup, ContextMeta, ContextRow, EnumParameter, Expression,
     FileParameter, OrderedContextMeta, Parameter, Result, UnorderedContextMeta
 )
 

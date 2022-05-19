@@ -405,9 +405,6 @@ class ViewBox(PSIContribution):
     def _update_limits(self, event=None):
         self.viewbox.setYRange(self.y_min, self.y_max, padding=0)
 
-    def _default_name(self):
-        return self.label
-
     def _get_data_range(self):
         return self.parent.data_range
 

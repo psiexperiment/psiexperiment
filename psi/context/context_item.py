@@ -97,26 +97,13 @@ class Expression(Declarative):
 ################################################################################
 # ContextGroup
 ################################################################################
-class ContextGroup(PSIContribution):
-    '''
-    Used to group together context items for management.
-    '''
-    # Group name
-    name = d_(Str())
+class BaseContextGroup(PSIContribution):
 
-    # Label to use in the GUI
-    label = d_(Str())
-
-    # Are the parameters in this group visible?
-    visible = d_(Bool(True))
-
-    # Items in context
+    #: Items in group
     items = List()
 
-    def visible_items(self):
-        if not self.visible:
-            return []
-        return [i for i in self.items if i.visible]
+    #: Are the parameters in this group visible?
+    visible = d_(Bool(True))
 
     def add_item(self, item):
         if item not in self.items:
@@ -129,6 +116,38 @@ class ContextGroup(PSIContribution):
             items = self.items[:]
             items.remove(item)
             self.items = items
+
+
+class ContextGroup(BaseContextGroup):
+    '''
+    Used to group together context items in a single dock item pane.
+    '''
+
+    def visible_items(self):
+        if not self.visible:
+            return []
+        return [i for i in self.items if i.visible]
+
+
+class ContextRow(BaseContextGroup):
+    '''
+    Used to group together context items into a single row that is formatted
+    '''
+    fmt = d_(Str())
+
+    group = d_(Typed(ContextGroup))
+
+    #: Name of the group to display the item under. This should never be
+    #: overwitten even if we remove the item from the group (e.g., when
+    #: loading/unloading plugin tokens).
+    group_name = d_(Str())
+
+    def set_group(self, group):
+        if self.group is not None and self.group != group:
+            self.group.remove_item(self)
+        self.group = group
+        if self.group is not None:
+            self.group.add_item(self)
 
 
 ################################################################################
