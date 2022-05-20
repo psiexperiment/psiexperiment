@@ -29,7 +29,7 @@ enamldef SignalViewManifest(ExperimentManifest): manifest:
             delay = 0.125
 
             ViewBox: vb:
-                name << manifest.name + '_view'
+                name << manifest.name + '_vb'
                 y_min = -0.2
                 y_max = 0.2
                 y_mode = 'mouse'
@@ -52,6 +52,8 @@ enamldef SignalFFTViewManifest(ExperimentManifest): manifest:
     alias fft_freq_ub: fft_container.freq_ub
     alias source_name: fft_plot.source_name
     alias y_label: fft_vb.label
+    alias apply_calibration: fft_plot.apply_calibration
+    alias waveform_averages: fft_plot.waveform_averages
 
     Extension:
         id = manifest.id  + '.plots'
@@ -59,12 +61,12 @@ enamldef SignalFFTViewManifest(ExperimentManifest): manifest:
 
         FFTContainer: fft_container:
             name << manifest.name + '_container'
-            label = 'FFT'
+            label << manifest.title
             freq_lb = 5
             freq_ub = 50000
 
             ViewBox: fft_vb:
-                name << manifest.name + '_view'
+                name << manifest.name + '_vb'
                 y_min = -10
                 y_max = 100
                 y_mode = 'mouse'
