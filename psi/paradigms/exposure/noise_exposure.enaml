@@ -13,8 +13,7 @@ from psi.context.api import ContextGroup, EnumParameter, Parameter
 from psi.controller.api import (ControllerManifest, EpochOutput,
                                 ExperimentAction, ExperimentCallback)
 
-from psi.controller.input import (Coroutine, Input, IIRFilter, CalibratedInput,
-                                  RMS, SPL)
+from psi.controller.input import (Coroutine, Input, IIRFilter, RMS, SPL)
 
 from psi.data.plots import (TimeContainer, ChannelPlot, FFTContainer,
                             FFTChannelPlot, ViewBox)
@@ -78,22 +77,20 @@ enamldef NoiseControllerManifest(ControllerManifest): manifest:
             configurable = True
 
         ChannelInput:
-            name = 'microphone_raw'
+            name = 'microphone'
 
-            CalibratedInput:
-                name = 'microphone'
+            IIRFilter:
+                btype = 'highpass'
+                ftype = 'butter'
+                N = 2
+                f_highpass = 100
+                name = 'microphone_filtered'
 
-                IIRFilter:
-                    btype = 'highpass'
-                    ftype = 'butter'
-                    N = 2
-                    f_highpass = 100
-                    name = 'microphone_filtered'
-                    RMS:
-                        name = 'RMS'
-                        duration = 1
-                        SPL: spl:
-                            name = 'noise_level'
+                RMS:
+                    name = 'RMS'
+                    duration = 1
+                    SPL: spl:
+                        name = 'noise_level'
 
             Coroutine:
                 name = 'update_progress'
