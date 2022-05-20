@@ -89,12 +89,16 @@ class DataPlugin(PSIPlugin):
         raise AttributeError(m.format(plot_container_name))
 
     def find_viewbox(self, viewbox_name):
+        available_names = []
         for container in self._containers:
             for viewbox in container.children:
                 if viewbox.name == viewbox_name:
                     return viewbox
-        m = 'Viewbox {} not available'
-        raise AttributeError(m.format(viewbox_name))
+                available_names.append(viewbox.name)
+
+        available_names = ', '.join(available_names)
+        m = f'Viewbox {viewbox_name} not available. Valid choices are {available_names}.'
+        raise AttributeError(m)
 
     def find_plot(self, plot_name):
         for container in self._containers:
