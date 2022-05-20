@@ -645,7 +645,9 @@ def decimate_extremes(data, downsample):
 class FFTChannelPlot(ChannelPlot):
 
     time_span = d_(Float(1))
+    waveform_averages = d_(Int(1))
     window = d_(Enum('hamming', 'flattop'))
+    apply_calibration = d_(Bool(True))
     _x = Typed(np.ndarray)
     _buffer = Typed(SignalBuffer)
 
@@ -668,14 +670,18 @@ class FFTChannelPlot(ChannelPlot):
 
     def _cache_x(self, event=None):
         if self.source.fs:
-            self._x = get_x_fft(self.source.fs, self.time_span)
+            time_span = self.time_span / self.waveform_averages
+            self._x = get_x_fft(self.source.fs, time_span)
 
     def update(self, event=None):
         if self._buffer.get_time_ub() >= self.time_span:
-            log.trace('Time span %f to %f', -self.time_span, 0)
             data = self._buffer.get_latest(-self.time_span, 0)
-            psd = util.psd(data, self.source.fs, self.window)
-            db = self.source.calibration.get_db(self._x, psd)
+            psd = util.psd(data, self.source.fs, self.window,
+                           waveform_averages=self.waveform_averages)
+            if self.apply_calibration:
+                db = self.source.calibration.get_db(self._x, psd)
+            else:
+                db = util.db(psd)
             if self._x.shape == db.shape:
                 deferred_call(self.plot.setData, self._x, db)
 
@@ -1020,6 +1026,7 @@ class GroupedEpochAveragePlot(EpochGroupMixin, BasePlot):
 class GroupedEpochFFTPlot(EpochGroupMixin, BasePlot):
 
     waveform_averages = d_(Int(1))
+    apply_calibration = d_(Bool(True))
 
     def _default_name(self):
         return self.source_name + '_grouped_epoch_fft_plot'
@@ -1033,7 +1040,9 @@ class GroupedEpochFFTPlot(EpochGroupMixin, BasePlot):
     def _y(self, epoch):
         y = np.mean(epoch, axis=0) if epoch else np.full_like(self._x, np.nan)
         psd = util.psd(y, self.source.fs, waveform_averages=self.waveform_averages)
-        return self.source.calibration.get_db(self._x, psd)
+        if self.apply_calibration:
+            return self.source.calibration.get_db(self._x, psd)
+        return util.db(psd)
 
 
 class GroupedEpochPhasePlot(EpochGroupMixin, BasePlot):
