@@ -4,7 +4,6 @@ log = logging.getLogger(__name__)
 
 from collections import deque
 from functools import partial
-#from queue import Empty, Queue
 
 import numpy as np
 from scipy import signal
@@ -16,7 +15,7 @@ from enaml.core.api import Declarative, d_
 
 from psiaudio.calibration import FlatCalibration
 from psiaudio.pipeline import coroutine, extract_epochs
-from psiaudio.util import dbi, patodb
+from psiaudio.util import db, dbi
 
 from .channel import Channel
 
@@ -215,10 +214,8 @@ class CustomInput(Input):
 @coroutine
 def calibrate(calibration, target):
     sens = dbi(calibration.get_sens(1000))
-    log.debug('Setting sensitivity for CalibratedInput to %f', sens)
     while True:
-        data = (yield)
-        target(data * sens)
+        target((yield) * sens)
 
 
 class CalibratedInput(ContinuousInput):
@@ -276,12 +273,8 @@ class RMS(ContinuousInput):
 
 @coroutine
 def spl(target, sens):
-    v_to_pa = dbi(sens)
     while True:
-        data = (yield)
-        data /= v_to_pa
-        spl = patodb(data)
-        target(spl)
+        target(db((yield)) + sens)
 
 
 class SPL(ContinuousInput):
