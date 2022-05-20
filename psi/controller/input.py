@@ -193,6 +193,32 @@ class Callback(Input):
         return True
 
 
+@coroutine
+def transform(function, target):
+    while True:
+        data = (yield)
+        transformed_data = function(data)
+        target(transformed_data)
+
+
+class Transform(ContinuousInput):
+    function = d_(Callable())
+
+    def configure_callback(self):
+        cb = super().configure_callback()
+        return transform(self.function, cb).send
+
+
+class Coroutine(Input):
+    coroutine = d_(Callable())
+    args = d_(Tuple())
+    force_active = set_default(True)
+
+    def configure_callback(self):
+        cb = super().configure_callback()
+        return self.coroutine(*self.args, cb).send
+
+
 ################################################################################
 # Continuous input types
 ################################################################################
@@ -218,7 +244,7 @@ def calibrate(calibration, target):
         target((yield) * sens)
 
 
-class CalibratedInput(ContinuousInput):
+class CalibratedInput(Transform):
     '''
     Applies calibration to input
 
@@ -227,21 +253,14 @@ class CalibratedInput(ContinuousInput):
     If input is from a microphone and the microphone calibration transforms
     from Vrms to Pascals, then the output of this block will be in Pascals.
     '''
+    def _default_function(self):
+        sens = dbi(self.source.calibration.get_sens(1e3))
+        return lambda x, s=sens: x * s
+
     def _get_calibration(self):
         # Input is now calibrated, and no additional transforms need to be
-        # performed by downstream inputs. Note that the calibration from the
-        # source for this input is used (i.e., not *this* calibration). So,
-        # calibration is now 1 unit per 1 Pa. (i.e., dB(1/1Pa) gives us a
-        # sensitivity of 0). This works beause you can show that:
-        # >>> FlatCalibration(sensitivity=0).get_spl(1)
-        # 93.9794
-        # Which is consistent with 1 Pa = 94 dB SPL
+        # performed by downstream inputs.
         return FlatCalibration(sensitivity=0)
-
-    def configure_callback(self):
-        cb = super().configure_callback()
-        log.debug('Configuring CalibratedInput %s', self.name)
-        return calibrate(self.source.calibration, cb).send
 
 
 @coroutine
@@ -271,18 +290,11 @@ class RMS(ContinuousInput):
         return rms(n, cb).send
 
 
-@coroutine
-def spl(target, sens):
-    while True:
-        target(db((yield)) + sens)
+class SPL(Transform):
 
-
-class SPL(ContinuousInput):
-
-    def configure_callback(self):
-        cb = super().configure_callback()
-        sens = self.calibration.get_sens(1000)
-        return spl(cb, sens).send
+    def _default_function(self):
+        sens = self.calibration.get_sens(1e3)
+        return lambda x, s=sens: db(x) + s
 
 
 @coroutine
@@ -619,32 +631,6 @@ class Delay(ContinuousInput):
         cb = super().configure_callback()
         n = round(self.delay * self.fs)
         return delay(n, cb).send
-
-
-@coroutine
-def transform(function, target):
-    while True:
-        data = (yield)
-        transformed_data = function(data)
-        target(transformed_data)
-
-
-class Transform(ContinuousInput):
-    function = d_(Callable())
-
-    def configure_callback(self):
-        cb = super().configure_callback()
-        return transform(self.function, cb).send
-
-
-class Coroutine(Input):
-    coroutine = d_(Callable())
-    args = d_(Tuple())
-    force_active = set_default(True)
-
-    def configure_callback(self):
-        cb = super().configure_callback()
-        return self.coroutine(*self.args, cb).send
 
 
 ################################################################################
