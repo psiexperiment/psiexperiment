@@ -9,15 +9,15 @@ from psi.core.enaml.api import PSIManifest
 from psi.context.api import ContextGroup, EnumParameter, Parameter
 
 
-enamldef OutputChannelExtension(Extension):
+enamldef OutputChannelExtension(Extension): ext:
 
     attr manifest
     id = manifest.id + '.context'
     point = 'psi.context.items'
 
     EnumParameter:
-        name = f'{contribution.name}_output_channel'
-        label = f'{contribution.label} output channel'
+        name = ext.manifest.contribution.name + '_output_channel'
+        label = ext.manifest.contribution.name + ' output channel'
         compact_label = 'ao'
         choices = get_hw_ao_choices(workbench)
         selected = next(iter(get_hw_ao_choices(workbench)))
