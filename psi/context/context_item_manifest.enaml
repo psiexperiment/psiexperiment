@@ -9,16 +9,23 @@ from enaml.workbench.api import Extension
 from psi.core.enaml.api import PSIManifest
 from .context_item_view import ContextItem
 
+def update_looper(group, looper, *args, **kw):
+    looper.iterable = group.children[:]
+    looper.refresh_items()
+
 
 enamldef ContextDockItem(DockItem):
 
     attr group
     closable = False
 
+    initialized ::
+        group.observe('updated', lambda e: update_looper(group, looper))
+
     VGroup:
         spacing = 0
-        Looper:
-            iterable << group.items[:]
+        Looper: looper:
+            iterable << group.children
             Conditional:
                 condition << loop_item.visible
                 ContextItem:

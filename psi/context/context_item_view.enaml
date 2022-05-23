@@ -89,14 +89,22 @@ template ContextItemTemplate(row, MemberType: ContextRow):
         spacing = 0
         padding = 0
         align_widths = False
-        Label:
-            text << str(row.items)
-        VGroup:
+        HGroup:
+            align_widths = False
+            trailing_spacer = spacer(0)
             Looper:
-                iterable << row.items
-                DynamicTemplate: t:
-                    base = ContextItemTemplate
-                    args = (context_item, type(context_item))
+                iterable << row.fmt[:]
+                WidgetDynamicTemplate:
+                    args = (loop_item, type(loop_item))
+
+
+template ContextItemTemplate(context_item, MemberType: str):
+    HGroup: group:
+        spacing = 0
+        padding = 0
+        align_widths = False
+        Label: label:
+            text << context_item
 
 
 template ContextItemTemplate(context_item, MemberType: Result):
@@ -177,6 +185,11 @@ template WidgetTemplate(context_item, MemberType):
         submit_triggers = ['lost_focus', 'return_pressed', 'auto_sync']
 
 
+template WidgetTemplate(context_item, MemberType: str):
+    Label:
+        text << context_item
+
+
 template WidgetTemplate(context_item, MemberType: EnumParameter):
     ObjectCombo: widget:
         items << sorted(context_item.choices.keys())
@@ -205,9 +218,9 @@ enamldef ContextItem(Container): container:
         spacing = 0
         align_widths = False
 
-        Container: c:
+        Container:
             padding = 0
-            DynamicTemplate: t:
+            DynamicTemplate:
                 base = ContextItemTemplate
                 args = (context_item, type(context_item))
 
