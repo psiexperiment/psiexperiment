@@ -3,6 +3,7 @@ log = logging.getLogger(__name__)
 
 from copy import deepcopy
 from functools import partial
+import itertools
 import pickle as pickle
 
 import numpy as np
@@ -148,7 +149,7 @@ class ContextPlugin(PSIPlugin):
 
         # At this point, `context_items` is only the "orphan" context items
         # where the group has not yet been assigned.
-        for item in context_items.values():
+        for item in itertools.chain(context_items.values(), context_sets.values()):
             if item.group_name not in context_groups:
                 m = f'Missing group "{item.group_name}" for item {item.name}'
                 raise ValueError(m)
@@ -204,7 +205,6 @@ class ContextPlugin(PSIPlugin):
 
         for group in context_groups.values():
             group.updated = True
-
 
     def _bind_observers(self):
         self.workbench.get_extension_point(SELECTORS_POINT) \

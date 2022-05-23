@@ -105,9 +105,6 @@ class ContextGroup(PSIContribution):
     visible = d_(Bool(True))
     updated = d_(Event())
 
-    def items(self):
-        return [child for child in self.children if isinstance(child, ContextItem)]
-
 
 class ContextSet(PSIContribution):
     '''
