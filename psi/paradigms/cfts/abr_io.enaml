@@ -13,8 +13,8 @@ from enaml.workbench.core.api import Command
 from psiaudio import queue
 from psiaudio.util import interleave_octaves
 
-from psi.context.api import (BoolParameter, ContextGroup, EnumParameter,
-                             OrderedContextMeta, Parameter)
+from psi.context.api import (BoolParameter, ContextGroup, ContextRow,
+                             EnumParameter, OrderedContextMeta, Parameter)
 
 from psi.context.selector import CartesianProduct
 from psi.controller.api import ExperimentAction
@@ -199,34 +199,40 @@ enamldef ABRIOBaseManifest(ABRBaseManifest): manifest:
             name = 'acquisition'
             label = 'Acquisition'
 
-            Parameter:
+        ContextRow:
+            name = 'averaging'
+            group_name = 'acquisition'
+            fmt = ['Average', averages, 'trials at', rate, 'per sec. and alternate polarity?', alt_pol]
+
+            Parameter: averages:
                 name = 'averages'
                 label = 'Averages'
                 default = 512
                 scope = 'trial'
 
-            Parameter:
+            Parameter: rate:
                 name = 'rate'
                 label = 'Reps. per sec.'
                 default = 80
                 scope = 'trial'
 
-            BoolParameter:
+            BoolParameter: alt_pol:
                 name = 'alternate_polarity'
                 label = 'Alternate polarity?'
                 default = True
                 scope = 'experiment'
 
-            EnumParameter:
-                name = 'ordering'
-                label = 'Stimulus ordering'
-                choices = {
-                    'conventional': '"sequential"',
-                    'interleaved plateau': '"interleaved_plateau"',
-                    'interleaved ramp': '"interleaved_ramp"',
-                    'interleaved random': '"interleaved_random"',
-                }
-                scope = 'experiment'
+        EnumParameter:
+            name = 'ordering'
+            label = 'Stimulus ordering'
+            choices = {
+                'conventional': '"sequential"',
+                'interleaved plateau': '"interleaved_plateau"',
+                'interleaved ramp': '"interleaved_ramp"',
+                'interleaved random': '"interleaved_random"',
+            }
+            scope = 'experiment'
+            group_name = 'acquisition'
 
     Extension:
         id = EXPERIMENT + '.commands'

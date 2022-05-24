@@ -180,9 +180,17 @@ class ContextItem(Declarative):
         return f'<{self.__class__.__name__}: {self}>'
 
     def __str__(self):
-        if self.group:
-            return f'{self.name} in {self.parent.name}'
-        return f'{self.name}'
+        if isinstance(self.parent, ContextGroup):
+            l = f'{self.name} in {self.parent.name}'
+        elif self.group_name:
+            l =  f'{self.name} in {self.group_nme}'
+        else:
+            l = f'{self.name}'
+        if not self.visible:
+            l = f'{l} (not visible)'
+        if not self.editable:
+            l = f'{l} (not editable)'
+        return l
 
 
 class Result(ContextItem):

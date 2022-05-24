@@ -191,7 +191,7 @@ class ContextPlugin(PSIPlugin):
         for expression in context_expressions.values():
             try:
                 item = context_items.pop(expression.parameter)
-                groups_updated.add(item.group)
+                groups_updated.add(item.parent)
                 item.set_parent(None)
             except KeyError as e:
                 log.warn('%s referenced by expression %s does not exist',

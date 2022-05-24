@@ -94,7 +94,7 @@ template ContextItemTemplate(row, MemberType: ContextRow):
             constraints = [hbox(*widgets, spacing=5)]
             for item, widget in zip(row.fmt, widgets):
                 if isinstance(widget, Field):
-                    constraints.append(widget.width == 60)
+                    constraints.append(widget.width == 45)
             constraints.append(align('v_center', *widgets[:-1]))
             return constraints
         Looper:

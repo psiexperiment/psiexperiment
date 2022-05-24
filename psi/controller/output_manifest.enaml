@@ -69,9 +69,9 @@ def load_items(output, block):
 
     CONTEXT_MAP[output, block] = block_map
 
-    for block in block.blocks:
-        block_parameters = load_items(output, block)
-        parameters.extend(block_parameters)
+    for b in block.blocks:
+        b_params = load_items(output, b)
+        parameters.extend(b_params)
 
     return parameters
 

@@ -13,7 +13,7 @@ from enaml.workbench.api import Extension
 from psiaudio.pipeline import concat
 from psiaudio.util import tone_power_conv
 
-from psi.context.api import (ContextGroup, EnumParameter,
+from psi.context.api import (ContextGroup, ContextRow, EnumParameter,
                              Expression, Parameter, Result)
 from psi.controller.api import (Blocked, Capture, ContinuousInput,
                                 ControllerManifest, coroutine, Discard,
@@ -283,11 +283,11 @@ enamldef DPOAEManifest(ControllerManifest): manifest:
 
         Expression:
             parameter = 'secondary_tone_rise_time'
-            expression = 'rise_time'
+            expression = '25e-3'
 
         Expression:
             parameter = 'primary_tone_rise_time'
-            expression = 'rise_time'
+            expression = '25e-3'
 
         EnumParameter:
             name = 'primary_channel'
@@ -306,8 +306,8 @@ enamldef DPOAEManifest(ControllerManifest): manifest:
             group_name = 'hardware_settings'
 
         ContextGroup:
-            name = 'dpoae'
-            label = 'DPOAE settings'
+            name = 'acquisition'
+            label = 'DPOAE'
 
             Parameter:
                 name = 'f2_frequency'
@@ -321,53 +321,55 @@ enamldef DPOAEManifest(ControllerManifest): manifest:
                 compact_label = 'L2'
                 default = 80
 
-            Parameter:
-                name = 'rise_time'
-                label = 'Tone rise time'
-                compact_label = 'rise time'
-                default = 2.5e-3
+            ContextRow:
+                name = 'primary_settings'
+                fmt = ['DPOAE', 'F2/F1 ratio', f2_f1_ratio, 'L2-L1 (dB)', l2_l1_diff, 'Noise floor (dB SPL)', nf]
 
-            Parameter:
-                name = 'f2_f1_ratio'
-                label = 'F2/F1 ratio'
-                compact_label = 'F2/F1'
-                default = 1.2
+                Parameter: f2_f1_ratio:
+                    name = 'f2_f1_ratio'
+                    label = 'F2/F1 ratio'
+                    compact_label = 'F2/F1'
+                    default = 1.2
 
-            Parameter:
-                name = 'l1_l2_difference'
-                label = 'L1-L2 (dB)'
-                compact_label = 'L1-L2'
-                default = 10
+                Parameter: l2_l1_diff:
+                    name = 'l1_l2_difference'
+                    label = 'L1-L2 (dB)'
+                    compact_label = 'L1-L2'
+                    default = 10
 
-            Parameter:
-                name = 'n_fft'
-                label = 'Spectrum avg. (decr. variablity)'
-                compact_label = 'N FFT'
-                default = 8
-                scope = 'experiment'
+                Parameter: nf:
+                    name = 'max_dpoae_noise_floor'
+                    label = 'DPOAE noise floor (db SPL)'
+                    compact_label = 'DPOAE NF'
+                    dtype = 'float'
+                    default = 0.0
+                    scope = 'experiment'
 
-            Parameter:
-                name = 'n_time'
-                label = 'Time avg. (decr. noise floor)'
-                compact_label = 'N time'
-                default = 16
-                scope = 'experiment'
+            ContextRow:
+                name = 'averaging_settings'
+                fmt = ['Average', n_time, 'time', n_fft, 'FFT epochs of', dur, 's duration']
 
-            Parameter:
-                name = 'max_dpoae_noise_floor'
-                label = 'DPOAE noise floor (db SPL)'
-                compact_label = 'DPOAE NF'
-                dtype = 'float'
-                default = 0.0
-                scope = 'experiment'
+                Parameter: n_fft:
+                    name = 'n_fft'
+                    label = 'Spectrum avg. (decr. variablity)'
+                    compact_label = 'N FFT'
+                    default = 8
+                    scope = 'experiment'
 
-            Parameter:
-                name = 'response_window'
-                label = 'Response window (sec)'
-                compact_label = 'Resp. Window'
-                dtype = 'float'
-                default = 100e-3
-                scope = 'experiment'
+                Parameter: n_time:
+                    name = 'n_time'
+                    label = 'Time avg. (decr. noise floor)'
+                    compact_label = 'N time'
+                    default = 16
+                    scope = 'experiment'
+
+                Parameter: dur:
+                    name = 'response_window'
+                    label = 'Response window (sec)'
+                    compact_label = 'Resp. Window'
+                    dtype = 'float'
+                    default = 100e-3
+                    scope = 'experiment'
 
     Extension:
         id = EXPERIMENT + '.actions'

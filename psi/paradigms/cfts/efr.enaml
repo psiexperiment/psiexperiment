@@ -13,6 +13,8 @@ from psiaudio import util
 from psi.controller.api import (ControllerManifest, Coroutine, coroutine,
                                 ExperimentEvent, ExtractEpochs,
                                 ExperimentAction, Input)
+
+from psi.context.api import ContextGroup
 from psi.experiment.api import StatusItem
 from psi.token.primitives import Cos2Envelope, Gate, SAMEnvelope, SquareWaveEnvelope, Tone
 from psi.data.sinks.api import EpochCounter, TextStore
@@ -134,6 +136,14 @@ enamldef BaseEFRManifest(ControllerManifest): manifest:
             label = 'EFR stimuli'
 
     Extension:
+        id = EXPERIMENT + '.items'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'acquisition'
+            label = 'Acquisition'
+
+    Extension:
         id = EXPERIMENT + '.commands'
         point = 'enaml.workbench.core.commands'
 
@@ -209,9 +219,6 @@ enamldef BaseEFRManifest(ControllerManifest): manifest:
                     tab_keys >> pc.buttons
                     selected_tab := pc.current_button
                     auto_select := pc.auto_select
-                    #label = 'F2'
-                    #y_column = 'f2_level'
-                    #pen_color = 'indianred'
 
         FFTContainer: fft_container:
             label = 'EEG FFT'
