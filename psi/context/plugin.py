@@ -151,7 +151,8 @@ class ContextPlugin(PSIPlugin):
         # where the group has not yet been assigned.
         for item in itertools.chain(context_items.values(), context_sets.values()):
             if item.group_name not in context_groups:
-                m = f'Missing group "{item.group_name}" for item {item.name}'
+                valid_names = ', '.join(context_groups.keys())
+                m = f'Missing group "{item.group_name}" for item {item.name}. Valid groups are {valid_names}.'
                 raise ValueError(m)
             group = context_groups[item.group_name]
             item.set_parent(group)
@@ -180,11 +181,12 @@ class ContextPlugin(PSIPlugin):
 
         for cset in context_sets.values():
             for item in cset.children:
-                if item.name in context_items:
-                    m = f'Context item {item.name} already defined'
-                    raise ValueError(m)
-                else:
-                    context_items[item.name] = item
+                if isinstance(item, ContextItem):
+                    if item.name in context_items:
+                        m = f'Context item {item.name} already defined'
+                        raise ValueError(m)
+                    else:
+                        context_items[item.name] = item
 
         for expression in context_expressions.values():
             try:

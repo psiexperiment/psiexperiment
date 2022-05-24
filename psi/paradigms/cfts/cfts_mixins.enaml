@@ -149,7 +149,7 @@ enamldef EEGInputManifest(ChannelInputManifest): manifest:
         point = 'psi.context.items'
 
         ContextRow:
-            fmt = ['Amplifier filter', hp, 'to', lp, 'Hz, ', gain, 'gain']
+            fmt = ['Amplifier filter', hp, 'to', lp, 'Hz at', gain, '✕ gain']
             group_name = 'hardware_settings'
 
             Parameter: hp:
@@ -172,32 +172,30 @@ enamldef EEGInputManifest(ChannelInputManifest): manifest:
                 scope = 'experiment'
                 group_name = 'hardware_settings'
 
-        ContextGroup:
-            name = 'digital_filter'
-            label = 'Digital filter settings'
+        ContextRow:
+            name = 'digital_filter_settings'
+            fmt << ['Digital filter?', filt_on] \
+                if filt_on.expression == 'False' else \
+                ['Digital filter?', filt_on, 'from', filt_hp, 'to', filt_lp, 'Hz']
+            group_name = 'acquisition'
 
-            ContextRow:
-                fmt << ['Digital filter?', filt_on] \
-                    if filt_on.expression == 'False' else \
-                    ['Digital filt?', filt_on, 'From', filt_hp, 'to', filt_lp, 'Hz']
+            BoolParameter: filt_on:
+                name = 'digital_filter'
+                label = 'Digital filter?'
+                scope = 'experiment'
+                default = True
 
-                BoolParameter: filt_on:
-                    name = 'digital_filter'
-                    label = 'Digital filter?'
-                    scope = 'experiment'
-                    default = True
+            Parameter: filt_hp:
+                name = 'digital_highpass'
+                label = 'Digital highpass filter cutoff'
+                default = 300
+                scope = 'experiment'
 
-                Parameter: filt_hp:
-                    name = 'digital_highpass'
-                    label = 'Digital highpass filter cutoff'
-                    default = 300
-                    scope = 'experiment'
-
-                Parameter: filt_lp:
-                    name = 'digital_lowpass'
-                    label = 'Digital lowpass filter cutoff'
-                    default = 3000
-                    scope = 'experiment'
+            Parameter: filt_lp:
+                name = 'digital_lowpass'
+                label = 'Digital lowpass filter cutoff'
+                default = 3000
+                scope = 'experiment'
 
 
 ################################################################################

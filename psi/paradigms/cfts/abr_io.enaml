@@ -196,7 +196,7 @@ enamldef ABRIOBaseManifest(ABRBaseManifest): manifest:
             name = 'settings'
 
         ContextGroup:
-            name = 'abr_io'
+            name = 'acquisition'
             label = 'Acquisition'
 
             Parameter:
