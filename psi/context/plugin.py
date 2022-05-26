@@ -50,6 +50,15 @@ class ContextLookup:
         cb.is_lookup = True
         return cb
 
+    def get_selector(self, name='default'):
+        return self.__context_plugin.get_selector(name)
+
+    def get_names(self, name='default'):
+        return self.__context_plugin.get_names(name)
+
+    def get_range(self, item_name, iterator='default'):
+        return self.__context_plugin.get_range(item_name, iterator)
+
 
 context_initialized_error = '''
 Context not initialized
@@ -320,6 +329,13 @@ class ContextPlugin(PSIPlugin):
 
         return values
 
+    def get_range(self, item_name, iterator='default'):
+        values = self.unique_values(item_name, iterator)
+        return min(values), max(values)
+
+    def get_names(self, iterator='default'):
+        return [i.name for i in self.get_selector(iterator).context_items]
+
     def get_item(self, item_name):
         return self.context_items[item_name]
 
@@ -470,6 +486,9 @@ class ContextPlugin(PSIPlugin):
     @property
     def has_selectors(self):
         return len(self.selectors) != 0
+
+    def get_selector(self, name='default'):
+        return self.selectors[name]
 
     def get_parameter(self, name):
         return self.parameters[name]

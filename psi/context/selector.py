@@ -460,6 +460,27 @@ class FriendlyCartesianProduct(BaseSelector):
         context_items.insert(b, context_items.pop(a))
         self.context_items = context_items
 
+    def get_formatter(self, names=None):
+        if names is None:
+            names = [i.name for i in self.context_items]
+
+        formatters = []
+        for name in names:
+            detail = self.context_detail[name]
+            unit = detail['unit']
+            if 'inverse_transform_fn' in detail:
+                fn = detail['inverse_transform_fn']
+                fmt = lambda x, fn=fn, unit=unit: f'{fn(x)} {unit}'
+            else:
+                fmt = lambda x, unit=unit: f'{x} {unit}'
+            formatters.append(fmt)
+
+        def formatter(setting, sep):
+            nonlocal formatters
+            return sep.join(f(s) for f, s in zip(formatters, setting))
+
+        return formatter
+
 
 if __name__ == '__main__':
     import doctest
