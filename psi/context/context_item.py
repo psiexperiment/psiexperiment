@@ -183,7 +183,7 @@ class ContextItem(Declarative):
         if isinstance(self.parent, ContextGroup):
             l = f'{self.name} in {self.parent.name}'
         elif self.group_name:
-            l =  f'{self.name} in {self.group_nme}'
+            l =  f'{self.name} in {self.group_name}'
         else:
             l = f'{self.name}'
         if not self.visible:
