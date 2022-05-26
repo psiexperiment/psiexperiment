@@ -15,7 +15,7 @@ eeg_mixin = {
         'time_span': 2,
         'time_delay': 0.125,
         'source_name': 'eeg_filtered',
-        'y_label': 'EEG (dB)'
+        'y_label': 'EEG (V)'
     }
 }
 

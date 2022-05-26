@@ -272,25 +272,24 @@ enamldef ABRIOBaseManifest(ABRBaseManifest): manifest:
         TimeContainer: time_container:
             label = 'ERP average'
             span = 8.5e-3
-            fmt_button => (key):
-                return '{} Hz'.format(', '.join([str(k) for k in key]))
             allow_auto_select << C.ordering == 'sequential'
+            fmt_button_cb << C.get_selector().get_formatter(plot.tab_grouping)
 
             ViewBox:
                 name = 'erp_waterfall_viewbox'
+                y_label = 'ABR amplitude'
                 y_min = -5
                 y_max = 5
                 y_mode = 'mouse'
                 save_limits = True
 
-                StackedEpochAveragePlot:
+                StackedEpochAveragePlot: plot:
                     label = 'ERP average plot'
                     source_name = 'valid_erp'
                     n_update = 8
-                    tab_grouping = ['target_tone_frequency']
-                    plot_grouping = ['target_tone_level']
-                    fmt_plot_label => (key):
-                        return '{} dB SPL'.format(', '.join([str(k) for k in key]))
+                    tab_grouping = C.get_names()[:-1]
+                    plot_grouping = C.get_names()[-1:]
+                    fmt_plot_label_cb << C.get_selector().get_formatter(plot_grouping)
                     pen_width = 2
                     tab_keys >> time_container.buttons
                     selected_tab := time_container.current_button

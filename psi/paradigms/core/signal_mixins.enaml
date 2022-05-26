@@ -16,7 +16,7 @@ enamldef SignalViewManifest(ExperimentManifest): manifest:
     alias time_span: time_container.span
     alias time_delay: time_container.delay
     alias source_name: time_plot.source_name
-    alias y_label: vb.label
+    alias y_label: vb.y_label
 
     Extension:
         id = 'plots'
@@ -51,7 +51,7 @@ enamldef SignalFFTViewManifest(ExperimentManifest): manifest:
     alias fft_freq_lb: fft_container.freq_lb
     alias fft_freq_ub: fft_container.freq_ub
     alias source_name: fft_plot.source_name
-    alias y_label: fft_vb.label
+    alias y_label: fft_vb.y_label
 
     Extension:
         id = manifest.id  + '.plots'

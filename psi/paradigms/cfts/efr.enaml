@@ -38,6 +38,7 @@ def configure_experiment(event):
         frequency = setting['target_tone_frequency']
         level = setting['target_tone_level']
         max_level[frequency] = max(level, max_level.get(frequency, -np.inf))
+
     # Then figure out the maximum scaling factor required for that level.
     # Multiply to convert from RMS to peak to peak and add 1% headroom.
     max_sf = {}
@@ -50,6 +51,10 @@ def configure_experiment(event):
 
     counter = data.find_sink('efr_counter')
     counter.requested_n = output.queue.count_requested_trials()
+
+    names = context.get_names()
+    pc = data.find_plot_container('efr_io_container')
+    pc.x_min, pc.x_max = context.get_range(names[-1])
 
 
 @coroutine
@@ -202,20 +207,23 @@ enamldef BaseEFRManifest(ControllerManifest): manifest:
         PlotContainer: pc:
             name = 'efr_io_container'
             label = 'EFR input-output functions'
-            x_min = 0
-            x_max = 1100
+
+            fmt_button_cb << \
+                C.get_selector().get_formatter(efr_plot.tab_grouping)
 
             ViewBox: vb:
                 name = 'efr_io_viewbox'
                 y_mode = 'mouse'
                 save_limits = True
 
-                ResultPlot: grp:
+                ResultPlot: efr_plot:
+                    name = 'efr_io_amplitude_plot'
                     source_name = 'analyze_efr'
-                    x_column = 'target_mod_fm'
+                    x_column << C.get_names()[-1]
                     y_column = 'efr_amplitude'
                     pen_width = 2
-                    tab_grouping = ['target_tone_frequency']
+
+                    tab_grouping << C.get_names()[:-1]
                     tab_keys >> pc.buttons
                     selected_tab := pc.current_button
                     auto_select := pc.auto_select
@@ -224,16 +232,19 @@ enamldef BaseEFRManifest(ControllerManifest): manifest:
             label = 'EEG FFT'
             name = 'eeg_fft_container'
 
+            fmt_button_cb << \
+                C.get_selector().get_formatter(fft_plot.tab_grouping)
+
             ViewBox:
                 name = 'eeg_fft_viewbox'
 
-                GroupedEpochFFTPlot:
+                GroupedEpochFFTPlot: fft_plot:
                     name = 'eeg_fft_plot'
                     source_name = 'erp'
-                    tab_grouping = ['target_tone_frequency', 'target_tone_level']
                     waveform_averages << int(duration / 100e-3)
 
                     # TODO: This is pretty hackish ...
+                    tab_grouping << C.get_names()
                     tab_keys >> fft_container.buttons
                     selected_tab := fft_container.current_button
                     auto_select := fft_container.auto_select
