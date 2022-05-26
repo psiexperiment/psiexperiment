@@ -79,7 +79,7 @@ enamldef PlotGroupSelectButtons(Container):
 enamldef BasePlotContainerManifest(PSIManifest): manifest:
 
     Extension:
-        id = manifest.id + 'workspace'
+        id = manifest.id + '.workspace'
         point = 'psi.experiment.workspace'
 
         DockItem:
