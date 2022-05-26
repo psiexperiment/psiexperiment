@@ -23,9 +23,8 @@ from psiaudio import util
 from psiaudio.pipeline import concat, PipelineData
 
 from psi.util import SignalBuffer, ConfigurationException
-from psi.core.enaml.api import load_manifests, PSIContribution
+from psi.core.enaml.api import PSIContribution
 from psi.context.context_item import ContextMeta
-
 
 
 ################################################################################
@@ -85,7 +84,6 @@ class ColorCycleMixin(Declarative):
 
     def _observe_pen_color_cycle(self, event):
         self._plot_colors = self._make_plot_cycle()
-        self._reset_plots()
 
     def _reset_plots(self):
         raise NotImplementedError
@@ -190,9 +188,14 @@ class BasePlotContainer(PSIContribution):
     allow_auto_select = d_(Bool(True))
     auto_select = d_(Bool(True))
 
+    fmt_button_cb = d_(Callable())
+
+    def _default_fmt_button_cb(self):
+        return lambda x, s: s.join(str(v) for v in x)
+
     @d_func
-    def fmt_button(self, key):
-        return str(key)
+    def fmt_button(self, key, sep=', '):
+        return self.fmt_button_cb(key, sep)
 
     def _observe_buttons(self, event):
         if not self.buttons:
@@ -397,6 +400,7 @@ class ViewBox(PSIContribution):
     y_min = d_(Float(0))
     y_max = d_(Float(0))
     y_mode = d_(Enum('mouse', 'fixed'))
+    y_label = d_(Str())
 
     data_range = Property()
     save_limits = d_(Bool(True))
@@ -410,7 +414,7 @@ class ViewBox(PSIContribution):
 
     def _default_y_axis(self):
         y_axis = pg.AxisItem('left')
-        y_axis.setLabel(self.label)
+        y_axis.setLabel(self.y_label)
         y_axis.setGrid(64)
         return y_axis
 
@@ -816,10 +820,10 @@ class GroupMixin(ColorCycleMixin):
     plots = Dict()
     labels = Dict()
 
-    _data_cache = Typed(object)
-    _data_count = Typed(object)
-    _data_updated = Typed(object)
-    _data_n_samples = Typed(object)
+    _data_cache = Dict()
+    _data_count = Dict()
+    _data_updated = Dict()
+    _data_n_samples = Dict()
 
     _pen_color_cycle = Typed(object)
     _plot_colors = Typed(object)
@@ -848,6 +852,12 @@ class GroupMixin(ColorCycleMixin):
     #: What was the most recent tab key seen?
     last_seen_key = Value()
 
+    #: Callable taking two parameters, a tuple indicating the plot key and a
+    #: string indicating the separator that should be used to join the
+    #: formatted elements in the tuple. This is ignored if `fmt_plot_label` is
+    #: overridden.
+    fmt_plot_label_cb = d_(Callable())
+
     #: Function that takes the epoch metadata and returns a key that is used to
     #: assign the epoch to a group. Return None to exclude the epoch from the
     #: group criteria.
@@ -857,9 +867,12 @@ class GroupMixin(ColorCycleMixin):
         tab_key = tuple(md[a] for a in self.tab_grouping)
         return tab_key, plot_key
 
+    def _default_fmt_plot_label_cb(self):
+        return lambda x, s: s.join(str(v) for v in x)
+
     @d_func
-    def fmt_plot_label(self, key):
-        return None
+    def fmt_plot_label(self, key, sep=', '):
+        return self.fmt_plot_label_cb(key, sep)
 
     def _default_selected_tab(self):
         return ()
@@ -883,10 +896,10 @@ class GroupMixin(ColorCycleMixin):
         for label in self.labels.items():
             self.parent.viewbox_norm.removeItem(label)
         self.plots = {}
-        self._data_cache = defaultdict(list)
-        self._data_count = defaultdict(int)
-        self._data_updated = defaultdict(int)
-        self._data_n_samples = defaultdict(int)
+        self._data_cache = {}
+        self._data_count = {}
+        self._data_updated = {}
+        self._data_n_samples = {}
 
     def get_plots(self):
         return []
@@ -934,11 +947,11 @@ class EpochGroupMixin(GroupMixin):
         for d in epochs:
             key = self.group_key(d.metadata)
             if key is not None:
-                self._data_cache[key].append(d)
-                self._data_count[key] += 1
+                self._data_cache.setdefault(key, []).append(d)
+                self._data_count[key] = self._data_count.get(key, 0) + 1
 
                 # Track number of samples
-                n = max(self._data_n_samples[key], d.shape[-1])
+                n = max(self._data_n_samples.get(key, 0), d.shape[-1])
                 self._data_n_samples[key] = n
 
         self.last_seen_key = key
@@ -978,11 +991,11 @@ class EpochGroupMixin(GroupMixin):
         for pk in self.plot_keys:
             plot = self.get_plot(pk)
             key = (self.selected_tab, pk)
-            last_n = self._data_updated[key]
-            current_n = self._data_count[key]
+            last_n = self._data_updated.get(key, 0)
+            current_n = self._data_count.get(key, 0)
             needs_update = current_n >= (last_n + self.n_update)
             if tab_changed or needs_update:
-                data = self._data_cache[key]
+                data = self._data_cache.get(key, [])
                 self._data_updated[key] = len(data)
                 if data:
                     x = self._x
