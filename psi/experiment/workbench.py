@@ -118,7 +118,6 @@ class PSIWorkbench(Workbench):
         for command in commands:
             deferred_call(core.invoke_command, *command)
 
-
         # Configure the path where the data is saved. If `is_temp` is True, the
         # path will automatically be deleted at the end of the experiment.
         if base_path is not None:

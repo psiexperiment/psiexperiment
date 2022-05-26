@@ -129,7 +129,6 @@ class ExperimentPlugin(PSIPlugin):
                 'dock_layout': ui.workspace.dock_area.save_layout()}
 
     def set_layout(self, layout):
-        log.warning('Setting layout')
         ui = self.workbench.get_plugin('enaml.workbench.ui')
         try:
             ui._window.set_geometry(layout['geometry'])
