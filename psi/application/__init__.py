@@ -66,6 +66,7 @@ sys.excepthook = exception_handler
 def configure_logging(level_console=None, level_file=None, filename=None,
                       debug_exclude=None):
 
+    logging.captureWarnings(True)
     log = logging.getLogger()
 
     if level_file is None and level_console is None:
