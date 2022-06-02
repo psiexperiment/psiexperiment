@@ -251,18 +251,22 @@ class BehaviorPlugin(BaseBehaviorPlugin):
         self.invoke_actions('trial_end', ts, kw={'result': self.trial_info.copy()})
 
         if score == GoNogoTrialScore.false_alarm:
-            self.start_timeout(ts)
+            # Call timeout actions and the wait for animal to withdraw from spout
+            self.invoke_actions(GoNogoEvent.to_start.name, ts)
+            self.start_wait_for_reward_end(ts, 'to')
+        elif score == GoNogoTrialScore.hit:
+            # Animal will still be on the spout. Need to wait for animal to
+            # withdraw.
+            self.start_wait_for_reward_end(ts, 'iti')
         else:
+            # This is a correct reject or a miss, which indicates the animal is
+            # not on the spout. No need to wait for lick spout withdrwawal.
             self.advance_state('iti', ts)
 
         # Apply pending changes that way any parameters (such as repeat_FA or
         # go_probability) are reflected in determining the next trial type.
         if self._apply_requested:
             self._apply_changes(False)
-
-    def start_timeout(self, timestamp):
-        self.invoke_actions(GoNogoEvent.to_start.name, timestamp)
-        self.start_wait_for_reward_end(timestamp, 'to')
 
     def advance_state(self, state, timestamp):
         self.trial_state = getattr(GoNogoTrialState, f'waiting_for_{state}')
@@ -284,7 +288,6 @@ class BehaviorPlugin(BaseBehaviorPlugin):
         self.next_trial_state = next_state
 
     def handle_waiting_for_to(self, event, timestamp):
-        log.error(event)
         if event == GoNogoEvent.to_duration_elapsed:
             # Turn the light back on
             self.invoke_actions(GoNogoEvent.to_end.name, timestamp)
