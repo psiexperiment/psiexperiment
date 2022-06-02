@@ -74,7 +74,7 @@ enamldef ChannelInputManifest(PSIManifest): manifest:
         Conditional:
             condition << not manifest.contribution.show_gain_setting
 
-            EnumParameter: channel:
+            EnumParameter:
                 name = f'{manifest.contribution.name}_channel'
                 label = f'{manifest.contribution.label} channel'
                 choices = get_hw_ai_choices(workbench)
