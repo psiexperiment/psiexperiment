@@ -11,7 +11,8 @@ from enaml.workbench.api import Extension, PluginManifest
 
 from psiaudio.util import db
 
-from psi.context.api import (ContextGroup, Parameter, BoolParameter, EnumParameter)
+from psi.context.api import (ContextGroup, ContextRow, Parameter,
+                             BoolParameter, EnumParameter)
 from psi.controller.api import ExperimentAction
 from psi.controller.api import (ContinuousInput, ControllerManifest,
                                 ExtractEpochs, RejectEpochs, IIRFilter, Input,
@@ -75,15 +76,12 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
                 deferred_call(controller.invoke_actions, output.name + '_end')
 
         EEGInput:
-
             ExtractEpochs: extract:
                 name = 'erp'
                 epoch_size = 8.5e-3
-
                 Detrend:
                     name = 'erp_detrend'
                     mode = C.detrend_mode
-
                     RejectEpochs:
                         name = 'valid_erp'
                         threshold = C.reject_threshold
@@ -93,22 +91,24 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
         id = EXPERIMENT + '.abr.context'
         point = 'psi.context.items'
 
-        ContextGroup:
+        ContextRow:
             name = 'artifact_reject'
-            label = 'Artifact reject settings'
+            group_name = 'acquisition'
+            fmt = ['Epochs', detrend_mode, 'detrend. Reject if',
+                   reject_mode, '>', reject_threshold]
 
-            EnumParameter:
+            EnumParameter: detrend_mode:
                 name = 'detrend_mode'
                 label = 'Detrend mode'
                 choices = {
-                    'None': 'None',
-                    'constant': '"constant"',
-                    'linear': '"linear"',
+                    'Do not': 'None',
+                    'Constant': '"constant"',
+                    'Linear': '"linear"',
                 }
                 default = 'None'
                 scope = 'experiment'
 
-            EnumParameter:
+            EnumParameter: reject_mode:
                 name = 'reject_mode'
                 label = 'Reject mode'
                 compact_label = 'Rej. mode'
@@ -119,7 +119,7 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
                 default = 'absolute value'
                 scope = 'experiment'
 
-            Parameter:
+            Parameter: reject_threshold:
                 name = 'reject_threshold'
                 label = 'Reject threshold'
                 compact_label = 'Th'

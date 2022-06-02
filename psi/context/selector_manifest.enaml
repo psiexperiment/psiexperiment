@@ -4,7 +4,6 @@ log = logging.getLogger(__name__)
 from functools import partial
 import re
 import textwrap
-
 from atom.api import Typed
 from enaml.core.api import Conditional, d_, Include, Looper
 from enaml.drag_drop import DragData, DropAction
@@ -401,8 +400,11 @@ def friendly_cartesian_product_update_context(selector, event):
 
     # If the selector cannot be user managed, then we hide the already-selected
     # context items (since it's unecessary clutter).
+    log.error('Selector user managed %r', selector.user_managed)
     if not selector.user_managed:
-        for item in selector.context_items:
+        for item_name in selector.can_manage:
+            item = context.parameters[item_name]
+            item.rove = True
             item.visible = False
 
 

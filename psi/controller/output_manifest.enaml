@@ -3,7 +3,7 @@ log =  logging.getLogger(__name__)
 
 import copy
 from functools import partial
-from collections import Counter, defaultdict
+from collections import ChainMap, Counter
 
 import numpy as np
 
@@ -15,7 +15,6 @@ from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
 
 from psiaudio.queue import queues
-from psiaudio.stim import FixedWaveform
 
 from psi.context.api import ContextGroup, Parameter
 from psi.experiment.api import ItemPreferences, Preferences
@@ -70,9 +69,9 @@ def load_items(output, block):
 
     CONTEXT_MAP[output, block] = block_map
 
-    for block in block.blocks:
-        block_parameters = load_items(output, block)
-        parameters.extend(block_parameters)
+    for b in block.blocks:
+        b_params = load_items(output, b)
+        parameters.extend(b_params)
 
     return parameters
 
@@ -125,19 +124,16 @@ def prepare_output(event, output):
     log.debug('Preparing output %s', output.name)
     core = event.workbench.get_plugin('enaml.workbench.core')
     parameters = {'context_names': get_parameters(output, output.token)}
-    context = core.invoke_command('psi.context.get_values', parameters)
+    md = core.invoke_command('psi.context.get_values', parameters)
 
+    context = md.copy()
     context['fs'] = output.fs
     context['calibration'] = output.calibration
 
     factory = initialize_factory(output, output.token, context)
-    if event.parameters.get('cache', False):
-        log.debug('Pregenerating output %s', output.name)
-        duration = factory.get_duration()
-        samples = round(output.fs*duration)
-        waveform = factory.next(samples)
-        factory = FixedWaveform(output.fs, waveform)
     output.source = factory
+    output.source_md = md
+    return md
 
 
 def prepare_output_queue(event, output):
@@ -201,7 +197,6 @@ def _start_synchronized(synchronized, event):
     if clear_delay > delay:
         raise ValueError('Delay for clearing buffer cannot be greater than delay')
 
-
     # For each engine involved in this synchronized output, store a list of the
     # offsets and channel names that need to be updated.
     settings = {e: {'offsets': [], 'names': []} for e in synchronized.engines}
@@ -241,13 +236,18 @@ def _start_synchronized(synchronized, event):
         engine.lock.release()
 
     if notify_end:
-        controller.invoke_actions('{}_end'.format(synchronized.name),
-                                  start+clear_delay)
+        controller.invoke_actions('{}_end'.format(synchronized.name), start+clear_delay)
 
-    controller.invoke_actions('{}_start'.format(synchronized.name),
-                              start+delay)
-
+    md = dict(ChainMap(*[o.source_md for o in synchronized.outputs]))
     duration = max(durations.values())
+    kw = {
+        't0': start+delay,
+        'duration': duration,
+        'key': None,
+        'decrement': None,
+        'metadata': md
+    }
+    controller.invoke_actions('{}_start'.format(synchronized.name), start+delay, kw=kw)
     if duration is not np.inf:
         controller.invoke_actions('{}_end'.format(synchronized.name),
                                   start+delay+duration, delayed=True)
@@ -408,7 +408,7 @@ def clear_output(event, output):
 
 def decrement_key(event, output):
     with output.engine.lock:
-        keys = [e['info']['key'] for e in event.parameters['data']]
+        keys = [e.metadata['key'] for e in event.parameters['data']]
         counts = Counter(keys)
         complete_keys = []
         for key, count in counts.items():
@@ -422,7 +422,7 @@ def decrement_key(event, output):
     if complete_keys:
         log.debug('Queued keys complete: %r', complete_keys)
         controller = event.workbench.get_plugin('psi.controller')
-        controller.invoke_actions('keys_complete', keys)
+        controller.invoke_actions(f'{output.name}_keys_complete', keys)
 
 
 def output_pause(event, output):
@@ -625,7 +625,7 @@ enamldef QueuedEpochOutputManifest(EpochOutputManifest): manifest:
             name = f'{manifest.contribution.name}_queue_ready'
 
         ExperimentEvent:
-            name = 'keys_complete'
+            name = f'{manifest.contribution.name}_keys_complete'
 
     # Uses unicode symbols as icons for sake of simplicity.
     Extension:

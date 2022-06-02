@@ -13,6 +13,8 @@ from psiaudio import util
 from psi.controller.api import (ControllerManifest, Coroutine, coroutine,
                                 ExperimentEvent, ExtractEpochs,
                                 ExperimentAction, Input)
+
+from psi.context.api import ContextGroup
 from psi.experiment.api import StatusItem
 from psi.token.primitives import Cos2Envelope, Gate, SAMEnvelope, SquareWaveEnvelope, Tone
 from psi.data.sinks.api import EpochCounter, TextStore
@@ -50,6 +52,10 @@ def configure_experiment(event):
     counter = data.find_sink('efr_counter')
     counter.requested_n = output.queue.count_requested_trials()
 
+    names = context.get_names()
+    pc = data.find_plot_container('efr_io_container')
+    pc.x_min, pc.x_max = context.get_range(names[-1])
+
 
 @coroutine
 def analyze_efr(token, fs, target):
@@ -62,18 +68,18 @@ def analyze_efr(token, fs, target):
 
     while True:
         for epoch in (yield):
-            md = epoch['info']['metadata'].copy()
+            md = epoch.metadata.copy()
+            new_epoch = epoch.copy()
+            epoch = np.asarray(epoch)
+
             frequencies = md['target_mod_fm'] * harmonics
-
-            averages = int(round(epoch['info']['duration'] / 100e-3))
-            signal = epoch['signal'].reshape((averages, -1))
+            averages = int(round(md['duration'] / 100e-3))
+            signal = epoch.reshape((averages, -1))
             psd = util.psd_df(signal, fs).mean(axis=0)
-            md['efr_amplitude'] = util.db(psd.loc[frequencies].sum())
-            log.error(md)
-            target([md])
 
-            #controller.invoke_actions('efr_acquired', kw={'data': data})
-            #core.invoke_command('efr_store.save', parameters={'data': md})
+            md['efr_amplitude'] = util.db(psd.loc[frequencies].sum())
+            new_epoch.metadata = md
+            target([new_epoch])
 
 
 enamldef BaseEFRManifest(ControllerManifest): manifest:
@@ -135,6 +141,14 @@ enamldef BaseEFRManifest(ControllerManifest): manifest:
             label = 'EFR stimuli'
 
     Extension:
+        id = EXPERIMENT + '.items'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'acquisition'
+            label = 'Acquisition'
+
+    Extension:
         id = EXPERIMENT + '.commands'
         point = 'enaml.workbench.core.commands'
 
@@ -179,7 +193,7 @@ enamldef BaseEFRManifest(ControllerManifest): manifest:
 
         TextStore:
             name = 'erp_metadata_store'
-            epoch_inputs = ['erp']
+            epoch_inputs = ['analyze_efr']
 
     Extension:
         id = EXPERIMENT + '.workspace'
@@ -193,41 +207,44 @@ enamldef BaseEFRManifest(ControllerManifest): manifest:
         PlotContainer: pc:
             name = 'efr_io_container'
             label = 'EFR input-output functions'
-            x_min = 0
-            x_max = 1100
+
+            fmt_button_cb << \
+                C.get_selector().get_formatter(efr_plot.tab_grouping)
 
             ViewBox: vb:
                 name = 'efr_io_viewbox'
                 y_mode = 'mouse'
                 save_limits = True
 
-                ResultPlot: grp:
+                ResultPlot: efr_plot:
+                    name = 'efr_io_amplitude_plot'
                     source_name = 'analyze_efr'
-                    x_column = 'target_mod_fm'
+                    x_column << C.get_names()[-1]
                     y_column = 'efr_amplitude'
                     pen_width = 2
-                    tab_grouping = ['target_tone_frequency']
+
+                    tab_grouping << C.get_names()[:-1]
                     tab_keys >> pc.buttons
                     selected_tab := pc.current_button
                     auto_select := pc.auto_select
-                    #label = 'F2'
-                    #y_column = 'f2_level'
-                    #pen_color = 'indianred'
 
         FFTContainer: fft_container:
             label = 'EEG FFT'
             name = 'eeg_fft_container'
 
+            fmt_button_cb << \
+                C.get_selector().get_formatter(fft_plot.tab_grouping)
+
             ViewBox:
                 name = 'eeg_fft_viewbox'
 
-                GroupedEpochFFTPlot:
+                GroupedEpochFFTPlot: fft_plot:
                     name = 'eeg_fft_plot'
                     source_name = 'erp'
-                    tab_grouping = ['target_tone_frequency', 'target_tone_level']
                     waveform_averages << int(duration / 100e-3)
 
                     # TODO: This is pretty hackish ...
+                    tab_grouping << C.get_names()
                     tab_keys >> fft_container.buttons
                     selected_tab := fft_container.current_button
                     auto_select := fft_container.auto_select

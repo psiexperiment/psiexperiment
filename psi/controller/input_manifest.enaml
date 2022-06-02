@@ -82,7 +82,8 @@ enamldef CaptureManifest(InputManifest): manifest:
 
         Command:
             id = manifest.contribution.name + '.start'
-            handler = lambda e: manifest.contribution.queue.append({'t0': e.parameters['timestamp']})
+            handler = lambda e: manifest.contribution.queue \
+                .append({'t0': e.parameters['timestamp']})
 
         Command:
             id = manifest.contribution.name + '.end'
@@ -108,6 +109,11 @@ enamldef ExtractEpochsManifest(InputManifest): manifest:
         point = 'enaml.workbench.core.commands'
 
         Command:
+            id = manifest.contribution.name + '.queue_epoch'
+            handler = lambda e: manifest.contribution.added_queue \
+                .append(e.parameters)
+
+        Command:
             id = manifest.contribution.name + '.prepare'
             handler = partial(configure_epoch_input, manifest.contribution)
 
@@ -121,6 +127,18 @@ enamldef ExtractEpochsManifest(InputManifest): manifest:
         ExperimentAction:
             event = 'engines_configured'
             command = manifest.contribution.name + '.prepare'
+
+    Conditional:
+        condition << bool(manifest.contribution.epoch_event)
+
+        Extension:
+            id = manifest.id + '.capture.actions'
+            point = 'psi.controller.actions'
+
+            # Start acquiring data when the event is triggered.
+            ExperimentAction:
+                event = manifest.contribution.epoch_event
+                command = manifest.contribution.name + '.queue_epoch'
 
 
 enamldef RejectEpochsManifest(InputManifest): manifest:

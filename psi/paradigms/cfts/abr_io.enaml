@@ -13,8 +13,8 @@ from enaml.workbench.core.api import Command
 from psiaudio import queue
 from psiaudio.util import interleave_octaves
 
-from psi.context.api import (BoolParameter, ContextGroup, EnumParameter,
-                             OrderedContextMeta, Parameter)
+from psi.context.api import (BoolParameter, ContextGroup, ContextRow,
+                             EnumParameter, OrderedContextMeta, Parameter)
 
 from psi.context.selector import CartesianProduct
 from psi.controller.api import ExperimentAction
@@ -196,37 +196,43 @@ enamldef ABRIOBaseManifest(ABRBaseManifest): manifest:
             name = 'settings'
 
         ContextGroup:
-            name = 'abr_io'
+            name = 'acquisition'
             label = 'Acquisition'
 
-            Parameter:
+        ContextRow:
+            name = 'averaging'
+            group_name = 'acquisition'
+            fmt = ['Average', averages, 'trials at', rate, 'per sec. and alternate polarity?', alt_pol]
+
+            Parameter: averages:
                 name = 'averages'
                 label = 'Averages'
                 default = 512
                 scope = 'trial'
 
-            Parameter:
+            Parameter: rate:
                 name = 'rate'
                 label = 'Reps. per sec.'
                 default = 80
                 scope = 'trial'
 
-            BoolParameter:
+            BoolParameter: alt_pol:
                 name = 'alternate_polarity'
                 label = 'Alternate polarity?'
                 default = True
                 scope = 'experiment'
 
-            EnumParameter:
-                name = 'ordering'
-                label = 'Stimulus ordering'
-                choices = {
-                    'conventional': '"sequential"',
-                    'interleaved plateau': '"interleaved_plateau"',
-                    'interleaved ramp': '"interleaved_ramp"',
-                    'interleaved random': '"interleaved_random"',
-                }
-                scope = 'experiment'
+        EnumParameter:
+            name = 'ordering'
+            label = 'Stimulus ordering'
+            choices = {
+                'conventional': '"sequential"',
+                'interleaved plateau': '"interleaved_plateau"',
+                'interleaved ramp': '"interleaved_ramp"',
+                'interleaved random': '"interleaved_random"',
+            }
+            scope = 'experiment'
+            group_name = 'acquisition'
 
     Extension:
         id = EXPERIMENT + '.commands'
@@ -246,7 +252,7 @@ enamldef ABRIOBaseManifest(ABRBaseManifest): manifest:
         point = 'psi.controller.actions'
 
         ExperimentAction:
-            event = 'keys_complete'
+            event = 'target_keys_complete'
             command = EXPERIMENT + '.rebuffer'
 
     Extension:
@@ -266,25 +272,24 @@ enamldef ABRIOBaseManifest(ABRBaseManifest): manifest:
         TimeContainer: time_container:
             label = 'ERP average'
             span = 8.5e-3
-            fmt_button => (key):
-                return '{} Hz'.format(', '.join([str(k) for k in key]))
             allow_auto_select << C.ordering == 'sequential'
+            fmt_button_cb << C.get_selector().get_formatter(plot.tab_grouping)
 
             ViewBox:
                 name = 'erp_waterfall_viewbox'
+                y_label = 'ABR amplitude'
                 y_min = -5
                 y_max = 5
                 y_mode = 'mouse'
                 save_limits = True
 
-                StackedEpochAveragePlot:
+                StackedEpochAveragePlot: plot:
                     label = 'ERP average plot'
                     source_name = 'valid_erp'
                     n_update = 8
-                    tab_grouping = ['target_tone_frequency']
-                    plot_grouping = ['target_tone_level']
-                    fmt_plot_label => (key):
-                        return '{} dB SPL'.format(', '.join([str(k) for k in key]))
+                    tab_grouping = C.get_names()[:-1]
+                    plot_grouping = C.get_names()[-1:]
+                    fmt_plot_label_cb << C.get_selector().get_formatter(plot_grouping)
                     pen_width = 2
                     tab_keys >> time_container.buttons
                     selected_tab := time_container.current_button

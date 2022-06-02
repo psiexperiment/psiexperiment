@@ -75,6 +75,7 @@ class ExperimentPlugin(PSIPlugin):
         self._preferences = preferences
 
     def _refresh_status(self, event=None):
+        log.error('Refreshing status')
         status_items = self.load_plugins(STATUS_POINT, StatusItem, 'label')
         self._status_items = status_items
 
@@ -128,7 +129,6 @@ class ExperimentPlugin(PSIPlugin):
                 'dock_layout': ui.workspace.dock_area.save_layout()}
 
     def set_layout(self, layout):
-        log.warning('Setting layout')
         ui = self.workbench.get_plugin('enaml.workbench.ui')
         try:
             ui._window.set_geometry(layout['geometry'])

@@ -31,24 +31,22 @@ log = logging.getLogger(__name__)
 log_ai = logging.getLogger(__name__ + '.ai')
 log_ao = logging.getLogger(__name__ + '.ao')
 
-import types
 import ctypes
-from collections import OrderedDict
 from functools import partial
 from threading import Timer
 
-import numpy as np
-import PyDAQmx as mx
 from atom.api import (Float, Typed, Str, Int, Bool, Callable, Enum,
                       Property, Value)
 from enaml.core.api import Declarative, d_
+import numpy as np
+import PyDAQmx as mx
 
+from psiaudio.pipeline import PipelineData
 from psiaudio.util import dbi
 from ..engine import Engine
 from ..channel import (CounterChannel,
                        HardwareAIChannel, HardwareAOChannel, HardwareDIChannel,
                        HardwareDOChannel, SoftwareDIChannel, SoftwareDOChannel)
-from ..input import InputData
 
 
 ################################################################################
@@ -258,8 +256,9 @@ def hw_ao_helper(cb, task, event_type, cb_samples, cb_data):
     return 0
 
 
-def hw_ai_helper(cb, channels, discard, fs, task, event_type=None,
-                 cb_samples=None, cb_data=None):
+def hw_ai_helper(cb, channels, discard, fs, channel_names, task,
+                 event_type=None, cb_samples=None, cb_data=None):
+    # Note, new parameters should come *before* task.
 
     uint32 = ctypes.c_uint32()
     mx.DAQmxGetReadAvailSampPerChan(task, uint32)
@@ -286,8 +285,8 @@ def hw_ai_helper(cb, channels, discard, fs, task, event_type=None,
 
     data = read_hw_ai(task, available_samples, channels, cb_samples)
     if data is not None:
-        metadata = {'t0_sample': read_position-discard, 'fs': fs}
-        data = InputData(data, metadata=metadata)
+        s0 = read_position - discard
+        data = PipelineData(data, fs=fs, s0=s0, channel=channel_names)
         cb(data)
     return 0
 
@@ -605,7 +604,8 @@ def setup_hw_ai(channels, callback_duration, callback, task_name='hw_ao'):
         # Not a supported property. Set filter delay to 0 by default.
         filter_delay = 0
 
-    task._cb = partial(hw_ai_helper, callback, n_channels, filter_delay, fs)
+    task._cb = partial(hw_ai_helper, callback, n_channels, filter_delay, fs,
+                       names)
     task._cb_ptr = mx.DAQmxEveryNSamplesEventCallbackPtr(task._cb)
     mx.DAQmxRegisterEveryNSamplesEvent(
         task, mx.DAQmx_Val_Acquired_Into_Buffer, int(callback_samples), 0,
@@ -806,10 +806,7 @@ class NIDAQEngine(Engine):
         super().__init__(*args, **kw)
         self.instances.append(self)
 
-        # Use an OrderedDict to ensure that when we loop through the tasks
-        # stored in the dictionary, we process them in the order they were
-        # configured.
-        self._tasks = OrderedDict()
+        self._tasks = {}
         self._callbacks = {}
         self._timers = {}
         self._configured = False

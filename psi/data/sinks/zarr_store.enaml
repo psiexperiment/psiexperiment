@@ -1,3 +1,5 @@
+import logging
+log = logging.getLogger(__name__)
 
 from functools import partial
 from pathlib import Path
@@ -43,7 +45,7 @@ class ZarrStore(BaseStore):
             raise AttributeError(name)
 
     def process_ai_continuous(self, name, data):
-        self._stores[name].append(data, axis=data.ndim-1)
+        self._stores[name].append(np.asarray(data), axis=data.ndim-1)
 
     def process_ai_epochs(self, name, data):
         self._stores[name].append(data)

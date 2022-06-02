@@ -5,7 +5,7 @@ from enaml.workbench.api import Extension
 
 from psiaudio.util import octave_space
 
-from psi.context.api import (BoolParameter, ContextGroup,
+from psi.context.api import (BoolParameter, ContextGroup, ContextRow,
                              FriendlyCartesianProduct, Parameter)
 from psi.controller.api import Downsample, IIRFilter
 from psi.controller.calibration.api import ToneCalibrate
@@ -63,6 +63,13 @@ CONTEXT_ITEM_DETAIL = {
         'unit': 'dB SPL',
         'order_user_managed': True,
     },
+
+    # MEMR
+    'probe_chirp_level': {
+        'user_friendly_name': 'Chirp level',
+        'step_unit': 'dB',
+        'unit': 'dB SPL',
+    }
 }
 
 
@@ -141,44 +148,50 @@ enamldef EEGInputManifest(ChannelInputManifest): manifest:
         id = manifest.id + '.eeg.context'
         point = 'psi.context.items'
 
-        Parameter:
-            name = 'amplifier_highpass'
-            label = 'Amplifier highpass filter cutoff'
-            default = 10
-            scope = 'experiment'
+        ContextRow:
+            fmt = ['Amplifier filter', hp, 'to', lp, 'Hz at', gain, '✕ gain']
             group_name = 'hardware_settings'
 
-        Parameter:
-            name = 'amplifier_lowpass'
-            label = 'Amplifier lowpass filter cutoff'
-            default = 10e3
-            scope = 'experiment'
-            group_name = 'hardware_settings'
+            Parameter: hp:
+                name = 'amplifier_highpass'
+                label = 'Amplifier highpass filter cutoff'
+                default = 10
+                scope = 'experiment'
 
-        Parameter:
-            name = 'amplifier_gain'
-            label = 'Amplifier gain'
-            default = 100e3
-            scope = 'experiment'
-            group_name = 'hardware_settings'
+            Parameter: lp:
+                name = 'amplifier_lowpass'
+                label = 'Amplifier lowpass filter cutoff'
+                default = 10e3
+                scope = 'experiment'
+                group_name = 'hardware_settings'
 
-        ContextGroup:
-            name = 'digital_filter'
-            label = 'Digital filter settings'
+            Parameter: gain:
+                name = 'amplifier_gain'
+                label = 'Amplifier gain'
+                default = 100e3
+                scope = 'experiment'
+                group_name = 'hardware_settings'
 
-            BoolParameter:
+        ContextRow:
+            name = 'digital_filter_settings'
+            fmt << ['Digital filter?', filt_on] \
+                if filt_on.expression == 'False' else \
+                ['Digital filter?', filt_on, 'from', filt_hp, 'to', filt_lp, 'Hz']
+            group_name = 'acquisition'
+
+            BoolParameter: filt_on:
                 name = 'digital_filter'
                 label = 'Digital filter?'
                 scope = 'experiment'
                 default = True
 
-            Parameter:
+            Parameter: filt_hp:
                 name = 'digital_highpass'
                 label = 'Digital highpass filter cutoff'
                 default = 300
                 scope = 'experiment'
 
-            Parameter:
+            Parameter: filt_lp:
                 name = 'digital_lowpass'
                 label = 'Digital lowpass filter cutoff'
                 default = 3000

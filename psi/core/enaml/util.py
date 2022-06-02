@@ -8,6 +8,9 @@ from enaml.core import import_hooks
 
 
 def load_enaml_module_from_file(path):
+    '''
+    Load file as an enaml module.
+    '''
     path = Path(path)
     name = path.with_suffix('').name
     search_path = [str(path.parent)]

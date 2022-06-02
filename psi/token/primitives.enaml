@@ -5,9 +5,9 @@ log = logging.getLogger(__name__)
 
 from psiaudio.stim import (BandlimitedNoiseFactory, BroadbandNoiseFactory,
                            ChirpFactory, Cos2EnvelopeFactory, GateFactory,
-                           SAMEnvelopeFactory, SquareWaveEnvelopeFactory,
-                           SquareWaveFactory, SilenceFactory, ToneFactory,
-                           WavSequenceFactory)
+                           RepeatFactory, SAMEnvelopeFactory,
+                           SquareWaveEnvelopeFactory, SquareWaveFactory,
+                           SilenceFactory, ToneFactory, WavSequenceFactory)
 
 from psi.context.api import Parameter, EnumParameter
 from .block import EpochBlock, ContinuousBlock
@@ -162,6 +162,12 @@ enamldef BandlimitedNoise(BroadbandNoise):
         compact_label = 'stop. atten.'
         default = 90.0
 
+    Parameter:
+        name = 'polarity'
+        label = 'polarity'
+        compact_label = 'pol.'
+        default = 1
+
 
 enamldef Tone(ContinuousBlock):
 
@@ -225,6 +231,28 @@ enamldef SquareWave(ContinuousBlock):
         label = 'duty cycle'
         compact_label = 'duty_cycle'
         default = 0.5
+
+
+enamldef Repeat(EpochBlock):
+
+    factory = RepeatFactory
+    name = 'repeat'
+    label = 'repeat'
+
+    Parameter:
+        name = 'n'
+        label = 'N'
+        default = 440
+
+    Parameter:
+        name = 'skip_n'
+        label = 'skip N'
+        default = 0
+
+    Parameter:
+        name = 'rate'
+        label = 'rate'
+        default = 40
 
 
 enamldef Chirp(EpochBlock):

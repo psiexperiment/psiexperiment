@@ -10,9 +10,9 @@ from psi.context.api import SequenceSelector
 from psi.controller.api import ControllerManifest as BaseControllerManifest
 from psi.controller.api import EpochOutput, ContinuousOutput
 
-from psi.context.api import ContextGroup, Parameter
+from psi.context.api import ContextGroup, ContextRow, Parameter
 from psi.data.api import ResultPlot, PlotContainer, ViewBox
-from psi.token.primitives import BandlimitedNoise, Cos2Envelope, SAMEnvelope
+from psi.token.primitives import BandlimitedNoise, Cos2Envelope, SAMEnvelope, Silence
 
 
 frequencies = iter([4000, 8000, 16000])
@@ -43,16 +43,19 @@ enamldef ControllerManifest(BaseControllerManifest): manifest:
         Branding:
             title = 'Demo'
 
-    Extension:
-        id = 'simple.commands'
-        point = 'enaml.workbench.core.commands'
-        Command:
-            id = 'start_data_generator'
-            handler = start_data_generator
+    #Extension:
+    #    id = 'simple.commands'
+    #    point = 'enaml.workbench.core.commands'
+    #    Command:
+    #        id = 'start_data_generator'
+    #        handler = start_data_generator
 
     Extension:
         id = 'simple.tokens'
         point = 'psi.token.tokens'
+
+        Silence:
+            name = 'silence'
 
         BandlimitedNoise:
             name = 'continuous_bandlimited_noise'
@@ -68,6 +71,25 @@ enamldef ControllerManifest(BaseControllerManifest): manifest:
                 compact_label = 'SAM env.'
                 BandlimitedNoise:
                     label = 'SAM carrier'
+
+    Extension:
+        id = 'simple.context'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            label = 'My variables'
+
+            ContextRow:
+                fmt = ['Filter from', lb, 'to', ub, 'Hz']
+                Parameter: lb:
+                    name = 'filter_lb'
+                    default = 300
+                Parameter: ub:
+                    name = 'filter_ub'
+                    default = 300
+                Parameter:
+                    name = 'filter_order'
+                    default = 1
 
     Extension:
         id = 'simple.io'
@@ -88,7 +110,7 @@ enamldef ControllerManifest(BaseControllerManifest): manifest:
         point = 'psi.context.selectors'
 
         SequenceSelector:
-            name = 'default'
+            label = 'Values to test!'
 
     Extension:
         id = 'simple.plots'

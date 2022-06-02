@@ -3,6 +3,7 @@ log = logging.getLogger(__name__)
 
 from copy import deepcopy
 from functools import partial
+import itertools
 import pickle as pickle
 
 import numpy as np
@@ -15,7 +16,7 @@ from enaml.workbench.plugin import Plugin
 from psi.core.enaml.api import load_manifests
 from ..util import get_tagged_values
 from .context_item import (
-    ContextItem, ContextGroup, Expression, Parameter, ContextMeta
+    ContextItem, ContextGroup, ContextSet, Expression, Parameter, ContextMeta
 )
 
 
@@ -49,6 +50,15 @@ class ContextLookup:
         cb.is_lookup = True
         return cb
 
+    def get_selector(self, name='default'):
+        return self.__context_plugin.get_selector(name)
+
+    def get_names(self, name='default'):
+        return self.__context_plugin.get_names(name)
+
+    def get_range(self, item_name, iterator='default'):
+        return self.__context_plugin.get_range(item_name, iterator)
+
 
 context_initialized_error = '''
 Context not initialized
@@ -57,6 +67,7 @@ Your experiment must call the `psi.context.initialize` command at the
 appropriate time (usually in response to the `experiment_initialize` action).
 See the manual on creating your own experiment if you need further guidance.
 '''
+
 
 class ContextPlugin(PSIPlugin):
     '''
@@ -136,57 +147,75 @@ class ContextPlugin(PSIPlugin):
         self.symbols = symbols
 
     def _refresh_items(self, event=None):
-        # First, find all ContextItem, ContextGroup, ContextMeta and
-        # Expressions.
+        # Find all plugin contributions
         context_groups = self.load_plugins(ITEMS_POINT, ContextGroup, 'name')
+        context_sets = self.load_plugins(ITEMS_POINT, ContextSet, 'name')
         context_items = self.load_plugins(ITEMS_POINT, ContextItem, 'name')
         context_meta = self.load_plugins(ITEMS_POINT, ContextMeta, 'name')
         context_expressions = self.load_plugins(ITEMS_POINT, Expression, 'parameter')
+
+        groups_updated = set()
+
+        # At this point, `context_items` is only the "orphan" context items
+        # where the group has not yet been assigned.
+        for item in itertools.chain(context_items.values(), context_sets.values()):
+            if item.group_name not in context_groups:
+                valid_names = ', '.join(context_groups.keys())
+                m = f'Missing group "{item.group_name}" for item {item.name}. Valid groups are {valid_names}.'
+                raise ValueError(m)
+            group = context_groups[item.group_name]
+            item.set_parent(group)
+            groups_updated.add(group)
 
         # Now, loop through the groups and find all ContextItems defined under
         # the group. If the group has already been defined in another
         # contribution, raise an error. Also, build up the ContextItems
         # dictionary so that we have a list of all the context items we want to
         # display.
+        context_items = {}
         for group in context_groups.values():
-            for item in group.items:
-                if item not in group.children:
-                    item.set_group(None)
             for item in group.children:
-                if item.name in context_items:
-                    m = f'Context item {item.name} already defined'
-                    raise ValueError(m)
-                else:
-                    context_items[item.name] = item
-                if item not in group.items:
-                    item.set_group(group)
+                if isinstance(item, ContextItem):
+                    if item.name in context_items:
+                        m = f'Context item {item.name} already defined'
+                        raise ValueError(m)
+                    else:
+                        context_items[item.name] = item
+                elif isinstance(item, ContextSet):
+                    if item.name in context_sets.values():
+                        m = f'Context set {item.name} already defined'
+                        raise ValueError(m)
+                    else:
+                        context_sets[item.name] = item
 
-        # Now, go through all "orphan" context items where the group has not
-        # been assigned yet.
-        for item in context_items.values():
-            if item.group is not None:
-                continue
-            if item.group_name not in context_groups:
-                m = f'Missing group "{item.group_name}" for item {item.name}'
-                raise ValueError(m)
-            group = context_groups[item.group_name]
-            item.set_group(group)
+        for cset in context_sets.values():
+            for item in cset.children:
+                if isinstance(item, ContextItem):
+                    if item.name in context_items:
+                        m = f'Context item {item.name} already defined'
+                        raise ValueError(m)
+                    else:
+                        context_items[item.name] = item
 
         for expression in context_expressions.values():
             try:
                 item = context_items.pop(expression.parameter)
-                item.set_group(None)
+                groups_updated.add(item.parent)
+                item.set_parent(None)
             except KeyError as e:
                 log.warn('%s referenced by expression %s does not exist',
                          expression.parameter, expression.expression)
 
         load_manifests(context_groups.values(), self.workbench)
+        log.error('\n'.join(context_items.keys()))
         self.context_expressions = context_expressions
         self.context_items = context_items
         self.context_groups = context_groups
         self.context_meta = context_meta
         self.context_meta_editable = len(self.get_metas(editable=True)) > 0
 
+        for group in context_groups.values():
+            group.updated = True
 
     def _bind_observers(self):
         self.workbench.get_extension_point(SELECTORS_POINT) \
@@ -299,6 +328,13 @@ class ContextPlugin(PSIPlugin):
             values = {v[0] for v in values}
 
         return values
+
+    def get_range(self, item_name, iterator='default'):
+        values = self.unique_values(item_name, iterator)
+        return min(values), max(values)
+
+    def get_names(self, iterator='default'):
+        return [i.name for i in self.get_selector(iterator).context_items]
 
     def get_item(self, item_name):
         return self.context_items[item_name]
@@ -450,6 +486,9 @@ class ContextPlugin(PSIPlugin):
     @property
     def has_selectors(self):
         return len(self.selectors) != 0
+
+    def get_selector(self, name='default'):
+        return self.selectors[name]
 
     def get_parameter(self, name):
         return self.parameters[name]

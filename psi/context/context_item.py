@@ -87,48 +87,45 @@ class OrderedContextMeta(ContextMeta):
 ################################################################################
 class Expression(Declarative):
 
-    # Parameter that is assigned the result of the expression
+    #: Parameter that is assigned the result of the expression
     parameter = d_(Str())
 
-    # Expression to be evaluated
+    #: Expression to be evaluated
     expression = d_(Str())
 
 
 ################################################################################
-# ContextGroup
+# ContextGroup and ContextSet
 ################################################################################
 class ContextGroup(PSIContribution):
     '''
-    Used to group together context items for management.
+    Used to group together context items in a single dock item pane.
     '''
-    # Group name
-    name = d_(Str())
+    #: Are the parameters in this group visible?
+    visible = d_(Bool(True))
+    updated = d_(Event())
 
-    # Label to use in the GUI
-    label = d_(Str())
 
-    # Are the parameters in this group visible?
+class ContextSet(PSIContribution):
+    '''
+    Used to group together context items for special formatting.
+    '''
+    fmt = d_(List())
+
+    #: Name of the group to display the item under. This should never be
+    #: overwitten even if we remove the item from the group (e.g., when
+    #: loading/unloading plugin tokens).
+    group_name = d_(Str())
+
+    #: Are the parameters in this set visible?
     visible = d_(Bool(True))
 
-    # Items in context
-    items = List()
 
-    def visible_items(self):
-        if not self.visible:
-            return []
-        return [i for i in self.items if i.visible]
-
-    def add_item(self, item):
-        if item not in self.items:
-            self.items = self.items[:] + [item]
-        else:
-            raise ValueError(f'Item {item.name} already in group')
-
-    def remove_item(self, item):
-        if item in self.items:
-            items = self.items[:]
-            items.remove(item)
-            self.items = items
+class ContextRow(ContextSet):
+    '''
+    Used to group together context items into a single row that is formatted.
+    '''
+    pass
 
 
 ################################################################################
@@ -139,17 +136,15 @@ class ContextItem(Declarative):
     Defines the core elements of a context item. These items are made available
     to the context namespace.
     '''
-    # Must be a valid Python identifier. Used by eval() in expressions.
+    #: Must be a valid Python identifier. Used by eval() in expressions.
     name = d_(Str())
 
-    # Long-format label for display in the GUI. Include units were applicable.
+    #: Long-format label for display in the GUI. Include units were applicable.
     label = d_(Str())
 
     # Datatype of the value. Required for properly initializing some data
     # plugins (e.g., those that save data to a HDF5 file).
     dtype = d_(Str())
-
-    group = d_(Typed(ContextGroup))
 
     #: Name of the group to display the item under. This should never be
     #: overwitten even if we remove the item from the group (e.g., when
@@ -185,16 +180,17 @@ class ContextItem(Declarative):
         return f'<{self.__class__.__name__}: {self}>'
 
     def __str__(self):
-        if self.group:
-            return f'{self.name} in {self.group}'
-        return f'{self.name}'
-
-    def set_group(self, group):
-        if self.group is not None and self.group != group:
-            self.group.remove_item(self)
-        self.group = group
-        if self.group is not None:
-            self.group.add_item(self)
+        if isinstance(self.parent, ContextGroup):
+            l = f'{self.name} in {self.parent.name}'
+        elif self.group_name:
+            l =  f'{self.name} in {self.group_name}'
+        else:
+            l = f'{self.name}'
+        if not self.visible:
+            l = f'{l} (not visible)'
+        if not self.editable:
+            l = f'{l} (not editable)'
+        return l
 
 
 class Result(ContextItem):

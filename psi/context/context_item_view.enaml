@@ -3,14 +3,14 @@ log = logging.getLogger(__name__)
 
 from atom.api import Typed
 from enaml.core.api import Conditional, DynamicTemplate, Looper
-from enaml.layout.api import hbox, spacer, horizontal
+from enaml.layout.api import align, hbox, spacer
 from enaml.widgets.api import (Container, Field, CheckBox, Label, HGroup,
                                PushButton, PopupView, Form, ObjectCombo, VGroup)
 from enaml.validator import Validator
 
 from .context_item import (Result, Parameter, EnumParameter, FileParameter,
                            BoolParameter, OrderedContextMeta,
-                           UnorderedContextMeta)
+                           UnorderedContextMeta, ContextRow)
 
 from .expression import ExpressionNamespace
 
@@ -31,14 +31,6 @@ class ContextItemValidator(Validator):
             return True
         except:
             return False
-
-
-enamldef ContextItemField(Field):
-    text := context_item.expression
-    validator << ContextItemValidator(
-        plugin=workbench.get_plugin('psi.context'),
-        item=context_item)
-    submit_triggers = ['lost_focus', 'return_pressed', 'auto_sync']
 
 
 ################################################################################
@@ -92,13 +84,33 @@ enamldef ContextMetaPopup(PopupView): cm_popup:
 ################################################################################
 # ContextItemTemplate
 ################################################################################
-template ContextItemTemplate(context_item, MemberType: Result):
-    HGroup: group:
-        spacing = 0
+template ContextItemTemplate(row, MemberType: ContextRow):
+    Container:
         padding = 0
-        align_widths = False
-        Label: label:
-            text << context_item.label
+        share_layout = True
+        layout_constraints => ():
+            widgets = [c for c in children[:-1] if not isinstance(c, WidgetDynamicTemplate)]
+            widgets.append(spacer(0))
+            constraints = [hbox(*widgets, spacing=5)]
+            for item, widget in zip(row.fmt, widgets):
+                if isinstance(widget, Field):
+                    constraints.append(widget.width == 45)
+            constraints.append(align('v_center', *widgets[:-1]))
+            return constraints
+        Looper:
+            iterable << row.fmt[:]
+            WidgetDynamicTemplate:
+                args = (loop_item, type(loop_item))
+
+
+template ContextItemTemplate(context_item, MemberType: str):
+    Label:
+        text << context_item
+
+
+template ContextItemTemplate(context_item, MemberType: Result):
+    Label:
+        text << context_item.label
 
 
 def get_scope(default_scope, workbench):
@@ -111,13 +123,17 @@ def get_scope(default_scope, workbench):
 template ContextItemTemplate(context_item, MemberType: Parameter):
     DynamicTemplate:
         base = ParameterTemplate
-        args << (context_item, type(context_item), get_scope(context_item.scope, workbench))
+        args << (context_item,
+                 type(context_item),
+                 get_scope(context_item.scope, workbench))
 
 
 template ParameterTemplate(context_item, MemberType, scope):
     HGroup: group:
-        spacing = 0
+        spacing = 5
         padding = 0
+        share_layout = True
+        align_widths = False
         enabled << context_item.editable
         Label: label:
             text << context_item.label
@@ -127,8 +143,10 @@ template ParameterTemplate(context_item, MemberType, scope):
 
 template ParameterTemplate(context_item, MemberType, scope: 'experiment'):
     HGroup: group:
-        spacing = 0
+        spacing = 5
         padding = 0
+        share_layout = True
+        align_widths = False
         enabled << workbench.get_plugin('psi.controller') \
             .experiment_state not in ('running', 'paused') and \
             context_item.editable
@@ -141,9 +159,11 @@ template ParameterTemplate(context_item, MemberType, scope: 'experiment'):
 
 template ParameterTemplate(context_item, MemberType, scope: 'trial'):
     HGroup: group:
-        spacing = 0
+        spacing = 5
         padding = 0
         enabled << context_item.editable
+        share_layout = True
+        align_widths = False
         CheckBox: label:
             tool_tip << context_item.name
             status_tip << context_item.name
@@ -164,18 +184,26 @@ enamldef WidgetDynamicTemplate(DynamicTemplate):
 
 
 template WidgetTemplate(context_item, MemberType):
-    ContextItemField: widget:
-        pass
+    Field:
+        text := context_item.expression
+        validator << ContextItemValidator(plugin=workbench.get_plugin('psi.context'), item=context_item)
+        submit_triggers = ['lost_focus', 'return_pressed', 'auto_sync']
+
+
+template WidgetTemplate(context_item, MemberType: str):
+    Label:
+        text << context_item
 
 
 template WidgetTemplate(context_item, MemberType: EnumParameter):
-    ObjectCombo: widget:
+    ObjectCombo:
         items << sorted(context_item.choices.keys())
         selected := context_item.selected
 
 
 template WidgetTemplate(context_item, MemberType: BoolParameter):
-    CheckBox: widget:
+    CheckBox:
+        text = ''
         checked << eval(context_item.expression)
         toggled ::
             if checked:
@@ -187,29 +215,25 @@ template WidgetTemplate(context_item, MemberType: BoolParameter):
 ################################################################################
 # The container to tie it all together
 ################################################################################
-enamldef ContextItem(Container): container:
+enamldef ContextItem(HGroup): container:
     attr context_item
     padding = 0
+    spacing = 0
+    align_widths = False
+    share_layout = True
 
-    HGroup:
-        padding = 0
-        spacing = 0
-        align_widths = False
+    DynamicTemplate:
+        base = ContextItemTemplate
+        args = (context_item, type(context_item))
 
-        Container: c:
-            padding = 0
-            DynamicTemplate: t:
-                base = ContextItemTemplate
-                args = (context_item, type(context_item))
-
-        Conditional:
-            condition << workbench.get_plugin('psi.context').context_meta_editable
-            PushButton: pb:
-                constraints = [pb.width == 20]
-                text << 'C'
-                clicked::
-                    context_meta = workbench.get_plugin('psi.context').get_metas(editable=True)
-                    cm_popup = ContextMetaPopup(parent=self,
-                                                context_meta=context_meta,
-                                                context_item=context_item)
-                    cm_popup.show()
+    Conditional:
+        condition << workbench.get_plugin('psi.context').context_meta_editable
+        PushButton: pb:
+            constraints = [pb.width == 20]
+            text << 'C'
+            clicked::
+                context_meta = workbench.get_plugin('psi.context').get_metas(editable=True)
+                cm_popup = ContextMetaPopup(parent=self,
+                                            context_meta=context_meta,
+                                            context_item=context_item)
+                cm_popup.show()

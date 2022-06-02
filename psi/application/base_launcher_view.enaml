@@ -6,7 +6,7 @@ import os.path
 
 import enaml
 from enaml.core.api import Conditional, Include, Looper
-from enaml.layout.api import vbox
+from enaml.layout.api import spacer, vbox
 from enaml.stdlib.message_box import critical
 from enaml.widgets.api import (Action, ActionGroup, CheckBox, Container, Field,
                                Form, GroupBox, HGroup, Label, MainWindow, Menu,
@@ -190,6 +190,7 @@ enamldef LauncherView(MainWindow): main:
             VGroup: settings_group:
                 padding = 0
                 spacing = 0
+
                 CheckBox:
                     text = 'Use prior settings for {}'.format(launcher.experiment_type)
                     checked := launcher.use_prior_preferences
@@ -247,11 +248,11 @@ enamldef LauncherView(MainWindow): main:
                 text << str(launcher.base_folder)
 
         HGroup: button_bar:
+            leading_spacer = spacer(0)
 
             PushButton: button:
                 text = 'Run experiment'
                 enabled << launcher.can_launch
-
                 clicked ::
                     try:
                         launcher.launch_subprocess()

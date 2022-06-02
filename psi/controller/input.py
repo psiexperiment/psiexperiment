@@ -14,7 +14,9 @@ from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
 
 from psiaudio.calibration import FlatCalibration
-from psiaudio.pipeline import coroutine, extract_epochs
+
+from psiaudio import pipeline
+from psiaudio.pipeline import coroutine
 from psiaudio.util import db, dbi
 
 from .channel import Channel
@@ -22,59 +24,10 @@ from .channel import Channel
 from psi.core.enaml.api import PSIContribution
 
 
-class InputData(np.ndarray):
-
-    def __new__(cls, input_array, metadata=None):
-        obj = np.asarray(input_array).view(cls)
-        obj.metadata = metadata if metadata else {}
-        return obj
-
-    def __getitem__(self, s):
-        obj = super().__getitem__(s)
-        # This will be the case when s is just an integer, not a slice.
-        if not hasattr(obj, 'metadata'):
-            return obj
-        if isinstance(s, tuple):
-            s = s[-1]
-        if isinstance(s, slice):
-            if s.start is not None and 't0_sample' in obj.metadata:
-                obj.metadata['t0_sample'] += (s.start % self.shape[-1])
-            if s.step is not None and 'fs' in obj.metadata:
-                obj.metadata['fs'] /= s.step
-        return obj
-
-    def __array_finalize__(self, obj):
-        if obj is None: return
-        self.metadata = getattr(obj, 'metadata', {}).copy()
-
-
-def concatenate(input_data, axis=None):
-    ignore_keys = ('t0_sample',)
-    b = input_data[0]
-    reference = {k: v for k, v in b.metadata.items() if k not in ignore_keys}
-    for d in input_data[1:]:
-        md = {k: v for k, v in d.metadata.items() if k not in ignore_keys}
-        if reference != md:
-            log.info('%r vs %r', reference, md)
-            raise ValueError('Cannot combine InputData set')
-    arrays = np.concatenate(input_data, axis=axis)
-    return InputData(arrays, b.metadata)
-
-
-@coroutine
-def broadcast(*targets):
-    while True:
-        data = (yield)
-        for target in targets:
-            target(data)
-
 
 class Input(PSIContribution):
 
-    name = d_(Str()).tag(metadata=True)
-    label = d_(Str()).tag(metadata=True)
     force_active = d_(Bool(False)).tag(metadata=True)
-
     source_name = d_(Str()).tag(metadata=True)
     source = d_(Typed(Declarative).tag(metadata=True), writable=False)
     channel = Property().tag(metadata=True)
@@ -96,9 +49,6 @@ class Input(PSIContribution):
         else:
             base_name = self.parent.name
         return f'{base_name}_{self.__class__.__name__}'
-
-    def _default_label(self):
-        return self.name.replace('_', ' ')
 
     def add_input(self, i):
         if i in self.inputs:
@@ -149,7 +99,7 @@ class Input(PSIContribution):
         if len(targets) == 1:
             return targets[0]
         # If we have more than one target, need to add a broadcaster
-        return broadcast(*targets).send
+        return pipeline.broadcast(*targets).send
 
     def add_callback(self, cb):
         if self.configured:
@@ -196,9 +146,7 @@ class Callback(Input):
 @coroutine
 def transform(function, target):
     while True:
-        data = (yield)
-        transformed_data = function(data)
-        target(transformed_data)
+        target(function((yield)))
 
 
 class Transform(ContinuousInput):
@@ -222,21 +170,6 @@ class Coroutine(Input):
 ################################################################################
 # Continuous input types
 ################################################################################
-@coroutine
-def custom_input(function, target):
-    while True:
-        data = (yield)
-        function(data, target)
-
-
-class CustomInput(Input):
-    function = d_(Callable())
-
-    def configure_callback(self):
-        cb = super().configure_callback()
-        return custom_input(self.function, cb).send
-
-
 @coroutine
 def calibrate(calibration, target):
     sens = dbi(calibration.get_sens(1000))
@@ -263,21 +196,9 @@ class CalibratedInput(Transform):
         return FlatCalibration(sensitivity=0)
 
 
-@coroutine
-def rms(n, target):
-    data = None
-    while True:
-        if data is None:
-            data = (yield)
-        else:
-            data = np.concatenate((data, (yield)), axis=-1)
-        while data.shape[-1] >= n:
-            result = np.mean(data[..., :n] ** 2, axis=0) ** 0.5
-            target(result[np.newaxis])
-            data = data[..., n:]
-
-
 class RMS(ContinuousInput):
+
+    #: Duration of window to calculate RMS for
     duration = d_(Float()).tag(metadata=True)
 
     def _get_fs(self):
@@ -287,7 +208,7 @@ class RMS(ContinuousInput):
     def configure_callback(self):
         n = round(self.duration * self.source.fs)
         cb = super().configure_callback()
-        return rms(n, cb).send
+        return pipeline.rms(n, cb).send
 
 
 class SPL(Transform):
@@ -295,24 +216,6 @@ class SPL(Transform):
     def _default_function(self):
         sens = self.calibration.get_sens(1e3)
         return lambda x, s=sens: db(x) + s
-
-
-@coroutine
-def iirfilter(N, Wn, rp, rs, btype, ftype, target):
-    b, a = signal.iirfilter(N, Wn, rp, rs, btype, ftype=ftype)
-    if np.any(np.abs(np.roots(a)) > 1):
-        raise ValueError('Unstable filter coefficients')
-
-    # Initialize the state of the filter and scale it by y[0] to avoid a
-    # transient.
-    zi = signal.lfilter_zi(b, a)
-    y = (yield)
-    zo = zi * y[0]
-
-    while True:
-        y, zo = signal.lfilter(b, a, y, zi=zo)
-        target(y)
-        y = (yield)
 
 
 class IIRFilter(ContinuousInput):
@@ -329,54 +232,23 @@ class IIRFilter(ContinuousInput):
         metadata=True)
     f_highpass = d_(Float()).tag(metadata=True)
     f_lowpass = d_(Float()).tag(metadata=True)
-    wn = Property().tag(metadata=True)
 
-    def _get_wn(self):
-        log.debug('%s filter from %f to %f at Fs=%f', self.name,
-                  self.f_highpass, self.f_lowpass, self.fs)
+    Wn = Property().tag(metadata=True)
+
+    def _get_Wn(self):
         if self.btype == 'lowpass':
-            log.debug('Lowpass at %r (fs=%r)', self.f_lowpass, self.fs)
-            return self.f_lowpass / (0.5 * self.fs)
+            return self.f_lowpass
         elif self.btype == 'highpass':
-            log.debug('Highpass at %r (fs=%r)', self.f_lowpass, self.fs)
-            return self.f_highpass / (0.5 * self.fs)
+            return self.f_highpass
         else:
-            log.debug('Bandpass %r to %r (fs=%r)', self.f_highpass,
-                      self.f_lowpass, self.fs)
-            return (self.f_highpass / (0.5 * self.fs),
-                    self.f_lowpass / (0.5 * self.fs))
+            return (self.f_highpass, self.f_lowpass)
 
     def configure_callback(self):
         cb = super().configure_callback()
         if self.passthrough:
             return cb
-        return iirfilter(self.N, self.wn, None, None, self.btype, self.ftype,
-                         cb).send
-
-
-@coroutine
-def blocked(block_size, target):
-    data = []
-    n = 0
-
-    while True:
-        d = (yield)
-        if d is Ellipsis:
-            data = []
-            target(d)
-            continue
-
-        n += d.shape[-1]
-        data.append(d)
-        if n >= block_size:
-            merged = concatenate(data, axis=-1)
-            while merged.shape[-1] >= block_size:
-                block = merged[..., :block_size]
-                block.metadata['block_size'] = block_size
-                target(block)
-                merged = merged[..., block_size:]
-            data = [merged]
-            n = merged.shape[-1]
+        return pipeline.iirfilter(self.fs, self.N, self.Wn, None, None,
+                                  self.btype, self.ftype, cb).send
 
 
 class Blocked(ContinuousInput):
@@ -391,7 +263,7 @@ class Blocked(ContinuousInput):
             raise ValueError(m)
         cb = super().configure_callback()
         block_size = round(self.duration * self.fs)
-        return blocked(block_size, cb).send
+        return pipeline.blocked(block_size, cb).send
 
 
 @coroutine
@@ -692,6 +564,11 @@ class ExtractEpochs(EpochInput):
 
     complete = Bool(False)
 
+    #: The event that indicates beginning of an epoch. If left blank, the
+    #: programmer is responsible for explicitly hooking up the event (e.g.,
+    #: such as to a queue) or calling `.
+    epoch_event = d_(Str())
+
     def mark_complete(self):
         self.complete = True
 
@@ -700,9 +577,9 @@ class ExtractEpochs(EpochInput):
             m = f'ExtractEpochs {self.name} has an infinite epoch size'
             raise ValueError(m)
         cb = super().configure_callback()
-        return extract_epochs(self.fs, self.added_queue, self.epoch_size,
-                              self.poststim_time, self.buffer_size, cb,
-                              self.mark_complete, self.removed_queue).send
+        return pipeline.extract_epochs(
+            self.fs, self.added_queue, self.epoch_size, self.poststim_time,
+            self.buffer_size, cb, self.mark_complete, self.removed_queue).send
 
     def _get_duration(self):
         return self.epoch_size + self.poststim_time
@@ -725,7 +602,7 @@ def reject_epochs(reject_threshold, mode, status, valid_target):
     while True:
         epochs = (yield)
         # Check for valid epochs and send them if there are any
-        valid = [e for e in epochs if accept(e['signal'])]
+        valid = [e for e in epochs if accept(e)]
         if len(valid):
             valid_target(valid)
 
@@ -764,22 +641,6 @@ class RejectEpochs(EpochInput):
         return reject_epochs(self.threshold, self.mode, self, valid_cb).send
 
 
-@coroutine
-def detrend(mode, target):
-    if mode is None:
-        do_detrend = lambda x: x
-    else:
-        do_detrend = partial(signal.detrend, type=mode)
-    while True:
-        epochs = []
-        for epoch in (yield):
-            epoch = {
-                'signal': do_detrend(epoch['signal']),
-                'info': epoch['info']
-            }
-            epochs.append(epoch)
-        target(epochs)
-
 
 class Detrend(EpochInput):
     '''
@@ -796,4 +657,4 @@ class Detrend(EpochInput):
 
     def configure_callback(self):
         cb = super().configure_callback()
-        return detrend(self.mode, cb).send
+        return pipeline.detrend(self.mode, cb).send

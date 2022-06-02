@@ -74,6 +74,9 @@ class PSIWorkbench(Workbench):
                 manifest.controller = self.controller_plugin
 
     def register(self, manifest):
+        if isinstance(manifest, str):
+            manifest = load_manifest(manifest)()
+
         if self.context_plugin is not None and hasattr(manifest, 'C'):
             manifest.C = self.context_plugin.lookup
             manifest.context = self.context_plugin
@@ -114,7 +117,6 @@ class PSIWorkbench(Workbench):
 
         for command in commands:
             deferred_call(core.invoke_command, *command)
-
 
         # Configure the path where the data is saved. If `is_temp` is True, the
         # path will automatically be deleted at the end of the experiment.
