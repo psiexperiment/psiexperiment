@@ -49,6 +49,10 @@ from ..channel import (CounterChannel,
                        HardwareDOChannel, SoftwareDIChannel, SoftwareDOChannel)
 
 
+constants = {v: n for n, v in mx.DAQmxConstants.__dict__.items() \
+             if n.startswith('DAQmx')}
+
+
 ################################################################################
 # Engine-specific channels
 ################################################################################
@@ -424,7 +428,6 @@ def setup_hw_ao(channels, buffer_duration, callback_interval, callback,
         properties['{} AO gain'.format(line)] = 0
 
     fs = properties['sample clock rate']
-    log_ao.info('AO properties: %r', properties)
 
     if terminal_mode is not None:
         mx.DAQmxSetAOTermCfg(task, merged_lines, terminal_mode)
@@ -466,26 +469,30 @@ def setup_hw_ao(channels, buffer_duration, callback_interval, callback,
     # change it. On the M-xeries PCI 6259 it appears to be fixed at 8191
     # samples. Haven't really been able to do much about this.
     mx.DAQmxGetBufOutputOnbrdBufSize(task, result)
+    properties['AO onboard buffer size'] = result.value
     task._onboard_buffer_size = result.value
-    log_ao.debug('Onboard buffer size %d', task._onboard_buffer_size)
+
+    # Alternates include OnBrdMemEmpty, OnBrdMemHalfFullOrLess, OnBrdMemNotFull
+    mx.DAQmxSetAODataXferReqCond(task, merged_lines, mx.DAQmx_Val_OnBrdMemHalfFullOrLess)
 
     result = ctypes.c_int32()
     mx.DAQmxGetAODataXferMech(task, merged_lines, result)
-    log_ao.debug('Data transfer mechanism %d', result.value)
+    properties['AO data transfer mechanism'] = constants[result.value]
     mx.DAQmxGetAODataXferReqCond(task, merged_lines, result)
-    log_ao.debug('Data transfer condition %d', result.value)
-    #result = ctypes.c_uint32()
-    #mx.DAQmxGetAOUseOnlyOnBrdMem(task, merged_lines, result)
-    #log_ao.debug('Use only onboard memory %d', result.value)
-    #mx.DAQmxGetAOMemMapEnable(task, merged_lines, result)
-    #log_ao.debug('Memory mapping enabled %d', result.value)
+    properties['AO data xfer request condition'] = constants[result.value]
 
-    #mx.DAQmxGetAIFilterDelayUnits(task, merged_lines, result)
-    #log_ao.debug('AI filter delay unit %d', result.value)
+    result = ctypes.c_uint32()
+    mx.DAQmxGetAOUseOnlyOnBrdMem(task, merged_lines, result)
+    properties['AO use only onboard memory'] = constants[result.value]
+    mx.DAQmxGetAOMemMapEnable(task, merged_lines, result)
+    properties['AO memory mapping enabled'] = constants[result.value]
 
-    #result = ctypes.c_int32()
-    #mx.DAQmxGetAODataXferMech(task, result)
-    #log_ao.debug('DMA transfer mechanism %d', result.value)
+    try:
+        result = ctypes.c_int32()
+        mx.DAQmxGetAIFilterDelayUnits(task, merged_lines, result)
+        log_ao.info('AI filter delay unit %d', result.value)
+    except:
+        log_ao.info('AI filter delay property not supported')
 
     log_ao.debug('Creating callback after every %d samples', callback_samples)
     task._cb = partial(hw_ao_helper, callback)
@@ -498,6 +505,10 @@ def setup_hw_ao(channels, buffer_duration, callback_interval, callback,
     task._names = verify_channel_names(task, names)
     task._devices = device_list(task)
     task._fs = fs
+
+    log_ao.info('AO properties: %r', properties)
+    task._properties = properties
+
     return task
 
 
