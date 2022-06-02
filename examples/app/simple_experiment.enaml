@@ -12,7 +12,7 @@ from psi.controller.api import EpochOutput, ContinuousOutput
 
 from psi.context.api import ContextGroup, ContextRow, Parameter
 from psi.data.api import ResultPlot, PlotContainer, ViewBox
-from psi.token.primitives import BandlimitedNoise, Cos2Envelope, SAMEnvelope
+from psi.token.primitives import BandlimitedNoise, Cos2Envelope, SAMEnvelope, Silence
 
 
 frequencies = iter([4000, 8000, 16000])
@@ -54,6 +54,9 @@ enamldef ControllerManifest(BaseControllerManifest): manifest:
         id = 'simple.tokens'
         point = 'psi.token.tokens'
 
+        Silence:
+            name = 'silence'
+
         BandlimitedNoise:
             name = 'continuous_bandlimited_noise'
             label = 'Continuous bandlimited noise'
@@ -76,16 +79,17 @@ enamldef ControllerManifest(BaseControllerManifest): manifest:
         ContextGroup:
             label = 'My variables'
 
-            ParameterRange:
-                name = 'frequency'
-                label = 'Passband'
-                default = 1
-
-            #ParameterRange:
-            #    name = 'frequency'
-            #    label = 'Passband'
-            #    default_low = 1
-            #    default_high = 10
+            ContextRow:
+                fmt = ['Filter from', lb, 'to', ub, 'Hz']
+                Parameter: lb:
+                    name = 'filter_lb'
+                    default = 300
+                Parameter: ub:
+                    name = 'filter_ub'
+                    default = 300
+                Parameter:
+                    name = 'filter_order'
+                    default = 1
 
     Extension:
         id = 'simple.io'

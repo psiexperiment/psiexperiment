@@ -3,7 +3,7 @@ from psi import set_config
 
 def main():
     import logging
-    logging.basicConfig(level='WARNING')
+    logging.basicConfig(level='ERROR')
 
     from psi.experiment.api import PSIWorkbench
     workbench = PSIWorkbench()
