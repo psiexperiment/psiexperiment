@@ -411,7 +411,7 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
             # take some time, so we have to allow for a small delay.
             event = 'trial_start'
             command = 'target.start'
-            kwargs = {'delay': 0.5}
+            kwargs = {'delay': C.lookup('target_delay')}
             weight = 0
 
     Extension:
@@ -466,6 +466,10 @@ enamldef BehaviorManifest(ControllerManifest): manifest:
                 label = 'Response duration (s)'
                 compact_label = 'Resp'
                 default = 3.0
+            Parameter:
+                name = 'target_delay'
+                label = 'Target delay (s)'
+                default = 0.5
             Parameter:
                 name = 'hold_duration'
                 label = 'Hold duration (s)'
