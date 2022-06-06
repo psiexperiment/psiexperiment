@@ -127,7 +127,7 @@ class EpochDataRange(BaseDataRange):
     max_duration = Float()
 
     def source_added(self, data, source):
-        n = [len(d) for d in data]
+        n = [d.shape[-1] for d in data]
         max_duration = max(n) / source.fs
         self.max_duration = max(max_duration, self.max_duration)
 
@@ -965,7 +965,7 @@ class EpochGroupMixin(GroupMixin):
     def _check_selected_tab_count(self):
         for key in self._get_selected_tab_keys():
             current_n = self._data_count[key]
-            last_n = self._data_updated[key]
+            last_n = self._data_updated.get(key, 0)
             if current_n >= (last_n + self.n_update):
                 n = max(self._data_n_samples.values())
                 self.duration = n / self.source.fs
