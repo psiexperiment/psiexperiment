@@ -138,6 +138,11 @@ def prepare_output(event, output):
 
 def prepare_output_queue(event, output):
     log.info('Setting up queue for {}'.format(output.name))
+
+    selector_name = event.parameters.get('selector_name', 'default')
+    iti_key = event.parameters.get('selector_name', f'{output.name}_iti_duration')
+    averages_key = event.parameters.get('selector_name', f'{output.name}_averages')
+
     controller = event.workbench.get_plugin('psi.controller')
     context = event.workbench.get_plugin('psi.context')
     action_name = output.name + '_end'
@@ -152,8 +157,10 @@ def prepare_output_queue(event, output):
         deferred_call(controller.invoke_actions, action_name)
     output.observe('complete', cb)
 
-    for setting in context.iter_settings(output.selector_name, 1):
-        output.add_setting(setting)
+    for setting in context.iter_settings(selector_name, 1):
+        iti_duration = setting[iti_key]
+        averages = setting[averages_key]
+        output.add_setting(setting, averages=averages, iti_duration=iti_duration)
 
     controller.invoke_actions(f'{output.name}_queue_ready')
 
@@ -646,55 +653,6 @@ enamldef QueuedEpochOutputManifest(EpochOutputManifest): manifest:
 
 enamldef SelectorQueuedEpochOutputManifest(QueuedEpochOutputManifest): manifest:
 
-    Conditional:
-        condition << manifest.contribution.configurable
-
-        Extension:
-            id = manifest.id + '.epoch_output_menu'
-            point = 'enaml.workbench.ui.actions'
-            MenuItem:
-                path = '/equipment/output/{}/queue'.format(manifest.contribution.name)
-                label = 'ordering'
-                ItemGroup:
-                    exclusive = True
-                    id = manifest.contribution.name + '.queue'
-
-            Looper:
-                iterable << queues.items()
-
-                ActionItem:
-                    path = '/equipment/output/{}/queue/{}' \
-                        .format(manifest.contribution.name, loop_item[0])
-                    label = loop_item[0]
-                    group = manifest.contribution.name + '.queue'
-                    checked << isinstance(manifest.contribution.queue, loop_item[1])
-                    checkable = True
-                    command = manifest.contribution.name + '.set_queue'
-                    parameters = {'queue_class': loop_item[1]}
-                    enabled << controller.experiment_state in ('initialized', 'stopped')
-
-    Extension:
-        id = manifest.id + '.epoch_output_items'
-        point = 'psi.context.items'
-
-        ContextGroup:
-            name = manifest.contribution.name + '_sequence'
-            label = manifest.contribution.label + ' epoch settings'
-
-            Parameter:
-                name = manifest.contribution.name + '_iti_duration'
-                label = manifest.contribution.label + ' intertrial interval (s)'
-                compact_label = manifest.contribution.label + ' ITI'
-                default = 0.1
-                scope = 'experiment'
-
-            Parameter:
-                name = manifest.contribution.name + '_averages'
-                label = manifest.contribution.label + ' averages'
-                compact_label = manifest.contribution.label + ' N'
-                default = 1
-                scope = 'experiment'
-
     Extension:
         id = manifest.id + '.epoch_output_actions'
         point = 'psi.controller.actions'
@@ -702,33 +660,6 @@ enamldef SelectorQueuedEpochOutputManifest(QueuedEpochOutputManifest): manifest:
         ExperimentAction:
             event = 'engines_configured'
             command = manifest.contribution.name + '.prepare_queue'
-
-    Extension:
-        id = manifest.id + '.queued_epoch_output_preferences'
-        point = 'psi.experiment.preferences'
-        rank = 10
-        Preferences:
-            name = 'queued_epoch_output.' + manifest.contribution.name
-            get_preferences => (workbench):
-                queue = manifest.contribution.queue
-                for name, queue_class in queues.items():
-                    if isinstance(queue, queue_class):
-                        break
-                else:
-                    name = None
-                return {'queue_type': name}
-
-            set_preferences => (workbench, preferences):
-                output = manifest.contribution
-                default = 'first-in, first-out'
-                if preferences is None:
-                    queue_name = default
-                elif preferences.get('queue_type') is None:
-                    queue_name = default
-                else:
-                    queue_name = preferences.get('queue_type')
-                queue_class = queues[queue_name]
-                output.queue = queue_class()
 
 
 enamldef ContinuousOutputManifest(AnalogOutputManifest): manifest:

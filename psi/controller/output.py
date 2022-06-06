@@ -323,11 +323,6 @@ class QueuedEpochOutput(BufferedOutput):
         return np.inf
 
 
-class SelectorQueuedEpochOutput(QueuedEpochOutput):
-
-    selector_name = d_(Str('default')).tag(metadata=True)
-
-
 class ContinuousOutput(BufferedOutput):
 
     def get_next_samples(self, samples):

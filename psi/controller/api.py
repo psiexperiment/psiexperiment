@@ -8,11 +8,10 @@ from .input import (Input, ContinuousInput, EventInput, EpochInput, Callback,
                     CalibratedInput, Coroutine, RMS, IIRFilter, Blocked,
                     Accumulate, Capture, Downsample, Decimate, Discard,
                     Threshold, Average, Delay, Transform, Edges, ExtractEpochs,
-                    RejectEpochs, Detrend, coroutine)
+                    RejectEpochs, Detrend)
 
 from .output import (Synchronized, ContinuousOutput, EpochOutput,
-                     QueuedEpochOutput, SelectorQueuedEpochOutput,
-                     DigitalOutput, Trigger, Toggle)
+                     QueuedEpochOutput, DigitalOutput, Trigger, Toggle)
 
 from .experiment_action import (ExperimentAction, ExperimentCallback,
                                 ExperimentEvent, ExperimentState)
