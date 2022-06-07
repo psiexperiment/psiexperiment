@@ -51,9 +51,7 @@ class GroupedEpochCounter(EpochCounter):
             key = self.get_key(e.metadata)
             self.counts[key] += 1
         current_n = sum(min(c, self.requested_group_n) for c in self.counts.values())
-        def update():
-            self.current_n = current_n
-        deferred_call(update)
+        deferred_call(lambda: setattr(self, 'current_n', current_n))
 
 
 def update_counter(contribution, event):
