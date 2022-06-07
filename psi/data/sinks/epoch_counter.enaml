@@ -28,7 +28,7 @@ class EpochCounter(SinkWithSource):
     requested_n = Int()
 
     def _update_data(self, epochs):
-        n = len(epochs)
+        n = epochs.shape[0]
         deferred_call(lambda: setattr(self, 'current_n', self.current_n + n))
 
 
