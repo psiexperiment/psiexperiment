@@ -291,7 +291,6 @@ class QueuedEpochOutput(BufferedOutput):
 
     def add_setting(self, setting, averages=None, iti_duration=None,
                     total_duration=None):
-
         if iti_duration is not None and total_duration is not None:
             raise ValueError('Cannot specify both iti_duration and total_duration')
         elif iti_duration is None and total_duration is None:

@@ -12,10 +12,10 @@ import pandas as pd
 from scipy import signal
 
 from psi.controller.calibration.tone import tone_spl
-from psi.context.api import BoolParameter, EnumParameter, ContextGroup, Parameter
+from psi.context.api import BoolParameter, EnumParameter, ContextGroup, ContextRow, Parameter
 from psi.controller.api import (ExperimentAction, generate_waveform,
                                 get_hw_ai_choices, get_hw_ao_choices,
-                                SelectorQueuedEpochOutput, QueuedEpochOutput)
+                                QueuedEpochOutput)
 
 from psiaudio import util
 from psiaudio.calibration import FlatCalibration, InterpCalibration
@@ -23,6 +23,8 @@ from psiaudio.queue import FIFOSignalQueue, InterleavedFIFOSignalQueue
 
 from psi.core.enaml.api import ExperimentManifest
 from psi.token.primitives import Chirp, Cos2Envelope, Tone
+
+from psi.paradigms.core.io_mixins import QueuedEpochChannelOutput
 
 
 def configure_hardware_golay(output, workbench, event=None):
@@ -78,9 +80,10 @@ def compute_spl_golay(workbench, event):
     ai = controller.get_input('hw_ai')
     ao = controller.get_output('hw_ao')
 
-    source = data.find_sink('mic_data').get_source('epoch')
+    source = data.find_sink('mic_data').get_source('hw_ai')
     grouping = ['n_bits', 'output_gain']
-    waveforms = source.get_epoch_groups(grouping)
+    waveforms = source.get_epochs()
+    log.error(waveforms)
 
     n_fft = context.get_value('fft_averages')
     n_waveforms = context.get_value('waveform_averages')
@@ -143,20 +146,26 @@ def compute_calibration_chirp(event):
     ao = controller.get_output('hw_ao')
     settings = context.get_values()
 
-    source = data.find_sink('mic_data').get_source('epoch')
-    grouping = ['hw_ao_chirp_level']
-    waveforms = source.get_epoch_groups(grouping)
+    source = data.find_sink('mic_data').get_source('hw_ai')
+    epoch_info = data.find_sink('cal_data').get_source('epoch')
+    duration = epoch_info.iloc[0].loc['hw_ao_chirp_duration']
+
+    log.error(f'Source duration {source.duration}')
+    log.error(f'Epoch duration {duration}')
+
+    waveforms = source.get_epochs(epoch_info, offset=0, duration=duration)
+    waveforms = waveforms.groupby(['hw_ao_chirp_level']).mean()
 
     vb_spl = data.find_viewbox('spl_result')
     vb_sens = data.find_viewbox('sens_result')
     keys = []
     summaries = []
-    for chirp_level, epochs in waveforms.items():
+    for chirp_level, epochs in waveforms.iterrows():
         if chirp_level == -400:
             continue
-        freq = util.psd_freq(epochs, source.fs)
-        resp_psd = util.psd(epochs, source.fs).mean(axis=0)
-        resp_phase = util.phase(epochs, source.fs).mean(axis=0)
+        freq = util.psd_freq(epochs.values, source.fs)
+        resp_psd = util.psd(epochs.values, source.fs).mean(axis=0)
+        resp_phase = util.phase(epochs.values, source.fs).mean(axis=0)
         spl = ai.channel.calibration.get_db(freq, resp_psd)
 
         settings['hw_ao_chirp_level'] = chirp_level
@@ -190,7 +199,7 @@ def compute_calibration_chirp(event):
                                     'bounded')*1e3
 
     # Save the calibration
-    summary = pd.concat(summaries, keys=keys, names=grouping)
+    summary = pd.concat(summaries, keys=keys, names=['hw_ao_chirp_duration'])
     params = {'dataframe': summary, 'name': 'chirp_sens'}
     core.invoke_command('cal_data.save_dataframe', params)
 
@@ -235,49 +244,6 @@ def validate_spl(workbench, ao_channel, ai_channel, frequencies, spl, max_gain):
     core.invoke_command('cal_data.save_dataframe', parameters=parameters)
 
 
-enamldef ChannelSettingMixins(ExperimentManifest): manifest:
-
-    id = 'calibration_mixins_channel_settings'
-    required = True
-
-    Extension:
-        id = manifest.id + '.context'
-        point = 'psi.context.items'
-
-        ContextGroup:
-            name = 'calibration'
-            label = 'Calibration'
-
-            EnumParameter:
-                name = 'output_channel'
-                label = 'Output channel'
-                compact_label = 'ao'
-                choices << get_hw_ao_choices(workbench)
-                scope = 'experiment'
-
-            EnumParameter:
-                name = 'input_channel'
-                label = 'Input channel'
-                compact_label = 'input'
-                choices << get_hw_ai_choices(workbench)
-                scope = 'experiment'
-
-            Parameter:
-                name = 'input_gain'
-                label = 'Input gain (dB)'
-                compact_label = 'ai_gain'
-                dtype = 'float64'
-                default = 40
-                scope = 'experiment'
-
-            Parameter:
-                name = 'input_range'
-                label = 'Expected input range (Vpp)'
-                compact_label = 'ai_range'
-                dtype = 'float64'
-                default = 10
-                scope = 'experiment'
-
 enamldef GolayMixin(ExperimentManifest): manifest:
 
     id = 'golay'
@@ -289,6 +255,7 @@ enamldef GolayMixin(ExperimentManifest): manifest:
 
         QueuedEpochOutput: hw_ao:
             name = 'hw_ao'
+            label = 'Output'
             auto_decrement = True
             configurable = False
             target_name = C.output_channel
@@ -403,37 +370,42 @@ enamldef ToneValidateMixin(ExperimentManifest): manifest:
 
         ContextGroup:
             name = 'validation'
-            label = 'Validation Settings'
+            label = 'Validation'
 
-            Parameter:
-                name = 'validation_start'
-                label = 'Start frequency'
-                default = 500.0
-                scope = 'experiment'
+            ContextRow:
+                name = 'val_start_end'
+                fmt = ['Validate', val_start, 'to', val_end, 'Hz with', val_oct, 'octave spacing']
 
-            Parameter:
-                name = 'validation_end'
-                label = 'Start frequency'
-                default = 50000.0
-                scope = 'experiment'
+                Parameter: val_start:
+                    name = 'validation_start'
+                    default = 500.0
+                    scope = 'experiment'
 
-            Parameter:
-                name = 'validation_octaves'
-                label = 'Octave step'
-                default = 0.125
-                scope = 'experiment'
+                Parameter: val_end:
+                    name = 'validation_end'
+                    default = 50000.0
+                    scope = 'experiment'
 
-            Parameter:
-                name = 'validation_level'
-                label = 'Level to validate (dB SPL)'
-                default = 80.0
-                scope = 'experiment'
+                Parameter: val_oct:
+                    name = 'validation_octaves'
+                    default = 0.125
+                    scope = 'experiment'
 
-            Parameter:
-                name = 'safe_gain'
-                label = 'Skip frequency if gain exceeds this level (dB)'
-                default = 0
-                scope = 'experiment'
+            ContextRow:
+                name = 'val_level_gain'
+                fmt = ['Validate at', val_level, 'dB SPL, skip if output gain greater than', val_safe_gain, 'dB']
+
+                Parameter: val_level:
+                    name = 'validation_level'
+                    label = 'Level to validate (dB SPL)'
+                    default = 80.0
+                    scope = 'experiment'
+
+                Parameter: val_safe_gain:
+                    name = 'safe_gain'
+                    label = 'Skip frequency if gain exceeds this level (dB)'
+                    default = 0
+                    scope = 'experiment'
 
     Extension:
         id = manifest.id + '.toolbar'
@@ -461,6 +433,26 @@ enamldef ChirpMixin(ExperimentManifest): manifest:
     required = True
 
     Extension:
+        id = manifest.id + '.context'
+        point = 'psi.context.items'
+
+        Parameter:
+            name = 'hw_ao_iti_duration'
+            label = 'Intertrial interval (s)'
+            compact_label = 'ITI'
+            default = 0.001
+            scope = 'experiment'
+            group_name = 'hw_ao'
+
+        Parameter:
+            name = 'hw_ao_averages'
+            label = 'Averages'
+            compact_label = 'N'
+            default = 32
+            scope = 'experiment'
+            group_name = 'hw_ao'
+
+    Extension:
         id = manifest.id + '.tokens'
         point = 'psi.token.tokens'
 
@@ -471,24 +463,23 @@ enamldef ChirpMixin(ExperimentManifest): manifest:
         id = manifest.id + '.io'
         point = 'psi.controller.io'
 
-        SelectorQueuedEpochOutput: hw_ao:
+        QueuedEpochChannelOutput:
             name = 'hw_ao'
             label = 'Output'
-            configurable = False
             token = chirp
             auto_decrement = True
-            selector_name = 'default'
-            target_name << C.output_channel
+
             target ::
                 # Set up the channel and the queue
                 channel.calibration = FlatCalibration.as_attenuation()
-                queue = InterleavedFIFOSignalQueue()
+                self.queue = FIFOSignalQueue()
 
                 # Connect to the epoch input
                 controller = workbench.get_plugin('psi.controller')
                 epoch = controller.get_input('epoch')
                 epoch.poststim_time = 0
-                self.connect(epoch.added_queue.append)
+
+                self.queue.connect(epoch.added_queue.append)
 
     Extension:
         id = manifest.id + '.commands'
@@ -503,8 +494,13 @@ enamldef ChirpMixin(ExperimentManifest): manifest:
         point = 'psi.controller.actions'
 
         ExperimentAction:
-            event = 'epoch_queue_end'
+            event = 'experiment_end'
             command = 'psi.controller.compute_calibration'
+            delay = 1
+
+        ExperimentAction:
+            event = 'engines_configured'
+            command = 'hw_ao.prepare_queue'
 
 
 enamldef ToneMixin(ExperimentManifest): manifest:
@@ -536,12 +532,11 @@ enamldef ToneMixin(ExperimentManifest): manifest:
         id = manifest.id + '.io'
         point = 'psi.controller.io'
 
-        SelectorQueuedEpochOutput: hw_ao:
+        QueuedEpochOutput: hw_ao:
             name = 'hw_ao'
             label = 'Output'
             configurable = False
             auto_decrement = True
-            selector_name = 'default'
             token = tone_pip
             target_name << C.output_channel
             target ::
@@ -549,7 +544,8 @@ enamldef ToneMixin(ExperimentManifest): manifest:
                     log.debug('Setting output to use attenuation values')
                     channel.calibration = FlatCalibration.as_attenuation()
 
-                queue = InterleavedFIFOSignalQueue()
+                #queue = InterleavedFIFOSignalQueue()
+                queue = FIFOSignalQueue()
                 controller = workbench.get_plugin('psi.controller')
                 epoch = controller.get_input('epoch')
                 epoch.poststim_time = 10e-3

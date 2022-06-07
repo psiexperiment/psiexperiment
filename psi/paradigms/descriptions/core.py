@@ -26,4 +26,3 @@ microphone_fft_mixin = {
         'y_label': 'Microphone (dB)'
     }
 }
-

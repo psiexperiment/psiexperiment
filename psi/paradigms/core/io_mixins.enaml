@@ -9,6 +9,9 @@ from psi.core.enaml.api import PSIManifest
 from psi.context.api import ContextGroup, ContextRow, EnumParameter, Parameter
 
 
+################################################################################
+# Subclasses of Output that allow for sepcifying channel settings
+################################################################################
 enamldef OutputChannelExtension(Extension): ext:
 
     attr manifest
@@ -16,8 +19,8 @@ enamldef OutputChannelExtension(Extension): ext:
     point = 'psi.context.items'
 
     EnumParameter:
-        name = ext.manifest.contribution.name + '_output_channel'
-        label = ext.manifest.contribution.name + ' output channel'
+        name = ext.manifest.contribution.name + '_channel'
+        label = ext.manifest.contribution.label + ' channel'
         compact_label = 'ao'
         choices = get_hw_ao_choices(workbench)
         selected = next(iter(get_hw_ao_choices(workbench)))
@@ -30,7 +33,7 @@ enamldef EpochChannelOutput(EpochOutput):
     name = 'output'
     label = 'Output'
     configurable = False
-    target_name = getattr(C, f'{name}_output_channel')
+    target_name = getattr(C, f'{name}_channel')
 
 
 enamldef EpochChannelOutputManifest(EpochOutputManifest): manifest:
@@ -44,7 +47,7 @@ enamldef QueuedEpochChannelOutput(QueuedEpochOutput):
     name = 'output'
     label = 'Output'
     configurable = False
-    target_name = getattr(C, f'{name}_output_channel')
+    target_name = getattr(C, f'{name}_channel')
 
 
 enamldef QueuedEpochChannelOutputManifest(QueuedEpochOutputManifest): manifest:
@@ -53,6 +56,9 @@ enamldef QueuedEpochChannelOutputManifest(QueuedEpochOutputManifest): manifest:
         manifest = manifest
 
 
+################################################################################
+# Subclasses of ContinuousInput that allow for specifying channel settings
+################################################################################
 enamldef ChannelInput(ContinuousInput):
 
     attr show_gain_setting = True
@@ -62,7 +68,6 @@ enamldef ChannelInput(ContinuousInput):
     source_name = getattr(C, f'{name}_channel')
     source ::
         channel.gain = getattr(C, f'{name}_input_gain')
-
 
 
 enamldef ChannelInputManifest(PSIManifest): manifest:

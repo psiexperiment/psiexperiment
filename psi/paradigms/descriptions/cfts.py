@@ -26,15 +26,8 @@ temperature_mixin = {
 }
 
 
-#ParadigmDescription(
-#    # This is a much more flexible, more powerful ABR experiment interface.
-#    'abr_io_editable', 'Configurable ABR (input-output)', 'ear', [
-#        {'manifest': CFTS_PATH + 'abr_io.ABRIOManifest'},
-#        temperature_mixin,
-#        eeg_mixin,
-#        {'manifest': CFTS_PATH + 'cfts_mixins.ABRInEarCalibrationMixinManifest', 'selected': True},
-#    ]
-#)
+base_mixins = [temperature_mixin, microphone_mixin, microphone_fft_mixin]
+efr_mixins = base_mixins + [eeg_mixin]
 
 
 ParadigmDescription(
@@ -51,16 +44,9 @@ ParadigmDescription(
 ParadigmDescription(
     'dpoae_io', 'DPOAE (input-output)', 'ear', [
         {'manifest': CFTS_PATH + 'dpoae_io.DPOAEIOSimpleManifest'},
-        temperature_mixin,
-        microphone_mixin,
-        microphone_fft_mixin,
         {'manifest': CFTS_PATH + 'cfts_mixins.DPOAEInEarCalibrationMixinManifest', 'selected': True},
-    ]
+    ] + base_mixins,
 )
-
-
-base_mixins = [temperature_mixin, microphone_mixin, microphone_fft_mixin]
-efr_mixins = base_mixins + [eeg_mixin]
 
 
 ParadigmDescription(
@@ -95,7 +81,6 @@ ParadigmDescription(
 ParadigmDescription(
     'inear_speaker_calibration_chirp', 'In-ear speaker calibration (chirp)', 'ear', [
         {'manifest': CAL_PATH + 'speaker_calibration.BaseSpeakerCalibrationManifest'},
-        {'manifest': CAL_PATH + 'calibration_mixins.ChannelSettingMixins'},
         {'manifest': CAL_PATH + 'calibration_mixins.ChirpMixin'},
         {'manifest': CAL_PATH + 'calibration_mixins.ToneValidateMixin'},
     ]

@@ -8,7 +8,6 @@ CORE_PATH = 'psi.paradigms.core.'
 ParadigmDescription(
     'speaker_calibration_golay', 'Speaker calibration (Golay)', 'calibration', [
         {'manifest': PATH + 'speaker_calibration.BaseSpeakerCalibrationManifest'},
-        {'manifest': PATH + 'calibration_mixins.ChannelSettingMixins'},
         {'manifest': PATH + 'calibration_mixins.GolayMixin'},
         {'manifest': PATH + 'calibration_mixins.ToneValidateMixin'},
     ]
@@ -18,7 +17,6 @@ ParadigmDescription(
 ParadigmDescription(
     'speaker_calibration_chirp', 'Speaker calibration (chirp)', 'calibration', [
         {'manifest': PATH + 'speaker_calibration.BaseSpeakerCalibrationManifest'},
-        {'manifest': PATH + 'calibration_mixins.ChannelSettingMixins'},
         {'manifest': PATH + 'calibration_mixins.ChirpMixin'},
         {'manifest': PATH + 'calibration_mixins.ToneValidateMixin'},
     ]
@@ -28,7 +26,6 @@ ParadigmDescription(
 ParadigmDescription(
     'speaker_calibration_tone', 'Speaker calibration (tone)', 'calibration', [
         {'manifest': PATH + 'speaker_calibration.BaseSpeakerCalibrationManifest'},
-        {'manifest': PATH + 'calibration_mixins.ChannelSettingMixins'},
         {'manifest': PATH + 'calibration_mixins.ToneMixin'},
     ]
 )
@@ -52,7 +49,6 @@ ParadigmDescription(
 ParadigmDescription(
     'amplifier_calibration', 'Amplifier calibration', 'calibration', [
         {'manifest': PATH + 'amplifier_calibration.AmplifierCalibrationManifest'},
-        {'manifest': PATH + 'calibration_mixins.ChannelSettingMixins'},
         {'manifest': CORE_PATH + 'signal_mixins.SignalFFTViewManifest',
          'required': True
          },
