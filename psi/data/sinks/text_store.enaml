@@ -46,7 +46,11 @@ class TextStore(BaseStore):
 
     def get_source(self, name):
         try:
-            return self._stores[name]
+            store = self._stores[name]
+            if isinstance(store, TextEpochData):
+                return pd.DataFrame(store.metadata)
+            else:
+                return store
         except KeyError as e:
             raise AttributeError(name)
 

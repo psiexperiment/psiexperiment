@@ -9,6 +9,8 @@ import numpy as np
 import pandas as pd
 import zarr
 
+from psi.data.io.zarr_tools import ZarrSignal
+
 
 from .base_store import BaseEpochData, BaseStore
 
@@ -40,7 +42,7 @@ class ZarrStore(BaseStore):
 
     def get_source(self, name):
         try:
-            return self._stores[name]
+            return ZarrSignal(self._stores[name])
         except KeyError as e:
             raise AttributeError(name)
 
