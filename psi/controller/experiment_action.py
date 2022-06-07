@@ -3,7 +3,8 @@ log = logging.getLogger(__name__)
 
 from functools import partial
 
-from atom.api import Str, Int, Dict, Bool, Typed, Callable, List
+from atom.api import Str, Int, Dict, Float, Bool, Typed, Callable, List
+from enaml.application import timed_call
 from enaml.core.api import Declarative, d_
 
 from psi.util import get_dependencies
@@ -76,6 +77,10 @@ class ExperimentActionBase(Declarative):
     #: Arguments to pass to command by keyword
     kwargs = d_(Dict())
 
+    #: Should action be delayed? If nonzero, this may cause some timing issues.
+    #: Use with caution.
+    delay = d_(Float(0))
+
     def _get_params(self, **kwargs):
         kwargs.update(self.kwargs)
         params = {}
@@ -98,13 +103,19 @@ class ExperimentActionBase(Declarative):
     def __str__(self):
         return f'{self.event} (weight={self.weight}; kwargs={self.kwargs})'
 
+    def invoke(self, core, **kwargs):
+        if self.delay != 0:
+            timed_call(self.delay * 1e3, self._invoke, core, **kwargs)
+        else:
+            return self._invoke(core, **kwargs)
+
 
 class ExperimentAction(ExperimentActionBase):
 
     #: Command to invoke
     command = d_(Str())
 
-    def invoke(self, core, **kwargs):
+    def _invoke(self, core, **kwargs):
         params = self._get_params(**kwargs)
         log.debug('Calling command %s with params %r', self.command, params)
         return core.invoke_command(self.command, parameters=params)
@@ -118,7 +129,7 @@ class ExperimentCallback(ExperimentActionBase):
     #: Callback to invoke
     callback = d_(Callable())
 
-    def invoke(self, core, **kwargs):
+    def _invoke(self, core, **kwargs):
         params = self._get_params(**kwargs)
         return self.callback(**params)
 
