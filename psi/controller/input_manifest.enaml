@@ -104,6 +104,11 @@ enamldef CaptureManifest(InputManifest): manifest:
 
 enamldef ExtractEpochsManifest(InputManifest): manifest:
 
+    initialized ::
+        event_name = f'{manifest.contribution.name}_queue_end'
+        manifest.contribution.observe(
+            'complete', lambda e: controller.invoke_actions(event_name))
+
     Extension:
         id = manifest.id + '.extract_commands'
         point = 'enaml.workbench.core.commands'
