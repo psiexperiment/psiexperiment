@@ -108,7 +108,7 @@ class Recording:
     @functools.lru_cache()
     def _load_zarr_signal(self, name):
         from .zarr_tools import ZarrSignal
-        return ZarrSignal(self.base_path / name)
+        return ZarrSignal.from_path(self.base_path / name)
 
     @functools.lru_cache()
     def _load_bcolz_table(self, name):

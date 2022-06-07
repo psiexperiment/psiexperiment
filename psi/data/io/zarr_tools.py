@@ -14,13 +14,14 @@ MAXSIZE = 1024
 
 class ZarrSignal(Signal):
 
-    def __init__(self, base_path):
-        self.base_path = base_path.with_suffix('.zarr')
+    @classmethod
+    def from_path(cls, path):
+        path = path.with_suffix('.zarr')
+        array = zarr.open(store=str(path), mode='r')
+        return cls(array)
 
-    @property
-    @functools.lru_cache()
-    def array(self):
-        return zarr.open(store=str(self.base_path), mode='r')
+    def __init__(self, array):
+        self.array = array
 
     @property
     def fs(self):
