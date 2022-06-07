@@ -9,7 +9,7 @@ from enaml.workbench.core.api import Command
 import pandas as pd
 
 from psi.context.api import CartesianProduct
-from psi.controller.api import coroutine, ExperimentAction, Input
+from psi.controller.api import ExperimentAction, Input
 from psi.data.plots import (DataFramePlot, FFTContainer, ResultPlot,
                             PlotContainer, ViewBox)
 from psi.experiment.api import StatusItem

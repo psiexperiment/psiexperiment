@@ -7,12 +7,12 @@ from enaml.workbench.core.api import Command
 
 import numpy as np
 
-from psiaudio.queue import InterleavedFIFOSignalQueue
 from psiaudio import util
+from psiaudio.pipeline import coroutine
+from psiaudio.queue import InterleavedFIFOSignalQueue
 
-from psi.controller.api import (ControllerManifest, Coroutine, coroutine,
-                                ExperimentEvent, ExtractEpochs,
-                                ExperimentAction, Input)
+from psi.controller.api import (ControllerManifest, Coroutine, ExperimentEvent,
+                                ExtractEpochs, ExperimentAction, Input)
 
 from psi.context.api import ContextGroup
 from psi.experiment.api import StatusItem

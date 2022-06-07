@@ -10,14 +10,14 @@ from enaml.core.api import d_
 from enaml.widgets.api import Container, DockItem, Label
 from enaml.workbench.api import Extension
 
-from psiaudio.pipeline import concat
+from psiaudio.pipeline import concat, coroutine
 from psiaudio.util import tone_power_conv
 
 from psi.context.api import (ContextGroup, ContextRow, EnumParameter,
                              Expression, Parameter, Result)
 from psi.controller.api import (Blocked, Capture, ContinuousInput,
-                                ControllerManifest, coroutine, Discard,
-                                EpochOutput, ExperimentAction, ExperimentEvent,
+                                ControllerManifest, Discard, EpochOutput,
+                                ExperimentAction, ExperimentEvent,
                                 Input, Synchronized)
 
 from psi.token.primitives import Cos2Envelope, Tone
@@ -127,13 +127,9 @@ class AnalyzeDPOAE(Input):
 
     n_fft = d_(Int(-1)).tag(metadata=True)
     n_time = d_(Int(-1)).tag(metadata=True)
-
     wb = d_(Value())
     trial_widget = d_(Value())
     trials_widget = d_(Value())
-
-    # Required to ensure that the entire processing chain is activated.
-    force_active = True
 
     def configure_callback(self):
         cb = super().configure_callback()
