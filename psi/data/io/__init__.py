@@ -167,7 +167,8 @@ class Signal:
             m = (indices >= 0) & ((indices + samples) < self.shape[-1])
             if not m.all():
                 i = np.flatnonzero(~m)
-                log.warn('Missing epochs %d', i)
+                missing = ', '.join(str(e) for e in i)
+                log.warn('Missing epochs %s', missing)
             indices = indices[m]
             index = pd.Index(times[m], name='t0')
         else:
