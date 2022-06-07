@@ -343,7 +343,7 @@ enamldef DPOAEManifest(ControllerManifest): manifest:
 
             ContextRow:
                 name = 'averaging_settings'
-                fmt = ['Average', n_time, 'time', n_fft, 'FFT epochs of', dur, 's duration']
+                fmt = ['Average', n_time, 'time and', n_fft, 'FFT epochs of', dur, 's duration']
 
                 Parameter: n_fft:
                     name = 'n_fft'

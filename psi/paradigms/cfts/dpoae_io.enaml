@@ -1,17 +1,13 @@
 import logging
 log = logging.getLogger(__name__)
 
-from atom.api import Float, List
-from enaml.core.api import d_
-from enaml.widgets.api import Container, DockItem, Label
+from enaml.widgets.api import ProgressBar
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
-import pandas as pd
 
-from psi.context.api import CartesianProduct
-from psi.controller.api import ExperimentAction, Input
-from psi.data.plots import (DataFramePlot, FFTContainer, ResultPlot,
-                            PlotContainer, ViewBox)
+from psi.context.api import Expression
+from psi.controller.api import ExperimentAction
+from psi.data.plots import ResultPlot, PlotContainer, ViewBox
 from psi.experiment.api import StatusItem
 
 from .cfts_mixins import CFTSSelector
@@ -20,11 +16,6 @@ from .dpoae_mixins import DPOAEThreshold
 
 EXPERIMENT = __name__.rsplit('.', 1)[-1]
 EXPERIMENT_SIMPLE = __name__.rsplit('.', 1)[-1] + '_simple'
-
-
-from enaml.core.api import Looper
-from enaml.widgets.api import Form, ObjectCombo, ProgressBar
-from psi.context.api import Expression
 
 
 enamldef DPOAEIOBaseManifest(DPOAEManifest): manifest:
@@ -148,17 +139,6 @@ enamldef DPOAEIOBaseManifest(DPOAEManifest): manifest:
             ProgressBar: pb_trials:
                 name = 'dpoae_trials_pb'
                 text_visible = True
-
-
-enamldef DPOAEIOManifest(DPOAEIOBaseManifest): manifest:
-
-    Extension:
-        id = EXPERIMENT + '.selectors'
-        point = 'psi.context.selectors'
-
-        CartesianProduct:
-            name = 'default'
-            label = 'DPOAE'
 
 
 def configure_dpoaeio_simple(event):
