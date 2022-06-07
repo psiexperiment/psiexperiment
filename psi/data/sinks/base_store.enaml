@@ -18,7 +18,6 @@ from psi.controller.api import ExperimentAction
 from psi.util import declarative_to_dict
 
 from ..sink import Sink
-from ..io.util import get_epoch_groups
 
 
 class BaseEpochData(Atom):
@@ -37,9 +36,6 @@ class BaseEpochData(Atom):
                 del md['calibration']
             metadata.append(md)
         return epochs, metadata
-
-    def get_epoch_groups(self, grouping):
-        return get_epoch_groups(self.fs, grouping, self.metadata, self.data)
 
 
 class BaseStore(Sink):
