@@ -16,7 +16,6 @@ from enaml.core.api import Declarative, d_
 from psiaudio.calibration import FlatCalibration
 
 from psiaudio import pipeline
-from psiaudio.pipeline import coroutine
 from psiaudio.util import db, dbi
 
 from .channel import Channel
@@ -422,9 +421,22 @@ class RejectEpochs(EpochInput):
     rejects = Int()
     reject_percent = Float()
 
+    def status_cb(self, n_total, n_accepted):
+        def update():
+            # Update the status. Must be wrapped in a deferred call to ensure
+            # that the update occurs on the GUI thread.
+            nonlocal self
+            nonlocal n_total
+            nonlocal n_accepted
+            self.total += n_total
+            self.rejects += n_total - n_accepted
+            self.reject_percent = self.rejects / self.total * 100
+        deferred_call(update)
+
     def configure_callback(self):
         valid_cb = super().configure_callback()
-        return pipeline.reject_epochs(self.threshold, self.mode, self, valid_cb).send
+        return pipeline.reject_epochs(self.threshold, self.mode,
+                                      self.status_cb, valid_cb).send
 
 
 
