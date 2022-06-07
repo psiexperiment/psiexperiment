@@ -174,13 +174,13 @@ enamldef BaseEFRManifest(ControllerManifest): manifest:
             kwargs = {'selector': 'default', 'cycles': 1}
 
         ExperimentAction:
-            event = 'erp_queue_end and not target_active'
-            command = 'psi.controller.stop'
-
-        ExperimentAction:
             event = 'engines_configured'
             command = 'target.start'
-            kwargs = {'delay': 1}
+            kwargs = {'delay': 0.5}
+
+        ExperimentAction:
+            event = 'erp_queue_end'
+            command = 'psi.controller.stop'
 
     Extension:
         id = EXPERIMENT + '.data'
