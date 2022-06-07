@@ -8,12 +8,14 @@ import numpy as np
 
 from psiaudio.pipeline import coroutine
 from psiaudio.queue import GroupedFIFOSignalQueue
+from psiaudio import util
 
 from psi.context.api import ContextGroup, Expression, Parameter
 from psi.controller.api import (Blocked, ControllerManifest,
                                 Coroutine, ExperimentAction, ExtractEpochs,
                                 Synchronized)
 from psi.token.primitives import BandlimitedNoise, Chirp, Cos2Envelope, Repeat
+from psi.data.api import FFTContainer, ViewBox
 from psi.data.sinks.api import TextStore
 
 from .cfts_mixins import CFTSSelector, EEGInput, PTMicrophoneInput
@@ -100,14 +102,35 @@ def analyze_interleaved_memr(fs, target):
 
 
 @coroutine
-def analyze_simultaneous_memr(fs, target):
+def analyze_simultaneous_memr(fs, workbench, target):
+    data = workbench.get_plugin('psi.data')
+    vb = data.find_viewbox('memr_vb')
+
     while True:
         for data in (yield):
-            target([data])
-            #probe_n = data.metadata['probe_repeat_n']
-            #chirps = data.reshape((probe_n, -1))
-            #log.error(chirps.shape)
+            target(data)
 
+            probe_n = data.metadata['probe_chirp_n']
+            probe_rate = data.metadata['probe_rate']
+            elicitor_onset = data.metadata['elicitor_onset']
+            elicitor_duration = data.metadata['elicitor_duration']
+            norm_window = data.metadata['norm_window']
+
+            new_shape = (probe_n, data.n_channels, int(data.n_time / probe_n))
+            chirps = np.array(data).reshape(new_shape)[:, 0, :]
+
+            norm_start, norm_end = elicitor_onset - norm_window, elicitor_onset
+            norm_lb = int(np.floor((elicitor_onset - norm_window) * probe_rate))
+            norm_ub = int(np.floor(elicitor_onset * probe_rate))
+
+            analysis_lb = int(np.ceil(elicitor_onset * probe_rate))
+            analysis_ub = int(np.floor((elicitor_onset + elicitor_duration) * probe_rate))
+
+            chirp_psd = util.psd_df(chirps, data.fs)
+            norm_psd = chirp_psd.iloc[norm_lb:norm_ub].mean(axis=0)
+            analysis_psd = chirp_psd.iloc[analysis_lb:analysis_ub].mean(axis=0)
+            memr = analysis_psd - norm_psd
+            vb.plot(memr.index, memr.values)
 
 
 enamldef BaseMEMRManifest(ControllerManifest): manifest:
@@ -137,7 +160,7 @@ enamldef BaseMEMRManifest(ControllerManifest): manifest:
                 Coroutine:
                     name = 'memr'
                     coroutine = analyze_memr_cb
-                    args = (fs,)
+                    args = (fs, workbench)
 
         Synchronized:
             name = 'memr_stim'
@@ -199,6 +222,24 @@ enamldef BaseMEMRManifest(ControllerManifest): manifest:
             name = 'memr_store'
             epoch_inputs = ['memr']
 
+    Extension:
+        id = EXPERIMENT + '.plots'
+        point = 'psi.data.plots'
+
+        FFTContainer: pc:
+            name = 'memr_container'
+            label = 'MEMR'
+            freq_lb = 5.6e3
+            freq_ub = 45e3
+
+            #fmt_button_cb << \
+            #    C.get_selector().get_formatter(efr_plot.tab_grouping)
+
+            ViewBox: vb:
+                name = 'memr_vb'
+                y_mode = 'mouse'
+                save_limits = True
+
 
 enamldef SimultaneousMEMRManifest(BaseMEMRManifest):
 
@@ -246,6 +287,11 @@ enamldef SimultaneousMEMRManifest(BaseMEMRManifest):
                 name = 'elicitor_duration'
                 label = 'Elicitor duration'
                 default = 3
+
+            Parameter:
+                name = 'norm_window'
+                label = 'Normalization window'
+                default = 1
 
         Expression:
             parameter = 'probe_chirp_n'
