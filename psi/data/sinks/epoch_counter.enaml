@@ -5,20 +5,16 @@ from functools import partial
 import operator
 from collections import defaultdict
 
-import numpy as np
-
-from atom.api import Typed, Event, Str, Int, List, Dict
+from atom.api import Typed, Int, List
 from enaml.application import deferred_call
 from enaml.core.api import d_
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
-from enaml.widgets.api import Container, DockItem, Form, Label, ProgressBar
+from enaml.widgets.api import ProgressBar
 
 from ..sink import SinkWithSource, SinkWithSourceManifest
 
-from psi.core.enaml.api import PSIManifest
 from psi.context.context_item import ContextMeta
-from psi.controller.api import ExperimentAction
 from psi.experiment.api import StatusItem
 
 
