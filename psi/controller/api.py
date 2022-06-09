@@ -15,8 +15,8 @@ from .input import (
 )
 
 from .output import (
- ContinuousOutput, DigitalOutput, EpochOutput, QueuedEpochOutput,
-    SelectorQueuedEpochOutput, Synchronized, Toggle, Trigger
+    ContinuousOutput, DigitalOutput, EpochOutput, QueuedEpochOutput,
+    Synchronized, Toggle, Trigger
 )
 
 from .experiment_action import (
