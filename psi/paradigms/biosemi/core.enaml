@@ -23,7 +23,6 @@ from psi.controller.engines.biosemi.plots import BiosemiChannelPlot, BiosemiEpoc
 
 from psi.experiment.api import Preferences
 
-from psi.data.sinks.api import Websocket
 from psi.data.plots import EpochTimeContainer, TimeContainer, ViewBox
 
 
@@ -268,13 +267,6 @@ enamldef BiosemiVisualizationManifest(ControllerManifest): manifest:
                     epoch_size = C.epoch_size
                     prestim_time = C.prestim_time
                     buffer_size = 30
-
-    Extension:
-        id = EXPERIMENT + '.sinks'
-        point = 'psi.data.sinks'
-
-        Websocket: websocket:
-            pass
 
     Extension:
         id = EXPERIMENT + '.plots'
