@@ -1,0 +1,388 @@
+import logging
+log = logging.getLogger(__name__)
+
+import threading
+
+from atom.api import Value
+from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
+import numpy as np
+
+from psiaudio.pipeline import coroutine
+
+from psi.context.api import ContextGroup, ContextRow, Parameter
+from psi.controller.api import (ControllerPlugin, ControllerManifest, Edges,
+                                ExperimentAction, ExtractEpochs, Input,
+                                IIRFilter, MCSelect, Threshold)
+from psi.core.enaml.api import PSIDockItem
+
+from psi.controller.engines.biosemi.electrode_selector import BiosemiElectrodeSelector
+from psi.controller.engines.biosemi.electrode_selector_view import ElectrodeSelectorContainer
+from psi.controller.engines.biosemi.inputs import Decode
+from psi.controller.engines.biosemi.plots import BiosemiChannelPlot, BiosemiEpochPlot
+
+from psi.experiment.api import Preferences
+
+from psi.data.sinks.api import Websocket
+from psi.data.plots import EpochTimeContainer, TimeContainer, ViewBox
+
+
+EXPERIMENT = 'biosemi_visualization'
+
+
+BUTTONS = {
+    'syllable': 'Syllable',
+    'is_target': 'Target vs. nontarget',
+    'is_correct': 'Correct vs. incorrect',
+}
+
+
+def update_selected(plots, event):
+    for plot in plots:
+        plot.selected_channel = event['value']
+
+
+def update_reference(plots, event):
+    for plot in plots:
+        plot.diff_matrix = event['value']
+
+
+def configure_experiment(event):
+    controller = event.workbench.get_plugin('psi.controller')
+    data = event.workbench.get_plugin('psi.data')
+    controller.epoch_queue = controller.get_input('mc_eeg_epochs').added_queue
+    controller.websocket = data.find_sink('websocket')
+
+
+class BiosemiVisualizationPlugin(ControllerPlugin):
+
+    lock = Value()
+    websocket = Value()
+    epoch_queue = Value()
+
+    trial_event = Value()
+    trigger_time = Value()
+    button_press_time = Value()
+
+    def start(self):
+        self.trial_event = None
+        self.button_press_time = None
+        self.lock = threading.RLock()
+        super().start()
+
+    def notify(self):
+        with self.lock:
+            if self.trial_event is not None:
+                self._notify()
+
+    def _notify(self):
+        self.stop_timer('wait_for_button_press')
+        event = self.trial_event
+        md = event['metadata']
+
+        if self.trigger_time is None:
+            raise ValueError('No trigger detected!')
+        md['cpod_ts'] = event['t0']
+        event['t0'] = self.trigger_time
+
+        if self.button_press_time is not None:
+            reaction_time = float(self.button_press_time - self.trigger_time)
+            button_pressed = bool(reaction_time <= 1.5)
+        else:
+            reaction_time = np.nan
+            button_pressed = False
+
+        is_correct = button_pressed if md['is_target'] else not button_pressed
+        md.update({
+            'response_ts': self.button_press_time,
+            'reaction_time': reaction_time,
+            'button_pressed': button_pressed,
+            'is_correct': is_correct,
+            't0': self.trigger_time,
+        })
+
+        self.websocket.send_message(event)
+        self.epoch_queue.append(event)
+        self.button_press_time = None
+        self.trigger_time = None
+        self.trial_event = None
+
+    def process_trial_info(self, event):
+        data = event.parameters['data']
+        if len(data) > 1:
+            raise ValueError('Cannot keep up with events!')
+        log.info('waiting for trial info lock')
+        with self.lock:
+            if self.trial_event is not None:
+                self._notify()
+            self.trial_event = data[0]
+
+    def process_button_press(self, event):
+        log.info('Processing button press')
+        events = [e for e in event.parameters['data'] if e[0] == 'rising']
+        if len(events) == 0:
+            return
+        with self.lock:
+            if self.trigger_time is None:
+                return
+            if events[0][1] < self.trigger_time:
+                return
+            self.button_press_time = events[0][1]
+            log.info('Setting button press time %r', self.button_press_time)
+
+    def process_trigger(self, event):
+        log.warning(event.parameters['data'])
+        events = [e for e in event.parameters['data'] if e[0] == 'rising']
+        if len(events) == 0:
+            return
+        if len(events) > 1:
+            raise ValueError('Recieved more than one trigger')
+        with self.lock:
+            def cb():
+                nonlocal self
+                self.notify()
+            self.start_timer('wait_for_button_press', 1.5, cb)
+            self.trigger_time = events[0][1]
+            log.info('Setting trigger time %r', self.trigger_time)
+
+
+enamldef BiosemiVisualizationManifest(ControllerManifest): manifest:
+
+    factory = BiosemiVisualizationPlugin
+
+    attr selector = BiosemiElectrodeSelector(n_channels=mc_eeg.n_channels, include_exg=True)
+
+    Extension:
+        id = EXPERIMENT + '.workspace'
+        point = 'psi.experiment.workspace'
+
+        PSIDockItem:
+            name = 'electrode_selection'
+            title = 'Electrode selection'
+
+            ElectrodeSelectorContainer:
+                selector << manifest.selector
+                initialized ::
+                    plots = [epoch_plot, channel_plot]
+                    selector.observe('selected', lambda e: update_selected(plots, e))
+                    selector.observe('diff_matrix', lambda e: update_reference(plots, e))
+
+    Extension:
+        id = EXPERIMENT + '.preferences'
+        point = 'psi.experiment.preferences'
+        Preferences:
+            name = 'electrode_selector'
+            get_preferences => (workbench):
+                preferences = {
+                    'n_channels': manifest.selector.n_channels,
+                    'include_exg': manifest.selector.include_exg,
+                    'selected': manifest.selector.selected,
+                    'reference': manifest.selector.reference,
+                }
+                return preferences
+            set_preferences => (workbench, preferences):
+                if preferences.get('n_channels', None) != manifest.selector.n_channels:
+                    log.warning('n_channels for selector does not match')
+                elif preferences.get('include_exg', None) != manifest.selector.include_exg:
+                    log.warning('include_exg for selector does not match')
+                else:
+                    manifest.selector.selected = preferences['selected']
+                    manifest.selector.reference = preferences['reference']
+
+    Extension:
+        id = EXPERIMENT + '.context_items'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'settings'
+            label = 'General'
+
+            Parameter:
+                name = 'epoch_size'
+                label = 'Epoch size (s)'
+                default = 1
+
+            Parameter:
+                name = 'prestim_time'
+                label = 'Prestim baseline (s)'
+                default = 0.2
+
+            ContextRow:
+                name = 'filter'
+                fmt = ['Filter from', low, 'to', high, 'Hz']
+
+                Parameter: low:
+                    name = 'highpass_filter'
+                    default = 10
+
+                Parameter: high:
+                    name = 'lowpass_filter'
+                    default = 100
+
+    Extension:
+        id = EXPERIMENT + '.io'
+        point = 'psi.controller.io'
+
+        Decode:
+            source_name = 'hw_ai::biosemi_trigger'
+            name = 'trial_info'
+
+        MCSelect:
+            source_name = 'hw_ai::biosemi_sensors'
+            selected_channel = 'Erg1'
+            name = 'mcselect_erg1'
+
+            Threshold:
+                threshold = 0
+
+                Edges:
+                    name = 'button_press'
+                    force_active = True
+
+        MCSelect:
+            source_name = 'hw_ai::biosemi_sensors'
+            selected_channel = 'Erg2'
+            name = 'mcselect_erg2'
+
+            Threshold:
+                threshold = 0.05
+
+                Edges:
+                    name = 'trigger'
+                    force_active = True
+
+        Input: mc_eeg:
+            name = 'mc_eeg'
+            source_name = 'hw_ai::biosemi_eeg'
+
+            IIRFilter:
+                name = 'mc_eeg_filtered'
+                N = 1
+                btype = 'bandpass'
+                ftype = 'butter'
+                f_highpass = C.highpass_filter
+                f_lowpass = C.lowpass_filter
+
+                ExtractEpochs: extract_mc_eeg_epochs:
+                    name = 'mc_eeg_epochs'
+                    epoch_size = C.epoch_size
+                    prestim_time = C.prestim_time
+                    buffer_size = 30
+
+    Extension:
+        id = EXPERIMENT + '.sinks'
+        point = 'psi.data.sinks'
+
+        Websocket: websocket:
+            pass
+
+    Extension:
+        id = EXPERIMENT + '.plots'
+        point = 'psi.data.plots'
+
+        TimeContainer:
+            name = 'running_eeg'
+            label = 'Running EEG'
+            span = 2
+            delay = 0.125
+
+            ViewBox:
+                name = 'running_eeg_view'
+                y_mode = 'mouse'
+                save_limits = True
+
+                BiosemiChannelPlot: channel_plot:
+                    name = 'running_eeg_plot'
+                    pen_color = 'k'
+                    source_name = 'mc_eeg_filtered'
+
+        EpochTimeContainer:
+            buttons = list(BUTTONS.keys())
+            allow_auto_select = False
+            name = 'epoch_eeg'
+            label = 'Averaged EEG epochs'
+            span = 1
+
+            fmt_button => (key):
+                return BUTTONS[key]
+
+            current_button ::
+                if current_button == 'syllable':
+                    epoch_plot.plot_grouping = ['stim_index']
+                elif current_button == 'is_target':
+                    epoch_plot.plot_grouping = ['is_target']
+                elif current_button == 'is_correct':
+                    epoch_plot.plot_grouping = ['is_target', 'is_correct']
+
+            ViewBox:
+                name = 'epoch_eeg_view'
+                y_mode = 'mouse'
+                save_limits = True
+                label = 'Signal (V)'
+
+                BiosemiEpochPlot: epoch_plot:
+                    label = 'Average EEG epochs'
+                    source_name = 'mc_eeg_epochs'
+                    pen_color_cycle = 'palettable.colorbrewer.qualitative.Set3_12'
+                    plot_grouping << ['stim_index']
+                    pen_width = 2
+
+                    fmt_plot_label => (key):
+                        if self.plot_grouping == ['stim_index']:
+                            return f'Stimulus {key[0]}'
+                        elif self.plot_grouping == ['is_target']:
+                            return 'Target' if key[0] else 'Non-target'
+                        elif self.plot_grouping == ['is_target', 'is_correct']:
+                            choices = {
+                                (True, True): 'Correct response (target)',
+                                (True, False): 'Correct response (non-target)',
+                                (False, True): 'Incorrect response (target)',
+                                (False, False): 'Incorrect response (non-target)',
+                            }
+                            return choices[key]
+                        else:
+                            return 'Unknown legend item'
+
+    Extension:
+        id = EXPERIMENT + '.commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = 'psi.controller.process_button_press'
+            handler = lambda e: controller.process_button_press(e)
+        Command:
+            id = 'psi.controller.process_trigger'
+            handler = lambda e: controller.process_trigger(e)
+        Command:
+            id = 'psi.controller.process_trial_info'
+            handler = lambda e: controller.process_trial_info(e)
+        Command:
+            id = 'psi.controller.configure_experiment'
+            handler = configure_experiment
+
+    Extension:
+        id = EXPERIMENT + '.actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'psi.controller.configure_experiment'
+
+        ExperimentAction:
+            event = 'experiment_initialize'
+            command = 'psi.context.initialize'
+
+        ExperimentAction:
+            event = 'experiment_initialize'
+            command = 'psi.controller.finalize_io'
+
+        ExperimentAction:
+            event = 'button_press_acquired'
+            command = 'psi.controller.process_button_press'
+
+        ExperimentAction:
+            event = 'trigger_acquired'
+            command = 'psi.controller.process_trigger'
+
+        ExperimentAction:
+            event = 'trial_info_acquired'
+            command = 'psi.controller.process_trial_info'

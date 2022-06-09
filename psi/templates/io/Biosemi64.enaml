@@ -1,0 +1,15 @@
+from enaml.workbench.api import PluginManifest, Extension
+
+from psi.controller.engines.biosemi import BiosemiEngine
+
+
+enamldef IOManifest(PluginManifest): manifest:
+    '''
+    Template for configuring IO of system
+    '''
+    Extension:
+        id = 'biosemi'
+        point = 'psi.controller.io'
+
+        BiosemiEngine: biosemi:
+            eeg_channels = 64

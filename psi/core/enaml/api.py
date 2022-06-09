@@ -4,6 +4,7 @@ log = logging.getLogger(__name__)
 import enaml
 
 from .contribution import load_manifest, ManifestNotFoundError, PSIContribution
+from .dock_item import PSIDockItem
 from .editable_table_widget import (DataFrameTable, EditableTable, ListTable,
                                     ListDictTable)
 
