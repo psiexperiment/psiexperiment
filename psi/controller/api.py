@@ -1,27 +1,36 @@
-from .channel import (Channel, HardwareAIChannel, HardwareAOChannel,
-                      SoftwareAIChannel, SoftwareAOChannel, HardwareDIChannel,
-                      HardwareDOChannel, SoftwareDIChannel, SoftwareDOChannel)
+from .channel import (
+    Channel, HardwareAIChannel, HardwareAOChannel, HardwareDIChannel,
+    HardwareDOChannel, SoftwareAIChannel, SoftwareAOChannel, SoftwareDIChannel,
+    SoftwareDOChannel
+)
 
 from .engine import Engine
 
-from .input import (Input, ContinuousInput, EventInput, EpochInput, Callback,
-                    CalibratedInput, Coroutine, RMS, IIRFilter, Blocked,
-                    Accumulate, Capture, Downsample, Decimate, Discard,
-                    Threshold, Average, Delay, Transform, Edges, ExtractEpochs,
-                    RejectEpochs, Detrend)
+from .input import (
+    Accumulate, Average, Bitmask, Blocked, CalibratedInput, Callback, Capture,
+    ContinuousInput, Coroutine, Decimate, Delay, Detrend, Discard, Downsample,
+    Edges, EpochInput, EventInput, EventsToInfo, ExtractEpochs,
+    IIRFilter,Input, MCReference, MCSelect , RejectEpochs, RMS, SPL, Threshold,
+    Transform
+)
 
-from .output import (Synchronized, ContinuousOutput, EpochOutput,
-                     QueuedEpochOutput, DigitalOutput, Trigger, Toggle)
+from .output import (
+ ContinuousOutput, DigitalOutput, EpochOutput, QueuedEpochOutput,
+    SelectorQueuedEpochOutput, Synchronized, Toggle, Trigger
+)
 
-from .experiment_action import (ExperimentAction, ExperimentCallback,
-                                ExperimentEvent, ExperimentState)
-
+from .experiment_action import (
+    ExperimentAction, ExperimentCallback, ExperimentEvent, ExperimentState
+)
 
 import enaml
 with enaml.imports():
     # Not where ControllerPlugin is defined, but helps simplify imports.
-    from .manifest import (ControllerManifest, ControllerPlugin,
-                           get_hw_ai_choices, get_hw_ao_choices)
-    from .output_manifest import (EpochOutputManifest, generate_waveform,
-                                  QueuedEpochOutputManifest)
+    from .manifest import (
+        ControllerManifest, ControllerPlugin, get_hw_ai_choices,
+        get_hw_ao_choices
+    )
+    from .output_manifest import (
+        EpochOutputManifest, generate_waveform, QueuedEpochOutputManifest
+    )
     from .input_primitives import ADC

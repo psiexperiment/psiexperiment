@@ -271,12 +271,18 @@ class PlotContainer(BasePlotContainer):
     x_min = d_(Float(0))
     x_max = d_(Float(0))
 
+    def initialized(self, event=None):
+        deferred_call(self.format_container)
+
     @observe('x_min', 'x_max')
     def format_container(self, event=None):
         # If we want to specify values relative to a psi context variable, we
         # cannot do it when initializing the plots.
         if (self.x_min != 0) or (self.x_max != 0):
             self.base_viewbox.setXRange(self.x_min, self.x_max, padding=0)
+
+    def update(self, event=None):
+        deferred_call(self.format_container)
 
 
 class BaseTimeContainer(BasePlotContainer):
@@ -459,6 +465,10 @@ class ViewBox(PSIContribution):
         if label:
             self.parent.legend.addItem(plot, label)
 
+    def remove_plot(self, plot):
+        self.viewbox.removeItem(plot)
+        self.parent.legend.removeItem(plot)
+
     def plot(self, x, y, color='k', log_x=False, log_y=False, label=None,
              kind='line'):
         '''
@@ -537,7 +547,7 @@ class SinglePlot(BasePlot):
 class ChannelPlot(SinglePlot):
 
     downsample = Int(0)
-    decimate_mode = d_(Enum('extremes', 'mean'))
+    decimate_mode = d_(Enum('extremes', 'mean', 'none'))
 
     _cached_time = Typed(np.ndarray)
     _buffer = Typed(SignalBuffer)
@@ -573,7 +583,7 @@ class ChannelPlot(SinglePlot):
         try:
             width, _ = self.parent.viewbox.viewPixelSize()
             dt = self.source.fs**-1
-            self.downsample = round(width/dt/2)
+            self.downsample = round(width/dt)
         except Exception as e:
             pass
 
@@ -581,11 +591,15 @@ class ChannelPlot(SinglePlot):
         self._buffer.append_data(data)
         self.update()
 
+    def _y(self, data):
+        return data
+
     def update(self, event=None):
         low, high = self.parent.data_range.current_range
         data = self._buffer.get_range_filled(low, high, np.nan)
-        t = self._cached_time[:len(data)] + low
-        if self.downsample > 1:
+        t = self._cached_time[:data.shape[-1]] + low
+        data = self._y(data)
+        if self.decimate_mode != 'none' and self.downsample > 1:
             t = t[::self.downsample]
             if self.decimate_mode == 'extremes':
                 d_min, d_max = decimate_extremes(data, self.downsample)
@@ -954,7 +968,8 @@ class EpochGroupMixin(GroupMixin):
                 n = max(self._data_n_samples.get(key, 0), d.shape[-1])
                 self._data_n_samples[key] = n
 
-        self.last_seen_key = key
+        if epochs:
+            self.last_seen_key = key
 
         # Does at least one epoch need to be updated?
         self._check_selected_tab_count()

@@ -170,7 +170,8 @@ def get_dependencies(expression):
 
 class SignalBuffer:
 
-    def __init__(self, fs, size, fill_value=np.nan, dtype=np.double):
+    def __init__(self, fs, size, fill_value=np.nan, dtype=np.double,
+                 n_channels=None):
         '''
 
         Parameters
@@ -187,7 +188,14 @@ class SignalBuffer:
         self._buffer_fs = fs
         self._buffer_size = size
         self._buffer_samples = int(np.ceil(fs*size))
-        self._buffer = np.full(self._buffer_samples, fill_value, dtype=dtype)
+        self._n_channels = n_channels
+
+        if n_channels is not None:
+            shape = (n_channels, self._buffer_samples)
+        else:
+            shape = self._buffer_samples
+
+        self._buffer = np.full(shape, fill_value, dtype=dtype)
         self._fill_value = fill_value
         self._samples = 0
         self._ilb = self._buffer_samples
@@ -224,8 +232,15 @@ class SignalBuffer:
             rpadding = max(iub-sub, 0)
             eub = min(sub, iub)
             data = self.get_range_samples(elb, eub)
-            return np.pad(data, (lpadding, rpadding), 'constant',
-                        constant_values=fill_value)
+
+            padding = (lpadding, rpadding)
+            if data.ndim == 2:
+                padding = ((0, 0), (lpadding, rpadding))
+            else:
+                padding = (lpadding, rpadding)
+
+            return np.pad(data, padding, 'constant',
+                         constant_values=fill_value)
 
     def get_range(self, lb=None, ub=None, fill_value=None):
         with self._lock:
@@ -252,17 +267,17 @@ class SignalBuffer:
                 raise IndexError
             elif iub > self._buffer_samples:
                 raise IndexError
-            return self._buffer[ilb:iub]
+            return self._buffer[..., ilb:iub]
 
     def append_data(self, data):
         with self._lock:
             samples = data.shape[-1]
             if samples > self._buffer_samples:
-                self._buffer[:] = data[-self._buffer_samples:]
+                self._buffer[..., :] = data[..., -self._buffer_samples:]
                 self._ilb = 0
             else:
-                self._buffer[:-samples] = self._buffer[samples:]
-                self._buffer[-samples:] = data
+                self._buffer[..., :-samples] = self._buffer[..., samples:]
+                self._buffer[..., -samples:] = data
                 self._ilb = max(0, self._ilb - samples)
             self._samples += samples
 
@@ -273,8 +288,8 @@ class SignalBuffer:
             self._buffer[:] = self._fill_value
             self._ilb = self._buffer_samples
         else:
-            self._buffer[-i:] = self._buffer[:i]
-            self._buffer[:-i] = np.nan
+            self._buffer[..., -i:] = self._buffer[..., :i]
+            self._buffer[..., :-i] = np.nan
             self._ilb = self._ilb + self._buffer_samples - i
 
     def invalidate(self, t):

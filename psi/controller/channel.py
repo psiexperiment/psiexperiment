@@ -52,6 +52,13 @@ class Channel(PSIContribution):
 
     filter_delay = d_(Float(0).tag(metadata=True))
 
+    # Number of channels in the stream. This is for multichannel input that is
+    # best processed as a group (e.g., from the Biosemi).
+    n_channels = d_(Int(1)).tag(metadata=True)
+
+    # Labels for channels
+    channel_labels = d_(List()).tag(metadata=True)
+
     def _observe_name(self, event):
         self.reference = self._default_reference()
 

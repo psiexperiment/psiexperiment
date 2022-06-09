@@ -10,6 +10,11 @@ from scipy import signal
 
 from atom.api import (Str, Float, Typed, Int, Property, Enum, Bool,
                       Callable, List, Tuple, set_default)
+
+from atom.api import (
+    Bool, Callable, Dict, Enum, Float, Int, List, Property, set_default, Str,
+    Tuple, Typed, Value
+)
 from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
 
@@ -30,6 +35,8 @@ class Input(PSIContribution):
     source = d_(Typed(Declarative).tag(metadata=True), writable=False)
     channel = Property().tag(metadata=True)
     engine = Property().tag(metadata=True)
+    n_channels = Property().tag(metadata=True)
+    channel_labels = Property().tag(metadata=True)
 
     fs = Property().tag(metadata=True)
     dtype = Property().tag(metadata=True)
@@ -84,6 +91,12 @@ class Input(PSIContribution):
 
     def _get_engine(self):
         return self.channel.engine
+
+    def _get_n_channels(self):
+        return self.source.n_channels
+
+    def _get_channel_labels(self):
+        return self.source.channel_labels
 
     def configure(self):
         cb = self.configure_callback()
@@ -179,6 +192,30 @@ class CalibratedInput(Transform):
         # Input is now calibrated, and no additional transforms need to be
         # performed by downstream inputs.
         return FlatCalibration(sensitivity=0)
+
+
+class MCReference(ContinuousInput):
+
+    reference = d_(Enum('all', 'raw', 'FCz', 'MC1', 'MC2', 'MC1+MC2'))
+
+    def configure_callback(self):
+        cb = super().configure_callback()
+        m = create_diff_matrix(self.n_channels, self.reference,
+                               self.channel_labels)
+        return pipeline.mc_reference(m, cb).send
+
+
+class MCSelect(ContinuousInput):
+
+    selected_channel = d_(Value())
+
+    def configure_callback(self):
+        cb = super().configure_callback()
+        return pipeline.mc_select(self.selected_channel,
+                                  self.source.channel_labels, cb).send
+
+    def _get_channel_labels(self):
+        return self.selected_channel
 
 
 class RMS(ContinuousInput):
@@ -342,16 +379,37 @@ class Delay(ContinuousInput):
         return pipeline.delay(n, cb).send
 
 
+class Bitmask(Transform):
+
+    bit = d_(Int(0))
+
+    def _default_function(self):
+        return lambda x, b=self.bit: ((x >> b) & 1).astype('bool')
+
+
 ################################################################################
 # Event input types
 ################################################################################
 class Edges(EventInput):
+
     initial_state = d_(Int(0)).tag(metadata=True)
-    debounce = d_(Int()).tag(metadata=True)
+    debounce = d_(Int(2)).tag(metadata=True)
 
     def configure_callback(self):
         cb = super().configure_callback()
-        return pipeline.edges(self.initial_state, self.debounce, self.fs, cb).send
+        return pipeline.edges(self.initial_state, self.debounce, self.fs,
+                              cb).send
+
+
+class EventsToInfo(EventInput):
+
+    trigger_edge = d_(Enum('rising', 'falling'))
+    base_info = d_(Dict())
+
+    def configure_callback(self):
+        cb = super().configure_callback()
+        return pipeline.events_to_info(self.trigger_edge, self.base_info,
+                                       cb).send
 
 
 ################################################################################
@@ -362,6 +420,8 @@ class ExtractEpochs(EpochInput):
     added_queue = d_(Typed(deque, {}))
     removed_queue = d_(Typed(deque, {}))
 
+    #: Duration to buffer (allowing for lookback captures where we belatedly
+    #: notify the coroutine that we wish to capture an epoch).
     buffer_size = d_(Float(0)).tag(metadata=True)
 
     #: Defines the size of the epoch (if NaN, this is automatically drawn from
@@ -370,6 +430,9 @@ class ExtractEpochs(EpochInput):
 
     #: Defines the extra time period to capture beyond the epoch duration.
     poststim_time = d_(Float(0).tag(metadata=True))
+
+    #: Defines the extra time period to capture before the epoch begins
+    prestim_time = d_(Float(0).tag(metadata=True))
 
     complete = Bool(False)
 
@@ -387,11 +450,14 @@ class ExtractEpochs(EpochInput):
             raise ValueError(m)
         cb = super().configure_callback()
         return pipeline.extract_epochs(
-            self.fs, self.added_queue, self.epoch_size, self.poststim_time,
-            self.buffer_size, cb, self.mark_complete, self.removed_queue).send
+            fs=self.fs, queue=self.added_queue, epoch_size=self.epoch_size,
+            buffer_size=self.buffer_size, target=cb,
+            empty_queue_cb=self.mark_complete,
+            removed_queue=self.removed_queue, prestim_time=self.prestim_time,
+            poststim_time=self.poststim_time).send
 
     def _get_duration(self):
-        return self.epoch_size + self.poststim_time
+        return self.epoch_size + self.poststim_time + self.prestim_time
 
     # force change notification for duration
     def _observe_epoch_size(self, event):
