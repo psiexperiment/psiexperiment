@@ -1,0 +1,80 @@
+import logging
+log = logging.getLogger(__name__)
+
+from atom.api import Int, List, set_default, Typed
+
+from enaml.core.api import d_, Declarative
+
+import numpy as np
+
+from psi.data.plots import ChannelPlot, GroupedEpochAveragePlot
+from psi.util import SignalBuffer
+
+
+class BiosemiMixin(Declarative):
+
+    selected_channel = d_(List())
+    diff_matrix = d_(Typed(np.ndarray))
+
+    def _observe_source(self, event):
+        log.error(event)
+        log.error(event)
+        log.error(event)
+        log.error(event)
+
+
+class BiosemiChannelPlot(BiosemiMixin, ChannelPlot):
+
+    decimate_mode = set_default('none')
+
+    def _y(self, data):
+        if not self.selected_channel:
+            return
+        if self.diff_matrix is not None:
+            data = self.diff_matrix @ data
+        return data[self.selected_channel[0]]
+
+    def _update_buffer(self, event=None):
+        self._buffer = SignalBuffer(
+            self.source.fs,
+            self.parent.data_range.span*2,
+            n_channels=40
+        )
+
+    def _observe_selected_channel(self, event):
+        if self.source is not None:
+            self.update()
+
+
+    def _observe_diff_matrix(self, event):
+        if self.source is not None:
+            self.update()
+
+
+class BiosemiEpochPlot(BiosemiMixin, GroupedEpochAveragePlot):
+
+    epochs = List()
+    pen_width = set_default(2)
+
+    def _epochs_acquired(self, epochs):
+        #with self.lock:
+        self.epochs.extend(epochs)
+        super()._epochs_acquired(epochs)
+
+    def _observe_plot_grouping(self, event):
+        #with self.lock:
+        self._reset_plots()
+        super()._epochs_acquired(self.epochs)
+
+    def _y(self, epoch):
+        result = np.mean(epoch, axis=0) if len(epoch) \
+            else np.full_like(self._x, np.nan)
+        if self.diff_matrix is not None:
+            result = self.diff_matrix @ result
+        return result[self.selected_channel]
+
+    def _observe_selected_channel(self, event):
+        self.update(tab_changed=True)
+
+    def _observe_diff_matrix(self, event):
+        self.update(tab_changed=True)

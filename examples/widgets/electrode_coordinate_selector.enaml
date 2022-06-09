@@ -1,0 +1,16 @@
+from enaml.widgets.api import HGroup, MainWindow, VGroup
+
+from psi.controller.engines.biosemi.electrode_selector \
+    import BiosemiElectrodeSelector
+from psi.controller.engines.biosemi.electrode_selector_view \
+    import ElectrodeSelectorContainer
+
+
+enamldef Main(MainWindow): window:
+
+    HGroup:
+        ElectrodeSelectorContainer:
+            selector = BiosemiElectrodeSelector(n_channels=32, include_exg=True)
+
+        ElectrodeSelectorContainer:
+            selector = BiosemiElectrodeSelector(n_channels=64, include_exg=True)
