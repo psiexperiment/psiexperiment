@@ -7,13 +7,13 @@ import json
 from threading import Thread
 from urllib.parse import urlparse
 
-from atom.api import set_default, Typed, Value
-from enaml.workbench.api import Extension, Manifest, Plugin
+from atom.api import set_default, Str, Typed, Value
+from enaml.workbench.api import Extension, Plugin
 from enaml.workbench.core.api import Command
 import websockets
 
-from ..sink import Sink
 from psi.controller.api import ExperimentAction
+from psi.core.enaml.api import ExperimentManifest
 
 
 async def send_handler(send_queue, websocket):
@@ -49,7 +49,6 @@ def start_websocket_server(host, port, loop, send_queue, core):
 class Websocket(Plugin):
 
     websocket_uri = Str('ws://localhost:8765')
-    name = set_default('websocket')
 
     loop = Value()
     send_queue = Typed(asyncio.Queue, args=())
@@ -76,7 +75,7 @@ class Websocket(Plugin):
         self.loop.call_soon_threadsafe(self.send_queue.put_nowait, message)
 
 
-enamldef WebsocketManifest(Manifest): manifest:
+enamldef WebsocketManifest(ExperimentManifest): manifest:
 
     id = 'psi.websocket'
     factory = WebsocketPlugin
