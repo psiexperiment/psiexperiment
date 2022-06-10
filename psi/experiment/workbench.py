@@ -135,3 +135,6 @@ class PSIWorkbench(Workbench):
         if base_path is None:
             ui.workspace.dock_area.style = 'error'
         ui.start_application()
+
+        plugins = ', '.join(self._plugins.keys())
+        log.info('Plugins loaded: %s', plugins)

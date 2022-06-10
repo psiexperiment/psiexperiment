@@ -158,18 +158,17 @@ enamldef DataFramePlotManifest(PSIManifest): manifest:
 
 def set_group_keys(container, event):
     context = event.workbench.get_plugin('psi.context')
-    # Required to set value change notification
-    container.tab_keys = []
-    container.plot_keys = []
-    if container.tab_grouping:
-        container.tab_keys = sorted(context.unique_values(container.tab_grouping))
-    if container.plot_grouping:
-        log.debug(container.plot_grouping)
-        container.plot_keys = sorted(context.unique_values(list(container.plot_grouping)))
-    else:
+    if container.autogenerate_keys in ('both', 'tab'):
+        container.tab_keys = []
+        if container.tab_grouping:
+            container.tab_keys = sorted(context.unique_values(container.tab_grouping))
+            log.debug('Found tab keys %r', container.tab_keys)
+
+    if container.autogenerate_keys in ('both', 'plot'):
         container.plot_keys = [()]
-    log.debug('Found tab keys %r', container.tab_keys)
-    log.debug('Found plot keys %r', container.plot_keys)
+        if container.plot_grouping:
+            container.plot_keys = sorted(context.unique_values(list(container.plot_grouping)))
+            log.debug('Found plot keys %r', container.plot_keys)
 
 
 enamldef ViewBoxManifest(PSIManifest): manifest:
@@ -196,10 +195,13 @@ enamldef GroupMixinManifest(BasePlotManifest): manifest:
             id = manifest.contribution.name + '.set_groups'
             handler = partial(set_group_keys, manifest.contribution)
 
-    Extension:
-        id = manifest.id + '.stacked_actions'
-        point = 'psi.controller.actions'
+    Conditional:
+        condition = manifest.contribution.autogenerate_keys != 'none'
 
-        ExperimentAction:
-            event = 'context_initialized'
-            command = manifest.contribution.name + '.set_groups'
+        Extension:
+            id = manifest.id + '.stacked_actions'
+            point = 'psi.controller.actions'
+
+            ExperimentAction:
+                event = 'context_initialized'
+                command = manifest.contribution.name + '.set_groups'
