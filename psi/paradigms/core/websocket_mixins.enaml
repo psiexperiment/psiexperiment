@@ -46,7 +46,7 @@ def start_websocket_server(host, port, loop, send_queue, core):
     loop.run_forever()
 
 
-class Websocket(Plugin):
+class WebsocketPlugin(Plugin):
 
     websocket_uri = Str('ws://localhost:8765')
 

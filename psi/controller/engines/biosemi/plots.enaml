@@ -16,12 +16,6 @@ class BiosemiMixin(Declarative):
     selected_channel = d_(List())
     diff_matrix = d_(Typed(np.ndarray))
 
-    def _observe_source(self, event):
-        log.error(event)
-        log.error(event)
-        log.error(event)
-        log.error(event)
-
 
 class BiosemiChannelPlot(BiosemiMixin, ChannelPlot):
 

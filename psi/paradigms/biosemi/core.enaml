@@ -50,7 +50,7 @@ def configure_experiment(event):
     controller = event.workbench.get_plugin('psi.controller')
     data = event.workbench.get_plugin('psi.data')
     controller.epoch_queue = controller.get_input('mc_eeg_epochs').added_queue
-    controller.websocket = data.find_sink('websocket')
+    controller.websocket = event.workbench.get_plugin('psi.websocket')
 
 
 class BiosemiVisualizationPlugin(ControllerPlugin):
@@ -149,7 +149,8 @@ enamldef BiosemiVisualizationManifest(ControllerManifest): manifest:
 
     factory = BiosemiVisualizationPlugin
 
-    attr selector = BiosemiElectrodeSelector(n_channels=mc_eeg.n_channels, include_exg=True)
+    #attr selector = BiosemiElectrodeSelector(n_channels=mc_eeg.n_channels, include_exg=True)
+    attr selector = BiosemiElectrodeSelector(n_channels=64, include_exg=True)
 
     Extension:
         id = EXPERIMENT + '.workspace'
@@ -196,15 +197,17 @@ enamldef BiosemiVisualizationManifest(ControllerManifest): manifest:
             name = 'settings'
             label = 'General'
 
-            Parameter:
-                name = 'epoch_size'
-                label = 'Epoch size (s)'
-                default = 1
+            ContextRow:
+                name = 'epoch'
+                fmt = ['Capture', epoch_start, 'to', epoch_end, 's re. timestamp']
 
-            Parameter:
-                name = 'prestim_time'
-                label = 'Prestim baseline (s)'
-                default = 0.2
+                Parameter: epoch_start:
+                    name = 'epoch_sart'
+                    default = -0.2
+
+                Parameter: epoch_end:
+                    name = 'epoch_end'
+                    default = 1.2
 
             ContextRow:
                 name = 'filter'
@@ -264,8 +267,8 @@ enamldef BiosemiVisualizationManifest(ControllerManifest): manifest:
 
                 ExtractEpochs: extract_mc_eeg_epochs:
                     name = 'mc_eeg_epochs'
-                    epoch_size = C.epoch_size
-                    prestim_time = C.prestim_time
+                    epoch_size = C.epoch_end - C.epoch_start
+                    prestim_time = -C.epoch_start
                     buffer_size = 30
 
     Extension:
@@ -317,6 +320,7 @@ enamldef BiosemiVisualizationManifest(ControllerManifest): manifest:
                     source_name = 'mc_eeg_epochs'
                     pen_color_cycle = 'palettable.colorbrewer.qualitative.Set3_12'
                     plot_grouping << ['stim_index']
+                    autogenerate_keys = 'neither'
                     pen_width = 2
 
                     fmt_plot_label => (key):
