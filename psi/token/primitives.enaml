@@ -254,6 +254,11 @@ enamldef Repeat(EpochBlock):
         label = 'rate'
         default = 40
 
+    Parameter:
+        name = 'delay'
+        label = 'delay'
+        default = 0
+
 
 enamldef Chirp(EpochBlock):
 
