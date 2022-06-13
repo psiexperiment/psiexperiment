@@ -224,6 +224,7 @@ enamldef LauncherView(MainWindow): main:
 
                 HGroup:
                     padding = 0
+                    align_widths = False
 
                     Field: animal:
                         text := launcher.animal
@@ -244,8 +245,21 @@ enamldef LauncherView(MainWindow): main:
             Label:
                 text = 'Base folder'
 
-            Label: base_folder:
-                text << str(launcher.base_folder)
+            HGroup:
+                padding = 0
+                align_widths = False
+                constraints = [pb.width == 30]
+
+                Label: base_folder:
+                    text << str(launcher.base_folder)
+
+                PushButton: pb:
+                    text = '📂'
+                    enabled << launcher.base_folder is not None \
+                        and launcher.base_folder.parent.exists()
+                    clicked ::
+                        os.startfile(launcher.base_folder.parent)
+
 
         HGroup: button_bar:
             leading_spacer = spacer(0)
