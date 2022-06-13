@@ -1037,11 +1037,13 @@ class NIDAQEngine(Engine):
         self._tasks['et_task'] = et_task
         self._tasks['cd_task'] = cd_task
 
-    def _get_channel_slice(self, task_name, channel_names):
-        if channel_names is None:
+    def _get_channel_slice(self, task_name, channel_name):
+        if channel_name is None:
             return Ellipsis
-        else:
-            return self._tasks[task_name]._names.index(channel_names)
+        # We want the channel slice to preserve dimensiality (i.e, we don't
+        # want to drop the channel dimension from the PipelineData object).
+        i = self._tasks[task_name]._names.index(channel_name)
+        return [i]
 
     def register_done_callback(self, callback):
         self._callbacks.setdefault('done', []).append(callback)
