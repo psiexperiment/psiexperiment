@@ -16,7 +16,7 @@ from psi.controller.api import (Blocked, ControllerManifest,
                                 Synchronized)
 from psi.token.primitives import BandlimitedNoise, Chirp, Cos2Envelope, Repeat
 from psi.data.api import FFTContainer, ViewBox
-from psi.data.sinks.api import TextStore
+from psi.data.sinks.api import BinaryStore, TextStore
 
 from .cfts_mixins import CFTSSelector, EEGInput, PTMicrophoneInput
 from ..core.io_mixins import EpochChannelOutput, QueuedEpochChannelOutput
@@ -89,16 +89,32 @@ def configure_simultaneous_memr(event):
     #output.channel.expected_range = (-max_sf, max_sf)
 
 
-
-
 @coroutine
-def analyze_interleaved_memr(fs, target):
+def analyze_interleaved_memr(fs, workbench, target):
+    data = workbench.get_plugin('psi.data')
+    vb = data.find_viewbox('memr_vb')
+
     while True:
-        for data in (yield):
-            target([data])
-            #probe_n = data.metadata['probe_repeat_n']
-            #chirps = data.reshape((probe_n, -1))
-            #log.error(chirps.shape)
+        data = (yield)
+        target(data)
+        log.error(data)
+        for d in data:
+            md = d.metadata
+
+            n = md['probe_chirp_n'] - 1
+
+            a_lb = int(round(md['probe_chirp_delay'] * fs))
+            a_d = int(round(md['analysis_window'] * fs))
+            a_ub = a_lb + a_d
+
+            s_repeat = int(round(md['repeat_period'] * fs))
+            chirps = np.asarray(d)[0, :].reshape((-1, s_repeat))
+            chirps = chirps[:, a_lb:a_ub]
+            psd = util.db(util.psd_df(chirps, fs=fs))
+
+            memr = psd.loc[0]
+            log.error(memr)
+            vb.plot(memr.index, memr.values, log_x=True)
 
 
 @coroutine
@@ -109,6 +125,12 @@ def analyze_simultaneous_memr(fs, workbench, target):
     while True:
         for data in (yield):
             target(data)
+
+            probe_chirp_n = data.metadata['probe_chirp_n']
+            probe_chirp_rate = data.metadata['probe_chirp_rate']
+
+            repeat_period = data.metadata['repeat_period']
+            elicitor_duration = dasta.metadata['elicitor_duration']
 
             probe_n = data.metadata['probe_chirp_n']
             probe_rate = data.metadata['probe_rate']
@@ -130,7 +152,7 @@ def analyze_simultaneous_memr(fs, workbench, target):
             norm_psd = chirp_psd.iloc[norm_lb:norm_ub].mean(axis=0)
             analysis_psd = chirp_psd.iloc[analysis_lb:analysis_ub].mean(axis=0)
             memr = analysis_psd - norm_psd
-            vb.plot(memr.index, memr.values)
+            vb.plot(memr.index, memr.values, log_x=True)
 
 
 enamldef BaseMEMRManifest(ControllerManifest): manifest:
@@ -155,10 +177,10 @@ enamldef BaseMEMRManifest(ControllerManifest): manifest:
         PTMicrophoneInput:
 
             ExtractEpochs: extract:
-                name = 'memr_trials'
+                name = 'memr'
 
                 Coroutine:
-                    name = 'memr'
+                    name = 'memr_analyzed'
                     coroutine = analyze_memr_cb
                     args = (fs, workbench)
 
@@ -214,9 +236,17 @@ enamldef BaseMEMRManifest(ControllerManifest): manifest:
             command = 'memr_stim.start'
             kwargs = {'delay': 0.5}
 
+        ExperimentAction:
+            event = 'memr_queue_end'
+            command = 'psi.controller.stop'
+
     Extension:
         id = EXPERIMENT + '.data'
         point = 'psi.data.sinks'
+
+        BinaryStore:
+            name = 'memr_binary_store'
+            continuous_inputs = ['microphone']
 
         TextStore:
             name = 'memr_store'
@@ -321,6 +351,7 @@ enamldef InterleavedMEMRManifest(BaseMEMRManifest):
 
         Repeat: elicitor:
             name = 'noise'
+            hide = ['delay']
             Cos2Envelope:
                 BandlimitedNoise:
                     pass
@@ -396,5 +427,9 @@ enamldef InterleavedMEMRManifest(BaseMEMRManifest):
             expression = '5e-3'
 
         Expression:
-            parameter = 'elicitor_envelope_start_time'
+            parameter = 'probe_chirp_delay'
             expression = 'repeat_period - elicitor_duration - analysis_window'
+
+        Expression:
+            parameter = 'elicitor_envelope_start_time'
+            expression = 'repeat_period - elicitor_duration'

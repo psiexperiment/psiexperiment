@@ -65,8 +65,8 @@ CONTEXT_ITEM_DETAIL = {
     },
 
     # MEMR
-    'probe_chirp_level': {
-        'user_friendly_name': 'Chirp level',
+    'elicitor_bandlimited_noise_level': {
+        'user_friendly_name': 'Elicitor level',
         'step_unit': 'dB',
         'unit': 'dB SPL',
     }
