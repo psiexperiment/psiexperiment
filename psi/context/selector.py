@@ -421,6 +421,9 @@ class FriendlyCartesianProduct(BaseSelector):
     can_manage = d_(Typed(list, []))
 
     def append_item(self, item):
+        if item.name not in self.context_detail:
+            raise ValueError(f'Cannot rove item {item.name}')
+
         detail = self.context_detail.get(item.name, {})
         inverse_fn = detail.get('inverse_transform_fn', lambda x: x)
 
