@@ -976,7 +976,7 @@ class EpochGroupMixin(GroupMixin):
                 n = max(self._data_n_samples.get(key, 0), d.shape[-1])
                 self._data_n_samples[key] = n
 
-        if epochs:
+        if epochs.n_epochs is not None and epochs.n_epochs > 0:
             self.last_seen_key = key
 
         # Does at least one epoch need to be updated?
