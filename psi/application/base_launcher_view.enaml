@@ -243,7 +243,7 @@ enamldef LauncherView(MainWindow): main:
                 text := launcher.note
 
             Label:
-                text = 'Base folder'
+                text = 'Data folder'
 
             HGroup:
                 padding = 0
@@ -251,7 +251,7 @@ enamldef LauncherView(MainWindow): main:
                 constraints = [pb.width == 30]
 
                 Label: base_folder:
-                    text << str(launcher.base_folder)
+                    text << str(launcher.root_folder)
 
                 PushButton: pb:
                     text = '📂'
@@ -259,6 +259,12 @@ enamldef LauncherView(MainWindow): main:
                         and launcher.base_folder.parent.exists()
                     clicked ::
                         os.startfile(launcher.base_folder.parent)
+
+            Label:
+                text = 'Filename'
+
+            Label:
+                text << '' if launcher.base_folder is None else launcher.base_folder.name
 
 
         HGroup: button_bar:
