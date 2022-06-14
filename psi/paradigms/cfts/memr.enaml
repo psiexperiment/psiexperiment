@@ -97,7 +97,6 @@ def analyze_interleaved_memr(fs, workbench, target):
     while True:
         data = (yield)
         target(data)
-        log.error(data)
         for d in data:
             md = d.metadata
 
@@ -113,7 +112,6 @@ def analyze_interleaved_memr(fs, workbench, target):
             psd = util.db(util.psd_df(chirps, fs=fs))
 
             memr = psd.loc[0]
-            log.error(memr)
             vb.plot(memr.index, memr.values, log_x=True)
 
 
