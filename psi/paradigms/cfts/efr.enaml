@@ -79,7 +79,7 @@ def analyze_efr(token, fs, target):
 
             md['efr_amplitude'] = util.db(psd.loc[frequencies].sum())
             new_epoch.metadata = md
-            target([new_epoch])
+            target(new_epoch)
 
 
 enamldef BaseEFRManifest(ControllerManifest): manifest:
