@@ -44,7 +44,7 @@ def get_color_cycle(name):
 
 
 def make_color(color):
-    if isinstance(color, tuple):
+    if isinstance(color, (tuple, list)):
         return QColor(*color)
     elif isinstance(color, str):
         return QColor(color)
@@ -60,30 +60,32 @@ class ColorCycleMixin(Declarative):
     #: Define the pen color cycle. Can be a list of colors or a string
     #: indicating the color palette to use in palettable.
     pen_color_cycle = d_(Typed(object))
+    color_cycle = Typed(object)
     _plot_colors = Typed(dict)
 
     def _default_pen_color_cycle(self):
-        return ['k']
+        return 'palettable.colorbrewer.qualitative.Dark2_8'
 
-    def _make_plot_cycle(self):
+    def _default_color_cycle(self):
+        # Create a color cycle iterator. Ensure iterator yields a QColor
+        # instance as that's what's required to properly show colors in
+        # pyqtgraph.
         if isinstance(self.pen_color_cycle, str):
-            cycle = get_color_cycle(self.pen_color_cycle)
+            iterable = get_color_cycle(self.pen_color_cycle)
         else:
-            cycle = itertools.cycle(self.pen_color_cycle)
-        return defaultdict(lambda: next(cycle))
+            iterable = itertools.cycle(self.pen_color_cycle)
+
+        def qcolor_iterable():
+            nonlocal iterable
+            for color in iterable:
+                yield make_color(color)
+        return qcolor_iterable()
 
     @d_func
-    def get_pen_color(self, key):
+    def get_pen_color(self, key=None):
         if self._plot_colors is None:
-            self._plot_colors = self._make_plot_cycle()
-        color = self._plot_colors[key]
-        if not isinstance(color, str):
-            return QColor(*color)
-        else:
-            return QColor(color)
-
-    def _observe_pen_color_cycle(self, event):
-        self._plot_colors = self._make_plot_cycle()
+            self._plot_colors = defaultdict(lambda: next(self.color_cycle))
+        return self._plot_colors[key]
 
     def _reset_plots(self):
         raise NotImplementedError
