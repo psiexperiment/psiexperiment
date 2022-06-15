@@ -10,7 +10,7 @@ from atom.api import (Str, Float, Bool, observe, Property, Int, Typed,
 from enaml.core.api import Declarative, d_
 
 from psi.core.enaml.api import PSIContribution
-from ..util import copy_declarative
+from psi.util import copy_declarative, get_tagged_values
 from .channel import (Channel, AnalogMixin, DigitalMixin, HardwareMixin,
                       SoftwareMixin, OutputMixin, InputMixin, CounterMixin)
 
@@ -231,11 +231,15 @@ class Engine(PSIContribution):
         may need to do a quick operation before starting the experiment. For
         example, calibration may only need to run a subset of the channels.
         '''
-        new = copy_declarative(self)
-        for channel in new.children:
-            channel.set_parent(None)
-        if channel_names is not None:
-            for channel_name in channel_names:
-                channel = self.get_channel(channel_name)
-                new_channel = copy_declarative(channel, parent=new, exclude=['inputs', 'outputs'])
+        new = self.__class__()
+
+        for new_channel in new.children[:]:
+            if new_channel.name not in channel_names:
+                new_channel.set_parent(None)
+            else:
+                old_channel = self.get_channel(new_channel.name)
+                attrs = get_tagged_values(old_channel, 'metadata', exclude_properties=True)
+                for name, value in attrs.items():
+                    if name not in ('name', 'input', 'output'):
+                        setattr(new_channel, name, value)
         return new
