@@ -14,16 +14,18 @@ log_ao = logging.getLogger(__name__ + '.ao')
 
 from functools import partial
 from pathlib import Path
+import sys
 from time import time
 from threading import current_thread, Thread, Event
 
 import numpy as np
 from atom.api import (Float, Typed, Str, Int, Bool, Callable, Enum,
                       Property, Value)
+from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
 
 from psi import get_config
-from psiaudio.util import dbi
+from psi.controller.calibration.util import dbi
 from psi.controller.api import (Engine, HardwareAIChannel, HardwareAOChannel)
 from psi.controller.input import InputData
 
@@ -90,6 +92,19 @@ class DAQThread(Thread):
         self.name = name
 
     def run(self):
+        # This is a rather complicated piece of code because we need to
+        # override the threading module's built-in exception handling as well
+        # as defe the exception back to the main thread (where it will properly
+        # handle exceptions). If we call psi.application.exception_handler
+        # directly from the thread, it will not have access to the application
+        # instance (or workspace).
+        try:
+            self._run()
+        except:
+            log.info('Caught exception')
+            deferred_call(sys.excepthook, *sys.exc_info())
+
+    def _run(self):
         profile = get_config('PROFILE')
         if profile:
             import cProfile
@@ -122,8 +137,7 @@ class TDTEngine(Engine):
     '''
     #: Device name (e.g., RZ6, etc.)
     device_name = d_(Enum('RZ6')).tag(metadata=True)
-    circuit = d_(Enum('RZ6-standard-RA4PAx1',
-                      'RZ6-standard-RA4PAx20',
+    circuit = d_(Enum('RZ6-standard-RA4PAx20',
                       'RZ6-standard-Medusa4Z',
                       'RZ6-debugging')).tag(metadata=True)
     circuit_path = Property()
@@ -153,8 +167,8 @@ class TDTEngine(Engine):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        log.debug('Loading DSP circuit %s to %s %d', self.circuit_path,
-                  self.device_name, self.device_id)
+        log.info('Loading DSP circuit %s to %s %d', self.circuit_path,
+                 self.device_name, self.device_id)
         self._project = DSPProject()
         self._circuit = self._project.load_circuit(self.circuit_path,
                                                    self.device_name,
@@ -297,8 +311,6 @@ class TDTEngine(Engine):
     def _hw_ao_callback(self):
         # Get the next set of samples to upload to the buffer
         with self.lock:
-            log_ao.trace('#> Acquired lock for engine %s', self.name)
-            log_ao.trace('Hardware AO callback for %s', self.name)
             # `DSPBuffer.available` method doesn't need the offset as it
             # defaults to total_samples_written; however, we need to get the
             # offset so we can pass this to _get_hw_ao_samples.
@@ -313,7 +325,6 @@ class TDTEngine(Engine):
 
                 data = self.get_channel(name).get_samples(offset, samples)
                 self.write_hw_ao(name, data, offset)
-            log_ao.trace('<# Releasing lock for engine %s', self.name)
 
     def update_hw_ao(self, name, offset):
         '''
