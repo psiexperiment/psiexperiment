@@ -27,7 +27,7 @@ class QDelegate(QStyledItemDelegate):
     def paint(self, painter, option, index):
         self.initStyleOption(option, index)
         painter.save()
-        left_width = int(option.rect.width() * self.model.cellFrac(index))
+        left_width = option.rect.width() * self.model.cellFrac(index)
         right_width = option.rect.width() - left_width
         left_rect = QRect(option.rect.left(), option.rect.top(), left_width, option.rect.height())
         right_rect = QRect(option.rect.left(), option.rect.top(), right_width, option.rect.height())
