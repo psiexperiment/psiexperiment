@@ -1,13 +1,11 @@
-from functools import partial
-import time
-
 import numpy as np
 import pandas as pd
 
-from psiaudio.calibration import FlatCalibration, InterpCalibration
 from psiaudio.stim import ChirpFactory, SilenceFactory
+from psiaudio.calibration import FlatCalibration, InterpCalibration
+from psiaudio import util
 
-from . import util
+from .acquire import acquire
 
 
 def chirp_power(engine, ao_channel_name, ai_channel_names, start_frequency=500,
@@ -27,104 +25,68 @@ def chirp_power(engine, ao_channel_name, ai_channel_names, start_frequency=500,
         Dataframe will be indexed by output channel name and frequency. Columns
         will be rms (in V), snr (in DB) and thd (in percent).
     '''
-    from psi.controller.api import ExtractEpochs, FIFOSignalQueue
     calibration = FlatCalibration.as_attenuation(vrms=vrms)
+    factory_kw = {
+        'start_frequency': start_frequency,
+        'end_frequency': end_frequency,
+        'duration': duration,
+        'level': gain,
+        'calibration': calibration,
+    }
 
-    # Create a copy of the engine containing only the channels required for
-    # calibration.
-    channel_names = ai_channel_names + [ao_channel_name]
-    cal_engine = engine.clone(channel_names)
-    ao_channel = cal_engine.get_channel(ao_channel_name)
-    ai_channels = [cal_engine.get_channel(name) for name in ai_channel_names]
-    ao_fs = ao_channel.fs
-    ai_fs = ai_channels[0].fs
+    def setup_queue_cb(ao_channel, queue):
+        nonlocal duration
+        nonlocal gain
+        nonlocal factory_kw
+        nonlocal repetitions
+        nonlocal iti
 
-    # Ensure that input channels are synced to the output channel 
-    device_name = ao_channel.device_name
-    ao_channel.start_trigger = ''
-    for channel in ai_channels:
-        channel.start_trigger = f'/{device_name}/ao/StartTrigger'
+        samples = int(ao_channel.fs * duration)
 
-    samples = int(ao_fs*duration)
+        # Create and add the chirp
+        factory = ChirpFactory(ao_channel.fs, **factory_kw)
+        chirp_waveform = factory.next(samples)
+        queue.append(chirp_waveform, repetitions, iti, metadata={'gain': gain})
 
-    # Build the signal queue
-    queue = FIFOSignalQueue()
-    queue.set_fs(ao_fs)
+        # Create and add silence
+        factory = SilenceFactory()
+        waveform = factory.next(samples)
+        queue.append(waveform, repetitions, iti, metadata={'gain': -400})
 
-    # Create and add the chirp
-    factory = ChirpFactory(ao_fs, start_frequency, end_frequency, duration,
-                           gain, calibration)
-    chirp_waveform = factory.next(samples)
-    queue.append(chirp_waveform, repetitions, iti, metadata={'gain': gain})
+    recording = acquire(engine, ao_channel_name, ai_channel_names,
+                        setup_queue_cb, duration + iti, 0)
 
-    # Create and add silence
-    factory = SilenceFactory(ao_fs, calibration)
-    waveform = factory.next(samples)
-    queue.append(waveform, repetitions, iti, metadata={'gain': -400})
+    result = {}
+    waveforms = {}
+    for ai_channel, (signal, md) in recording.items():
+        md = md.set_index(['gain'], append=True)
+        index = md.index.swaplevel('epoch', 'gain')
 
-    # Add the queue to the output channel
-    output = ao_channel.add_queued_epoch_output(queue, auto_decrement=True)
-
-    # Activate the output so it begins as soon as acquisition begins
-    output.activate(0)
-
-    # Create a dictionary of lists. Each list maps to an individual input
-    # channel and will be used to accumulate the epochs for that channel.
-    data = {ai_channel.name: [] for ai_channel in ai_channels}
-    samples = {ai_channel.name: [] for ai_channel in ai_channels}
-
-    def accumulate(epochs, epoch):
-        epochs.extend(epoch)
-
-    for ai_channel in ai_channels:
-        cb = partial(accumulate, data[ai_channel.name])
-        epoch_input = ExtractEpochs(epoch_size=duration+iti)
-        queue.connect(epoch_input.queue.append)
-        epoch_input.add_callback(cb)
-        ai_channel.add_input(epoch_input)
-        ai_channel.add_callback(samples[ai_channel.name].append)
-
-    cal_engine.start()
-    while not epoch_input.complete:
-        time.sleep(0.1)
-    cal_engine.stop()
-
-    result_waveforms = {}
-    result_psd = {}
-    for ai_channel in ai_channels:
-        epochs = data[ai_channel.name]
-        waveforms = [e['signal'] for e in epochs]
-        keys = [e['info']['metadata'] for e in epochs]
-        keys = pd.DataFrame(keys)
-        keys.index.name = 'epoch'
-        keys = keys.set_index(['gain'], append=True)
-        keys.index = keys.index.swaplevel('epoch', 'gain')
-
-        waveforms = np.vstack(waveforms)
-        t = np.arange(waveforms.shape[-1]) / ai_channel.fs
+        t = np.arange(signal.shape[-1]) / ai_channel.fs
         time_index = pd.Index(t, name='time')
-        waveforms = pd.DataFrame(waveforms, index=keys.index,
-                                 columns=time_index)
-        mean_waveforms = waveforms.groupby('gain').mean()
+        signal = pd.DataFrame(signal, index=index, columns=time_index)
+        mean_signal = signal.groupby('gain').mean()
 
         samples = int(round(ai_channel.fs * (duration + iti)))
-        factory = ChirpFactory(ai_channel.fs, start_frequency, end_frequency,
-                               duration, gain, calibration)
+        factory = ChirpFactory(ai_channel.fs, **factory_kw)
         chirp_waveform = factory.next(samples)
 
         chirp_psd = util.psd_df(chirp_waveform, ai_channel.fs)
-        mean_psd = util.psd_df(mean_waveforms, ai_channel.fs)
+        mean_psd = util.psd_df(mean_signal, ai_channel.fs)
 
-        result_psd[ai_channel.name] = pd.DataFrame({
+        result[ai_channel.name] = pd.DataFrame({
             'rms': mean_psd.loc[gain],
             'chirp_rms': chirp_psd,
             'snr': util.db(mean_psd.loc[gain] / mean_psd.loc[-400]),
         })
+        waveforms[ai_channel.name] = signal
 
-    result_psd = pd.concat(result_psd.values(), keys=result_psd.keys(),
-                           names=['channel'])
-
-    return result_psd
+    waveforms = pd.concat(waveforms.values(), keys=waveforms.keys(), names=['channel'])
+    result = pd.concat(result.values(), keys=result.keys(), names=['channel'])
+    if debug:
+        result.attrs['waveforms'] = waveforms
+        result.attrs['fs'] = {c.name: c.fs for c in recording}
+    return result
 
 
 def chirp_spl(engine, **kwargs):
@@ -137,7 +99,9 @@ def chirp_spl(engine, **kwargs):
         return series
 
     result = chirp_power(engine, **kwargs)
-    return result.groupby('channel').apply(map_spl, engine=engine)
+    new_result = result.groupby('channel').apply(map_spl, engine=engine)
+    new_result.attrs.update(result.attrs)
+    return new_result
 
 
 def chirp_sens(engine, gain=-40, vrms=1, **kwargs):
@@ -145,13 +109,3 @@ def chirp_sens(engine, gain=-40, vrms=1, **kwargs):
     result['norm_spl'] = result['spl'] - util.db(result['chirp_rms'])
     result['sens'] = -result['norm_spl'] - util.db(20e-6)
     return result
-
-
-def chirp_calibration(ai_channel_names, **kwargs):
-    kwargs.update({'ai_channel_names': ai_channel_names})
-    output_sens = chirp_sens(**kwargs)
-    calibrations = {}
-    for ai_channel in ai_channel_names:
-        data = output_sens.loc[ai_channel]
-        calibrations[ai_channel] = InterpCalibration(data.index, data['sens'])
-    return calibrations

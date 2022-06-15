@@ -3,28 +3,13 @@ log = logging.getLogger(__name__)
 
 from functools import partial
 
+import pandas as pd
+
 from enaml.core.api import Conditional
 from enaml.widgets.api import Container, DockItem
 from enaml.workbench.api import Extension
 from psi.core.enaml.api import DataFrameTable, PSIManifest
-from psi.data.api import FFTContainer, ResultPlot, ViewBox
-
-
-enamldef ToneCalibrateDockItem(DockItem):
-
-    attr contribution
-
-    Container:
-        DataFrameTable:
-            column_info = {
-                'ao_channel': {'label': 'Channel'},
-                'frequency': {'label': 'Freq. (Hz)', 'to_string': '{:.0f}'.format, 'width': 30},
-                'norm_spl': {'label': 'SPL (1 Vrms)', 'to_string': '{:.0f}'.format, 'width': 30},
-                'snr': {'label': 'SNR (dB)', 'to_string': '{:.0f}'.format, 'width': 30},
-                'thd': {'label': 'THD (%)', 'to_string': '{:.0f}'.format, 'width': 30},
-            }
-            columns = ['ao_channel', 'frequency', 'norm_spl', 'snr', 'thd']
-            data << contribution.result
+from psi.data.api import FFTContainer, ResultPlot, TimeContainer, ViewBox
 
 
 def plot_chirp_result(workbench, manifest, event):
@@ -56,13 +41,15 @@ enamldef ChirpCalibrateManifest(PSIManifest): manifest:
                     manifest.contribution.observe('result', cb)
 
                 name = manifest.contribution.name + '.result'
-                label = manifest.contribution.label + ' calibration results'
+                label = manifest.contribution.label + ' results'
 
                 ViewBox: vb:
                     name = manifest.contribution.name
 
 
-enamldef ToneCalibrateManifest(PSIManifest): manifest:
+enamldef BaseCalibrateManifest(PSIManifest): manifest:
+
+    attr column_info
 
     Extension:
         id = manifest.id + '.view'
@@ -71,7 +58,24 @@ enamldef ToneCalibrateManifest(PSIManifest): manifest:
         Conditional:
             condition << manifest.contribution.show_widget
 
-            ToneCalibrateDockItem:
-                name = manifest.contribution.name + '.result'
-                title = manifest.contribution.label + ' calibration results'
-                contribution = manifest.contribution
+            DockItem:
+                closable = False
+                name << manifest.id + '.dock_item'
+                title << manifest.contribution.label + ' results'
+                Container:
+                    DataFrameTable: table:
+                        data << manifest.contribution.result \
+                            .get('calibration', pd.DataFrame()).reset_index()
+                        column_info << manifest.column_info
+                        columns << list(manifest.column_info.keys())
+
+
+enamldef ToneCalibrateManifest(BaseCalibrateManifest): manifest:
+
+    column_info = {
+        'ao_channel': {'label': 'Channel'},
+        'frequency': {'label': 'Freq. (Hz)', 'to_string': '{:.0f}'.format, 'width': 30},
+        'norm_spl': {'label': 'SPL (1 Vrms)', 'to_string': '{:.0f}'.format, 'width': 30},
+        'snr': {'label': 'SNR (dB)', 'to_string': '{:.0f}'.format, 'width': 30},
+        'thd': {'label': 'THD (%)', 'to_string': '{:.0f}'.format, 'width': 30},
+    }
