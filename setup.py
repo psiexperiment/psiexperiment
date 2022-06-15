@@ -3,7 +3,7 @@ import versioneer
 
 
 requirements = [
-    'enaml[qt6-pyqt]',
+    'enaml[qt5-pyqt]',
     'joblib',
     'numpy',
     'palettable',
@@ -20,7 +20,7 @@ extras_require = {
     'ni': ['pydaqmx'],
     'tdt': ['tdtpy'],
     'docs': ['sphinx', 'sphinx_rtd_theme', 'pygments-enaml'],
-    'test': ['pytest'],
+    'test': ['pytest', 'pytest-console-scripts'],
     'bcolz-backend': ['bcolz'],
     'legacy-bcolz-backend': ['blosc'],
     'zarr-backend': ['zarr'],
