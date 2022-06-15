@@ -388,25 +388,29 @@ class FFTContainer(BasePlotContainer):
 ################################################################################
 # ViewBox
 ################################################################################
-class ViewBox(PSIContribution):
+class ViewBox(ColorCycleMixin, PSIContribution):
 
     # Make this weak-referenceable so we can bind methods to Qt slots.
     __slots__ = '__weakref__'
 
     viewbox = Typed(pg.ViewBox)
     viewbox_norm = Typed(pg.ViewBox)
+
     y_axis = Typed(pg.AxisItem)
 
     y_min = d_(Float(0))
     y_max = d_(Float(0))
     y_mode = d_(Enum('mouse', 'fixed'))
     y_label = d_(Str())
+    y_autoscale = d_(Bool(False))
 
     data_range = Property()
     save_limits = d_(Bool(True))
 
     @observe('y_min', 'y_max')
     def _update_limits(self, event=None):
+        if self.y_autoscale:
+            return
         self.viewbox.setYRange(self.y_min, self.y_max, padding=0)
 
     def _get_data_range(self):
