@@ -141,6 +141,14 @@ enamldef EventPlotManifest(PSIManifest): manifest:
 enamldef BasePlotManifest(PSIManifest): manifest:
 
     Extension:
+        id = manifest.id + '.commands'
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = manifest.contribution.name + '_update'
+            handler = partial(update_plot, manifest.contribution)
+
+    Extension:
         id = manifest.id + '.actions'
         point = 'psi.controller.actions'
 
@@ -149,6 +157,13 @@ enamldef BasePlotManifest(PSIManifest): manifest:
             command = 'psi.data.attach_source'
             kwargs = {'obj': manifest.contribution}
             weight = 15
+
+        ExperimentAction:
+            # This final update ensures that we always plot new data (otherwise
+            # sometimes the final segment doesn't get plotted due to thread
+            # race conditions).
+            event = 'experiment_end'
+            command = manifest.contribution.name + '_update'
 
 
 enamldef DataFramePlotManifest(PSIManifest): manifest:
