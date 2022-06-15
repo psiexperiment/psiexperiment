@@ -186,19 +186,46 @@ class SignalBuffer:
         log.debug('Creating signal buffer with fs=%f and size=%f', fs, size)
         self._lock = threading.RLock()
         self._buffer_fs = fs
-        self._buffer_size = size
         self._buffer_samples = int(np.ceil(fs*size))
         self._n_channels = n_channels
+        self._size = size
 
         if n_channels is not None:
-            shape = (n_channels, self._buffer_samples)
+            shape = (self._n_channels, self._buffer_samples)
         else:
             shape = self._buffer_samples
 
         self._buffer = np.full(shape, fill_value, dtype=dtype)
         self._fill_value = fill_value
         self._samples = 0
+
+        # This is an attribute that represents the current "start" of the
+        # buffered data. We always "push" data into the array from the right,
+        # so the newest samples will appear at the end of the array. In the
+        # beginning, the "start" of the buffered data is at the very end of hte
+        # array, but as we fill up the array, `_ilb` will eventually always be
+        # 0.
         self._ilb = self._buffer_samples
+
+    def resize(self, size):
+        '''
+        Resize buffer to hold the specified number of time samples
+
+        Notes
+        -----
+        * This does not allow you to add/remove channels.
+        * A request to decrease buffer size is ignored.
+        '''
+        # Don't shrink buffer size. Not worth the effort.
+        with self._lock:
+            old_samples = self._buffer_samples
+            self._buffer = self.get_latest(-size, fill_value=self._fill_value)
+            self._buffer_samples = self._buffer.shape[-1]
+
+            new_samples = self._buffer_samples
+            # This corrects the lower bound index to point to the oldest data
+            # in the buffer.
+            self._ilb = max(0, self._ilb + (new_samples - old_samples))
 
     def time_to_samples(self, t):
         '''
@@ -242,7 +269,7 @@ class SignalBuffer:
             return np.pad(data, padding, 'constant',
                          constant_values=fill_value)
 
-    def get_range(self, lb=None, ub=None, fill_value=None):
+    def get_range(self, lb=None, ub=None):
         with self._lock:
             if lb is None:
                 lb = self.get_time_lb()
@@ -270,6 +297,15 @@ class SignalBuffer:
             return self._buffer[..., ilb:iub]
 
     def append_data(self, data):
+        if self._n_channels is not None:
+            if data.ndim != 2:
+                raise ValueError('Appended data must be two-dimensional')
+            if data.shape[0] != self._n_channels:
+                raise ValueError(f'Appended data must have {self._n_channels} channels.')
+        else:
+            if data.ndim != 1:
+                raise ValueError('Appended data must be one-dimensional')
+
         with self._lock:
             samples = data.shape[-1]
             if samples > self._buffer_samples:
@@ -305,13 +341,36 @@ class SignalBuffer:
             di = self.get_samples_ub() - i
             self._samples -= di
 
-    def get_latest(self, lb, ub=0):
+    def get_latest(self, lb, ub=0, fill_value=None):
+        '''
+        Returns buffered data relative to the most recently-buffered sample
+
+        Parameters
+        ----------
+        lb : float
+            Time in seconds relative to the most recently-buffered sample.
+            Usually will be a negative value.
+        ub : float
+            Time in seconds relative to the most recently-buffered sample.
+            Usually will be 0 or a negative value.
+
+        Examples
+        --------
+        Get the most recent 1 second of buffered data
+        >>> buffer.get_latest(-1)
+
+        Get the buffered data from -2 to -1 relative to current time.
+        >>> buffer.get_latest(-2, -1)
+        '''
         with self._lock:
             log.trace('Converting latest %f to %f to absolute time', lb, ub)
             lb = lb + self.get_time_ub()
             ub = ub + self.get_time_ub()
             log.trace('Absolute time is %f to %f', lb, ub)
-            return self.get_range(lb, ub)
+            if fill_value is None:
+                return self.get_range(lb, ub)
+            else:
+                return self.get_range_filled(lb, ub, fill_value)
 
     def get_time_lb(self):
         return self.get_samples_lb()/self._buffer_fs

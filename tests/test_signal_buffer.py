@@ -4,16 +4,12 @@ import numpy as np
 from psi.data.plots import SignalBuffer
 
 
-TDT_FS = 195312.5
-
-
-
 @pytest.fixture(params=[None, 4])
 def n_channels(request):
     return request.param
 
 
-@pytest.fixture(params=[100, TDT_FS])
+@pytest.fixture(params=[100, 195312.5])
 def fs(request):
     return request.param
 
@@ -224,3 +220,112 @@ def test_buffer_invalidate_past_end(sb):
     sb.invalidate_samples(4999)
     assert sb.get_samples_lb() == 4000
     assert sb.get_samples_ub() == 4999
+
+
+def test_buffer_resize(fs, n_channels):
+    duration = 1
+    sb = SignalBuffer(fs=fs, size=duration, n_channels=n_channels)
+    n_samples = int(duration * fs)
+    if n_channels is not None:
+        write_samples = np.random.uniform(size=(n_channels, n_samples))
+    else:
+        write_samples = np.random.uniform(size=n_samples)
+
+    sb.append_data(write_samples)
+    samples = sb.get_latest(-duration)
+    np.testing.assert_array_equal(samples, write_samples)
+
+    sb.resize(5)
+    samples = sb.get_latest(-duration)
+    np.testing.assert_array_equal(samples, write_samples)
+
+    sb.resize(20)
+    samples = sb.get_latest(-duration)
+    np.testing.assert_array_equal(samples, write_samples)
+
+    sb.resize(1)
+    samples = sb.get_latest(-1)
+    n = int(round(sb._buffer_fs))
+    np.testing.assert_array_equal(samples, write_samples[..., -n:])
+
+    sb.resize(2)
+    samples = sb.get_latest(-2, fill_value=np.nan)
+    assert samples.shape[-1] == int(round(sb._buffer_fs * 2))
+    np.testing.assert_array_equal(samples[..., -n:], write_samples[..., -n:])
+    assert np.all(np.isnan(samples[..., :n]))
+
+
+def test_buffer_overfill(fs, n_channels):
+    duration = 10
+    sb = SignalBuffer(fs=fs, size=duration, n_channels=n_channels)
+
+    n = int(round(fs * 100))
+    size = (n_channels, n) if n_channels is not None else (n,)
+    data = np.random.uniform(size=size)
+    sb.append_data(data)
+    assert sb.get_time_lb() == 90
+    assert sb.get_time_ub() == 100
+    with pytest.raises(IndexError):
+        sb.get_range(85, 90)
+    result = sb.get_range(95)
+
+    n = int(round(fs * 5))
+    np.testing.assert_array_equal(result, data[..., -n:])
+
+
+def test_buffer_filled(fs, n_channels):
+    duration = 5
+    sb = SignalBuffer(fs=fs, size=duration, n_channels=n_channels)
+
+    result = sb.get_range_filled(0, 1, np.nan)
+    n_samples = int(round(fs))
+    if n_channels is not None:
+        expected_shape = (n_channels, n_samples)
+    else:
+        expected_shape = (n_samples,)
+    assert result.shape == expected_shape
+    assert np.all(np.isnan(result))
+
+    # Append 5 seconds worth of data. Since signal buffer duration is 5, we
+    # will be writing the spam from 0 to 5 seconds.
+    n_samples = int(np.round(fs * 5))
+    if n_channels is not None:
+        size = (n_channels, n_samples)
+    else:
+        size = (n_samples,)
+    data1 = np.random.uniform(size=size)
+    sb.append_data(data1)
+
+    result = sb.get_range_filled(2.5, 7.5, np.nan)
+    n_half = int(np.round(fs * 2.5))
+    assert np.all(np.isnan(result[..., n_half:]))
+    np.testing.assert_array_equal(result[..., :n_half], data1[..., n_half:])
+
+    # Append 5 more seconds worth of data. Since signal buffer duration is 5,
+    # we will be writing the spam from 5 to 10 seconds. The span from 2.5 to 5
+    # seconds will be lost.
+    data2 = np.random.uniform(size=size)
+    sb.append_data(data2)
+    result = sb.get_range_filled(2.5, 7.5, np.nan)
+    assert np.all(np.isnan(result[..., :n_half-1]))
+    # This corrects for some funny sampling rate differences with the TDT
+    # hardware.
+    n_second_half = result.shape[-1] - n_half
+    np.testing.assert_array_equal(result[..., n_half:], data2[..., :n_second_half])
+
+
+def test_buffer_append():
+    sb = SignalBuffer(fs=100, size=1, n_channels=None)
+    with pytest.raises(ValueError, match='Appended data must be one-dimensional'):
+        samples = np.random.uniform(size=(1, 100))
+        sb.append_data(samples)
+
+    sb = SignalBuffer(fs=100, size=1, n_channels=1)
+    with pytest.raises(ValueError, match='Appended data must be two-dimensional'):
+        samples = np.random.uniform(size=100)
+        sb.append_data(samples)
+
+    sb = SignalBuffer(fs=100, size=1, n_channels=1)
+    with pytest.raises(ValueError, match='Appended data must have 1 channels.'):
+        samples = np.random.uniform(size=(2, 100))
+        sb.append_data(samples)
