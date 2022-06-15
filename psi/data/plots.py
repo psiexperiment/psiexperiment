@@ -188,6 +188,11 @@ class BasePlotContainer(PSIContribution):
     allow_auto_select = d_(Bool(True))
     auto_select = d_(Bool(True))
 
+    #: Callable that takes, as the first argument, a tuple defining the group
+    #: of plots (e.g., frequency, rate) and returns a nicely-formatted string
+    #: for presentation in the GUI. The second argument is the character to
+    #: join the fields on (will typically be a newline or comma depending on
+    #: the widget used to allow the user to select).
     fmt_button_cb = d_(Callable())
 
     def _default_fmt_button_cb(self):
