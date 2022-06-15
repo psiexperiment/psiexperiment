@@ -1,17 +1,13 @@
 import logging
 log = logging.getLogger(__name__)
 
-from functools import partial
-import time
-
 import numpy as np
 import pandas as pd
 
+from .acquire import acquire
 from psiaudio.util import tone_power_conv, tone_phase_conv, db
 from psiaudio.calibration import (FlatCalibration, PointCalibration,
                                   CalibrationTHDError, CalibrationNFError)
-
-
 from psiaudio.stim import ToneFactory, SilenceFactory
 
 
@@ -61,8 +57,8 @@ def process_tone(fs, signal, frequency, min_snr=None, max_thd=None,
     rms = tone_power_conv(signal, fs, harmonics, 'flattop')
     phase = tone_phase_conv(signal, fs, frequency, 'flattop')
 
-    # Compute the mean RMS at F0 across all repetitions
-    rms = rms.mean(axis=1)
+    # Compute the mean RMS across all repetitions
+    rms = rms.mean(axis=-1)
     freq_rms = rms[0]
 
     freq_phase = phase.mean(axis=0)
@@ -76,7 +72,7 @@ def process_tone(fs, signal, frequency, min_snr=None, max_thd=None,
     if silence is not None:
         silence = np.atleast_2d(silence)
         noise_rms = tone_power_conv(silence, fs, frequency, 'flattop')
-        noise_rms = noise_rms.mean(axis=0)
+        noise_rms = noise_rms.mean(axis=-1)
         freq_snr = db(freq_rms, noise_rms)
         if min_snr is not None:
             if np.any(freq_snr < min_snr):
@@ -116,105 +112,48 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gains=0,
         Dataframe will be indexed by output channel name and frequency. Columns
         will be rms (in V), snr (in DB) and thd (in percent).
     '''
-    if not isinstance(ao_channel_name, str):
-        raise ValueError('Can only specify one output channel')
-
-    log.debug('Computing tone power for %r using inputs %r', ao_channel_name,
-              ai_channel_names)
-
-    from psiaudio.queue import FIFOSignalQueue
-    from psi.controller.api import ExtractEpochs
-
     frequencies = np.asarray(frequencies)
-    calibration = FlatCalibration.as_attenuation(vrms=vrms)
-
-    # Create a copy of the engine containing only the channels required for
-    # calibration.
-    channel_names = ai_channel_names + [ao_channel_name]
-    cal_engine = engine.clone(channel_names)
-    ao_channel = cal_engine.get_channel(ao_channel_name)
-    ai_channels = [cal_engine.get_channel(name) for name in ai_channel_names]
-
-    ao_fs = ao_channel.fs
-    ai_fs = ai_channels[0].fs
-
-    # Ensure that input channels are synced to the output channel
-    for channel in ai_channels:
-        channel.sync_start(ao_channel)
-
-    samples = int(ao_fs*duration)
-
     if np.isscalar(gains):
         gains = [gains] * len(frequencies)
 
-    # Build the signal queue
-    queue = FIFOSignalQueue()
-    queue.set_fs(ao_fs)
-    max_sf = 0
-    for frequency, gain in zip(frequencies, gains):
-        factory = ToneFactory(ao_fs, gain, frequency, 0, 1, calibration)
+    def setup_queue_cb(ao_channel, queue):
+        nonlocal vrms
+        nonlocal duration
+        nonlocal frequencies
+        nonlocal gains
+
+        calibration = FlatCalibration.as_attenuation(vrms=vrms)
+        samples = int(ao_channel.fs * duration)
+
+        # Build the signal queue
+        max_sf = 0
+        for frequency, gain in zip(frequencies, gains):
+            factory = ToneFactory(ao_channel.fs, gain, frequency, 0, 1, calibration)
+            waveform = factory.next(samples)
+            md = {'gain': gain, 'frequency': frequency}
+            queue.append(waveform, repetitions, iti, metadata=md)
+            sf = calibration.get_sf(frequency, gain) * np.sqrt(2)
+            max_sf = max(max_sf, sf)
+        ao_channel.expected_range = (-max_sf*1.1, max_sf*1.1)
+
+        factory = SilenceFactory()
         waveform = factory.next(samples)
-        md = {'gain': gain, 'frequency': frequency}
+        md = {'gain': -400, 'frequency': 0}
         queue.append(waveform, repetitions, iti, metadata=md)
-        sf = calibration.get_sf(frequency, gain) * np.sqrt(2)
-        max_sf = max(max_sf, sf)
-    ao_channel.expected_range = (-max_sf*1.1, max_sf*1.1)
 
-    factory = SilenceFactory()
-    waveform = factory.next(samples)
-    md = {'gain': -400, 'frequency': 0}
-    queue.append(waveform, repetitions, iti, metadata=md)
-
-    # Add the queue to the output channel
-    output = ao_channel.add_queued_epoch_output(queue, auto_decrement=True)
-
-    # Activate the output so it begins as soon as acquisition begins
-    output.activate(0)
-
-    # Create a dictionary of lists. Each list maps to an individual input
-    # channel and will be used to accumulate the epochs for that channel.
-    data = {ai_channel.name: [] for ai_channel in ai_channels}
-    samples = {ai_channel.name: [] for ai_channel in ai_channels}
-
-    def accumulate(epochs, epoch):
-        log.debug('Capturing %d epochs', len(epoch))
-        epochs.extend(epoch)
-
-    for ai_channel in ai_channels:
-        cb = partial(accumulate, data[ai_channel.name])
-        epoch_input = ExtractEpochs(epoch_size=duration)
-        queue.connect(epoch_input.added_queue.append)
-        epoch_input.add_callback(cb)
-        ai_channel.add_input(epoch_input)
-        ai_channel.add_callback(samples[ai_channel.name].append)
-
-    cal_engine.configure()
-    cal_engine.start()
-    while not epoch_input.complete:
-        time.sleep(0.1)
-    cal_engine.stop()
+    recording = acquire(engine, ao_channel_name, ai_channel_names,
+                        setup_queue_cb, duration, trim)
 
     result = []
-    for ai_channel in ai_channels:
-        # Process data from channel
-        epochs = [epoch['signal'][np.newaxis] for epoch in data[ai_channel.name]]
-        signal = np.concatenate(epochs)
-        signal.shape = [-1, repetitions] + list(signal.shape[1:])
+    for ai_channel, signal in recording.items():
+        silence = signal.query('gain == -400')
+        signal = signal.query('gain != -400')
 
-        if trim != 0:
-            trim_samples = round(ai_channel.fs * trim)
-            signal = signal[..., trim_samples:-trim_samples]
-
-        # Loop through each frequency (silence will always be the last one)
-        silence = signal[-1]
-        signal = signal[:-1]
         channel_result = []
-        for f, s in zip(frequencies, signal):
-            f_result = process_tone(ai_channel.fs, s, f, min_snr, max_thd,
-                                    thd_harmonics, silence)
+        for f, s in signal.groupby('frequency'):
+            f_result = process_tone(ai_channel.fs, s.values, f, min_snr,
+                                    max_thd, thd_harmonics, silence.values)
             f_result['frequency'] = f
-            if debug:
-                f_result['waveform'] = s
             channel_result.append(f_result)
 
         df = pd.DataFrame(channel_result)
@@ -222,7 +161,10 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gains=0,
         df['input_channel_gain'] = ai_channel.gain
         result.append(df)
 
-    return pd.concat(result).set_index(['channel_name', 'frequency'])
+    result = pd.concat(result).set_index(['channel_name', 'frequency'])
+    result.attrs['waveforms'] = signal
+    result.attrs['fs'] = {c.name: c.fs for c in recording}
+    return result
 
 
 def tone_spl(engine, *args, **kwargs):
@@ -249,10 +191,12 @@ def tone_spl(engine, *args, **kwargs):
         series['spl'] = spl
         return series
 
-    return result.apply(map_spl, axis=1, args=(engine,))
+    new_result = result.apply(map_spl, axis=1, args=(engine,))
+    new_result.attrs.update(result.attrs)
+    return new_result
 
 
-def tone_sens(engine, frequencies, gain=-40, vrms=1, *args, **kwargs):
+def tone_sens(engine, frequencies, gain=-40, vrms=1, **kwargs):
     '''
     Given a single output, measure sensitivity of output based on multiple
     input channels.
@@ -275,31 +219,19 @@ def tone_sens(engine, frequencies, gain=-40, vrms=1, *args, **kwargs):
         choose the most trustworthy input.
     '''
     kwargs.update(dict(gains=gain, vrms=vrms))
-    result = tone_spl(engine, frequencies, *args, **kwargs)
+    result = tone_spl(engine, frequencies, **kwargs)
 
     # Need to reshape for the math in case we provided a different gain for each frequency.
     spl = result['spl'].unstack('channel_name')
-    norm_spl = spl.subtract(gain - db(vrms), axis=0)
+    norm_spl = spl.subtract(gain + db(vrms), axis=0)
     norm_spl = norm_spl.stack().reorder_levels(result.index.names)
     result['norm_spl'] = norm_spl
-
     result['sens'] = -result['norm_spl'] - db(20e-6)
+
+    result['gain'] = gain
+    result['vrms'] = vrms
+    for k, v in kwargs.items():
+        if k in ('ao_channel_name', 'ai_channel_names'):
+            continue
+        result[k] = v
     return result
-
-
-def tone_calibration(engine, frequencies, ai_channel_names, **kwargs):
-    '''
-    Single output calibration at a fixed frequency
-    Returns
-    -------
-    sens : dB (V/Pa)
-        Sensitivity of output in dB (V/Pa).
-    '''
-    kwargs.update({'engine': engine, 'frequencies': frequencies,
-                   'ai_channel_names': ai_channel_names})
-    output_sens = tone_sens(**kwargs)
-    calibrations = {}
-    for ai_channel in ai_channel_names:
-        data = output_sens.loc[ai_channel]
-        calibrations[ai_channel] = PointCalibration(data.index, data['sens'])
-    return calibrations
