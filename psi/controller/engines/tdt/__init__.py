@@ -24,10 +24,11 @@ from atom.api import (Float, Typed, Str, Int, Bool, Callable, Enum,
 from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
 
+from psiaudio.pipeline import PipelineData
+from psiaudio.util import dbi
+
 from psi import get_config
-from psi.controller.calibration.util import dbi
 from psi.controller.api import (Engine, HardwareAIChannel, HardwareAOChannel)
-from psi.controller.input import InputData
 
 
 from tdt import DSPCircuit, DSPProject
@@ -291,7 +292,7 @@ class TDTEngine(Engine):
 
             if len(samples):
                 b._total_samples_read += len(samples)
-                data = InputData(samples, metadata={'t0_sample': t0_sample, 'fs': b.fs})
+                data = PipelineData(samples, b.fs, t0_sample)
                 for channel_name, cb in self._callbacks.get('ai', []):
                     if channel_name == name:
                         cb(data)
