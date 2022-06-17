@@ -178,7 +178,7 @@ def list_io():
     io_path = get_config('IO_ROOT')
     result = list(io_path.glob('*.enaml'))
     io_map = {p.stem: p for p in list_io_templates() if not p.stem.startswith('_')}
-    result.extend(io_map[c] for c in get_config('STANDARD_IO'))
+    result.extend(io_map[c] for c in get_config('STANDARD_IO', []))
     return result
 
 
