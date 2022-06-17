@@ -104,6 +104,10 @@ class ContextGroup(PSIContribution):
     #: Are the parameters in this group visible?
     visible = d_(Bool(True))
     updated = d_(Event())
+    items = Property()
+
+    def _get_items(self):
+        return [c for c in self.children if isinstance(c, ContextItem)]
 
 
 class ContextSet(PSIContribution):
