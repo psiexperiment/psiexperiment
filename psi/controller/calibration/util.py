@@ -34,7 +34,6 @@ def fix_legacy(calibration_type, metadata):
 
 
 def load_calibration_data(filename):
-    #from psi.controller.calibration.api import calibration_registry
     settings = json.loads(Path(filename).read_text(), object_hook=psi_json_decoder_hook)
     calibrations = {}
     for name, metadata in settings.items():
