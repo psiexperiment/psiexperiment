@@ -1,5 +1,7 @@
 import enaml
 
+from .block import Block, ContinuousBlock, EpochBlock
+
 with enaml.imports():
     from .primitives import (
         BandlimitedNoise, BandlimitedNoiseFactory, Chirp, ChirpFactory,
