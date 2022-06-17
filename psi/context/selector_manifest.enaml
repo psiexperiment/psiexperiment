@@ -244,9 +244,15 @@ enamldef FriendlyCartesianProductField(FloatField):
 
     attr which
 
-    value << float(selector.context_settings[item.name][which])
+    initialized ::
+        # Observe the "updated" attribute of the selector so that we know when
+        # to update the field.
+        cb = lambda e, s=selector, i=item: setattr(self, 'value', s.get_value(i.name, which))
+        selector.observe('updated', cb)
+
+    value << selector.get_value(item.name, which)
     value ::
-        selector.context_settings[item.name][which] = value
+        selector.set_value(item.name, which, value)
     submit_triggers = ['lost_focus', 'return_pressed', 'auto_sync']
 
 
@@ -283,7 +289,6 @@ enamldef FriendlyCartesianProductItem(Container):
             if data == f'::parameter::{item.name}':
                 return
             else:
-                log.info("acceping action")
                 self.style_class = 'hover'
                 event.accept_proposed_action()
 
@@ -311,7 +316,7 @@ enamldef FriendlyCartesianProductItem(Container):
     share_layout = True
 
     Label:
-        text = selector.context_detail[item.name]['user_friendly_name'].capitalize()
+        text = selector.get_field(item.name, 'user_friendly_name').capitalize()
     FriendlyCartesianProductField: start_field:
         which = 'start'
     Label:
@@ -319,11 +324,11 @@ enamldef FriendlyCartesianProductItem(Container):
     FriendlyCartesianProductField: end_field:
         which = 'end'
     Label:
-        text = '{} in'.format(selector.context_detail[item.name]['unit'])
+        text = '{} in'.format(selector.get_field(item.name, 'unit'))
     FriendlyCartesianProductField: step_field:
         which = 'step'
     Label:
-        text = '{} steps'.format(selector.context_detail[item.name].get('step_unit', ''))
+        text = '{} steps'.format(selector.get_field(item.name, 'step_unit', selector.get_field(item.name, 'unit')))
 
     Label: descr_label:
         text << get_description(
@@ -337,15 +342,16 @@ enamldef FriendlyCartesianProductItem(Container):
 
 def get_description(selector, item, *args):
     values = selector.get_values(item)
-    step = selector.context_settings[item.name]['step']
-    step_unit = selector.context_detail[item.name].get('step_unit', '')
-    unit = selector.context_detail[item.name]['unit']
-    label = selector.context_detail[item.name]['user_friendly_name']
-    round_values = selector.context_detail[item.name].get('round_values', False)
-    transform = selector.context_detail[item.name].get('transform_to_gui', lambda x: x)
+    step_unit = selector.get_field(item.name, 'step_unit', '')
+    unit = selector.get_field(item.name, 'unit')
+    label = selector.get_field(item.name, 'user_friendly_name')
+    round_values = selector.get_field(item.name, 'round_values', False)
+    transform = selector.get_field(item.name, 'transform_to_gui', lambda x: x)
+
     values = [transform(v) for v in values]
 
     if round_values:
+        step = selector.get_value(item.name, 'step')
         round_mesg = f'{label.capitalize()} are rounded to the nearest {step} {step_unit}.'
     else:
         round_mesg = ''
