@@ -110,7 +110,7 @@ import itertools
 import operator
 
 from atom.api import Bool, Dict, Enum, Event, Property, set_default, Typed
-from enaml.core.api import d_
+from enaml.core.api import d_, d_func
 from psi.core.enaml.api import PSIContribution
 
 from psi.context import choice
@@ -420,30 +420,89 @@ class FriendlyCartesianProduct(BaseSelector):
     #: items that can be selected for roving.
     can_manage = d_(Typed(list, []))
 
+    @d_func
+    def field_name(self, item_name, field_name):
+        '''
+        Given the item and field name, return the appropriate field name.
+
+        The primary use-case for this is to switch between two sets of defaults
+        depending on whether we are working with level specified as dB
+        attenuation or dB SPL. If we specify `context_detail` as:
+
+            {
+                'target_tone_level': {
+                    'user_friendly_name': 'levels',
+                    'step_unit': 'dB',
+                    'order_user_managed': True,
+                    'atten_unit': 'dB re 1Vrms',
+                    'cal_unit': 'dB SPL',
+                },
+            }
+
+        By overriding this function, you can intercept a request for `unit` for
+        `target_tone_level` and return either `cal_unit` or `atten_unit`
+        depending on whether a calibration has been loaded for the speaker.
+        '''
+        return field_name
+
+    @d_func
+    def value_name(self, item_name, value_name):
+        '''
+        Given the item and field name, return the appropriate field name.
+
+        The primary use-case for this is to switch between two sets of defaults
+        depending on whether we are working with level specified as dB
+        attenuation or dB SPL.
+
+        This allows us to save the level settings as both attenuated and dB SPL
+        and load the appropriate persisted settings depending on whether a
+        calibration has been loaded for the speaker.
+        '''
+        return value_name
+
+    @d_func
+    def migrate_state(self, state):
+        '''
+        Can be overriden to migrate previously-saved states to reflect the new
+        changes to the selector
+        '''
+        return state
+
+    def get_field(self, item_name, field_name, default=None):
+        field_name = self.field_name(item_name, field_name)
+        if default is not None:
+            return self.context_detail[item_name].get(field_name, default)
+        return self.context_detail[item_name].get(field_name)
+
+    def get_value(self, item_name, value_name):
+        value_name = self.value_name(item_name, value_name)
+        return float(self.context_settings[item_name][value_name])
+
+    def set_value(self, item_name, value_name, value):
+        value_name = self.value_name(item_name, value_name)
+        self.context_settings[item_name][value_name] = float(value)
+
     def append_item(self, item):
         if item.name not in self.context_detail:
             raise ValueError(f'Cannot rove item {item.name}')
 
-        detail = self.context_detail.get(item.name, {})
-        inverse_fn = detail.get('inverse_transform_fn', lambda x: x)
-
+        inverse_fn = self.get_field(item.name, 'inverse_transform_fn', lambda x: x)
         settings = self.context_settings.get(item.name, {})
-        settings.setdefault('start', item.default)
-        settings.setdefault('end', item.default)
-        settings.setdefault('start', inverse_fn(item.default))
-        settings.setdefault('end', inverse_fn(item.default))
-        settings.setdefault('step', 1)
+        settings.setdefault(self.value_name(item.name, 'start'), inverse_fn(item.default))
+        settings.setdefault(self.value_name(item.name, 'end'), inverse_fn(item.default))
+        settings.setdefault(self.value_name(item.name, 'step'), 1)
         self.context_settings[item.name] = settings
-
         super().append_item(item)
 
     def get_values(self, item, transform=False):
-        settings = self.context_settings[item.name]
-        detail = self.context_detail[item.name]
-        range_fn = detail.get('range_fn', lambda lb, ub, s: np.arange(lb, ub + s/2, s))
-        values = range_fn(settings['start'], settings['end'], settings['step'])
+        start = self.get_value(item.name, 'start')
+        end = self.get_value(item.name, 'end')
+        step = self.get_value(item.name, 'step')
+        range_fn = self.get_field(item.name, 'range_fn',
+                                  lambda lb, ub, s: np.arange(lb, ub + s/2, s))
+        values = range_fn(start, end, step)
         if transform:
-            transform_fn = detail.get('transform_fn', lambda x: x)
+            transform_fn = self.get_field(item.name, 'transform_fn', lambda x: x)
             values = [transform_fn(v) for v in values]
         return values
 
@@ -483,6 +542,13 @@ class FriendlyCartesianProduct(BaseSelector):
             return sep.join(f(s) for f, s in zip(formatters, setting))
 
         return formatter
+
+    def __setstate__(self, state):
+        state = self.migrate_state(state)
+        for k, v in state.pop('context_settings').items():
+            self.context_settings.setdefault(k, v).update(v)
+        super().__setstate__(state)
+        self.updated = True
 
 
 if __name__ == '__main__':
