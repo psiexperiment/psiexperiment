@@ -226,20 +226,16 @@ class Engine(PSIContribution):
     def clone(self, channel_names=None):
         '''
         Return a copy of this engine with specified channels included
-
         This is intended as a utility function to assist various routines that
         may need to do a quick operation before starting the experiment. For
         example, calibration may only need to run a subset of the channels.
         '''
-        new = self.__class__()
-
-        for new_channel in new.children[:]:
-            if new_channel.name not in channel_names:
-                new_channel.set_parent(None)
-            else:
-                old_channel = self.get_channel(new_channel.name)
-                attrs = get_tagged_values(old_channel, 'metadata', exclude_properties=True)
-                for name, value in attrs.items():
-                    if name not in ('name', 'input', 'output'):
-                        setattr(new_channel, name, value)
+        new = copy_declarative(self)
+        for channel in new.children:
+            channel.set_parent(None)
+        if channel_names is not None:
+            for channel_name in channel_names:
+                channel = self.get_channel(channel_name)
+                new_channel = copy_declarative(channel, parent=new,
+                                               exclude=['inputs', 'outputs'])
         return new

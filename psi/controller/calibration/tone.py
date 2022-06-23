@@ -5,95 +5,9 @@ import numpy as np
 import pandas as pd
 
 from .acquire import acquire
-from psiaudio.util import tone_power_conv, tone_phase_conv, db
-from psiaudio.calibration import (FlatCalibration, PointCalibration,
-                                  CalibrationTHDError, CalibrationNFError)
+from psiaudio.util import db, process_tone, tone_power_conv, tone_phase_conv
+from psiaudio.calibration import FlatCalibration, PointCalibration
 from psiaudio.stim import ToneFactory, SilenceFactory
-
-
-def process_tone(fs, signal, frequency, min_snr=None, max_thd=None,
-                 thd_harmonics=3, silence=None):
-    '''
-    Compute the RMS at the specified frequency. Check for distortion.
-
-    Parameters
-    ----------
-    fs : float
-        Sampling frequency of signal
-    signal : ndarray
-        Last dimension must be time. If more than one dimension, first
-        dimension must be repetition.
-    frequency : float
-        Frequency (Hz) to analyze
-    min_snr : {None, float}
-        If specified, must provide a noise floor measure (silence). The ratio,
-        in dB, of signal RMS to silence RMS must be greater than min_snr. If
-        not, a CalibrationNFError is raised.
-    max_thd : {None, float}
-        If specified, ensures that the total harmonic distortion, as a
-        percentage, is less than max_thd. If not, a CalibrationTHDError is
-        raised.
-    thd_harmonics : int
-        Number of harmonics to compute. If you pick too many, some harmonics
-        may be above the Nyquist frequency and you'll get an exception.
-    thd_harmonics : int
-        Number of harmonics to compute. If you pick too many, some harmonics
-        may be above the Nyquist frequency and you'll get an exception.
-    silence : {None, ndarray}
-        Noise floor measurement. Required for min_snr. Shape must match signal
-        in all dimensions except the first and last.
-
-    Returns
-    -------
-    result : pandas Series
-        Series containing rms, snr, thd and frequency.
-    '''
-    harmonics = frequency * (np.arange(thd_harmonics) + 1)
-
-    # This returns an array of [harmonic, repetition, channel]. Here, rms[0] is
-    # the rms at the fundamental frequency. rms[1:] is the rms at all the
-    # harmonics.
-    signal = np.atleast_2d(signal)
-    rms = tone_power_conv(signal, fs, harmonics, 'flattop')
-    phase = tone_phase_conv(signal, fs, frequency, 'flattop')
-
-    # Compute the mean RMS across all repetitions
-    rms = rms.mean(axis=-1)
-    freq_rms = rms[0]
-
-    freq_phase = phase.mean(axis=0)
-    freq_phase_deg = np.rad2deg(freq_phase)
-
-    # Compute the harmonic distortion as a percent
-    thd = np.sqrt(np.sum(rms[1:]**2))/freq_rms * 100
-
-    # If a silent period has been provided, use this to estimat the signal to
-    # noise ratio. As an alternative, could we just use the "sidebands"?
-    if silence is not None:
-        silence = np.atleast_2d(silence)
-        noise_rms = tone_power_conv(silence, fs, frequency, 'flattop')
-        noise_rms = noise_rms.mean(axis=-1)
-        freq_snr = db(freq_rms, noise_rms)
-        if min_snr is not None:
-            if np.any(freq_snr < min_snr):
-                raise CalibrationNFError(frequency, freq_snr)
-    else:
-        freq_snr = np.full_like(freq_rms, np.nan)
-
-    if max_thd is not None and np.any(thd > max_thd):
-        raise CalibrationTHDError(frequency, thd)
-
-    # Concatenate and return as a record array
-    result = np.concatenate((freq_rms[np.newaxis], freq_snr[np.newaxis],
-                             thd[np.newaxis]))
-
-    data = {'rms': freq_rms, 'snr': freq_snr, 'thd': thd,
-            'phase': freq_phase, 'phase_degrees': freq_phase_deg}
-
-    if result.ndim == 1:
-        return pd.Series(data)
-    else:
-        return pd.DataFrame(data)
 
 
 def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gains=0,
@@ -128,7 +42,8 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gains=0,
         # Build the signal queue
         max_sf = 0
         for frequency, gain in zip(frequencies, gains):
-            factory = ToneFactory(ao_channel.fs, gain, frequency, 0, 1, calibration)
+            factory = ToneFactory(ao_channel.fs, level=gain,
+                                  frequency=frequency, calibration=calibration)
             waveform = factory.next(samples)
             md = {'gain': gain, 'frequency': frequency}
             queue.append(waveform, repetitions, iti, metadata=md)
@@ -187,7 +102,7 @@ def tone_spl(engine, *args, **kwargs):
     def map_spl(series, engine):
         channel_name, frequency = series.name
         channel = engine.get_channel(channel_name)
-        spl = channel.calibration.get_spl(frequency, series['rms'])
+        spl = channel.calibration.get_db(frequency, series['rms'])
         series['spl'] = spl
         return series
 

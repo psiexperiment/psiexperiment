@@ -7,6 +7,10 @@ import time
 import numpy as np
 import pandas as pd
 
+from psiaudio.pipeline import concat
+from psiaudio.queue import FIFOSignalQueue
+from psi.controller.api import ExtractEpochs
+
 
 def _reindex(x):
     # Add a "repeat" column indicating the repetition number of the stimulus.
@@ -19,9 +23,10 @@ def acquire(cal_engine, ao_channel_name, ai_channel_names, setup_queue_cb,
     '''
     Utility function to facilitate acquisition of calibration signals
     '''
-    from psi.controller.api import ExtractEpochs, FIFOSignalQueue
     if not isinstance(ao_channel_name, str):
         raise ValueError('Can only specify one output channel')
+
+    cal_engine = cal_engine.clone([ao_channel_name] + ai_channel_names)
 
     ao_channel = cal_engine.get_channel(ao_channel_name)
     ai_channels = [cal_engine.get_channel(name) for name in ai_channel_names]
@@ -65,22 +70,17 @@ def acquire(cal_engine, ao_channel_name, ai_channel_names, setup_queue_cb,
 
     result = {}
     for ai_channel, epochs in data.items():
-        signal = np.vstack([e['signal'] for e in epochs])
-        keys = pd.DataFrame([e['info']['metadata'] for e in epochs])
+        epochs = concat(epochs, axis='epoch')
+        keys = pd.DataFrame(epochs.metadata)
         keys = keys.groupby(keys.columns.tolist()).apply(_reindex)
         keys.index.name = 'epoch'
         if trim != 0:
             trim_samples = round(ai_channel.fs * trim)
-            signal = signal[..., trim_samples:-trim_samples]
+            epochs = epochs[..., trim_samples:-trim_samples]
 
         col_index = pd.MultiIndex.from_frame(keys.reset_index())
-        t = np.arange(signal.shape[-1]) / ai_channel.fs
+        t = np.arange(epochs.shape[-1]) / ai_channel.fs
         time_index = pd.Index(t, name='time')
-        result[ai_channel] = pd.DataFrame(signal, index=col_index, columns=time_index)
-
-    # Cleanup engine
-    ao_channel.remove_output(output)
-    for (c, i) in to_remove:
-        c.remove_input(i)
+        result[ai_channel] = pd.DataFrame(epochs[:, 0], index=col_index, columns=time_index)
 
     return result

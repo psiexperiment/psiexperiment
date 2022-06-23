@@ -116,7 +116,6 @@ class Input(PSIContribution):
         if self.configured:
             m = f'{self.name} already configured. Cannot add callback.'
             raise ValueError(m)
-
         callback = Callback(function=cb)
         self.add_input(callback)
 

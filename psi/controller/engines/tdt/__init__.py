@@ -106,7 +106,7 @@ class DAQThread(Thread):
             deferred_call(sys.excepthook, *sys.exc_info())
 
     def _run(self):
-        profile = get_config('PROFILE')
+        profile = get_config('PROFILE', False)
         if profile:
             import cProfile
             pr = cProfile.Profile()
@@ -279,20 +279,18 @@ class TDTEngine(Engine):
     def _hw_ai_callback(self):
         # TODO: Get lock?
         for name, b in self._buffers['hw_ai'].items():
-            t0_sample = b._total_samples_read
-
-            samples = b.read()[0] / b._sf
+            samples = b.read() / b._sf
             if b._discarded < b._discard:
                 to_discard = min(samples.shape[-1], b._discard)
                 b._discarded += to_discard
-                t0_sample -= to_discard
 
                 log.info('Discarding %.0f samples to compensate for AI filter delay', to_discard)
-                samples = samples[to_discard:]
+                samples = samples[..., to_discard:]
 
             if len(samples):
-                b._total_samples_read += len(samples)
-                data = PipelineData(samples, b.fs, t0_sample)
+                data = PipelineData(samples, fs=b.fs, s0=b._total_samples_read,
+                                    channel=[name])
+                b._total_samples_read += samples.shape[-1]
                 for channel_name, cb in self._callbacks.get('ai', []):
                     if channel_name == name:
                         cb(data)
