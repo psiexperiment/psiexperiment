@@ -22,6 +22,16 @@ STATUS_POINT = 'psi.experiment.status'
 PREFERENCES_POINT = 'psi.experiment.preferences'
 
 
+def fix_legacy_toolbar_layout(layout):
+    '''
+    This fixes the legacy toolbar layout formats
+    '''
+    if isinstance(layout, tuple):
+        names = ('x', 'y', 'floating')
+        return dict(zip(names, layout))
+    return layout
+
+
 class MissingDockLayoutValidator(DockLayoutValidator):
 
     def result(self, node):
@@ -113,14 +123,16 @@ class ExperimentPlugin(PSIPlugin):
             }
         return layout
 
+
     def _set_toolbar_layout(self, layout):
         for name, toolbar in self._toolbars.items():
             if name in layout:
-                toolbar.floating = layout[name].get('floating', False)
-                toolbar.orientation = layout[name].get('orientation', 'horizontal')
-                toolbar.dock_area = layout[name].get('dock_area', 'top')
-                toolbar.proxy.widget.move(layout[name].get('x', 0),
-                                          layout[name].get('y', 0))
+                tb_layout = fix_legacy_toolbar_layout(layout[name])
+                toolbar.floating = tb_layout.get('floating', False)
+                toolbar.orientation = tb_layout.get('orientation', 'horizontal')
+                toolbar.dock_area = tb_layout.get('dock_area', 'top')
+                toolbar.proxy.widget.move(tb_layout.get('x', 0),
+                                          tb_layout.get('y', 0))
 
     def get_layout(self):
         ui = self.workbench.get_plugin('enaml.workbench.ui')
