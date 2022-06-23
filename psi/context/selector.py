@@ -528,14 +528,9 @@ class FriendlyCartesianProduct(BaseSelector):
 
         formatters = []
         for name in names:
-            detail = self.context_detail[name]
-            unit = detail['unit']
-            if 'inverse_transform_fn' in detail:
-                fn = detail['inverse_transform_fn']
-                fmt = lambda x, fn=fn, unit=unit: f'{fn(x)} {unit}'
-            else:
-                fmt = lambda x, unit=unit: f'{x} {unit}'
-            formatters.append(fmt)
+            unit = self.get_field(name, 'unit')
+            fn = self.get_field(name, 'inverse_transform_fn', lambda x: x)
+            formatters.append(lambda x, fn=fn, u=unit: f'{fn(x)} {u}')
 
         def formatter(setting, sep):
             nonlocal formatters
