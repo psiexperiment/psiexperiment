@@ -854,7 +854,6 @@ class GroupMixin(ColorCycleMixin):
     _data_updated = Dict()
     _data_n_samples = Dict()
 
-    _pen_color_cycle = Typed(object)
     _plot_colors = Typed(object)
     _x = Typed(np.ndarray)
 

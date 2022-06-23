@@ -28,8 +28,6 @@ def fix_legacy(calibration_type, metadata):
                 attrs[key] = metadata.pop(key)
     elif calibration_type == 'FlatCalibration':
         calibration_type = 'psiaudio.calibration.FlatCalibration'
-    else:
-        raise ValueError(f'Unrecognized legacy format {calibration_type}')
     return calibration_type, metadata
 
 
