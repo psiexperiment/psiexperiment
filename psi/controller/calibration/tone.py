@@ -140,8 +140,11 @@ def tone_sens(engine, frequencies, gain=-40, vrms=1, **kwargs):
     spl = result['spl'].unstack('channel_name')
     norm_spl = spl.subtract(gain + db(vrms), axis=0)
     norm_spl = norm_spl.stack().reorder_levels(result.index.names)
-    result['norm_spl'] = norm_spl
-    result['sens'] = -result['norm_spl'] - db(20e-6)
+
+    # psiaudio calibration units are in dB(Pa/20e-6/V), so this is basically
+    # the normalized SPL (i.e. SPL produced by a 1 Vrms sine wave). How
+    # convenient.
+    result['sens'] = result['norm_spl'] = norm_spl
 
     result['gain'] = gain
     result['vrms'] = vrms
@@ -149,4 +152,5 @@ def tone_sens(engine, frequencies, gain=-40, vrms=1, **kwargs):
         if k in ('ao_channel_name', 'ai_channel_names'):
             continue
         result[k] = v
+
     return result
