@@ -1,6 +1,6 @@
-=========================================
- Welcome to Psiexperiment
-=========================================
+========================
+Welcome to Psiexperiment
+========================
 Psiexperiment is a plugin-based framework for creating feature-rich auditory experiments with minimal effort. Psiexperiment can be run on any platform which supports Python and Qt. The framework is robust enough to support a diverse range of closed and open-loop experiments. So far, the following experiments have been implemented:
 
 * Auditory brainstem responses.
@@ -53,6 +53,7 @@ Another screencast showing a DPOAE acquisition experiment. As in the previous sc
 
 What you get
 ------------
+
 :doc:`Simple hardware configuration<io_manifest>`
 .................................................
 * You describe the devies and data acquisition channels available for your experiment in a :doc:`configuration file<io_manifest>`. Psiexperiment will automatically configure the hardware based on the requirements of the experiment you're running. 
@@ -81,40 +82,31 @@ What you get
 * Large number of plugins for controlling the sequence of experiments, generating various stimuli, plotting results and saving data. Plugins can modify any part of psiexperiment (e.g., each plugin can contribute one or more dockable components to the GUI, contribute one or more new stimuli types, etc.).
 * Easy to write new plugins using a declarative programming langauge with Python flavour.
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Getting started
-   :hidden:
-
-   installing
-   development
-   io_manifest
-   software/index.rst
+Getting started
+===============
 
 :doc:`installing`
 -----------------
 Instructions on installing psiexperiment and configuring your system.
 
-:doc:`development`
-------------------
-Suggestions for setting up psiexperiment for development.
-
 :doc:`io_manifest`
 ------------------
 Instructions on creating your input-output manifest which describes all equipment used for the experiment.
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Creating an experiment
-   :hidden:
-
-   waveforms
-   context
-   creating_experiment
-
 :doc:`software/index`
----------------
+---------------------
 Instructions for end-users.
+
+Development
+===========
+
+:doc:`development`
+------------------
+Suggestions for setting up psiexperiment for development.
+
+:doc:`paradigm_overview`
+------------------------
+How are experiments defined?
 
 :doc:`context`
 --------------
@@ -128,15 +120,36 @@ Create stimuli.
 --------------------------
 Instructions on how to create your own experiment.
 
-.. toctree::
-   :maxdepth: 5
-   :caption: Reference
-   :hidden:
-
-   API documentation <api/modules>
-
 :doc:`api/modules`
 ------------------
 Overview of API.
 
 .. [1] Buran BN, Elkins S. Beth JB, Porsov EV, Brigande JV, David SV. Optimizing auditory brainstem response acquisition using interleaved frequencies.  bioRxiv 781831; doi: https://doi.org/10.1101/781831 
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Getting started
+   :hidden:
+
+   installing
+   io_manifest
+   software/index.rst
+
+.. toctree::
+   :maxdepth: 2
+   :caption: Creating an experiment
+   :hidden:
+
+   development
+   paradigm_overview
+   creating_experiment
+   waveforms
+   context
+
+.. toctree::
+   :maxdepth: 5
+   :caption: Reference
+   :hidden:
+
+   API documentation <api/index>
+   API modules <api/modules>

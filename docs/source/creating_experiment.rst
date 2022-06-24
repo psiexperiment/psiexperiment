@@ -2,6 +2,11 @@
 Designing a new experiment
 ==========================
 
+Getting started
+---------------
+
+For a broad overview of the components involved in defining an experiment, see `paradigms_overview`.
+
 Core plugins
 ------------
 Psiexperiment ships with five core plugins that are always loaded when an experiment is started:
@@ -60,7 +65,6 @@ Your experiment configuration file will define `EXPERIMENT`, which is the name o
             ...
 
 Let's take a closer look at each of the extensions.
-
 
 Actions
 .......
@@ -135,13 +139,13 @@ Example of an input-output plugin:
                 channel.samples = round(C.sample_duration * channel.fs)
                 channel.input_gain = C.input_gain
 
-`C` is a controller manifest-level variable that allows for lookup of values defined via the context.
+``C`` is a controller manifest-level variable that allows for lookup of values defined via the context.
 
 
 Creating your own custom plugins
 ................................
 
-When defining your own subclasses of `PSIManifest`, we recommend the following naming convetions to minimize name collisions:
+When defining your own subclasses of ``PSIManifest``, we recommend the following naming convetions to minimize name collisions:
 
 .. code-block:: enaml
 
@@ -153,14 +157,24 @@ When defining your own subclasses of `PSIManifest`, we recommend the following n
             id = contribution.name + '.do_action'
             ...
 
-All subclasses of `PSIManifest` have access to the attached `contribution` (an instance of `PSIContribution`) as an attribute.
+All subclasses of ``PSIManifest`` have access to the attached ``contribution`` (an instance of ``PSIContribution``) as an attribute.
 
 Common gotchas
 --------------
-* Outputs and inputs are configured *only if they are deemed active*. If the output of a particular processing chain (e.g., microphone to IIR filter to extract epochs) is not saved to a data store or plotted, then it's assumed it is not used. The controller will then omit this particular processing chain from the configuration to alleviate system load. This allows us to design intensive processing chains but allow the user to disable them easily by not plotting the result. However, this can be a bit tricky when defining your own custom sinks For example, there's no target for `AnalyzeDPOAE` in `dpoae_base.enaml` (TODO finish).
-* When adding new attributes to subclasses of `Declarative`, be sure to use `d_` as appropriate otherwise you will get a `TypeError` when attempting to assign to the attribute in an Enaml file.
-* Use `set_default` when setting default values for classes derived from `Atom` (hint, `Declarative` is a subclass of `Atom`). 
-* Even if you define a `ContinuousOutput`, you still need to configure it to start using an `ExperimentAction`. Assuming your continuous output is named "masker", then it's as simple as adding the following action:
+* Outputs and inputs are configured *only if they are deemed active*. If the output of a particular processing chain (e.g., microphone to IIR filter to extract epochs) is not saved to a data store or plotted, then it's assumed it is not used. The controller will then omit this particular processing chain from the configuration to alleviate system load. This allows us to design intensive processing chains but allow the user to disable them easily by not plotting the result. However, this can be a bit tricky when defining your own custom sinks For example, there's no target for ``AnalyzeDPOAE`` in ``dpoae_base.enaml`` (TODO finish).
+* When adding new attributes to subclasses of ``Declarative``, be sure to use ``d_`` as appropriate otherwise you will get a ``TypeError`` when attempting to assign to the attribute in an Enaml file.
+* Use ``set_default`` when setting default values for classes derived from ``Atom`` where the original attribute was defined in a superclass (hint, ``Declarative`` is a subclass of ``Atom``):
+
+.. code-block:: python
+
+    class Channel(Declarative):
+        name = Str('input_A')
+
+    class ChannelB(Channel)
+        name = set_default('input_B')
+
+
+* Even if you define a ``ContinuousOutput``, you still need to configure it to start using an ``ExperimentAction``. Assuming your continuous output is named "masker", then it's as simple as adding the following action:
 
 .. code-block:: enaml
 
@@ -168,7 +182,7 @@ Common gotchas
         event = 'engines_configured'
         command = 'masker.start'
 
-* You must always call `psi.context.initialize`. This is not automatically done for you for a variety of reasons. Usually it's sufficient to insert the following action:
+* You must always call ``psi.context.initialize``. This is not automatically done for you for a variety of reasons. Usually it's sufficient to insert the following action:
 
 .. code-block:: enaml
 
