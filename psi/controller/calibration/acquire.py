@@ -72,7 +72,9 @@ def acquire(cal_engine, ao_channel_name, ai_channel_names, setup_queue_cb,
     for ai_channel, epochs in data.items():
         epochs = concat(epochs, axis='epoch')
         keys = pd.DataFrame(epochs.metadata)
-        keys = keys.groupby(keys.columns.tolist()).apply(_reindex)
+        grouping = keys.columns.tolist()
+        grouping.remove('t0')
+        keys = keys.groupby(grouping).apply(_reindex)
         keys.index.name = 'epoch'
         if trim != 0:
             trim_samples = round(ai_channel.fs * trim)
