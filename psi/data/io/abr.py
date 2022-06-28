@@ -171,15 +171,15 @@ class ABRFile(Recording):
         '''
         Continuous EEG signal in `BcolzSignal` format.
         '''
-        # Load and ensure that the EEG data is fine. If not, repair it and
-        # reload the data.
-        rootdir = self.base_path / 'eeg'
-        eeg = bcolz.carray(rootdir=rootdir)
-        if len(eeg) == 0:
-            log.debug('EEG for %s is corrupt. Repairing.', self.base_path)
-            repair_carray_size(rootdir)
-        from .bcolz_tools import BcolzSignal
-        return BcolzSignal(rootdir)
+        if 'eeg' in self.carray_names:
+            # Load and ensure that the EEG data is fine. If not, repair it and
+            # reload the data.
+            rootdir = self.base_path / 'eeg'
+            eeg = bcolz.carray(rootdir=rootdir)
+            if len(eeg) == 0:
+                log.debug('EEG for %s is corrupt. Repairing.', self.base_path)
+                repair_carray_size(rootdir)
+        return self.__getattr__('eeg')
 
     @property
     @lru_cache(maxsize=MAXSIZE)
