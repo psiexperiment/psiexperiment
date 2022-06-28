@@ -122,13 +122,13 @@ class ToneCalibrate(BaseCalibrate):
         ao = {}
         for output_name, parameter_names in self.outputs.items():
             output = controller.get_output(output_name)
-            frequencies = set()
+            ao_info = ao.setdefault(output.channel, {'frequencies': set()})
             for parameter in parameter_names:
                 p = {'item_names': parameter}
                 new = core.invoke_command('psi.context.unique_values', p)
-                frequencies.update(new)
-            ao[output.channel] = {'frequencies': list(frequencies)}
-        return ao
+                ao_info['frequencies'].update(new)
+
+        return {k: {sk: list(sv)} for k, v in ao.items() for sk, sv in v.items()}
 
     def run_calibration(self, ao_channel, ai_channel, kwargs):
         result = tone_sens(
