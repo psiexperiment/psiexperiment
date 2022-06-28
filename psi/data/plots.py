@@ -559,6 +559,7 @@ class ChannelPlot(SinglePlot):
 
     downsample = Int(0)
     decimate_mode = d_(Enum('extremes', 'mean', 'none'))
+    channel = Int(0)
 
     _cached_time = Typed(np.ndarray)
     _buffer = Typed(SignalBuffer)
@@ -588,7 +589,8 @@ class ChannelPlot(SinglePlot):
 
     def _update_buffer(self, event=None):
         self._buffer = SignalBuffer(self.source.fs,
-                                    self.parent.data_range.span*2)
+                                    self.parent.data_range.span*2,
+                                    n_channels=self.source.n_channels)
 
     def _update_decimation(self, viewbox=None):
         try:
@@ -603,7 +605,7 @@ class ChannelPlot(SinglePlot):
         self.update()
 
     def _y(self, data):
-        return data
+        return data[self.channel]
 
     def update(self, event=None):
         low, high = self.parent.data_range.current_range
@@ -683,7 +685,8 @@ class FFTChannelPlot(ChannelPlot):
             self._cache_x()
 
     def _update_buffer(self, event=None):
-        self._buffer = SignalBuffer(self.source.fs, self.time_span)
+        self._buffer = SignalBuffer(self.source.fs, self.time_span,
+                                    n_channels=self.source.n_channels)
 
     def _append_data(self, data):
         self._buffer.append_data(data)
@@ -697,6 +700,7 @@ class FFTChannelPlot(ChannelPlot):
     def update(self, event=None):
         if self._buffer.get_time_ub() >= self.time_span:
             data = self._buffer.get_latest(-self.time_span, 0)
+            data = self._y(data)
             psd = util.psd(data, self.source.fs, self.window,
                            waveform_averages=self.waveform_averages)
             if self.apply_calibration:
