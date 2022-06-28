@@ -1,3 +1,13 @@
+# This code remains compatible with older versions of qtpy and enaml, but newer
+# versions of qtpy have eliminated some top level module attributes that enaml
+# looks for. Let's monkey-patch these back in so that psiexperiment has a
+# broader range of compatibility with older libraries. Eventually we can remove
+# this (possibly in 2024).  
+import qtpy
+for attr in ('PYQT4_API', 'PYSIDE_API'):
+    if not hasattr(qtpy, attr):
+        setattr(qtpy, attr, ())
+
 import logging
 import importlib.util
 import os
