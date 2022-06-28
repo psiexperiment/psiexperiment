@@ -154,7 +154,7 @@ class Signal:
         df.index = pd.MultiIndex.from_arrays(arrays, names=columns + ['t0'])
         return df
 
-    def get_segments(self, times, offset, duration, detrend=None,
+    def get_segments(self, times, offset, duration, channel=0, detrend=None,
                      downsample=None, cb=None, cb_n=1000, allow_partial=False):
         if cb is None:
             cb = lambda *a, **kw: None
@@ -177,11 +177,16 @@ class Signal:
         values = []
         n = len(indices)
         for j, i in enumerate(indices):
-            v = self[i:i+samples]
-            pad_n = samples - len(v)
+            v = self[channel, i:i+samples]
+            pad_n = samples - v.shape[-1]
             if pad_n:
-                v = np.pad(v, (0, pad_n), mode='constant',
-                           constant_values=np.nan)
+                if v.ndim == 2:
+                    padding = [(0, 0), (0, pad_n)]
+                elif v.ndim == 1:
+                    padding = (0, pad_n)
+                else:
+                    raise ValueError('Unsupported dimensionality for signal')
+                v = np.pad(v, padding, mode='constant', constant_values=np.nan)
             values.append(v[np.newaxis])
             if ((j+1) % cb_n) == 0:
                 cb((j+1)/n)
@@ -190,7 +195,7 @@ class Signal:
         # We need to ensure that data is cast to double since there are some
         # rare edge-cases in which precision is lost when filtering and
         # downsampling.
-        values = np.concatenate(values).astype('double')
+        values = np.concatenate(values, axis=0).astype('double')
 
         if detrend is not None:
             values = signal.detrend(values, axis=-1, type=detrend)
