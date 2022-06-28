@@ -146,7 +146,7 @@ enamldef BasePlotManifest(PSIManifest): manifest:
 
         Command:
             id = manifest.contribution.name + '_update'
-            handler = partial(update_plot, manifest.contribution)
+            handler = manifest.contribution.update
 
     Extension:
         id = manifest.id + '.actions'
