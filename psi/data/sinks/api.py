@@ -9,6 +9,7 @@ with enaml.imports():
     from .text_store import TextStore
     from .trial_log import TrialLog
     from .sdt_analysis import SDTAnalysis
+    from .queue_status import QueueStatus
     from .zarr_store import ZarrStore
 
 # This allows us to change the binary backend in future updates to
