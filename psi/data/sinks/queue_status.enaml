@@ -1,0 +1,81 @@
+import logging
+log = logging.getLogger(__name__)
+
+from functools import partial
+import operator
+from collections import defaultdict
+
+import numpy as np
+
+from atom.api import Typed, Event, Str, Int, List, Dict
+from enaml.application import deferred_call
+from enaml.core.api import d_
+from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
+from enaml.widgets.api import Container, DockItem, Form, Label, ProgressBar
+
+from ..sink import Sink
+
+from psiaudio.queue import AbstractSignalQueue
+
+from psi.core.enaml.api import PSIManifest
+from psi.controller.api import ExperimentAction
+from psi.experiment.api import StatusItem
+
+
+class QueueStatus(Sink):
+
+    queue = d_(Typed(AbstractSignalQueue))
+    current_n = Int()
+    requested_n = Int(100)
+
+    def _observe_queue(self, event):
+        self.queue.connect(self._update_requested_n, 'added')
+        self.queue.connect(self._update_current_n, 'decrement')
+        self._update_requested_n()
+        self._update_current_n()
+
+    def _update_requested_n(self, *args, **kwargs):
+        value = self.queue.count_requested_trials()
+        deferred_call(setattr, self, 'requested_n', value)
+        value = self.requested_n - self.queue.count_trials()
+        deferred_call(setattr, self, 'current_n', value)
+
+    def _update_current_n(self, *args, **kwargs):
+        value = self.requested_n - self.queue.count_trials()
+        deferred_call(setattr, self, 'current_n', value)
+
+
+def update_status(contribution, event):
+    # This ensures that we get the final update
+    contribution._update_requested_n()
+
+
+enamldef QueueStatusManifest(PSIManifest): manifest:
+
+    Extension:
+        id = manifest.id + '.commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = f'{manifest.id}.update_status'
+            handler = partial(update_status, manifest.contribution)
+
+    Extension:
+        id = manifest.id + '.actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'experiment_end'
+            command = f'{manifest.id}.update_status'
+
+    Extension:
+        id = manifest.id + '.workspace'
+        point = 'psi.experiment.status'
+        rank = 10
+
+        StatusItem:
+            label = 'Percent done'
+            ProgressBar:
+                maximum << manifest.contribution.requested_n
+                value << manifest.contribution.current_n
+                text_visible = True
