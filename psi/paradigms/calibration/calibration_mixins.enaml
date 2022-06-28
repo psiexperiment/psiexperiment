@@ -150,9 +150,6 @@ def compute_calibration_chirp(event):
     epoch_info = data.find_sink('cal_data').get_source('epoch')
     duration = epoch_info.iloc[0].loc['hw_ao_chirp_duration']
 
-    log.error(f'Source duration {source.duration}')
-    log.error(f'Epoch duration {duration}')
-
     waveforms = source.get_epochs(epoch_info, offset=0, duration=duration)
     waveforms = waveforms.groupby(['hw_ao_chirp_level']).mean()
 
