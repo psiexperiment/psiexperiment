@@ -20,7 +20,9 @@ from psi.data.plots import (TimeContainer, ChannelPlot, FFTContainer,
 
 from psi.data.sinks.api import BinaryStore
 from psi.experiment.api import StatusItem
-from psi.token.primitives import Cos2Envelope, BandlimitedNoise, BroadbandNoise
+from psi.token.primitives import (
+    BandlimitedNoise, BroadbandNoise, Cos2Envelope, ShapedNoise
+)
 
 from ..core.io_mixins import ChannelInput, EpochChannelOutput
 
@@ -65,6 +67,12 @@ enamldef NoiseControllerManifest(ControllerManifest): manifest:
             name = 'broadband_noise_burst'
             label = 'Broadband noise'
             BroadbandNoise:
+                pass
+
+        Cos2Envelope: broadband_noise:
+            name = 'shaped_noise_burst'
+            label = 'Shaped noise'
+            ShapedNoise:
                 pass
 
     Extension:
@@ -119,19 +127,19 @@ enamldef NoiseControllerManifest(ControllerManifest): manifest:
             command = 'psi.context.initialize'
             kwargs = {'selector': None}
 
-        ExperimentCallback:
-            event = 'exposure_start'
-            callback = configure_experiment
-            kwargs = {'pb': pb_experiment, 'fs': output.fs}
-
         ExperimentAction:
-            event = 'engines_configured'
+            event = 'context_initialized'
             command = 'exposure.prepare'
 
         ExperimentAction:
             event = 'experiment_start'
             command = 'exposure.start'
-            kwargs = {'start': 2}
+            kwargs = {'start': 10}
+
+        ExperimentCallback:
+            event = 'exposure_start'
+            callback = configure_experiment
+            kwargs = {'pb': pb_experiment, 'fs': output.fs}
 
         ExperimentAction:
             event = 'exposure_end'
