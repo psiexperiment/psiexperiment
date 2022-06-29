@@ -3,11 +3,12 @@ from __future__ import division
 import logging
 log = logging.getLogger(__name__)
 
-from psiaudio.stim import (BandlimitedNoiseFactory, BroadbandNoiseFactory,
-                           ChirpFactory, Cos2EnvelopeFactory, GateFactory,
-                           RepeatFactory, SAMEnvelopeFactory,
-                           SquareWaveEnvelopeFactory, SquareWaveFactory,
-                           SilenceFactory, ToneFactory, WavSequenceFactory)
+from psiaudio.stim import (
+    BandlimitedNoiseFactory, BroadbandNoiseFactory, ChirpFactory,
+    Cos2EnvelopeFactory, GateFactory, RepeatFactory, SAMEnvelopeFactory,
+    ShapedNoiseFactory, SilenceFactory, SquareWaveEnvelopeFactory,
+    SquareWaveFactory, ToneFactory, WavSequenceFactory
+)
 
 from psi.context.api import Parameter, EnumParameter
 from .block import EpochBlock, ContinuousBlock
@@ -206,6 +207,30 @@ enamldef Silence(ContinuousBlock):
     factory = SilenceFactory
     name = 'silence'
     label = 'silence'
+
+
+enamldef ShapedNoise(ContinuousBlock):
+
+    factory = ShapedNoiseFactory
+    name = 'shaped_noise'
+    label = 'shaped noise'
+
+    Parameter:
+        name = 'level'
+        label = 'level (dB SPL)'
+        compact_label = 'level'
+        default = 60.0
+
+    Parameter:
+        name = 'gains'
+        default = {
+            0: -60,
+            4e3/1.1: -60,
+            4e3: 0,
+            45.2e3: 40,
+            45.2e3*1.1: -60,
+            100e3/2: -60,
+        }
 
 
 enamldef SquareWave(ContinuousBlock):
