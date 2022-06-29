@@ -227,9 +227,8 @@ class RMS(ContinuousInput):
         return self.source.fs / n
 
     def configure_callback(self):
-        n = round(self.duration * self.source.fs)
         cb = super().configure_callback()
-        return pipeline.rms(n, cb).send
+        return pipeline.rms(self.source.fs, self.duration, cb).send
 
 
 class SPL(Transform):
