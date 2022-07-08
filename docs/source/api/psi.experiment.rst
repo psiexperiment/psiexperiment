@@ -8,71 +8,70 @@ psi.experiment.api module
 -------------------------
 
 .. automodule:: psi.experiment.api
-    :members:
-    :undoc-members:
-    :show-inheritance:
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
-psi.experiment.manifest module
-------------------------------
+psi.experiment.paradigm\_description module
+-------------------------------------------
 
-.. automodule:: psi.experiment.manifest
-    :members:
-    :undoc-members:
-    :show-inheritance:
+.. automodule:: psi.experiment.paradigm_description
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 psi.experiment.plugin module
 ----------------------------
 
 .. automodule:: psi.experiment.plugin
-    :members:
-    :undoc-members:
-    :show-inheritance:
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 psi.experiment.preferences module
 ---------------------------------
 
 .. automodule:: psi.experiment.preferences
-    :members:
-    :undoc-members:
-    :show-inheritance:
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
-psi.experiment.view module
+psi.experiment.status\_item module
+----------------------------------
+
+.. automodule:: psi.experiment.status_item
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+psi.experiment.util module
 --------------------------
 
-.. automodule:: psi.experiment.view
-    :members:
-    :undoc-members:
-    :show-inheritance:
+.. automodule:: psi.experiment.util
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 psi.experiment.workbench module
 -------------------------------
 
 .. automodule:: psi.experiment.workbench
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-psi.experiment.workbench_window module
---------------------------------------
-
-.. automodule:: psi.experiment.workbench_window
-    :members:
-    :undoc-members:
-    :show-inheritance:
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 psi.experiment.workspace module
 -------------------------------
 
 .. automodule:: psi.experiment.workspace
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 Module contents
 ---------------
 
 .. automodule:: psi.experiment
-    :members:
-    :undoc-members:
-    :show-inheritance:
+   :members:
+   :undoc-members:
+   :show-inheritance:

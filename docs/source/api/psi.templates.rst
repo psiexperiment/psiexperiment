@@ -1,5 +1,5 @@
-psi.core package
-================
+psi.templates package
+=====================
 
 Subpackages
 -----------
@@ -7,12 +7,12 @@ Subpackages
 .. toctree::
    :maxdepth: 4
 
-   psi.core.enaml
+   psi.templates.io
 
 Module contents
 ---------------
 
-.. automodule:: psi.core
+.. automodule:: psi.templates
    :members:
    :undoc-members:
    :show-inheritance:

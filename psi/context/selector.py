@@ -11,7 +11,7 @@ Examples
 --------
 The plugins typically handle most of the configuration for the context items
 and selectors. These are not typically meant for direct use. To illustrate what
-happens under the hood, let's create two |parameters|, level and frequency:
+happens under the hood, let's create two parameters, level and frequency:
 
     >>> from psi.context.api import Parameter
     >>> frequency = Parameter(name='frequency', dtype='float64')
@@ -427,7 +427,7 @@ class FriendlyCartesianProduct(BaseSelector):
 
         The primary use-case for this is to switch between two sets of defaults
         depending on whether we are working with level specified as dB
-        attenuation or dB SPL. If we specify `context_detail` as:
+        attenuation or dB SPL. If we specify `context_detail` as::
 
             {
                 'target_tone_level': {

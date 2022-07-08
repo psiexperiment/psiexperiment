@@ -29,21 +29,56 @@ from psi.core.enaml.api import PSIContribution
 
 
 class Input(PSIContribution):
+    '''
+    Base class for an input that receives data from a single parent
+    :py:attr:`~source` and performs an operation on the data before passing the
+    transformed data along to one or more children :py:attr:`~inputs`.
+    '''
 
+    #: If False, the controller plugin will attempt to determine whether the
+    #: outputs of the processing chain are used by other plugins (e.g., the
+    #: input is being plotted or saved). If the output does not appear to be
+    #: used, the controller will skip the input.
     force_active = d_(Bool(False)).tag(metadata=True)
+
     source_name = d_(Str()).tag(metadata=True)
+
+    #: Source that input receives data from.
     source = d_(Typed(Declarative).tag(metadata=True), writable=False)
+
+    #: Channel that input receives data from. This is the initial source
+    #: feeding data into the processing chain that leads to this input.
+    #: There may be intermediate steps in the chain that perform some
+    #: manipulations of the data (e.g., decimation, etc.) before this input
+    #: receives the data. Use :py:attr:`~source` to get the previous step in
+    #: the processing chain.
     channel = Property().tag(metadata=True)
+
+    #: Engine that input receives data from
     engine = Property().tag(metadata=True)
+
+    #: Number of channels
     n_channels = Property().tag(metadata=True)
+
+    #: List mapping channel index to label.
     channel_labels = Property().tag(metadata=True)
 
+    #: Sampling rate of input.
     fs = Property().tag(metadata=True)
+
+    #: Datatype of samples (e.g., int, float, double)
     dtype = Property().tag(metadata=True)
+
     unit = Property().tag(metadata=True)
     calibration = Property().tag(metadata=True)
+
+    #: Is the input active (i.e., receiving data and performing operations)?
+    #: See :py:attr:`~force_active` for more detail.
     active = Property().tag(metadata=True)
 
+    #: List of children in the processing chain to pass transformed data (i.e.,
+    #: the output of this block). This input is the :py:attr:`~source` for the
+    #: inputs in the list.
     inputs = List().tag(metadata=True)
 
     configured = Bool(False)
@@ -239,20 +274,34 @@ class SPL(Transform):
 
 
 class IIRFilter(ContinuousInput):
-    # Allows user to deactivate the filter entirely during configuration if
-    # desired. Ideally we could just remove it from the graph, but it seems a
-    # bit tricky to do so as some other components may be looking for the
-    # output of this block.
+    '''
+    Apply an IIR filter to the data
+    '''
+    #: Allows user to deactivate the filter entirely during configuration if
+    #: desired. Ideally we could just remove it from the processing chain, but
+    #: it seems a bit tricky to do so as some other components may be looking
+    #: for the output of this block.
     passthrough = d_(Bool(False)).tag(metadata=True)
 
+    #: Filter order
     N = d_(Int(1)).tag(metadata=True)
+
+    #: Filter pasband type
     btype = d_(Enum('bandpass', 'lowpass', 'highpass', 'bandstop')).tag(
         metadata=True)
+
+    #: Filter type
     ftype = d_(Enum('butter', 'cheby1', 'cheby2', 'ellip', 'bessel')).tag(
         metadata=True)
+
+    #: Highpass cutoff frequency (Hz)
     f_highpass = d_(Float()).tag(metadata=True)
+
+    #: Lowpass cutoff frequency (Hz)
     f_lowpass = d_(Float()).tag(metadata=True)
 
+    #: Filter passband (automatically adjusted based on :py:attr:`~btype`,
+    #: :py:attr:`~f_highpass`, and :py:attr:`~f_lowpass`).
     Wn = Property().tag(metadata=True)
 
     def _get_Wn(self):
@@ -275,6 +324,10 @@ class Blocked(ContinuousInput):
     '''
     Chunk data based on time
     '''
+
+    #: Duration, in seconds, of each chunk. This is rounded to the nearest
+    #: integer number of samples and each block will always have the exact same
+    #: number of samples.
     duration = d_(Float()).tag(metadata=True)
 
     def configure_callback(self):
@@ -318,6 +371,8 @@ class Capture(ContinuousInput):
 
 
 class Downsample(ContinuousInput):
+
+    #: Decimation factor (i.e., extract every ``q`` samples).
     q = d_(Int()).tag(metadata=True)
 
     def _get_fs(self):
@@ -436,7 +491,7 @@ class ExtractEpochs(EpochInput):
 
     #: The event that indicates beginning of an epoch. If left blank, the
     #: programmer is responsible for explicitly hooking up the event (e.g.,
-    #: such as to a queue) or calling `.
+    #: such as to a queue).
     epoch_event = d_(Str())
 
     def mark_complete(self):
@@ -468,21 +523,22 @@ class ExtractEpochs(EpochInput):
 class RejectEpochs(EpochInput):
     '''
     Rejects epochs whose amplitude exceeds a specified threshold.
-
-    Attributes
-    ----------
-    threshold : float
-        Reject threshold
-    mode : {'absolute value', 'amplitude'}
-        If absolute value, rejects epoch if the minimum or maximum exceeds the
-        reject threshold. If amplitude, rejects epoch if the difference between
-        the minimum and maximum exceeds the reject threshold.
     '''
+    #: Reject threshold
     threshold = d_(Float()).tag(metadata=True)
+
+    #: If `'absolute value'`, rejects epoch if the minimum or maximum exceeds
+    #: the reject threshold. If `'amplitude'`, rejects epoch if the difference
+    #: between the minimum and maximum exceeds the reject threshold.
     mode = d_(Enum('absolute value', 'amplitude')).tag(metadata=True)
 
+    #: Total number of epochs seen (both accepted and rejected).
     total = Int()
+
+    #: Number of epochs rejected.
     rejects = Int()
+
+    #: Percent of epochs rejected.
     reject_percent = Float()
 
     def status_cb(self, n_total, n_accepted):
@@ -507,14 +563,11 @@ class RejectEpochs(EpochInput):
 class Detrend(EpochInput):
     '''
     Removes linear trend from epoch
-
-    Attributes
-    ----------
-    mode : {None, 'linear', 'constant'}
-        If None, this acts as a passthrough. If 'linear', the result of a
-        linear least-squares fit is subtracted from the epoch. If 'constant',
-        only the mean of the epoch is subtracted.
     '''
+
+    #: If None, this acts as a passthrough. If `'linear'`, the result of a
+    #: linear least-squares fit is subtracted from the epoch. If `'constant'`,
+    #: only the mean of the epoch is subtracted.
     mode = d_(Enum('constant', 'linear', None)).tag(metadata=True)
 
     def configure_callback(self):

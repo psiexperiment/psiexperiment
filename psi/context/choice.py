@@ -264,19 +264,22 @@ options = collections.OrderedDict([
 
 
 common_docstring = '''
-sequence : {tuple, list}
-    The iterable providing the sequence of values to be produced by the
-    generator.
-c : {int, np.inf}
-    Number of cycles to loop through sequence.
-key : {None, object}
-    Sort key to use when determining ordering of generator. If None, default
-    sort is used. This value is passed to the `key` parameter of `sort`.
+    sequence : {tuple, list}
+        The iterable providing the sequence of values to be produced by the
+        generator.
+    c : {int, np.inf}
+        Number of cycles to loop through sequence.
+    key : {None, object}
+        Sort key to use when determining ordering of generator. If None, default
+        sort is used. This value is passed to the `key` parameter of `sort`.
 '''
 
 def format_docstrings():
+    # Strip will remove the leading whitespace, thereby ensuring that the
+    # common docstring remains properly indented since we already have leading
+    # whitespace before {common_docstring} in the functions above.
     fmt = {
-        'common_docstring': common_docstring,
+        'common_docstring': common_docstring.strip(),
     }
     for f in options.values():
         try:

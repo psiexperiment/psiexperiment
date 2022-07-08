@@ -295,8 +295,10 @@ class EditableTable(RawWidget):
     DataFrame, dictionary of lists, list of lists, etc.).
     '''
 
-    # Expand the table by default
+    #: Expand the table by default
     hug_width = set_default('weak')
+
+    #: Expand the table by default
     hug_height = set_default('weak')
 
     model = Typed(QEditableTableModel)
@@ -471,8 +473,10 @@ class EditableTable(RawWidget):
     @d_func
     def get_columns(self):
         '''
-        Result
-        ------
+        Return a list of the columns
+
+        Returns
+        -------
         column_labels : list of str
             List of column labels.
         '''

@@ -32,8 +32,14 @@ def merge_results(results, names=['ao_channel']):
 
 class BaseCalibrate(PSIContribution):
 
+    #: Dictionary whose keys are outputs and values are a list of parameters
+    #: needed to determine the calibration frequencies.
     outputs = d_(Dict())
+
+    #: Name of channel to calibrate.
     input_name = d_(Str())
+
+    #: Gain to set on output channel.
     gain = d_(Float(-40))
 
     result = d_(Dict())
@@ -78,43 +84,24 @@ class ToneCalibrate(BaseCalibrate):
     Calibrate the specified output using the specified input
 
     Useful for in-ear calibrations. The calibration will be saved.
-
-    Attributes
-    ----------
-    outputs : dict
-        Dictionary whose keys are outputs and values are a list of parameters
-        needed to determine the calibration frequencies.
-    input_name : string
-        Channel to calibrate
-    selector_name : string (default='default')
-        Selector to use
-    gain : float
-        Gain to set on output channel
-    max_thd : {None, float}
-        Maximum total harmonic distortion (in percent) to allow. Anything above
-        this raises a calibration error.
-    min_snr : {None, float}
-        Minimum test level (re. noise floor). If the test tone is too close to
-        the noise floor, this raises a calibration error.
-    duration : float
-        Duration of test tone
-    iti : float
-        Intertrial interval between test tones
-    trim : float
-        Amount to trim off of start and end of test tone response before
-       analysis.
-    widget_name : {None, string}
-        Name of widget containing results set to update (for viewing).
-    attr_name : {None, string}
-        Name of attribute on widget to set.
-    store_name : {None, string}
-        Name of store to write data to.
     '''
 
+    #: Duration of calibration tone
     duration = d_(Float(100e3))
+
+    #: Interval between calibration tones
     iti = d_(Float(0))
+
+    #: Amount to trim off of start and end of calibration tone response before
+    #: analysis.
     trim = d_(Float(10e-3))
+
+    #: Maximum total harmonic distortion (in percent) to allow. Anything above
+    #: this raises a calibration error.
     max_thd = d_(Value(None))
+
+    #: Minimum test level (re. noise floor). If the test tone is too close to
+    #: the noise floor, this raises a calibration error.
     min_snr = d_(Value(None))
 
     def get_config(self, controller, core):
@@ -154,24 +141,15 @@ class ChirpCalibrate(BaseCalibrate):
     Calibrate the specified output using the specified input
 
     Useful for in-ear calibrations. The calibration will be saved.
-
-    Parameters
-    ----------
-    outputs : list of string
-        Output names to calibrate
-    input_name : string
-        Input to calibrate
-    gain : float
-        Gain to set on output channel
-    duration : float
-        Duration of chirp
-    iti : float
-        Intertrial interval between chirps
-    repetitions : int
-        Number of repetitions to average
     '''
+
+    #: Duration of chirp
     duration = d_(Float(20e-3))
+
+    #: Intertrial interval between chirps
     iti = d_(Float(1e-3))
+
+    #: Number of repetitions to average
     repetitions = d_(Int(64))
 
     def calibrate(self, controller, core):

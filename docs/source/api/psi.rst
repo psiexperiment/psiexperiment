@@ -5,39 +5,32 @@ Subpackages
 -----------
 
 .. toctree::
+   :maxdepth: 4
 
-    psi.application
-    psi.context
-    psi.controller
-    psi.core
-    psi.data
-    psi.experiment
-    psi.token
+   psi.application
+   psi.context
+   psi.controller
+   psi.core
+   psi.data
+   psi.experiment
+   psi.templates
+   psi.token
 
 Submodules
 ----------
-
-psi.config module
------------------
-
-.. automodule:: psi.config
-    :members:
-    :undoc-members:
-    :show-inheritance:
 
 psi.util module
 ---------------
 
 .. automodule:: psi.util
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 Module contents
 ---------------
 
 .. automodule:: psi
-    :members:
-    :undoc-members:
-    :show-inheritance:
+   :members:
+   :undoc-members:
+   :show-inheritance:

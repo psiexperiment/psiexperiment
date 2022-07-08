@@ -32,7 +32,7 @@ The first argument, ``'auto_gonogo'`` is a unique identifier for the paradigm. T
 
 -------------------
 What is a manifest?
---------------------
+-------------------
 
 Briefly, a manifest defines how the associated plugin interacts with other plugins in the psiexperiment ecosystem. The manifest should subclass either ``PSIManifest`` or ``ExperimentManifest``. For most custom-written plugins, you will use ``ExperimentManifest``. Here's the definition for the ``SignalFFTViewManifest``:
 
