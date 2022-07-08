@@ -92,7 +92,7 @@ class BiosemiEngine(Engine):
     monitor_period = Float(0.25)
     fs = Int(1024)
 
-    _client = Typed(ActiveTwoClient)
+    _client = Value()
     _thread = Value()
     _callbacks = Dict()
     _channels = List()

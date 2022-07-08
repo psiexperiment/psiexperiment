@@ -38,6 +38,7 @@ extensions = [
     'sphinx.ext.autosummary',
     'sphinx.ext.viewcode',
     'sphinx.ext.napoleon',
+    'sphinx.ext.intersphinx',
 ]
 
 # Add any paths that contain templates here, relative to this directory.
@@ -61,9 +62,14 @@ html_theme = 'sphinx_rtd_theme'
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
 
-autodoc_mock_imports = ['PyDAQmx']
+autodoc_mock_imports = ['PyDAQmx', 'tdt', 'pyactivetwo', 'bcolz', 'blosc', 'zarr']
 
 master_doc = 'index'
+
+# How to link to documentation for other projects
+intersphinx_mapping = {
+    'enaml': ('https://enaml.readthedocs.io/en/latest/', None),
+}
 
 #autodoc_member_order = 'bysource'
 #

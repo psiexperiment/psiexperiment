@@ -156,8 +156,8 @@ class TDTEngine(Engine):
     _task_done = Typed(dict)
     _callbacks = Typed(dict, {})
 
-    _project = Typed(DSPProject)
-    _circuit = Typed(DSPCircuit)
+    _project = Value()
+    _circuit = Value()
     _buffers = Typed(dict, {})
     _threads = Typed(dict, {})
     _stop_requested = Value()

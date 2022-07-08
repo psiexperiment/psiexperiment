@@ -1,53 +1,37 @@
 psi.application package
 =======================
 
-Subpackages
------------
-
-.. toctree::
-
-    psi.application.experiment
-
 Submodules
 ----------
 
-psi.application.base_launcher module
-------------------------------------
+psi.application.api module
+--------------------------
+
+.. automodule:: psi.application.api
+   :members:
+   :undoc-members:
+   :show-inheritance:
+
+psi.application.base\_launcher module
+-------------------------------------
 
 .. automodule:: psi.application.base_launcher
-    :members:
-    :undoc-members:
-    :show-inheritance:
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
-psi.application.base_launcher_view module
------------------------------------------
-
-.. automodule:: psi.application.base_launcher_view
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-psi.application.experiment_description module
----------------------------------------------
-
-.. automodule:: psi.application.experiment_description
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
-psi.application.psi_launcher module
------------------------------------
+psi.application.psi\_launcher module
+------------------------------------
 
 .. automodule:: psi.application.psi_launcher
-    :members:
-    :undoc-members:
-    :show-inheritance:
-
+   :members:
+   :undoc-members:
+   :show-inheritance:
 
 Module contents
 ---------------
 
 .. automodule:: psi.application
-    :members:
-    :undoc-members:
-    :show-inheritance:
+   :members:
+   :undoc-members:
+   :show-inheritance:

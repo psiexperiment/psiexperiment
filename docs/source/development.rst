@@ -2,6 +2,11 @@
 Development Workflow
 ====================
 
+Helpful resources
+.................
+
+Psiexperiment leverages `Enaml`_ both for building the user-interface as well as implementing a plugin-based system. Extending psiexperiment requires familiarity with the `Enaml Workbench plugin framework`_.
+
 Setting up your environment
 ...........................
 
@@ -41,7 +46,7 @@ Make sure it worked properly:
 
     psi-config show
 
-Now create your config as described in the :doc:`install instructions<installing.rst>`.
+Now create your config as described in the :doc:`install instructions<installing>`.
 
 Building documentation
 ......................
@@ -53,4 +58,14 @@ Documentation is built using Sphinx.
     cd %USERPROFILE%\projects\psi-dev\src\psiexperiment\docs
     make html
 
+To update the API documentation:
+
+.. code-block:: doscon
+
+    cd %USERPROFILE%\projects\psi-dev\src\psiexperiment\docs
+    sphinx-apidoc ../psi -o source/api
+
 It also automatically gets built on ReadTheDocs whenever new commits are pushed to the main branch on Github.
+
+.. _Enaml: http://enaml.readthedocs.io/en/latest/
+.. _Enaml Workbench Plugin Framework: https://enaml.readthedocs.io/en/latest/dev_guides/workbenches.html

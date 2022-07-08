@@ -1,7 +1,10 @@
 import blosc
+import functools
 import json
 import struct
 import numpy as np
+
+from . import Signal
 
 
 BLOSCPACK_HEADER_LENGTH = 16
@@ -30,7 +33,7 @@ def decode_blosc_header(buffer):
 
     The Blosc 1.1.3 header is 16 bytes as follows:
 
-    |-0-|-1-|-2-|-3-|-4-|-5-|-6-|-7-|-8-|-9-|-A-|-B-|-C-|-D-|-E-|-F-|
+    | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | A | B | C | D | E | F |
       ^   ^   ^   ^ |     nbytes    |   blocksize   |    ctbytes    |
       |   |   |   |
       |   |   |   +--typesize

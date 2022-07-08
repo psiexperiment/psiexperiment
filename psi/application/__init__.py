@@ -233,7 +233,7 @@ def get_default_io():
     '''
     Attempt to figure out the default IO configuration file
 
-    Rules
+    Notes
     -----
     * If no files are defined, raise ValueError
     * If only one file is defined, return it

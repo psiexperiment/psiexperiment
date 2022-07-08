@@ -3,6 +3,8 @@
    To use it add the directive include:: substitutions.rst at the beginning of
    the file.
 
+.. |parameters| replace:: :py:class:`~psi.context.context_item.Parameter`
+
 .. ============================================================================
 .. Enaml substitutions
 .. ============================================================================
