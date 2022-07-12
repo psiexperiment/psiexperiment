@@ -17,8 +17,8 @@ from enaml.core.import_hooks import EnamlImporter
 EnamlImporter.install()
 
 
-sys.path.insert(0, os.path.abspath('.'))
 sys.path.insert(0, os.path.abspath('../'))
+sys.path.insert(0, os.path.abspath('../../'))
 
 
 # -- Project information -----------------------------------------------------
@@ -62,7 +62,9 @@ html_theme = 'sphinx_rtd_theme'
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
 
-autodoc_mock_imports = ['PyDAQmx', 'tdt', 'pyactivetwo', 'bcolz', 'blosc', 'zarr']
+autodoc_mock_imports = [
+    'PyDAQmx', 'tdt', 'pyactivetwo', 'bcolz', 'blosc', 'zarr', 'tqdm', 'yaml'
+]
 
 master_doc = 'index'
 

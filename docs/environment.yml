@@ -2,17 +2,13 @@ channels:
     - defaults
       
 dependencies:
-    - python=3.6
+    - python=3.9
     - sphinx
-    - sphinx_rtd_theme
     - pip
     - enaml
-    - bcolz
-    - numpy
-    - palettable
+    - pandas
     - pyqtgraph
-    - scipy
     - pip:
-        - pygments-enaml
-        - json_tricks
-        - git+https://github.com/bburan/psiexperiment.git
+      - sphinx_rtd_theme
+      - pygments-enaml
+      - git+https://github.com/psiexperiment/psiaudio.git
