@@ -1,4 +1,4 @@
-from .input import (Downsample, Edges, IIRFilter, Threshold)
+from .input import (Decimate, Edges, IIRFilter, Threshold)
 
 
 enamldef ADC(IIRFilter): acd:
@@ -11,7 +11,7 @@ enamldef ADC(IIRFilter): acd:
     ftype = 'butter'
     btype = 'lowpass'
 
-    Downsample: ds:
+    Decimate: ds:
         name << acd.name + '_analog'
         q = 1000
         Threshold: th:
