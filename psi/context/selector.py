@@ -127,7 +127,7 @@ def warn_empty(method):
         try:
             return method(self, *args, **kwargs)
         except ValueError as e:
-            mesg = f'{self.label} sequence must have at least one value'
+            mesg = f'{self.label} must have at least one value'
             raise ValueError(mesg) from e
     return wrapper
 
