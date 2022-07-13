@@ -261,8 +261,10 @@ class ABRFile(Recording):
         {epochs_docstring}
         '''
         fn = self.eeg.get_epochs_filtered
-        result = fn(self.erp_metadata, offset, duration, filter_lb, filter_ub,
-                    filter_order, detrend, pad_duration, downsample=downsample,
+        result = fn(md=self.erp_metadata, offset=offset, duration=duration,
+                    filter_lb=filter_lb, filter_ub=filter_ub,
+                    filter_order=filter_order, detrend=detrend,
+                    pad_duration=pad_duration, downsample=downsample,
                     columns=columns, cb=cb)
         result = self._apply_reject(result, reject_threshold, reject_mode)
         result = self._apply_n(result, averages)

@@ -140,8 +140,10 @@ class Signal:
                             pad_duration=10e-3, downsample=None,
                             columns='auto', cb=None):
         fn = self.get_segments_filtered
-        return self._get_epochs(fn, md, offset, duration, filter_lb, filter_ub,
-                                filter_order, detrend, pad_duration,
+        return self._get_epochs(fn, md=md, offset=offset, duration=duration,
+                                filter_lb=filter_lb, filter_ub=filter_ub,
+                                filter_order=filter_order, detrend=detrend,
+                                pad_duration=pad_duration,
                                 downsample=downsample, columns=columns, cb=cb)
 
     def _get_epochs(self, fn, md, *args, columns='auto', **kwargs):
@@ -177,7 +179,14 @@ class Signal:
         values = []
         n = len(indices)
         for j, i in enumerate(indices):
-            v = self[channel, i:i+samples]
+            # This hack is in-place to handle legacy data that was stored in 1D
+            # format rather than the newer 2D format.
+            if self.ndim == 1:
+                if channel != 0:
+                    raise ValueError(f'Data is 1D. Cannot load channel {channel}.')
+                v = self[i:i+samples]
+            else:
+                v = self[channel, i:i+samples]
             pad_n = samples - v.shape[-1]
             if pad_n:
                 if v.ndim == 2:
@@ -219,7 +228,7 @@ class Signal:
         fs = self.fs if downsample is None else self.fs / downsample
         Wn = (filter_lb/(0.5*fs), filter_ub/(0.5*fs))
         b, a = signal.iirfilter(filter_order, Wn, btype='band', ftype='butter')
-        df = fn(offset-pad_duration, duration+pad_duration, detrend,
+        df = fn(offset-pad_duration, duration+pad_duration, detrend=detrend,
                 downsample=downsample, cb=cb)
 
         # Attempting to write values *back* into the original df (e.g., via

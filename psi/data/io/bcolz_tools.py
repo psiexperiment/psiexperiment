@@ -95,6 +95,10 @@ class BcolzSignal(Signal):
     def duration(self):
         return self.array.shape[-1]/self.fs
 
+    @property
+    def ndim(self):
+        return self.array.ndim
+
     def __getitem__(self, slice):
         return self.array[slice]
 
