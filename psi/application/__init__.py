@@ -416,7 +416,11 @@ def config():
 
     def create_config(args):
         base_directory = args.base_directory.rstrip('\\')
-        paradigms = [paradigm_choices[p] for p in args.paradigm_description]
+        if args.paradigm_description is None:
+            paradigms = []
+        else:
+            paradigms = [paradigm_choices.get(p, p) \
+                         for p in args.paradigm_description]
 
         psi.create_config(base_directory=base_directory, standard_io=args.io,
                           paradigm_descriptions=paradigms)
@@ -465,8 +469,11 @@ def config():
         '--paradigm-description',
         nargs='*',
         type=str,
-        choices=list(paradigm_choices.keys()),
-        help='Default paradigm descriptions.',
+        help=f'''Default paradigm descriptions. Can either specify a
+        fully-qualified module path (e.g., psilbhb.paradigms.lbhb) or the names
+        of one of the built-in paradigms. Available built-in paradigms include
+        {', '.join(paradigm_choices.keys())}.'
+        '''
     )
 
     make = subparsers.add_parser(
