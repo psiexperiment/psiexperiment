@@ -7,7 +7,9 @@ import importlib
 import os.path
 from pathlib import Path
 import pdb
+import re
 import sys
+import textwrap
 import traceback
 import warnings
 
@@ -30,36 +32,54 @@ gracefully so acquired data can be saved. Please notify the developers.
 
 
 class ExceptionHandler:
+    '''
+    This provides a custom exception handler. Since, during the course of
+    custom exception handling, new exceptions may be raised, we temporarily
+    restore the default exception handling on __enter__ and then restore the
+    custom exception handler on __exit__. By using the context manager, we make
+    sure that __exit__ always gets called properly.
+    '''
 
     def __init__(self):
         self.workbench = None
         self.logfile = None
 
+    def __enter__(self):
+        sys.excepthook = sys.__excepthook__
+
+    def __exit__(self):
+        sys.excepthook = self
+
     def __call__(self, *args):
-        log.exception("Uncaught exception", exc_info=args)
+        with self:
+            log.exception("Uncaught exception", exc_info=args)
 
-        if self.workbench is not None:
-            controller = self.workbench.get_plugin('psi.controller')
-            try:
-                controller.stop_experiment(skip_errors=True)
-            except:
-                pass
-            window = self.workbench.get_plugin('enaml.workbench.ui').window
-        else:
-            window = None
+            if self.workbench is not None:
+                controller = self.workbench.get_plugin('psi.controller')
+                try:
+                    controller.stop_experiment(skip_errors=True)
+                except:
+                    pass
+                window = self.workbench.get_plugin('enaml.workbench.ui').window
+            else:
+                window = None
 
-        if self.logfile is not None:
-            log_mesg = f'The log file has been saved to {self.logfile}'
-        else:
-            log_mesg = 'Unfortunately, no log file was saved.'
+            if self.logfile is not None:
+                log_mesg = f'The log file has been saved to {self.logfile}'
+            else:
+                log_mesg = 'Unfortunately, no log file was saved.'
 
-        err_mesg = f'The error message is:\n{args[1]}'
-        if args[1].__cause__ is not None:
-            err_mesg = f'{err_mesg}\n\nThe above error was caused by the following error:\n{args[1].__cause__}'
-        mesg = mesg_template.format(err_mesg, log_mesg)
+            err_mesg = f'The error message is:\n{args[1]}'
+            if args[1].__cause__ is not None:
+                err_mesg = f'{err_mesg}\n\nThe above error was caused by ' \
+                           f'the following error:\n{args[1].__cause__}'
 
-        deferred_call(critical, window, 'Oops :(', mesg)
-        sys.__excepthook__(*args)
+            mesg = mesg_template.format(args[1], log_mesg)
+            mesg = re.sub(r'(?<!\n)\n(?!\n)', ' ', mesg)
+            mesg = re.sub(r' +', ' ', mesg)
+            mesg = textwrap.fill(mesg, replace_whitespace=False)
+            deferred_call(critical, window, 'Oops :(', mesg)
+            sys.excepthook(*args)
 
 
 exception_handler = ExceptionHandler()

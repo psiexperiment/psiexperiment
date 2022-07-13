@@ -146,10 +146,11 @@ def invoke_action(core, action, event_name, timestamp, kw, skip_errors=False):
         log.debug('Invoking action %s', action)
         return action.invoke(core, timestamp=timestamp, event=event_name, **kw)
     except Exception as e:
-        m = f'When invoking invoking {action} in response to {event_name}, got error "{e}"'
+        m = f'When invoking invoking {action} in response to the {event_name} ' \
+            f'event, the following error was received:\n\n{e}.'
         log.error(m)
         if not skip_errors:
-            raise RuntimeError(f'Error invoking action {action}') from e
+            raise RuntimeError(m) from e
 
 
 class ControllerPlugin(Plugin):
