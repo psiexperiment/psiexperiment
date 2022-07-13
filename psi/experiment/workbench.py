@@ -51,9 +51,11 @@ class PSIWorkbench(Workbench):
         if io_manifest is not None:
             self.io_manifest_class = load_manifest_from_file(io_manifest, 'IOManifest')
             io_manifest = self.io_manifest_class()
+            log.info('Registering %r', io_manifest)
             self.register(io_manifest)
             manifests = [io_manifest]
         else:
+            log.warning('No IO manifest provided')
             manifests = []
 
         for manifest in controller_manifests:
@@ -62,10 +64,14 @@ class PSIWorkbench(Workbench):
             self.register(manifest)
 
         # Required to bootstrap plugin loading
+        log.info('Loading controller plugin')
         self.controller_plugin = self.get_plugin('psi.controller')
+        log.info('Loading calibration plugin')
         self.get_plugin('psi.controller.calibration')
+        log.info('Loading context plugin')
         self.context_plugin = self.get_plugin('psi.context')
 
+        log.info('Binding key plugins to manifests')
         for manifest in self._manifests.values():
             if hasattr(manifest, 'C'):
                 # Now, bind information to the manifests
