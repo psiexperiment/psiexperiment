@@ -34,8 +34,7 @@ def get_obj(o, klass):
     if isinstance(o, klass):
         objects.append(o)
     for child in o.children:
-        if isinstance(child, klass):
-            objects.extend(get_obj(child, klass))
+        objects.extend(get_obj(child, klass))
     return objects
 
 
@@ -101,6 +100,7 @@ def find_outputs(channels, point):
     # Find all the outputs already connected to a channel
     for c in channels.values():
         if isinstance(c, OutputMixin):
+            # Channel is an output. Now check the children.
             for o in c.children:
                 for oi in get_obj(o, BaseOutput):
                     if oi.name in outputs:
