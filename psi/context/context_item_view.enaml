@@ -1,3 +1,22 @@
+'''
+This configures the appearance of the context items in the user interface.
+
+ContextItems are organized by group. Each ContextGroup has a separate dock pane
+in the user interface. By default, members of a context group are displayed as
+a simple form (i.e., list of label to field mapping). Further customization of
+can be provided by grouping items using subclasses of ContextSet. For example,
+ContextRow allows us to layout all items belonging to it in a single row.
+
+To simplify composition of the various elements, we have two different sets
+of dynamic templates.
+
+* ContextItemTemplate - This template controlls the display of each child of a
+  ContextGroup. The child may either be a ContextItem or a subclass of
+  ContextSet. If a subclass of ContextSet, it lays out the widgets appropriately.
+* WidgetTemplate - This is the specific widget that manipulates the value of
+  the item and can provide an appropriate widget (e.g., field for entering an
+  expression, a checkbox for toggling true/false, etc.).
+'''
 import logging
 log = logging.getLogger(__name__)
 
@@ -16,6 +35,12 @@ from .expression import ExpressionNamespace
 
 
 class ContextItemValidator(Validator):
+    '''
+    Validates expression typed into a ContextItem field
+
+    This ensures that the expression can be evaluated at run-time if the
+    changes are applied.
+    '''
 
     plugin = Typed(object)
     item = Typed(object)
@@ -84,12 +109,19 @@ enamldef ContextMetaPopup(PopupView): cm_popup:
 ################################################################################
 # ContextItemTemplate
 ################################################################################
+def get_scope(default_scope, workbench):
+    for selector in workbench.get_plugin('psi.context').selectors.values():
+        if selector.user_managed:
+            return default_scope
+    return 'experiment'
+
+
 template ContextItemTemplate(row, MemberType: ContextRow):
     Container:
         padding = 0
         share_layout = True
         layout_constraints => ():
-            widgets = [c for c in children[:-1] if not isinstance(c, WidgetDynamicTemplate)]
+            widgets = [c for c in children[:-1] if not isinstance(c, DynamicTemplate)]
             widgets.append(spacer(0))
             constraints = [hbox(*widgets, spacing=5)]
             for item, widget in zip(row.fmt, widgets):
@@ -99,7 +131,8 @@ template ContextItemTemplate(row, MemberType: ContextRow):
             return constraints
         Looper:
             iterable << row.fmt[:]
-            WidgetDynamicTemplate:
+            DynamicTemplate:
+                base = WidgetTemplate
                 args = (loop_item, type(loop_item))
 
 
@@ -113,103 +146,84 @@ template ContextItemTemplate(context_item, MemberType: Result):
         text << context_item.label
 
 
-def get_scope(default_scope, workbench):
-    for selector in workbench.get_plugin('psi.context').selectors.values():
-        if selector.user_managed:
-            return default_scope
-    return 'experiment'
-
-
 template ContextItemTemplate(context_item, MemberType: Parameter):
-    DynamicTemplate:
-        base = ParameterTemplate
-        args << (context_item,
-                 type(context_item),
-                 get_scope(context_item.scope, workbench))
-
-
-template ParameterTemplate(context_item, MemberType, scope):
     HGroup: group:
         spacing = 5
         padding = 0
         share_layout = True
         align_widths = False
-        enabled << context_item.editable
-        Label: label:
+        enabled << can_edit(
+            get_scope(context_item.scope, workbench),
+            workbench.get_plugin('psi.controller').experiment_state,
+            context_item
+        )
+
+        Conditional:
+            condition = get_scope(context_item.scope, workbench) == 'trial'
+            CheckBox:
+                checked := context_item.rove
+
+        Label:
             text << context_item.label
-        WidgetDynamicTemplate:
-            pass
+
+        DynamicTemplate:
+            base = WidgetTemplate
+            args = (context_item, type(context_item))
 
 
-template ParameterTemplate(context_item, MemberType, scope: 'experiment'):
-    HGroup: group:
-        spacing = 5
-        padding = 0
-        share_layout = True
-        align_widths = False
-        enabled << workbench.get_plugin('psi.controller') \
-            .experiment_state not in ('running', 'paused') and \
-            context_item.editable
-        Label: label:
-            tool_tip << context_item.name
-            text << context_item.label
-        WidgetDynamicTemplate:
-            pass
-
-
-template ParameterTemplate(context_item, MemberType, scope: 'trial'):
-    HGroup: group:
-        spacing = 5
-        padding = 0
-        enabled << context_item.editable
-        share_layout = True
-        align_widths = False
-        CheckBox: label:
-            tool_tip << context_item.name
-            status_tip << context_item.name
-            text << context_item.label
-            checked := context_item.rove
-            checked ::
-                pass
-        WidgetDynamicTemplate:
-            pass
+def can_edit(scope, experiment_state, item):
+    if scope == 'experiment':
+        return experiment_state not in ('running', 'paused') and item.editable
+    return item.editable
 
 
 ################################################################################
 # WidgetTemplate
 ################################################################################
-enamldef WidgetDynamicTemplate(DynamicTemplate):
-    base = WidgetTemplate
-    args = (context_item, type(context_item))
-
-
 template WidgetTemplate(context_item, MemberType):
+    '''
+    Default template for ContextItem providing a basic text field for entering
+    the value or expression.
+    '''
     Field:
         text := context_item.expression
-        validator << ContextItemValidator(plugin=workbench.get_plugin('psi.context'), item=context_item)
+        validator << ContextItemValidator(
+            plugin=workbench.get_plugin('psi.context'),
+            item=context_item
+        )
         submit_triggers = ['lost_focus', 'return_pressed', 'auto_sync']
 
 
 template WidgetTemplate(context_item, MemberType: str):
+    '''
+    Default template for a basic string.
+
+    This is a special-case required by the ContextItemTemplate for ContextRow.
+    '''
     Label:
         text << context_item
 
 
 template WidgetTemplate(context_item, MemberType: EnumParameter):
+    '''
+    Default template for EnumParameter providing a drop-down with the list of
+    choices for that parameter.
+    '''
     ObjectCombo:
         items << sorted(context_item.choices.keys())
         selected := context_item.selected
 
 
 template WidgetTemplate(context_item, MemberType: BoolParameter):
+    '''
+    Default template for BoolParameter providing a checkbox that toggles the
+    value (checked is True, unchecked is False).
+    '''
     CheckBox:
         text = ''
         checked << eval(context_item.expression)
         toggled ::
-            if checked:
-                context_item.expression = 'True'
-            else:
-                context_item.expression = 'False'
+            context_item.expression = 'True' if checked else 'False'
 
 
 ################################################################################
