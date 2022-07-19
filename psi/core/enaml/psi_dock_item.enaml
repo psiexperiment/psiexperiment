@@ -1,0 +1,7 @@
+enamldef PSIDockItem(DockItem): di:
+
+    closable = False
+
+    Container:
+        Include:
+            objects << plugin._widgets[di.name].values()
