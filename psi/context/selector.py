@@ -136,11 +136,9 @@ class BaseSelector(PSIContribution):
     '''
     Defines a selector where items can be added/removed
     '''
+    name = set_default('default')
     symbols = Typed(dict, {})
     updated = Event()
-
-    def _default_name(self):
-        return 'default'
 
     #: Can the user manage the selector by manually selecting items to rove in
     #: the GUI? If False, the experiment paradigm needs to handle the selection
