@@ -370,15 +370,6 @@ class ContextPlugin(PSIPlugin):
     def get_context_info(self):
         return dict((i, self.get_item_info(i)) for i in self.context_items)
 
-    def next(self, save_prior, selector, results):
-        '''
-        Shortcut for advancing to the next setting.
-        '''
-        log.debug('Next')
-        self.next_setting(save_prior)
-        self.next_selector_setting(selector)
-        self.set_values(results)
-
     def next_setting(self, selector=None):
         '''
         Load next set of expressions. If there are no selectors defined, then
