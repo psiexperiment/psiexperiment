@@ -44,8 +44,8 @@ class Channel(PSIContribution):
     engine = Property().tag(metadata=True)
 
     # Calibration of channel
-    calibration = d_(Typed(BaseCalibration, factory=FlatCalibration.unity))
-    calibration.tag(metadata=True)
+    calibration = d_(Typed(BaseCalibration, factory=FlatCalibration.unity)) \
+        .tag(metadata=True)
 
     # Can the user modify the channel calibration?
     calibration_user_editable = d_(Bool(False)).tag(metadata=True)
