@@ -291,6 +291,7 @@ enamldef ABRIOBaseManifest(ABRBaseManifest): manifest:
                     plot_grouping = C.get_names()[-1:]
                     fmt_plot_label_cb << C.get_selector().get_formatter(plot_grouping)
                     pen_width = 2
+                    pen_color_cycle = ['k']
                     tab_keys >> time_container.buttons
                     selected_tab := time_container.current_button
                     auto_select := time_container.auto_select
