@@ -202,7 +202,8 @@ enamldef ABRIOBaseManifest(ABRBaseManifest): manifest:
         ContextRow:
             name = 'averaging'
             group_name = 'acquisition'
-            fmt = ['Average', averages, 'trials at', rate, 'per sec. and alternate polarity?', alt_pol]
+            fmt = ['Average', averages, 'trials at', rate,
+                   'per sec. and alternate polarity?', alt_pol]
 
             Parameter: averages:
                 name = 'averages'
