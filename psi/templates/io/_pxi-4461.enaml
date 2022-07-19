@@ -13,9 +13,7 @@ from psi.controller.calibration.api import FlatCalibration
 
 
 def mv_to_C(mv):
-    print(mv)
     c = (mv-0.050)/0.020 + 35
-    print(c)
     m = (c < 35) | (c > 40)
     c[m] = np.nan
     return c
@@ -105,6 +103,9 @@ enamldef IOManifest(PluginManifest): manifest:
                 dtype = 'float64'
                 terminal_mode = 'pseudodifferential'
                 calibration = FlatCalibration.as_attenuation()
+                #: The nominal max range in the spec sheet is higher, but we clip it to a
+                #: reasonable range to avoid damaging connected equipment.
+                max_range = (-1.0, 1.0)
 
             NIDAQHardwareAOChannel:
                 label = 'Speaker 2'
@@ -144,3 +145,6 @@ enamldef IOManifest(PluginManifest): manifest:
                 terminal_coupling = 'DC'
                 gain = 40
                 calibration_user_editable = True
+                #: The nominal max range in the spec sheet is higher, but we clip it to a
+                #: reasonable range to avoid damaging connected equipment.
+                max_range = (-1.0, 1.0)
