@@ -64,11 +64,11 @@ ParadigmDescription(
 
 
 
-ParadigmDescription(
-    'memr_simultaneous', 'MEMR (simultaneous)', 'ear', [
-        {'manifest': CFTS_PATH + 'memr.SimultaneousMEMRManifest'},
-    ] + base_mixins,
-)
+#ParadigmDescription(
+#    'memr_simultaneous', 'MEMR (simultaneous)', 'ear', [
+#        {'manifest': CFTS_PATH + 'memr.SimultaneousMEMRManifest'},
+#    ] + base_mixins,
+#)
 
 
 ParadigmDescription(
