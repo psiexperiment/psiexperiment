@@ -406,7 +406,8 @@ class ControllerPlugin(Plugin):
             return self._outputs[output_name]
         except KeyError as e:
             outputs = ', '.join(self._outputs.keys())
-            m = f'No such output "{output_name}". Valid outputs are {outputs}'
+            m = f'No such output "{output_name}". Valid outputs are {outputs}. ' \
+                'Did you accidentally specify a channel name instead?'
             raise ValueError(m) from e
 
     def get_input(self, input_name):
