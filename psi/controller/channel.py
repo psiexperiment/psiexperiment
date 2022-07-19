@@ -3,7 +3,7 @@ log = logging.getLogger(__name__)
 
 import numpy as np
 
-from atom.api import (Bool, Float, Int, List, Property, Tuple, Typed, Str)
+from atom.api import (Bool, Float, Int, List, observe, Property, Str, Tuple, Typed)
 from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
 
@@ -142,8 +142,24 @@ class InputMixin(Declarative):
 
 class AnalogMixin(Declarative):
 
-    # Expected input range (min/max)
+    #: Expected range of signal (min/max). Some backends (e.g., niDAQmx) can
+    #: set hardware-based gains on certain channels (e.g., analog inputs and
+    #: outputs of a PXI-4661) to optimize the SNR for the expected range.
     expected_range = d_(Tuple()).tag(metadata=True)
+
+    #: Maximum allowable range of signal. This sets a hard upper bound on the
+    #: expected range.
+    max_range = d_(Tuple(default=(-np.inf, np.inf))).tag(metadata=True)
+
+    @observe('expected_range', 'max_range')
+    def _validate_range(self, event):
+        e_lb, e_ub = self.expected_range
+        m_lb, m_ub = self.max_range
+        valid = (m_lb <= e_lb < m_ub) and (m_lb < e_ub <= m_ub)
+        if not valid:
+            m = f'Expected range of {self.expected_range} ' \
+                f'exceeds max range of {self.max_range} for {self}.'
+            raise ValueError(m)
 
 
 class DigitalMixin(Declarative):
