@@ -73,7 +73,7 @@ def check_sequence(f):
     @wraps(f)
     def wrapper(sequence, *args, **kw):
         if len(sequence) == 0:
-            raise ValueError("Cannot use an empty sequence")
+            log.warning('Empty sequence')
         sequence = sequence[:]
         return f(sequence, *args, **kw)
     return wrapper
