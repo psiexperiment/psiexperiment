@@ -86,7 +86,7 @@ class ContextPlugin(PSIPlugin):
     symbols = Typed(dict, ())
 
     # Reflects state of selectors and context_items as currently applied.
-    _context_item_state = Typed(dict, ())
+    _parameter_state = Typed(dict, ())
     _selector_state = Typed(dict, ())
     _selectors = Typed(dict, ())
 
@@ -207,7 +207,6 @@ class ContextPlugin(PSIPlugin):
                          expression.parameter, expression.expression)
 
         load_manifests(context_groups.values(), self.workbench)
-        log.error('\n'.join(context_items.keys()))
         self.context_expressions = context_expressions
         self.context_items = context_items
         self.context_groups = context_groups
@@ -413,8 +412,8 @@ class ContextPlugin(PSIPlugin):
 
     def _check_for_changes(self):
         log.debug('Checking for changes')
-        for name, state in self._context_item_state.items():
-            if name not in self.context_items:
+        for name, state in self._parameter_state.items():
+            if name not in self.parameters:
                 log.debug('%s not in context item state. changes pending.', name)
                 self.changes_pending = True
                 return
@@ -430,7 +429,7 @@ class ContextPlugin(PSIPlugin):
 
     def apply_changes(self, cycles=np.inf):
         log.debug('Applying changes')
-        self._apply_context_item_state()
+        self._apply_parameter_state()
         self._apply_selector_state()
         self._namespace.update_expressions(self.expressions)
         self._namespace.update_symbols(self.symbols)
@@ -440,7 +439,7 @@ class ContextPlugin(PSIPlugin):
 
     def revert_changes(self):
         log.debug('Reverting changes')
-        self._revert_context_item_state()
+        self._revert_parameter_state()
         self._revert_selector_state()
         self.changes_pending = False
 
@@ -466,12 +465,12 @@ class ContextPlugin(PSIPlugin):
         for name, state in self._selector_state.items():
             self.selectors[name].__setstate__(deepcopy(state))
 
-    def _apply_context_item_state(self):
-        state = {n: get_preferences(i) for n, i in self.context_items.items()}
-        self._context_item_state = state
+    def _apply_parameter_state(self):
+        state = {n: get_preferences(i) for n, i in self.parameters.items()}
+        self._parameter_state = state
 
-    def _revert_context_item_state(self):
-        for name, state in self._context_item_state.items():
+    def _revert_parameter_state(self):
+        for name, state in self._parameter_state.items():
             self.context_items[name].__setstate__(deepcopy(state))
 
     @property
