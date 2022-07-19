@@ -325,9 +325,7 @@ class SequenceSelector(BaseSelector):
     def add_setting(self, values=None, index=None):
         if values is None:
             values = {}
-        for item in self.context_items:
-            if item.name not in values:
-                values[item.name] = item.default
+        values = {i.name: values.get(i.name, i.default) for i in self.context_items}
         settings = self.settings[:]
         if index is None:
             settings.append(values)
