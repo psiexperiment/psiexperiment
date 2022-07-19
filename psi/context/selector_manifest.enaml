@@ -5,7 +5,7 @@ from functools import partial
 import re
 import textwrap
 from atom.api import Typed
-from enaml.core.api import Conditional, d_, Include, Looper
+from enaml.core.api import Conditional, d_, DynamicTemplate, Include, Looper
 from enaml.drag_drop import DragData, DropAction
 from enaml.layout.api import vbox, hbox, spacer, align
 from enaml.stdlib.fields import FloatField
@@ -20,11 +20,26 @@ from psi.controller.api import ExperimentAction
 from psi.core.enaml.editable_table_widget import EditableTable, ListTable
 from psi.core.enaml.api import PSIManifest
 
-from . import selector as selector_classes
+from . import selector as sc
 
 
 enamldef BaseSelectorManifest(PSIManifest): manifest:
-    pass
+
+    Conditional:
+        condition << manifest.contribution.show_widget
+
+        Extension:
+            id = 'selector.' + manifest.contribution.name
+            point = 'psi.experiment.workspace'
+
+            DockItem:
+                closable = False
+                name = manifest.contribution.name + '.selector'
+                title = manifest.contribution.label
+
+                DynamicTemplate:
+                    base = SelectorTemplate
+                    args = (manifest.contribution, type(manifest.contribution))
 
 
 class SettingFieldValidator(Validator):
@@ -89,19 +104,10 @@ enamldef SingleSettingContainer(Container):
                                                  selector.setting)
 
 
-enamldef SingleSettingManifest(BaseSelectorManifest): manifest:
+template SelectorTemplate(selector, MemberType: sc.SingleSetting):
 
-    Extension:
-        id = 'selector.' + manifest.contribution.name
-        point = 'psi.experiment.workspace'
-
-        DockItem:
-            closable = False
-            name = manifest.contribution.name + '.selector'
-            title = manifest.contribution.label
-
-            SingleSettingContainer:
-                selector = manifest.contribution
+    SingleSettingContainer:
+        pass
 
 
 ################################################################################
@@ -109,7 +115,7 @@ enamldef SingleSettingManifest(BaseSelectorManifest): manifest:
 ################################################################################
 class SequenceTable(EditableTable):
 
-    selector = d_(Typed(selector_classes.SequenceSelector))
+    selector = d_(Typed(sc.SequenceSelector))
     select_behavior = 'rows'
     select_mode = 'extended'
 
@@ -185,19 +191,10 @@ enamldef SequenceSelectorContainer(Container): container:
             selector << container.selector
 
 
-enamldef SequenceSelectorManifest(BaseSelectorManifest): manifest:
+template SelectorTemplate(selector, MemberType: sc.SequenceSelector):
 
-    Extension:
-        id = 'selector.' + manifest.contribution.name
-        point = 'psi.experiment.workspace'
-
-        DockItem:
-            closable = False
-            name = manifest.contribution.name + '.selector'
-            title = manifest.contribution.label
-
-            SequenceSelectorContainer:
-                selector << manifest.contribution
+    SequenceSelectorContainer:
+        selector = selector
 
 
 ################################################################################
@@ -235,6 +232,12 @@ enamldef CartesianProductManifest(BaseSelectorManifest): manifest:
 
             CartesianProductContainer:
                 selector = manifest.contribution
+
+
+template SelectorTemplate(selector, MemberType: sc.CartesianProduct):
+
+    CartesianProductContainer:
+        selector = selector
 
 
 ################################################################################
@@ -414,6 +417,12 @@ def friendly_cartesian_product_update_context(selector, event):
             item.visible = False
 
 
+template SelectorTemplate(selector, MemberType: sc.FriendlyCartesianProduct):
+
+    FriendlyCartesianProductContainer:
+        selector = selector
+
+
 enamldef FriendlyCartesianProductManifest(BaseSelectorManifest): manifest:
 
     Extension:
@@ -432,15 +441,3 @@ enamldef FriendlyCartesianProductManifest(BaseSelectorManifest): manifest:
         ExperimentAction:
             event = 'plugins_started'
             command = manifest.contribution.name + '.update_context'
-
-    Extension:
-        id = manifest.contribution.name + '.selector'
-        point = 'psi.experiment.workspace'
-
-        DockItem:
-            closable = False
-            name = manifest.contribution.name + '.selector'
-            title = manifest.contribution.label
-
-            FriendlyCartesianProductContainer:
-                selector = manifest.contribution

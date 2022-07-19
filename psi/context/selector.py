@@ -139,6 +139,7 @@ class BaseSelector(PSIContribution):
     name = set_default('default')
     symbols = Typed(dict, {})
     updated = Event()
+    show_widget = d_(Bool(True))
 
     #: Can the user manage the selector by manually selecting items to rove in
     #: the GUI? If False, the experiment paradigm needs to handle the selection
