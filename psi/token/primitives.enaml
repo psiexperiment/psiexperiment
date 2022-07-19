@@ -4,10 +4,11 @@ import logging
 log = logging.getLogger(__name__)
 
 from psiaudio.stim import (
-    BandlimitedNoiseFactory, BroadbandNoiseFactory, ChirpFactory,
-    Cos2EnvelopeFactory, GateFactory, RepeatFactory, SAMEnvelopeFactory,
-    ShapedNoiseFactory, SilenceFactory, SquareWaveEnvelopeFactory,
-    SquareWaveFactory, ToneFactory, WavSequenceFactory
+    BandlimitedClickFactory, BandlimitedNoiseFactory, BroadbandNoiseFactory,
+    ChirpFactory, Cos2EnvelopeFactory, GateFactory, RepeatFactory,
+    SAMEnvelopeFactory, ShapedNoiseFactory, SilenceFactory,
+    SquareWaveEnvelopeFactory, SquareWaveFactory, ToneFactory,
+    WavSequenceFactory
 )
 
 from psi.context.api import Parameter, EnumParameter
@@ -310,6 +311,33 @@ enamldef Chirp(EpochBlock):
         name = 'duration'
         label = 'duration (sec)'
         default = 1/50.0
+
+
+enamldef BandlimitedClick(EpochBlock):
+
+    factory = BandlimitedClickFactory
+    name = 'bandlimited_click'
+    label = 'bandlimited click'
+
+    Parameter:
+        name = 'flb'
+        label = 'start frequency (Hz)'
+        default = 8e3
+
+    Parameter:
+        name = 'fub'
+        label = 'end frequency (Hz)'
+        default = 32e3
+
+    Parameter:
+        name = 'window'
+        label = 'window (s)'
+        default = 5e-3
+
+    Parameter:
+        name = 'level'
+        label = 'level (dB)'
+        default = 1
 
 
 enamldef WavSequence(ContinuousBlock):

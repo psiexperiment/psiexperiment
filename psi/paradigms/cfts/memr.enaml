@@ -11,10 +11,13 @@ from psiaudio.queue import GroupedFIFOSignalQueue
 from psiaudio import util
 
 from psi.context.api import ContextGroup, Expression, Parameter
-from psi.controller.api import (Blocked, ControllerManifest,
-                                Coroutine, ExperimentAction, ExtractEpochs,
-                                Synchronized)
-from psi.token.primitives import BandlimitedNoise, Chirp, Cos2Envelope, Repeat
+from psi.controller.api import (
+    Blocked, ControllerManifest, Coroutine, ExperimentAction, ExtractEpochs,
+    Synchronized
+)
+from psi.token.primitives import (
+    BandlimitedClick, BandlimitedNoise, Cos2Envelope, Repeat
+)
 from psi.data.api import FFTContainer, ViewBox
 from psi.data.sinks.api import BinaryStore, TextStore
 
@@ -163,9 +166,9 @@ enamldef BaseMEMRManifest(ControllerManifest): manifest:
         point = 'psi.token.tokens'
 
         Repeat: probe:
-            name = 'chirp'
+            name = 'click'
             hide = ['skip_n']
-            Chirp:
+            BandlimitedClick:
                 pass
 
     Extension:
@@ -425,8 +428,8 @@ enamldef InterleavedMEMRManifest(BaseMEMRManifest):
             expression = '5e-3'
 
         Expression:
-            parameter = 'probe_chirp_delay'
-            expression = 'repeat_period - elicitor_duration - analysis_window'
+            parameter = 'probe_click_delay'
+            expression = 'repeat_period - elicitor_duration - analysis_window - probe_bandlimited_click_window'
 
         Expression:
             parameter = 'elicitor_envelope_start_time'
