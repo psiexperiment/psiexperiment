@@ -181,7 +181,7 @@ class Signal:
         for j, i in enumerate(indices):
             # This hack is in-place to handle legacy data that was stored in 1D
             # format rather than the newer 2D format.
-            if self.ndim == 1:
+            if len(self.shape) == 1:
                 if channel != 0:
                     raise ValueError(f'Data is 1D. Cannot load channel {channel}.')
                 v = self[i:i+samples]
