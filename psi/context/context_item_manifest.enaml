@@ -4,7 +4,7 @@ log = logging.getLogger(__name__)
 from enaml.core.api import Conditional, Looper
 from enaml.layout.api import align, vbox
 from enaml.styling import StyleSheet, Style, Setter
-from enaml.widgets.api import Container, DockItem
+from enaml.widgets.api import CheckBox, Container, DockItem, Label
 from enaml.widgets.constraints_widget import ConstraintsWidget
 from enaml.workbench.api import Extension
 
@@ -13,7 +13,7 @@ from .context_item_view import ContextItemView
 
 
 def update_looper(group, looper, *args, **kw):
-    looper.iterable = [c for c in group.items if c.visible]
+    looper.iterable = [c for c in group.subgroups if c.visible]
     looper.refresh_items()
 
 
@@ -29,15 +29,24 @@ enamldef ContextDockItem(DockItem):
         layout_constraints => ():
             widgets = [c for c in children if isinstance(c, ContextItemView)]
             constraints = [vbox(*widgets, spacing=5)]
+
+            # Now, scan for the first alignable item in each subwidget. The
+            # subwidget is typically a container of some kind and the first
+            # widget will almost certainly be a Label or CheckBox. If not, well
+            # ... it's out of luck.
             subwidgets = []
             for w in widgets:
-                subwidget = [w for w in w.children if isinstance(w, ConstraintsWidget)][0]
-                subwidgets.append(subwidget)
+                for w in w.traverse():
+                    if isinstance(w, (CheckBox, Label)):
+                        log.error(w)
+                        subwidgets.append(w)
+                        break
+
             constraints.append(align('right', *subwidgets))
             return constraints
 
         Looper: looper:
-            iterable << [c for c in group.items if c.visible]
+            iterable << [c for c in group.subgroups if c.visible]
             ContextItemView:
                 context_item = loop_item
 
