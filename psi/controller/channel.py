@@ -152,7 +152,7 @@ class AnalogMixin(Declarative):
     max_range = d_(Tuple(default=(-np.inf, np.inf))).tag(metadata=True)
 
     @observe('expected_range', 'max_range')
-    def _validate_range(self, event):
+    def _check_range(self, event):
         e_lb, e_ub = self.expected_range
         m_lb, m_ub = self.max_range
         valid = (m_lb <= e_lb < m_ub) and (m_lb < e_ub <= m_ub)
