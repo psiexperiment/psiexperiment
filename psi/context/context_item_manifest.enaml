@@ -9,7 +9,7 @@ from enaml.widgets.constraints_widget import ConstraintsWidget
 from enaml.workbench.api import Extension
 
 from psi.core.enaml.api import PSIManifest
-from .context_item_view import ContextItem
+from .context_item_view import ContextItemView
 
 
 def update_looper(group, looper, *args, **kw):
@@ -27,19 +27,18 @@ enamldef ContextDockItem(DockItem):
 
     Container:
         layout_constraints => ():
-            widgets = [c for c in children if isinstance(c, ContextItem)]
+            widgets = [c for c in children if isinstance(c, ContextItemView)]
             constraints = [vbox(*widgets, spacing=5)]
             subwidgets = []
             for w in widgets:
                 subwidget = [w for w in w.children if isinstance(w, ConstraintsWidget)][0]
-                subwidget = [w for w in subwidget.children if isinstance(w, ConstraintsWidget)][0]
                 subwidgets.append(subwidget)
             constraints.append(align('right', *subwidgets))
             return constraints
 
         Looper: looper:
             iterable << [c for c in group.items if c.visible]
-            ContextItem:
+            ContextItemView:
                 context_item = loop_item
 
 
