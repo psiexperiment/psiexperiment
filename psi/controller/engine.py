@@ -15,26 +15,6 @@ from .channel import (Channel, AnalogMixin, DigitalMixin, HardwareMixin,
                       SoftwareMixin, OutputMixin, InputMixin, CounterMixin)
 
 
-class LogLock:
-
-    def __init__(self, name):
-        self.name = str(name)
-        self.lock = threading.Lock()
-
-    def acquire(self, blocking=True):
-        return self.lock.acquire(blocking)
-
-    def release(self):
-        return self.lock.release()
-
-    def __enter__(self):
-        self.acquire()
-
-    def __exit__(self, exc_type, exc_val, exc_tb):
-        self.release()
-        return False    # Do not swallow exceptions
-
-
 class Engine(PSIContribution):
     '''
     Defines hardware-specific interface
@@ -60,6 +40,7 @@ class Engine(PSIContribution):
     #: determined by the engine that controls that particular device).
     master_clock = d_(Bool(False)).tag(metadata=True)
 
+    #: Used to ensure synchronization of threads.
     lock = Value()
 
     #: True if the hardware has been configured.
@@ -80,7 +61,7 @@ class Engine(PSIContribution):
     hw_ao_monitor_period = d_(Float(1)).tag(metadata=True)
 
     def _default_lock(self):
-        return LogLock(self.name)
+        return threading.Lock()
 
     def get_channels(self, mode=None, direction=None, timing=None,
                      active=True):
