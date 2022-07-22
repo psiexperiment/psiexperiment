@@ -1,3 +1,14 @@
+'''
+Developer tips
+--------------
+
+Sampling rate
+.............
+
+When providing sampling rate to pipeline coroutines, you usually want the
+sampling rate of the input data (``self.source.fs``) rather than the sampling
+rate of the coroutine output (``self.fs``).
+'''
 import logging
 
 log = logging.getLogger(__name__)
@@ -7,9 +18,6 @@ from functools import partial
 
 import numpy as np
 from scipy import signal
-
-from atom.api import (Str, Float, Typed, Int, Property, Enum, Bool,
-                      Callable, List, Tuple, set_default)
 
 from atom.api import (
     Bool, Callable, Dict, Enum, Float, Int, List, Property, set_default, Str,
@@ -383,15 +391,48 @@ class Downsample(ContinuousInput):
         return pipeline.downsample(self.q, cb).send
 
 
-class Decimate(ContinuousInput):
-    q = d_(Int()).tag(metadata=True)
-
+class _Decimate(ContinuousInput):
+    '''
+    Base class for two approaches to decimation (either specifying the
+    downsampling factor directly or the desired sampling rate).
+    '''
     def _get_fs(self):
         return self.source.fs / self.q
 
     def configure_callback(self):
         cb = super().configure_callback()
         return pipeline.decimate(self.q, cb).send
+
+
+class Decimate(_Decimate):
+    '''
+    Decimate the acquired data to every q samples.
+
+    Applys a chebyshev filter prior to decimation. Properly handles filter
+    history.
+    '''
+    q = d_(Int()).tag(metadata=True)
+
+
+class DecimateTo(_Decimate):
+    '''
+    Decimate the acquired data as close to the target sampling rate as
+    possible.
+
+    Applies a chebyshev filter prior to decimation. Properly handles filter
+    history.
+    '''
+    #: Target sampling rate. Since decimation applies a lowpass filter prior to
+    #: taking every q samples, the actual sampling rate will be an integer
+    #: divisor of the source sampling rate. The actual sampling rate, fs, will
+    #: never be less than target_fs.
+    target_fs = d_(Float()).tag(metadata=True)
+
+    #: Computed decimation factor.
+    q = Property().tag(metadata=True)
+
+    def _get_q(self):
+        return int(np.floor(self.source.fs / self.target_fs))
 
 
 class Discard(ContinuousInput):
@@ -409,6 +450,23 @@ class Threshold(Transform):
 
     def _default_function(self):
         return lambda x, t=self.threshold: x >= t
+
+
+class AutoThreshold(ContinuousInput):
+    '''
+    Automatically threshold data as `n` standard deviations computed over
+    a window that is `baseline` seconds long.
+    '''
+    #: Number of standard deviations to set threshold at
+    n = d_(Int(4))
+
+    #: Duration, in seconds, to calculate threshold over.
+    baseline = d_(Float(30))
+
+    def configure_callback(self):
+        cb = super().configure_callback()
+        return pipeline.auto_th(self.n, self.baseline, cb,
+                                fs=self.parent.fs).send
 
 
 class Average(ContinuousInput):
@@ -446,12 +504,21 @@ class Bitmask(Transform):
 class Edges(EventInput):
 
     initial_state = d_(Int(0)).tag(metadata=True)
+
+    #: Minimum number of samples required before a change is registered. This
+    #: is effectively a means of "debouncing" the signal. The change time is
+    #: the time at which the change occurred, not the time at which the minimum
+    #: number of samples criterion was met.
     debounce = d_(Int(2)).tag(metadata=True)
+
+    #: Edges to detect.
+    detect = d_(Enum('rising', 'falling', 'both')).tag(metadata=True)
 
     def configure_callback(self):
         cb = super().configure_callback()
-        return pipeline.edges(self.initial_state, self.debounce, self.fs,
-                              cb).send
+        return pipeline.edges(min_samples=self.debounce,
+                              initial_state=self.initial_state, target=cb,
+                              fs=self.fs, detect=self.detect).send
 
 
 class EventsToInfo(EventInput):
@@ -463,6 +530,41 @@ class EventsToInfo(EventInput):
         cb = super().configure_callback()
         return pipeline.events_to_info(self.trigger_edge, self.base_info,
                                        cb).send
+
+
+class EventRate(EventInput):
+    '''
+    Calculate the rate at which events occur using a sliding temporal window.
+    '''
+
+    #: Size of window, in seconds, to calculate event rate over.
+    block_size = d_(Float(1)).tag(metadata=True)
+
+    #: Increment, in seconds, to advance window before calculating next event
+    #: rate.
+    block_step = d_(Float(0.25)).tag(metadata=True)
+
+    #: Increment, in samples, to advance window before calculating next event
+    #: rate. Automatically calculated from input sampling rate and block_size.
+    block_size_samples = Property().tag(metadata=True)
+
+    #: Increment, in samples, to advance window before calculating next event
+    #: rate. Automatically calculated from input sampling rate and block_step.
+    block_step_samples = Property().tag(metadata=True)
+
+    def _get_block_step_samples(self):
+        return int(np.round(self.block_step * self.parent.fs))
+
+    def _get_block_size_samples(self):
+        return int(np.round(self.block_size * self.parent.fs))
+
+    def _get_fs(self):
+        return self.parent.fs / self.block_step_samples
+
+    def configure_callback(self):
+        cb = super().configure_callback()
+        return pipeline.event_rate(self.block_size_samples,
+                                   self.block_step_samples, cb).send
 
 
 ################################################################################

@@ -1,21 +1,18 @@
 import logging
 log = logging.getLogger(__name__)
-from functools import partial 
+from functools import partial
 import numpy as np
 
-from atom.api import Property
 from enaml.core.api import Conditional
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
-from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
-from enaml.widgets.api import Label, ProgressBar, HGroup
+from enaml.widgets.api import ProgressBar
 
 from .experiment_action import (ExperimentEvent, ExperimentState,
                                 ExperimentAction)
 
-from psi.context.api import Parameter, ContextGroup
 from psi.core.enaml.api import PSIManifest
-from psi.util import declarative_to_dict, get_dependencies
+from psi.util import declarative_to_dict
 from psi.experiment.api import StatusItem
 
 
