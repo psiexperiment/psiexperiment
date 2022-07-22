@@ -3,7 +3,9 @@ log = logging.getLogger(__name__)
 
 import numpy as np
 
-from atom.api import (Bool, Float, Int, List, observe, Property, Str, Tuple, Typed)
+from atom.api import (
+    Bool, Float, Int, List, Property, Tuple, Typed, set_default, Str
+)
 from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
 
@@ -21,7 +23,7 @@ class Channel(PSIContribution):
     type_code = Str()
 
     #: Unique reference label used for tracking identity throughout
-    #: psiexperiment
+    #: psiexperiment.
     reference = Str().tag(metadata=True)
 
     #: Label of channel used in GUI
@@ -227,12 +229,12 @@ class HardwareAOChannel(AnalogMixin, OutputMixin, HardwareMixin, Channel):
 
 class SoftwareAOChannel(AnalogMixin, OutputMixin, SoftwareMixin, Channel):
 
-    type_code = 'sw_ao'
+    type_code = set_default('sw_ao')
 
 
 class HardwareAIChannel(AnalogMixin, InputMixin, HardwareMixin, Channel):
 
-    type_code = 'hw_ai'
+    type_code = set_default('hw_ai')
 
     #: Gain in dB of channel (e.g., due to a microphone preamp). The signal
     #: will be scaled down before further processing.
@@ -241,7 +243,7 @@ class HardwareAIChannel(AnalogMixin, InputMixin, HardwareMixin, Channel):
 
 class SoftwareAIChannel(AnalogMixin, InputMixin, SoftwareMixin, Channel):
 
-    type_code = 'sw_ai'
+    type_code = set_default('sw_ai')
 
     # Gain in dB of channel (e.g., due to a microphone preamp). The signal will
     # be scaled down before further processing.
@@ -250,19 +252,19 @@ class SoftwareAIChannel(AnalogMixin, InputMixin, SoftwareMixin, Channel):
 
 class HardwareDOChannel(DigitalMixin, OutputMixin, HardwareMixin, Channel):
 
-    type_code = 'hw_do'
+    type_code = set_default('hw_do')
 
 
 class SoftwareDOChannel(DigitalMixin, OutputMixin, SoftwareMixin, Channel):
 
-    type_code = 'sw_do'
+    type_code = set_default('sw_do')
 
 
 class HardwareDIChannel(DigitalMixin, InputMixin, HardwareMixin, Channel):
 
-    type_code = 'hw_di'
+    type_code = set_default('hw_di')
 
 
 class SoftwareDIChannel(DigitalMixin, InputMixin, SoftwareMixin, Channel):
 
-    type_code = 'sw_di'
+    type_code = set_default('sw_di')
