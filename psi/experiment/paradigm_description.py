@@ -117,6 +117,11 @@ class ParadigmDescription:
         for p in self.plugins:
             if p.name == plugin_name:
                 p.selected = True
+                break
+        else:
+            choices = ', '.join(p.name for p in self.plugins)
+            raise ValueError(f'Plugin {plugin_name} not found. ' \
+                             f'Valid plugins are {choices}.')
 
     def disable_plugin(self, plugin_name):
         for p in self.plugins:

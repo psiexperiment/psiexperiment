@@ -9,7 +9,7 @@ from enaml.workbench.api import Extension, ExtensionPoint, PluginManifest
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, Branding, MenuItem
 
-from ..util import rpc
+from ..util import get_tagged_values, rpc
 
 from .plugin import ControllerPlugin
 from .experiment_action import (ExperimentState, ExperimentEvent,
@@ -65,7 +65,11 @@ def accumulate_io_tree(plugin):
 
 
 def _accumulate_io_tree(accumulator, obj, direction, prefix=''):
-    accumulator.append(f'{prefix} * {obj._default_name()} (fs={getattr(obj, "fs", None)})')
+    md = get_tagged_values(obj, 'metadata')
+    exclude = {'engine', 'outputs', 'inputs', 'channel', 'source_name',
+               'calibration', 'source', 'force_active', 'unit', 'dtype'}
+    md_string = ', '.join(f'{k}={v}' for k, v in md.items() if k not in exclude)
+    accumulator.append(f'{prefix} * {obj._default_name()} ({md_string})')
     for i in getattr(obj, direction, []):
         _accumulate_io_tree(accumulator, i, direction, f'{prefix} |')
 
