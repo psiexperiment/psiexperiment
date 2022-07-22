@@ -628,6 +628,7 @@ class ChannelPlot(SinglePlot):
                     deferred_call(self.plot.setData, t, d)
         else:
             t = t[:len(data)]
+            data = data[:len(t)]
             if t.shape == data.shape:
                 deferred_call(self.plot.setData, t, data)
 
