@@ -188,17 +188,17 @@ class ContextItem(Declarative):
         return f'<{self.__class__.__name__}: {self}>'
 
     def __str__(self):
+        flags = [f'scope {self.scope}']
         if isinstance(self.parent, ContextGroup):
-            l = f'{self.name} in {self.parent.name}'
+            flags.append(f'group {self.parent.name}')
         elif self.group_name:
-            l =  f'{self.name} in {self.group_name}'
-        else:
-            l = f'{self.name}'
+            flags.append(f'group {self.group_name}')
         if not self.visible:
-            l = f'{l} (not visible)'
+            flags.append('not visible')
         if not self.editable:
-            l = f'{l} (not editable)'
-        return l
+            flags.append('not ediable')
+        flags = ', '.join(flags)
+        return f'{self.name} ({flags})'
 
 
 class Result(ContextItem):

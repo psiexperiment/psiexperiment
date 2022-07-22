@@ -99,6 +99,9 @@ class Channel(PSIContribution):
     def __str__(self):
         return self.label
 
+    def __repr__(self):
+        return f'<Channel:{self.reference}>'
+
 
 class HardwareMixin(Declarative):
 
