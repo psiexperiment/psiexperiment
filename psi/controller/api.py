@@ -7,11 +7,11 @@ from .channel import (
 from .engine import Engine
 
 from .input import (
-    Accumulate, Average, Bitmask, Blocked, CalibratedInput, Callback, Capture,
-    ContinuousInput, Coroutine, Decimate, Delay, Detrend, Discard, Downsample,
-    Edges, EpochInput, EventInput, EventsToInfo, ExtractEpochs,
-    IIRFilter,Input, MCReference, MCSelect , RejectEpochs, RMS, SPL, Threshold,
-    Transform
+    Accumulate, AutoThreshold, Average, Bitmask, Blocked, CalibratedInput,
+    Callback, Capture, ContinuousInput, Coroutine, Decimate, DecimateTo, Delay,
+    Detrend, Discard, Downsample, Edges, EpochInput, EventInput, EventRate,
+    EventsToInfo, ExtractEpochs, IIRFilter,Input, MCReference, MCSelect ,
+    RejectEpochs, RMS, SPL, Threshold, Transform
 )
 
 from .output import (
@@ -33,4 +33,5 @@ with enaml.imports():
     from .output_manifest import (
         EpochOutputManifest, generate_waveform, QueuedEpochOutputManifest
     )
+    from .input_manifest import InputManifest
     from .input_primitives import ADC
