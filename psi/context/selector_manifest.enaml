@@ -400,10 +400,14 @@ def friendly_cartesian_product_update_context(selector, event):
     # Updates context items to mark those that cannot be managed by the
     # selector (because the information has not been provided in
     # `context_detail`). These items cannot be roved, and the scope will be set
-    # to "experiment".
+    # to "experiment". Only parameters for which scope is set to "trial" will
+    # be updated since these are the only ones that can be roved by default.
+    # The "arbitrary" scope is typically reserved for values that are not tied
+    # to specific trials, but can be modified during an experiment (e.g.,
+    # thresholding input data).
     context = event.workbench.get_plugin('psi.context')
     for name, param in context.parameters.items():
-        if name not in selector.context_detail:
+        if name not in selector.context_detail and param.scope == 'trial':
             param.rove = False
             param.scope = 'experiment'
 
