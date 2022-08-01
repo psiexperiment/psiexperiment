@@ -542,7 +542,7 @@ class ControllerPlugin(Plugin):
             deferred_call(lambda: setattr(self, '_resume_requested', True))
 
     def apply_changes(self):
-        raise NotImplementedError
+        self.context.apply_changes()
 
     def pause_experiment(self):
         raise NotImplementedError
