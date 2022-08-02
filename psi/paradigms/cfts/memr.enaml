@@ -18,7 +18,7 @@ from psi.controller.api import (
 from psi.token.primitives import (
     BandlimitedClick, BandlimitedNoise, Cos2Envelope, Repeat
 )
-from psi.data.api import FFTContainer, ViewBox
+from psi.data.api import FFTContainer, TimeContainer, ViewBox
 from psi.data.sinks.api import BinaryStore, EpochCounter, TextStore
 
 from .cfts_mixins import CFTSSelector, EEGInput, PTMicrophoneInput
@@ -30,6 +30,7 @@ EXPERIMENT = __name__.rsplit('.', 1)[-1]
 def configure_interleaved_memr(event):
     context = event.workbench.get_plugin('psi.context')
     controller = event.workbench.get_plugin('psi.controller')
+    data = event.workbench.get_plugin('psi.data')
 
     probe = controller.get_output('probe')
     elicitor = controller.get_output('elicitor')
@@ -48,38 +49,13 @@ def configure_interleaved_memr(event):
         #level = setting['target_tone_level']
         #max_level[frequency] = max(level, max_level.get(frequency, -np.inf))
 
-    # Then figure out the maximum scaling factor required for that level.
-    # Multiply to convert from RMS to peak to peak and add 1% headroom.
-    #max_sf = {}
-    #for frequency, level in max_level.items():
-    #    sf = output.calibration.get_sf(frequency, level)
-    #    max_sf[frequency] = sf
-    #max_sf = max(max_sf.values()) * np.sqrt(2) * 1.01 * 2
-    #log.info(max_sf)
-    #output.channel.expected_range = (-max_sf, max_sf)
+    names = context.get_names()
+    formatter = context.get_selector().get_formatter(names)
 
-
-def configure_simultaneous_memr(event):
-    context = event.workbench.get_plugin('psi.context')
-    controller = event.workbench.get_plugin('psi.controller')
-
-    probe = controller.get_output('probe')
-    elicitor = controller.get_output('elicitor')
-    probe.queue = GroupedFIFOSignalQueue(2)
-    elicitor.queue = GroupedFIFOSignalQueue(2)
-
-    for setting in context.iter_settings('default', 1):
-        averages = min(1, int(round(setting['trial_n'] // 2)))
-        trial_duration = setting['trial_duration']
-        trial_iti = 1
-        for polarity in (1, -1):
-            setting['elicitor_bandlimited_noise_polarity'] = polarity
-            probe.add_setting(setting, averages=averages, total_duration=trial_duration + trial_iti)
-            elicitor.add_setting(setting, averages=averages, total_duration=trial_duration + trial_iti)
-
-        #frequency = setting['target_tone_frequency']
-        #level = setting['target_tone_level']
-        #max_level[frequency] = max(level, max_level.get(frequency, -np.inf))
+    log.error(formatter)
+    #container = data.find_plot_container('memr_container')
+    #container.buttons = sorted(context.unique_values(names))
+    #container.fmt_button_cb = formatter
 
     # Then figure out the maximum scaling factor required for that level.
     # Multiply to convert from RMS to peak to peak and add 1% headroom.
@@ -95,14 +71,15 @@ def configure_simultaneous_memr(event):
 @coroutine
 def analyze_interleaved_memr(fs, workbench, target):
     data = workbench.get_plugin('psi.data')
-    vb = data.find_viewbox('memr_vb')
+    vb_time = data.find_viewbox('probe_time_vb')
+    vb_fft = data.find_viewbox('probe_fft_vb')
+    vb_memr = data.find_viewbox('memr_fft_vb')
 
     while True:
         data = (yield)
         target(data)
         for d in data:
             md = d.metadata
-
             n = md['probe_click_n'] - 1
 
             a_lb = int(round(md['probe_click_delay'] * fs))
@@ -114,46 +91,14 @@ def analyze_interleaved_memr(fs, workbench, target):
             clicks = clicks[:, a_lb:a_ub]
             psd = util.db(util.psd_df(clicks, fs=fs))
 
-            memr = psd.loc[0]
-            vb.plot(memr.index, memr.values, log_x=True)
+            t = np.arange(clicks.shape[-1]) / fs
+            vb_time.plot(t, clicks[0], color='seagreen')
+            vb_time.plot(t, clicks[1:].mean(axis=0), color='coral')
+            vb_fft.plot(psd.columns, psd.iloc[0], color='seagreen', log_x=True)
+            vb_fft.plot(psd.columns, psd.iloc[1:].mean(axis=0), color='coral', log_x=True)
 
-
-@coroutine
-def analyze_simultaneous_memr(fs, workbench, target):
-    data = workbench.get_plugin('psi.data')
-    vb = data.find_viewbox('memr_vb')
-
-    while True:
-        for data in (yield):
-            target(data)
-
-            probe_chirp_n = data.metadata['probe_chirp_n']
-            probe_chirp_rate = data.metadata['probe_chirp_rate']
-
-            repeat_period = data.metadata['repeat_period']
-            elicitor_duration = dasta.metadata['elicitor_duration']
-
-            probe_n = data.metadata['probe_chirp_n']
-            probe_rate = data.metadata['probe_rate']
-            elicitor_onset = data.metadata['elicitor_onset']
-            elicitor_duration = data.metadata['elicitor_duration']
-            norm_window = data.metadata['norm_window']
-
-            new_shape = (probe_n, data.n_channels, int(data.n_time / probe_n))
-            chirps = np.array(data).reshape(new_shape)[:, 0, :]
-
-            norm_start, norm_end = elicitor_onset - norm_window, elicitor_onset
-            norm_lb = int(np.floor((elicitor_onset - norm_window) * probe_rate))
-            norm_ub = int(np.floor(elicitor_onset * probe_rate))
-
-            analysis_lb = int(np.ceil(elicitor_onset * probe_rate))
-            analysis_ub = int(np.floor((elicitor_onset + elicitor_duration) * probe_rate))
-
-            chirp_psd = util.psd_df(chirps, data.fs)
-            norm_psd = chirp_psd.iloc[norm_lb:norm_ub].mean(axis=0)
-            analysis_psd = chirp_psd.iloc[analysis_lb:analysis_ub].mean(axis=0)
-            memr = analysis_psd - norm_psd
-            vb.plot(memr.index, memr.values, log_x=True)
+            memr = psd.iloc[1:].mean(axis=0) - psd.iloc[0]
+            vb_memr.plot(memr.index, memr.values, log_x=True)
 
 
 enamldef BaseMEMRManifest(ControllerManifest): manifest:
@@ -263,91 +208,41 @@ enamldef BaseMEMRManifest(ControllerManifest): manifest:
         id = EXPERIMENT + '.plots'
         point = 'psi.data.plots'
 
+        TimeContainer: pc:
+            name = 'probe_time_container'
+            label = 'Probe waveform'
+            span = 11e-3
+
+            ViewBox: vb:
+                name = 'probe_time_vb'
+                y_mode = 'mouse'
+                save_limits = True
+
         FFTContainer: pc:
-            name = 'memr_container'
-            label = 'MEMR'
+            name = 'probe_fft_container'
+            label = 'Probe PSD'
             freq_lb = 5.6e3
             freq_ub = 45e3
 
-            #fmt_button_cb << \
-            #    C.get_selector().get_formatter(efr_plot.tab_grouping)
+            ViewBox: vb:
+                name = 'probe_fft_vb'
+                y_mode = 'mouse'
+                save_limits = True
+
+        FFTContainer: pc:
+            name = 'memr_fft_container'
+            label = 'MEMR PSD'
+            freq_lb = 5.6e3
+            freq_ub = 45e3
 
             ViewBox: vb:
-                name = 'memr_vb'
+                name = 'memr_fft_vb'
                 y_mode = 'mouse'
                 save_limits = True
 
 
-enamldef SimultaneousMEMRManifest(BaseMEMRManifest):
-
-    analyze_memr_cb = analyze_simultaneous_memr
-    configure_experiment_cb = configure_simultaneous_memr
-
-    Extension:
-        id = EXPERIMENT + '.simultaneous.tokens'
-        point = 'psi.token.tokens'
-
-        Cos2Envelope: elicitor:
-            name = 'noise'
-            BandlimitedNoise:
-                pass
-
-    Extension:
-        id = EXPERIMENT + '.simultaneous.context'
-        point = 'psi.context.items'
-
-        ContextGroup:
-            name = 'memr'
-            label = 'MEMR'
-
-            Parameter:
-                name = 'trial_duration'
-                label = 'Trial duration'
-                default = 11
-
-            Parameter:
-                name = 'trial_n'
-                label = 'Number of trials'
-                default = 2
-
-            Parameter:
-                name = 'probe_rate'
-                label = 'Probe rate'
-                default = 40
-
-            Parameter:
-                name = 'elicitor_onset'
-                label = 'Elicitor onset'
-                default = 6
-
-            Parameter:
-                name = 'elicitor_duration'
-                label = 'Elicitor duration'
-                default = 3
-
-            Parameter:
-                name = 'norm_window'
-                label = 'Normalization window'
-                default = 1
-
-        Expression:
-            parameter = 'probe_chirp_n'
-            expression = 'trial_duration * probe_rate'
-
-        Expression:
-            parameter = 'probe_chirp_rate'
-            expression = 'probe_rate'
-
-        Expression:
-            parameter = 'elicitor_noise_start_time'
-            expression = 'elicitor_onset'
-
-        Expression:
-            parameter = 'elicitor_noise_duration'
-            expression = 'elicitor_duration'
-
-
 enamldef InterleavedMEMRManifest(BaseMEMRManifest):
+    # Implements the classic wideband acoustic reflex as described by Keefe.
 
     analyze_memr_cb = analyze_interleaved_memr
     configure_experiment_cb = configure_interleaved_memr
