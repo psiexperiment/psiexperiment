@@ -15,7 +15,6 @@ from psi.controller.api import (ControllerManifest, Coroutine, ExperimentEvent,
                                 ExtractEpochs, ExperimentAction, Input)
 
 from psi.context.api import ContextGroup
-from psi.experiment.api import StatusItem
 from psi.token.primitives import Cos2Envelope, Gate, SAMEnvelope, SquareWaveEnvelope, Tone
 from psi.data.sinks.api import EpochCounter, TextStore
 from psi.data.api import (FFTContainer, GroupedEpochFFTPlot, PlotContainer,
