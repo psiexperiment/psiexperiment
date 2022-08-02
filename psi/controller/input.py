@@ -589,6 +589,7 @@ class ExtractEpochs(EpochInput):
     #: Defines the extra time period to capture before the epoch begins
     prestim_time = d_(Float(0).tag(metadata=True))
 
+    #: Flag indicating that all queued epochs have been captured.
     complete = Bool(False)
 
     #: The event that indicates beginning of an epoch. If left blank, the
@@ -618,6 +619,7 @@ class ExtractEpochs(EpochInput):
     def _observe_epoch_size(self, event):
         self.notify('duration', self.duration)
 
+    # force change notification for poststim time
     def _observe_poststim_time(self, event):
         self.notify('duration', self.duration)
 
