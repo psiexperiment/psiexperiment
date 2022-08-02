@@ -23,7 +23,6 @@ A critical exception has occurred. While we do our best to prevent these
 issues, they sometimes happen. We are now attempting to shut down the program
 gracefully so acquired data can be saved. Please notify the developers.
 
-The error message is:
 {}
 
 {}
@@ -54,7 +53,11 @@ class ExceptionHandler:
         else:
             log_mesg = 'Unfortunately, no log file was saved.'
 
-        mesg = mesg_template.format(args[1], log_mesg)
+        err_mesg = f'The error message is:\n{args[1]}'
+        if args[1].__cause__ is not None:
+            err_mesg = f'{err_mesg}\n\nThe above error was caused by the following error:\n{args[1].__cause__}'
+        mesg = mesg_template.format(err_mesg, log_mesg)
+
         deferred_call(critical, window, 'Oops :(', mesg)
         sys.__excepthook__(*args)
 
