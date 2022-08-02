@@ -203,8 +203,16 @@ class ContextPlugin(PSIPlugin):
                 groups_updated.add(item.parent)
                 item.set_parent(None)
             except KeyError as e:
-                log.warn('%s referenced by expression %s does not exist',
-                         expression.parameter, expression.expression)
+                # It's best to make this an error. Previously I just logged a
+                # warning, but this makes debugging more difficult sometimes if
+                # you write an expression referencing a parameter that does not
+                # exist (e.g., because of a typo or a change to a token name).
+                # If, in the future, we need the ability to ignore missing
+                # parameters, I would add an attribute to the Expression class
+                # indicating that it's OK to ignore if the parameter does not exist.
+                raise ValueError(f'{expression.parameter} referenced by'
+                                 f'expression {expression.expression} '
+                                 'does not exist.')
 
         load_manifests(context_groups.values(), self.workbench)
         self.context_expressions = context_expressions
