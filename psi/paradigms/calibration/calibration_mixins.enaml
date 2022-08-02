@@ -541,7 +541,6 @@ enamldef ToneMixin(ExperimentManifest): manifest:
                     log.debug('Setting output to use attenuation values')
                     channel.calibration = FlatCalibration.as_attenuation()
 
-                #queue = InterleavedFIFOSignalQueue()
                 queue = FIFOSignalQueue()
                 controller = workbench.get_plugin('psi.controller')
                 epoch = controller.get_input('epoch')
