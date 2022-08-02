@@ -91,14 +91,15 @@ def configure_logging(level_console=None, level_file=None, filename=None,
                 'critical': dict(color='red'),
             }
             import coloredlogs
-            coloredlogs.install(level=level_console, logger=log,
-                                level_styles=level_styles, fmt=fmt)
+            formatter = coloredlogs.ColoredFormatter(fmt, style='{',
+                                                     level_styles=level_styles)
         except ImportError as e:
-            stream_handler = logging.StreamHandler()
             formatter = logging.Formatter(fmt, style='{')
-            stream_handler.setFormatter(formatter)
-            stream_handler.setLevel(level_console)
-            log.addHandler(stream_handler)
+
+        stream_handler = logging.StreamHandler()
+        stream_handler.setFormatter(formatter)
+        stream_handler.setLevel(level_console)
+        log.addHandler(stream_handler)
 
     if filename is not None and level_file is not None:
         file_handler = logging.FileHandler(filename, 'w', 'UTF-8')
