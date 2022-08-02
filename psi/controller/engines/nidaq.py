@@ -473,7 +473,12 @@ def setup_hw_ao(channels, buffer_duration, callback_interval, callback,
     task._onboard_buffer_size = result.value
 
     # Alternates include OnBrdMemEmpty, OnBrdMemHalfFullOrLess, OnBrdMemNotFull
-    mx.DAQmxSetAODataXferReqCond(task, merged_lines, mx.DAQmx_Val_OnBrdMemHalfFullOrLess)
+    try:
+        mx.DAQmxSetAODataXferReqCond(task, merged_lines, mx.DAQmx_Val_OnBrdMemHalfFullOrLess)
+    except Exception as e:
+        log.error(e)
+        log.warning('Could not set AO data transfer request condition for %s',
+                    merged_lines)
 
     result = ctypes.c_int32()
     mx.DAQmxGetAODataXferMech(task, merged_lines, result)
@@ -482,17 +487,23 @@ def setup_hw_ao(channels, buffer_duration, callback_interval, callback,
     properties['AO data xfer request condition'] = constants[result.value]
 
     result = ctypes.c_uint32()
-    mx.DAQmxGetAOUseOnlyOnBrdMem(task, merged_lines, result)
-    properties['AO use only onboard memory'] = constants[result.value]
-    mx.DAQmxGetAOMemMapEnable(task, merged_lines, result)
-    properties['AO memory mapping enabled'] = constants[result.value]
+    try:
+        mx.DAQmxGetAOUseOnlyOnBrdMem(task, merged_lines, result)
+        properties['AO use only onboard memory'] = constants[result.value]
+    except Exception as e:
+        log.error(e)
+    try:
+        mx.DAQmxGetAOMemMapEnable(task, merged_lines, result)
+        properties['AO memory mapping enabled'] = constants[result.value]
+    except Exception as e:
+        log.error(e)
 
     try:
         result = ctypes.c_int32()
         mx.DAQmxGetAIFilterDelayUnits(task, merged_lines, result)
-        log_ao.info('AI filter delay unit %d', result.value)
-    except:
-        log_ao.info('AI filter delay property not supported')
+        properties['AI filter delay unit'] = result.value
+    except Exception as e:
+        log.error(e)
 
     log_ao.debug('Creating callback after every %d samples', callback_samples)
     task._cb = partial(hw_ao_helper, callback)
