@@ -309,6 +309,10 @@ class QueuedEpochOutput(BufferedOutput):
         duration = factory.get_duration()
         if total_duration is not None:
             iti_duration = total_duration - duration
+            if iti_duration < 0:
+                raise ValueError(f'ITI duratation cannot be negative. '
+                                 f'Requested total duration of signal is {total_duration} '
+                                 f'but minimum duration is {duration}.')
         return self.queue.append(factory, averages, iti_duration, duration,
                                  setting.copy())
 
