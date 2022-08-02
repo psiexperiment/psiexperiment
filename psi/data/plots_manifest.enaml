@@ -31,6 +31,8 @@ class PGCanvas(RawWidget):
     component = d_(Typed(pg.GraphicsWidget))
 
     def create_widget(self, parent):
+        # This color ensures that it blends into the default DockItem
+        # background color and is most esthetically pleasing.
         self.view = pg.GraphicsView(parent, background=(240, 240, 240))
         self.view.setCentralItem(self.component)
         return self.view
