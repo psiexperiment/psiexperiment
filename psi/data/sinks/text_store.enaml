@@ -56,6 +56,7 @@ class TextStore(BaseStore):
 
     def save_dataframe(self, name, dataframe, overwrite=False):
         path = self.get_filename(name, '.csv')
+        log.info(f'Saving {name} to {path}')
         if not overwrite and path.exists():
             raise IOError('{} already exists'.format(path))
         dataframe.to_csv(path)

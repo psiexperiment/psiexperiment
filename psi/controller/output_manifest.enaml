@@ -152,7 +152,7 @@ def prepare_output_queue(event, output):
     def cb(event):
         nonlocal controller
         nonlocal action_name
-        log.debug('Output queue complete. Invoking %s in MainThread',
+        log.info('Output queue complete. Invoking %s in MainThread',
                   action_name)
         deferred_call(controller.invoke_actions, action_name)
     output.observe('complete', cb)

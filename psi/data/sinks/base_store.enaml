@@ -51,9 +51,7 @@ class BaseStore(Sink):
     _stores = Dict()
 
     def get_filename(self, name, suffix=''):
-        path = (self.base_path / name).with_suffix(suffix)
-        log.info('Saving %s to %s', name, path)
-        return path
+        return (self.base_path / name).with_suffix(suffix)
 
     def set_base_path(self, base_path, is_temp):
         atexit.register(self.flush)
