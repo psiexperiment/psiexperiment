@@ -4,7 +4,7 @@ log = logging.getLogger(__name__)
 import numpy as np
 
 from atom.api import (
-    Bool, Float, Int, List, Property, Tuple, Typed, set_default, Str
+    Bool, Float, Int, List, observe, Property, Tuple, Typed, set_default, Str
 )
 from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
