@@ -74,11 +74,6 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
             kwargs = {'selector': 'default', 'cycles': 1}
 
         ExperimentAction:
-            event = 'hw_ao_queue_ready'
-            command = 'psi.data.sinks.update_counter'
-            kwargs = {'output': 'hw_ao'}
-
-        ExperimentAction:
             event = 'experiment_start'
             command = 'hw_ao.start'
             kwargs = {'delay': 1}
@@ -95,6 +90,7 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
         EpochCounter:
             name = 'epoch_counter'
             source_name = 'epoch'
+            output_name = 'hw_ao'
 
     Extension:
         id = EXPERIMENT + '.plots'

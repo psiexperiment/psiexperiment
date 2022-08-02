@@ -128,7 +128,6 @@ def configure_experiment(key_map, event):
 
     data = event.workbench.get_plugin('psi.data')
     counter = data.find_sink('valid_erp_counter')
-    counter.requested_n = target.queue.count_requested_trials()
     counter.requested_group_n = averages
 
 
@@ -264,6 +263,7 @@ enamldef ABRIOBaseManifest(ABRBaseManifest): manifest:
             name = 'valid_erp_counter'
             label = 'Valid ERPs acquired'
             source_name = 'valid_erp'
+            output_name = 'target'
             groups << epoch_groups
 
     Extension:

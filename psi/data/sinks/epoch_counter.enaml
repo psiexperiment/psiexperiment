@@ -5,7 +5,7 @@ from functools import partial
 import operator
 from collections import defaultdict
 
-from atom.api import Typed, Int, List
+from atom.api import Int, List, Str, Typed
 from enaml.application import deferred_call
 from enaml.core.api import d_
 from enaml.workbench.api import Extension
@@ -15,6 +15,7 @@ from enaml.widgets.api import ProgressBar
 from ..sink import SinkWithSource, SinkWithSourceManifest
 
 from psi.context.context_item import ContextMeta
+from psi.controller.api import ExperimentAction
 from psi.experiment.api import StatusItem
 
 
@@ -22,6 +23,7 @@ class EpochCounter(SinkWithSource):
 
     current_n = Int()
     requested_n = Int()
+    output_name = d_(Str())
 
     def _update_data(self, epochs):
         n = epochs.shape[0]
@@ -55,22 +57,32 @@ class GroupedEpochCounter(EpochCounter):
 
 
 def update_counter(contribution, event):
+    if not contribution.output_name:
+        raise ValueError(f'Must specify output name for epoch counter {contribution.label}')
     controller = event.workbench.get_plugin('psi.controller')
-    output = controller.get_output(event.parameters['output'])
+    output = controller.get_output(contribution.output_name)
     contribution.requested_n = output.queue.count_requested_trials()
 
 
 enamldef EpochCounterManifest(SinkWithSourceManifest): manifest:
 
     Extension:
-        id = manifest.id + '.commands'
+        id = manifest.id + '.counter_commands'
         point = 'enaml.workbench.core.commands'
         Command:
-            id = 'psi.data.sinks.update_counter'
+            id = f'{manifest.contribution.name}.update_counter'
             handler = partial(update_counter, manifest.contribution)
 
     Extension:
-        id = manifest.id + '.workspace'
+        id = manifest.id + '.counter_actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'experiment_start'
+            command = f'{manifest.contribution.name}.update_counter'
+
+    Extension:
+        id = manifest.id + '.counter_workspace'
         point = 'psi.experiment.status'
         rank = 10
 

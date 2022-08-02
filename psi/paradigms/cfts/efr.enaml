@@ -48,9 +48,6 @@ def configure_experiment(event):
     log.info(max_sf)
     output.channel.expected_range = (-max_sf, max_sf)
 
-    counter = data.find_sink('efr_counter')
-    counter.requested_n = output.queue.count_requested_trials()
-
     names = context.get_names()
     pc = data.find_plot_container('efr_io_container')
     pc.x_min, pc.x_max = context.get_range(names[-1])
@@ -116,6 +113,7 @@ enamldef BaseEFRManifest(ControllerManifest): manifest:
             pass
 
         SpeakerOutput: output:
+            name = 'target'
             queue = InterleavedFIFOSignalQueue()
             auto_decrement = True
             token << workbench.get_plugin('psi.token').get_token(selected_token)
@@ -189,6 +187,7 @@ enamldef BaseEFRManifest(ControllerManifest): manifest:
             name = 'efr_counter'
             label = 'EFRs acquired'
             source_name = 'erp'
+            output_name = 'target'
 
         TextStore:
             name = 'erp_metadata_store'
