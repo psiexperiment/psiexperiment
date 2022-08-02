@@ -81,6 +81,9 @@ class ExperimentActionBase(Declarative):
     #: Use with caution.
     delay = d_(Float(0))
 
+    #: Number of times the command was invoked 
+    invocations = Int(0)
+
     def _get_params(self, **kwargs):
         kwargs.update(self.kwargs)
         params = {}
@@ -104,7 +107,10 @@ class ExperimentActionBase(Declarative):
         return f'{self.event} (weight={self.weight}; kwargs={self.kwargs})'
 
     def invoke(self, core, **kwargs):
+        self.invocations += 1
+        log.debug(f'Action {self} invoked {self.invocations} times')
         if self.delay != 0:
+            log.debug(f'Queueing {self} to be invoked in {self.delay} seconds')
             timed_call(self.delay * 1e3, self._invoke, core, **kwargs)
         else:
             return self._invoke(core, **kwargs)
