@@ -119,8 +119,9 @@ class Engine(PSIContribution):
         for channel in channels:
             if channel.name == channel_name:
                 return channel
-        m = '{} channel does not exist'.format(channel_name)
-        raise AttributeError(m)
+        valid = ', '.join(f'{c.name}' for c in channels)
+        raise AttributeError(f'{channel_name} channel does not exist. '
+                             f'Valid channels are {valid}.')
 
     def remove_channel(self, channel):
         channel.set_parent(None)

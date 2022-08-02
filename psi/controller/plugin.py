@@ -417,7 +417,12 @@ class ControllerPlugin(Plugin):
         setattr(self._inputs[input_name], attr_name, value)
 
     def get_channel(self, channel_name):
-        return self._channels[channel_name]
+        try:
+            return self._channels[channel_name]
+        except KeyError as e:
+            channels = ', '.join(self._channels.keys())
+            m = f'No such channel "{channel_name}". Valid channels are {channels}. ' \
+                'Did you accidentally specify an output name instead?'
 
     def get_channels(self, mode=None, direction=None, timing=None,
                      active=True):
