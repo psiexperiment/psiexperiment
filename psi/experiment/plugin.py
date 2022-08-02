@@ -85,8 +85,8 @@ class ExperimentPlugin(PSIPlugin):
         self._preferences = preferences
 
     def _refresh_status(self, event=None):
-        log.error('Refreshing status')
         status_items = self.load_plugins(STATUS_POINT, StatusItem, 'label')
+        log.info(f'Found status items {", ".join(l for l in status_items)}')
         self._status_items = status_items
 
     def _bind_observers(self):
