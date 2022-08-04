@@ -170,6 +170,8 @@ class AnalogMixin(Declarative):
 
     @observe('expected_range', 'max_range')
     def _check_range(self, event):
+        if not self.expected_range:
+            return
         e_lb, e_ub = self.expected_range
         m_lb, m_ub = self.max_range
         valid = (m_lb <= e_lb < m_ub) and (m_lb < e_ub <= m_ub)
