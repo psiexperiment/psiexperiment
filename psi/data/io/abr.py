@@ -27,14 +27,12 @@ import hashlib
 import pickle
 import warnings
 
-import bcolz
 import numpy as np
 import pandas as pd
 from scipy import signal
 
 from psi.util import PSIJsonEncoder
 from . import Recording
-from .bcolz_tools import repair_carray_size
 
 
 # Max size of LRU cache
@@ -187,10 +185,13 @@ class ABRFile(Recording):
             # Load and ensure that the EEG data is fine. If not, repair it and
             # reload the data.
             rootdir = self.base_path / 'eeg'
-            eeg = bcolz.carray(rootdir=rootdir)
-            if len(eeg) == 0:
-                log.debug('EEG for %s is corrupt. Repairing.', self.base_path)
-                repair_carray_size(rootdir)
+            if (rootdir / '__attrs__').exists():
+                import bcolz
+                from .bcolz_tools import repair_carray_size
+                eeg = bcolz.carray(rootdir=rootdir)
+                if len(eeg) == 0:
+                    log.debug('EEG for %s is corrupt. Repairing.', self.base_path)
+                    repair_carray_size(rootdir)
         return self.__getattr__('eeg')
 
     @property
@@ -204,7 +205,7 @@ class ABRFile(Recording):
         `target_tone_` have that string removed. For example,
         `target_tone_frequency` will become `frequency`).
         '''
-        data = self._load_bcolz_table('erp_metadata')
+        data = self.__getattr__('erp_metadata')
         return data.rename(columns=lambda x: x.replace('target_tone_', ''))
 
     @cache
