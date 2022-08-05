@@ -141,10 +141,10 @@ class PSIWorkbench(Workbench):
         if calibration_file is not None:
             controller.load_calibration(calibration_file)
 
+        plugins = ', '.join(self._plugins.keys())
+        log.info('Plugins loaded: %s', plugins)
+
         # Now, open workspace
         if base_path is None:
             ui.workspace.dock_area.style = 'error'
         ui.start_application()
-
-        plugins = ', '.join(self._plugins.keys())
-        log.info('Plugins loaded: %s', plugins)
