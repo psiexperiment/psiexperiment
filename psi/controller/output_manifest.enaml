@@ -669,6 +669,23 @@ enamldef ContinuousOutputManifest(AnalogOutputManifest): manifest:
 
 
 ################################################################################
+# TimedTriggerManifest
+################################################################################
+enamldef TimedTriggerManifest(PSIManifest): manifest:
+
+    Extension:
+        id = manifest.id + '.timed_digital_output_commands'
+        point = 'enaml.workbench.core.commands'
+        Command:
+            id = manifest.contribution.name + '.trigger'
+            handler = lambda e: manifest.contribution.trigger(
+                e.parameters['timestamp'],
+                e.parameters['duration'],
+            )
+
+
+
+################################################################################
 # ToggleManifest
 ################################################################################
 def toggle_off(event, output):

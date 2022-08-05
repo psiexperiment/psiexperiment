@@ -39,9 +39,6 @@ class Channel(PSIContribution):
     # 0 to indicate continuous acquisition.
     samples = d_(Int(0)).tag(metadata=True)
 
-    # Used to properly configure data storage.
-    dtype = d_(Str()).tag(metadata=True)
-
     # Parent engine (automatically derived by Enaml hierarchy)
     engine = Property().tag(metadata=True)
 
@@ -92,7 +89,6 @@ class Channel(PSIContribution):
         channel : instance of Channel
             Channel to synchronize with.
         '''
-
         raise NotImplementedError
 
     def _get_active(self):
@@ -109,10 +105,22 @@ class HardwareMixin(Declarative):
 
     fs = d_(Float()).tag(metadata=True)
 
+    def get_samples(self, offset, samples, out=None):
+        '''
+        Generate samples starting at offset
+        '''
+        if out is None:
+            out = np.empty(samples, dtype=self.dtype)
+        n_outputs = len(self.outputs)
+        waveforms = np.empty((n_outputs, samples))
+        for output, waveform in zip(self.outputs, waveforms):
+            output.get_samples(offset, samples, out=waveform)
+        return np.sum(waveforms, axis=0, out=out)
+
 
 class SoftwareMixin(Declarative):
 
-    fs = d_(Float(0)).tag(metadata=True)
+    fs = d_(Float(0)).tag(metadata=True, writable=False)
 
 
 class InputMixin(Declarative):
@@ -148,6 +156,9 @@ class InputMixin(Declarative):
 
 class AnalogMixin(Declarative):
 
+    # Used to properly configure data storage.
+    dtype = d_(Str('double')).tag(metadata=True)
+
     #: Expected range of signal (min/max). Some backends (e.g., niDAQmx) can
     #: set hardware-based gains on certain channels (e.g., analog inputs and
     #: outputs of a PXI-4661) to optimize the SNR for the expected range.
@@ -170,7 +181,8 @@ class AnalogMixin(Declarative):
 
 class DigitalMixin(Declarative):
 
-    dtype = 'bool'
+    # Used to properly configure data storage.
+    dtype = d_(Str('bool')).tag(metadata=True)
 
 
 class CounterMixin(Declarative):
@@ -216,16 +228,7 @@ class CounterChannel(CounterMixin, Channel):
 
 class HardwareAOChannel(AnalogMixin, OutputMixin, HardwareMixin, Channel):
 
-    type_code = 'hw_ao'
-
-    def get_samples(self, offset, samples, out=None):
-        if out is None:
-            out = np.empty(samples, dtype=np.double)
-        n_outputs = len(self.outputs)
-        waveforms = np.empty((n_outputs, samples))
-        for output, waveform in zip(self.outputs, waveforms):
-            output.get_samples(offset, samples, out=waveform)
-        return np.sum(waveforms, axis=0, out=out)
+    type_code = set_default('hw_ao')
 
 
 class SoftwareAOChannel(AnalogMixin, OutputMixin, SoftwareMixin, Channel):

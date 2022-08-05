@@ -4,7 +4,7 @@ log = logging.getLogger(__name__)
 import numpy as np
 
 from atom.api import (Str, Dict, Event, Typed, Property, Float, Int,
-                      Bool, List)
+                      Bool, List, set_default)
 
 import enaml
 from enaml.core.api import Declarative, d_
@@ -29,22 +29,24 @@ class Synchronized(PSIContribution):
 
 class BaseOutput(PSIContribution):
 
-    name = d_(Str()).tag(metadata=True)
-    label = d_(Str()).tag(metadata=True)
-
+    #: Name of target. Currently only channels are supported, but we may
+    #: eventually update this to support specifying another output as the
+    #: target.
     target_name = d_(Str()).tag(metadata=True)
-    target = d_(Typed(Declarative).tag(metadata=True), writable=False)
-    channel = Property().tag(metadata=True)
-    engine = Property().tag(metadata=True)
 
-    def _default_label(self):
-        return self.name
+    #: The actual target.
+    target = d_(Typed(Declarative).tag(metadata=True), writable=False)
+
+    #: The channel this target eventually feeds into.
+    channel = Property().tag(metadata=True)
+
+    #: The engine controlling the channel this target eventually feeds into.
+    engine = Property().tag(metadata=True)
 
     def _get_engine(self):
         if self.channel is None:
             return None
-        else:
-            return self.channel.engine
+        return self.channel.engine
 
     def _get_channel(self):
         from .channel import Channel
@@ -79,9 +81,11 @@ class Output(BaseOutput):
     callbacks = List()
 
     def connect(self, cb):
+        # TODO: Do we still use this?
         self.callbacks.append(cb)
 
     def notify(self, data):
+        # TODO: Do we still use this?
         if not self.callbacks:
             return
         # Correct for filter delay
@@ -102,25 +106,29 @@ class Output(BaseOutput):
 
 class BufferedOutput(Output):
 
+    #: Datatype of buffer (double is usually good for analog outputs and bool
+    #: is good for digital outputs)
     dtype = Str('double').tag(metadata=True)
-    buffer_size = Property().tag(metadata=True)
-    active = Bool(False).tag(metadata=True)
-    paused = Bool(False)
 
-    #: This is managed by the manifest
-    source = Typed(object).tag(metadata=True)
-    source_md = Dict()
+    #: Number of seconds of the waveform to buffer.
+    buffer_size = Property().tag(metadata=True)
 
     _buffer = Typed(SignalBuffer)
-    _offset = Int(0)
 
     def _get_buffer_size(self):
+        # TODO ????
         return self.channel.buffer_size
 
     def _default__buffer(self):
         return SignalBuffer(self.fs, self.buffer_size, 0, self.dtype)
 
     def get_samples(self, offset, samples, out):
+        '''
+        Load samples for specified range
+
+        If samples are already buffered, load from the buffer first. If
+        additional samples are needed, generate samples.
+        '''
         lb = offset
         ub = offset + samples
         buffered_lb = self._buffer.get_samples_lb()
@@ -144,18 +152,6 @@ class BufferedOutput(Output):
             samples -= s
             offset += s
 
-        # Don't generate new samples if occuring before activation.
-        if (samples > 0) and (offset < self._offset):
-            s = min(self._offset-offset, samples)
-            data = np.zeros(s)
-            self._buffer.append_data(data)
-            if (samples == s):
-                out[-samples:] = data
-            else:
-                out[-samples:-samples+s] = data
-            samples -= s
-            offset += s
-
         # Generate new samples
         if samples > 0:
             data = self.get_next_samples(samples)
@@ -164,6 +160,18 @@ class BufferedOutput(Output):
 
     def get_next_samples(self, samples):
         raise NotImplementedError
+
+
+class BaseAnalogOutput(BufferedOutput):
+
+    #: This is managed by the manifest
+    source = Typed(object).tag(metadata=True)
+    source_md = Dict()
+    active = Bool(False).tag(metadata=True)
+    paused = Bool(False)
+
+    # Starting offset of sample generation for source
+    _offset = Int(0)
 
     def activate(self, offset):
         log.trace('Activating %s at %d', self.name, offset)
@@ -178,17 +186,6 @@ class BufferedOutput(Output):
         self.source = None
         self._buffer.invalidate_samples(offset)
 
-    def is_ready(self):
-        return self.source is not None
-
-    def get_duration(self):
-        return self.source.get_duration()
-
-    def rebuffer(self, time, delay=0):
-        offset = round(time * self.fs)
-        self._buffer.invalidate_samples(offset)
-        self.engine.update_hw_ao(self.channel.name, offset)
-
     def pause(self, time):
         self.paused = True
         self.rebuffer(time)
@@ -197,8 +194,19 @@ class BufferedOutput(Output):
         self.paused = False
         self.rebuffer(time)
 
+    def get_duration(self):
+        return self.source.get_duration()
 
-class EpochOutput(BufferedOutput):
+    def is_ready(self):
+        return self.source is not None
+
+    def rebuffer(self, time):
+        offset = round(time * self.fs)
+        self._buffer.invalidate_samples(offset)
+        self.engine.update_hw_ao(self.channel.name, offset)
+
+
+class EpochOutput(BaseAnalogOutput):
 
     def get_next_samples(self, samples):
         if self.active:
@@ -224,18 +232,16 @@ class EpochOutput(BufferedOutput):
         return waveform
 
 
-class QueuedEpochOutput(BufferedOutput):
+class QueuedEpochOutput(BaseAnalogOutput):
 
     queue = d_(Typed(AbstractSignalQueue))
+
     #: Automatically decrement the number of trials left to present? Set to
     #: False if you plan to handle this yourself (e.g., in the case of artifact
     #: reject).
     auto_decrement = d_(Bool(False)).tag(metadata=True)
 
-
     complete = d_(Event(), writable=False)
-    paused = Bool(False)
-
     removed_callbacks = List()
 
     def connect(self, cb, event='added'):
@@ -252,10 +258,10 @@ class QueuedEpochOutput(BufferedOutput):
         for cb in self.removed_callbacks:
             cb(d)
 
-    def rebuffer(self, time, delay=0):
-        self.queue.cancel(time, delay)
+    def rebuffer(self, time):
+        self.queue.cancel(time)
         self.queue.rewind_samples(time)
-        super().rebuffer(time, delay)
+        super().rebuffer(time)
 
     def pause(self, time):
         self.queue.pause(time)
@@ -321,12 +327,15 @@ class QueuedEpochOutput(BufferedOutput):
         super().activate(offset)
         self.queue.set_t0(offset/self.fs)
 
+    def deactivate(self, offset):
+        raise NotImplementedError
+
     def get_duration(self):
         # TODO: add a method to get actual duration from queue.
         return np.inf
 
 
-class ContinuousOutput(BufferedOutput):
+class ContinuousOutput(BaseAnalogOutput):
 
     def get_next_samples(self, samples):
         if not self.paused and self.active:
@@ -335,14 +344,36 @@ class ContinuousOutput(BufferedOutput):
             return np.zeros(samples, dtype=np.double)
 
 
-class DigitalOutput(BaseOutput):
+class TimedTrigger(BufferedOutput):
 
-    pass
+    dtype = set_default('bool')
+    _start = Int(0)
+    _stop = Int(0)
+
+    def trigger(self, timestamp, duration):
+        log.error(f'Triggering at {timestamp} for {duration}')
+        self._start = int(round(self.fs * timestamp))
+        self._stop = self._start + int(round(self.fs * duration))
+        self.rebuffer(timestamp)
+
+    def get_next_samples(self, samples):
+        ttl = np.zeros(samples, dtype=self.dtype)
+        buffered_ub = self._buffer.get_samples_ub()
+        lb = int(np.clip(self._start - buffered_ub, 0, None))
+        ub = int(np.clip(self._stop - buffered_ub, 0, None))
+        ttl[..., lb:ub] = True
+        return ttl
+
+    def rebuffer(self, time):
+        offset = int(round(time * self.fs))
+        self._buffer.invalidate_samples(offset)
+        self.engine.update_hw_do(self.channel.name, offset)
 
 
-class Trigger(DigitalOutput):
+class Trigger(BaseOutput):
 
-    #: Total number of triggers.
+    #: Total number of triggers sent (useful for tracking things like the
+    #: number of pellets dispensed from a triggered pellet dispenser).
     total_fired = d_(Int(0), writable=False)
 
     #: Specifies the default duration for the trigger. This can be overridden
@@ -357,7 +388,7 @@ class Trigger(DigitalOutput):
             self.total_fired += 1
 
 
-class Toggle(DigitalOutput):
+class Toggle(BaseOutput):
 
     state = Bool(False)
 
