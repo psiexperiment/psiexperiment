@@ -114,6 +114,8 @@ def configure_logging(level_console=None, level_file=None, filename=None,
                 'critical': dict(color='red'),
             }
             import coloredlogs
+            import humanfriendly
+            humanfriendly.terminal.enable_ansi_support()
             formatter = coloredlogs.ColoredFormatter(fmt, style='{',
                                                      level_styles=level_styles)
         except ImportError as e:
