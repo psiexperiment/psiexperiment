@@ -111,7 +111,8 @@ class HardwareMixin(Declarative):
 
 
 class SoftwareMixin(Declarative):
-    pass
+
+    fs = d_(Float(0)).tag(metadata=True)
 
 
 class InputMixin(Declarative):
