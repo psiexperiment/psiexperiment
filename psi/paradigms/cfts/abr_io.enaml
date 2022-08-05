@@ -180,7 +180,7 @@ def rebuffer(event):
     controller = event.workbench.get_plugin('psi.controller')
     output = controller.get_output('target')
     with output.engine.lock:
-        output.rebuffer(controller.get_ts() + 1.0, delay=10e-3)
+        output.rebuffer(controller.get_ts() + 1.0)
 
 
 enamldef ABRIOBaseManifest(ABRBaseManifest): manifest:
