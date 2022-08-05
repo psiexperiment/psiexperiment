@@ -63,6 +63,10 @@ class PSIWorkbench(Workbench):
             manifests.append(manifest)
             self.register(manifest)
 
+            # In addition to registering the plugin, we have to load it to make
+            # sure it starts and initializes.
+            self.get_plugin(manifest.id)
+
         # Required to bootstrap plugin loading
         log.info('Loading controller plugin')
         self.controller_plugin = self.get_plugin('psi.controller')
