@@ -115,6 +115,10 @@ class BufferedOutput(Output):
 
     _buffer = Typed(SignalBuffer)
 
+    # Starting offset of sample generation for source. Should be set by
+    # subclasses as needed.
+    _offset = Int(0)
+
     def _get_buffer_size(self):
         # TODO ????
         return self.channel.buffer_size
@@ -152,6 +156,18 @@ class BufferedOutput(Output):
             samples -= s
             offset += s
 
+        # Don't generate new samples if occuring before activation.
+        if (samples > 0) and (offset < self._offset):
+            s = min(self._offset-offset, samples)
+            data = np.zeros(s)
+            self._buffer.append_data(data)
+            if (samples == s):
+                out[-samples:] = data
+            else:
+                out[-samples:-samples+s] = data
+            samples -= s
+            offset += s
+
         # Generate new samples
         if samples > 0:
             data = self.get_next_samples(samples)
@@ -169,9 +185,6 @@ class BaseAnalogOutput(BufferedOutput):
     source_md = Dict()
     active = Bool(False).tag(metadata=True)
     paused = Bool(False)
-
-    # Starting offset of sample generation for source
-    _offset = Int(0)
 
     def activate(self, offset):
         log.trace('Activating %s at %d', self.name, offset)
@@ -209,27 +222,25 @@ class BaseAnalogOutput(BufferedOutput):
 class EpochOutput(BaseAnalogOutput):
 
     def get_next_samples(self, samples):
-        if self.active:
-            buffered_ub = self._buffer.get_samples_ub()
+        if not self.active:
+            return np.zeros(samples, dtype=self.dtype)
+        buffered_ub = self._buffer.get_samples_ub()
 
-            # Pad with zero
-            zero_padding = max(self._offset-buffered_ub, 0)
-            zero_padding = min(zero_padding, samples)
-            waveform_samples = samples - zero_padding
+        # Pad with zero
+        zero_padding = max(self._offset-buffered_ub, 0)
+        zero_padding = min(zero_padding, samples)
+        waveform_samples = samples - zero_padding
 
-            waveforms = []
-            if zero_padding:
-                w = np.zeros(zero_padding, dtype=self.dtype)
-                waveforms.append(w)
-            if waveform_samples:
-                w = self.source.next(waveform_samples)
-                waveforms.append(w)
-            if self.source.is_complete():
-                self.deactivate(self._buffer.get_samples_ub())
-            waveform = np.concatenate(waveforms, axis=-1)
-        else:
-            waveform = np.zeros(samples, dtype=self.dtype)
-        return waveform
+        waveforms = []
+        if zero_padding:
+            w = np.zeros(zero_padding, dtype=self.dtype)
+            waveforms.append(w)
+        if waveform_samples:
+            w = self.source.next(waveform_samples)
+            waveforms.append(w)
+        if self.source.is_complete():
+            self.deactivate(self._buffer.get_samples_ub())
+        return np.concatenate(waveforms, axis=-1)
 
 
 class QueuedEpochOutput(BaseAnalogOutput):
@@ -285,14 +296,14 @@ class QueuedEpochOutput(BaseAnalogOutput):
             self.queue.connect(self.notify_removed, 'removed')
 
     def get_next_samples(self, samples):
-        if self.active:
-            waveform = self.queue.pop_buffer(samples, self.auto_decrement)
-            if self.queue.is_empty():
-                self.complete = True
-                self.active = False
-                log.debug('Queue empty. Output %s no longer active.', self.name)
-        else:
-            waveform = np.zeros(samples, dtype=np.double)
+        if not self.active:
+            return np.zeros(samples, dtype=np.double)
+
+        waveform = self.queue.pop_buffer(samples, self.auto_decrement)
+        if self.queue.is_empty():
+            self.complete = True
+            self.active = False
+            log.debug('Queue empty. Output %s no longer active.', self.name)
         return waveform
 
     def add_setting(self, setting, averages=None, iti_duration=None,
