@@ -37,11 +37,12 @@ enamldef ContextDockItem(DockItem):
             subwidgets = []
             for w in widgets:
                 for w in w.traverse():
-                    if isinstance(w, (CheckBox, Label)):
+                    if isinstance(w, Label):
                         subwidgets.append(w)
                         break
 
             constraints.append(align('right', *subwidgets))
+            constraints.append(align('left', *subwidgets))
             return constraints
 
         Looper: looper:
