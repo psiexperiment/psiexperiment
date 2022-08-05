@@ -73,11 +73,11 @@ class PSIContribution(Declarative):
     #: Name of contribution. Should be unique among all contributions for that
     #: subclass as it is typically used by the plugins to find a particular
     #: contribution.
-    name = d_(Str())
+    name = d_(Str()).tag(metadata=True)
 
     #: Label of contribution. Not required, but a good idea as it affects how
     #: the contribution may be represented in the user interface.
-    label = d_(Str())
+    label = d_(Str()).tag(metadata=True)
 
     #: Flag indicating whether item has already been registered.
     registered = Bool(False)
