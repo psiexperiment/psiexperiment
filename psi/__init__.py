@@ -195,6 +195,4 @@ def get_config(setting=None, default_value=NoDefault):
 
 reload_config()
 
-from ._version import get_versions
-__version__ = get_versions()['version']
-del get_versions
+from .version import __version__
