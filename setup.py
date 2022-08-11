@@ -3,22 +3,23 @@ import versioneer
 
 
 requirements = [
+    'bcolz',
     'enaml',
     'joblib',
+    'matplotlib',
     'numpy',
     'palettable',
-    'pyqtgraph',
+    'pyqtgraph >=0.11.0',
     'scipy',
     'tqdm',
     'pandas',
     'pyyaml',
-    'matplotlib',
 ]
 
 
 extras_require = {
     'ni': ['pydaqmx'],
-    'tdt': ['tdtpy'],
+    'tdt': ['tdtpy >=0.9.0'],
     'docs': ['sphinx', 'sphinx_rtd_theme', 'pygments-enaml'],
     'test': ['pytest', 'pytest-console-scripts'],
     'bcolz-backend': ['bcolz'],
