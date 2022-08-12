@@ -13,14 +13,11 @@ maintainers = [
 ]
 dependencies = [
     "psiaudio",
-    "enaml[qt5-pyqt]",
-    "joblib",
-    "matplotlib",
+    "enaml[qt5-pyqt] >=0.13.0",
     "numpy",
     "palettable",
     "pyqtgraph >=0.11.0",
     "scipy",
-    "tqdm",
     "pandas",
     "pyyaml",
 ]
@@ -30,7 +27,8 @@ dynamic = ["version"]
 ni = ["pydaqmx"]
 tdt = ["tdtpy >=0.9.0"]
 docs = ["sphinx", "sphinx_rtd_theme", "pygments-enaml"]
-test = ["pytest", "pytest-console-scripts"]
+tqdm = ["tqdm"]                                           # Used in post-processing from command line
+test = ["pytest", "pytest-console-scripts", "matplotlib"] # Matplotlib is used in some of the validation scripts
 bcolz-backend = ["bcolz"]
 legacy-bcolz-backend = ["blosc"]
 zarr-backend = ["zarr"]
