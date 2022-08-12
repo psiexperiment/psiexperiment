@@ -27,10 +27,9 @@ dynamic = ["version"]
 ni = ["pydaqmx"]
 tdt = ["tdtpy >=0.9.0"]
 docs = ["sphinx", "sphinx_rtd_theme", "pygments-enaml"]
-tqdm = ["tqdm"]                                           # Used in post-processing from command line
-test = ["pytest", "pytest-console-scripts", "matplotlib"] # Matplotlib is used in some of the validation scripts
-bcolz-backend = ["bcolz"]
-legacy-bcolz-backend = ["blosc"]
+tqdm = ["tqdm"]                                           # Used in post-processing from command line.
+test = ["pytest", "pytest-console-scripts", "matplotlib"] # Matplotlib is used in some of the validation scripts.
+bcolz-backend = ["bcolz >=1.2.2"]						  # No public build exists. You will have to make this yourself.
 zarr-backend = ["zarr"]
 dev = ["coloredlogs"]
 
