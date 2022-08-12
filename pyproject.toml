@@ -1,7 +1,7 @@
 [project]
 name = "psiexperiment"
 description = "Framework for running trial-based experiments"
-requires-python = ">=3.9"
+requires-python = ">=3.7"
 license = {file = "LICENSE.txt"}
 authors = [
     {name = "Brad Buran", email="bburan@alum.mit.edu"},
