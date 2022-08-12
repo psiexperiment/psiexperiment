@@ -13,11 +13,8 @@ with enaml.imports():
 
 from enaml.qt.qt_application import QtApplication
 
-import matplotlib as mp
-import matplotlib.pyplot as pl
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 
 from psi.data.io import abr
 from psi import get_config
@@ -163,7 +160,7 @@ def process_files(filenames, offset=-0.001, duration=0.01,
                   filter_settings=None, cb='tqdm'):
     success = []
     error = []
-    for filename in tqdm(filenames):
+    for filename in filenames:
         try:
             processed = process_file(filename, offset=offset,
                                      duration=duration,
@@ -242,6 +239,7 @@ def process_file(filename, offset=-1e-3, duration=10e-3,
     if cb is None:
         cb = lambda x: x
     elif cb == 'tqdm':
+        from tqdm import tqdm
         pbar = tqdm(total=100, bar_format='{l_bar}{bar}[{elapsed}<{remaining}]')
         def cb(frac):
             nonlocal pbar
