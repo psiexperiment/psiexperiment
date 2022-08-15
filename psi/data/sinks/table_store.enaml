@@ -6,8 +6,7 @@ from collections.abc import Mapping
 from functools import partial
 
 from atom.api import Bool, ContainerList, Value
-from enaml.core.api import Conditional, d_, d_func
-from enaml.widgets.api import Container, DockItem
+from enaml.core.api import Conditional, d_
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 import pandas as pd

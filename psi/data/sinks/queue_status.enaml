@@ -12,7 +12,7 @@ from enaml.application import deferred_call
 from enaml.core.api import d_
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
-from enaml.widgets.api import Container, DockItem, Form, Label, ProgressBar
+from enaml.widgets.api import Container, Form, Label, ProgressBar
 
 from ..sink import Sink
 

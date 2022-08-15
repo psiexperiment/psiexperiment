@@ -7,7 +7,7 @@ from atom.api import Typed, set_default
 from enaml.application import deferred_call
 from enaml.core.api import Conditional, Include, d_, Looper
 from enaml.layout.api import spacer
-from enaml.widgets.api import (ButtonGroup, CheckBox, Container, DockItem, Field, Form,
+from enaml.widgets.api import (ButtonGroup, CheckBox, Container, Field, Form,
                                HGroup, Label, ObjectCombo, PushButton,
                                RawWidget)
 from enaml.workbench.api import Extension, Workbench
@@ -16,7 +16,7 @@ from enaml.workbench.core.api import Command
 import pyqtgraph as pg
 pg.setConfigOption('foreground', 'k')
 
-from psi.core.enaml.api import PSIManifest
+from psi.core.enaml.api import PSIDockItem, PSIManifest
 from psi.controller.api import ExperimentAction
 from psi.context.context_item import OrderedContextMeta
 from psi.experiment.api import ItemPreferences
@@ -84,7 +84,7 @@ enamldef BasePlotContainerManifest(PSIManifest): manifest:
         id = manifest.id + '.workspace'
         point = 'psi.experiment.workspace'
 
-        DockItem:
+        PSIDockItem:
             name << manifest.contribution.name
             title << manifest.contribution.label
             closable = False

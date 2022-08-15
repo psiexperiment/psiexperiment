@@ -1,11 +1,11 @@
 from collections import defaultdict
 
 from enaml.core.api import Conditional, d_func
-from enaml.widgets.api import CheckBox, Container, DockItem, VGroup
+from enaml.widgets.api import CheckBox, Container, VGroup
 from enaml.workbench.api import Extension
 
 from psi.context.api import OrderedContextMeta
-from psi.core.enaml.api import ListDictTable
+from psi.core.enaml.api import ListDictTable, PSIDockItem
 from psi.experiment.api import ItemPreferences
 
 from .table_store import TableStore, TableStoreManifest
@@ -58,7 +58,7 @@ enamldef TrialLogManifest(TableStoreManifest): manifest:
             id = manifest.id + '.trial_log_workspace'
             point = 'psi.experiment.workspace'
 
-            DockItem: di:
+            PSIDockItem: di:
                 closable = False
                 name << manifest.contribution.name
                 title << manifest.contribution.label
