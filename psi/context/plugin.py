@@ -154,8 +154,6 @@ class ContextPlugin(PSIPlugin):
         context_meta = self.load_plugins(ITEMS_POINT, ContextMeta, 'name')
         context_expressions = self.load_plugins(ITEMS_POINT, Expression, 'parameter')
 
-        groups_updated = set()
-
         # At this point, `context_items` is only the "orphan" context items
         # where the group has not yet been assigned.
         for item in itertools.chain(context_items.values(), context_sets.values()):
@@ -165,7 +163,6 @@ class ContextPlugin(PSIPlugin):
                 raise ValueError(m)
             group = context_groups[item.group_name]
             item.set_parent(group)
-            groups_updated.add(group)
 
         # Now, loop through the groups and find all ContextItems defined under
         # the group. If the group has already been defined in another
@@ -197,11 +194,11 @@ class ContextPlugin(PSIPlugin):
                     else:
                         context_items[item.name] = item
 
+        available_items = ', '.join(context_items)
         for expression in context_expressions.values():
             try:
                 item = context_items.pop(expression.parameter)
-                groups_updated.add(item.parent)
-                item.set_parent(None)
+                item.visible = False
             except KeyError as e:
                 # It's best to make this an error. Previously I just logged a
                 # warning, but this makes debugging more difficult sometimes if
@@ -210,9 +207,10 @@ class ContextPlugin(PSIPlugin):
                 # If, in the future, we need the ability to ignore missing
                 # parameters, I would add an attribute to the Expression class
                 # indicating that it's OK to ignore if the parameter does not exist.
-                raise ValueError(f'{expression.parameter} referenced by'
+                raise ValueError(f'{expression.parameter} referenced by '
                                  f'expression {expression.expression} '
-                                 'does not exist.')
+                                 'does not exist. Available names include '
+                                 f'{available_items}.')
 
         load_manifests(context_groups.values(), self.workbench)
         self.context_expressions = context_expressions
@@ -220,6 +218,10 @@ class ContextPlugin(PSIPlugin):
         self.context_groups = context_groups
         self.context_meta = context_meta
         self.context_meta_editable = len(self.get_metas(editable=True)) > 0
+
+        log.info('Found context groups %s', ', '.join(context_groups))
+        for n, i in context_groups.items():
+            log.info(f'{n}: {i}: {i.visible}')
 
         for group in context_groups.values():
             group.updated = True
