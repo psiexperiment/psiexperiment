@@ -12,14 +12,14 @@ from enaml.core.api import d_
 from enaml.layout.api import hbox, vbox, spacer
 from enaml.qt.QtWidgets import QApplication
 from enaml.stdlib.fields import IntField
-from enaml.widgets.api import (CheckBox, Container, DockItem, Form, HGroup,
-                               Label, PushButton)
+from enaml.widgets.api import (CheckBox, Container, Form, HGroup, Label,
+                               PushButton)
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 
 from psi.controller.api import ExperimentAction
 from psi.context.api import OrderedContextMeta
-from psi.core.enaml.api import DataFrameTable, PSIManifest
+from psi.core.enaml.api import DataFrameTable, PSIDockItem, PSIManifest
 from psi.experiment.api import ItemPreferences
 
 from .base_store import BaseStore
@@ -254,7 +254,7 @@ enamldef SDTAnalysisManifest(PSIManifest): manifest:
         id = manifest.id + '.workspace'
         point = 'psi.experiment.workspace'
 
-        DockItem:
+        PSIDockItem:
             closable = False
             name = manifest.contribution.name
             title = manifest.contribution.label

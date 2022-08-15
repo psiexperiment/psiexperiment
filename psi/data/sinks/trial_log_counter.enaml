@@ -2,14 +2,14 @@ from atom.api import ContainerList, Typed, Dict
 from enaml.application import deferred_call
 from enaml.core.api import Looper
 from enaml.layout.api import InsertItem
-from enaml.widgets.api import (Container, Menu, Action, DockItem, PopupView,
+from enaml.widgets.api import (Container, Menu, Action, PopupView,
                                Form, CheckBox, Label, HGroup, VGroup)
 from enaml.workbench.api import Extension, PluginManifest
 
 import pandas as pd
 
 from psi.context.context_item import OrderedContextMeta
-from psi.core.enaml.api import DataframeTable, PSIManifest
+from psi.core.enaml.api import DataframeTable, PSIDockItem, PSIManifest
 from psi.experiment.api import ItemPreferences
 from ..sink import Sink
 
@@ -30,7 +30,7 @@ def get_table(trial_log, grouping):
     return result.reset_index()
 
 
-enamldef TrialLogCounterDockItem(DockItem):
+enamldef TrialLogCounterDockItem(PSIDockItem):
 
     attr data_plugin = workbench.get_plugin('psi.data')
     attr meta
