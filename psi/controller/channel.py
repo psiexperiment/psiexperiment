@@ -213,10 +213,13 @@ class OutputMixin(Declarative):
         self.outputs.remove(o)
         o.target = None
 
-    def add_queued_epoch_output(self, queue, auto_decrement=True):
+    def add_queued_epoch_output(self, queue, auto_decrement=True, name=None):
         # Subclasses of Enaml Declarative will automatically insert themselves
         # as children of the parent when initialized.
-        o = QueuedEpochOutput(queue=queue, auto_decrement=auto_decrement)
+        if name is None:
+            name = f'{self.name}_output_queue'
+        o = QueuedEpochOutput(queue=queue, auto_decrement=auto_decrement,
+                              name=name)
         self.add_output(o)
         return o
 
