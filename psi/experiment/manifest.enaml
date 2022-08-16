@@ -8,7 +8,7 @@ import yaml
 
 import numpy as np
 
-from enaml.widgets.api import DockItem, FileDialogEx, Form, HGroup, Label, VGroup
+from enaml.widgets.api import FileDialogEx, Form, HGroup, Label, VGroup
 from enaml.core.api import Looper, Include
 from enaml.workbench.api import Extension, PluginManifest, ExtensionPoint
 from enaml.workbench.core.api import Command
@@ -16,6 +16,8 @@ from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
 from enaml.workbench.ui.api import Workspace
 
 from psi.controller.experiment_action import ExperimentEvent
+from psi.core.enaml.api import PSIDockItem
+
 from .. import get_config
 from .workspace import ExperimentWorkspace
 from .workbench_window import ExperimentWorkbenchWindow
@@ -151,7 +153,7 @@ def get_default_preferences(event):
         pass
 
 
-enamldef StatusDockItem(DockItem):
+enamldef StatusDockItem(PSIDockItem):
 
     name = 'experiment_status'
     title = 'Experiment Status'
