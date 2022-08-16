@@ -43,6 +43,7 @@ class BaseCalibrate(PSIContribution):
     gain = d_(Float(-40))
 
     result = d_(Dict())
+
     show_widget = d_(Bool(True))
 
     def save_dataframe(self, core_plugin, dataframe, name):
