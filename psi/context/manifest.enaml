@@ -95,6 +95,7 @@ enamldef ContextManifest(PluginManifest): manifest:
             # contribute to.
             name = 'hardware_settings'
             label = 'Hardware'
+            hide_when = 'never'
 
     Extension:
         id = PLUGIN_ID + '.default_symbols'

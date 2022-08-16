@@ -102,7 +102,19 @@ class ContextGroup(PSIContribution):
     Used to group together context items in a single dock item pane.
     '''
     #: Are the parameters in this group visible?
-    visible = d_(Bool(True))
+    visible = d_(Property())
+
+    hide_when = d_(Enum('empty', 'never', 'always'))
+
+    def _get_visible(self):
+        if self.hide_when == 'never':
+            return True
+        if self.hide_when == 'always':
+            return False
+        for c in self.children:
+            if c.visible:
+                return True
+        return False
 
     #: Fired whenever the children change.
     updated = d_(Event())
