@@ -8,7 +8,7 @@ import pandas as pd
 from enaml.core.api import Conditional
 from enaml.widgets.api import Container, DockItem
 from enaml.workbench.api import Extension
-from psi.core.enaml.api import DataFrameTable, PSIManifest
+from psi.core.enaml.api import DataFrameTable, PSIDockItem, PSIManifest
 from psi.data.api import FFTContainer, ResultPlot, TimeContainer, ViewBox
 
 
@@ -58,10 +58,9 @@ enamldef BaseCalibrateManifest(PSIManifest): manifest:
         Conditional:
             condition << manifest.contribution.show_widget
 
-            DockItem:
-                closable = False
-                name << manifest.id + '.dock_item'
-                title << manifest.contribution.label + ' results'
+            PSIDockItem:
+                name << manifest.contribution.name + '.result'
+                title << manifest.contribution.label + ' result'
                 Container:
                     DataFrameTable: table:
                         data << manifest.contribution.result \
