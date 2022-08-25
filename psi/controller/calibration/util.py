@@ -26,6 +26,8 @@ def fix_legacy(calibration_type, metadata):
         for key in ('source', 'fs'):
             if key in metadata:
                 attrs[key] = metadata.pop(key)
+    elif calibration_type == 'EPLCalibration':
+        calibration_type = 'psiaudio.calibration.InterpCalibration'
     elif calibration_type == 'FlatCalibration':
         calibration_type = 'psiaudio.calibration.FlatCalibration'
     return calibration_type, metadata
