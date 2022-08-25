@@ -344,23 +344,27 @@ enamldef FriendlyCartesianProductItem(Container):
 
 
 def get_description(selector, item, *args):
-    values = selector.get_values(item)
-    step_unit = selector.get_field(item.name, 'step_unit', '')
-    unit = selector.get_field(item.name, 'unit')
-    label = selector.get_field(item.name, 'user_friendly_name')
-    round_values = selector.get_field(item.name, 'round_values', False)
-    transform = selector.get_field(item.name, 'transform_to_gui', lambda x: x)
+    try:
+        values = selector.get_values(item, transform=True)
+        step_unit = selector.get_field(item.name, 'step_unit', '')
+        unit = selector.get_field(item.name, 'unit')
+        label = selector.get_field(item.name, 'user_friendly_name')
+        round_values = selector.get_field(item.name, 'round_values', False)
 
-    values = [transform(v) for v in values]
+        if len(values) == 0:
+            mesg = '''The current settings result in no values to test. Perhaps the
+            start value is greater than the end value?'''
+        else:
+            if round_values:
+                step = selector.get_value(item.name, 'step')
+                round_mesg = f'{label.capitalize()} are rounded to the nearest {step} {step_unit}.'
+            else:
+                round_mesg = ''
+            mesg = f'''{round_mesg}The current range is {values[0]:.1f} to
+            {values[-1]:.1f} {unit} for a total of {len(values)} {label}.'''
+    except ValueError as e:
+        mesg = str(e)
 
-    if round_values:
-        step = selector.get_value(item.name, 'step')
-        round_mesg = f'{label.capitalize()} are rounded to the nearest {step} {step_unit}.'
-    else:
-        round_mesg = ''
-
-    mesg = f'''{round_mesg}The current range is {values[0]:.1f} to
-    {values[-1]:.1f} {unit} for a total of {len(values)} {label}.'''
     mesg = re.sub(r'[\s\n\r]+', ' ', mesg).strip()
     return textwrap.fill(mesg)
 
