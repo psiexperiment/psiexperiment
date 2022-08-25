@@ -217,7 +217,7 @@ class OutputMixin(Declarative):
         # Subclasses of Enaml Declarative will automatically insert themselves
         # as children of the parent when initialized.
         if name is None:
-            name = f'{self.name}_output_queue'
+            name = 'default'
         o = QueuedEpochOutput(queue=queue, auto_decrement=auto_decrement,
                               name=name)
         self.add_output(o)
