@@ -501,6 +501,8 @@ class FriendlyCartesianProduct(BaseSelector):
         if transform:
             transform_fn = self.get_field(item.name, 'transform_fn', lambda x: x)
             values = [transform_fn(v) for v in values]
+        if len(values) == 0:
+            raise ValueError(f'No values to test for {item.label}')
         return values
 
     def get_settings(self):
