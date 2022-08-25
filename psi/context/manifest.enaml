@@ -189,13 +189,25 @@ enamldef ContextManifest(PluginManifest): manifest:
                 selector_state = preferences['selectors']
                 meta_state = preferences['meta']
 
+                # We flatten the context group -> context item hierarchy here.
+                # Since context item names must be globally unique even if
+                # they're organized by context group, this allows us to move
+                # items between groups without having to migrate saved
+                # settings.
+                item_states = {}
+                for group_state in parameter_state.values():
+                    for k, v in group_state.items():
+                        if k in item_states:
+                            raise ValueError(f'Duplicate item in settings "{k}"')
+                        item_states[k] = v
+
                 log.debug('Setting context item states')
                 for item in plugin.context_items.values():
                     if not item.editable:
                         continue
-                    group_state = parameter_state.get(item.group_name, {})
-                    state = group_state.get(item.name, {})
-                    set_preferences(item, state)
+                    if item.name not in item_states:
+                        log.info('Could not find context item %s in saved state', item.name)
+                    set_preferences(item, item_states.get(item.name, {}))
 
                 log.debug('Setting selector states')
                 for selector in plugin.selectors.values():
