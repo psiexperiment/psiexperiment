@@ -87,17 +87,6 @@ enamldef ContextManifest(PluginManifest): manifest:
         id = 'symbols'
 
     Extension:
-        name = PLUGIN_ID + '.default_items'
-        point = 'psi.context.items'
-
-        ContextGroup:
-            # This is a commonly used group that many plugins may wish to
-            # contribute to.
-            name = 'hardware_settings'
-            label = 'Hardware'
-            hide_when = 'never'
-
-    Extension:
         id = PLUGIN_ID + '.default_symbols'
         point = 'psi.context.symbols'
         ImportedSymbol:
