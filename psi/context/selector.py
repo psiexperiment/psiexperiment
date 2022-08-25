@@ -112,8 +112,8 @@ import operator
 from atom.api import Bool, Dict, Enum, Event, Property, set_default, Typed
 from enaml.core.api import d_, d_func
 from psi.core.enaml.api import PSIContribution
-
 from psi.context import choice
+from psi.util import get_tagged_values
 
 
 def warn_empty(method):
@@ -203,6 +203,9 @@ class BaseSelector(PSIContribution):
             if item.name == name:
                 return item
         raise ValueError(f'{name} not in selector {self.name}')
+
+    def __getstate__(self):
+        return get_tagged_values(self, 'preference')
 
 
 class SingleSetting(BaseSelector):
@@ -458,7 +461,7 @@ class FriendlyCartesianProduct(BaseSelector):
         return value_name
 
     @d_func
-    def migrate_state(self, state):
+    def migrate_state(self, state, direction):
         '''
         Can be overriden to migrate previously-saved states to reflect the new
         changes to the selector
@@ -537,8 +540,11 @@ class FriendlyCartesianProduct(BaseSelector):
 
         return formatter
 
+    def __getstate__(self):
+        return self.migrate_state(super().__getstate__(), 'reverse')
+
     def __setstate__(self, state):
-        state = self.migrate_state(state)
+        state = self.migrate_state(state, 'forward')
         for k, v in state.pop('context_settings').items():
             self.context_settings.setdefault(k, v).update(v)
         super().__setstate__(state)

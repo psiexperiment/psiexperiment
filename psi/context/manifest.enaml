@@ -166,13 +166,13 @@ enamldef ContextManifest(PluginManifest): manifest:
                 for i in plugin.context_items.values():
                     if not i.editable:
                         continue
-                    group_state = parameter_state.setdefault(i.group_name, {})
+                    group_state = parameter_state.setdefault(i.parent.name, {})
                     group_state[i.name] = get_preferences(i)
 
                 # Build the selector state
                 selector_state = {}
                 for s in plugin.selectors.values():
-                    selector_state[s.name] = get_preferences(s)
+                    selector_state[s.name] = s.__getstate__()
 
                 # Build the meta state
                 meta_state = {}
