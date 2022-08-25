@@ -115,6 +115,10 @@ class Engine(PSIContribution):
         return tuple(channels)
 
     def get_channel(self, channel_name):
+        # Channel names are sometimes prefixed with the channel type (e.g.,
+        # hw_ao) and will appear as "hw_ao::speaker_1" instead of "speaker_1". 
+        if '::' in channel_name:
+            _, channel_name = channel_name.split('::')
         channels = self.get_channels(active=False)
         for channel in channels:
             if channel.name == channel_name:
