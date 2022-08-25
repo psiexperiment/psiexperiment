@@ -47,7 +47,7 @@ class ExceptionHandler:
     def __enter__(self):
         sys.excepthook = sys.__excepthook__
 
-    def __exit__(self):
+    def __exit__(self, exc_type, exc_value, exc_tb):
         sys.excepthook = self
 
     def __call__(self, *args):
