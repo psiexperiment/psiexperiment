@@ -17,52 +17,73 @@ from psi.context.api import (ContextGroup, EnumParameter, OrderedContextMeta,
                              Parameter, SequenceSelector)
 
 from psi.controller.api import ExperimentAction
-from psiaudio.util import (psd, psd_freq, db, dbi, golay_pair, summarize_golay,
-                           golay_tf)
 
-from psi.controller.api import (ControllerManifest, SelectorQueuedEpochOutput,
-                                QueuedEpochOutput, ExtractEpochs, Input,
-                                FIFOSignalQueue, get_hw_ao_choices,
-                                get_hw_ai_choices)
+from psiaudio.queue import FIFOSignalQueue
+from psiaudio.util import (psd, psd_freq, db, dbi, golay_pair, summarize_golay,
+                           golay_tf, octave_space)
+
+from psi.controller.api import (ControllerManifest, ExtractEpochs, Input,
+                                get_hw_ao_choices, QueuedEpochOutput)
 
 from psi.controller.calibration.tone import tone_sens
 
 from psi.token.primitives import Chirp
 
-from psi.data.sinks.api import BColzStore, TextStore
+from psi.data.sinks.api import BinaryStore, EpochCounter, TextStore
 
 from psi.data.plots import (EpochTimeContainer, ChannelPlot,
                             GroupedEpochAveragePlot, ChannelPlot, ViewBox,
                             FFTContainer, GroupedEpochFFTPlot)
 
-
-from psi.controller.calibration.api import FlatCalibration, InterpCalibration
-from psi.util import octave_space
-
-from .calibration_mixins import configure_hardware_golay, level_to_gain
+from psiaudio.calibration import FlatCalibration, InterpCalibration
 
 
-def calculate_sens(event, grouping, filename, calc_sens):
-    core = event.workbench.get_plugin('enaml.workbench.core')
-    context = event.workbench.get_plugin('psi.context')
-    data = event.workbench.get_plugin('psi.data')
+from .calibration_mixins import GolayMixin, level_to_gain
 
-    pt_source = data.find_sink('mic_data').get_source('pt_epoch')
-    cal_source = data.find_sink('mic_data').get_source('cal_epoch')
-    pt_groups = pt_source.get_epoch_groups(grouping)
-    cal_groups = cal_source.get_epoch_groups(grouping)
+from ..cfts.cfts_mixins import CalMicrophoneInput, CFTSSelector, EEGInput, PTMicrophoneInput
 
-    n = max(len(cal_groups), 3)
+
+def calculate_sens(workbench, grouping, filename, calc_sens):
+    log.error('*******************************************************')
+    log.error('Computing SPL for Golay')
+    log.error('*******************************************************')
+    core = workbench.get_plugin('enaml.workbench.core')
+    context = workbench.get_plugin('psi.context')
+    data = workbench.get_plugin('psi.data')
+
+    pt_source = data.find_sink('mic_data').get_source('microphone')
+    cal_source = data.find_sink('mic_data').get_source('cal_microphone')
+    epoch_info = data.find_sink('cal_data').get_source('cal_epoch')
+
+    duration = epoch_info.iloc[0].loc['epoch_size']
+    pt_df = pt_source.get_epochs(epoch_info, offset=0, duration=duration,
+                                 columns=grouping)
+    cal_df = cal_source.get_epochs(epoch_info, offset=0, duration=duration,
+                                   columns=grouping)
+
+    pt_grouped = pt_df.groupby(grouping)
+    cal_grouped = cal_df.groupby(grouping)
+    groups = sorted(pt_grouped.groups.keys())
+
+    n = max(3, len(groups))
     cmap_name = 'Dark2_{}'.format(n)
     cmap = getattr(qualitative, cmap_name)
     colors = itertools.cycle(cmap.colors)
 
     summaries = []
     keys = []
-    for key, color in zip(pt_groups.keys(), colors):
+    for key, color in zip(groups, colors):
         name = '{}'.format(key)
-        sens_summary = calc_sens(pt_source.fs, pt_groups[key], cal_groups[key],
-                                 color, context, data, name)
+        log.error(pt_grouped.get_group(key))
+        sens_summary = calc_sens(
+            pt_source.fs,
+            pt_grouped.get_group(key).values,
+            cal_grouped.get_group(key).values,
+            color,
+            context,
+            data,
+            name
+        )
         sens_summary = pd.DataFrame(sens_summary)
         sens_summary.set_index('frequency', inplace=True)
         summaries.append(sens_summary)
@@ -75,15 +96,15 @@ def calculate_sens(event, grouping, filename, calc_sens):
 
 
 def calculate_sens_chirp(event):
-    result = calculate_sens(event, ['hw_ao_chirp_level'], 'chirp_sens',
-                            calculate_group_sens_chirp)
+    result = calculate_sens(event.workbench, ['hw_ao_chirp_level'],
+                            'chirp_sens', calculate_group_sens_chirp)
     max_gain = result.index.get_level_values('hw_ao_chirp_level').max()
     validate_sens(event, result.loc[max_gain].reset_index())
 
 
 def calculate_sens_golay(event):
-    result = calculate_sens(event, ['n_bits', 'output_gain'], 'golay_sens',
-                            calculate_group_sens_golay)
+    result = calculate_sens(event.workbench, ['n_bits', 'output_gain'],
+                            'golay_sens', calculate_group_sens_golay)
     max_n = result.index.get_level_values('n_bits').max()
     max_gain = result.index.get_level_values('output_gain').max()
     validate_sens(event, result.loc[max_n, max_gain].reset_index())
@@ -199,8 +220,8 @@ def validate_sens(event, sens):
     core = event.workbench.get_plugin('enaml.workbench.core')
 
     output_channel = context.get_value('output_channel')
-    pt_channel = context.get_value('pt_channel')
-    cal_channel = context.get_value('cal_channel')
+    pt_channel = context.get_value('microphone_channel')
+    cal_channel = context.get_value('cal_microphone_channel')
     cal_mic_sens_mv = context.get_value('cal_mic_sens_mv')
     cal_mic_sens = cal_mic_sens_mv*1e-3
 
@@ -211,18 +232,18 @@ def validate_sens(event, sens):
     cal_ai.calibration = InterpCalibration(sens['frequency'], sens['sens'])
 
     validation_level = context.get_value('validation_level')
-    try:
-        freq_lb = context.get_value('hw_ao_chirp_start_frequency')
-        freq_ub = context.get_value('hw_ao_chirp_end_frequency')
-    except ValueError:
-        freq_lb = 100
-        freq_ub = 50000
+    safe_gain = context.get_value('safe_gain')
+    freq_lb = context.get_value('validation_start')
+    freq_ub = context.get_value('validation_end')
+    octaves = context.get_value('validation_octaves')
 
-    frequencies = octave_space(freq_lb*1e-3, freq_ub*1e-3, 0.125, 'bounded')*1e3
+    frequencies = octave_space(freq_lb*1e-3, freq_ub*1e-3, octaves,
+                               'bounded')*1e3
     log.debug('Validating calibration by targeting %f dB SPL', validation_level)
-    frequencies, gains = level_to_gain(ao.calibration, frequencies, validation_level)
+    frequencies, gains = level_to_gain(ao.calibration, frequencies,
+                                       validation_level, safe_gain)
     if len(frequencies) == 0:
-        log.debug('No frequencies available to calibrate. Please review target SPL.')
+        log.error('No frequencies available to calibrate. Please review target SPL.')
         return
 
     # TODO: NEED TO ORDER CHANNELS!
@@ -247,39 +268,35 @@ def validate_sens(event, sens):
     core.invoke_command('calibration_data.save_dataframe', parameters=parameters)
 
 
-enamldef PTManifest(ControllerManifest): manifest:
+enamldef BasePTCalibrationManifest(ControllerManifest): manifest:
 
     Extension:
         id = 'data'
         point = 'psi.data.sinks'
 
-        BColzStore:
+        BinaryStore:
             name = 'mic_data'
-            continuous_inputs = ['pt_hw_ai', 'cal_hw_ai']
-            epoch_inputs = ['pt_epoch', 'cal_epoch']
+            continuous_inputs = ['microphone', 'cal_microphone']
 
         TextStore:
-            name = 'calibration_data'
+            name = 'cal_data'
+            epoch_inputs = ['cal_epoch']
+
+        EpochCounter: counter:
+            name = 'epoch_counter'
+            label = 'Trials acquired'
+            source_name = 'pt_epoch'
+            output_name = 'hw_ao'
 
     Extension:
         id = 'io'
         point = 'psi.controller.io'
 
-        Input:
-            name = 'pt_hw_ai'
-            source_name = C.pt_channel
-            source ::
-                channel.gain = C.pt_input_gain
-
+        PTMicrophoneInput:
             ExtractEpochs:
                 name = 'pt_epoch'
 
-        Input:
-            name = 'cal_hw_ai'
-            source_name = C.cal_channel
-            source ::
-                channel.gain = C.cal_input_gain
-
+        CalMicrophoneInput:
             ExtractEpochs:
                 name = 'cal_epoch'
 
@@ -298,41 +315,10 @@ enamldef PTManifest(ControllerManifest): manifest:
                 choices << get_hw_ao_choices(workbench)
                 scope = 'experiment'
 
-            EnumParameter:
-                name = 'pt_channel'
-                label = 'Probe tube mic. channel'
-                choices << get_hw_ai_choices(workbench)
-                scope = 'experiment'
-
-            Parameter:
-                name = 'pt_input_gain'
-                label = 'Probe tube input gain (dB)'
-                dtype = 'float64'
-                default = 20
-                scope = 'experiment'
-
-            EnumParameter:
-                name = 'cal_channel'
-                label = 'Calibration mic. channel'
-                choices << get_hw_ai_choices(workbench)
-                scope = 'experiment'
-
-            Parameter:
-                name = 'cal_input_gain'
-                label = 'Calibration input gain (dB)'
-                default = 0.0
-                scope = 'experiment'
-
             Parameter:
                 name = 'cal_mic_sens_mv'
                 label = 'Calibration microphone sensitivity (mV/Pa)'
                 default = 0.0
-                scope = 'experiment'
-
-            Parameter:
-                name = 'smoothing_window'
-                label = 'Frequency smoothing window size (bins)'
-                default = 25
                 scope = 'experiment'
 
             Parameter:
@@ -342,16 +328,6 @@ enamldef PTManifest(ControllerManifest): manifest:
                 dtype = 'float64'
                 default = 10
                 scope = 'experiment'
-
-            Parameter:
-                name = 'validation_level'
-                label = 'Level to validate at (dB SPL)'
-                dtype = 'float64'
-                default = 80
-                scope = 'experiment'
-
-        OrderedContextMeta: epoch_groups:
-            name = 'settings'
 
     Extension:
         id = 'selectors'
@@ -375,10 +351,6 @@ enamldef PTManifest(ControllerManifest): manifest:
             command = 'psi.controller.stop'
 
         ExperimentAction:
-            event = 'pt_epoch_queue_end'
-            command = 'psi.controller.calculate_sens'
-
-        ExperimentAction:
             event = 'experiment_start'
             command = 'hw_ao.start'
             kwargs = {'delay': 1}
@@ -392,28 +364,31 @@ enamldef PTManifest(ControllerManifest): manifest:
             name = 'epoch_container_signal'
             label = 'Epoch average (signal)'
             span = 0.01
+            name = 'epoch_container'
 
             ViewBox:
                 y_min = -0.1
                 y_max = 0.1
-                label = 'Signal (V)'
+                y_label = 'PT mic. signal (V)'
+                name = 'pt_epoch_view'
 
                 GroupedEpochAveragePlot:
                     label = 'PT epoch average plot'
                     source_name = 'pt_epoch'
                     pen_color_cycle = ['black', 'red']
-                    plot_grouping << [g.name for g in epoch_group.values]
+                    plot_grouping << C.get_names()
 
             ViewBox:
                 y_min = -0.01
                 y_max = 0.01
-                label = 'Signal (V)'
+                y_label = 'Cal. mic. signal (V)'
+                name = 'cal_epoch_view'
 
                 GroupedEpochAveragePlot:
                     label = 'Cal. epoch average plot'
                     source_name = 'cal_epoch'
                     pen_color_cycle = ['black', 'red']
-                    plot_grouping << [g.name for g in epoch_group.values]
+                    plot_grouping << C.get_names()
 
         FFTContainer:
             name = 'calibration_result'
@@ -425,143 +400,57 @@ enamldef PTManifest(ControllerManifest): manifest:
                 y_min = -160
                 y_max = -50
                 name = 'pt_fft'
-                label = 'Probe tube PSD (dB re 1V)'
+                y_label = 'Probe tube PSD (dB re 1V)'
 
             ViewBox:
                 y_min = -160
                 y_max = -50
                 name = 'cal_fft'
-                label = 'Calibration mic. PSD (dB re 1V)'
+                y_label = 'Calibration mic. PSD (dB re 1V)'
 
             ViewBox:
                 name = 'sens'
-                label = 'Probe tube sens (V/Pa)'
+                y_label = 'Probe tube sens (V/Pa)'
 
 
-enamldef ChirpControllerManifest(PTManifest): manifest:
+enamldef PTGolayMixin(GolayMixin): manifest:
 
-    Extension:
-        id = 'signals'
-        point = 'psi.token.tokens'
+    extract_epoch_inputs = ['pt_epoch', 'cal_epoch']
+    cleanup_cb = calculate_sens_golay
 
-        Chirp: chirp:
-            pass
+#enamldef ChirpControllerManifest(PTManifest): manifest:
+#
+#    Extension:
+#        id = 'signals'
+#        point = 'psi.token.tokens'
+#
+#        Chirp: chirp:
+#            pass
+#
+#    Extension:
+#        id = 'io_chirp'
+#        point = 'psi.controller.io'
+#
+#        SelectorQueuedEpochOutput: hw_ao:
+#            name = 'hw_ao'
+#            auto_decrement = True
+#            configurable = False
+#            queue = FIFOSignalQueue()
+#            target_name = C.output_channel
+#            token = chirp
+#            target ::
+#                controller = workbench.get_plugin('psi.controller')
+#                channel.calibration = FlatCalibration.as_attenuation()
+#                pt_epoch = controller.get_input('pt_epoch')
+#                cal_epoch = controller.get_input('cal_epoch')
+#                self.connect(pt_epoch.added_queue.append)
+#                self.connect(cal_epoch.added_queue.append)
+#
+#    Extension:
+#        id = 'calibration_commands'
+#        point = 'enaml.workbench.core.commands'
+#
+#        Command:
+#            id = 'psi.controller.calculate_sens'
+#            handler = calculate_sens_chirp
 
-    Extension:
-        id = 'io_chirp'
-        point = 'psi.controller.io'
-
-        SelectorQueuedEpochOutput: hw_ao:
-            name = 'hw_ao'
-            auto_decrement = True
-            configurable = False
-            queue = FIFOSignalQueue()
-            target_name = C.output_channel
-            token = chirp
-            target ::
-                controller = workbench.get_plugin('psi.controller')
-                channel.calibration = FlatCalibration.as_attenuation()
-                pt_epoch = controller.get_input('pt_epoch')
-                cal_epoch = controller.get_input('cal_epoch')
-                self.connect(pt_epoch.added_queue.append)
-                self.connect(cal_epoch.added_queue.append)
-
-    Extension:
-        id = 'calibration_commands'
-        point = 'enaml.workbench.core.commands'
-
-        Command:
-            id = 'psi.controller.calculate_sens'
-            handler = calculate_sens_chirp
-
-
-enamldef GolayControllerManifest(PTManifest): manifest:
-
-    Extension:
-        id = 'io_golay'
-        point = 'psi.controller.io'
-
-        QueuedEpochOutput: hw_ao:
-            name = 'hw_ao'
-            auto_decrement = True
-            configurable = False
-            queue = FIFOSignalQueue()
-            target_name = C.output_channel
-            target ::
-                controller = workbench.get_plugin('psi.controller')
-                channel.calibration = FlatCalibration.as_attenuation()
-                pt_epoch = controller.get_input('pt_epoch')
-                cal_epoch = controller.get_input('cal_epoch')
-                self.connect(pt_epoch.added_queue.append)
-                self.connect(cal_epoch.added_queue.append)
-
-    Extension:
-        id = 'context_golay'
-        point = 'psi.context.items'
-
-        ContextGroup:
-            name = 'golay'
-            label = 'Golay'
-
-            Parameter:
-                name = 'n_bits'
-                label = 'Number of bits for Golay'
-                default = 14
-                scope = 'trial'
-
-            Parameter:
-                name = 'fft_averages'
-                label = 'FFT averages'
-                default = 4
-                scope = 'experiment'
-
-            Parameter:
-                name = 'waveform_averages'
-                label = 'Waveform averages'
-                default = 2
-                scope = 'experiment'
-
-            Parameter:
-                name = 'discard'
-                label = 'Repetitions to discard'
-                default = 2
-                scope = 'experiment'
-
-            Parameter:
-                name = 'iti'
-                label = 'Delay between repetitions (sec)'
-                default = 1e-5
-                scope = 'experiment'
-
-            Parameter:
-                name = 'ab_delay'
-                label = 'Delay between A and B code (sec)'
-                default = 2
-                scope = 'experiment'
-
-            Parameter:
-                name = 'output_gain'
-                label = 'Output gain'
-                default = -20
-                scope = 'trial'
-
-    Extension:
-        id = 'calibration_commands_golay'
-        point = 'enaml.workbench.core.commands'
-
-        Command:
-            id = 'psi.controller.configure_hardware'
-            handler = partial(configure_hardware_golay, hw_ao, workbench)
-
-        Command:
-            id = 'psi.controller.calculate_sens'
-            handler = calculate_sens_golay
-
-    Extension:
-        id = 'calibration_actions_golay'
-        point = 'psi.controller.actions'
-
-        ExperimentAction:
-            event = 'experiment_prepare'
-            command = 'psi.controller.configure_hardware'
-            weight = 9

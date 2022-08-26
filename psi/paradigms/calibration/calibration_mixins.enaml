@@ -27,7 +27,7 @@ from psi.token.primitives import Chirp, Cos2Envelope, Tone
 from psi.paradigms.core.io_mixins import QueuedEpochChannelOutput
 
 
-def configure_hardware_golay(output, workbench, event=None):
+def configure_hardware_golay(output, epoch_inputs, workbench, event=None):
     '''
     Configure hardware and queue for Golay
 
@@ -37,6 +37,14 @@ def configure_hardware_golay(output, workbench, event=None):
     context = workbench.get_plugin('psi.context')
     controller = workbench.get_plugin('psi.controller')
     data = workbench.get_plugin('psi.data')
+
+    output.channel.calibration = FlatCalibration.as_attenuation()
+    output.queue = FIFOSignalQueue()
+    output.queue.set_fs(output.fs)  # TODO: necessary?
+
+    for name in epoch_inputs:
+        i = controller.get_input(name)
+        output.queue.connect(i.added_queue.append)
 
     max_sf = 0
     for setting in context.iter_settings('default', 1):
@@ -62,16 +70,14 @@ def configure_hardware_golay(output, workbench, event=None):
         output.queue.append(b, n_trials, delays, metadata=setting)
 
     output.channel.expected_range = (-max_sf*1.1, max_sf*1.1)
-    counter = data.find_sink('epoch_counter')
-    deferred_call(setattr, counter, 'requested_n', n_trials * 2)
 
 
 def plot_data(vb, summary, y_name, *args, **kwargs):
     vb.plot(summary['frequency'], summary[y_name], *args, **kwargs)
 
 
-def compute_spl_golay(workbench, event):
-    log.debug('Computing SPL for Golay')
+def compute_spl_golay(event):
+    workbench = event.workbench
     core = workbench.get_plugin('enaml.workbench.core')
     context = workbench.get_plugin('psi.context')
     controller = workbench.get_plugin('psi.controller')
@@ -246,6 +252,14 @@ enamldef GolayMixin(ExperimentManifest): manifest:
     id = 'golay'
     required = True
 
+    #: This can be subclassed so that we can calibrate multiple inputs against
+    #: a reference microphone.
+    attr extract_epoch_inputs = ['epoch']
+
+    #: The standard cleanup function assumes the microphone is already
+    #: calibrated.
+    attr cleanup_cb = compute_spl_golay
+
     Extension:
         id = manifest.id + '.io'
         point = 'psi.controller.io'
@@ -256,20 +270,33 @@ enamldef GolayMixin(ExperimentManifest): manifest:
             auto_decrement = True
             configurable = False
             target_name = C.output_channel
-            target ::
-                channel.calibration = FlatCalibration.as_attenuation()
-                self.queue = FIFOSignalQueue()
-                # This needs to be done manually otherwise it doesn't happen
-                # until after this block exits, creating a race condition. How
-                # to fix?
-                self.queue.set_fs(self.fs)
 
-                controller = workbench.get_plugin('psi.controller')
-                epoch = controller.get_input('epoch')
-                self.queue.connect(epoch.added_queue.append)
-                configure_hardware_golay(hw_ao, workbench)
-                cb = partial(compute_spl_golay, workbench)
-                epoch.observe('complete', cb)
+    Extension:
+        id = manifest.id + '.commands'
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = 'psi.controller.configure_hardware'
+            handler = partial(configure_hardware_golay, hw_ao,
+                              manifest.extract_epoch_inputs, workbench)
+
+        Command:
+            id = 'psi.controller.compute_calibration'
+            handler = manifest.cleanup_cb
+
+    Extension:
+        id = manifest.id + '.actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = 'psi.controller.configure_hardware'
+            weight = 9
+
+        ExperimentAction:
+            event = 'experiment_end'
+            command = 'psi.controller.compute_calibration'
+            delay = 1
 
     Extension:
         id = manifest.id + '.items'
