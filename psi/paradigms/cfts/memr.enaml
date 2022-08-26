@@ -22,7 +22,7 @@ from psi.data.api import FFTContainer, TimeContainer, ViewBox
 from psi.data.sinks.api import BinaryStore, EpochCounter, TextStore
 
 from .cfts_mixins import CFTSSelector, EEGInput, PTMicrophoneInput
-from ..core.io_mixins import EpochChannelOutput, QueuedEpochChannelOutput
+from ..core.io_mixins import QueuedEpochChannelOutput
 
 EXPERIMENT = __name__.rsplit('.', 1)[-1]
 
