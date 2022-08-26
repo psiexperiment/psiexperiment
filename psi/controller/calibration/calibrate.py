@@ -26,6 +26,8 @@ def merge_results(results, names=['ao_channel']):
             index = pd.MultiIndex.from_tuples(value.keys(), names=names)
             merged[key] = pd.DataFrame(value.values(), index=index)
         else:
+            for v in value.values():
+                v.attrs = {}
             merged[key] = pd.concat(value.values(), keys=value.keys(), names=names)
     return merged
 
