@@ -32,10 +32,32 @@ def fix_legacy_toolbar_layout(layout):
     return layout
 
 
-class MissingDockLayoutValidator(DockLayoutValidator):
+class PSIDockLayoutValidator(DockLayoutValidator):
+
+    def __init__(self, available, remap_cb=None):
+        '''
+        Allows us to map legacy dock item names to new dock item names from
+        saved layouts.
+        '''
+        if remap_cb is None:
+            remap_cb = lambda x: x
+        self._remap_cb = remap_cb
+        super().__init__(available)
+
+    def warn(self, mesg):
+        return
 
     def result(self, node):
+        layout_items = '\t\n'.join(self._available)
+        log.info('Saved layout references the following items: %s', ', '.join(self._seen_items))
+        log.info('DockArea references the following items: %s', ', '.join(self._available))
+        log.warning('Saved layout has the following extra items: %s', ', '.join(self._seen_items - self._available))
+        log.warning('DockArea has the following extra items: %s', ', '.join(self._available - self._seen_items))
         return self._available - self._seen_items
+
+    def visit_ItemLayout(self, node):
+        node.name = self._remap_cb(node.name)
+        super().visit_ItemLayout(node)
 
 
 class ExperimentPlugin(PSIPlugin):
@@ -44,6 +66,12 @@ class ExperimentPlugin(PSIPlugin):
     _workspace_contributions = Typed(dict)
     _toolbars = Typed(dict, {})
     _status_items = Typed(dict)
+
+    def remap_layout(self, name):
+        return name
+
+    def remap_preference(self, name):
+        return name
 
     def start(self):
         log.debug('Starting experiment plugin')
@@ -153,7 +181,8 @@ class ExperimentPlugin(PSIPlugin):
             log.exception(e)
 
         available = [i.name for i in ui.workspace.dock_area.dock_items()]
-        missing = MissingDockLayoutValidator(available)(layout['dock_layout'])
+        validator = PSIDockLayoutValidator(available, self.remap_layout)
+        missing = validator(layout['dock_layout'])
         ops = []
         for item in missing:
             log.debug('{} missing from saved dock layout'.format(item))
@@ -173,6 +202,7 @@ class ExperimentPlugin(PSIPlugin):
         return state
 
     def set_preferences(self, state):
+        state = {self.remap_preference(k): v for k, v in state.items()}
         for name, preference in self._preferences.items():
             log.debug('Setting preferences for %s', name)
             if name not in state:
