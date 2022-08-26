@@ -51,7 +51,7 @@ enamldef DPOAEIOBaseManifest(DPOAEManifest): manifest:
         ExperimentAction:
             event = 'dpoae_acquired'
             command = 'psi.context.next_setting'
-            kwargs = {'selector': 'actual', 'save_prior': True}
+            kwargs = {'selector': 'actual'}
 
         ExperimentAction:
             event = 'context_next_setting'
