@@ -231,12 +231,13 @@ def configure_dpoaeio_experiment(event):
         mesg = f'Out of {len(settings)} settings, ' \
             f'{len(bad_settings)} exceed the maximum ' \
             f'capabilities of the system:\n{", ".join(lines)}'
+        log.warning(mesg)
         warning(None, 'Settings', mesg)
 
+    log.info('Configuring sequence for actual selector')
     selector = context.get_selector('actual')
     for setting in good_settings:
         selector.add_setting(setting)
-
     kwargs = {'selector': 'actual', 'cycles': 1}
     core.invoke_command('psi.context.initialize', kwargs)
 
