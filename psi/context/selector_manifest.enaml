@@ -411,7 +411,7 @@ def friendly_cartesian_product_update_context(selector, event):
     # thresholding input data).
     context = event.workbench.get_plugin('psi.context')
     for name, param in context.parameters.items():
-        if name not in selector.context_detail and param.scope == 'trial':
+        if name not in selector.can_manage and param.scope == 'trial':
             param.rove = False
             param.scope = 'experiment'
 
@@ -422,7 +422,7 @@ def friendly_cartesian_product_update_context(selector, event):
         for item_name in selector.can_manage:
             item = context.parameters[item_name]
             item.rove = True
-            item.visible = False
+            #item.visible = False
 
 
 template SelectorTemplate(selector, MemberType: sc.FriendlyCartesianProduct):
