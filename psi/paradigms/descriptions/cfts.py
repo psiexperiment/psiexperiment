@@ -63,14 +63,6 @@ ParadigmDescription(
 )
 
 
-
-#ParadigmDescription(
-#    'memr_simultaneous', 'MEMR (simultaneous)', 'ear', [
-#        {'manifest': CFTS_PATH + 'memr.SimultaneousMEMRManifest'},
-#    ] + base_mixins,
-#)
-
-
 ParadigmDescription(
     'memr_interleaved', 'MEMR (interleaved)', 'ear', [
         {'manifest': CFTS_PATH + 'memr.InterleavedMEMRManifest'},
