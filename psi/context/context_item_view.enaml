@@ -159,7 +159,7 @@ template ContextItemTemplate(context_item, MemberType: Parameter):
         )
 
         Conditional:
-            condition = get_scope(context_item.scope, workbench) == 'trial'
+            condition << get_scope(context_item.scope, workbench) == 'trial'
             CheckBox:
                 checked := context_item.rove
 
