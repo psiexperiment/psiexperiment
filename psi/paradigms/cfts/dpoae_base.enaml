@@ -227,7 +227,7 @@ enamldef DPOAEManifest(ControllerManifest): manifest:
         ContextGroup:
             name = 'result'
             label = 'Results'
-            visible = False
+            hide_when = 'always'
 
             Result:
                 name = 'f2_spl'
