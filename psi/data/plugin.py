@@ -82,11 +82,16 @@ class DataPlugin(PSIPlugin):
             sink.set_base_path(base_path, is_temp)
 
     def find_plot_container(self, plot_container_name):
+        available_names = []
         for container in self._containers:
             if container.name == plot_container_name:
                 return container
-        m = 'Plot container {} not available'
-        raise AttributeError(m.format(plot_container_name))
+            available_names.append(container.name)
+
+        available_names = ', '.join(available_names)
+        m = f'Plot container {plot_container_name} not available. ' \
+            f'Valid choices are {available_names}'
+        raise AttributeError(m)
 
     def find_viewbox(self, viewbox_name):
         available_names = []
