@@ -4,11 +4,11 @@ import logging
 log = logging.getLogger(__name__)
 
 from psiaudio.stim import (
-    BandlimitedClickFactory, BandlimitedNoiseFactory, BroadbandNoiseFactory,
-    ChirpFactory, Cos2EnvelopeFactory, GateFactory, RepeatFactory,
-    SAMEnvelopeFactory, ShapedNoiseFactory, SilenceFactory,
-    SquareWaveEnvelopeFactory, SquareWaveFactory, ToneFactory,
-    WavSequenceFactory
+    BandlimitedClickFactory, BandlimitedNoiseFactory,
+    BandlimitedFIRNoiseFactory, BroadbandNoiseFactory, ChirpFactory,
+    Cos2EnvelopeFactory, GateFactory, RepeatFactory, SAMEnvelopeFactory,
+    ShapedNoiseFactory, SilenceFactory, SquareWaveEnvelopeFactory,
+    SquareWaveFactory, ToneFactory, WavSequenceFactory
 )
 
 from psi.context.api import Parameter, EnumParameter
@@ -163,6 +163,31 @@ enamldef BandlimitedNoise(BroadbandNoise):
         label = 'stopband attenuation (dB)'
         compact_label = 'stop. atten.'
         default = 90.0
+
+    Parameter:
+        name = 'polarity'
+        label = 'polarity'
+        compact_label = 'pol.'
+        default = 1
+
+
+enamldef BandlimitedFIRNoise(BroadbandNoise):
+
+    factory = BandlimitedFIRNoiseFactory
+    name = 'bandlimited_noise'
+    label = 'bandlimited noise'
+
+    Parameter:
+        name = 'fl'
+        label = 'highpass cutoff (Hz)'
+        compact_label = 'fl'
+        default = 0.1e3
+
+    Parameter:
+        name = 'fh'
+        label = 'lowpass cutoff (Hz)'
+        compact_label = 'fh'
+        default = 20e3
 
     Parameter:
         name = 'polarity'
