@@ -26,8 +26,16 @@ temperature_mixin = {
 }
 
 
-base_mixins = [temperature_mixin, microphone_mixin, microphone_fft_mixin]
-efr_mixins = base_mixins + [eeg_mixin]
+efr_microphone_fft_mixin = {
+    'manifest': CORE_PATH + 'signal_mixins.SignalFFTViewManifest',
+    'attrs': {
+        'id': 'microphone_fft_view',
+        'title': 'Microphone view (PSD)',
+        'fft_time_span': 5,
+        'source_name': 'microphone',
+        'y_label': 'Microphone (dB)'
+    }
+}
 
 
 ParadigmDescription(
@@ -45,28 +53,45 @@ ParadigmDescription(
     'dpoae_io', 'DPOAE (input-output)', 'ear', [
         {'manifest': CFTS_PATH + 'dpoae_io.DPOAEIOSimpleManifest'},
         {'manifest': CFTS_PATH + 'cfts_mixins.DPOAEInEarCalibrationMixinManifest', 'selected': True},
-    ] + base_mixins,
+        temperature_mixin,
+        microphone_mixin,
+        microphone_fft_mixin,
+    ],
 )
 
 
 ParadigmDescription(
     'efr_sam', 'SAM EFR', 'ear', [
         {'manifest': CFTS_PATH + 'efr.SAMEFRManifest'},
-    ] + efr_mixins,
+        {'manifest': CFTS_PATH + 'cfts_mixins.EFRInEarCalibrationMixinManifest', 'selected': True},
+        temperature_mixin,
+        microphone_mixin,
+        efr_microphone_fft_mixin,
+        eeg_mixin,
+    ]
 )
 
 
 ParadigmDescription(
     'efr_ram', 'RAM EFR', 'ear', [
         {'manifest': CFTS_PATH + 'efr.RAMEFRManifest'},
-    ] + efr_mixins,
+        {'manifest': CFTS_PATH + 'cfts_mixins.EFRInEarCalibrationMixinManifest', 'selected': True},
+        temperature_mixin,
+        microphone_mixin,
+        efr_microphone_fft_mixin,
+        eeg_mixin,
+    ]
 )
 
 
 ParadigmDescription(
     'memr_interleaved', 'MEMR (interleaved)', 'ear', [
         {'manifest': CFTS_PATH + 'memr.InterleavedMEMRManifest'},
-    ] + base_mixins,
+        temperature_mixin,
+        microphone_mixin,
+        microphone_fft_mixin,
+        {'manifest': CFTS_PATH + 'cfts_mixins.MEMRInEarCalibrationMixinManifest', 'selected': True},
+    ]
 )
 
 
