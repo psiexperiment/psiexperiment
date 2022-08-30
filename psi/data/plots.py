@@ -6,6 +6,7 @@ import itertools
 import importlib
 from functools import partial
 from collections import defaultdict
+import uuid
 
 import numpy as np
 import pandas as pd
@@ -30,10 +31,9 @@ from psi.context.context_item import ContextMeta
 ################################################################################
 # Utility functions
 ################################################################################
-def get_x_fft(fs, duration):
+def get_freq(fs, duration):
     n_time = int(fs * duration)
-    freq = np.fft.rfftfreq(n_time, fs**-1)
-    return np.log10(freq)
+    return np.fft.rfftfreq(n_time, fs**-1)
 
 
 def get_color_cycle(name):
@@ -676,6 +676,7 @@ class FFTChannelPlot(ChannelPlot):
     window = d_(Enum('hamming', 'flattop'))
     apply_calibration = d_(Bool(True))
     _x = Typed(np.ndarray)
+    _freq = Typed(np.ndarray)
     _buffer = Typed(SignalBuffer)
 
     def _default_name(self):
@@ -699,7 +700,8 @@ class FFTChannelPlot(ChannelPlot):
     def _cache_x(self, event=None):
         if self.source.fs:
             time_span = self.time_span / self.waveform_averages
-            self._x = get_x_fft(self.source.fs, time_span)
+            self._freq = get_freq(self.source.fs, time_span)
+            self._x = np.log10(self._freq)
 
     def update(self, event=None):
         if self._buffer.get_time_ub() >= self.time_span:
@@ -708,7 +710,7 @@ class FFTChannelPlot(ChannelPlot):
             psd = util.psd(data, self.source.fs, self.window,
                            waveform_averages=self.waveform_averages)
             if self.apply_calibration:
-                db = self.source.calibration.get_db(self._x, psd)
+                db = self.source.calibration.get_db(self._freq, psd)
             else:
                 db = util.db(psd)
             if self._x.shape == db.shape:
@@ -1073,6 +1075,7 @@ class GroupedEpochFFTPlot(EpochGroupMixin, BasePlot):
 
     waveform_averages = d_(Int(1))
     apply_calibration = d_(Bool(True))
+    _freq = Typed(np.ndarray)
 
     def _default_name(self):
         return self.source_name + '_grouped_epoch_fft_plot'
@@ -1081,13 +1084,14 @@ class GroupedEpochFFTPlot(EpochGroupMixin, BasePlot):
         # Cache the frequency points. Must be in units of log for PyQtGraph.
         # TODO: This could be a utility function stored in the parent?
         if self.source.fs and self.duration:
-            self._x = get_x_fft(self.source.fs, self.duration / self.waveform_averages)
+            self._freq = get_freq(self.source.fs, self.duration / self.waveform_averages)
+            self._x = np.log10(self._freq)
 
     def _y(self, epoch):
         y = super()._y(epoch)
         psd = util.psd(y, self.source.fs, waveform_averages=self.waveform_averages)
         if self.apply_calibration:
-            return self.source.calibration.get_db(self._x, psd)
+            return self.source.calibration.get_db(self._freq, psd)
         return util.db(psd)
 
 
@@ -1102,7 +1106,8 @@ class GroupedEpochPhasePlot(EpochGroupMixin, BasePlot):
         # Cache the frequency points. Must be in units of log for PyQtGraph.
         # TODO: This could be a utility function stored in the parent?
         if self.source.fs and self.duration:
-            self._x = get_x_fft(self.source.fs, self.duration)
+            self._freq = get_freq(self.source.fs, self.duration)
+            self._x = np.log10(self._freq)
 
     def _y(self, epoch):
         y = super()._y(epoch)
