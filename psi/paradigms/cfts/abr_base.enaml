@@ -91,6 +91,10 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
         id = EXPERIMENT + '.abr.context'
         point = 'psi.context.items'
 
+        ContextGroup:
+            name = 'hardware_settings'
+            label = 'Hardware'
+
         ContextRow:
             name = 'artifact_reject'
             group_name = 'acquisition'

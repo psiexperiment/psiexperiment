@@ -322,35 +322,7 @@ enamldef ABRIOManifest(ABRIOBaseManifest): manifest:
             label = 'ABR sequence'
 
 
-def configure_abrio_simple(event):
-    context = event.workbench.get_plugin('psi.context')
-
-    # Don't allow averages or rate to vary
-    averages = context.get_parameter('averages')
-    rate = context.get_parameter('rate')
-    averages.scope = 'experiment'
-    rate.scope = 'experiment'
-
-    meta = context.get_meta('settings')
-    meta.editable = False
-
-
 enamldef ABRIOSimpleManifest(ABRIOBaseManifest): manifest:
-
-    Extension:
-        id = EXPERIMENT_SIMPLE + '.actions'
-        point = 'psi.controller.actions'
-
-        ExperimentAction:
-            event = 'plugins_started'
-            command = 'psi.controller.configure_plugins'
-
-    Extension:
-        id = EXPERIMENT_SIMPLE + '.commands'
-        point = 'enaml.workbench.core.commands'
-        Command:
-            id = 'psi.controller.configure_plugins'
-            handler = configure_abrio_simple
 
     Extension:
         id = EXPERIMENT_SIMPLE + '.selectors'
