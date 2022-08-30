@@ -480,7 +480,7 @@ class ViewBox(ColorCycleMixin, PSIContribution):
         self.viewbox.removeItem(plot)
         self.parent.legend.removeItem(plot)
 
-    def plot(self, x, y, color='k', log_x=False, log_y=False, label=None,
+    def plot(self, x, y, color=None, log_x=False, log_y=False, label=None,
              kind='line'):
         '''
         Convenience function used by plugins
@@ -488,6 +488,9 @@ class ViewBox(ColorCycleMixin, PSIContribution):
         This is typically used in post-processing routines to add static plots
         to existing view boxes.
         '''
+        if color is None:
+            color = next(self.color_cycle)
+
         if log_x:
             x = np.log10(x)
         if log_y:
