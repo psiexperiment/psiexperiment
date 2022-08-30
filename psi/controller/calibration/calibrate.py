@@ -118,6 +118,11 @@ class ToneCalibrate(BaseCalibrate):
                 new = core.invoke_command('psi.context.unique_values', p)
                 ao_info['frequencies'].update(new)
 
+        # At this point, ao_items is a dictionary whose keys are output
+        # channels. The values are another dictionary consisting of 
+        # {'frequencies': set(frequencies to test)}. We now need to convert the
+        # set of frequencies to a list (we used set to remove duplicate
+        # frequencies).
         return {k: {sk: list(sv)} for k, v in ao.items() for sk, sv in v.items()}
 
     def run_calibration(self, ao_channel, ai_channel, kwargs):
@@ -155,40 +160,29 @@ class ChirpCalibrate(BaseCalibrate):
     #: Number of repetitions to average
     repetitions = d_(Int(64))
 
-    def calibrate(self, controller, core):
-        '''
-        Run calibration
+    def get_config(self, controller, core):
+        # As of now, we do not do anything with the value provided for each
+        # output name in the dictionary. This is for future compatibility.
+        ao = {}
+        for output_name, _ in self.outputs.items():
+            output = controller.get_output(output_name)
+            ao[output.channel] = {}
+        return ao
 
-        Parameters
-        ----------
-        workbench : Enaml workbench
-            Enaml workbench instance
-        '''
-        ao_channels = set(controller.get_output(o).channel for o in self.outputs)
-        ai_input = controller.get_input(self.input_name)
-        ai_channel = ai_input.channel
-
-        results = {}
-        for ao_channel in ao_channels:
-            log.debug('Running chirp calibration for %s', ao_channel.name)
-            result = chirp_sens(ao_channel.engine,
-                                self.gain,
-                                ao_channel_name=ao_channel.name,
-                                ai_channel_names=[ai_channel.name],
-                                duration=self.duration,
-                                iti=self.iti,
-                                repetitions=self.repetitions)
-
-            results[ao_channel.name] = result
-            calibration = InterpCalibration(result.index.get_level_values('frequency'),
-                                            result['sens'])
-            ao_channel.calibration = calibration
-            log.info('%s: %s', ao_channel.name, ao_channel.calibration)
-
-        results = pd.concat(results.values(), keys=results.keys(),
-                            names=['ao_channel'])
-
-        results['gain'] = self.gain
-        results['duration'] = self.duration
-        results['repetitions'] = self.repetitions
-        self.result = results
+    def run_calibration(self, ao_channel, ai_channel, kwargs):
+        result = chirp_sens(
+            ao_channel.engine,
+            self.gain,
+            ao_channel_name=ao_channel.name,
+            ai_channel_names=[ai_channel.name],
+            duration=self.duration,
+            iti=self.iti,
+            repetitions=self.repetitions
+        )
+        result = result.sort_index()
+        sens = result.loc[ai_channel.name, 'sens']
+        ao_channel.calibration = InterpCalibration(sens.index, sens.values)
+        result['gain'] = self.gain
+        result['duration'] = self.duration
+        result['repetitions'] = self.repetitions
+        return result
