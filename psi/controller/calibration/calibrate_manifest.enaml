@@ -15,12 +15,12 @@ from psi.data.api import FFTContainer, ResultPlot, TimeContainer, ViewBox
 def plot_chirp_result(workbench, manifest, event):
     data = workbench.get_plugin('psi.data')
     vb = data.find_viewbox(manifest.contribution.name)
-    result = manifest.contribution.result
-    vb.plot(
-        result.index.get_level_values('frequency').values,
-        result['norm_spl'].values,
-        log_x=True,
-    )
+
+    norm_spl = manifest.contribution.result['calibration']['norm_spl'].dropna()
+    for (s, m), n_spl in norm_spl.groupby(['ao_channel', 'channel']):
+        label = f'{s} ({m})'
+        vb.plot(n_spl.index.get_level_values('frequency'), n_spl.values,
+                log_x=True, label=label)
 
 
 enamldef ChirpCalibrateManifest(PSIManifest): manifest:
@@ -33,7 +33,7 @@ enamldef ChirpCalibrateManifest(PSIManifest): manifest:
             condition << manifest.contribution.show_widget
 
             FFTContainer:
-                freq_lb = 500
+                freq_lb = 5000
                 freq_ub = 50000
 
                 initialized ::
@@ -44,6 +44,8 @@ enamldef ChirpCalibrateManifest(PSIManifest): manifest:
                 label = manifest.contribution.label + ' results'
 
                 ViewBox: vb:
+                    y_min = 60
+                    y_max = 160
                     name = manifest.contribution.name
 
 

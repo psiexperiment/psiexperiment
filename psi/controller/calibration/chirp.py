@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 import numpy as np
 import pandas as pd
 
@@ -58,15 +61,8 @@ def chirp_power(engine, ao_channel_name, ai_channel_names, start_frequency=500,
 
     result = {}
     waveforms = {}
-    for ai_channel, (signal, md) in recording.items():
-        md = md.set_index(['gain'], append=True)
-        index = md.index.swaplevel('epoch', 'gain')
-
-        t = np.arange(signal.shape[-1]) / ai_channel.fs
-        time_index = pd.Index(t, name='time')
-        signal = pd.DataFrame(signal, index=index, columns=time_index)
+    for ai_channel, signal in recording.items():
         mean_signal = signal.groupby('gain').mean()
-
         samples = int(round(ai_channel.fs * (duration + iti)))
         factory = ChirpFactory(ai_channel.fs, **factory_kw)
         chirp_waveform = factory.next(samples)
@@ -106,6 +102,5 @@ def chirp_spl(engine, **kwargs):
 
 def chirp_sens(engine, gain=-40, vrms=1, **kwargs):
     result = chirp_spl(engine, gain=gain, vrms=vrms, **kwargs)
-    result['norm_spl'] = result['spl'] - util.db(result['chirp_rms'])
-    result['sens'] = -result['norm_spl'] - util.db(20e-6)
+    result['sens'] = result['norm_spl'] = result['spl'] - util.db(result['chirp_rms'])
     return result
