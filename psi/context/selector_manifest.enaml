@@ -345,7 +345,7 @@ enamldef FriendlyCartesianProductItem(Container):
 
 def get_description(selector, item, *args):
     try:
-        values = selector.get_values(item, transform=True)
+        values = selector.get_values(item, transform=False)
         step_unit = selector.get_field(item.name, 'step_unit', '')
         unit = selector.get_field(item.name, 'unit')
         label = selector.get_field(item.name, 'user_friendly_name')
