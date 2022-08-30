@@ -38,24 +38,18 @@ def configure_interleaved_memr(event):
     elicitor.queue = GroupedFIFOSignalQueue(2)
 
     for setting in context.iter_settings('default', 1):
-        averages = min(1, int(round(setting['trial_n'] // 2)))
+        averages = max(1, int(round(setting['trial_n'] / 2)))
         trial_duration = setting['trial_period']
         for polarity in (1, -1):
             setting['elicitor_bandlimited_noise_polarity'] = polarity
             probe.add_setting(setting, averages=averages, total_duration=trial_duration)
             elicitor.add_setting(setting, averages=averages, total_duration=trial_duration)
 
-        #frequency = setting['target_tone_frequency']
-        #level = setting['target_tone_level']
-        #max_level[frequency] = max(level, max_level.get(frequency, -np.inf))
-
     names = context.get_names()
     formatter = context.get_selector().get_formatter(names)
-
-    log.error(formatter)
-    #container = data.find_plot_container('memr_container')
-    #container.buttons = sorted(context.unique_values(names))
-    #container.fmt_button_cb = formatter
+    container = data.find_plot_container('memr_fft_container')
+    container.buttons = sorted(context.unique_values(names))
+    container.fmt_button_cb = formatter
 
     # Then figure out the maximum scaling factor required for that level.
     # Multiply to convert from RMS to peak to peak and add 1% headroom.
@@ -208,34 +202,34 @@ enamldef BaseMEMRManifest(ControllerManifest): manifest:
         id = EXPERIMENT + '.plots'
         point = 'psi.data.plots'
 
-        TimeContainer: pc:
+        TimeContainer:
             name = 'probe_time_container'
             label = 'Probe waveform'
             span = 11e-3
 
-            ViewBox: vb:
+            ViewBox:
                 name = 'probe_time_vb'
                 y_mode = 'mouse'
                 save_limits = True
 
-        FFTContainer: pc:
+        FFTContainer:
             name = 'probe_fft_container'
             label = 'Probe PSD'
             freq_lb = 5.6e3
             freq_ub = 45e3
 
-            ViewBox: vb:
+            ViewBox:
                 name = 'probe_fft_vb'
                 y_mode = 'mouse'
                 save_limits = True
 
-        FFTContainer: pc:
+        FFTContainer:
             name = 'memr_fft_container'
             label = 'MEMR PSD'
             freq_lb = 5.6e3
             freq_ub = 45e3
 
-            ViewBox: vb:
+            ViewBox:
                 name = 'memr_fft_vb'
                 y_mode = 'mouse'
                 save_limits = True
@@ -261,6 +255,10 @@ enamldef InterleavedMEMRManifest(BaseMEMRManifest):
     Extension:
         id = EXPERIMENT + '.interleaved.context'
         point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'hardware_settings'
+            label = 'Hardware'
 
         ContextGroup:
             name = 'memr'
