@@ -16,7 +16,7 @@ from psi.controller.api import (
     Synchronized
 )
 from psi.token.primitives import (
-    BandlimitedClick, BandlimitedNoise, Cos2Envelope, Repeat
+    BandlimitedClick, BandlimitedFIRNoise, Cos2Envelope, Repeat
 )
 from psi.data.api import FFTContainer, TimeContainer, ViewBox
 from psi.data.sinks.api import BinaryStore, EpochCounter, TextStore
@@ -255,7 +255,7 @@ enamldef InterleavedMEMRManifest(BaseMEMRManifest):
             name = 'noise'
             hide = ['delay']
             Cos2Envelope:
-                BandlimitedNoise:
+                BandlimitedFIRNoise:
                     pass
 
     Extension:
