@@ -16,7 +16,7 @@ from psi.controller.api import (ControllerManifest, Coroutine, ExperimentEvent,
 
 from psi.context.api import ContextGroup
 from psi.token.primitives import Cos2Envelope, Gate, SAMEnvelope, SquareWaveEnvelope, Tone
-from psi.data.sinks.api import EpochCounter, TextStore
+from psi.data.sinks.api import BinaryStore, EpochCounter, TextStore
 from psi.data.api import (FFTContainer, GroupedEpochFFTPlot, PlotContainer,
                           ResultPlot, ViewBox)
 
@@ -45,12 +45,25 @@ def configure_experiment(event):
         sf = output.calibration.get_sf(frequency, level)
         max_sf[frequency] = sf
     max_sf = max(max_sf.values()) * np.sqrt(2) * 1.01 * 2
-    log.info(max_sf)
     output.channel.expected_range = (-max_sf, max_sf)
 
     names = context.get_names()
     pc = data.find_plot_container('efr_io_container')
     pc.x_min, pc.x_max = context.get_range(names[-1])
+
+    # Set the EEG FFT to show only the modulation frequency
+    fm_range = context.unique_values('target_mod_fm')
+    eeg_fft = data.find_plot_container('eeg_fft_container')
+    eeg_fft.freq_lb = min(fm_range) / 2
+    eeg_fft.freq_ub = min(fm_range) * 2
+
+    # Set the microphone FFT to show the modulation frequency plus the upper
+    # carrier frequency. This will allow us to scan for potential harmonics or
+    # other artifacts in the microphone spectrum that may affect EEG.
+    freq_range = context.unique_values('target_tone_frequency')
+    mic_fft = data.find_plot_container('signal_fft_view_container')
+    mic_fft.freq_lb = min(fm_range) / 1.2
+    mic_fft.freq_ub = max(freq_range) * 1.2
 
 
 @coroutine
@@ -145,6 +158,10 @@ enamldef BaseEFRManifest(ControllerManifest): manifest:
             name = 'acquisition'
             label = 'Acquisition'
 
+        ContextGroup:
+            name = 'hardware_settings'
+            label = 'Hardware'
+
     Extension:
         id = EXPERIMENT + '.commands'
         point = 'enaml.workbench.core.commands'
@@ -192,6 +209,10 @@ enamldef BaseEFRManifest(ControllerManifest): manifest:
         TextStore:
             name = 'erp_metadata_store'
             epoch_inputs = ['analyze_efr']
+
+        BinaryStore:
+            name = 'continuous_store'
+            continuous_inputs = ['microphone', 'eeg']
 
     Extension:
         id = EXPERIMENT + '.workspace'
