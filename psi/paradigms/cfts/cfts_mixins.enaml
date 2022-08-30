@@ -9,7 +9,7 @@ from psiaudio.util import octave_space
 from psi.context.api import (BoolParameter, ContextGroup, ContextRow,
                              FriendlyCartesianProduct, Parameter)
 from psi.controller.api import Downsample, IIRFilter
-from psi.controller.calibration.api import ToneCalibrate
+from psi.controller.calibration.api import ChirpCalibrate, ToneCalibrate
 from psi.core.enaml.api import ExperimentManifest
 from psi.data.sinks.api import DisplayValue, BinaryStore
 
@@ -298,9 +298,41 @@ enamldef DPOAEInEarCalibrationMixinManifest(InEarCalibrationMixinManifest): mani
     }
 
 
-enamldef EFRInEarCalibrationManifest(InEarCalibrationMixinManifest): manifest:
+enamldef EFRInEarCalibrationMixinManifest(InEarCalibrationMixinManifest): manifest:
 
     experiment = 'efr'
-    outputs = {
-        'primary': ['carrier_tone_frequency'],
-    }
+    outputs = {'target': ['target_tone_frequency']}
+
+
+enamldef MEMRInEarCalibrationMixinManifest(ExperimentManifest): manifest:
+
+    attr experiment
+    attr outputs
+    id = f'{experiment}_inear_calibration_mixin'
+    name = f'{experiment}_inear_calibration'
+    title = 'In-ear calibration'
+
+    Extension:
+        id = manifest.id + '.context'
+        point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'inear_calibration'
+            label = 'In-ear calibration settings'
+
+            Parameter:
+                name = 'calibration_gain'
+                label = 'Gain (dB)'
+                dtype = 'float'
+                default = -30
+
+    Extension:
+        id = manifest.id + '.calibration'
+        point = 'psi.controller.calibration.channels'
+
+        ChirpCalibrate:
+            name = f'memr_chirp_calibration'
+            label = 'Chirp calibration'
+            input_name = 'microphone'
+            outputs = {'probe': [], 'elicitor': []}
+            gain << C.calibration_gain
