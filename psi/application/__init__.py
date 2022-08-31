@@ -186,6 +186,7 @@ def _main(args):
                               load_preferences=not args.no_preferences,
                               load_layout=not args.no_layout,
                               preferences_file=args.preferences,
+                              layout_file=args.layout,
                               calibration_file=args.calibration)
 
 
@@ -361,6 +362,8 @@ def add_default_options(parser):
                         help='Commands to invoke')
     parser.add_argument('-p', '--preferences', type=str, nargs='?',
                         help='Preferences file')
+    parser.add_argument('-l', '--layout', type=str, nargs='?',
+                        help='Layout file')
     parser.add_argument('--profile', action='store_true', help='Profile app')
 
 

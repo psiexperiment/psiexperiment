@@ -74,10 +74,12 @@ def _save_layout(event, filename):
 
 
 def load_layout(event):
-    filename = FileDialogEx.get_open_file_name(
-        name_filters=[LAYOUT_WILDCARD],
-        current_path=get_default_path('layout')
-    )
+    filename = event.parameters.get('filename', None)
+    if filename is None:
+        filename = FileDialogEx.get_open_file_name(
+            name_filters=[LAYOUT_WILDCARD],
+            current_path=get_default_path('layout')
+        )
     if filename:
         _load_layout(event, filename)
 
