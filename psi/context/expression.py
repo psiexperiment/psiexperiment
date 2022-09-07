@@ -48,8 +48,8 @@ class ExpressionNamespace(Atom):
         '''
         self._locals = {}
 
-    def get_value(self, name, context=None):
-        if name not in self._locals:
+    def get_value(self, name, context=None, force_eval=False):
+        if force_eval or name not in self._locals:
             self._evaluate_value(name, context)
         return self._locals[name]
 
