@@ -45,8 +45,8 @@ class ContextLookup:
     def unique_values(self, item_name, iterator='default'):
         return self.__context_plugin.unique_values(item_name, iterator)
 
-    def lookup(self, attr):
-        cb = partial(getattr, self, attr)
+    def lookup(self, attr, force_eval=False):
+        cb = partial(self.__context_plugin.get_value, attr, force_eval)
         cb.is_lookup = True
         return cb
 
@@ -400,11 +400,12 @@ class ContextPlugin(PSIPlugin):
             log.debug(m)
             raise
 
-    def get_value(self, context_name):
+    def get_value(self, context_name, force_eval=False):
         if not self.initialized:
             raise ValueError(context_initialized_error)
         try:
-            return self._namespace.get_value(context_name)
+            return self._namespace.get_value(context_name,
+                                             force_eval=force_eval)
         except KeyError as e:
             m = f'{context_name} not defined.'
             raise ValueError(m) from e
