@@ -628,8 +628,11 @@ class RejectEpochs(EpochInput):
     '''
     Rejects epochs whose amplitude exceeds a specified threshold.
     '''
-    #: Reject threshold
-    threshold = d_(Float()).tag(metadata=True)
+    #: Reject threshold. Can either be a number or a callable. If callable,
+    #: must take no arguments and return a number to use. Each time new epochs
+    #: are available, the threshold will be obtained from the callable (thereby
+    #: allowing threshold to be changed during an experiment).
+    threshold = d_(Value()).tag(metadata=True)
 
     #: If `'absolute value'`, rejects epoch if the minimum or maximum exceeds
     #: the reject threshold. If `'amplitude'`, rejects epoch if the difference
@@ -661,7 +664,6 @@ class RejectEpochs(EpochInput):
         valid_cb = super().configure_callback()
         return pipeline.reject_epochs(self.threshold, self.mode,
                                       self.status_cb, valid_cb).send
-
 
 
 class Detrend(EpochInput):

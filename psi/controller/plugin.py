@@ -548,6 +548,7 @@ class ControllerPlugin(Plugin):
 
     def apply_changes(self):
         self.context.apply_changes()
+        return True
 
     def pause_experiment(self):
         raise NotImplementedError
