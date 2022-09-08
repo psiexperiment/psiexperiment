@@ -684,8 +684,9 @@ def setup_hw_ai(channels, callback_duration, callback, task_name='hw_ao'):
         # Not a supported property. Set filter delay to 0 by default.
         filter_delay = 0
 
-    task._cb = partial(hw_ai_helper, callback, n_channels, filter_delay, fs,
-                       names)
+    task._cb = partial(
+        hw_ai_helper, callback, n_channels, filter_delay, fs, names
+    )
     task._cb_ptr = mx.DAQmxEveryNSamplesEventCallbackPtr(task._cb)
     mx.DAQmxRegisterEveryNSamplesEvent(
         task, mx.DAQmx_Val_Acquired_Into_Buffer, int(callback_samples), 0,
@@ -931,7 +932,8 @@ class NIDAQEngine(Engine):
             self.sample_time = self.ai_sample_time
 
         # Configure task done events so that we can fire a callback if
-        # acquisition is done.
+        # acquisition is done. This does not seem to be working the way I want
+        # it to, though.
         self._task_done = {}
         for name, task in self._tasks.items():
             def cb(task, s, cb_data):
@@ -1307,7 +1309,7 @@ class NIDAQEngine(Engine):
 
             # Calculate total samples written
             self.total_ao_samples_written += (relative_offset + data.shape[-1])
-            log.info('Writing hw ao %r at %d', data.shape, offset)
+            log.debug('Writing hw ao %r at %d', data.shape, offset)
 
         except Exception as e:
             # If we log on every call, the logfile will get quite verbose.
@@ -1371,6 +1373,7 @@ class NIDAQEngine(Engine):
         # Configuration is generally fairly quick.
         if not self._configured:
             return
+
         log.debug('Stopping engine')
         for task in self._tasks.values():
             mx.DAQmxClearTask(task)
