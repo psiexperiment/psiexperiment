@@ -7,7 +7,7 @@ from enaml.workbench.core.api import Command
 import numpy as np
 
 from psiaudio.pipeline import coroutine
-from psiaudio.queue import GroupedFIFOSignalQueue
+from psiaudio.queue import BlockedFIFOSignalQueue
 from psiaudio import util
 
 from psi.context.api import ContextGroup, Expression, Parameter
@@ -34,13 +34,13 @@ def configure_interleaved_memr(event):
 
     probe = controller.get_output('probe')
     elicitor = controller.get_output('elicitor')
-    probe.queue = GroupedFIFOSignalQueue(2)
-    elicitor.queue = GroupedFIFOSignalQueue(2)
+    probe.queue = BlockedFIFOSignalQueue()
+    elicitor.queue = BlockedFIFOSignalQueue()
 
-    for setting in context.iter_settings('default', 1):
-        averages = max(1, int(round(setting['trial_n'] / 2)))
-        trial_duration = setting['trial_period']
-        for polarity in (1, -1):
+    for polarity in (1, -1):
+        for setting in context.iter_settings('default', 1):
+            averages = max(1, int(round(setting['trial_n'] / 2)))
+            trial_duration = setting['trial_period']
             setting['elicitor_bandlimited_noise_polarity'] = polarity
             probe.add_setting(setting, averages=averages, total_duration=trial_duration)
             elicitor.add_setting(setting, averages=averages, total_duration=trial_duration)
