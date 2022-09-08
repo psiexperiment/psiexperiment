@@ -422,7 +422,7 @@ def friendly_cartesian_product_update_context(selector, event):
         for item_name in selector.can_manage:
             item = context.parameters[item_name]
             item.rove = True
-            #item.visible = False
+            item.visible = False
 
 
 template SelectorTemplate(selector, MemberType: sc.FriendlyCartesianProduct):
