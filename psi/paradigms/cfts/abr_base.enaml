@@ -15,7 +15,7 @@ from psi.context.api import (ContextGroup, ContextRow, Parameter,
                              BoolParameter, EnumParameter)
 from psi.controller.api import ExperimentAction
 from psi.controller.api import (ControllerManifest,
-                                ExtractEpochs, RejectEpochs, IIRFilter,
+                                ExtractEpochs, RejectEpochs, 
                                 Detrend)
 from psi.data.sinks.api import BinaryStore, TextStore
 from psi.token.primitives import Cos2Envelope, Tone
