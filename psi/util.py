@@ -96,8 +96,14 @@ def declarative_to_dict(value, tag_name, tag_value=True, include_dunder=True,
         # we do not wish to introduce extra dependencies in psiaudio).
         attrs = [a for a in dir(value) if not \
                  (a.startswith('_') or callable(getattr(value, a)))]
-        return {a: declarative_to_dict(getattr(value, a), *args) \
-                for a in attrs}
+        result = {a: declarative_to_dict(getattr(value, a), *args) \
+                  for a in attrs}
+        if include_dunder:
+            result.update({
+                '__type__': value.__class__.__name__,
+                '__id__': id(value)
+            })
+        return result
 
     if hasattr(value, '__dict__') or hasattr(value, '__slots__'):
         if include_dunder:
