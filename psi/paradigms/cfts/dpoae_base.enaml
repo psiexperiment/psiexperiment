@@ -77,7 +77,7 @@ def process(n_time, n_fft, input, workbench, trial_widget, trials_widget,
             nf_frequencies = [f*resolution+dpoae for f in (-2, -1, 1, 2)]
             frequencies = [f1, f2, dpoae] + nf_frequencies
 
-            rms = tone_power_conv(mean_time, input.fs, frequencies)
+            rms = tone_power_conv(mean_time[0], input.fs, frequencies)
             level = input.calibration.get_db(frequencies, rms)
             nf_level = np.mean(level[3:])
             f1_level, f2_level, dpoae_level = level[:3]
@@ -223,6 +223,10 @@ enamldef DPOAEManifest(ControllerManifest): manifest:
     Extension:
         id = EXPERIMENT + '.context'
         point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'hardware_settings'
+            label = 'Hardware'
 
         ContextGroup:
             name = 'result'

@@ -142,16 +142,6 @@ enamldef DPOAEIOBaseManifest(DPOAEManifest): manifest:
                 text_visible = True
 
 
-def configure_dpoaeio_simple(event):
-    context = event.workbench.get_plugin('psi.context')
-    freq = context.get_parameter('f2_frequency')
-    level = context.get_parameter('f2_level')
-    for p in (freq, level):
-        p.visible = False
-        p.editable = False
-        p.rove = True
-
-
 def configure_dpoaeio_gui(event):
     ui = event.workbench.get_plugin('enaml.workbench.ui')
     pb_trials = ui.window.find('dpoae_trials_pb')
@@ -195,8 +185,13 @@ def configure_dpoaeio_gui(event):
 def configure_dpoaeio_experiment(event):
     context = event.workbench.get_plugin('psi.context')
     controller = event.workbench.get_plugin('psi.controller')
+    data = event.workbench.get_plugin('psi.data')
     core = event.workbench.get_plugin('enaml.workbench.core')
 
+    # Check to see that all frequency and level combinations can be acquired.
+    # If not, throw out the ones that are above the limits of the acoustic
+    # system. This is done via a second selector called "actual" that contains
+    # the actual desired sequence of values to test.
     primary_sf = {}
     secondary_sf = {}
     settings = list(context.iter_settings('default', 1))
@@ -236,10 +231,23 @@ def configure_dpoaeio_experiment(event):
 
     log.info('Configuring sequence for actual selector')
     selector = context.get_selector('actual')
+    freqs = set()
     for setting in good_settings:
         selector.add_setting(setting)
+
+        f2 = setting['secondary_tone_frequency']
+        f1 = setting['primary_tone_frequency']
+        dp = 2 * f1 - f2
+        freqs |= set((f1, f2, dp))
+
     kwargs = {'selector': 'actual', 'cycles': 1}
     core.invoke_command('psi.context.initialize', kwargs)
+
+    # Now that we have some of our information regarding the available
+    # frequencies and levels, we can go ahead and adjust the FFT plot limits.
+    container = data.find_plot_container('signal_fft_view_container')
+    container.freq_lb = min(freqs) / 1.2
+    container.freq_ub = max(freqs) * 1.2
 
 
 enamldef DPOAEIOSimpleManifest(DPOAEIOBaseManifest): manifest:
@@ -250,10 +258,6 @@ enamldef DPOAEIOSimpleManifest(DPOAEIOBaseManifest): manifest:
 
         # These are a series of callbacks that customize the default
         # psiexperiment behavior so it works well with DPOAE experiments.
-        # First, we need to configure the context to clearly mark what is 
-        ExperimentAction:
-            event = 'plugins_started'
-            command = 'psi.controller.configure_plugins'
         ExperimentAction:
             event = 'context_initialized'
             command = 'psi.controller.configure_dpoae_gui'
@@ -264,9 +268,6 @@ enamldef DPOAEIOSimpleManifest(DPOAEIOBaseManifest): manifest:
     Extension:
         id = EXPERIMENT_SIMPLE + '.commands'
         point = 'enaml.workbench.core.commands'
-        Command:
-            id = 'psi.controller.configure_plugins'
-            handler = configure_dpoaeio_simple
         Command:
             id = 'psi.controller.configure_dpoae_gui'
             handler = configure_dpoaeio_gui
@@ -282,6 +283,8 @@ enamldef DPOAEIOSimpleManifest(DPOAEIOBaseManifest): manifest:
             # This is the selector shown in the GUI and will represent what the
             # user is hoping for.
             label = 'DPOAE stimuli'
+            can_manage = ['f2_frequency', 'f2_level']
+            user_managed = False
 
         SequenceSelector:
             # This is a shadow selector that represents the actual set of
