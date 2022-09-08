@@ -1098,6 +1098,7 @@ class GroupedEpochFFTPlot(EpochGroupMixin, BasePlot):
 class GroupedEpochPhasePlot(EpochGroupMixin, BasePlot):
 
     unwrap = d_(Bool(True))
+    _freq = Typed(np.ndarray)
 
     def _default_name(self):
         return self.source_name + '_grouped_epoch_phase_plot'
