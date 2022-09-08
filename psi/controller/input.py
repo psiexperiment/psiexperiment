@@ -295,12 +295,12 @@ class IIRFilter(ContinuousInput):
     N = d_(Int(1)).tag(metadata=True)
 
     #: Filter pasband type
-    btype = d_(Enum('bandpass', 'lowpass', 'highpass', 'bandstop')).tag(
-        metadata=True)
+    btype = d_(Enum('bandpass', 'lowpass', 'highpass', 'bandstop')) \
+        .tag(metadata=True)
 
     #: Filter type
-    ftype = d_(Enum('butter', 'cheby1', 'cheby2', 'ellip', 'bessel')).tag(
-        metadata=True)
+    ftype = d_(Enum('butter', 'cheby1', 'cheby2', 'ellip', 'bessel')) \
+        .tag(metadata=True)
 
     #: Highpass cutoff frequency (Hz)
     f_highpass = d_(Float()).tag(metadata=True)
