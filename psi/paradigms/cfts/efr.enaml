@@ -11,11 +11,15 @@ from psiaudio import util
 from psiaudio.pipeline import coroutine
 from psiaudio.queue import InterleavedFIFOSignalQueue
 
-from psi.controller.api import (ControllerManifest, Coroutine, ExperimentEvent,
-                                ExtractEpochs, ExperimentAction, Input)
+from psi.controller.api import (
+    ControllerManifest, Coroutine, ExperimentEvent, ExtractEpochs,
+    ExperimentAction, Input
+)
 
-from psi.context.api import ContextGroup
-from psi.token.primitives import Cos2Envelope, Gate, SAMEnvelope, SquareWaveEnvelope, Tone
+from psi.context.api import ContextGroup, Expression, Parameter
+from psi.token.primitives import (
+    Cos2Envelope, Gate, Repeat, SAMEnvelope, SquareWaveEnvelope, Tone
+)
 from psi.data.sinks.api import BinaryStore, EpochCounter, TextStore
 from psi.data.api import (FFTContainer, GroupedEpochFFTPlot, PlotContainer,
                           ResultPlot, ViewBox)
@@ -96,29 +100,6 @@ enamldef BaseEFRManifest(ControllerManifest): manifest:
     attr selected_token
 
     Extension:
-        id = EXPERIMENT + '.tokens'
-        point = 'psi.token.tokens'
-
-        Cos2Envelope: sam_target:
-            name = 'sam_tone'
-            label = 'SAM tone'
-            hide = ['start_time']
-            SAMEnvelope:
-                hide = ['delay', 'direction']
-                name = 'mod'
-                Tone:
-                    hide = ['polarity', 'phase']
-
-        Gate:
-            name = 'ram_tone'
-            label = 'RAM tone'
-            hide = ['start_time']
-            SquareWaveEnvelope:
-                name = 'mod'
-                Tone:
-                    hide = ['polarity', 'phase']
-
-    Extension:
         id = EXPERIMENT + '.io'
         point = 'psi.controller.io'
 
@@ -190,11 +171,14 @@ enamldef BaseEFRManifest(ControllerManifest): manifest:
         ExperimentAction:
             event = 'engines_configured'
             command = 'target.start'
-            kwargs = {'delay': 0.5}
+            kwargs = {'delay': 1}
 
         ExperimentAction:
+            # The delay allows us to capture a little more data past the end of
+            # the queue (useful for filtering, etc.).
             event = 'erp_queue_end'
             command = 'psi.controller.stop'
+            delay = 1
 
     Extension:
         id = EXPERIMENT + '.data'
@@ -273,7 +257,83 @@ enamldef SAMEFRManifest(BaseEFRManifest):
 
     selected_token = 'sam_tone'
 
+    Extension:
+        id = EXPERIMENT + '.tokens'
+        point = 'psi.token.tokens'
+
+        Cos2Envelope: sam_target:
+            name = 'sam_tone'
+            label = 'SAM tone'
+            hide = ['start_time']
+            SAMEnvelope:
+                hide = ['delay', 'direction']
+                name = 'mod'
+                Tone:
+                    hide = ['polarity', 'phase']
+
 
 enamldef RAMEFRManifest(BaseEFRManifest):
 
     selected_token = 'ram_tone'
+
+    Extension:
+        id = EXPERIMENT + '.tokens_RAM'
+        point = 'psi.token.tokens'
+
+        Gate:
+            name = 'ram_tone'
+            label = 'RAM tone'
+            hide = ['start_time']
+            SquareWaveEnvelope:
+                name = 'mod'
+                Tone:
+                    hide = ['polarity', 'phase']
+
+    Extension:
+        id = EXPERIMENT + '.context_RAM'
+        point = 'psi.context.items'
+
+        Parameter:
+            name = 'duration'
+            label = 'RAM tone duration (s)'
+            default = 30
+            group_name = 'target'
+
+        Parameter:
+            name = 'fm'
+            label = 'RAM tone FM (Hz)'
+            default = 110
+            group_name = 'target'
+
+        Parameter:
+            name = 'fc'
+            label = 'RAM tone FC (Hz)'
+            default = 8e3
+            group_name = 'target'
+
+        Parameter:
+            name = 'duty_cycle'
+            label = 'RAM tone duty cycle (frac.)'
+            default = 0.25
+            group_name = 'target'
+
+        Expression:
+            parameter = 'target_tone_phase'
+            expression = '-np.pi/2'
+
+        Expression:
+            parameter = 'target_mod_fm'
+            expression = 'fm'
+
+        Expression:
+            parameter = 'target_mod_duty_cycle'
+            expression = 'round(duty_cycle * target_tone_frequency) / target_tone_frequency'
+
+        Expression:
+            parameter = 'target_tone_frequency'
+            expression = 'target_mod_fm * round(fc / target_mod_fm)'
+
+        Expression:
+            parameter = 'target_ram_tone_duration'
+            expression = 'duration'
+
