@@ -417,7 +417,6 @@ def friendly_cartesian_product_update_context(selector, event):
 
     # If the selector cannot be user managed, then we hide the already-selected
     # context items (since it's unecessary clutter).
-    log.error('Selector user managed %r', selector.user_managed)
     if not selector.user_managed:
         for item_name in selector.can_manage:
             item = context.parameters[item_name]

@@ -7,6 +7,10 @@ from .contribution import PSIContribution
 
 
 class ExperimentManifest(PluginManifest):
+    '''
+    Manifest providing simple access to the context namespce, context plugin,
+    and controller plugin.
+    '''
 
     name = d_(Str())
     title = d_(Str())
