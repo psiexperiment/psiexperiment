@@ -300,7 +300,8 @@ class ContextPlugin(PSIPlugin):
         log.debug('Getting iterators')
         return {k: v.get_iterator(cycles) for k, v in self.selectors.items()}
 
-    def iter_settings(self, iterator='default', cycles=np.inf):
+    def iter_settings(self, iterator='default', cycles=np.inf,
+                      item_names=None):
         log.debug('Iterating through settings for %s iterator', iterator)
         # Some paradigms may not actually have an iterator.
         namespace = ExpressionNamespace(self.expressions, self.symbols)
@@ -309,7 +310,7 @@ class ContextPlugin(PSIPlugin):
             for setting in selector:
                 expressions = {i.name: i.to_expression(e) for i, e in setting.items()}
                 namespace.update_expressions(expressions)
-                yield namespace.get_values()
+                yield namespace.get_values(names=item_names)
                 namespace.reset()
         else:
             yield namespace.get_values()
@@ -326,7 +327,7 @@ class ContextPlugin(PSIPlugin):
             extract = False
 
         values = set()
-        for setting in self.iter_settings(iterator, 1):
+        for setting in self.iter_settings(iterator, 1, item_names):
             if isinstance(item_names, str):
                 values.add(setting[item_names])
             else:
