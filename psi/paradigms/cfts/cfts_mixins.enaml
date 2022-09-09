@@ -78,11 +78,21 @@ CONTEXT_ITEM_DETAIL = {
     },
 
     # SAM/RAM EFR
-    'target_mod_fm': {
+    'fm': {
         'user_friendly_name': 'modulation frequencies',
         'step_unit': 'Hz',
         'unit': 'Hz',
         'order_user_managed': True,
+    },
+    'fc': {
+        'user_friendly_name': 'frequencies',
+        'step_unit': 'octave',
+        'unit': 'kHz',
+        'order_user_managed': False,
+        'transform_fn': lambda x: (x * 1e3).round(0),
+        'inverse_transform_fn': lambda x: x * 1e-3,
+        'round_values': True,
+        'range_fn': octave_space,
     },
 
     # DPOAE
