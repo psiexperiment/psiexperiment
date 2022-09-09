@@ -271,6 +271,50 @@ enamldef SAMEFRManifest(BaseEFRManifest):
                 Tone:
                     hide = ['polarity', 'phase']
 
+    Extension:
+        id = EXPERIMENT + '.context_SAM'
+        point = 'psi.context.items'
+
+        Parameter:
+            name = 'duration'
+            label = 'SAM tone duration (s)'
+            default = 30
+            group_name = 'target'
+
+        Parameter:
+            name = 'fm'
+            label = 'SAM tone FM (Hz)'
+            default = 110
+            group_name = 'target'
+
+        Parameter:
+            name = 'fc'
+            label = 'SAM tone FC (Hz)'
+            default = 8e3
+            group_name = 'target'
+
+        Parameter:
+            name = 'depth'
+            label = 'SAM tone depth (frac.)'
+            default = 1
+            group_name = 'target'
+
+        Expression:
+            parameter = 'target_mod_fm'
+            expression = 'fm'
+
+        Expression:
+            parameter = 'target_mod_depth'
+            expression = 'depth'
+
+        Expression:
+            parameter = 'target_tone_frequency'
+            expression = 'fc'
+
+        Expression:
+            parameter = 'target_sam_tone_duration'
+            expression = 'duration'
+
 
 enamldef RAMEFRManifest(BaseEFRManifest):
 
