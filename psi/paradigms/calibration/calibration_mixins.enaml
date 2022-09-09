@@ -466,7 +466,7 @@ enamldef ChirpMixin(ExperimentManifest): manifest:
             compact_label = 'ITI'
             default = 0.001
             scope = 'experiment'
-            group_name = 'hw_ao'
+            group_name = 'hardware_settings'
 
         Parameter:
             name = 'hw_ao_averages'
@@ -474,7 +474,7 @@ enamldef ChirpMixin(ExperimentManifest): manifest:
             compact_label = 'N'
             default = 32
             scope = 'experiment'
-            group_name = 'hw_ao'
+            group_name = 'hardware_settings'
 
     Extension:
         id = manifest.id + '.tokens'
