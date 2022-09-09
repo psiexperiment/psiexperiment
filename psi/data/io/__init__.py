@@ -60,8 +60,13 @@ class Recording:
     #: loading tables into DataFrames.
     _ttable_indices = {}
 
-    def __init__(self, base_path):
+    #: This is the name of the table containing the settings that we may wish
+    #: to extract.
+    _setting_table = None
+
+    def __init__(self, base_path, setting_table=None):
         self.base_path = Path(base_path)
+        self._setting_table = setting_table
         self._refresh_names()
 
     def _refresh_names(self):
@@ -76,6 +81,59 @@ class Recording:
         self.ctable_names = {d.parent.parent.stem for d in bp.glob('*/*/meta')}
         self.ttable_names = {d.stem for d in bp.glob('*.csv')}
         self.zarr_names = {d.stem for d in bp.glob('*.zarr')}
+
+    def get_setting(self, setting_name):
+        '''
+        Return value for setting
+
+        Parameters
+        ----------
+        setting_name : string
+            Setting to extract
+
+        Returns
+        -------
+        object
+            Value of setting
+
+        Raises
+        ------
+        ValueError
+            If the setting is not identical across all trials.
+        KeyError
+            If the setting does not exist.
+        '''
+        table = getattr(self, self._setting_table)
+        values = np.unique(table[setting_name])
+        if len(values) != 1:
+            raise ValueError('{name} is not unique across all epochs.')
+        return values[0]
+
+    def get_setting_default(self, setting_name, default):
+        '''
+        Return value for setting
+
+        Parameters
+        ----------
+        setting_name : string
+            Setting to extract
+        default : obj
+            Value to return if setting doesn't exist.
+
+        Returns
+        -------
+        object
+            Value of setting
+
+        Raises
+        ------
+        ValueError
+            If the setting is not identical across all trials.
+        '''
+        try:
+            return self.get_setting(setting_name)
+        except KeyError:
+            return default
 
     def __getattr__(self, attr):
         if attr in self.zarr_names:
