@@ -3,7 +3,7 @@ log = logging.getLogger(__name__)
 
 from enaml.workbench.api import Extension
 
-from psi.context.api import OrderedContextMeta, SequenceSelector
+from psi.context.api import ContextGroup, OrderedContextMeta, SequenceSelector
 
 from psi.controller.api import (ControllerManifest, ExperimentAction,
                                 ExtractEpochs)
@@ -51,6 +51,10 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
     Extension:
         id = EXPERIMENT + '.context'
         point = 'psi.context.items'
+
+        ContextGroup:
+            label = 'Hardware'
+            name = 'hardware_settings'
 
         OrderedContextMeta: epoch_group:
             name = 'epoch_group'
