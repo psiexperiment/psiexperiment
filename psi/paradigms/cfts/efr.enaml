@@ -289,9 +289,16 @@ enamldef RAMEFRManifest(BaseEFRManifest):
                 Tone:
                     hide = ['polarity', 'phase']
 
+
     Extension:
         id = EXPERIMENT + '.context_RAM'
         point = 'psi.context.items'
+
+        BoolParameter:
+            name = 'coerce_samples'
+            label = 'Coerce FC and duty cycle?'
+            default = True
+            group_name = 'target'
 
         Parameter:
             name = 'duration'
@@ -323,15 +330,16 @@ enamldef RAMEFRManifest(BaseEFRManifest):
 
         Expression:
             parameter = 'target_mod_fm'
+            #expression = 'fs("target") / round(fs("target") / fm)'
             expression = 'fm'
 
         Expression:
             parameter = 'target_mod_duty_cycle'
-            expression = 'round(duty_cycle * target_tone_frequency) / target_tone_frequency'
+            expression = '(round(duty_cycle * target_tone_frequency) / target_tone_frequency) if coerce_samples else duty_cycle'
 
         Expression:
             parameter = 'target_tone_frequency'
-            expression = 'target_mod_fm * round(fc / target_mod_fm)'
+            expression = '(target_mod_fm * round(fc / target_mod_fm)) if coerce_samples else fc'
 
         Expression:
             parameter = 'target_ram_tone_duration'
