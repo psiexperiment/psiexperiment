@@ -63,7 +63,7 @@ ParadigmDescription(
 ParadigmDescription(
     'efr_sam', 'SAM EFR', 'ear', [
         {'manifest': CFTS_PATH + 'efr.SAMEFRManifest'},
-        {'manifest': CFTS_PATH + 'cfts_mixins.EFRInEarCalibrationMixinManifest', 'selected': True},
+        {'manifest': CFTS_PATH + 'cfts_mixins.SAMEFRInEarCalibrationMixinManifest', 'selected': True},
         temperature_mixin,
         microphone_mixin,
         efr_microphone_fft_mixin,
@@ -75,7 +75,7 @@ ParadigmDescription(
 ParadigmDescription(
     'efr_ram', 'RAM EFR', 'ear', [
         {'manifest': CFTS_PATH + 'efr.RAMEFRManifest'},
-        {'manifest': CFTS_PATH + 'cfts_mixins.EFRInEarCalibrationMixinManifest', 'selected': True},
+        {'manifest': CFTS_PATH + 'cfts_mixins.RAMEFRInEarCalibrationMixinManifest', 'selected': True},
         temperature_mixin,
         microphone_mixin,
         efr_microphone_fft_mixin,

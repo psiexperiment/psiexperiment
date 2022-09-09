@@ -18,7 +18,7 @@ from psi.controller.api import (
 
 from psi.context.api import BoolParameter, ContextGroup, Expression, Parameter
 from psi.token.primitives import (
-    Cos2Envelope, Gate, Repeat, SAMEnvelope, SquareWaveEnvelope, Tone
+    Cos2Envelope, Gate, SAMTone, SquareWaveEnvelope, Tone
 )
 from psi.data.sinks.api import BinaryStore, EpochCounter, TextStore
 from psi.data.api import (FFTContainer, GroupedEpochFFTPlot, PlotContainer,
@@ -30,6 +30,9 @@ EXPERIMENT = __name__.rsplit('.', 1)[-1]
 
 
 def configure_experiment(event):
+    fc_name = event.parameters['fc_name']
+    level_name = event.parameters['level_name']
+
     context = event.workbench.get_plugin('psi.context')
     controller = event.workbench.get_plugin('psi.controller')
     data = event.workbench.get_plugin('psi.data')
@@ -38,8 +41,9 @@ def configure_experiment(event):
     max_level = {}
     for setting in context.iter_settings('default', 1):
         output.add_setting(setting, averages=1, iti_duration=1)
-        frequency = setting['target_tone_frequency']
-        level = setting['target_tone_level']
+        log.error(setting)
+        frequency = setting[fc_name]
+        level = setting[level_name]
         max_level[frequency] = max(level, max_level.get(frequency, -np.inf))
 
     # Then figure out the maximum scaling factor required for that level.
@@ -52,7 +56,7 @@ def configure_experiment(event):
     output.channel.expected_range = (-max_sf, max_sf)
 
     # Set the EEG FFT to show only the modulation frequency
-    fm_range = context.unique_values('target_mod_fm')
+    fm_range = context.unique_values('fm')
     eeg_fft = data.find_plot_container('eeg_fft_container')
     eeg_fft.freq_lb = min(fm_range) / 2
     eeg_fft.freq_ub = min(fm_range) * 2
@@ -63,7 +67,7 @@ def configure_experiment(event):
     # Set the microphone FFT to show the modulation frequency plus the upper
     # carrier frequency. This will allow us to scan for potential harmonics or
     # other artifacts in the microphone spectrum that may affect EEG.
-    freq_range = context.unique_values('target_tone_frequency')
+    freq_range = context.unique_values(fc_name)
     mic_fft = data.find_plot_container('signal_fft_view_container')
     mic_fft.freq_lb = min(fm_range) / 1.2
     mic_fft.freq_ub = max(freq_range) * 1.2
@@ -72,6 +76,8 @@ def configure_experiment(event):
 enamldef BaseEFRManifest(ControllerManifest): manifest:
 
     attr selected_token
+    attr fc_name
+    attr level_name
 
     Extension:
         id = EXPERIMENT + '.io'
@@ -140,6 +146,11 @@ enamldef BaseEFRManifest(ControllerManifest): manifest:
             event = 'experiment_prepare'
             command = 'psi.controller.configure_experiment'
             weight = 11
+            kwargs = {
+                'fc_name': manifest.fc_name,
+                'level_name': manifest.level_name,
+            }
+
 
         ExperimentAction:
             event = 'experiment_initialize'
@@ -233,6 +244,8 @@ enamldef BaseEFRManifest(ControllerManifest): manifest:
 enamldef SAMEFRManifest(BaseEFRManifest):
 
     selected_token = 'sam_tone'
+    fc_name = 'target_sam_tone_fc'
+    level_name = 'target_sam_tone_level'
 
     Extension:
         id = EXPERIMENT + '.tokens'
@@ -242,11 +255,9 @@ enamldef SAMEFRManifest(BaseEFRManifest):
             name = 'sam_tone'
             label = 'SAM tone'
             hide = ['start_time']
-            SAMEnvelope:
-                hide = ['delay', 'direction']
-                name = 'mod'
-                Tone:
-                    hide = ['polarity', 'phase']
+            SAMTone:
+                hide = ['polarity', 'phase']
+                name = 'sam_tone'
 
     Extension:
         id = EXPERIMENT + '.context_SAM'
@@ -277,15 +288,15 @@ enamldef SAMEFRManifest(BaseEFRManifest):
             group_name = 'target'
 
         Expression:
-            parameter = 'target_mod_fm'
+            parameter = 'target_sam_tone_fm'
             expression = 'fm'
 
         Expression:
-            parameter = 'target_mod_depth'
+            parameter = 'target_sam_tone_depth'
             expression = 'depth'
 
         Expression:
-            parameter = 'target_tone_frequency'
+            parameter = 'target_sam_tone_fc'
             expression = 'fc'
 
         Expression:
@@ -296,6 +307,8 @@ enamldef SAMEFRManifest(BaseEFRManifest):
 enamldef RAMEFRManifest(BaseEFRManifest):
 
     selected_token = 'ram_tone'
+    fc_name = 'target_tone_frequency'
+    level_name = 'target_tone_level'
 
     Extension:
         id = EXPERIMENT + '.tokens_RAM'
@@ -365,4 +378,3 @@ enamldef RAMEFRManifest(BaseEFRManifest):
         Expression:
             parameter = 'target_ram_tone_duration'
             expression = 'duration'
-
