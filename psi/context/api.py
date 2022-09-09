@@ -7,3 +7,5 @@ from .selector import (
     BaseSelector, CartesianProduct, FriendlyCartesianProduct, SingleSetting,
     SequenceSelector
 )
+
+from .symbol import Function, ImportedSymbol
