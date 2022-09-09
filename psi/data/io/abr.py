@@ -112,8 +112,8 @@ class ABRFile(Recording):
         Path to folder containing ABR data
     '''
 
-    def __init__(self, *args, **kw):
-        super().__init__(*args, **kw)
+    def __init__(self, base_path, setting_table='erp_metadata'):
+        super().__init__(base_path, setting_table)
         try:
             getattr(self, 'eeg')
         except AttributeError:
@@ -122,58 +122,6 @@ class ABRFile(Recording):
             getattr(self, 'erp_metadata')
         except AttributeError:
             raise ValueError('ERP metadata missing')
-
-    def get_setting(self, setting_name):
-        '''
-        Return value for setting
-
-        Parameters
-        ----------
-        setting_name : string
-            Setting to extract
-
-        Returns
-        -------
-        object
-            Value of setting
-
-        Raises
-        ------
-        ValueError
-            If the setting is not identical across all trials.
-        KeyError
-            If the setting does not exist.
-        '''
-        values = np.unique(self.erp_metadata[setting_name])
-        if len(values) != 1:
-            raise ValueError('{name} is not unique across all epochs.')
-        return values[0]
-
-    def get_setting_default(self, setting_name, default):
-        '''
-        Return value for setting
-
-        Parameters
-        ----------
-        setting_name : string
-            Setting to extract
-        default : obj
-            Value to return if setting doesn't exist.
-
-        Returns
-        -------
-        object
-            Value of setting
-
-        Raises
-        ------
-        ValueError
-            If the setting is not identical across all trials.
-        '''
-        try:
-            return self.get_setting(setting_name)
-        except KeyError:
-            return default
 
     @property
     @lru_cache(maxsize=MAXSIZE)
