@@ -3,7 +3,7 @@ log = logging.getLogger(__name__)
 
 from atom.api import Bool, Dict, Float, Int, List, Str, Value
 from enaml.application import deferred_call
-from enaml.core.api import d_
+from enaml.core.api import d_, d_func
 import pandas as pd
 
 from psi.core.enaml.api import PSIContribution
@@ -107,16 +107,19 @@ class ToneCalibrate(BaseCalibrate):
     #: the noise floor, this raises a calibration error.
     min_snr = d_(Value(None))
 
+    @d_func
+    def get_values(self, values):
+        return values
+
     def get_config(self, controller, core):
         # Generate a list of frequencies to calibrate for each channel
         ao = {}
         for output_name, parameter_names in self.outputs.items():
             output = controller.get_output(output_name)
             ao_info = ao.setdefault(output.channel, {'frequencies': set()})
-            for parameter in parameter_names:
-                p = {'item_names': parameter}
-                new = core.invoke_command('psi.context.unique_values', p)
-                ao_info['frequencies'].update(new)
+            p = {'item_names': parameter_names}
+            new = core.invoke_command('psi.context.unique_values', p)
+            ao_info['frequencies'].update(self.get_values(new))
 
         # At this point, ao_items is a dictionary whose keys are output
         # channels. The values are another dictionary consisting of 

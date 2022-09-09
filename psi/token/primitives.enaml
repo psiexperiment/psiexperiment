@@ -7,11 +7,12 @@ from psiaudio.stim import (
     BandlimitedClickFactory, BandlimitedNoiseFactory,
     BandlimitedFIRNoiseFactory, BroadbandNoiseFactory, ChirpFactory,
     Cos2EnvelopeFactory, GateFactory, RepeatFactory, SAMEnvelopeFactory,
-    ShapedNoiseFactory, SilenceFactory, SquareWaveEnvelopeFactory,
-    SquareWaveFactory, ToneFactory, WavSequenceFactory
+    SAMToneFactory, ShapedNoiseFactory, SilenceFactory,
+    SquareWaveEnvelopeFactory, SquareWaveFactory, ToneFactory,
+    WavSequenceFactory
 )
 
-from psi.context.api import Parameter, EnumParameter
+from psi.context.api import BoolParameter, EnumParameter, Parameter
 from .block import EpochBlock, ContinuousBlock
 
 
@@ -102,6 +103,41 @@ enamldef SAMEnvelope(ContinuousBlock): block:
         compact_label = 'dir'
         default = 'positive'
         choices = {'positive': 1, 'negative': -1}
+
+
+enamldef SAMTone(ContinuousBlock): block:
+
+    factory = SAMToneFactory
+    name = 'SAM'
+    label = 'SAM'
+
+    Parameter:
+        name = 'depth'
+        label = 'depth (frac.)'
+        compact_label = 'depth'
+        default = 1.0
+
+    Parameter:
+        name = 'fc'
+        label = 'Carrier frequency (Hz)'
+        compact_label = 'fc'
+        default = 8e3
+
+    Parameter:
+        name = 'fm'
+        label = 'Modulation frequency (Hz)'
+        compact_label = 'fm'
+        default = 5.0
+
+    Parameter:
+        name = 'level'
+        label = 'level (dB SPL)'
+        default = 60.0
+
+    EnumParameter:
+        name = 'equalize'
+        default = 'yes'
+        choices = {'yes': True, 'no': False}
 
 
 enamldef BroadbandNoise(ContinuousBlock):

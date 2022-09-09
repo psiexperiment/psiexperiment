@@ -258,6 +258,8 @@ enamldef InEarCalibrationMixinManifest(ExperimentManifest): manifest:
 
     attr experiment
     attr outputs
+    attr get_values = lambda x: x
+
     id = f'{experiment}_inear_calibration_mixin'
     name = f'{experiment}_inear_calibration'
     title = 'In-ear calibration'
@@ -291,6 +293,8 @@ enamldef InEarCalibrationMixinManifest(ExperimentManifest): manifest:
             duration = 0.1
             trim = 0.01
             iti = 0
+            get_values => (values):
+                return manifest.get_values(values)
 
 
 enamldef ABRInEarCalibrationMixinManifest(InEarCalibrationMixinManifest): manifest:
@@ -308,9 +312,17 @@ enamldef DPOAEInEarCalibrationMixinManifest(InEarCalibrationMixinManifest): mani
     }
 
 
-enamldef EFRInEarCalibrationMixinManifest(InEarCalibrationMixinManifest): manifest:
+enamldef SAMEFRInEarCalibrationMixinManifest(InEarCalibrationMixinManifest): manifest:
 
-    experiment = 'efr'
+    # Both the carrier and the sidebands need to be calibrated
+    experiment = 'sam_efr'
+    outputs = {'target': ['fc', 'fm']}
+    get_values = lambda values: set(v for fc, fm in values for v in (fc-fm, fc, fc+fm))
+
+
+enamldef RAMEFRInEarCalibrationMixinManifest(InEarCalibrationMixinManifest): manifest:
+
+    experiment = 'ram_efr'
     outputs = {'target': ['target_tone_frequency']}
 
 
