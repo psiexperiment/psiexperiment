@@ -284,10 +284,11 @@ class TDTEngine(Engine):
                 to_discard = min(samples.shape[-1], b._discard)
                 b._discarded += to_discard
 
-                log.info('Discarding %.0f samples to compensate for AI filter delay', to_discard)
+                log.info('Discarding %.0f samples to compensate for AI filter delay '
+                         '(total %.0f discarded)', to_discard, b._discarded)
                 samples = samples[..., to_discard:]
 
-            if len(samples):
+            if samples.shape[-1] > 0:
                 data = PipelineData(samples, fs=b.fs, s0=b._total_samples_read,
                                     channel=[name])
                 b._total_samples_read += samples.shape[-1]
