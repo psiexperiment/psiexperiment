@@ -222,8 +222,9 @@ class BaseAnalogOutput(BufferedOutput):
 class EpochOutput(BaseAnalogOutput):
 
     def get_next_samples(self, samples):
-        if not self.active:
+        if self.paused or not self.active:
             return np.zeros(samples, dtype=self.dtype)
+
         buffered_ub = self._buffer.get_samples_ub()
 
         # Pad with zero
@@ -296,8 +297,8 @@ class QueuedEpochOutput(BaseAnalogOutput):
             self.queue.connect(self.notify_removed, 'removed')
 
     def get_next_samples(self, samples):
-        if not self.active:
-            return np.zeros(samples, dtype=np.double)
+        if self.paused or not self.active:
+            return np.zeros(samples, dtype=self.dtype)
 
         waveform = self.queue.pop_buffer(samples, self.auto_decrement)
         if self.queue.is_empty():
@@ -349,10 +350,9 @@ class QueuedEpochOutput(BaseAnalogOutput):
 class ContinuousOutput(BaseAnalogOutput):
 
     def get_next_samples(self, samples):
-        if not self.paused and self.active:
-            return self.source.next(samples)
-        else:
-            return np.zeros(samples, dtype=np.double)
+        if self.paused or not self.active:
+            return np.zeros(samples, dtype=self.dtype)
+        return self.source.next(samples)
 
 
 class TimedTrigger(BufferedOutput):
