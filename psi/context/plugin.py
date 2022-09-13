@@ -328,15 +328,12 @@ class ContextPlugin(PSIPlugin):
 
         values = set()
         for setting in self.iter_settings(iterator, 1, item_names):
-            if isinstance(item_names, str):
-                values.add(setting[item_names])
+            value = tuple(setting[n] for n in item_names)
+            if extract:
+                values.add(value[0])
             else:
-                values.add(tuple(setting[n] for n in item_names))
+                values.add(value)
         log.debug('Found %d unique values: %r', len(values), values)
-
-        if extract:
-            values = {v[0] for v in values}
-
         return values
 
     def get_range(self, item_name, iterator='default'):
