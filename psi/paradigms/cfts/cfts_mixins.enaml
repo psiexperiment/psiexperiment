@@ -258,7 +258,7 @@ enamldef InEarCalibrationMixinManifest(ExperimentManifest): manifest:
 
     attr experiment
     attr outputs
-    attr get_values = lambda x: x
+    attr get_values = lambda x: {si for i in x for si in i}
 
     id = f'{experiment}_inear_calibration_mixin'
     name = f'{experiment}_inear_calibration'

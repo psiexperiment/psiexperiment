@@ -109,7 +109,7 @@ class ToneCalibrate(BaseCalibrate):
 
     @d_func
     def get_values(self, values):
-        return values
+        return {si for i in values for si in i}
 
     def get_config(self, controller, core):
         # Generate a list of frequencies to calibrate for each channel
