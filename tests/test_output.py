@@ -25,6 +25,27 @@ def tb2(epoch_output):
     return envelope
 
 
+def test_epoch_output_pause(epoch_output, tb1):
+    full_waveform1 = tb1.get_samples_remaining()
+    tb1.reset()
+
+    epoch_output.source = tb1
+    epoch_output.activate(0)
+
+    import matplotlib.pyplot as plt
+
+    out = np.empty(1000)
+    epoch_output.get_samples(0, 1000, out)
+    plt.plot(out, color='k')
+    np.testing.assert_array_equal(full_waveform1[:1000], out)
+    epoch_output.pause(500 / epoch_output.fs)
+    epoch_output.get_samples(0, 1000, out)
+    plt.plot(out, color='r')
+    plt.show()
+    np.testing.assert_array_equal(full_waveform1[:500], out[:500])
+    assert np.all(out[500:] == 0)
+
+
 def test_epoch_output_buffer(epoch_output, tb1, tb2):
     full_waveform1 = tb1.get_samples_remaining()
     tb1.reset()
@@ -35,31 +56,23 @@ def test_epoch_output_buffer(epoch_output, tb1, tb2):
     epoch_output.source = tb1
     epoch_output.activate(0)
 
-    out = np.empty(1000)
-    epoch_output.get_samples(0, 1000, out)
-    assert np.all(out == full_waveform1[:1000])
-
+    segments = [
+        (0, 1000),
+        (1000, 1000),
+        (0, 1000),
+        (500, 1000),
+        (1500, 1000),
+        (2500, 13),
+        (2513, 13)
+    ]
+    out = np.empty(1000, dtype=np.double)
+    for o, s in segments:
+        epoch_output.get_samples(o, s, out)
+        np.testing.assert_array_almost_equal(out[-s:], full_waveform1[o:o+s])
     with pytest.raises(SystemError):
-        epoch_output.get_samples(1001, 1000, out)
+        epoch_output.get_samples(o+s+1, 1000, out)
 
-    epoch_output.get_samples(1000, 1000, out)
-    assert np.all(out == full_waveform1[1000:2000])
-
-    epoch_output.get_samples(0, 1000, out)
-    assert np.all(out == full_waveform1[0:1000])
-
-    epoch_output.get_samples(500, 1000, out)
-    assert np.all(out == full_waveform1[500:1500])
-
-    epoch_output.get_samples(1500, 1000, out)
-    assert np.all(out == full_waveform1[1500:2500])
-
-    epoch_output.get_samples(2500, 13, out[:13])
-    assert np.all(out[:13] == full_waveform1[2500:2513])
-
-    epoch_output.get_samples(2513, 13, out[:13])
-    assert np.all(out[:13] == full_waveform1[2513:2526])
-
+    return
     epoch_output.source = tb2
     epoch_output.activate(2000)
 
