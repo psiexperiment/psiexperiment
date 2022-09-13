@@ -382,8 +382,7 @@ class ContextPlugin(PSIPlugin):
     def next_setting(self, selector=None):
         '''
         Load next set of expressions. If there are no selectors defined, then
-        this essentially clears the namespace and allows expresssions to be
-        recomputed.
+        this clears the namespace and allows expresssions to be recomputed.
         '''
         log.debug('Loading next setting')
         self._namespace.reset()
