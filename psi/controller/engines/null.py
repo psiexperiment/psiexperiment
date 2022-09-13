@@ -87,9 +87,10 @@ class NullEngine(Engine):
             self.update_hw_ao(o, c, method)
 
     def update_hw_ao(self, offset, channel_name=None, method='space_available'):
-        if method == 'space_available':
-            samples
-        data = self._get_hw_ao_samples()
+        return
+        #if method == 'space_available':
+        #    samples
+        #data = self._get_hw_ao_samples()
 
     def get_space_available(self, offset=None, channel_name=None):
         samples_remaining = self.t_ai - time.time()
