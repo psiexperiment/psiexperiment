@@ -71,7 +71,7 @@ class NullEngine(Engine):
         self.t0 = time.time()
         self.t_ao = 0
         self.t_ai = 0
-        self.timer = threading.Timer(self.hw_ao_monitor_period)
+        #self.timer = threading.Timer(self.hw_ao_monitor_period)
 
     def stop(self):
         pass

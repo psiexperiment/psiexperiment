@@ -115,8 +115,13 @@ def stop_experiment(event):
     controller = event.workbench.get_plugin('psi.controller')
     results = set(controller.stop_experiment(skip_errors=True))
     mesg = '\n'.join(r.strip() for r in results if r is not None)
-    if mesg:
-        deferred_call(information, None, 'Experiment done', mesg)
+    controller._wrapup(mesg)
+
+
+def show_results(event):
+    message = event.parameters.get('message')
+    if message:
+        information(None, 'Experiment done', message)
 
 
 def invoke_actions(event):
@@ -169,6 +174,15 @@ enamldef ControllerManifest(ControllerManifestBase): manifest:
 
     ExtensionPoint:
         id = 'psi.controller.actions'
+
+    ExtensionPoint:
+        id = 'psi.controller.wrapup'
+
+    Extension:
+        id = 'psi.controller.default_wrapup'
+        point = 'psi.controller.wrapup'
+        factory = lambda w: show_results
+        rank = -1000
 
     Extension:
         id = PLUGIN_ID + '.branding'

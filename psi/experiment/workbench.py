@@ -59,6 +59,8 @@ class PSIWorkbench(Workbench):
             manifests = []
 
         for manifest in controller_manifests:
+            if isinstance(manifest, str):
+                manifest = load_manifest(manifest)()
             log.info('Registering %r', manifest)
             manifests.append(manifest)
             self.register(manifest)

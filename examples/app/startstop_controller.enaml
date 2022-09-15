@@ -1,0 +1,27 @@
+import logging
+log = logging.getLogger(__name__)
+
+from enaml.stdlib.message_box import critical
+from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
+from enaml.workbench.ui.api import Branding
+
+from psi.controller.api import ControllerManifest as BaseControllerManifest
+
+
+def ask_question(event):
+    critical(None, "Experiment over", "You just pressed the stop button!")
+
+
+enamldef ControllerManifest(BaseControllerManifest): manifest:
+
+    Extension:
+        id = 'simple.branding'
+        point = 'enaml.workbench.ui.branding'
+        Branding:
+            title = 'Demo of overriding stop command'
+
+    Extension:
+        id = 'wrapup'
+        point = 'psi.controller.wrapup'
+        factory = lambda w: ask_question
