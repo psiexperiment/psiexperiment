@@ -210,9 +210,10 @@ class ContextPlugin(PSIPlugin):
                 # If, in the future, we need the ability to ignore missing
                 # parameters, I would add an attribute to the Expression class
                 # indicating that it's OK to ignore if the parameter does not exist.
-                raise ValueError(f'{expression.parameter} referenced by'
-                                 f'expression {expression.expression} '
-                                 'does not exist.')
+                pass
+                #raise ValueError(f'{expression.parameter} referenced by'
+                #                 f'expression {expression.expression} '
+                #                 'does not exist.')
 
         load_manifests(context_groups.values(), self.workbench)
         self.context_expressions = context_expressions
