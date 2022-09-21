@@ -50,32 +50,37 @@ class ExceptionHandler:
     def __exit__(self, exc_type, exc_value, exc_tb):
         sys.excepthook = self
 
+    def format_exception(self, args):
+        if self.logfile is not None:
+            log_mesg = f'The log file has been saved to {self.logfile}'
+        else:
+            log_mesg = 'Unfortunately, no log file was saved.'
+
+        err_mesg = f'The error message is:\n{args[1]}'
+        if args[1].__cause__ is not None:
+            err_mesg = f'{err_mesg}\n\nThe above error was caused by ' \
+                        f'the following error:\n{args[1].__cause__}'
+
+        mesg = mesg_template.format(args[1], log_mesg)
+        mesg = re.sub(r'(?<!\n)\n(?!\n)', ' ', mesg)
+        mesg = re.sub(r' +', ' ', mesg)
+        return textwrap.fill(mesg, replace_whitespace=False)
+
     def __call__(self, *args):
         with self:
             log.exception("Uncaught exception", exc_info=args)
+            mesg = self.format_exception(args)
+
             if self.workbench is not None:
                 core = self.workbench.get_plugin('enaml.workbench.core')
-                parameters = {'stop_reason': 'error', 'skip_errors': True}
-                core.invoke_command('psi.controller.stop', parameters)
-                window = self.workbench.get_plugin('enaml.workbench.ui').window
-            else:
-                window = None
-
-            if self.logfile is not None:
-                log_mesg = f'The log file has been saved to {self.logfile}'
-            else:
-                log_mesg = 'Unfortunately, no log file was saved.'
-
-            err_mesg = f'The error message is:\n{args[1]}'
-            if args[1].__cause__ is not None:
-                err_mesg = f'{err_mesg}\n\nThe above error was caused by ' \
-                           f'the following error:\n{args[1].__cause__}'
-
-            mesg = mesg_template.format(args[1], log_mesg)
-            mesg = re.sub(r'(?<!\n)\n(?!\n)', ' ', mesg)
-            mesg = re.sub(r' +', ' ', mesg)
-            mesg = textwrap.fill(mesg, replace_whitespace=False)
-            deferred_call(critical, window, 'Oops :(', mesg)
+                parameters = {'stop_reason': 'error', 'skip_errors': True,
+                              'error_message': mesg}
+                try:
+                    core.invoke_command('psi.controller.stop', parameters)
+                except Exception as e:
+                    log.exception(e)
+                    window = self.workbench.get_plugin('enaml.workbench.ui').window
+                    deferred_call(critical, window, 'Oops :(', mesg)
             sys.excepthook(*args)
 
 

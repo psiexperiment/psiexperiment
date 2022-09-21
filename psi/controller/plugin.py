@@ -221,7 +221,7 @@ class ControllerPlugin(Plugin):
     def stop(self):
         self._unbind_observers()
 
-    def _wrapup(self, message):
+    def _wrapup(self, **kwargs):
         workbench = self.workbench
         point = workbench.get_extension_point(WRAPUP_POINT)
         extensions = point.extensions
@@ -235,7 +235,7 @@ class ControllerPlugin(Plugin):
             raise ValueError(msg % extension.qualified_id)
 
         cb = extension.factory(workbench)
-        cb(message)
+        cb(**kwargs)
 
     def _bind_observers(self):
         self.workbench.get_extension_point(IO_POINT) \
@@ -588,12 +588,10 @@ class ControllerPlugin(Plugin):
             raise
 
     def stop_experiment(self, skip_errors=False):
+        deferred_call(lambda: setattr(self, 'experiment_state', 'stopped'))
         if self.experiment_state not in ('running', 'paused'):
             return []
-        results = self.invoke_actions('experiment_end', self.get_ts(),
-                                      skip_errors=skip_errors)
-        deferred_call(lambda: setattr(self, 'experiment_state', 'stopped'))
-        return results
+        return self.invoke_actions('experiment_end', self.get_ts(), skip_errors=skip_errors)
 
     def get_ts(self):
         return self._master_engine.get_ts()

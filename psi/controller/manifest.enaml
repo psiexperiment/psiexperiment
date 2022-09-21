@@ -112,12 +112,14 @@ def start_experiment(event):
 def stop_experiment(event):
     # Todo: this does not capture *everything* possible (e.g., stopping
     # experiment leads to a cascade of actions).
+    error_message = event.parameters.get('error_message', '')
     stop_reason = event.parameters.get('stop_reason', '')
     skip_errors = event.parameters.get('skip_errors', True)
     controller = event.workbench.get_plugin('psi.controller')
     results = set(controller.stop_experiment(skip_errors=skip_errors))
     mesg = '\n'.join(r.strip() for r in results if r is not None)
-    controller._wrapup(mesg, stop_reason)
+    controller._wrapup(message=mesg, stop_reason=stop_reason,
+                       error_message=error_message)
 
 
 def show_results(event):
@@ -260,8 +262,7 @@ enamldef ControllerManifest(ControllerManifestBase): manifest:
                 triggered ::
                     plugin = workbench.get_plugin('enaml.workbench.core')
                     plugin.invoke_command('psi.controller.start')
-                enabled << workbench.get_plugin('psi.controller').experiment_state \
-                    == 'initialized'
+                enabled << controller.experiment_state == 'initialized'
             Action:
                 text = 'Stop'
                 tool_tip = 'Stop experiment'
