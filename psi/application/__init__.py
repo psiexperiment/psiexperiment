@@ -53,13 +53,10 @@ class ExceptionHandler:
     def __call__(self, *args):
         with self:
             log.exception("Uncaught exception", exc_info=args)
-
             if self.workbench is not None:
-                controller = self.workbench.get_plugin('psi.controller')
-                try:
-                    controller.stop_experiment(skip_errors=True)
-                except:
-                    pass
+                core = self.workbench.get_plugin('enaml.workbench.core')
+                parameters = {'stop_reason': 'error', 'skip_errors': True}
+                core.invoke_command('psi.controller.stop', parameters)
                 window = self.workbench.get_plugin('enaml.workbench.ui').window
             else:
                 window = None
