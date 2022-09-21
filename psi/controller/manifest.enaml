@@ -112,10 +112,11 @@ def start_experiment(event):
 def stop_experiment(event):
     # Todo: this does not capture *everything* possible (e.g., stopping
     # experiment leads to a cascade of actions).
+    stop_reason = event.parameters.get('stop_reason', '')
     controller = event.workbench.get_plugin('psi.controller')
     results = set(controller.stop_experiment(skip_errors=True))
     mesg = '\n'.join(r.strip() for r in results if r is not None)
-    controller._wrapup(mesg)
+    controller._wrapup(mesg, stop_reason)
 
 
 def show_results(event):
@@ -264,8 +265,9 @@ enamldef ControllerManifest(ControllerManifestBase): manifest:
                 text = 'Stop'
                 tool_tip = 'Stop experiment'
                 triggered ::
+                    parameters = {'stop_reason': 'user clicked stop button'}
                     plugin = workbench.get_plugin('enaml.workbench.core')
-                    plugin.invoke_command('psi.controller.stop')
+                    plugin.invoke_command('psi.controller.stop', parameters)
                 enabled <<  controller.experiment_state not in ('initialized', 'stopped')
             Action:
                 separator = True
