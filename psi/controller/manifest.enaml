@@ -113,8 +113,9 @@ def stop_experiment(event):
     # Todo: this does not capture *everything* possible (e.g., stopping
     # experiment leads to a cascade of actions).
     stop_reason = event.parameters.get('stop_reason', '')
+    skip_errors = event.parameters.get('skip_errors', True)
     controller = event.workbench.get_plugin('psi.controller')
-    results = set(controller.stop_experiment(skip_errors=True))
+    results = set(controller.stop_experiment(skip_errors=skip_errors))
     mesg = '\n'.join(r.strip() for r in results if r is not None)
     controller._wrapup(mesg, stop_reason)
 
