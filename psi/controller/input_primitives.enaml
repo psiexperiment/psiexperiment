@@ -19,3 +19,4 @@ enamldef ADC(IIRFilter): acd:
             Edges: e:
                 name << acd.name + '_digital'
                 debounce = 2
+                detect = 'both'
