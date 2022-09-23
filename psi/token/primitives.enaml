@@ -353,5 +353,13 @@ enamldef WavSequence(ContinuousBlock):
 
     Parameter:
         name = 'level'
-        label = 'level (dB peSPL)'
+        label = 'level (dB)'
         dtype = 'double'
+
+    EnumParameter:
+        name = 'normalization'
+        default = 'RMS'
+        # The values are interpreted as Python expressions, so it's important
+        # to include the string delimiter as it will be evaluated by
+        # `ast.literal_eval`).
+        choices = {'RMS': "'rms'", 'peak': "'pe'"}
