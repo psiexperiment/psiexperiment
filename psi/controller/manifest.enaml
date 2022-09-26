@@ -3,8 +3,10 @@ log = logging.getLogger(__name__)
 
 import enaml
 from enaml.application import deferred_call
-from enaml.stdlib.message_box import critical, information
-from enaml.widgets.api import Action, Label, ToolBar
+from enaml.core.api import Conditional
+from enaml.layout.api import spacer
+from enaml.widgets.api import (Action, Container, HGroup, Label, PopupView,
+                               PushButton, ToolBar)
 from enaml.workbench.api import Extension, ExtensionPoint, PluginManifest
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, Branding, MenuItem
@@ -123,10 +125,36 @@ def stop_experiment(event):
                        error_message=error_message)
 
 
+enamldef ResultPopup(PopupView): popup:
+
+    close_on_click = False
+
+    attr error_message = ''
+    attr message = ''
+
+    Container:
+        Conditional:
+            condition = bool(error_message)
+            Label:
+                text = error_message
+        Conditional:
+            condition = bool(message)
+            Label:
+                text = message
+        HGroup:
+            leading_spacer = spacer(0)
+            padding = 0
+            spacing = 0
+            PushButton:
+                text = 'OK'
+                clicked ::
+                    popup.close()
+
+
 def show_results(message, stop_reason, error_message):
-    mb = WrapupMessageBox(message=message, stop_reason=stop_reason,
-                          error_message=error_message)
-    deferred_call(mb.exec_)
+    if message or error_message:
+        view = ResultPopup(message=message, error_message=error_message)
+        view.show()
 
 
 def invoke_actions(event):
