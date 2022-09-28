@@ -390,19 +390,12 @@ class TDTEngine(Engine):
         if not self._configured:
             return
 
+        # Note that we don't actually verify that the threads have stopped
+        # running. This seemed to be causing some sort of weird race condition
+        # so I decided to eliminate that code.
         log.debug('Stopping engine')
         self._project.trigger('A', 'low')
         self._stop_requested.set()
-
-        # Make sure threads exit before moving on.
-        for thread in self._threads.values():
-            if thread is current_thread():
-                log.debug('Skipping join')
-                continue
-            log.debug('Waiting for %r thread to exit', thread)
-            thread.join()
-            log.debug('Thread %r exited', thread)
-
         self.complete()
         self._configured = False
 
