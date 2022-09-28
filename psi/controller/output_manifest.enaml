@@ -668,6 +668,48 @@ enamldef ContinuousOutputManifest(AnalogOutputManifest): manifest:
     attr output_type = 'continuous'
 
 
+def subscribe_to_queue(event, output):
+    controller = event.workbench.get_plugin('psi.controller')
+    event_added = f'{output.name}_added'
+    event_removed = f'{output.name}_removed'
+
+    def stim_queued(info):
+        nonlocal controller
+        nonlocal event_added
+        info = info.copy()
+        t0 = info.pop('t0')
+        controller.invoke_actions(event_added, info['t0'], kw=info)
+
+    def stim_removed(info):
+        nonlocal controller
+        nonlocal event_removed
+        info = info.copy()
+        t0 = info.pop('t0')
+        controller.invoke_actions(event_removed, info['t0'], kw=info)
+
+    output.source.queue.connect(stim_added, 'added')
+    output.source.queue.connect(stim_removed, 'removed')
+
+
+enamldef ContinuousQueuedOutputManifest(ContinuousOutputManifest): manifest:
+
+    Extension:
+        id = manifest.id + '.continuous_queued_output_commands'
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = manifest.contribution.name + '.subscribe_to_queue'
+            handler = partial(subscribe_to_queue, output=contribution)
+
+    Extension:
+        id = manifest.id + '.continuous_queued_output_actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'engines_configured'
+            command = manifest.contribution.name + '.subscribe_to_queue'
+
+
 ################################################################################
 # TimedTriggerManifest
 ################################################################################
