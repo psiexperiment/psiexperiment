@@ -387,9 +387,6 @@ class TDTEngine(Engine):
         self._project.trigger('A', 'high')
 
     def stop(self):
-        deferred_call(self._stop)
-
-    def _stop(self):
         if not self._configured:
             return
 
