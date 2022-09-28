@@ -355,6 +355,17 @@ class ContinuousOutput(BaseAnalogOutput):
         return self.source.next(samples)
 
 
+class ContinuousQueuedOutput(ContinuousOutput):
+
+    def pause(self, time):
+        super().pause(time)
+        self.source.queue.pause(time)
+
+    def resume(self, time):
+        super().resume(time)
+        self.source.queue.resume(time)
+
+
 class TimedTrigger(BufferedOutput):
 
     dtype = set_default('bool')
