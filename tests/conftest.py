@@ -22,7 +22,7 @@ def ao_channel(engine):
 
 @pytest.fixture()
 def epoch_output(ao_channel):
-    output = EpochOutput()
+    output = EpochOutput(name='test')
     ao_channel.add_output(output)
     return output
 

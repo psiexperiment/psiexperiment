@@ -3,6 +3,7 @@ log = logging.getLogger(__name__)
 
 import collections
 from functools import partial
+import json
 import operator as op
 import threading
 
@@ -14,6 +15,7 @@ from enaml.qt.QtCore import QTimer
 from enaml.workbench.api import Extension
 from enaml.workbench.plugin import Plugin
 
+from ..util import PSIJsonEncoder
 from .calibration.util import load_calibration
 from .channel import Channel, OutputMixin, InputMixin
 from .engine import Engine
@@ -515,7 +517,8 @@ class ControllerPlugin(Plugin):
             # TODO: This seems like cruft. Keep? The original goal is to make
             # sure this gets logged, but I feel like there are better ways to
             # handle this.
-            data = {'event': event_name, 'timestamp': timestamp}
+            data = {'event': event_name, 'timestamp': timestamp,
+                    'info': json.dumps(kw, cls=PSIJsonEncoder)}
             self.invoke_actions('experiment_event', kw={'data': data},
                                 skip_errors=skip_errors)
 

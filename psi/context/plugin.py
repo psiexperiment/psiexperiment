@@ -207,10 +207,10 @@ class ContextPlugin(PSIPlugin):
                 # If, in the future, we need the ability to ignore missing
                 # parameters, I would add an attribute to the Expression class
                 # indicating that it's OK to ignore if the parameter does not exist.
-                log.warn(f'{expression.parameter} referenced by '
-                         f'expression {expression.expression} '
-                          'does not exist. Available names include '
-                         f'{available_items}.')
+                log.warning(f'{expression.parameter} referenced by '
+                            f'expression {expression.expression} '
+                             'does not exist. Available names include '
+                            f'{available_items}.')
 
         load_manifests(context_groups.values(), self.workbench)
         self.context_expressions = context_expressions
@@ -382,8 +382,7 @@ class ContextPlugin(PSIPlugin):
     def next_setting(self, selector=None):
         '''
         Load next set of expressions. If there are no selectors defined, then
-        this essentially clears the namespace and allows expresssions to be
-        recomputed.
+        this clears the namespace and allows expresssions to be recomputed.
         '''
         log.debug('Loading next setting')
         self._namespace.reset()
