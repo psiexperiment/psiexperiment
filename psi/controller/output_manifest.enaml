@@ -687,8 +687,8 @@ def subscribe_to_queue(event, output):
         t0 = info.pop('t0')
         controller.invoke_actions(event_removed, t0, kw=info)
 
-    output.source.connect(stim_added, 'added')
-    output.source.connect(stim_removed, 'removed')
+    output.connect(stim_added, 'added')
+    output.connect(stim_removed, 'removed')
 
 
 enamldef ContinuousQueuedOutputManifest(ContinuousOutputManifest): manifest:
@@ -709,6 +709,7 @@ enamldef ContinuousQueuedOutputManifest(ContinuousOutputManifest): manifest:
         ExperimentAction:
             event = 'engines_configured'
             command = manifest.contribution.name + '.subscribe_to_queue'
+            weight = 0
 
 
 ################################################################################

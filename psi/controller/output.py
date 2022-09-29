@@ -1,6 +1,7 @@
 import logging
 log = logging.getLogger(__name__)
 
+from functools import partial
 import numpy as np
 
 from atom.api import (Str, Dict, Event, Typed, Property, Float, Int,
@@ -356,6 +357,29 @@ class ContinuousOutput(BaseAnalogOutput):
 
 
 class ContinuousQueuedOutput(ContinuousOutput):
+
+    notifiers = Dict()
+
+    def _default_notifiers(self):
+        return {
+            'added': [],
+            'removed': [],
+            'decrement': [],
+        }
+
+    def _observe_source(self, event):
+        if hasattr(self.source, 'connect'):
+            for e in self.notifiers:
+                self.source.connect(partial(self.notify, e), e)
+
+    def connect(self, callback, event='added'):
+        if event not in self.notifiers:
+            raise KeyError(f'Event "{event}" not valid')
+        self.notifiers[event].append(callback)
+
+    def notify(self, event, info):
+        for notifier in self.notifiers[event]:
+            notifier(info)
 
     def pause(self, time):
         self.source.queue.pause(time)
