@@ -447,7 +447,7 @@ def output_resume(event, output):
     controller = event.workbench.get_plugin('psi.controller')
     with output.engine.lock:
         time = output.engine.get_ts() + delay
-        log.debug('Pausing output %s at %f', output.name, time)
+        log.debug('Resuming output %s at %f', output.name, time)
         output.resume(time)
         controller.invoke_actions(output.name + '_resumed', time)
 
@@ -673,22 +673,22 @@ def subscribe_to_queue(event, output):
     event_added = f'{output.name}_added'
     event_removed = f'{output.name}_removed'
 
-    def stim_queued(info):
+    def stim_added(info):
         nonlocal controller
         nonlocal event_added
         info = info.copy()
         t0 = info.pop('t0')
-        controller.invoke_actions(event_added, info['t0'], kw=info)
+        controller.invoke_actions(event_added, t0, kw=info)
 
     def stim_removed(info):
         nonlocal controller
         nonlocal event_removed
         info = info.copy()
         t0 = info.pop('t0')
-        controller.invoke_actions(event_removed, info['t0'], kw=info)
+        controller.invoke_actions(event_removed, t0, kw=info)
 
-    output.source.queue.connect(stim_added, 'added')
-    output.source.queue.connect(stim_removed, 'removed')
+    output.source.connect(stim_added, 'added')
+    output.source.connect(stim_removed, 'removed')
 
 
 enamldef ContinuousQueuedOutputManifest(ContinuousOutputManifest): manifest:
@@ -699,7 +699,8 @@ enamldef ContinuousQueuedOutputManifest(ContinuousOutputManifest): manifest:
 
         Command:
             id = manifest.contribution.name + '.subscribe_to_queue'
-            handler = partial(subscribe_to_queue, output=contribution)
+            handler = partial(subscribe_to_queue,
+                              output=manifest.contribution)
 
     Extension:
         id = manifest.id + '.continuous_queued_output_actions'

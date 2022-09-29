@@ -358,12 +358,12 @@ class ContinuousOutput(BaseAnalogOutput):
 class ContinuousQueuedOutput(ContinuousOutput):
 
     def pause(self, time):
-        super().pause(time)
         self.source.queue.pause(time)
+        super().pause(time)
 
     def resume(self, time):
-        super().resume(time)
         self.source.queue.resume(time)
+        super().resume(time)
 
 
 class TimedTrigger(BufferedOutput):

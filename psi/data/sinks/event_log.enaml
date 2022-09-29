@@ -38,10 +38,11 @@ enamldef EventLogManifest(TableStoreManifest): manifest:
                 Container:
                     ListDictTable: table:
                         data << manifest.contribution._data[:]
-                        columns = ['event', 'timestamp']
+                        #columns = ['event', 'timestamp', 'info']
                         column_info = {
-                            'event': {'label': 'Event'},
-                            'timestamp': {'label': 'Time', 'to_string': '{:.2f}'.format}
+                            'event': {'label': 'Event Name'},
+                            'timestamp': {'label': 'Time (sec)', 'to_string': '{:.2f}'.format},
+                            'info': {'label': 'Event Info'},
                         }
 
         Extension:

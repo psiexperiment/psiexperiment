@@ -6,6 +6,7 @@ import inspect
 import json
 from pathlib import Path
 import threading
+import uuid
 
 import numpy as np
 import pandas as pd
@@ -412,6 +413,8 @@ class PSIJsonEncoder(json.JSONEncoder):
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
         elif isinstance(obj, Path):
+            return str(obj)
+        elif isinstance(obj, uuid.UUID):
             return str(obj)
         else:
             return super().default(obj)
