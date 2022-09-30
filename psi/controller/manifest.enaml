@@ -154,7 +154,10 @@ enamldef ResultPopup(PopupView): popup:
 def show_results(message, stop_reason, error_message):
     if message or error_message:
         view = ResultPopup(message=message, error_message=error_message)
-        view.show()
+        # There is no guarantee show_results will be invoked in the main
+        # process, so anything GUI related needs to be scheduled on the main
+        # process via deferred_call.
+        deferred_call(view.show)
 
 
 def invoke_actions(event):
