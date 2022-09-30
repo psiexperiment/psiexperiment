@@ -286,23 +286,18 @@ def hw_ai_helper(cb, channels, discard, fs, channel_names, task,
     read_position = uint64.value
 
     log.trace('Current read position %d, available samples %d',
-                 read_position, available_samples)
-
-    if read_position < discard:
-        samples = min(discard-read_position, available_samples)
-        read_hw_ai(task, samples, channels)
-        available_samples -= samples
-        log.debug('Discarded %d samples from beginning, %d available',
-                     samples, available_samples)
-
-    if available_samples == 0:
-        return 0
+              read_position, available_samples)
 
     data = read_hw_ai(task, available_samples, channels, cb_samples)
-    if data is not None:
-        s0 = read_position - discard
+    if read_position <= discard:
+        to_discard = discard - read_position
+        data = data[..., to_discard:]
+
+    if data.shape[-1] > 0:
+        s0 = max(0, read_position - discard)
         data = PipelineData(data, fs=fs, s0=s0, channel=channel_names)
         cb(data)
+
     return 0
 
 
