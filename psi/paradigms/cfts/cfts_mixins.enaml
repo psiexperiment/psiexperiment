@@ -8,7 +8,7 @@ from psiaudio.util import octave_space
 
 from psi.context.api import (BoolParameter, ContextGroup, ContextRow,
                              FriendlyCartesianProduct, Parameter)
-from psi.controller.api import Downsample, IIRFilter
+from psi.controller.api import DecimateTo, Downsample, IIRFilter
 from psi.controller.calibration.api import ChirpCalibrate, ToneCalibrate
 from psi.core.enaml.api import ExperimentManifest
 from psi.data.sinks.api import DisplayValue, BinaryStore
@@ -180,22 +180,39 @@ enamldef CalMicrophoneInput(ChannelInput):
     label = 'Cal. mic.'
 
 
-enamldef EEGInput(ChannelInput):
-    name = 'eeg'
+enamldef EEGFilter(IIRFilter):
+    N = 2
+    btype = 'bandpass'
+    ftype = 'butter'
+    passthrough = not C.digital_filter
+    f_highpass = C.digital_highpass
+    f_lowpass = C.digital_lowpass
+
+
+enamldef BaseEEGInput(ChannelInput):
     label = 'EEG'
     show_gain_setting = False
 
-    IIRFilter:
+
+enamldef EEGInput(BaseEEGInput): base:
+    name = 'eeg'
+    EEGFilter:
         name = 'eeg_filtered'
-        N = 2
-        btype = 'bandpass'
-        ftype = 'butter'
-        passthrough = not C.digital_filter
-        f_highpass = C.digital_highpass
-        f_lowpass = C.digital_lowpass
 
 
-enamldef EEGInputManifest(ChannelInputManifest): manifest:
+enamldef DecimatedEEGInput(BaseEEGInput): base:
+    '''
+    This makes it easier to use the EEGInput with various assays (e.g., ABR vs.
+    EFR) that require different filtering parameters.
+    '''
+    alias target_fs: dec.target_fs
+    DecimateTo: dec:
+        name = 'eeg'
+        EEGFilter:
+            name = 'eeg_filtered'
+
+
+enamldef BaseEEGInputManifest(ChannelInputManifest): manifest:
 
     Extension:
         id = manifest.id + '.eeg.context'

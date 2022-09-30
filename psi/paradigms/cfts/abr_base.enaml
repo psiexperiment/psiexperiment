@@ -15,12 +15,12 @@ from psi.context.api import (ContextGroup, ContextRow, Parameter,
                              BoolParameter, EnumParameter)
 from psi.controller.api import ExperimentAction
 from psi.controller.api import (ControllerManifest,
-                                ExtractEpochs, RejectEpochs, 
+                                ExtractEpochs, RejectEpochs,
                                 Detrend)
 from psi.data.sinks.api import BinaryStore, TextStore
 from psi.token.primitives import Cos2Envelope, Tone
 
-from .cfts_mixins import EEGInput, PTMicrophoneInput, SpeakerOutput
+from .cfts_mixins import DecimatedEEGInput, PTMicrophoneInput, SpeakerOutput
 
 
 EXPERIMENT = 'abr_base'
@@ -75,7 +75,8 @@ enamldef ABRBaseManifest(ControllerManifest): manifest:
                 controller = workbench.get_plugin('psi.controller')
                 deferred_call(controller.invoke_actions, output.name + '_end')
 
-        EEGInput:
+        DecimatedEEGInput:
+            target_fs = 12.5e3
             ExtractEpochs: extract:
                 name = 'erp'
                 epoch_size = 8.5e-3
