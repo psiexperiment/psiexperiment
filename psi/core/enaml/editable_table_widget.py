@@ -348,8 +348,16 @@ class EditableTable(RawWidget):
     #: Table data. Table is updated every time the object changes. Atom cannot
     #: listen for changes to an object, so you need to be sur ethat
     data = d_(Value())
-    update = d_(Bool())
-    updated = d_(Event())
+
+    #: Force a redraw of table data. Used if the underlying information has
+    #: changed in a way that will not be detected by the standard Atom
+    #: framework.
+    update = d_(Event())
+
+    #: Fired if the user updates data in the table. Subscribe to this if your
+    #: data model needs notifications when the user modifies data in-place
+    #: using the widget.
+    updated = d_(Event(), writable=False)
 
     # List of row, col tuples of selections
     selection_changed = d_(Event())
@@ -579,9 +587,7 @@ class EditableTable(RawWidget):
         self._reset_model()
 
     def _observe_update(self, event):
-        if self.update:
-            self._reset_model()
-            self.update = False
+        self._reset_model()
 
     def _reset_model(self, event=None):
         # Forces a reset of the model and view. Check if model has been created
