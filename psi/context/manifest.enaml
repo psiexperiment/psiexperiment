@@ -176,7 +176,8 @@ enamldef ContextManifest(ExperimentManifest): manifest:
                 # Build the selector state
                 selector_state = {}
                 for s in plugin.selectors.values():
-                    selector_state[s.name] = s.__getstate__()
+                    if s.persist_settings:
+                        selector_state[s.name] = s.__getstate__()
 
                 # Build the meta state
                 meta_state = {}
@@ -215,6 +216,8 @@ enamldef ContextManifest(ExperimentManifest): manifest:
 
                 log.debug('Setting selector states')
                 for selector in plugin.selectors.values():
+                    if not selector.persist_settings:
+                        continue
                     try:
                         state = selector_state.get(selector.name, {})
                         selector.__setstate__(state)

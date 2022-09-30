@@ -139,11 +139,23 @@ class BaseSelector(PSIContribution):
     name = set_default('default')
     symbols = Typed(dict, {})
     updated = Event()
+
+    #: Should the selector appear as a widget in the user interface. Generally
+    #: you want this so the user can enter the values they want. However, we do
+    #: have some situations where we might wish to create a "shadow" selector
+    #: (see the DPOAE IO experiment).
     show_widget = d_(Bool(True))
+
+    #: If True, settings entered in selector are saved to the settings file.
+    #: The key reason why you might wish not to persist the settings in the
+    #: case of a "shadow" selector that is used to present a subset of the
+    #: stimuli specified by the user in a companion selector (see the DPOAE IO
+    #: experiment).
+    persist_settings = d_(Bool(True))
 
     #: Can the user manage the selector by manually selecting items to rove in
     #: the GUI? If False, the experiment paradigm needs to handle the selection
-    #: of the roving parameters.
+    #: of the roving parameters (the user can still enter the values they want).
     user_managed = d_(Bool(True))
 
     context_items = Typed(list, [])
@@ -342,6 +354,10 @@ class SequenceSelector(BaseSelector):
         settings = self.settings[:]
         settings.remove(setting)
         self.settings = settings
+        self.updated = True
+
+    def clear_settings(self):
+        self.settings = []
         self.updated = True
 
     def append_item(self, item):
