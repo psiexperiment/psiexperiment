@@ -187,6 +187,7 @@ template WidgetTemplate(context_item, MemberType):
     '''
     Field:
         text := context_item.expression
+        tool_tip << context_item.name
         validator << ContextItemValidator(
             plugin=workbench.get_plugin('psi.context'),
             item=context_item
