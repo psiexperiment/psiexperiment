@@ -85,14 +85,30 @@ ParadigmDescription(
 
 
 ParadigmDescription(
-    'memr_interleaved', 'MEMR (interleaved)', 'ear', [
-        {'manifest': CFTS_PATH + 'memr.InterleavedMEMRManifest'},
+    'memr_interleaved', 'MEMR (interleaved click)', 'ear', [
+        {'manifest': CFTS_PATH + 'memr.InterleavedMEMRManifest', 'attrs': {'probe': 'click'}},
+        {'manifest': CFTS_PATH + 'memr.InterleavedElicitorMixin', 'required': True},
+        {'manifest': CFTS_PATH + 'memr.InterleavedClickProbeMixin', 'required': True},
         temperature_mixin,
         microphone_mixin,
         microphone_fft_mixin,
         {'manifest': CFTS_PATH + 'cfts_mixins.MEMRInEarCalibrationMixinManifest', 'selected': True},
     ]
 )
+
+
+ParadigmDescription(
+    'memr_interleaved', 'MEMR (interleaved chirp)', 'ear', [
+        {'manifest': CFTS_PATH + 'memr.InterleavedMEMRManifest', 'attrs': {'probe': 'chirp'}},
+        {'manifest': CFTS_PATH + 'memr.InterleavedElicitorMixin', 'required': True},
+        {'manifest': CFTS_PATH + 'memr.InterleavedChirpProbeMixin', 'required': True},
+        temperature_mixin,
+        microphone_mixin,
+        microphone_fft_mixin,
+        {'manifest': CFTS_PATH + 'cfts_mixins.MEMRInEarCalibrationMixinManifest', 'selected': True},
+    ]
+)
+
 
 
 ParadigmDescription(
