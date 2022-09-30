@@ -64,7 +64,6 @@ def process(n_time, n_fft, input, workbench, trial_widget, trials_widget,
 
         # Process acquired time segments once we have what we need
         if len(time_data) == n_time:
-            # TODO: FIXME
             mean_time = concat(time_data, axis='time')
             time_data = []
 
