@@ -289,6 +289,9 @@ def hw_ai_helper(cb, channels, discard, fs, channel_names, task,
               read_position, available_samples)
 
     data = read_hw_ai(task, available_samples, channels, cb_samples)
+    if data is None:
+        return 0
+
     if read_position <= discard:
         to_discard = discard - read_position
         data = data[..., to_discard:]
