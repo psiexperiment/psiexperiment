@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 import argparse
 import datetime as dt
 from glob import glob
@@ -6,22 +9,21 @@ import json
 import os.path
 from pathlib import Path
 
-
 import enaml
 with enaml.imports():
     from enaml.stdlib.message_box import information
-
 from enaml.qt.qt_application import QtApplication
+import matplotlib.pyplot as plt
 
 import numpy as np
 import pandas as pd
 
+from psiaudio.plot import waterfall_plot
 from psi.data.io import abr
 from psi import get_config
 
 
 COLUMNS = ['frequency', 'level', 'polarity']
-
 
 
 def get_file_template(filename, offset, duration, filter_settings, n_epochs,
@@ -125,6 +127,7 @@ def is_processed(filename, offset, duration, filter_settings, n_epochs=None,
     for suffix in suffixes:
         filename = Path(file_template.format(suffix))
         if not filename.exists():
+            print(filename)
             return False
     return True
 
@@ -172,12 +175,25 @@ def process_files(filenames, offset=-0.001, duration=0.01,
     print(f'Successfully processed {len(success)} files with {len(error)} errors')
 
 
+def plot_waveforms_cb(epochs_mean, filename, name):
+    epochs_mean = epochs_mean.reset_index(['epoch_n', 'epoch_reject_ratio'], drop=True)
+    grouped = epochs_mean.groupby('frequency')
+    n_panels = len(grouped)
+    figure, axes = plt.subplots(1, n_panels, figsize=(6*n_panels, 8.5))
+    for ax, (frequency, data) in zip(axes, grouped):
+        waterfall_plot(ax, data)
+        ax.set_xlabel('Time (msec)')
+        ax.set_title(f'{frequency * 1e-3:0.2f} Hz')
+    figure.suptitle(name)
+    figure.savefig(filename)
+
+
 def process_file(filename, offset=-1e-3, duration=10e-3,
                  filter_settings='saved', n_epochs='auto',
                  simple_filename=True, export_single_trial=False, cb=None,
                  file_template=None, target_fs=12.5e3, analysis_window=None,
                  latency_correction=0, gain_correction=1, debug_mode=False,
-                 plot_waveforms_cb=None):
+                 plot_waveforms_cb=plot_waveforms_cb):
     '''
     Extract ABR epochs, filter and save result to CSV files
 
@@ -252,6 +268,7 @@ def process_file(filename, offset=-1e-3, duration=10e-3,
 
     # Cleanup settings so that it is JSON-serializable
     settings.pop('cb')
+    settings.pop('plot_waveforms_cb')
     settings['filename'] = str(settings['filename'])
     settings['creation_time'] = dt.datetime.now().isoformat()
 
@@ -404,6 +421,7 @@ def main_auto():
 
 
 def main_gui():
+    logging.basicConfig(level=logging.INFO)
     import enaml
     from enaml.qt.qt_application import QtApplication
     with enaml.imports():
