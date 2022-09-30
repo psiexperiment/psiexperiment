@@ -15,8 +15,9 @@ from psi.controller.api import (
     Blocked, ControllerManifest, Coroutine, ExperimentAction, ExtractEpochs,
     Synchronized
 )
+from psi.core.enaml.api import ExperimentManifest
 from psi.token.primitives import (
-    BandlimitedClick, BandlimitedFIRNoise, Cos2Envelope, Repeat
+    BandlimitedClick, BandlimitedFIRNoise, Chirp, Cos2Envelope, Repeat
 )
 from psi.data.api import FFTContainer, TimeContainer, ViewBox
 from psi.data.sinks.api import BinaryStore, EpochCounter, TextStore
@@ -63,7 +64,7 @@ def configure_interleaved_memr(event):
 
 
 @coroutine
-def analyze_interleaved_memr(fs, workbench, target):
+def analyze_interleaved_memr(fs, workbench, probe, target):
     data = workbench.get_plugin('psi.data')
     vb_time = data.find_viewbox('probe_time_vb')
     vb_fft = data.find_viewbox('probe_fft_vb')
@@ -74,9 +75,9 @@ def analyze_interleaved_memr(fs, workbench, target):
         target(data)
         for d in data:
             md = d.metadata
-            n = md['probe_click_n'] - 1
+            n = md[f'probe_{probe}_n'] - 1
 
-            a_lb = int(round(md['probe_click_delay'] * fs))
+            a_lb = int(round(md[f'probe_{probe}_delay'] * fs))
             a_d = int(round(md['analysis_window'] * fs))
             a_ub = a_lb + a_d
 
@@ -99,43 +100,38 @@ enamldef BaseMEMRManifest(ControllerManifest): manifest:
 
     attr configure_experiment_cb
     attr analyze_memr_cb
+    attr probe
 
     Extension:
-        id = EXPERIMENT + '.tokens'
-        point = 'psi.token.tokens'
+        id = EXPERIMENT + '.base_context'
+        point = 'psi.context.items'
 
-        Repeat: probe:
-            name = 'click'
-            hide = ['skip_n']
-            BandlimitedClick:
-                hide = ['polarity']
+        ContextGroup:
+            name = 'hardware_settings'
+            label = 'Hardware'
 
     Extension:
         id = EXPERIMENT + '.io'
         point = 'psi.controller.io'
 
         PTMicrophoneInput:
-
             ExtractEpochs: extract:
                 name = 'memr'
-
                 Coroutine:
                     name = 'memr_analyzed'
                     coroutine = analyze_memr_cb
-                    args = (fs, workbench)
+                    args = (fs, workbench, probe)
 
         Synchronized:
             name = 'memr_stim'
-
             QueuedEpochChannelOutput:
                 name = 'probe'
                 label = 'Probe'
                 auto_decrement = True
-                token = probe
+                token = workbench.get_plugin('psi.token').get_token(probe)
                 queue ::
                     self.connect(extract.added_queue.append, 'added')
                     self.connect(extract.removed_queue.append, 'removed')
-
             QueuedEpochChannelOutput:
                 name = 'elicitor'
                 label = 'Elicitor'
@@ -235,30 +231,13 @@ enamldef BaseMEMRManifest(ControllerManifest): manifest:
                 save_limits = True
 
 
-enamldef InterleavedMEMRManifest(BaseMEMRManifest):
-    # Implements the classic wideband acoustic reflex as described by Keefe.
+enamldef InterleavedElicitorMixin(ExperimentManifest):
 
-    analyze_memr_cb = analyze_interleaved_memr
-    configure_experiment_cb = configure_interleaved_memr
+    id = 'interleaved_elicitor_stim'
 
     Extension:
-        id = EXPERIMENT + '.interleaved.tokens'
-        point = 'psi.token.tokens'
-
-        Repeat: elicitor:
-            name = 'noise'
-            hide = ['delay']
-            Cos2Envelope:
-                BandlimitedFIRNoise:
-                    pass
-
-    Extension:
-        id = EXPERIMENT + '.interleaved.context'
+        id = EXPERIMENT + '.interleaved_elicitor.items'
         point = 'psi.context.items'
-
-        ContextGroup:
-            name = 'hardware_settings'
-            label = 'Hardware'
 
         ContextGroup:
             name = 'memr'
@@ -295,18 +274,6 @@ enamldef InterleavedMEMRManifest(BaseMEMRManifest):
                 default = 46.4e-3
 
         Expression:
-            parameter = 'probe_click_n'
-            expression = 'elicitor_n + 1'
-
-        Expression:
-            parameter = 'probe_click_skip_n'
-            expression = '0'
-
-        Expression:
-            parameter = 'probe_click_rate'
-            expression = '1 / repeat_period'
-
-        Expression:
             parameter = 'elicitor_noise_n'
             expression = 'elicitor_n'
 
@@ -327,9 +294,86 @@ enamldef InterleavedMEMRManifest(BaseMEMRManifest):
             expression = '5e-3'
 
         Expression:
+            parameter = 'elicitor_envelope_start_time'
+            expression = 'repeat_period - elicitor_duration'
+
+
+enamldef InterleavedClickProbeMixin(ExperimentManifest):
+
+    id = 'interleaved_click_probe_stim'
+
+    Extension:
+        id = EXPERIMENT + '.interleaved_click_probe.items'
+        point = 'psi.context.items'
+
+        Expression:
+            parameter = f'probe_click_n'
+            expression = 'elicitor_n + 1'
+
+        Expression:
+            parameter = 'probe_click_skip_n'
+            expression = '0'
+
+        Expression:
+            parameter = 'probe_click_rate'
+            expression = '1 / repeat_period'
+
+        Expression:
             parameter = 'probe_click_delay'
             expression = '11.2e-3 - probe_bandlimited_click_window / 2'
 
+
+enamldef InterleavedChirpProbeMixin(ExperimentManifest):
+
+    id = 'interleaved_chirp_probe_stim'
+
+    Extension:
+        id = EXPERIMENT + '.interleaved_chirp_probe.items'
+        point = 'psi.context.items'
+
         Expression:
-            parameter = 'elicitor_envelope_start_time'
-            expression = 'repeat_period - elicitor_duration'
+            parameter = f'probe_chirp_n'
+            expression = 'elicitor_n + 1'
+
+        Expression:
+            parameter = 'probe_chirp_skip_n'
+            expression = '0'
+
+        Expression:
+            parameter = 'probe_chirp_rate'
+            expression = '1 / repeat_period'
+
+        Expression:
+            parameter = 'probe_chirp_delay'
+            expression = '0'
+
+
+enamldef InterleavedMEMRManifest(BaseMEMRManifest):
+
+    # Implements the classic wideband acoustic reflex as described by Keefe.
+    analyze_memr_cb = analyze_interleaved_memr
+    configure_experiment_cb = configure_interleaved_memr
+    attr probe
+
+    Extension:
+        id = EXPERIMENT + '.interleaved_elicitor.tokens'
+        point = 'psi.token.tokens'
+
+        Repeat: elicitor:
+            name = 'noise'
+            hide = ['delay']
+            Cos2Envelope:
+                BandlimitedFIRNoise:
+                    pass
+
+        Repeat: probe:
+            name = 'click'
+            hide = ['skip_n']
+            BandlimitedClick:
+                hide = ['polarity']
+
+        Repeat: chirp:
+            name = 'chirp'
+            hide = ['skip_n']
+            Chirp:
+                pass
