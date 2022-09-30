@@ -393,7 +393,7 @@ class ContextPlugin(PSIPlugin):
             expressions = {i.name: e for i, e in expressions.items()}
             self._namespace.update_expressions(expressions)
         except KeyError:
-            m = 'Avaliable selectors include {}'.format(self._iterators.keys())
+            m = 'Available selectors include {}'.format(self._iterators.keys())
             log.debug(m)
             raise
 

@@ -143,6 +143,10 @@ enamldef DPOAEIOBaseManifest(DPOAEManifest): manifest:
 
 
 def configure_dpoaeio_gui(event):
+    '''
+    Loads various GUI components (mainly plots) and ensures that axes limits
+    are set based on what we will see in the experiments.
+    '''
     ui = event.workbench.get_plugin('enaml.workbench.ui')
     pb_trials = ui.window.find('dpoae_trials_pb')
     pb_trial = ui.window.find('dpoae_trial_pb')
@@ -292,3 +296,4 @@ enamldef DPOAEIOSimpleManifest(DPOAEIOBaseManifest): manifest:
             # output of the system (using calibration).
             name = 'actual'
             show_widget = False
+            persist_settings = False
