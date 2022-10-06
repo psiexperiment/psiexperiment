@@ -144,7 +144,6 @@ class BufferedOutput(Output):
                 f'Requested {lb} but only buffered up to {buffered_lb}'
             raise SystemError(m)
         elif lb == buffered_ub:
-            log.trace('Generating new data')
             pass
         elif lb >= buffered_lb and ub <= buffered_ub:
             out[:] = self._buffer.get_range_samples(lb, ub)
