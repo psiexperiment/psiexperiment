@@ -1334,7 +1334,7 @@ class NIDAQEngine(Engine):
                                   mx.DAQmx_Val_GroupByChannel,
                                   data.astype(np.uint8), result, None)
         mx.DAQmxSetWriteOffset(task, 0)
-        log.info('Writing hw do %r at %d', data.shape, offset)
+        log.info('Writing %r samples to hw do at offset %d', data.shape, offset)
 
         # Calculate total samples written
         self.total_do_samples_written += (relative_offset + data.shape[-1])

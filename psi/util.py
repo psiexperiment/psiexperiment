@@ -288,9 +288,6 @@ class SignalBuffer:
                 ub = self.get_samples_ub()
             ilb = self.samples_to_index(lb)
             iub = self.samples_to_index(ub)
-            log.trace('Need range %d to %d.', ilb, iub)
-            log.trace('Current lower bound is %d for %d', self._ilb,
-                      self._buffer_samples)
             if ilb < self._ilb:
                 raise IndexError
             elif iub > self._buffer_samples:
