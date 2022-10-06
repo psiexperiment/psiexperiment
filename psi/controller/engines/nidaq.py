@@ -1268,6 +1268,7 @@ class NIDAQEngine(Engine):
         data = self._get_hw_ao_samples(offset, samples)
         self.write_hw_ao(data, offset=offset, timeout=0)
 
+    @with_lock
     def update_hw_do(self, name, offset):
         # Get the next set of samples to upload to the buffer. Ignore the
         # channel name because we need to update all channels simultaneously.
