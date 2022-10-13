@@ -7,7 +7,7 @@ import os.path
 from pathlib import Path
 import subprocess
 
-from atom.api import Atom, Bool, Enum, List, Typed, Str
+from atom.api import Atom, Bool, Enum, List, Str, Typed, Value
 import enaml
 from enaml.qt.qt_application import QtApplication
 
@@ -25,7 +25,7 @@ from psi.experiment.api import ParadigmDescription, paradigm_manager
 
 class SimpleLauncher(Atom):
 
-    io = Typed(Path)
+    io = Value()
     experiment = Typed(ParadigmDescription).tag(template=True, required=True)
     calibration = Typed(Path)
     preferences = Typed(Path)

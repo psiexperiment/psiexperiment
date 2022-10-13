@@ -2,7 +2,7 @@ import logging
 log = logging.getLogger(__name__)
 
 import json
-import os.path
+from pathlib import Path
 
 import enaml
 from enaml.core.api import Conditional, Include, Looper
@@ -16,13 +16,16 @@ from enaml.widgets.api import (Action, ActionGroup, CheckBox, Container, Field,
 from psi import get_config, get_config_folder
 from psi.util import get_tagged_values
 from psi.controller.api import Channel
-from psi.core.enaml.api import load_manifest_from_file
+from psi.core.enaml.api import load_manifest, load_manifest_from_file
 from psi.controller.calibration.util import load_calibration
 from psi.experiment.api import main_icon
 
 
 def get_editable_channels(io_file):
-    manifest = load_manifest_from_file(io_file, 'IOManifest')
+    if io_file.endswith('.enaml'):
+        manifest = load_manifest_from_file(io_file, 'IOManifest')
+    else:
+        manifest = load_manifest(f'{io_file}.IOManifest')
     channels = [o for o in manifest().traverse() if isinstance(o, Channel)]
     return [c for c in channels if c.calibration_user_editable]
 
@@ -155,7 +158,8 @@ enamldef LauncherView(MainWindow): main:
             ObjectCombo:
                 items << launcher.available_io[:]
                 selected := launcher.io
-                to_string = lambda x: x.stem.replace('_', ' ')
+                to_string = lambda x: x.stem.replace('_', ' ') if isinstance(x, Path) \
+                    else x.rsplit('.', 1)[1]
 
             Conditional:
                 condition << len(get_editable_channels(launcher.io)) > 0

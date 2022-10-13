@@ -49,7 +49,10 @@ class PSIWorkbench(Workbench):
         self.get_plugin('enaml.workbench.core')
 
         if io_manifest is not None:
-            self.io_manifest_class = load_manifest_from_file(io_manifest, 'IOManifest')
+            if io_manifest.endswith('.enaml'):
+                self.io_manifest_class = load_manifest_from_file(io_manifest, 'IOManifest')
+            else:
+                self.io_manifest_class = load_manifest(f'{io_manifest}.IOManifest')
             io_manifest = self.io_manifest_class()
             log.info('Registering %r', io_manifest)
             self.register(io_manifest)
