@@ -373,6 +373,18 @@ enamldef Chirp(EpochBlock):
         label = 'duration (sec)'
         default = 1/50.0
 
+    EnumParameter:
+        name = 'window'
+        label = 'window'
+        compact_label = 'window'
+        default = 'Hann'
+        choices = {'Hann': "'hann'", 'Boxcar': "'boxcar'"}
+
+    EnumParameter:
+        name = 'equalize'
+        default = 'yes'
+        choices = {'yes': True, 'no': False}
+
 
 enamldef BandlimitedClick(EpochBlock):
 
