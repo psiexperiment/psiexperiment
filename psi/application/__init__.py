@@ -205,8 +205,7 @@ def list_preferences(experiment):
 def list_io():
     io_path = get_config('IO_ROOT')
     result = list(io_path.glob('*.enaml'))
-    io_map = {p.stem: p for p in list_io_templates() if not p.stem.startswith('_')}
-    result.extend(io_map[c] for c in get_config('STANDARD_IO', []))
+    result.extend(get_config('STANDARD_IO', []))
     return result
 
 
@@ -315,16 +314,6 @@ def load_paradigm_descriptions():
 def add_default_options(parser):
     import argparse
 
-    class IOAction(argparse.Action):
-        def __call__(self, parser, namespace, value, option_string=None):
-            path = Path(value)
-            if not path.exists():
-                path = get_config('IO_ROOT') / value
-                path = path.with_suffix('.enaml')
-                if not path.exists():
-                    raise ValueError('{} does not exist'.format(value))
-            setattr(namespace, self.dest, path)
-
     class CalibrationAction(argparse.Action):
         def __call__(self, parser, namespace, value, option_string=None):
             path = Path(value)
@@ -341,7 +330,7 @@ def add_default_options(parser):
         default_io = None
     parser.add_argument('pathname', type=str, help='Filename', nargs='?')
     parser.add_argument('--io', type=str, default=default_io,
-                        help='Hardware configuration', action=IOAction)
+                        help='Hardware configuration')
     parser.add_argument('--calibration', type=str, help='Hardware calibration',
                         action=CalibrationAction)
     parser.add_argument('--debug', default=True, action='store_true',
@@ -469,7 +458,6 @@ def config():
         '--io',
         nargs='*',
         type=str,
-        choices=io_choices,
         help='Default hardware configurations.',
     )
     create.add_argument(
