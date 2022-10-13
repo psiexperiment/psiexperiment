@@ -5,7 +5,7 @@ from atom.api import Atom, Typed
 from psi.util import get_dependencies
 
 
-class Expr(object):
+class Expr:
 
     def __init__(self, expression):
         if not isinstance(expression, str):
@@ -18,6 +18,12 @@ class Expr(object):
 
     def evaluate(self, context):
         return eval(self._expression, context)
+
+    def __str__(self):
+        return f'{self._expression}'
+
+    def __repr__(self):
+        return f'<Expr: {self}>'
 
 
 class ExpressionNamespace(Atom):
