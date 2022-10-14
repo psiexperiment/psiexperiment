@@ -5,7 +5,7 @@ import functools
 
 import zarr
 
-from . import Signal
+from .signal import Signal
 
 
 # Max size of LRU cache
@@ -13,6 +13,11 @@ MAXSIZE = 1024
 
 
 class ZarrSignal(Signal):
+
+    @classmethod
+    def from_zip(cls, path, name):
+        array = zarr.open(store=str(path), mode='r', path=f'{name}.zarr')
+        return cls(array)
 
     @classmethod
     def from_path(cls, path):
