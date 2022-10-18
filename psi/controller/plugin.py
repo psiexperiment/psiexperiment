@@ -513,15 +513,6 @@ class ControllerPlugin(Plugin):
     def _invoke_actions(self, event_name, timestamp=None, kw=None, skip_errors=False):
         log.debug('Triggering event {}'.format(event_name))
 
-        if timestamp is not None:
-            # TODO: This seems like cruft. Keep? The original goal is to make
-            # sure this gets logged, but I feel like there are better ways to
-            # handle this.
-            data = {'event': event_name, 'timestamp': timestamp,
-                    'info': json.dumps(kw, cls=PSIJsonEncoder)}
-            self.invoke_actions('experiment_event', kw={'data': data},
-                                skip_errors=skip_errors)
-
         # If this is a stateful event, update the associated state.
         if event_name.endswith('_start'):
             key = event_name[:-6]
@@ -549,6 +540,26 @@ class ControllerPlugin(Plugin):
                 result = invoke_action(self.core, action, event_name,
                                        timestamp, kw, skip_errors)
                 results.append(result)
+
+        if timestamp is not None:
+            # TODO: This seems like cruft. Keep? The original goal is to make
+            # sure this gets logged, but I feel like there are better ways to
+            # handle this.
+            def log_event():
+                nonlocal self
+                nonlocal event_name
+                nonlocal timestamp
+                nonlocal kw
+                nonlocal skip_errors
+                data = {
+                    'event': event_name,
+                    'timestamp': timestamp,
+                    'info': json.dumps(kw, cls=PSIJsonEncoder)
+                }
+                self.invoke_actions('experiment_event',
+                                    kw={'data': data},
+                                    skip_errors=skip_errors)
+            deferred_call(log_event)
         return results
 
     def request_apply(self):
