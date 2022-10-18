@@ -5,12 +5,20 @@ import numpy as np
 import pandas as pd
 from scipy import signal
 
+from psiaudio import calibration
+
 
 def get_unique_columns(df, exclude=None):
     return [c for c in df if (len(df[c].unique()) > 1) and (c not in exclude)]
 
 
 class Signal:
+
+    def get_calibration(self):
+        cal = self.array.attrs['source']['calibration']
+        freq = cal['frequency']
+        sens = cal['sensitivity']
+        return calibration.InterpCalibration(freq, sens)
 
     def get_epochs(self, md, offset, duration, detrend=None, downsample=None,
                    columns='auto', cb=None):
