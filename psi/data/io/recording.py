@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 
 
-class BaseRecording:
+class Recording:
     '''
     Wrapper around a recording created by psiexperiment
 
@@ -53,15 +53,14 @@ class BaseRecording:
     _setting_table = None
 
     def __init__(self, base_path, setting_table=None):
-        self.base_path = Path(base_path)
         self._setting_table = setting_table
-        self._refresh_names()
-
-    def _refresh_names(self):
-        '''
-        Utility function to refresh list of signals and tables
-        '''
-        raise NotImplementedError
+        self.base_path = Path(base_path)
+        if self.base_path.suffix == '.zip':
+            self._store = ZipStore(self.base_path, self._ttable_indices)
+        elif self.base_path.is_dir():
+            self._store = DirStore(self.base_path, self._ttable_indices)
+        else:
+            raise ValueError(f'Unrecognized recording format at {base_path}')
 
     def get_setting(self, setting_name):
         '''
@@ -117,6 +116,30 @@ class BaseRecording:
             return default
 
     def __getattr__(self, attr):
+        return self._store.__getattr__(attr)
+
+    def __repr__(self):
+        lines = [f'Recording at {self.base_path.name} with:']
+        if self._store.zarr_names:
+            lines.append(f'* Zarr arrays {self._store.zarr_names}')
+        if self._store.carray_names:
+            lines.append(f'* Bcolz carrays {self._store.carray_names}')
+        if self._store.ctable_names:
+            lines.append(f'* Bcolz ctables {self._store.ctable_names}')
+        if self._store.ttable_names:
+            lines.append(f'* CSV tables {self._store.ttable_names}')
+        return '\n'.join(lines)
+
+
+class BaseStore:
+
+    def _refresh_names(self):
+        '''
+        Utility function to refresh list of signals and tables
+        '''
+        raise NotImplementedError
+
+    def __getattr__(self, attr):
         if attr in self.zarr_names:
             return self._load_zarr_signal(attr)
         if attr in self.carray_names:
@@ -125,19 +148,7 @@ class BaseRecording:
             return self._load_bcolz_table(attr)
         if attr in self.ttable_names:
             return self._load_text_table(attr)
-        raise AttributeError
-
-    def __repr__(self):
-        lines = [f'Recording at {self.base_path.name} with:']
-        if self.zarr_names:
-            lines.append(f'* Zarr arrays {self.zarr_names}')
-        if self.carray_names:
-            lines.append(f'* Bcolz carrays {self.carray_names}')
-        if self.ctable_names:
-            lines.append(f'* Bcolz ctables {self.ctable_names}')
-        if self.ttable_names:
-            lines.append(f'* CSV tables {self.ttable_names}')
-        return '\n'.join(lines)
+        raise AttributeError(attr)
 
     @functools.lru_cache()
     def _load_bcolz_signal(self, name):
@@ -168,7 +179,12 @@ class BaseRecording:
         return df.drop(columns=drop)
 
 
-class DirectoryRecording(BaseRecording):
+class DirStore(BaseStore):
+
+    def __init__(self, base_path, ttable_indices):
+        self.base_path = Path(base_path)
+        self._ttable_indices = ttable_indices
+        self._refresh_names()
 
     def _get_text_table_stream(self, name):
         path = (self.base_path / name).with_suffix('.csv')
@@ -182,11 +198,13 @@ class DirectoryRecording(BaseRecording):
         self.zarr_names = {d.stem for d in bp.glob('*.zarr')}
 
 
-class ZipRecording(BaseRecording):
+class ZipStore(BaseStore):
 
-    def __init__(self, base_path, setting_table=None):
+    def __init__(self, base_path, ttable_indices):
+        self.base_path = Path(base_path)
+        self._ttable_indices = ttable_indices
         self.zip_fh = zipfile.ZipFile(base_path)
-        super().__init__(base_path, setting_table)
+        self._refresh_names()
 
     def _refresh_names(self):
         self.carray_names = set()
