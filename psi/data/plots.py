@@ -953,14 +953,9 @@ class GroupMixin(ColorCycleMixin):
             plot = pg.PlotCurveItem(pen=pen, antialias=self.antialias)
             self.plots[key] = plot
             deferred_call(self.parent.viewbox.addItem, plot)
-
             label = self.fmt_plot_label(key)
             if label is not None:
-                text = pg.TextItem(label, color=pen_color,
-                                   border=pg.mkPen(pen_color),
-                                   fill=pg.mkBrush('w'))
-                deferred_call(self.parent.viewbox_norm.addItem, text)
-                self.labels[key] = text
+                deferred_call(self.label_plot, key, plot, label)
         except KeyError as key_error:
             key = key_error.args[0]
             m = f'Cannot update plot since a field, {key}, ' \
@@ -971,6 +966,9 @@ class GroupMixin(ColorCycleMixin):
         if key not in self.plots:
             self._make_new_plot(key)
         return self.plots[key]
+
+    def label_plot(self, key, plot, label):
+        self.parent.parent.add_legend_item(plot, label)
 
 
 class EpochGroupMixin(GroupMixin):
@@ -1122,6 +1120,14 @@ class GroupedEpochPhasePlot(EpochGroupMixin, BasePlot):
 class StackedEpochAveragePlot(EpochGroupMixin, BasePlot):
 
     _offset_update_needed = Bool(False)
+
+    def label_plot(self, key, plot, label):
+        pen_color = self.get_pen_color(key)
+        text = pg.TextItem(label, color=pen_color,
+                           border=pg.mkPen(pen_color),
+                           fill=pg.mkBrush('w'))
+        self.labels[key] = text
+        self.parent.viewbox_norm.addItem(text)
 
     def _make_new_plot(self, key):
         super()._make_new_plot(key)
