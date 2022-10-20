@@ -9,7 +9,7 @@ from enaml.core.api import Conditional, Include, d_, Looper
 from enaml.layout.api import spacer
 from enaml.widgets.api import (ButtonGroup, CheckBox, Container, Field, Form,
                                HGroup, Label, ObjectCombo, PushButton,
-                               RawWidget)
+                               RawWidget, VGroup)
 from enaml.workbench.api import Extension, Workbench
 from enaml.workbench.core.api import Command
 
@@ -52,7 +52,7 @@ enamldef PlotGroupSelectButtons(Container):
         trailing_spacer = spacer(0)
 
         Conditional:
-            condition << contribution.allow_auto_select
+            condition << (contribution.allow_auto_select and len(contribution.buttons) > 0)
             PushButton:
                 text = 'Auto select'
                 checkable = True
@@ -89,14 +89,21 @@ enamldef BasePlotContainerManifest(PSIManifest): manifest:
             title << manifest.contribution.label
             closable = False
 
-            Container:
+            # This strange nesting of VGroup is necessary to prevent the Qt
+            # plots from expanding in size when the button bar is added. I
+            # really don't know of a better way to do this, but am happy with
+            # the result now.
+            VGroup:
                 Conditional:
-                    condition << bool(manifest.contribution.buttons)
+                    condition << len(manifest.contribution.buttons) > 0
                     PlotGroupSelectButtons:
                         contribution << manifest.contribution
-                PGCanvas: canvas:
-                    name << manifest.contribution.name + '_canvas'
-                    component << manifest.contribution.container
+                VGroup:
+                    spacing = 0
+                    padding = 0
+                    PGCanvas: canvas:
+                        name << manifest.contribution.name + '_canvas'
+                        component << manifest.contribution.container
 
 
 enamldef TimeseriesPlotManifest(PSIManifest): manifest:
