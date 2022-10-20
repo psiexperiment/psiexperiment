@@ -1088,11 +1088,14 @@ class GroupedEpochFFTPlot(EpochGroupMixin, BasePlot):
             self._x = np.log10(self._freq)
 
     def _y(self, epoch):
-        y = super()._y(epoch)
+        epoch = np.asarray(epoch)[:, self.channel]
+        y = epoch if len(epoch) else np.full_like(self._x, np.nan)
         psd = util.psd(y, self.source.fs, waveform_averages=self.waveform_averages)
         if self.apply_calibration:
-            return self.source.calibration.get_db(self._freq, psd)
-        return util.db(psd)
+            result = self.source.calibration.get_db(self._freq, psd)
+        else:
+            result = util.db(psd)
+        return result.mean(axis=0)
 
 
 class GroupedEpochPhasePlot(EpochGroupMixin, BasePlot):
