@@ -979,8 +979,9 @@ class EpochGroupMixin(GroupMixin):
     channel = d_(Int(0))
 
     def _y(self, epoch):
-        return epoch.mean(axis='epoch')[self.channel] if len(epoch) \
-            else np.full_like(self._x, np.nan)
+        if len(epoch) == 0:
+            return np.full_like(self._x, np.nan)
+        return epoch.mean(axis='epoch')[self.channel]
 
     def _update_duration(self, event=None):
         self.duration = self.source.duration
