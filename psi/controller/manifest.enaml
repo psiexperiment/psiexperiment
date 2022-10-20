@@ -16,7 +16,6 @@ from ..util import get_tagged_values, rpc
 from .plugin import ControllerPlugin
 from .experiment_action import (ExperimentState, ExperimentEvent,
                                 ExperimentAction)
-from .wrapup_messagebox import WrapupMessageBox
 
 from psi.core.enaml.api import ExperimentManifest
 
