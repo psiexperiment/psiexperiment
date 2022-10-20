@@ -180,19 +180,19 @@ enamldef DataFramePlotManifest(PSIManifest): manifest:
     pass
 
 
-def set_group_keys(container, event):
+def set_group_keys(plot, event):
     context = event.workbench.get_plugin('psi.context')
-    if container.autogenerate_keys in ('both', 'tab'):
-        container.tab_keys = []
-        if container.tab_grouping:
-            container.tab_keys = sorted(context.unique_values(container.tab_grouping))
-            log.debug('Found tab keys %r', container.tab_keys)
+    if plot.autogenerate_keys in ('both', 'tab'):
+        plot.tab_keys = []
+        if plot.tab_grouping:
+            plot.tab_keys = sorted(context.unique_values(plot.tab_grouping))
+            log.debug('Found tab keys %r', plot.tab_keys)
 
-    if container.autogenerate_keys in ('both', 'plot'):
-        container.plot_keys = [()]
-        if container.plot_grouping:
-            container.plot_keys = sorted(context.unique_values(list(container.plot_grouping)))
-            log.debug('Found plot keys %r', container.plot_keys)
+    if plot.autogenerate_keys in ('both', 'plot'):
+        plot.plot_keys = [()]
+        if plot.plot_grouping:
+            plot.plot_keys = sorted(context.unique_values(list(plot.plot_grouping)))
+            log.debug('Found plot keys %r', plot.plot_keys)
 
 
 enamldef ViewBoxManifest(PSIManifest): manifest:
