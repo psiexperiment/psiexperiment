@@ -981,6 +981,14 @@ class EpochGroupMixin(GroupMixin):
             return np.full_like(self._x, np.nan)
         return epoch.mean(axis='epoch')[self.channel]
 
+    def initialized(self, event=None):
+        container = self.parent.parent
+        self.observe('tab_keys', lambda e: setattr(container, 'buttons', e['value']))
+        self.observe('selected_tab', lambda e: setattr(container, 'current_button', e['value']))
+        container.observe('current_button', lambda e: setattr(self, 'selected_tab', e['value']))
+        self.observe('auto_select', lambda e: setattr(container, 'auto_select', e['value']))
+        container.observe('auto_select', lambda e: setattr(self, 'auto_select', e['value']))
+
     def _update_duration(self, event=None):
         self.duration = self.source.duration
 
