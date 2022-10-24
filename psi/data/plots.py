@@ -1083,6 +1083,7 @@ class GroupedEpochFFTPlot(EpochGroupMixin, BasePlot):
     waveform_averages = d_(Int(1))
     apply_calibration = d_(Bool(True))
     _freq = Typed(np.ndarray)
+    average_mode = d_(Enum('FFT', 'time'))
 
     def _default_name(self):
         return self.source_name + '_grouped_epoch_fft_plot'
@@ -1097,12 +1098,16 @@ class GroupedEpochFFTPlot(EpochGroupMixin, BasePlot):
     def _y(self, epoch):
         epoch = np.asarray(epoch)[:, self.channel]
         y = epoch if len(epoch) else np.full_like(self._x, np.nan)
+        if self.average_mode == 'time':
+            y = y.mean(axis=0)
         psd = util.psd(y, self.source.fs, waveform_averages=self.waveform_averages)
         if self.apply_calibration:
             result = self.source.calibration.get_db(self._freq, psd)
         else:
             result = util.db(psd)
-        return result.mean(axis=0)
+        if self.average_mode == 'FFT':
+            result = result.mean(axis=0)
+        return result
 
 
 class GroupedEpochPhasePlot(EpochGroupMixin, BasePlot):
