@@ -32,7 +32,7 @@ from psi.context.context_item import ContextMeta
 # Utility functions
 ################################################################################
 def get_freq(fs, duration):
-    n_time = int(fs * duration)
+    n_time = int(round(fs * duration))
     return np.fft.rfftfreq(n_time, fs**-1)
 
 
