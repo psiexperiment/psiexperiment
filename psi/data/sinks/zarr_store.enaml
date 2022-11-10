@@ -80,7 +80,7 @@ class ZarrStore(BaseStore):
         zarray = self._create_array(name, fs, dtype, metadata)
         md_filename = self.get_filename(f'{name}_metadata', '.csv')
         self._stores[name] = ZarrEpochData(fs=fs, data=zarray, metadata=[],
-                                       metadata_filename=md_filename)
+                                           metadata_filename=md_filename)
 
     def finalize(self, workbench):
         # Save the settings file
