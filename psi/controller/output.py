@@ -63,8 +63,10 @@ class BaseOutput(PSIContribution):
     def is_ready(self):
         raise NotImplementedError
 
+    def add_output(self, output):
+        raise ValueError(f'Output {name} does not accept downstream outputs')
 
-class Output(BaseOutput):
+class HardwareOutput(BaseOutput):
 
     # These two are defined as properties because it's theoretically possible
     # for the output to transform these (e.g., an output could upsample
@@ -104,8 +106,13 @@ class Output(BaseOutput):
     def _get_calibration(self):
         return self.channel.calibration
 
+    def get_next_samples(self, samples):
+        for child in self.children:
+            if isinstance(child, BaseOutput):
+                log.error(child)
+        return
 
-class BufferedOutput(Output):
+class BufferedOutput(HardwareOutput):
 
     #: Datatype of buffer (double is usually good for analog outputs and bool
     #: is good for digital outputs)
@@ -217,6 +224,36 @@ class BaseAnalogOutput(BufferedOutput):
         offset = round(time * self.fs)
         self._buffer.invalidate_samples(offset)
         self.engine.update_hw_ao(self.channel.name, offset)
+
+
+class MUXOutput(HardwareOutput):
+
+    outputs = List().tag(metadata=True)
+
+    def add_output(self, o):
+        if o in self.outputs:
+            return
+        self.outputs.append(o)
+        o.target = self
+
+    def remove_output(self, o):
+        if o not in self.outputs:
+            return
+        self.outputs.remove(o)
+        o.target = None
+
+    def get_samples(self, offset, samples, out):
+        out.fill(0)
+        for output in self.outputs:
+            o = np.empty_like(out)
+            output.get_samples(offset, samples, o)
+            out += o
+
+    def get_next_samples(self, samples):
+        buffer = np.zeros(samples, dtype=self.dtype)
+        for output in self.outputs:
+            buffer += output.get_next_samples(samples)
+        return buffer
 
 
 class EpochOutput(BaseAnalogOutput):

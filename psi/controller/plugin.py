@@ -307,6 +307,8 @@ class ControllerPlugin(Plugin):
         # single stream)?
         if target_name in self._channels:
             target = self._channels[target_name]
+        elif target_name in self._outputs:
+            target = self._outputs[target_name]
         else:
             m = "Unknown target {} specified for output {}" \
                 .format(target_name, output_name)
