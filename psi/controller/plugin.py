@@ -77,11 +77,13 @@ def find_engines(point):
                     raise ValueError(m)
                 master_engine = e
 
-    engines = dict(sorted(engines.items(), key=lambda e: e[1].weight))
-
-    # The last engine is the master by default
+    # The first engine is the master by default
     if master_engine is None:
-        master_engine = list(engines.values())[-1]
+        candidates = list(engines.values())
+        if len(candidates) == 1:
+            master_engine = candidates[0]
+        else:
+            raise ValueError('Must specify master engine in IOManifest')
 
     return engines, master_engine
 

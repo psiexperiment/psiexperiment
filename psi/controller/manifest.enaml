@@ -371,6 +371,7 @@ enamldef ControllerManifest(ControllerManifestBase): manifest:
         ExperimentAction:
             event = 'experiment_prepare'
             command = 'psi.controller.configure_engines'
+            weight = 100
         ExperimentAction:
             event = 'experiment_start'
             command = 'psi.controller.start_engines'
