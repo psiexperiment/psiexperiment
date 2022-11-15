@@ -40,6 +40,12 @@ class Engine(PSIContribution):
     #: determined by the engine that controls that particular device).
     master_clock = d_(Bool(False)).tag(metadata=True)
 
+    #: Indicates order in which engines should be started (higher numbers will
+    #: be started last). Typically the engine with the master clock should be
+    #: last. If no engine has a master clock, then the last engine will be used
+    #: as the master clock source.
+    weight = d_(Int()).tag(metadata=True)
+
     #: Used to ensure synchronization of threads.
     lock = Value()
 
