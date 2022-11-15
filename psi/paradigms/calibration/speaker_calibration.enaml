@@ -6,7 +6,7 @@ from enaml.workbench.api import Extension
 from psi.context.api import ContextGroup, OrderedContextMeta, SequenceSelector
 
 from psi.controller.api import (ControllerManifest, ExperimentAction,
-                                ExtractEpochs)
+                                ExtractEpochs, Input)
 
 from psi.data.sinks.api import BinaryStore, TextStore
 
@@ -18,8 +18,6 @@ from psi.data.plots import (EpochTimeContainer,
                             GroupedEpochPhasePlot)
 
 from psi.data.sinks.api import EpochCounter
-
-from psi.paradigms.core.io_mixins import ChannelInput
 
 
 EXPERIMENT = 'base_speaker_calibration'
@@ -43,8 +41,9 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
         id = EXPERIMENT + '.io'
         point = 'psi.controller.io'
 
-        ChannelInput:
+        Input:
             name = 'hw_ai'
+            source_name = 'system_microphone'
             ExtractEpochs: extract:
                 name = 'epoch'
 

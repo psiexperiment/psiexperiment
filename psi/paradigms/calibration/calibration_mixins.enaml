@@ -14,7 +14,6 @@ from scipy import signal
 from psi.controller.calibration.tone import tone_spl
 from psi.context.api import BoolParameter, EnumParameter, ContextGroup, ContextRow, Parameter
 from psi.controller.api import (ExperimentAction, generate_waveform,
-                                get_hw_ai_choices, get_hw_ao_choices,
                                 QueuedEpochOutput)
 
 from psiaudio import util
@@ -23,8 +22,6 @@ from psiaudio.queue import FIFOSignalQueue, InterleavedFIFOSignalQueue
 
 from psi.core.enaml.api import ExperimentManifest
 from psi.token.primitives import Chirp, Cos2Envelope, Tone
-
-from psi.paradigms.core.io_mixins import QueuedEpochChannelOutput
 
 
 def configure_hardware_golay(output, epoch_inputs, workbench, event=None):
@@ -487,8 +484,9 @@ enamldef ChirpMixin(ExperimentManifest): manifest:
         id = manifest.id + '.io'
         point = 'psi.controller.io'
 
-        QueuedEpochChannelOutput:
+        QueuedEpochOutput:
             name = 'hw_ao'
+            target_name = 'system_output'
             label = 'Output'
             token = chirp
             auto_decrement = True
