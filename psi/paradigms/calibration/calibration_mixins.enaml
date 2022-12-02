@@ -35,6 +35,7 @@ def configure_hardware_golay(output, epoch_inputs, workbench, event=None):
     controller = workbench.get_plugin('psi.controller')
     data = workbench.get_plugin('psi.data')
 
+    log.error(output.channel)
     output.channel.calibration = FlatCalibration.as_attenuation()
     output.queue = FIFOSignalQueue()
     output.queue.set_fs(output.fs)  # TODO: necessary?
@@ -492,16 +493,19 @@ enamldef ChirpMixin(ExperimentManifest): manifest:
             auto_decrement = True
 
             target ::
-                # Set up the channel and the queue
-                channel.calibration = FlatCalibration.as_attenuation()
-                self.queue = FIFOSignalQueue()
-
                 # Connect to the epoch input
                 controller = workbench.get_plugin('psi.controller')
                 epoch = controller.get_input('epoch')
                 epoch.poststim_time = 0
-
+                self.queue = FIFOSignalQueue()
                 self.queue.connect(epoch.added_queue.append)
+
+                # This needs to be deferred in case the target hasn't been
+                # connected to the channel yet. By the time the execution stack
+                # exits, all outputs will have been hooked up and we can safely
+                # set the calibration.
+                deferred_call(setattr, self.channel, 'calibration',
+                              FlatCalibration.as_attenuation())
 
     Extension:
         id = manifest.id + '.commands'
