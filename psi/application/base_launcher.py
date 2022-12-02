@@ -191,7 +191,7 @@ class AnimalLauncher(SimpleLauncher):
 
 class EarLauncher(AnimalLauncher):
 
-    ear = Enum('right', 'left').tag(template=True)
+    ear = Enum('left', 'right').tag(template=True)
 
     template = '{{date_time}} {experimenter} {animal} {ear} {note} {experiment}'
     wildcard_template = '*{animal} {ear}*{experiment}'
