@@ -413,6 +413,8 @@ class PSIJsonEncoder(json.JSONEncoder):
             return str(obj)
         elif isinstance(obj, uuid.UUID):
             return str(obj)
+        elif isinstance(obj, np.bool_):
+            return str(obj)
         elif isinstance(obj, slice):
             return str(obj)
         else:
