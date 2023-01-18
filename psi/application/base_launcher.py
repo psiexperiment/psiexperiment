@@ -171,6 +171,7 @@ class SimpleLauncher(Atom):
         for plugin in plugins:
             args.extend(['--plugins', plugin])
         args.extend(['--debug-level-console', self.logging_level.upper()])
+        args.extend(['--debug-level-file', self.logging_level.upper()])
 
         log.info('Launching subprocess: %s', ' '.join(args))
         print(' '.join(args))

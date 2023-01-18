@@ -104,7 +104,7 @@ def configure_logging(level_console=None, level_file=None, filename=None,
         min_level = min(getattr(logging, level_console), getattr(logging, level_file))
         log.setLevel(min_level)
 
-    fmt = '{levelname:10s}: {threadName:11s} - {name:40s}:: {message}'
+    fmt = '{msecs:f} {levelname:10s}: {threadName:11s} - {name:40s}:: {message}'
     if level_console is not None:
         try:
             level_styles = {
@@ -129,6 +129,7 @@ def configure_logging(level_console=None, level_file=None, filename=None,
         log.addHandler(stream_handler)
 
     if filename is not None and level_file is not None:
+        formatter = logging.Formatter(fmt, style='{')
         file_handler = logging.FileHandler(filename, 'w', 'UTF-8')
         file_handler.setFormatter(formatter)
         file_handler.setLevel(level_file)

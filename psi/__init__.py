@@ -146,7 +146,6 @@ def load_config():
         spec.loader.exec_module(module)
         config.update({n: v for n, v in vars(module).items() if n == n.upper()})
         CONFIG_LOADED = True
-
     log.debug('CONFIG: %r', config)
     return config
 
