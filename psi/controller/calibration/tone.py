@@ -111,7 +111,7 @@ def tone_spl(engine, *args, **kwargs):
     return new_result
 
 
-def tone_sens(engine, frequencies, gain=-40, vrms=1, **kwargs):
+def tone_sens(engine, frequencies, gains=-40, vrms=1, **kwargs):
     '''
     Given a single output, measure sensitivity of output based on multiple
     input channels.
@@ -133,12 +133,12 @@ def tone_sens(engine, frequencies, gain=-40, vrms=1, **kwargs):
         will be some equipment error. So, either average them together or
         choose the most trustworthy input.
     '''
-    kwargs.update(dict(gains=gain, vrms=vrms))
+    kwargs.update(dict(gains=gains, vrms=vrms))
     result = tone_spl(engine, frequencies, **kwargs)
 
     # Need to reshape for the math in case we provided a different gain for each frequency.
     spl = result['spl'].unstack('channel_name')
-    norm_spl = spl.subtract(gain + db(vrms), axis=0)
+    norm_spl = spl.subtract(gains + db(vrms), axis=0)
     norm_spl = norm_spl.stack().reorder_levels(result.index.names)
 
     # psiaudio calibration units are in dB(Pa/20e-6/V), so this is basically
@@ -146,7 +146,7 @@ def tone_sens(engine, frequencies, gain=-40, vrms=1, **kwargs):
     # convenient.
     result['sens'] = result['norm_spl'] = norm_spl
 
-    result['gain'] = gain
+    result['gain'] = gains
     result['vrms'] = vrms
     for k, v in kwargs.items():
         if k in ('ao_channel_name', 'ai_channel_names'):
