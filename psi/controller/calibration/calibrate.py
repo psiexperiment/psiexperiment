@@ -131,7 +131,7 @@ class ToneCalibrate(BaseCalibrate):
     def run_calibration(self, ao_channel, ai_channel, kwargs):
         result = tone_sens(
             ao_channel.engine,
-            gain=self.gain,
+            gains=self.gain,
             ao_channel_name=ao_channel.name,
             ai_channel_names=[ai_channel.name],
             max_thd=self.max_thd,
