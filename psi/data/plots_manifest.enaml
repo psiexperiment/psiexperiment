@@ -192,7 +192,6 @@ def set_group_keys(plot, event):
         plot.plot_keys = [()]
         if plot.plot_grouping:
             plot.plot_keys = sorted(context.unique_values(list(plot.plot_grouping)))
-            log.debug('Found plot keys %r', plot.plot_keys)
 
 
 enamldef ViewBoxManifest(PSIManifest): manifest:

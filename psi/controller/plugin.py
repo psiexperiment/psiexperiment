@@ -300,9 +300,7 @@ class ControllerPlugin(Plugin):
                 pass
 
     def connect_output(self, output_name, target_name):
-        # Link up outputs with channels if needed.  TODO: Can another output be
-        # the target (e.g., if one wanted to combine multiple tokens into a
-        # single stream)?
+        # Link up outputs with channels if needed.
         if target_name in self._channels:
             target = self._channels[target_name]
         elif target_name in self._outputs:
@@ -385,6 +383,7 @@ class ControllerPlugin(Plugin):
         self._registered_actions.append(action)
 
     def finalize_io(self):
+        log.info('Finalizing IO')
         self._connect_outputs()
         self._connect_inputs()
         self.invoke_actions('io_configured')
