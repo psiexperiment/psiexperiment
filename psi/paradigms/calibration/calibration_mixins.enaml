@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 from scipy import signal
 
-from psi.controller.calibration.tone import tone_spl
+from psi.controller.calibration.tone import tone_sens
 from psi.context.api import BoolParameter, EnumParameter, ContextGroup, ContextRow, Parameter
 from psi.controller.api import (ExperimentAction, generate_waveform,
                                 QueuedEpochOutput)
@@ -155,56 +155,55 @@ def compute_calibration_chirp(event):
     duration = epoch_info.iloc[0].loc['hw_ao_chirp_duration']
 
     waveforms = source.get_epochs(epoch_info, offset=0, duration=duration)
-    waveforms = waveforms.groupby(['hw_ao_chirp_level']).mean()
+    #waveforms = waveforms.groupby(['hw_ao_chirp_level']).mean()
 
     vb_spl = data.find_viewbox('spl_result')
     vb_sens = data.find_viewbox('sens_result')
     keys = []
     summaries = []
-    for chirp_level, epochs in waveforms.iterrows():
+    for chirp_level, epochs in waveforms.groupby('hw_ao_chirp_level'):
         if chirp_level == -400:
             continue
         freq = util.psd_freq(epochs.values, source.fs)
+
         resp_psd = util.psd(epochs.values, source.fs).mean(axis=0)
         resp_phase = util.phase(epochs.values, source.fs).mean(axis=0)
-        spl = ai.channel.calibration.get_db(freq, resp_psd)
+
+        spl = ai.channel.calibration.get_spl(freq, resp_psd)
 
         settings['hw_ao_chirp_level'] = chirp_level
         chirp = generate_waveform(ao, settings)
         signal_psd = util.psd(chirp, source.fs)
         signal_phase = util.phase(chirp, source.fs)
-        phase = resp_phase-signal_phase
+        phase = resp_phase - signal_phase
 
-        sens = util.db(signal_psd)-spl-util.db(20e-6)
+        norm_spl = spl - util.db(signal_psd)
         summary = pd.DataFrame({
             'frequency': freq,
             'response_psd': resp_psd,
+            'response_psd_db': util.db(resp_psd),
             'response_phase': resp_phase,
             'signal_psd': signal_psd,
+            'signal_psd_db': util.db(signal_psd),
             'signal_phase': signal_phase,
             'spl': spl,
-            'sens': sens,
+            'norm_spl': norm_spl,
             'phase': phase,
         })
 
         deferred_call(plot_data, vb_spl, summary, 'spl', log_x=True)
-        deferred_call(plot_data, vb_sens, summary, 'sens', log_x=True)
+        deferred_call(plot_data, vb_sens, summary, 'norm_spl', log_x=True)
 
         keys.append(chirp_level)
         summary = summary.set_index('frequency')
         summaries.append(summary)
-
-    freq_lb = context.get_value('hw_ao_chirp_start_frequency')
-    freq_ub = context.get_value('hw_ao_chirp_end_frequency')
-    frequencies = util.octave_space(freq_lb*1e-3, freq_ub*1e-3, 0.125,
-                                    'bounded')*1e3
 
     # Save the calibration
     summary = pd.concat(summaries, keys=keys, names=['hw_ao_chirp_duration'])
     params = {'dataframe': summary, 'name': 'chirp_sens'}
     core.invoke_command('cal_data.save_dataframe', params)
 
-    ao.channel.calibration = InterpCalibration(freq, sens)
+    ao.channel.calibration = InterpCalibration(freq, norm_spl, reference='SPL')
 
 
 def level_to_gain(calibration, frequencies, spl, max_gain):
@@ -230,12 +229,10 @@ def validate_spl(workbench, ao_channel, ai_channel, frequencies, spl, max_gain):
     if len(frequencies) == 0:
         log.debug('No frequencies available to calibrate. Please review target SPL.')
         return
-    result = tone_spl(ao_channel.engine, frequencies, gains=gains,
-                      ao_channel_name=ao_channel.name,
-                      ai_channel_names=[ai_channel.name])
-    result = result.reset_index()
-    result['gain'] = gains
-    result['sens'] = gains-result['spl']-util.db(20e-6)
+    result = tone_sens(ao_channel.engine, frequencies, gains=gains,
+                       ao_channel_name=ao_channel.name,
+                       ai_channel_names=[ai_channel.name]).reset_index()
+
     vb = data.find_viewbox('spl_result')
     deferred_call(plot_data, vb, result, 'spl', log_x=True, kind='scatter')
     vb = data.find_viewbox('sens_result')
@@ -368,11 +365,11 @@ def validate_spl_wrapper(event):
     octaves = settings['validation_octaves']
     validation_level = settings['validation_level']
     safe_gain = settings['safe_gain']
-    frequencies = util.octave_space(freq_lb*1e-3, freq_ub*1e-3, octaves,
-                                    'bounded')*1e3
+    frequencies = util.octave_space(freq_lb, freq_ub, octaves, 'bounded')
     log.info('Calibrating frequencies: %r', frequencies)
     validate_spl(event.workbench, ao.channel, ai.channel, frequencies,
                  validation_level, max_gain=safe_gain)
+    log.info('Done calibrating')
 
 
 enamldef ToneValidateMixin(ExperimentManifest): manifest:
