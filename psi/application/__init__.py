@@ -274,20 +274,6 @@ def get_default_io():
 
     if len(available_io) == 0:
         raise ValueError('No IO configured for system')
-    elif len(available_io) == 1:
-        return available_io[0]
-
-    # First, check for one named "default"
-    for io in available_io:
-        if 'default' in io.stem.lower():
-            return io
-
-    # Next, check to see if it matches hostname
-    for io in available_io:
-        if io.stem == system:
-            return io
-
-    # Give up
     return available_io[0]
 
 
