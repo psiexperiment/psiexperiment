@@ -449,6 +449,18 @@ enamldef ToneValidateMixin(ExperimentManifest): manifest:
             handler = validate_spl_wrapper
 
 
+def configure_hw_ao(event):
+    controller = event.workbench.get_plugin('psi.controller')
+    epoch = controller.get_input('epoch')
+    output = controller.get_output('hw_ao')
+
+    epoch.poststim_time = 0
+    output.queue = FIFOSignalQueue()
+    output.queue.connect(epoch.added_queue.append)
+    output.channel.calibration = \
+        FlatCalibration.as_attenuation()
+
+
 enamldef ChirpMixin(ExperimentManifest): manifest:
 
     id = 'chirp'
@@ -492,21 +504,6 @@ enamldef ChirpMixin(ExperimentManifest): manifest:
             token = chirp
             auto_decrement = True
 
-            target ::
-                # Connect to the epoch input
-                controller = workbench.get_plugin('psi.controller')
-                epoch = controller.get_input('epoch')
-                epoch.poststim_time = 0
-                self.queue = FIFOSignalQueue()
-                self.queue.connect(epoch.added_queue.append)
-
-                # This needs to be deferred in case the target hasn't been
-                # connected to the channel yet. By the time the execution stack
-                # exits, all outputs will have been hooked up and we can safely
-                # set the calibration.
-                deferred_call(setattr, self.channel, 'calibration',
-                              FlatCalibration.as_attenuation())
-
     Extension:
         id = manifest.id + '.commands'
         point = 'enaml.workbench.core.commands'
@@ -514,6 +511,10 @@ enamldef ChirpMixin(ExperimentManifest): manifest:
         Command:
             id = 'psi.controller.compute_calibration'
             handler = compute_calibration_chirp
+
+        Command:
+            id = 'configure_hw_ao'
+            handler = configure_hw_ao
 
     Extension:
         id = manifest.id + '.actions'
@@ -523,6 +524,10 @@ enamldef ChirpMixin(ExperimentManifest): manifest:
             event = 'experiment_end'
             command = 'psi.controller.compute_calibration'
             delay = 1
+
+        ExperimentAction:
+            event = 'engines_configured'
+            command = 'configure_hw_ao'
 
         ExperimentAction:
             event = 'engines_configured'
