@@ -143,6 +143,7 @@ enamldef BaseSpeakerCalibrationManifest(ControllerManifest): manifest:
 
                 GroupedEpochFFTPlot:
                     name = 'epoch_psd_average'
+                    apply_calibration = False
                     source_name = 'epoch'
                     pen_color_cycle := ea_plot.pen_color_cycle
                     plot_grouping = [g.name for g in epoch_group.values]
