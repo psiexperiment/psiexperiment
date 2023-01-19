@@ -1,7 +1,6 @@
 import enaml
 
 with enaml.imports():
-    from .display_value import DisplayValue
     from .event_log import EventLog
     from .epoch_counter import EpochCounter, GroupedEpochCounter
     from .config_store import ConfigStore
