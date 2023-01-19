@@ -36,7 +36,8 @@ def get_freq(fs, duration):
     return np.fft.rfftfreq(n_time, fs**-1)
 
 
-def get_color_cycle(name):
+def get_color_cycle(name, n):
+    name = name.format(N=n)
     module_name, cmap_name = name.rsplit('.', 1)
     module = importlib.import_module(module_name)
     cmap = getattr(module, cmap_name)
@@ -71,7 +72,11 @@ class ColorCycleMixin(Declarative):
         # instance as that's what's required to properly show colors in
         # pyqtgraph.
         if isinstance(self.pen_color_cycle, str):
-            iterable = get_color_cycle(self.pen_color_cycle)
+            try:
+                n = len(self.plot_keys)
+            except:
+                n = 8
+            iterable = get_color_cycle(self.pen_color_cycle, n)
         else:
             iterable = itertools.cycle(self.pen_color_cycle)
 
