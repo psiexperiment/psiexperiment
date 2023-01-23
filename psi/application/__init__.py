@@ -192,13 +192,15 @@ def _main(args):
                               calibration_file=args.calibration)
 
 
-def list_preferences(experiment):
+def list_preferences(experiment, include_default=False):
     from psi.experiment.util import PREFERENCES_WILDCARD
     if not isinstance(experiment, str):
         experiment = experiment.name
     p_root = get_config('PREFERENCES_ROOT') / experiment
     p_glob = PREFERENCES_WILDCARD[:-1].split('(')[1]
     matches = p_root.glob(p_glob)
+    if not include_default:
+        matches = [p for p in matches if not p.stem == 'default']
     return sorted(Path(p) for p in matches)
 
 
