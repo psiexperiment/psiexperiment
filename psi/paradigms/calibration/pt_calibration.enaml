@@ -38,9 +38,10 @@ from psi.data.plots import (EpochTimeContainer, ChannelPlot,
 from psiaudio.calibration import FlatCalibration, InterpCalibration
 
 
-from .calibration_mixins import GolayMixin, level_to_gain
+from .calibration_mixins import ChirpMixin, GolayMixin, level_to_gain
 
-from ..cfts.cfts_mixins import CalMicrophoneInput, CFTSSelector, EEGInput, PTMicrophoneInput
+#from ..cfts.cfts_mixins import CalMicrophoneInput, CFTSSelector, EEGInput, PTMicrophoneInput
+from ..core.io_mixins import ChannelInput
 
 
 def calculate_sens(workbench, grouping, filename, calc_sens):
@@ -51,7 +52,7 @@ def calculate_sens(workbench, grouping, filename, calc_sens):
     context = workbench.get_plugin('psi.context')
     data = workbench.get_plugin('psi.data')
 
-    pt_source = data.find_sink('mic_data').get_source('microphone')
+    pt_source = data.find_sink('mic_data').get_source('pt_microphone')
     cal_source = data.find_sink('mic_data').get_source('cal_microphone')
     epoch_info = data.find_sink('cal_data').get_source('cal_epoch')
 
@@ -220,7 +221,7 @@ def validate_sens(event, sens):
     core = event.workbench.get_plugin('enaml.workbench.core')
 
     output_channel = context.get_value('output_channel')
-    pt_channel = context.get_value('microphone_channel')
+    pt_channel = context.get_value('pt_microphone_channel')
     cal_channel = context.get_value('cal_microphone_channel')
     cal_mic_sens_mv = context.get_value('cal_mic_sens_mv')
     cal_mic_sens = cal_mic_sens_mv*1e-3
@@ -247,16 +248,15 @@ def validate_sens(event, sens):
         return
 
     # TODO: NEED TO ORDER CHANNELS!
-    #ai_channels = [pt_channel, cal_channel]
-    ai_channels = [cal_channel, pt_channel]
+    ai_channels = [cal_ai.name, pt_ai.name]
     result = tone_sens(ao.engine,
                        frequencies,
-                       gain=gains,
+                       gains=gains,
                        ao_channel_name=output_channel,
                        ai_channel_names=ai_channels)
     rms = result['rms'].unstack('channel_name')
-    pt_rms = rms[pt_channel]
-    cal_rms = rms[cal_channel]
+    pt_rms = rms[pt_ai.name]
+    cal_rms = rms[cal_ai.name]
     sens = db(pt_rms) + db(cal_mic_sens) - db(cal_rms)
 
     def plot_data(data=data, sens=sens):
@@ -276,7 +276,7 @@ enamldef BasePTCalibrationManifest(ControllerManifest): manifest:
 
         BinaryStore:
             name = 'mic_data'
-            continuous_inputs = ['microphone', 'cal_microphone']
+            continuous_inputs = ['pt_microphone', 'cal_microphone']
 
         TextStore:
             name = 'cal_data'
@@ -292,17 +292,25 @@ enamldef BasePTCalibrationManifest(ControllerManifest): manifest:
         id = 'io'
         point = 'psi.controller.io'
 
-        PTMicrophoneInput:
+        ChannelInput:
+            name = 'pt_microphone'
+            label = 'Probe tube microphone'
             ExtractEpochs:
                 name = 'pt_epoch'
 
-        CalMicrophoneInput:
+        ChannelInput:
+            name = 'cal_microphone'
+            label = 'Calibration microphone'
             ExtractEpochs:
                 name = 'cal_epoch'
 
     Extension:
         id = 'context'
         point = 'psi.context.items'
+
+        ContextGroup:
+            name = 'hardware_settings'
+            label = 'Hardware'
 
         ContextGroup:
             name = 'calibration'
@@ -418,39 +426,8 @@ enamldef PTGolayMixin(GolayMixin): manifest:
     extract_epoch_inputs = ['pt_epoch', 'cal_epoch']
     cleanup_cb = calculate_sens_golay
 
-#enamldef ChirpControllerManifest(PTManifest): manifest:
-#
-#    Extension:
-#        id = 'signals'
-#        point = 'psi.token.tokens'
-#
-#        Chirp: chirp:
-#            pass
-#
-#    Extension:
-#        id = 'io_chirp'
-#        point = 'psi.controller.io'
-#
-#        SelectorQueuedEpochOutput: hw_ao:
-#            name = 'hw_ao'
-#            auto_decrement = True
-#            configurable = False
-#            queue = FIFOSignalQueue()
-#            target_name = C.output_channel
-#            token = chirp
-#            target ::
-#                controller = workbench.get_plugin('psi.controller')
-#                channel.calibration = FlatCalibration.as_attenuation()
-#                pt_epoch = controller.get_input('pt_epoch')
-#                cal_epoch = controller.get_input('cal_epoch')
-#                self.connect(pt_epoch.added_queue.append)
-#                self.connect(cal_epoch.added_queue.append)
-#
-#    Extension:
-#        id = 'calibration_commands'
-#        point = 'enaml.workbench.core.commands'
-#
-#        Command:
-#            id = 'psi.controller.calculate_sens'
-#            handler = calculate_sens_chirp
 
+enamldef PTChirpMixin(ChirpMixin): manifest:
+
+    extract_epoch_inputs = ['pt_epoch', 'cal_epoch']
+    #cleanup_cb = calculate_sens_golay

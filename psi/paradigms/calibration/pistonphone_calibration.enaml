@@ -35,15 +35,15 @@ def calculate_sens(event):
     pa = util.dbtopa(level)
 
     source = data.find_sink('hw_ai').get_source('hw_ai')
-    waveform = source[:]
-    fs = source.attrs['fs']
+    waveform = source[0]
+    fs = source.fs
 
     rms_overall = util.rms(waveform, detrend=True)
     rms_nom = util.tone_power_conv(waveform, fs, frequency, 'flattop')
 
     frequencies = util.psd_freq(waveform, fs)
-    psd_hanning = util.psd(waveform, fs, 'hanning')
-    psd_flattop = util.psd(waveform, fs, 'flattop')
+    psd_hanning = util.psd_df(waveform, fs, 'hann')
+    psd_flattop = util.psd_df(waveform, fs, 'flattop')
 
     freq_lb, freq_ub = frequency*0.9, frequency*1.1
     mask = (frequencies >= freq_lb) & (frequencies < freq_ub)
@@ -74,19 +74,19 @@ def calculate_sens(event):
 
     summary = {
         'frequency': frequencies,
-        'psd_hanning': psd_hanning,
-        'psd_flattop': psd_flattop,
+        'psd_hanning': psd_hanning.values,
+        'psd_flattop': psd_flattop.values,
     }
 
     def plot_data(data=data, summary=summary):
-        vb = data.find_viewbox('signal_fft_view')
+        vb = data.find_viewbox('signal_fft_view_vb')
         x = np.log10(summary['frequency'])
-
         y = util.db(summary['psd_hanning'])
+
         item = pg.PlotCurveItem(pen='k')
         item.setData(x, y)
         vb.add_plot(item)
-        vb.parent.legend.addItem(item, 'hanning window')
+        vb.parent.legend.addItem(item, 'hann window')
 
         y = util.db(summary['psd_flattop'])
         item = pg.PlotCurveItem(pen='r')
@@ -122,7 +122,6 @@ enamldef PistonphoneCalibrationManifest(ControllerManifest): manifest:
                 # Since there's no output, disable the start trigger on the
                 # input channel.  TODO: Perhaps make the engine smarter in the
                 # future to handle these sort of edge-cases?
-                channel.start_trigger = ''
                 channel.calibration = FlatCalibration.unity()
                 channel.samples = round(C.sample_duration * channel.fs)
                 channel.gain = C.input_gain
@@ -137,7 +136,7 @@ enamldef PistonphoneCalibrationManifest(ControllerManifest): manifest:
 
         ContextGroup:
             name = 'input'
-            label = 'Input settings'
+            label = 'Input'
 
             Parameter:
                 name = 'input_gain'
@@ -169,10 +168,6 @@ enamldef PistonphoneCalibrationManifest(ControllerManifest): manifest:
                 dtype = 'float64'
                 default = 2
                 scope = 'experiment'
-
-        ContextGroup:
-            name = 'reference'
-            label = 'Reference settings'
 
             Parameter:
                 name = 'reference_frequency'

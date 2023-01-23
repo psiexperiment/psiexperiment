@@ -35,7 +35,6 @@ def configure_hardware_golay(output, epoch_inputs, workbench, event=None):
     controller = workbench.get_plugin('psi.controller')
     data = workbench.get_plugin('psi.data')
 
-    log.error(output.channel)
     output.channel.calibration = FlatCalibration.as_attenuation()
     output.queue = FIFOSignalQueue()
     output.queue.set_fs(output.fs)  # TODO: necessary?
@@ -446,22 +445,28 @@ enamldef ToneValidateMixin(ExperimentManifest): manifest:
             handler = validate_spl_wrapper
 
 
-def configure_hw_ao(event):
+def configure_hardware_chirp(epoch_inputs, event):
     controller = event.workbench.get_plugin('psi.controller')
-    epoch = controller.get_input('epoch')
     output = controller.get_output('hw_ao')
 
-    epoch.poststim_time = 0
+    output.channel.calibration = FlatCalibration.as_attenuation()
     output.queue = FIFOSignalQueue()
-    output.queue.connect(epoch.added_queue.append)
-    output.channel.calibration = \
-        FlatCalibration.as_attenuation()
+    output.queue.set_fs(output.fs)
+
+    for name in epoch_inputs:
+        i = controller.get_input(name)
+        i.poststim_time = 0
+        output.queue.connect(i.added_queue.append)
+
 
 
 enamldef ChirpMixin(ExperimentManifest): manifest:
 
     id = 'chirp'
     required = True
+
+    attr extract_epoch_inputs = ['epoch']
+    attr cleanup_cb = compute_calibration_chirp
 
     Extension:
         id = manifest.id + '.context'
@@ -507,11 +512,11 @@ enamldef ChirpMixin(ExperimentManifest): manifest:
 
         Command:
             id = 'psi.controller.compute_calibration'
-            handler = compute_calibration_chirp
+            handler = manifest.cleanup_cb
 
         Command:
-            id = 'configure_hw_ao'
-            handler = configure_hw_ao
+            id = 'psi.controller.configure_hardware'
+            handler = partial(configure_hardware_chirp, manifest.extract_epoch_inputs)
 
     Extension:
         id = manifest.id + '.actions'
@@ -524,7 +529,7 @@ enamldef ChirpMixin(ExperimentManifest): manifest:
 
         ExperimentAction:
             event = 'engines_configured'
-            command = 'configure_hw_ao'
+            command = 'psi.controller.configure_hardware'
 
         ExperimentAction:
             event = 'engines_configured'
