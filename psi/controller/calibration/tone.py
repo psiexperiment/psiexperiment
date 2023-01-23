@@ -65,10 +65,11 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gains=0,
         signal = signal.query('gain != -400')
 
         channel_result = []
-        for f, s in signal.groupby('frequency'):
+        for (g, f), s in signal.groupby(['gain', 'frequency']):
             f_result = process_tone(ai_channel.fs, s.values, f, min_snr,
                                     max_thd, thd_harmonics, silence.values)
             f_result['frequency'] = f
+            f_result['gain'] = g
             channel_result.append(f_result)
 
         df = pd.DataFrame(channel_result)
@@ -145,12 +146,5 @@ def tone_sens(engine, frequencies, gains=-40, vrms=1, **kwargs):
     # the normalized SPL (i.e. SPL produced by a 1 Vrms sine wave). How
     # convenient.
     result['sens'] = result['norm_spl'] = norm_spl
-
-    result['gain'] = gains
     result['vrms'] = vrms
-    for k, v in kwargs.items():
-        if k in ('ao_channel_name', 'ai_channel_names'):
-            continue
-        result[k] = v
-
     return result
