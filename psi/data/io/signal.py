@@ -138,6 +138,9 @@ class Signal:
         df = pd.DataFrame(values, index=index, columns=columns)
         return df.reindex(times)
 
+    def get_segment(self, time, *args, **kwargs):
+        return self.get_segments([time], *args, **kwargs).iloc[0]
+
     def _get_segments_filtered(self, fn, offset, duration, filter_lb,
                                filter_ub, filter_order=1, detrend='constant',
                                pad_duration=10e-3, downsample=None, cb=None):
