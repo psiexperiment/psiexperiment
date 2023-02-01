@@ -14,10 +14,33 @@ def get_unique_columns(df, exclude=None):
     return [c for c in df if (len(df[c].unique()) > 1) and (c not in exclude)]
 
 
+def find_object(node, obj_id):
+    if isinstance(obj_id, str):
+        obj_id = int(obj_id.split('::')[1])
+    if hasattr(node, 'items'):
+        if node.get('__id__') == obj_id:
+            return node
+        for k, v in node.items():
+            try:
+                return find_object(v, obj_id)
+            except KeyError:
+                continue
+    if isinstance(node, list):
+        for i in node:
+            try:
+                return find_object(i, obj_id)
+            except KeyError:
+                continue
+    raise KeyError('No such node')
+
+
 class Signal:
+
 
     def get_calibration(self):
         cal = self.array.attrs['source']['calibration']
+        if isinstance(cal, str):
+            cal = find_object(self.array.attrs, cal)
         freq = cal['frequency']
         sens = cal['sensitivity']
         return calibration.InterpCalibration(freq, sens)
