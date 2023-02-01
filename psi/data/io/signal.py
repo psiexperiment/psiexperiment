@@ -115,7 +115,8 @@ class Signal:
             values.append(v[np.newaxis])
             if ((j+1) % cb_n) == 0:
                 cb((j+1)/n)
-        cb((j+1)/n)
+
+        cb(1)
 
         # We need to ensure that data is cast to double since there are some
         # rare edge-cases in which precision is lost when filtering and
