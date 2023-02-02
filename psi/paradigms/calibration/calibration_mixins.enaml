@@ -348,6 +348,45 @@ enamldef GolayMixin(ExperimentManifest): manifest:
                 default = 10
                 scope = 'trial'
 
+        ContextGroup:
+            name = 'validation'
+            label = 'Validation'
+
+            ContextRow:
+                name = 'val_start_end'
+                fmt = ['Validate', val_start, 'to', val_end, 'Hz with', val_oct, 'octave spacing']
+
+                Parameter: val_start:
+                    name = 'validation_start'
+                    default = 500.0
+                    scope = 'experiment'
+
+                Parameter: val_end:
+                    name = 'validation_end'
+                    default = 50000.0
+                    scope = 'experiment'
+
+                Parameter: val_oct:
+                    name = 'validation_octaves'
+                    default = 0.125
+                    scope = 'experiment'
+
+            ContextRow:
+                name = 'val_level_gain'
+                fmt = ['Validate at', val_level, 'dB SPL, skip if output gain greater than', val_safe_gain, 'dB']
+
+                Parameter: val_level:
+                    name = 'validation_level'
+                    label = 'Level to validate (dB SPL)'
+                    default = 80.0
+                    scope = 'experiment'
+
+                Parameter: val_safe_gain:
+                    name = 'safe_gain'
+                    label = 'Skip frequency if gain exceeds this level (dB)'
+                    default = 0
+                    scope = 'experiment'
+
 
 def validate_spl_wrapper(event):
     core = event.workbench.get_plugin('enaml.workbench.core')
@@ -457,7 +496,6 @@ def configure_hardware_chirp(epoch_inputs, event):
         i = controller.get_input(name)
         i.poststim_time = 0
         output.queue.connect(i.added_queue.append)
-
 
 
 enamldef ChirpMixin(ExperimentManifest): manifest:

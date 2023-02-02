@@ -183,7 +183,10 @@ def calculate_group_sens_golay(fs, pt_waveform, cal_waveform, color, context,
     pt_phase = pt_summary['phase']
     cal_phase = cal_summary['phase']
 
-    sens = db(pt_psd) + db(cal_mic_sens) - db(cal_psd)
+    # divide cal mic volts by cal mic sens (in V/Pa) to get pascals
+    pa = db(cal_psd) - db(cal_mic_sens)
+    # cal units should be dB(Pa/20e-6/V)
+    sens = pa - db(20e-6) - db(pt_psd)
     phase = pt_phase - cal_phase
 
     if smoothing_window > 0:
@@ -241,8 +244,8 @@ def validate_sens(event, sens):
     frequencies = octave_space(freq_lb*1e-3, freq_ub*1e-3, octaves,
                                'bounded')*1e3
     log.debug('Validating calibration by targeting %f dB SPL', validation_level)
-    frequencies, gains = level_to_gain(ao.calibration, frequencies,
-                                       validation_level, safe_gain)
+    #frequencies, gains = level_to_gain(ao.calibration, frequencies,
+    #                                   validation_level, safe_gain)
     if len(frequencies) == 0:
         log.error('No frequencies available to calibrate. Please review target SPL.')
         return
@@ -251,13 +254,13 @@ def validate_sens(event, sens):
     ai_channels = [cal_ai.name, pt_ai.name]
     result = tone_sens(ao.engine,
                        frequencies,
-                       gains=gains,
+                       gains=-30,
                        ao_channel_name=output_channel,
                        ai_channel_names=ai_channels)
     rms = result['rms'].unstack('channel_name')
     pt_rms = rms[pt_ai.name]
     cal_rms = rms[cal_ai.name]
-    sens = db(pt_rms) + db(cal_mic_sens) - db(cal_rms)
+    sens = db(cal_rms) - db(cal_mic_sens) - db(20e-6) - db(pt_rms)
 
     def plot_data(data=data, sens=sens):
         vb = data.find_viewbox('sens')
