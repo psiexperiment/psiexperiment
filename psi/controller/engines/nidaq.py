@@ -32,6 +32,7 @@ log = logging.getLogger(__name__)
 import ctypes
 from functools import partial
 from threading import Timer
+import operator as op
 
 from atom.api import (Float, Typed, Str, Int, Bool, Callable, Enum,
                       Property, Value)
@@ -1019,6 +1020,7 @@ class NIDAQEngine(Engine):
 
     def configure_hw_ai(self, channels):
         task_name = '{}_hw_ai'.format(self.name)
+        channels = sorted(channels, key=op.attrgetter('channel'))
         task = setup_hw_ai(channels, self.hw_ai_monitor_period,
                            self._hw_ai_callback, task_name)
         self._tasks['hw_ai'] = task
