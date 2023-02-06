@@ -31,8 +31,9 @@ log = logging.getLogger(__name__)
 
 import ctypes
 from functools import partial
-from threading import Timer
+from threading import Event, Timer
 import operator as op
+import sys
 
 from atom.api import (Float, Typed, Str, Int, Bool, Callable, Enum,
                       Property, Value)
@@ -269,38 +270,47 @@ def device_list(task):
 ################################################################################
 # callback
 ################################################################################
-def hw_output_helper(cb, task, event_type, cb_samples, cb_data):
-    cb(cb_samples)
+def hw_ao_helper(cb, task, event_type, cb_samples, cb_data):
+    try:
+        cb(cb_samples)
+    except Exception as e:
+        exc_info = type(e), e, e.__traceback__
+        sys.excepthook(*exc_info)
     return 0
 
 
 def hw_ai_helper(cb, channels, discard, fs, channel_names, task,
                  event_type=None, cb_samples=None, cb_data=None):
-    uint32 = ctypes.c_uint32()
-    mx.DAQmxGetReadAvailSampPerChan(task, uint32)
-    available_samples = uint32.value
-    if available_samples == 0:
-        return 0
+    try:
+        uint32 = ctypes.c_uint32()
+        mx.DAQmxGetReadAvailSampPerChan(task, uint32)
+        available_samples = uint32.value
+        if available_samples == 0:
+            return 0
 
-    uint64 = ctypes.c_uint64()
-    mx.DAQmxGetReadCurrReadPos(task, uint64)
-    read_position = uint64.value
+        uint64 = ctypes.c_uint64()
+        mx.DAQmxGetReadCurrReadPos(task, uint64)
+        read_position = uint64.value
 
-    log.trace('Current read position %d, available samples %d',
-              read_position, available_samples)
+        log.trace('Current read position %d, available samples %d',
+                read_position, available_samples)
 
-    data = read_hw_ai(task, available_samples, channels, cb_samples)
-    if data is None:
-        return 0
+        data = read_hw_ai(task, available_samples, channels, cb_samples)
+        if data is None:
+            return 0
 
-    if read_position <= discard:
-        to_discard = discard - read_position
-        data = data[..., to_discard:]
+        if read_position <= discard:
+            to_discard = discard - read_position
+            data = data[..., to_discard:]
 
-    if data.shape[-1] > 0:
-        s0 = max(0, read_position - discard)
-        data = PipelineData(data, fs=fs, s0=s0, channel=channel_names)
-        cb(data)
+        if data.shape[-1] > 0:
+            s0 = max(0, read_position - discard)
+            data = PipelineData(data, fs=fs, s0=s0, channel=channel_names)
+            cb(data)
+
+    except Exception as e:
+        exc_info = type(e), e, e.__traceback__
+        sys.excepthook(*exc_info)
 
     return 0
 
@@ -448,7 +458,6 @@ def setup_hw_ao(channels, buffer_duration, callback_interval, callback,
         mx.DAQmxSetAODataXferReqCond(task, merged_lines,
                                      mx.DAQmx_Val_OnBrdMemHalfFullOrLess)
     except Exception as e:
-        log.error(e)
         log.warning('Could not set AO data transfer request condition for %s',
                     merged_lines)
 
@@ -527,7 +536,7 @@ def setup_output_timing(task, channels, buffer_duration, callback_interval,
     # If we don't store a reference to the curried helper function and the
     # pointer, they will get garbage-collected.
     log.debug('Creating callback after every %d samples', callback_samples)
-    task._cb = partial(hw_output_helper, callback)
+    task._cb = partial(hw_ao_helper, callback)
     task._cb_ptr = mx.DAQmxEveryNSamplesEventCallbackPtr(task._cb)
     mx.DAQmxRegisterEveryNSamplesEvent(
         task, mx.DAQmx_Val_Transferred_From_Buffer, int(callback_samples), 0,
@@ -780,7 +789,6 @@ def halt_on_error(f):
         try:
             f(self, *args, **kwargs)
         except Exception as e:
-            log.exception(e)
             try:
                 self.stop()
                 for cb in self._callbacks.get('done', []):
@@ -930,20 +938,6 @@ class NIDAQEngine(Engine):
         elif hw_ai_channels:
             self.sample_time = self.ai_sample_time
 
-        # Configure task done events so that we can fire a callback if
-        # acquisition is done. This does not seem to be working the way I want
-        # it to, though.
-        self._task_done = {}
-        for name, task in self._tasks.items():
-            def cb(task, s, cb_data):
-                nonlocal name
-                self.task_complete(name)
-                return 0
-            cb_ptr = mx.DAQmxDoneEventCallbackPtr(cb)
-            mx.DAQmxRegisterDoneEvent(task, 0, cb_ptr, None)
-            task._done_cb_ptr_engine = cb_ptr
-            self._task_done[name] = False
-
         super().configure()
 
         # Required by start. This allows us to do the configuration
@@ -953,7 +947,7 @@ class NIDAQEngine(Engine):
         log.debug('Completed engine configuration')
 
     def task_complete(self, task_name):
-        log.debug('Task %s complete', task_name)
+        log.info('Task %s complete', task_name)
         self._task_done[task_name] = True
         task = self._tasks[task_name]
 
