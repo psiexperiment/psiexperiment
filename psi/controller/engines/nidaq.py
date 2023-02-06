@@ -1315,10 +1315,12 @@ class NIDAQEngine(Engine):
         except Exception as e:
             # If we log on every call, the logfile will get quite verbose.
             # Let's only log this information on an Exception.
+            maxval = np.abs(data).max(axis=-1)
             log.info('Failed to write %r samples starting at %r', data.shape, offset)
             log.info(' * Offset is %d samples relative to current write position %d', 
                      relative_offset, self.total_ao_samples_written)
             log.info(' * Current read position is %d', self.ao_sample_clock())
+            log.info(' * Maximum value attempted to write is %r', maxval)
             raise
 
     @halt_on_error
