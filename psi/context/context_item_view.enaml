@@ -193,6 +193,7 @@ template WidgetTemplate(context_item, MemberType):
             item=context_item
         )
         submit_triggers = ['lost_focus', 'return_pressed', 'auto_sync']
+        enabled << context_item.editable
 
 
 template WidgetTemplate(context_item, MemberType: str):
@@ -213,6 +214,7 @@ template WidgetTemplate(context_item, MemberType: EnumParameter):
     ObjectCombo:
         items << sorted(context_item.choices.keys())
         selected := context_item.selected
+        enabled << context_item.editable
 
 
 template WidgetTemplate(context_item, MemberType: BoolParameter):
@@ -223,6 +225,7 @@ template WidgetTemplate(context_item, MemberType: BoolParameter):
     CheckBox:
         text = ''
         checked << eval(context_item.expression)
+        enabled << context_item.editable
         toggled ::
             context_item.expression = 'True' if checked else 'False'
 
