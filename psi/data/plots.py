@@ -37,11 +37,17 @@ def get_freq(fs, duration):
 
 
 def get_color_cycle(name, n):
-    name = name.format(N=n)
     module_name, cmap_name = name.rsplit('.', 1)
     module = importlib.import_module(module_name)
-    cmap = getattr(module, cmap_name)
-    return itertools.cycle(cmap.colors)
+
+    # This generates a LinearSegmetnedColormap instance that interpolates to
+    # the requested number of colors. We can then extract these colors by
+    # calling the colormap with a mapping of 0 ... 1 where the number of values
+    # in the array is the number of colors we need (spaced equally along 0 ...
+    # 1).
+    cmap = getattr(module, cmap_name).mpl_colormap.resampled(n)
+    for i in np.linspace(0, 1, n):
+        yield tuple(int(v * 255) for v in cmap(i))
 
 
 def make_color(color):
