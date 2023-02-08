@@ -5,7 +5,7 @@ import json
 import numpy as np
 
 from psi.data.sinks.api import TextStore
-from psi.data.io import Recording
+from psidata.api import Recording
 
 
 @pytest.fixture

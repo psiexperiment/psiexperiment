@@ -3,7 +3,7 @@ import pytest
 import numpy as np
 
 from psi.data.sinks.api import ZarrStore
-from psi.data.io import Recording
+from psidata.api import Recording
 
 
 @pytest.fixture

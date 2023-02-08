@@ -7,7 +7,6 @@ Subpackages
 .. toctree::
    :maxdepth: 4
 
-   psi.data.io
    psi.data.sinks
 
 Submodules

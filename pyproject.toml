@@ -14,6 +14,7 @@ maintainers = [
     {name = "Buran Consulting, LLC", email="info@bradburan.com"}
 ]
 dependencies = [
+    "psidata",
     "psiaudio",
     "enaml[qt5-pyqt] >=0.13.0",
     "numpy",
@@ -38,13 +39,6 @@ dev = ["coloredlogs"]
 [project.scripts]
 psi = "psi.application.psi_launcher:main"
 psi-config = "psi.application:config"
-psi-behavior = "psi.application.base_launcher:main_animal"
-psi-calibration = "psi.application.base_launcher:main_calibration"
-psi-cfts = "psi.application.base_launcher:main_ear"
-psi-cohort = "psi.application.base_launcher:main_cohort"
-psi-summarize-abr = "psi.data.io.summarize_abr:main"
-psi-summarize-abr-gui = "psi.data.io.summarize_abr:main_gui"
-psi-summarize-abr-auto = "psi.data.io.summarize_abr:main_auto"
 
 [build-system]
 requires = ["setuptools>=61.2", "wheel", "setuptools_scm[toml]>=3.4.3"]
