@@ -43,7 +43,7 @@ import PyDAQmx as mx
 
 from psiaudio.pipeline import PipelineData
 from psiaudio.util import dbi
-from ..engine import Engine
+from ..engine import Engine, EngineStoppedException
 from ..channel import (CounterChannel,
                        HardwareAIChannel, HardwareAOChannel, HardwareDIChannel,
                        HardwareDOChannel, SoftwareDIChannel, SoftwareDOChannel)
@@ -803,6 +803,8 @@ def halt_on_error(f):
 
 def with_lock(f):
     def wrapper(self, *args, **kwargs):
+        if self.stopped.is_set():
+            raise EngineStoppedException(f'{self.name} has been stopped')
         with self.lock:
             f(self, *args, **kwargs)
     return wrapper
@@ -1368,6 +1370,8 @@ class NIDAQEngine(Engine):
         # without having to restart; however, this will require some thought as
         # to the optimal way to do this. For now, we just clear everything.
         # Configuration is generally fairly quick.
+        self.stopped.set()
+
         if not self._configured:
             return
 

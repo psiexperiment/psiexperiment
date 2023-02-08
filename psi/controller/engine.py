@@ -15,6 +15,13 @@ from .channel import (Channel, AnalogMixin, DigitalMixin, HardwareMixin,
                       SoftwareMixin, OutputMixin, InputMixin, CounterMixin)
 
 
+class EngineStoppedException(IOError):
+    '''
+    Indicates that the engine has been stopped
+    '''
+    pass
+
+
 class Engine(PSIContribution):
     '''
     Defines hardware-specific interface
@@ -49,6 +56,9 @@ class Engine(PSIContribution):
     #: Used to ensure synchronization of threads.
     lock = Value()
 
+    #: Indicates that engine has been stopped.
+    stopped = Value()
+
     #: True if the hardware has been configured.
     configured = Bool(False)
 
@@ -68,6 +78,9 @@ class Engine(PSIContribution):
 
     def _default_lock(self):
         return threading.Lock()
+
+    def _default_stopped(self):
+        return threading.Event()
 
     def get_channels(self, mode=None, direction=None, timing=None,
                      active=True):
