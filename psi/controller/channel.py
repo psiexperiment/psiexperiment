@@ -10,6 +10,7 @@ from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
 
 from psiaudio.calibration import BaseCalibration, FlatCalibration
+from psiaudio import util
 from .output import QueuedEpochOutput, ContinuousOutput, EpochOutput
 from ..core.enaml.api import PSIContribution
 
@@ -176,8 +177,10 @@ class AnalogMixin(Declarative):
         m_lb, m_ub = self.max_range
         valid = (m_lb <= e_lb < m_ub) and (m_lb < e_ub <= m_ub)
         if not valid:
+            rel_db = util.db(self.expected_range[-1], self.max_range[-1])
             m = f'Expected range of {self.expected_range} ' \
-                f'exceeds max range of {self.max_range} for {self}.'
+                f'exceeds max range of {self.max_range} for {self}. ' \
+                f'Try reducing your stimulus level by at least {rel_db:.1f} dB.'
             raise ValueError(m)
 
 
