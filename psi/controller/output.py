@@ -66,6 +66,7 @@ class BaseOutput(PSIContribution):
     def add_output(self, output):
         raise ValueError(f'Output {name} does not accept downstream outputs')
 
+
 class HardwareOutput(BaseOutput):
 
     # These two are defined as properties because it's theoretically possible
@@ -111,6 +112,7 @@ class HardwareOutput(BaseOutput):
             if isinstance(child, BaseOutput):
                 log.error(child)
         return
+
 
 class BufferedOutput(HardwareOutput):
 
