@@ -1260,7 +1260,7 @@ class NIDAQEngine(Engine):
         if samples <= 0:
             return
 
-        log.info('Updating hw ao at %d with %d samples', offset, samples)
+        log.trace('Updating hw ao at %d with %d samples', offset, samples)
         data = self._get_hw_ao_samples(offset, samples)
         self.write_hw_ao(data, offset=offset, timeout=0)
 
