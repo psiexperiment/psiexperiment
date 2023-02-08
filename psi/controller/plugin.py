@@ -275,16 +275,30 @@ class ControllerPlugin(Plugin):
             i.load_manifest(self.workbench)
 
     def _connect_outputs(self):
-        for o in self._outputs.values():
-            # First, make sure that the output is connected to a target. Check
-            # to see if the target is named. If not, then check to see if it
-            # has a parent one can use.
-            if o.target is None and o.target_name:
-                self.connect_output(o.name, o.target_name)
-            elif o.target is None and not isinstance(o.parent, Extension):
-                o.parent.add_output(o)
-            elif o.target is None:
-                log.warn('Unconnected output %s', o.name)
+        to_init = list(self._outputs.values())
+        n_init = len(to_init)
+
+        while True:
+            for o in to_init[:]:
+                # This ensures that all blocks that need to be linked to channels
+                # are connected first.
+                if o.target is None and o.target_name is not None:
+                    if self.connect_output(o.name, o.target_name):
+                        to_init.remove(o)
+                elif o.target is None and not isinstance(o.parent, Extension):
+                    o.parent.add_output(o)
+                    to_init.remove(o)
+                elif o.target is None:
+                    log.warn('Unconnected output %s', o.name)
+                    to_init.remove(o)
+                else:
+                    to_init.remove(o)
+            if len(to_init) == 0:
+                break
+            elif n_init == len(to_init):
+                raise ValueError(f'Unable to configure outputs {", ".join(o.name for o in to_init)}')
+            else:
+                n_init = len(to_init)
 
     def _connect_inputs(self):
         for i in self._inputs.values():
@@ -310,10 +324,14 @@ class ControllerPlugin(Plugin):
                 .format(target_name, output_name)
             raise ValueError(m)
 
+        if not isinstance(target, Channel) and target.target is None:
+            return False
+
         o = self._outputs[output_name]
         target.add_output(o)
         m = 'Connected output %s to target %s'
         log.debug(m, output_name, target_name)
+        return True
 
     def connect_input(self, input_name, source_name):
         if source_name in self._inputs:
