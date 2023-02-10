@@ -303,15 +303,12 @@ class ControllerPlugin(Plugin):
     def _connect_inputs(self):
         for i in self._inputs.values():
             # First, make sure the input is connected to a source
-            try:
-                if i.source is None and i.source_name:
-                    self.connect_input(i.name, i.source_name)
-                elif i.source is None and not isinstance(i.parent, Extension):
-                    i.parent.add_input(i)
-                elif i.source is None:
-                    log.warn('Unconnected input %s', i.name)
-            except:
-                pass
+            if i.source is None and i.source_name:
+                self.connect_input(i.name, i.source_name)
+            elif i.source is None and not isinstance(i.parent, Extension):
+                i.parent.add_input(i)
+            elif i.source is None:
+                log.warn('Unconnected input %s', i.name)
 
     def connect_output(self, output_name, target_name):
         # Link up outputs with channels if needed.
@@ -463,6 +460,7 @@ class ControllerPlugin(Plugin):
             channels = ', '.join(self._channels.keys())
             m = f'No such channel "{channel_name}". Valid channels are {channels}. ' \
                 'Did you accidentally specify an output name instead?'
+            raise ValueError(m) from e
 
     def get_channels(self, mode=None, direction=None, timing=None,
                      active=True):
