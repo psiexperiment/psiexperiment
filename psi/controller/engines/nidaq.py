@@ -501,7 +501,7 @@ def setup_output_timing(task, channels, buffer_duration, callback_interval,
 
     # If the write reaches the end of the buffer and no new data has been
     # provided, do not loop around to the beginning and start over.
-    mx.DAQmxSetWriteRegenMode(task, mx.DAQmx_Val_DoNotAllowRegen)
+    mx.DAQmxSetWriteRegenMode(task, mx.DAQmx_Val_AllowRegen)
     mx.DAQmxSetWriteRelativeTo(task, mx.DAQmx_Val_CurrWritePos)
 
     # This controls how quickly we can update the buffer on the device. On some
@@ -1166,8 +1166,11 @@ class NIDAQEngine(Engine):
         task = self._tasks['sw_ao']
         state = np.array(state).astype(np.double)
         result = ctypes.c_int32()
-        mx.DAQmxWriteAnalogF64(task, 1, True, 0, mx.DAQmx_Val_GroupByChannel,
-                               state, result, None)
+        status = mx.DAQmxWriteAnalogF64(task, 1, True, 0,
+                                        mx.DAQmx_Val_GroupByChannel, state,
+                                        result, None)
+        if status != 0:
+            log.info('SW AO write status code %d, result %d', status, result.value)
         if result.value != 1:
             raise ValueError('Unable to update software-timed AO')
         task._current_state = state
@@ -1176,8 +1179,11 @@ class NIDAQEngine(Engine):
         task = self._tasks['sw_do']
         state = np.asarray(state).astype(np.uint8)
         result = ctypes.c_int32()
-        mx.DAQmxWriteDigitalLines(task, 1, True, 0, mx.DAQmx_Val_GroupByChannel,
-                                  state, result, None)
+        status = mx.DAQmxWriteDigitalLines(task, 1, True, 0,
+                                           mx.DAQmx_Val_GroupByChannel, state,
+                                           result, None)
+        if status != 0:
+            log.info('SW DO write status code %d, result %d', status, result.value)
         if result.value != 1:
             raise ValueError('Problem writing data to software-timed DO')
         task._current_state = state
@@ -1301,14 +1307,18 @@ class NIDAQEngine(Engine):
             task = self._tasks['hw_ao']
             relative_offset = offset - self.total_ao_samples_written
             mx.DAQmxSetWriteOffset(task, relative_offset)
-            mx.DAQmxWriteAnalogF64(task, data.shape[-1], False, timeout,
-                                   mx.DAQmx_Val_GroupByChannel,
-                                   data.astype(np.float64), result, None)
+            status = mx.DAQmxWriteAnalogF64(task, data.shape[-1], False,
+                                            timeout,
+                                            mx.DAQmx_Val_GroupByChannel,
+                                            data.astype(np.float64), result,
+                                            None)
             mx.DAQmxSetWriteOffset(task, 0)
 
             # Calculate total samples written
             self.total_ao_samples_written += (relative_offset + data.shape[-1])
-            log.info('Writing hw ao %r at %d', data.shape, offset)
+            log.trace('Writing hw ao %r at %d', data.shape, offset)
+            if status != 0:
+                log.info('HW AO write status code %d, result %d', status, result.value)
 
         except Exception as e:
             # If we log on every call, the logfile will get quite verbose.
@@ -1330,11 +1340,14 @@ class NIDAQEngine(Engine):
         task = self._tasks['hw_do']
         relative_offset = offset - self.total_do_samples_written
         mx.DAQmxSetWriteOffset(task, relative_offset)
-        mx.DAQmxWriteDigitalLines(task, data.shape[-1], False, timeout,
-                                  mx.DAQmx_Val_GroupByChannel,
-                                  data.astype(np.uint8), result, None)
+        status = mx.DAQmxWriteDigitalLines(task, data.shape[-1], False,
+                                           timeout,
+                                           mx.DAQmx_Val_GroupByChannel,
+                                           data.astype(np.uint8), result, None)
+        if status != 0:
+            log.info('HW DO write status code %d, result %d', status, result.value)
         mx.DAQmxSetWriteOffset(task, 0)
-        log.info('Writing %r samples to hw do at offset %d', data.shape, offset)
+        log.trace('Writing %r samples to hw do at offset %d', data.shape, offset)
 
         # Calculate total samples written
         self.total_do_samples_written += (relative_offset + data.shape[-1])
