@@ -29,7 +29,7 @@ def set_base_path(event):
 
     # Be sure path exists and is empty.
     if not base_path.exists():
-        base_path.mkdir()
+        base_path.mkdir(parents=True)
     elif len(list(base_path.iterdir())) != 0:
         raise IOError('Base path exists and it is not empty')
 
