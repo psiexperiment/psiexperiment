@@ -198,7 +198,7 @@ def compute_calibration_chirp(event):
         summaries.append(summary)
 
     # Save the calibration
-    summary = pd.concat(summaries, keys=keys, names=['hw_ao_chirp_duration'])
+    summary = pd.concat(summaries, keys=keys, names=['hw_ao_chirp_level'])
     params = {'dataframe': summary, 'name': 'chirp_sens'}
     core.invoke_command('cal_data.save_dataframe', params)
 
