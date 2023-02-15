@@ -168,7 +168,7 @@ def compute_calibration_chirp(event):
         resp_psd = util.psd(epochs.values, source.fs).mean(axis=0)
         resp_phase = util.phase(epochs.values, source.fs).mean(axis=0)
 
-        spl = ai.channel.calibration.get_spl(freq, resp_psd)
+        spl = ai.channel.calibration.get_db(freq, resp_psd)
 
         settings['hw_ao_chirp_level'] = chirp_level
         chirp = generate_waveform(ao, settings)
