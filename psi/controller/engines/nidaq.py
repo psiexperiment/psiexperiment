@@ -940,6 +940,21 @@ class NIDAQEngine(Engine):
         elif hw_ai_channels:
             self.sample_time = self.ai_sample_time
 
+        # Configure task done events so that we can fire a callback if
+        # acquisition is done. This does not seem to be working the way I want
+        # it to, though. For example, I was hoping that it would also trigger
+        # when there are errors but it does not seem to happen.
+        self._task_done = {}
+        for name, task in self._tasks.items():
+            def cb(task, s, cb_data):
+                nonlocal name
+                self.task_complete(name)
+                return 0
+            cb_ptr = mx.DAQmxDoneEventCallbackPtr(cb)
+            mx.DAQmxRegisterDoneEvent(task, 0, cb_ptr, None)
+            task._done_cb_ptr_engine = cb_ptr
+            self._task_done[name] = False
+
         super().configure()
 
         # Required by start. This allows us to do the configuration
