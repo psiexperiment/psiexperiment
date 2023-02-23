@@ -65,9 +65,10 @@ enamldef ChannelInput(ContinuousInput):
     name = 'input'
     label = 'Input'
 
-    source_name = getattr(C, f'{name}_channel')
+    source_name << getattr(C, f'{name}_channel')
     source ::
-        channel.gain = getattr(C, f'{name}_input_gain')
+        if self.show_gain_setting:
+            channel.gain = getattr(C, f'{name}_input_gain')
 
 
 enamldef ChannelInputManifest(PSIManifest): manifest:
