@@ -404,7 +404,8 @@ class ContextPlugin(PSIPlugin):
             return self._namespace.get_value(context_name,
                                              force_eval=force_eval)
         except KeyError as e:
-            m = f'{context_name} not defined.'
+            valid_names = ', '.join(self.parameters)
+            m = f'Name {context_name} not defined. Valid names are {valid_names}'
             raise ValueError(m) from e
 
     def get_values(self, context_names=None):
