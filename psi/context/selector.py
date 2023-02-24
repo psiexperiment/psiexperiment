@@ -109,11 +109,12 @@ import functools
 import itertools
 import operator
 
-from atom.api import Bool, Dict, Enum, Event, Property, set_default, Typed
+from atom.api import Bool, Dict, Enum, Event, List, Property, set_default, Typed
 from enaml.core.api import d_, d_func
 from psi.core.enaml.api import PSIContribution
 from psi.context import choice
-from psi.util import get_tagged_values
+#from psi.util import get_tagged_values
+from psi.util import declarative_to_dict
 
 
 def warn_empty(method):
@@ -158,7 +159,7 @@ class BaseSelector(PSIContribution):
     #: of the roving parameters (the user can still enter the values they want).
     user_managed = d_(Bool(True))
 
-    context_items = Typed(list, [])
+    context_items = List()
 
     #: Since order of context items is important for certain selectors (e.g.,
     #: the CartesianProduct), this attribute is used to persist experiment
@@ -169,6 +170,7 @@ class BaseSelector(PSIContribution):
         return [i.name for i in self.context_items]
 
     def _set_context_item_order(self, order):
+        print(f'updating item order {order}')
         old_items = self.context_items[:]
         new_items = []
         for name in order:
@@ -181,6 +183,10 @@ class BaseSelector(PSIContribution):
         # in the preferences file.
         new_items.extend(old_items)
         self.context_items = new_items
+        print('done updating')
+
+    def _observe_context_items(self, event):
+        print(event)
 
     def append_item(self, item):
         '''
@@ -217,7 +223,9 @@ class BaseSelector(PSIContribution):
         raise ValueError(f'{name} not in selector {self.name}')
 
     def __getstate__(self):
-        return get_tagged_values(self, 'preference')
+        #return get_tagged_values(self, 'preference')
+        print('getting state here')
+        return declarative_to_dict(self, 'preference', include_dunder=False)
 
 
 class SingleSetting(BaseSelector):
@@ -418,6 +426,73 @@ class SequenceSelector(BaseSelector):
     def get_value(self, setting_index, item):
         return self.settings[setting_index][item.name]
 
+from atom.api import Atom, Callable, Float, Str, Value
+
+
+class FriendlyCartesianProductItem(Atom):
+
+    sequence_type = Str().tag(preference=True)
+    item = Value()
+    transform_fn = Callable()
+    inverse_transform_fn = Callable()
+
+    unit = Str()
+    user_friendly_name = Str()
+    user_friendly_name_plural = Str()
+
+    def _default_transform_fn(self):
+        return lambda x: x
+
+    def _default_inverse_transform_fn(self):
+        return lambda x: x
+
+    def get_values(self, transform=False):
+        if transform:
+            values = [self.transform_fn(v) for v in self.values]
+        else:
+            values = self.values[:]
+        if len(values) == 0:
+            raise ValueError(f'No values to test for {self.item.label}')
+        return values
+
+    def _default_user_friendly_name_plural(self):
+        return f'{self.user_friendly_name}s'
+
+
+class FriendlyCartesianProductRange(FriendlyCartesianProductItem):
+
+    start = Float().tag(preference=True)
+    end = Float().tag(preference=True)
+    step = Float(1.0).tag(preference=True)
+    range_fn = Callable()
+    values = Property()
+
+    step_unit = Str()
+    round_values = Bool(False)
+
+    def _default_sequence_type(self):
+        return 'range'
+
+    def _default_start(self):
+        return self.item.default
+
+    def _default_end(self):
+        return self.item.default
+
+    def _default_range_fn(self):
+        return lambda lb, ub, s: np.arange(lb, ub + s/2, s)
+
+    def _get_values(self):
+        return self.range_fn(self.start, self.end, self.step)
+
+
+class FriendlyCartesianProductList(FriendlyCartesianProductItem):
+
+    values = List().tag(preference=True)
+
+    def _default_sequence_type(self):
+        return 'list'
+
 
 class FriendlyCartesianProduct(BaseSelector):
     '''
@@ -426,7 +501,7 @@ class FriendlyCartesianProduct(BaseSelector):
     '''
     user_managed = set_default(True)
 
-    #: Tracks the user-configurable values (start, end, step, and ordering)
+    #: Tracks the user-configurable values.
     context_settings = Dict().tag(preference=True)
 
     #: Programatically-set details (e.g., transforms, spacing, etc.)
@@ -437,7 +512,7 @@ class FriendlyCartesianProduct(BaseSelector):
     can_manage = d_(Typed(list, []))
 
     @d_func
-    def field_name(self, item_name, field_name):
+    def item_name(self, item_name):
         '''
         Given the item and field name, return the appropriate field name.
 
@@ -446,35 +521,27 @@ class FriendlyCartesianProduct(BaseSelector):
         attenuation or dB SPL. If we specify `context_detail` as::
 
             {
-                'target_tone_level': {
+                'cal::target_tone_level': {
                     'user_friendly_name': 'levels',
                     'step_unit': 'dB',
                     'order_user_managed': True,
-                    'atten_unit': 'dB re 1Vrms',
-                    'cal_unit': 'dB SPL',
+                    'unit': 'dB SPL',
+                },
+                'atten::target_tone_level': {
+                {
+                    'user_friendly_name': 'levels',
+                    'step_unit': 'dB',
+                    'order_user_managed': True,
+                    'unit': 'dB re 1Vrms',
                 },
             }
 
-        By overriding this function, you can intercept a request for `unit` for
-        `target_tone_level` and return either `cal_unit` or `atten_unit`
-        depending on whether a calibration has been loaded for the speaker.
+        By overriding this function, you can intercept a request for
+        `target_tone_level` and return either `cal::target_tone_level` or
+        `atten::target_tone_level` depending on whether a calibration has been
+        loaded for the speaker.
         '''
-        return field_name
-
-    @d_func
-    def value_name(self, item_name, value_name):
-        '''
-        Given the item and field name, return the appropriate field name.
-
-        The primary use-case for this is to switch between two sets of defaults
-        depending on whether we are working with level specified as dB
-        attenuation or dB SPL.
-
-        This allows us to save the level settings as both attenuated and dB SPL
-        and load the appropriate persisted settings depending on whether a
-        calibration has been loaded for the speaker.
-        '''
-        return value_name
+        return item_name
 
     @d_func
     def migrate_state(self, state, direction):
@@ -484,45 +551,31 @@ class FriendlyCartesianProduct(BaseSelector):
         '''
         return state
 
-    def get_field(self, item_name, field_name, default=None):
-        field_name = self.field_name(item_name, field_name)
-        if default is not None:
-            return self.context_detail[item_name].get(field_name, default)
-        return self.context_detail[item_name].get(field_name)
+    def get_setting(self, item):
+        name = self.item_name(item.name)
+        return self.context_settings[name]
 
-    def get_value(self, item_name, value_name):
-        value_name = self.value_name(item_name, value_name)
-        return float(self.context_settings[item_name][value_name])
+    def make_setting(self, item, klass):
+        name = self.item_name(item.name)
+        details = {k: v for k, v in self.context_detail[name].items() if k in klass.members()}
+        return klass(item=item, **details)
 
-    def set_value(self, item_name, value_name, value):
-        value_name = self.value_name(item_name, value_name)
-        self.context_settings[item_name][value_name] = float(value)
+    def change_setting(self, item, klass):
+        name = self.item_name(item.name)
+        setting = self.context_settings[name] = self.make_setting(item, klass)
+        return setting
 
     def append_item(self, item):
-        if item.name not in self.context_detail:
+        name = self.item_name(item.name)
+        if name not in self.context_detail:
             raise ValueError(f'Cannot rove item {item.name}')
-
-        inverse_fn = self.get_field(item.name, 'inverse_transform_fn', lambda x: x)
-        settings = self.context_settings.get(item.name, {})
-        settings.setdefault(self.value_name(item.name, 'start'), inverse_fn(item.default))
-        settings.setdefault(self.value_name(item.name, 'end'), inverse_fn(item.default))
-        settings.setdefault(self.value_name(item.name, 'step'), 1)
-        self.context_settings[item.name] = settings
+        if name not in self.context_settings:
+            self.context_settings[name] = self.make_setting(item, FriendlyCartesianProductRange)
         super().append_item(item)
 
     def get_values(self, item, transform=False):
-        start = self.get_value(item.name, 'start')
-        end = self.get_value(item.name, 'end')
-        step = self.get_value(item.name, 'step')
-        range_fn = self.get_field(item.name, 'range_fn',
-                                  lambda lb, ub, s: np.arange(lb, ub + s/2, s))
-        values = range_fn(start, end, step)
-        if transform:
-            transform_fn = self.get_field(item.name, 'transform_fn', lambda x: x)
-            values = [transform_fn(v) for v in values]
-        if len(values) == 0:
-            raise ValueError(f'No values to test for {item.label}')
-        return values
+        name = self.item_name(item.name)
+        return self.context_settings[name].get_values(transform=transform)
 
     def get_settings(self):
         values = [self.get_values(item, True) for item in self.context_items]
@@ -543,12 +596,11 @@ class FriendlyCartesianProduct(BaseSelector):
     def get_formatter(self, names=None):
         if names is None:
             names = [i.name for i in self.context_items]
-
         formatters = []
         for name in names:
-            unit = self.get_field(name, 'unit')
-            fn = self.get_field(name, 'inverse_transform_fn', lambda x: x)
-            formatters.append(lambda x, fn=fn, u=unit: f'{fn(x)} {u}')
+            name = self.item_name(name)
+            setting = self.context_settings[name]
+            formatters.append(lambda x, fn=setting.inverse_transform_fn, u=setting.unit: f'{fn(x)} {u}')
 
         def formatter(setting, sep):
             nonlocal formatters
@@ -561,8 +613,25 @@ class FriendlyCartesianProduct(BaseSelector):
 
     def __setstate__(self, state):
         state = self.migrate_state(state, 'forward')
-        for k, v in state.pop('context_settings').items():
-            self.context_settings.setdefault(k, v).update(v)
+        context_settings = state.pop('context_settings')
+
+        klass_map = {
+            'list': FriendlyCartesianProductList,
+            'range': FriendlyCartesianProductRange,
+        }
+        for k, v in context_settings.items():
+            klass = klass_map[v.pop('sequence_type', 'range')]
+            log.error(self.context_items)
+            for i in self.context_items:
+                if i.name == k:
+                    item = i
+                    break
+            else:
+                raise ValueError(f'Context item {k} missing')
+
+            setting = self.change_setting(item, klass)
+            log.error(v)
+            setting.__setstate__(v)
         super().__setstate__(state)
         self.updated = True
 

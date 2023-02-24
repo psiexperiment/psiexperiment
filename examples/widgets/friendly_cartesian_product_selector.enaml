@@ -1,0 +1,56 @@
+from copy import deepcopy
+
+from enaml.widgets.api import Container, HGroup, MainWindow, PushButton
+from psi.context.api import Parameter, FriendlyCartesianProduct
+from psi.context.selector_manifest import FriendlyCartesianProductContainer
+from psiaudio.util import octave_space
+
+
+context_detail = {
+    'frequency': {
+        'user_friendly_name': 'frequency',
+        'user_friendly_name_plural': 'frequencies',
+        'unit': 'kHz',
+        'range_fn': octave_space,
+    },
+    'level': {
+        'user_friendly_name': 'level',
+        'unit': 'dB SPL',
+    },
+}
+
+
+selector = FriendlyCartesianProduct(context_detail=context_detail)
+selector.append_item(Parameter(name='frequency', label='frequency', default=16.0))
+selector.append_item(Parameter(name='level', label='level', default=10.0))
+
+
+enamldef Main(MainWindow): main:
+
+    attr state = {}
+
+    Container:
+        FriendlyCartesianProductContainer:
+            selector = selector
+
+        PushButton:
+            text = 'Print sequence'
+            clicked ::
+                print('The current sequence is: ')
+                for value in selector.get_iterator(cycles=1):
+                    print(value)
+
+        HGroup:
+            spacing = 0
+            padding = 0
+
+            PushButton:
+                text = 'Save sequence'
+                clicked ::
+                    main.state = selector.__getstate__()
+
+            PushButton:
+                text = 'Load sequence'
+                enabled << bool(main.state)
+                clicked ::
+                    selector.__setstate__(deepcopy(main.state))

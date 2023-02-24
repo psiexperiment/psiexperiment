@@ -465,7 +465,7 @@ class ContextPlugin(PSIPlugin):
         return e
 
     def get_gui_selector_state(self):
-        return {n: get_preferences(s) for n, s in self.selectors.items()}
+        return {n: deepcopy(s.__getstate__()) for n, s in self.selectors.items()}
 
     def _apply_selector_state(self):
         self._selector_state = self.get_gui_selector_state()

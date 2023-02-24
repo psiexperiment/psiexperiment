@@ -243,37 +243,80 @@ template SelectorTemplate(selector, MemberType: sc.CartesianProduct):
 ################################################################################
 # FriendlyCartesianProduct
 ################################################################################
-enamldef FriendlyCartesianProductField(FloatField):
+from enaml.widgets.api import Menu, Action, ActionGroup
 
-    attr which
+template FriendlyCartesianProductItemTemplate(setting, MemberType: sc.FriendlyCartesianProductList):
 
-    initialized ::
-        # Observe the "updated" attribute of the selector so that we know when
-        # to update the field.
-        cb = lambda e, s=selector, i=item: setattr(self, 'value', s.get_value(i.name, which))
-        selector.observe('updated', cb)
-
-    value << selector.get_value(item.name, which)
-    value ::
-        selector.set_value(item.name, which, value)
-    submit_triggers = ['lost_focus', 'return_pressed', 'auto_sync']
-
-
-enamldef FriendlyCartesianStyleSheet(StyleSheet):
-    Style:
-        element = 'Container'
-        style_class = 'hover'
-        Setter:
-            field = 'background'
-            value = 'lightblue'
+    Container:
+        padding = 0
+        share_layout = True
+        ListTable:
+            select_behavior = 'rows'
+            select_mode = 'single'
+            column_name = f'{setting.user_friendly_name_plural.capitalize()} ({setting.unit})'
+            editable = True
+            show_row_labels = False
+            show_grid = True
+            data << setting.values
+            updated::
+                setting.values = [setting.item.coerce_to_type(d) for d in data]
 
 
-enamldef FriendlyCartesianProductItem(Container):
+template FriendlyCartesianProductItemTemplate(setting, MemberType: sc.FriendlyCartesianProductRange):
 
-    attr item
+    Container:
+        padding = 0
+        share_layout = True
+        layout_constraints => ():
+            widgets = self.visible_widgets()
+            first_row = widgets[:-1] + [spacer]
+            return [
+                align('v_center', *widgets[:-1]),
+                vbox(
+                    hbox(*widgets[:-1], spacer, spacing=5),
+                    widgets[-1],
+                    spacing=5,
+                ),
+                widgets[1].left == widgets[-1].left,
+                start_field.width == 60,
+                align('width', start_field, end_field, step_field),
+            ]
+
+        Label:
+            text = setting.user_friendly_name.capitalize()
+        FloatField: start_field:
+            value := setting.start
+            submit_triggers = ['lost_focus', 'return_pressed', 'auto_sync']
+        Label:
+            text = 'to'
+        FloatField: end_field:
+            value := setting.end
+            submit_triggers = ['lost_focus', 'return_pressed', 'auto_sync']
+        Label:
+            text = f'{setting.unit} in'
+        FloatField: step_field:
+            value := setting.step
+            submit_triggers = ['lost_focus', 'return_pressed', 'auto_sync']
+        Label:
+            text = f'{setting.step_unit} steps'
+
+        Label: descr_label:
+            text << get_description(
+                setting,
+                # These are here to force the description to update when any of
+                # the values changes. They are not used otherwise.
+                start_field.value,
+                end_field.value,
+                step_field.value,
+            )
+
+
+enamldef FriendlyCartesianProductItemContainer(Container): container:
+    attr setting
     attr selector
 
     style_class = ''
+    share_layout = True
 
     features << (Feature.DropEnabled | Feature.DragEnabled) \
         if selector.user_managed else 0x0
@@ -281,7 +324,7 @@ enamldef FriendlyCartesianProductItem(Container):
     drag_start => ():
         data = DragData()
         data.supported_actions = DropAction.Copy
-        data.mime_data.set_data('text/plain', f'::parameter::{item.name}'.encode('utf-8'))
+        data.mime_data.set_data('text/plain', f'::parameter::{setting.item.name}'.encode('utf-8'))
         return data
 
     drag_enter => (event):
@@ -289,7 +332,7 @@ enamldef FriendlyCartesianProductItem(Container):
             data = event.mime_data().data('text/plain').decode('utf-8')
             if not data.startswith('::parameter::'):
                 return
-            if data == f'::parameter::{item.name}':
+            if data == f'::parameter::{setting.item.name}':
                 return
             else:
                 self.style_class = 'hover'
@@ -302,66 +345,49 @@ enamldef FriendlyCartesianProductItem(Container):
         self.style_class = ''
         data = event.mime_data().data('text/plain').decode('utf-8')
         param = data.rsplit('::', 1)[1]
-        selector.move_item_to(param, item.name)
+        selector.move_item_to(param, setting.item.name)
 
-    layout_constraints => ():
-        first_row = children[:-1] + [spacer]
-        return [
-            children[1].left == children[-1].left,
-            align('v_center', *children[:-1]),
-            vbox(
-                hbox(*first_row, spacing=5),
-                children[-1],
-                spacing=5,
-            ),
-        ]
+    Menu:
+        context_menu = True
+        ActionGroup:
+            Action:
+                text = 'List'
+                checkable = True
+                checked << isinstance(setting, sc.FriendlyCartesianProductList)
+                triggered ::
+                    container.setting = \
+                        selector.change_setting(setting.item, sc.FriendlyCartesianProductList)
+            Action:
+                text = 'Range'
+                checkable = True
+                checked << isinstance(setting, sc.FriendlyCartesianProductRange)
+                triggered ::
+                    container.setting = \
+                        selector.change_setting(setting.item, sc.FriendlyCartesianProductRange)
 
-    share_layout = True
-
-    Label:
-        text = selector.get_field(item.name, 'user_friendly_name').capitalize()
-    FriendlyCartesianProductField: start_field:
-        which = 'start'
-    Label:
-        text = 'to'
-    FriendlyCartesianProductField: end_field:
-        which = 'end'
-    Label:
-        text = '{} in'.format(selector.get_field(item.name, 'unit'))
-    FriendlyCartesianProductField: step_field:
-        which = 'step'
-    Label:
-        text = '{} steps'.format(selector.get_field(item.name, 'step_unit', selector.get_field(item.name, 'unit')))
-
-    Label: descr_label:
-        text << get_description(
-            selector,
-            item,
-            start_field.value,
-            end_field.value,
-            step_field.value,
-        )
+    DynamicTemplate:
+        base = FriendlyCartesianProductItemTemplate
+        args << (setting, type(setting))
 
 
-def get_description(selector, item, *args):
+def get_description(setting, *args):
     try:
-        values = selector.get_values(item, transform=False)
-        step_unit = selector.get_field(item.name, 'step_unit', '')
-        unit = selector.get_field(item.name, 'unit')
-        label = selector.get_field(item.name, 'user_friendly_name')
-        round_values = selector.get_field(item.name, 'round_values', False)
-
+        values = setting.get_values(transform=False)
         if len(values) == 0:
             mesg = '''The current settings result in no values to test. Perhaps the
             start value is greater than the end value?'''
         else:
-            if round_values:
-                step = selector.get_value(item.name, 'step')
-                round_mesg = f'{label.capitalize()} are rounded to the nearest {step} {step_unit}.'
+            if len(values) == 1:
+                ufn = setting.user_friendly_name
+            else:
+                ufn = setting.user_friendly_name_plural
+            if setting.round_values:
+                round_mesg = f'{ufn.capitalize()} are rounded to the nearest ' \
+                    f'{setting.step} {setting.step_unit}.'
             else:
                 round_mesg = ''
-            mesg = f'''{round_mesg}The current range is {values[0]:.1f} to
-            {values[-1]:.1f} {unit} for a total of {len(values)} {label}.'''
+            mesg = f'{round_mesg}The current range is {values[0]:.1f} to ' \
+                f'{values[-1]:.1f} {setting.unit} for a total of {len(values)} {ufn}.'
     except ValueError as e:
         mesg = str(e)
 
@@ -374,30 +400,36 @@ enamldef FriendlyCartesianProductContainer(Container): container:
     attr selector
     padding = 0
 
-    FriendlyCartesianStyleSheet:
-        pass
+    StyleSheet:
+        Style:
+            element = 'Container'
+            style_class = 'hover'
+            Setter:
+                field = 'background'
+                value = 'lightblue'
 
     layout_constraints => ():
         widgets = self.visible_widgets()
         if len(widgets) == 0:
             return []
-
         constraints = [vbox(*widgets, spacing=0)]
-        first_child = widgets[0]
-        first_row = first_child.visible_widgets()[:-1]
-        for a in first_row[1::2]:
-            constraints.append(a.width == 60)
-        for child in widgets[1:]:
-            row = child.visible_widgets()[:-1]
-            for a, b in zip(first_row, row):
-                constraints.append(a.width == b.width)
+
+        to_align = []
+        for w in widgets:
+            fw = w.visible_widgets()[0].visible_widgets()[0]
+            if isinstance(fw, Label):
+                to_align.append(fw)
+        constraints.append(align('width', *to_align))
         return constraints
 
     Looper:
         iterable << selector.context_items[:]
-        FriendlyCartesianProductItem:
-            item = loop_item
-            selector = container.selector
+        FriendlyCartesianProductItemContainer:
+            initialized ::
+                # Not sure why this is necessary, but it makes everything work!
+                selector.observe('updated', lambda e: setattr(self, 'setting', selector.get_setting(loop_item)))
+            setting << selector.get_setting(loop_item)
+            selector << container.selector
 
 
 def friendly_cartesian_product_update_context(selector, event):

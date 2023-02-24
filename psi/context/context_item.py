@@ -8,6 +8,7 @@ from atom.api import (Str, Typed, Value, Enum, List, Event, Property,
                       observe, Bool, Dict, Coerced)
 
 from psi.core.enaml.api import PSIContribution
+from ..util import get_tagged_values
 
 
 ################################################################################
@@ -212,6 +213,9 @@ class ContextItem(Declarative):
         flags = ', '.join(flags)
         return f'{self.name} ({flags})'
 
+    def __getstate__(self):
+        return get_tagged_values(self, 'preference')
+
 
 class Result(ContextItem):
     '''
@@ -266,7 +270,7 @@ class EnumParameter(Parameter):
 
     expression = Property().tag(transient=True)
     selected = d_(Str()).tag(preference=True)
-    choices = d_(Typed(dict))
+    choices = d_(Dict())
     default = d_(Str())
 
     def _default_dtype(self):
