@@ -104,7 +104,7 @@ def configure_logging(level_console=None, level_file=None, filename=None,
         min_level = min(getattr(logging, level_console), getattr(logging, level_file))
         log.setLevel(min_level)
 
-    fmt = '{msecs:f} {levelname:10s}: {threadName:11s} - {name:40s}:: {message}'
+    fmt = '{asctime} {levelname:10s}: {threadName:11s} - {name:40s}:: {message}'
     if level_console is not None:
         try:
             level_styles = {
