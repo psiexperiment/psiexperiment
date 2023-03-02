@@ -61,7 +61,7 @@ class Engine(PSIContribution):
     hw_ao_monitor_period = d_(Float(1)).tag(metadata=True)
 
     def _default_lock(self):
-        return threading.Lock()
+        return threading.RLock()
 
     def get_channels(self, mode=None, direction=None, timing=None,
                      active=True):
