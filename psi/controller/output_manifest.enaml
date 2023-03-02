@@ -741,6 +741,8 @@ def toggle_on(event, output):
 
 
 def toggle(event, output):
+    if not event.parameters.get('active', True):
+        return
     if event.parameters['state']:
         toggle_on(event, output)
     else:
