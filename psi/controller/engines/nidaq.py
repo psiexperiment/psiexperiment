@@ -1312,7 +1312,6 @@ class NIDAQEngine(Engine):
                                             mx.DAQmx_Val_GroupByChannel,
                                             data.astype(np.float64), result,
                                             None)
-            mx.DAQmxSetWriteOffset(task, 0)
 
             # Calculate total samples written
             self.total_ao_samples_written += (relative_offset + data.shape[-1])
@@ -1328,6 +1327,8 @@ class NIDAQEngine(Engine):
                      relative_offset, self.total_ao_samples_written)
             log.info(' * Current read position is %d', self.ao_sample_clock())
             raise
+        finally:
+            mx.DAQmxSetWriteOffset(task, 0)
 
     @halt_on_error
     def write_hw_do(self, data, offset, timeout=1):
