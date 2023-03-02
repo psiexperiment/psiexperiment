@@ -58,7 +58,7 @@ class TableStore(BaseStore):
             header = True
 
         csv_string = df.to_csv(index=False, header=header,
-                               line_terminator='\n')
+                               lineterminator='\n')
         self._store.write(csv_string)
         if flush:
             self.flush()
