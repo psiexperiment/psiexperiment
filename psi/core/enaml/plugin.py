@@ -42,13 +42,13 @@ class PSIPlugin(Plugin):
         point = self.workbench.get_extension_point(point_id)
         items = {}
         for extension in point.extensions:
-            log.debug('Found extension %s', extension.id)
+            log.debug('... Found extension %s', extension.id)
             children = extension.get_children(plugin_type)
             if extension.factory is not None:
                 children.extend(extension.factory(**factory_kw))
             for item in children:
                 attr = getattr(item, unique_attr)
-                log.debug('Found contribution %s', attr)
+                log.debug('... ... found contribution %s', attr)
                 if attr in items:
                     self.raise_duplicate_error(item, unique_attr, extension)
                 items[attr] = item
