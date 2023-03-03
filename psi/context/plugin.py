@@ -221,6 +221,7 @@ class ContextPlugin(PSIPlugin):
 
         log.info('Found context groups %s', ', '.join(context_groups))
         for n, i in context_groups.items():
+            i._update_visible()
             log.info(f'{n}: {i}: {i.visible}')
 
         for group in context_groups.values():
