@@ -25,7 +25,7 @@ enamldef OutputChannelExtension(Extension): ext:
         choices = get_hw_ao_choices(workbench)
         selected = next(iter(get_hw_ao_choices(workbench)))
         scope = 'experiment'
-        group_name = 'hardware_settings'
+        group_name << manifest.contribution.group_name
 
 
 enamldef EpochChannelOutput(EpochOutput):
@@ -34,6 +34,7 @@ enamldef EpochChannelOutput(EpochOutput):
     label = 'Output'
     configurable = False
     target_name = getattr(C, f'{name}_channel')
+    attr group_name = 'hardware_settings'
 
 
 enamldef EpochChannelOutputManifest(EpochOutputManifest): manifest:
@@ -62,6 +63,7 @@ enamldef QueuedEpochChannelOutputManifest(QueuedEpochOutputManifest): manifest:
 enamldef ChannelInput(ContinuousInput):
 
     attr show_gain_setting = True
+    attr group_name = 'hardware_settings'
     name = 'input'
     label = 'Input'
 
@@ -86,7 +88,7 @@ enamldef ChannelInputManifest(PSIManifest): manifest:
                 choices = get_hw_ai_choices(workbench)
                 selected = next(iter(get_hw_ai_choices(workbench)))
                 scope = 'experiment'
-                group_name = 'hardware_settings'
+                group_name << manifest.contribution.group_name
 
         Conditional:
             condition << manifest.contribution.show_gain_setting
@@ -95,7 +97,7 @@ enamldef ChannelInputManifest(PSIManifest): manifest:
                 name = f'{manifest.contribution.name}_channel_settings'
                 fmt = [f'{manifest.contribution.label} channel', channel,
                        'with', gain, 'dB gain']
-                group_name = 'hardware_settings'
+                group_name << manifest.contribution.group_name
 
                 EnumParameter: channel:
                     name = f'{manifest.contribution.name}_channel'
