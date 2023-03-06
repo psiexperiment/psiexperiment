@@ -77,7 +77,7 @@ class Engine(PSIContribution):
     hw_ao_monitor_period = d_(Float(1)).tag(metadata=True)
 
     def _default_lock(self):
-        return threading.Lock()
+        return threading.RLock()
 
     def _default_stopped(self):
         return threading.Event()

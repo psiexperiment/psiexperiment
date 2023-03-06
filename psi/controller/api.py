@@ -4,7 +4,7 @@ from .channel import (
     SoftwareDOChannel
 )
 
-from .engine import Engine
+from .engine import Engine, EngineStoppedException
 
 from .input import (
     Accumulate, AutoThreshold, Average, Bitmask, Blocked, CalibratedInput,

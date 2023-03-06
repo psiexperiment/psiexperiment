@@ -273,6 +273,9 @@ def device_list(task):
 def hw_ao_helper(cb, task, event_type, cb_samples, cb_data):
     try:
         cb(cb_samples)
+    except EngineStoppedException:
+        log.info('NIDAQmx task ID %r exiting because engine halted', task)
+        mx.DAQmxStopTask(task)
     except Exception as e:
         exc_info = type(e), e, e.__traceback__
         sys.excepthook(*exc_info)
@@ -307,7 +310,9 @@ def hw_ai_helper(cb, channels, discard, fs, channel_names, task,
             s0 = max(0, read_position - discard)
             data = PipelineData(data, fs=fs, s0=s0, channel=channel_names)
             cb(data)
-
+    except EngineStoppedException:
+        log.info('NIDAQmx task ID %r exiting because engine halted', task)
+        mx.DAQmxStopTask(task)
     except Exception as e:
         exc_info = type(e), e, e.__traceback__
         sys.excepthook(*exc_info)
@@ -1267,6 +1272,7 @@ class NIDAQEngine(Engine):
         data = self._get_hw_do_samples(self.total_do_samples_written, samples)
         self.write_hw_do(data, self.total_do_samples_written, timeout=0)
 
+    @with_lock
     def update_hw_ao(self, name, offset):
         # Get the next set of samples to upload to the buffer. Ignore the
         # channel name because we need to update all channels simultaneously.
@@ -1323,6 +1329,11 @@ class NIDAQEngine(Engine):
             self.total_ao_samples_written += (relative_offset + data.shape[-1])
             log.debug('Writing hw ao %r at %d', data.shape, offset)
 
+        except mx.InvalidTaskError:
+            if self.stopped.is_set():
+                raise EngineStoppedException(f'{self.name} has been stopped')
+            else:
+                raise
         except Exception as e:
             # If we log on every call, the logfile will get quite verbose.
             # Let's only log this information on an Exception.
