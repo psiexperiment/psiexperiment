@@ -633,18 +633,24 @@ class ChannelPlot(SinglePlot):
                 t = t[:len(d_min)]
                 x = np.c_[t, t].ravel()
                 y = np.c_[d_min, d_max].ravel()
-                if x.shape == y.shape:
+                if np.isnan(y).all():
+                    deferred_call(self.plot.clear)
+                elif x.shape == y.shape:
                     deferred_call(self.plot.setData, x, y, connect='pairs')
             elif self.decimate_mode == 'mean':
                 d = decimate_mean(data, self.downsample)
                 t = t[:len(d)]
-                if t.shape == d.shape:
+                if np.isnan(d).all():
+                    deferred_call(self.plot.clear)
+                elif t.shape == d.shape:
                     deferred_call(self.plot.setData, t, d)
         else:
             t = t[:len(data)]
-            data = data[:len(t)]
-            if t.shape == data.shape:
-                deferred_call(self.plot.setData, t, data)
+            d = data[:len(t)]
+            if np.isnan(d).all():
+                deferred_call(self.plot.clear)
+            elif t.shape == d.shape:
+                deferred_call(self.plot.setData, t, d)
 
 
 def _reshape_for_decimate(data, downsample):
@@ -724,7 +730,9 @@ class FFTChannelPlot(ChannelPlot):
                 db = self.source.calibration.get_db(self._freq, psd)
             else:
                 db = util.db(psd)
-            if self._x.shape == db.shape:
+            if np.isnan(db).all():
+                deferred_call(self.plot.clear)
+            elif self._x.shape == db.shape:
                 deferred_call(self.plot.setData, self._x, db)
 
 
@@ -1063,12 +1071,14 @@ class EpochGroupMixin(GroupMixin):
                     y = self._y(concat(data, axis='epoch'))
                 else:
                     x = y = np.array([])
-                if x.shape == y.shape:
-                    todo.append((plot.setData, x, y))
+                if np.isnan(y).all():
+                    todo.append((plot.clear, ()))
+                elif x.shape == y.shape:
+                    todo.append((plot.setData, (x, y)))
 
         def update():
-            for setter, x, y in todo:
-                setter(x, y)
+            for setter, args in todo:
+                setter(*args)
         deferred_call(update)
 
 
@@ -1347,7 +1357,10 @@ class DataFramePlot(ColorCycleMixin, PSIContribution):
         def update():
             nonlocal todo
             for plot, x, y in todo:
-                plot.setData(x, y)
+                if np.isnan(y).all():
+                    plot.clear()
+                else:
+                    plot.setData(x, y)
         deferred_call(update)
 
     def _make_plot(self, group, label=None):
