@@ -1317,12 +1317,12 @@ class DataFramePlot(ColorCycleMixin, PSIContribution):
         todo = []
         if self.grouping:
             try:
-                for group, values in self.data.groupby(self.grouping):
+                grouping = self.grouping[0] if len(self.grouping) == 1 else self.grouping
+                for group, values in self.data.groupby(grouping):
                     if len(self.grouping) == 1:
                         label = str(group)
                     else:
-                        label = ','.join(f'{n} {v}'
-                                        for n, v in zip(self.grouping, group))
+                        label = ','.join(f'{n} {v}' for n, v in zip(grouping, group))
                     if group not in self._plot_cache:
                         self._plot_cache[group] = self._make_plot(group, label)
                     x = values[self.x_column].values
