@@ -295,7 +295,8 @@ class EnumParameter(Parameter):
 
     @observe('selected')
     def _notify_update(self, event):
-        self.notify('expression', self.expression)
+        if self.is_initialized:
+            self.notify('expression', self.expression)
 
     def to_expression(self, value):
         return str(self.choices.get(value, None))

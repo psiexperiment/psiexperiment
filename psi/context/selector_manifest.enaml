@@ -273,7 +273,7 @@ template FriendlyCartesianProductItemTemplate(setting, MemberType: sc.FriendlyCa
             return [
                 align('v_center', *widgets[:-1]),
                 vbox(
-                    hbox(*widgets[:-1], spacer, spacing=5),
+                    hbox(*first_row, spacing=5),
                     widgets[-1],
                     spacing=5,
                 ),
