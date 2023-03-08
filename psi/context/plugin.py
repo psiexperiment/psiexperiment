@@ -14,7 +14,6 @@ from enaml.layout.api import InsertItem, InsertTab
 from enaml.workbench.plugin import Plugin
 
 from psi.core.enaml.api import load_manifests
-from ..util import get_tagged_values
 from .context_item import (
     ContextItem, ContextGroup, ContextSet, Expression, Parameter, ContextMeta
 )
@@ -28,10 +27,6 @@ from .symbol import Symbol
 SELECTORS_POINT = 'psi.context.selectors'
 SYMBOLS_POINT = 'psi.context.symbols'
 ITEMS_POINT = 'psi.context.items'
-
-
-def get_preferences(obj):
-    return deepcopy(get_tagged_values(obj, 'preference'))
 
 
 class ContextLookup:
@@ -466,22 +461,22 @@ class ContextPlugin(PSIPlugin):
         return e
 
     def get_gui_selector_state(self):
-        return {n: deepcopy(s.__getstate__()) for n, s in self.selectors.items()}
+        return {n: deepcopy(s.get_preferences()) for n, s in self.selectors.items()}
 
     def _apply_selector_state(self):
         self._selector_state = self.get_gui_selector_state()
 
     def _revert_selector_state(self):
         for name, state in self._selector_state.items():
-            self.selectors[name].__setstate__(deepcopy(state))
+            self.selectors[name].set_preferences(deepcopy(state))
 
     def _apply_parameter_state(self):
-        state = {n: get_preferences(i) for n, i in self.parameters.items()}
+        state = {n: i.get_preferences() for n, i in self.parameters.items()}
         self._parameter_state = state
 
     def _revert_parameter_state(self):
         for name, state in self._parameter_state.items():
-            self.context_items[name].__setstate__(deepcopy(state))
+            self.context_items[name].set_preferences(state)
 
     @property
     def has_selectors(self):

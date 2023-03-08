@@ -109,12 +109,14 @@ import functools
 import itertools
 import operator
 
-from atom.api import Bool, Dict, Enum, Event, List, Property, set_default, Typed
+from atom.api import (
+    Atom, Bool, Callable, Dict, Enum, Event, Float, List, Property,
+    set_default, Str, Typed, Value
+)
 from enaml.core.api import d_, d_func
 from psi.core.enaml.api import PSIContribution
 from psi.context import choice
-#from psi.util import get_tagged_values
-from psi.util import declarative_to_dict
+from psi.util import declarative_to_dict, dict_to_declarative
 
 
 def warn_empty(method):
@@ -170,7 +172,6 @@ class BaseSelector(PSIContribution):
         return [i.name for i in self.context_items]
 
     def _set_context_item_order(self, order):
-        print(f'updating item order {order}')
         old_items = self.context_items[:]
         new_items = []
         for name in order:
@@ -183,10 +184,6 @@ class BaseSelector(PSIContribution):
         # in the preferences file.
         new_items.extend(old_items)
         self.context_items = new_items
-        print('done updating')
-
-    def _observe_context_items(self, event):
-        print(event)
 
     def append_item(self, item):
         '''
@@ -222,8 +219,11 @@ class BaseSelector(PSIContribution):
                 return item
         raise ValueError(f'{name} not in selector {self.name}')
 
-    def __getstate__(self):
+    def get_preferences(self):
         return declarative_to_dict(self, 'preference', include_dunder=False)
+
+    def set_preferences(self, state):
+        return dict_to_declarative(self, state)
 
 
 class SingleSetting(BaseSelector):
@@ -424,8 +424,6 @@ class SequenceSelector(BaseSelector):
     def get_value(self, setting_index, item):
         return self.settings[setting_index][item.name]
 
-from atom.api import Atom, Callable, Float, Str, Value
-
 
 class FriendlyCartesianProductItem(Atom):
 
@@ -455,6 +453,9 @@ class FriendlyCartesianProductItem(Atom):
 
     def _default_user_friendly_name_plural(self):
         return f'{self.user_friendly_name}s'
+
+    def set_preferences(self, state):
+        return dict_to_declarative(self, state)
 
 
 class FriendlyCartesianProductRange(FriendlyCartesianProductItem):
@@ -606,10 +607,10 @@ class FriendlyCartesianProduct(BaseSelector):
 
         return formatter
 
-    def __getstate__(self):
-        return self.migrate_state(super().__getstate__(), 'reverse')
+    def get_preferences(self):
+        return self.migrate_state(super().get_preferences(), 'reverse')
 
-    def __setstate__(self, state):
+    def set_preferences(self, state):
         state = self.migrate_state(state, 'forward')
         context_settings = state.pop('context_settings')
 
@@ -619,18 +620,15 @@ class FriendlyCartesianProduct(BaseSelector):
         }
         for k, v in context_settings.items():
             klass = klass_map[v.pop('sequence_type', 'range')]
-            log.error(self.context_items)
             for i in self.context_items:
                 if i.name == k:
                     item = i
                     break
             else:
                 raise ValueError(f'Context item {k} missing')
-
             setting = self.change_setting(item, klass)
-            log.error(v)
-            setting.__setstate__(v)
-        super().__setstate__(state)
+            setting.set_preferences(v)
+        super().set_preferences(state)
         self.updated = True
 
 

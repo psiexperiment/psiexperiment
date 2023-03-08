@@ -14,7 +14,7 @@ from .plugin import ContextPlugin
 from .symbol import ImportedSymbol, Function
 from .context_item import ContextGroup
 
-from ..util import rpc, get_tagged_members, get_tagged_values
+from ..util import rpc
 
 
 PLUGIN_ID = 'psi.context'
@@ -33,21 +33,6 @@ def apply_changes(event):
 def revert_changes(event):
     context = event.workbench.get_plugin(PLUGIN_ID)
     context.revert_changes()
-
-
-def get_preferences(obj):
-    return get_tagged_values(obj, 'preference')
-
-
-def set_preferences(obj, preferences):
-    for member in get_tagged_members(obj, 'preference'):
-        if member in preferences:
-            value = preferences.get(member)
-            try:
-                setattr(obj, member, value)
-            except AttributeError:
-                m = f'Unable to restore saved value for {member} of {obj.name} ({obj})'
-                log.error(m)
 
 
 def initialize(event):
@@ -171,13 +156,13 @@ enamldef ContextManifest(ExperimentManifest): manifest:
                     if not i.editable:
                         continue
                     group_state = parameter_state.setdefault(i.parent.name, {})
-                    group_state[i.name] = get_preferences(i)
+                    group_state[i.name] = i.get_preferences()
 
                 # Build the selector state
                 selector_state = {}
                 for s in plugin.selectors.values():
                     if s.persist_settings:
-                        selector_state[s.name] = s.__getstate__()
+                        selector_state[s.name] = s.get_preferences()
 
                 # Build the meta state
                 meta_state = {}
@@ -212,7 +197,7 @@ enamldef ContextManifest(ExperimentManifest): manifest:
                         continue
                     if item.name not in item_states:
                         log.info('Could not find context item %s in saved state', item.name)
-                    set_preferences(item, item_states.get(item.name, {}))
+                    item.set_preferences(item_states.get(item.name, {}))
 
                 log.debug('Setting selector states')
                 for selector in plugin.selectors.values():
@@ -220,7 +205,7 @@ enamldef ContextManifest(ExperimentManifest): manifest:
                         continue
                     try:
                         state = selector_state.get(selector.name, {})
-                        selector.__setstate__(state)
+                        selector.set_preferences(state)
                     except AttributeError as e:
                         log.error(f'Unable to set saved state for selector {selector.name}')
 

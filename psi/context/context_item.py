@@ -8,7 +8,7 @@ from atom.api import (Str, Typed, Value, Enum, List, Event, Property,
                       observe, Bool, Dict, Coerced)
 
 from psi.core.enaml.api import PSIContribution
-from ..util import get_tagged_values
+from ..util import get_tagged_members, get_tagged_values
 
 
 ################################################################################
@@ -211,8 +211,17 @@ class ContextItem(Declarative):
         flags = ', '.join(flags)
         return f'{self.name} ({flags})'
 
-    def __getstate__(self):
+    def get_preferences(self):
         return get_tagged_values(self, 'preference')
+
+    def set_preferences(self, preferences):
+        for member in get_tagged_members(self, 'preference'):
+            if member in preferences:
+                try:
+                    setattr(self, member, preferences.get(member))
+                except AttributeError:
+                    m = f'Unable to restore saved value for {member} of {self.name} ({self})'
+                    log.error(m)
 
 
 class Result(ContextItem):
