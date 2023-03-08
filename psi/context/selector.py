@@ -223,8 +223,6 @@ class BaseSelector(PSIContribution):
         raise ValueError(f'{name} not in selector {self.name}')
 
     def __getstate__(self):
-        #return get_tagged_values(self, 'preference')
-        print('getting state here')
         return declarative_to_dict(self, 'preference', include_dunder=False)
 
 
