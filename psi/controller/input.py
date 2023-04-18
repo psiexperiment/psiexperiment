@@ -15,6 +15,7 @@ log = logging.getLogger(__name__)
 
 from collections import deque
 from functools import partial
+import threading
 
 import numpy as np
 from scipy import signal
@@ -574,6 +575,7 @@ class ExtractEpochs(EpochInput):
 
     added_queue = d_(Typed(deque, {}))
     removed_queue = d_(Typed(deque, {}))
+    _source_complete = Typed(threading.Event, {})
 
     #: Duration to buffer (allowing for lookback captures where we belatedly
     #: notify the coroutine that we wish to capture an epoch).
@@ -597,6 +599,9 @@ class ExtractEpochs(EpochInput):
     #: such as to a queue).
     epoch_event = d_(Str())
 
+    def source_complete(self, info):
+        self._source_complete.set()
+
     def mark_complete(self):
         self.complete = True
 
@@ -610,7 +615,8 @@ class ExtractEpochs(EpochInput):
             buffer_size=self.buffer_size, target=cb,
             empty_queue_cb=self.mark_complete,
             removed_queue=self.removed_queue, prestim_time=self.prestim_time,
-            poststim_time=self.poststim_time).send
+            poststim_time=self.poststim_time,
+            source_complete=self._source_complete).send
 
     def _get_duration(self):
         return self.epoch_size + self.poststim_time + self.prestim_time

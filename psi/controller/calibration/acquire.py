@@ -52,10 +52,12 @@ def acquire(cal_engine, ao_channel_name, ai_channel_names, setup_queue_cb,
 
     to_remove = []
     for ai_channel in ai_channels:
-        cb = partial(accumulate, data[ai_channel])
         epoch_input = ExtractEpochs(epoch_size=epoch_size)
-        queue.connect(epoch_input.added_queue.append)
+        cb = partial(accumulate, data[ai_channel])
         epoch_input.add_callback(cb)
+
+        queue.connect(epoch_input.added_queue.append, 'added')
+        queue.connect(epoch_input.source_complete, 'empty')
         ai_channel.add_input(epoch_input)
         to_remove.append((ai_channel, epoch_input))
 
