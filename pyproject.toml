@@ -24,6 +24,7 @@ dependencies = [
     "scipy",
     "pandas",
     "pyyaml",
+    "pywin32; os_name=='nt'",
 ]
 dynamic = ["version"]
 
