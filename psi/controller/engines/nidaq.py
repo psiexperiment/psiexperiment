@@ -1388,7 +1388,7 @@ class NIDAQEngine(Engine):
 
         log.debug('Starting NIDAQmx tasks')
         for task in self._tasks.values():
-            log.debug('Starting task {}'.format(task._name))
+            log.info('Starting task {}'.format(task._name))
             mx.DAQmxStartTask(task)
 
     def stop(self):
