@@ -599,6 +599,14 @@ class ExtractEpochs(EpochInput):
     #: such as to a queue).
     epoch_event = d_(Str())
 
+    def subscribe_to_queue(self, queue):
+        '''
+        Connect this input to an instance of psiaudio.queue.SignalQueue
+        '''
+        queue.connect(self.added_queue.append, 'added')
+        queue.connect(self.removed_queue.append, 'removed')
+        queue.connect(self.source_complete, 'empty')
+
     def source_complete(self, info):
         self._source_complete.set()
 
