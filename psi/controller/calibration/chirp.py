@@ -91,7 +91,7 @@ def chirp_spl(engine, **kwargs):
         channel_name, = series.index.get_level_values('channel').unique()
         channel = engine.get_channel(channel_name)
         frequency = series.index.get_level_values('frequency')
-        series['spl'] = channel.calibration.get_spl(frequency, series['rms'])
+        series['spl'] = channel.calibration.get_db(frequency, series['rms'])
         return series
 
     result = chirp_power(engine, **kwargs)
