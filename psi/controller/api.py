@@ -1,7 +1,7 @@
 from .channel import (
-    Channel, HardwareAIChannel, HardwareAOChannel, HardwareDIChannel,
-    HardwareDOChannel, SoftwareAIChannel, SoftwareAOChannel, SoftwareDIChannel,
-    SoftwareDOChannel
+    Channel, ChannelOutOfRange, HardwareAIChannel, HardwareAOChannel,
+    HardwareDIChannel, HardwareDOChannel, SoftwareAIChannel, SoftwareAOChannel,
+    SoftwareDIChannel, SoftwareDOChannel
 )
 
 from .engine import Engine, EngineStoppedException

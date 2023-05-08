@@ -363,6 +363,12 @@ class QueuedEpochOutput(BaseAnalogOutput):
         # I'm not in love with this since it requires hooking into the
         # manifest system.
         factory = initialize_factory(self, self.token, context)
+
+        sf = factory.max_amplitude() * 1.01
+        if sf > self.channel.max_range[1]:
+            from .channel import ChannelOutOfRange
+            raise ChannelOutOfRange(sf, self.channel.max_range[1])
+
         duration = factory.get_duration()
         if total_duration is not None:
             iti_duration = total_duration - duration

@@ -15,6 +15,16 @@ from .output import QueuedEpochOutput, ContinuousOutput, EpochOutput
 from ..core.enaml.api import PSIContribution
 
 
+class ChannelOutOfRange(ValueError):
+
+    def __init__(self, expected_sf, max_sf):
+        self.expected_sf = expected_sf
+        self.max_sf = max_sf
+        self.db = db = util.db(expected_sf, max_sf)
+        mesg = f'Requested level exceeds max output of channel by {db:.1f} dB'
+        super().__init__(mesg)
+
+
 class Channel(PSIContribution):
 
     #: Globally-unique name of channel used for identification
