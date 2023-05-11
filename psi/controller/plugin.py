@@ -282,7 +282,7 @@ class ControllerPlugin(Plugin):
             for o in to_init[:]:
                 # This ensures that all blocks that need to be linked to channels
                 # are connected first.
-                if o.target is None and o.target_name is not None:
+                if o.target is None and o.target_name:
                     if self.connect_output(o.name, o.target_name):
                         to_init.remove(o)
                 elif o.target is None and not isinstance(o.parent, Extension):
