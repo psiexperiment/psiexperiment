@@ -426,3 +426,24 @@ class PSIJsonEncoder(json.JSONEncoder):
             return str(obj)
         else:
             return super().default(obj)
+
+
+def log_with_header(header, info):
+    '''
+    Utility function to log multiple lines with a header with a single logging command.
+
+    Parameters
+    ----------
+    header : str
+        Title to show in header
+    info : sequence
+        List or tuple of strings (one string per line) to put in the logging
+        message.
+    '''
+    hline = '*' * 80
+    text = f'* {header.ljust(76)} *'
+    header = '\n'.join([hline, text, hline])
+    info = '\n'.join(info)
+    log.info(f'\n{header}\n{info}')
+
+
