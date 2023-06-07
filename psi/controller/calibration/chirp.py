@@ -95,7 +95,8 @@ def chirp_spl(engine, **kwargs):
         return series
 
     result = chirp_power(engine, **kwargs)
-    new_result = result.groupby('channel').apply(map_spl, engine=engine)
+    new_result = result.groupby('channel', group_keys=False) \
+        .apply(map_spl, engine=engine)
     new_result.attrs.update(result.attrs)
     return new_result
 
