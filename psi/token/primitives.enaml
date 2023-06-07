@@ -231,6 +231,17 @@ enamldef BandlimitedFIRNoise(BroadbandNoise):
         compact_label = 'pol.'
         default = 1
 
+    Parameter:
+        name = 'max_correction'
+        label = 'Max. eq. correction (dB)'
+        default = 20
+
+    EnumParameter:
+        name = 'audiogram_weighting'
+        label = 'Audiogram weighting'
+        default = 'none'
+        choices = {'none': None, 'mouse': "'mouse'"}
+
 
 enamldef Tone(ContinuousBlock):
 
@@ -384,6 +395,17 @@ enamldef Chirp(EpochBlock):
         name = 'equalize'
         default = 'yes'
         choices = {'yes': True, 'no': False}
+
+    Parameter:
+        name = 'max_correction'
+        label = 'Max. eq. correction (dB)'
+        default = 20
+
+    EnumParameter:
+        name = 'audiogram_weighting'
+        label = 'Audiogram weighting'
+        default = 'none'
+        choices = {'none': None, 'mouse': "'mouse'"}
 
 
 enamldef BandlimitedClick(EpochBlock):
