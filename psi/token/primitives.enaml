@@ -434,6 +434,22 @@ enamldef BandlimitedClick(EpochBlock):
         label = 'level (dB)'
         default = 1
 
+    EnumParameter:
+        name = 'equalize'
+        default = 'yes'
+        choices = {'yes': True, 'no': False}
+
+    Parameter:
+        name = 'max_correction'
+        label = 'Max. eq. correction (dB)'
+        default = 20
+
+    EnumParameter:
+        name = 'audiogram_weighting'
+        label = 'Audiogram weighting'
+        default = 'none'
+        choices = {'none': None, 'mouse': "'mouse'"}
+
 
 enamldef WavSequence(ContinuousBlock):
 
