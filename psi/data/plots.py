@@ -461,6 +461,8 @@ class ViewBox(ColorCycleMixin, PSIContribution):
         viewbox.setYRange(self.y_min, self.y_max, padding=0)
 
         for child in self.children:
+            if not isinstance(child, BasePlot):
+                continue
             plots = child.get_plots()
             if isinstance(plots, dict):
                 for label, plot in plots.items():
@@ -480,6 +482,8 @@ class ViewBox(ColorCycleMixin, PSIContribution):
 
     def update(self, event=None):
         for child in self.children:
+            if not isinstance(child, BasePlot):
+                continue
             child.update()
 
     def add_plot(self, plot, label=None):
