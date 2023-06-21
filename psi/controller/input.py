@@ -459,15 +459,35 @@ class AutoThreshold(ContinuousInput):
     a window that is `baseline` seconds long.
     '''
     #: Number of standard deviations to set threshold at
-    n = d_(Int(4))
+    n = d_(Int(10)).tag(metadata=True)
 
     #: Duration, in seconds, to calculate threshold over.
-    baseline = d_(Float(30))
+    baseline = d_(Float(30)).tag(metadata=True)
+
+    #: Whether to detect positive (i.e., x >= th), negative (i.e., x <= th), or
+    #: both (i.e., x >= th or x <= th) deflections.
+    mode = d_(Enum('positive', 'negative', 'both')).tag(metadata=True)
+
+    # The auto-threshold as determined. It is initially NaN (to indicate the
+    # threshold has not yet been determined). Once threshold is determined, it
+    # will then change to that value).
+    auto_th = Float(np.nan).tag(metadata=True)
+
+    def _set_auto_th(self, th):
+        '''
+        Supporting method to store calculated auto-threshold
+
+        This is useful in situations where we want this information to be
+        stored in the io.json files that are generated at the end of the
+        experiment.
+        '''
+        self.auto_th = th
 
     def configure_callback(self):
         cb = super().configure_callback()
         return pipeline.auto_th(self.n, self.baseline, cb,
-                                fs=self.parent.fs).send
+                                fs=self.parent.fs, mode=self.mode,
+                                auto_th_cb=self._set_auto_th).send
 
 
 class Average(ContinuousInput):
@@ -493,7 +513,7 @@ class Delay(ContinuousInput):
 
 class Bitmask(Transform):
 
-    bit = d_(Int(0))
+    bit = d_(Int(0)).tag(metadata=True)
 
     def _default_function(self):
         return lambda x, b=self.bit: ((x >> b) & 1).astype('bool')
@@ -524,8 +544,8 @@ class Edges(EventInput):
 
 class EventsToInfo(EventInput):
 
-    trigger_edge = d_(Enum('rising', 'falling'))
-    base_info = d_(Dict())
+    trigger_edge = d_(Enum('rising', 'falling')).tag(metadata=True)
+    base_info = d_(Dict()).tag(metadata=True)
 
     def configure_callback(self):
         cb = super().configure_callback()
