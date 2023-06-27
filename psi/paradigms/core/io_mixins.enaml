@@ -49,6 +49,7 @@ enamldef QueuedEpochChannelOutput(QueuedEpochOutput):
     label = 'Output'
     configurable = False
     target_name = getattr(C, f'{name}_channel')
+    attr group_name = 'hardware_settings'
 
 
 enamldef QueuedEpochChannelOutputManifest(QueuedEpochOutputManifest): manifest:
