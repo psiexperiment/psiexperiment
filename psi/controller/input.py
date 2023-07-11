@@ -486,7 +486,7 @@ class AutoThreshold(ContinuousInput):
     def configure_callback(self):
         cb = super().configure_callback()
         return pipeline.auto_th(self.n, self.baseline, cb,
-                                fs=self.parent.fs, mode=self.mode,
+                                fs=self.source.fs, mode=self.mode,
                                 auto_th_cb=self._set_auto_th).send
 
 
@@ -574,13 +574,13 @@ class EventRate(EventInput):
     block_step_samples = Property().tag(metadata=True)
 
     def _get_block_step_samples(self):
-        return int(np.round(self.block_step * self.parent.fs))
+        return int(np.round(self.block_step * self.source.fs))
 
     def _get_block_size_samples(self):
-        return int(np.round(self.block_size * self.parent.fs))
+        return int(np.round(self.block_size * self.source.fs))
 
     def _get_fs(self):
-        return self.parent.fs / self.block_step_samples
+        return self.source.fs / self.block_step_samples
 
     def configure_callback(self):
         cb = super().configure_callback()
