@@ -22,6 +22,10 @@ class SinkWithSource(Sink):
             self.source.add_callback(self._update_data)
 
 
+enamldef SinkManifest(PSIManifest):
+    pass
+
+
 enamldef SinkWithSourceManifest(PSIManifest): manifest:
 
     Extension:
