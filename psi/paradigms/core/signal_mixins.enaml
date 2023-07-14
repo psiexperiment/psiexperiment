@@ -64,7 +64,12 @@ enamldef MultiSignalFFTViewManifest(ExperimentManifest): manifest:
     alias fft_freq_ub: fft_container.freq_ub
     alias y_label: fft_vb.y_label
 
+    #: Must be a dictionary mapping source_name to a dictionary of
+    #: FFTChannelPlot properties (currently supported properties include color,
+    #: apply_calibration, and waveform_averages). For example:
+    #: sources = {'probe_mic': {'color': 'k'}, 'elicitor_mic': {'color': 'r'}}
     attr sources
+
     attr fft_time_span
 
     Extension:
@@ -93,16 +98,19 @@ enamldef MultiSignalFFTViewManifest(ExperimentManifest): manifest:
                         pen_color = loop_item[1].get('color', 'k')
                         time_span << manifest.fft_time_span
                         apply_calibration = loop_item[1].get('apply_calibration', False)
+                        waveform_averages = loop_item[1].get('waveform_averages', 1)
 
 enamldef SignalFFTViewManifest(MultiSignalFFTViewManifest): manifest:
 
     attr source_name
     attr apply_calibration = False
+    attr waveform_averages = 1
 
     initialized ::
         manifest.sources = {
             manifest.source_name: {
                 'color': 'k',
                 'apply_calibration': manifest.apply_calibration,
+                'waveform_averages': manifest.waveform_averages,
             }
         }
