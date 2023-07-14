@@ -70,6 +70,11 @@ enamldef MultiSignalFFTViewManifest(ExperimentManifest): manifest:
     #: sources = {'probe_mic': {'color': 'k'}, 'elicitor_mic': {'color': 'r'}}
     attr sources
 
+    # Set default values if not provided in sources
+    attr fft_time_span = 1
+    attr waveform_averages = 1
+    attr apply_calibration = False
+
     Extension:
         id = manifest.id  + '.plots'
         point = 'psi.data.plots'
@@ -94,24 +99,21 @@ enamldef MultiSignalFFTViewManifest(ExperimentManifest): manifest:
                         name << manifest.name + f'{loop_item[0]}_plot'
                         source_name = loop_item[0]
                         pen_color = loop_item[1].get('color', 'k')
-                        apply_calibration = loop_item[1].get('apply_calibration', False)
-                        waveform_averages = loop_item[1].get('waveform_averages', 1)
-                        time_span = loop_item[1].get('fft_time_span', 1)
+                        apply_calibration = loop_item[1].get('apply_calibration', manifest.apply_calibration)
+                        waveform_averages = loop_item[1].get('waveform_averages', manifest.waveform_averages)
+                        time_span = loop_item[1].get('fft_time_span', manifest.fft_time_span)
 
 
 enamldef SignalFFTViewManifest(MultiSignalFFTViewManifest): manifest:
 
     attr source_name
-    attr apply_calibration = False
-    attr waveform_averages = 1
-    attr fft_time_span = 1
+    #attr apply_calibration = False
+    #attr waveform_averages = 1
+    #attr fft_time_span = 1
 
     initialized ::
         manifest.sources = {
             manifest.source_name: {
                 'color': 'k',
-                'apply_calibration': manifest.apply_calibration,
-                'waveform_averages': manifest.waveform_averages,
-                'fft_time_span': manifest.fft_time_span,
             }
         }
