@@ -40,8 +40,10 @@ def disable_quick_edit():
 # This ensures that running scripts from the command line does not accidentally
 # pause the script.
 if os.name == 'nt':
-    disable_quick_edit()
-
+    try:
+        disable_quick_edit()
+    except:
+        pass
 
 mesg_template = '''
 A critical exception has occurred. While we do our best to prevent these

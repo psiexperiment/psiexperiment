@@ -18,7 +18,7 @@ def _reindex(x):
     return x
 
 
-def acquire(cal_engine, ao_channel_name, ai_channel_names, setup_queue_cb,
+def acquire(engines, ao_channel_name, ai_channel_names, setup_queue_cb,
             epoch_size, trim=0):
     '''
     Utility function to facilitate acquisition of calibration signals
@@ -26,11 +26,17 @@ def acquire(cal_engine, ao_channel_name, ai_channel_names, setup_queue_cb,
     if not isinstance(ao_channel_name, str):
         raise ValueError('Can only specify one output channel')
 
-    cal_engine = cal_engine.clone([ao_channel_name] + ai_channel_names)
+    if not isinstance(engines, (tuple, list)):
+        engines = [engines]
 
-    ao_channel = cal_engine.get_channel(ao_channel_name)
-    ai_channels = [cal_engine.get_channel(name) for name in ai_channel_names]
+    engines = [e.clone() for e in engines]
+    channel_map = {}
+    for engine in engines:
+        for channel in engine.get_channels(active=False):
+            channel_map[channel.name] = channel
 
+    ao_channel = channel_map[ao_channel_name]
+    ai_channels = [channel_map[n] for n in ai_channel_names]
     ao_fs = ao_channel.fs
     ai_fs = ai_channels[0].fs
 
@@ -61,14 +67,24 @@ def acquire(cal_engine, ao_channel_name, ai_channel_names, setup_queue_cb,
         ai_channel.add_input(epoch_input)
         to_remove.append((ai_channel, epoch_input))
 
-    cal_engine.configure()
-    cal_engine.start()
+    extra_engines = []
+    for engine in set(c.engine for c in ai_channels):
+        if engine != ao_channel.engine:
+            engine.configure()
+            engine.start()
+            extra_engines.append(engine)
+
+    ao_channel.engine.configure()
+    ao_channel.engine.start()
     while True:
         if queue.is_empty() and epoch_input.complete:
             break
         time.sleep(0.1)
     time.sleep(0.1)
-    cal_engine.stop()
+
+    ao_channel.engine.stop()
+    for engine in extra_engines:
+        engine.stop()
 
     result = {}
     for ai_channel, epochs in data.items():

@@ -10,7 +10,7 @@ from psiaudio.calibration import FlatCalibration, PointCalibration
 from psiaudio.stim import ToneFactory, SilenceFactory
 
 
-def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gains=0,
+def tone_power(engines, frequencies, ao_channel_name, ai_channel_names, gains=0,
                vrms=1, repetitions=2, min_snr=None, max_thd=None, thd_harmonics=3,
                duration=0.1, trim=0.01, iti=0.01, debug=False):
     '''
@@ -56,7 +56,7 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gains=0,
         md = {'gain': -400, 'frequency': 0}
         queue.append(waveform, repetitions, iti, metadata=md)
 
-    recording = acquire(engine, ao_channel_name, ai_channel_names,
+    recording = acquire(engines, ao_channel_name, ai_channel_names,
                         setup_queue_cb, duration, trim)
 
     result = []
@@ -83,7 +83,7 @@ def tone_power(engine, frequencies, ao_channel_name, ai_channel_names, gains=0,
     return result
 
 
-def tone_spl(engine, *args, **kwargs):
+def tone_spl(engines, *args, **kwargs):
     '''
     Given a single output, measure resulting SPL in multiple input channels.
 
@@ -98,21 +98,29 @@ def tone_spl(engine, *args, **kwargs):
         will be rms (in V), snr (in DB), thd (in percent) and spl (measured dB
         SPL according to the input calibration).
     '''
-    result = tone_power(engine, *args, **kwargs)
+    result = tone_power(engines, *args, **kwargs)
 
-    def map_spl(series, engine):
+    if not isinstance(engines, (tuple, list)):
+        engines = [engines]
+
+    channel_map = {}
+    for engine in engines:
+        for channel in engine.get_channels(active=False):
+            channel_map[channel.name] = channel
+
+    def map_spl(series, channel_map):
         channel_name, frequency = series.name
-        channel = engine.get_channel(channel_name)
+        channel = channel_map[channel_name]
         spl = channel.calibration.get_db(frequency, series['rms'])
         series['spl'] = spl
         return series
 
-    new_result = result.apply(map_spl, axis=1, args=(engine,))
+    new_result = result.apply(map_spl, axis=1, args=(channel_map,))
     new_result.attrs.update(result.attrs)
     return new_result
 
 
-def tone_sens(engine, frequencies, gains=-40, vrms=1, **kwargs):
+def tone_sens(engines, frequencies, gains=-40, vrms=1, **kwargs):
     '''
     Given a single output, measure sensitivity of output based on multiple
     input channels.
@@ -135,7 +143,7 @@ def tone_sens(engine, frequencies, gains=-40, vrms=1, **kwargs):
         choose the most trustworthy input.
     '''
     kwargs.update(dict(gains=gains, vrms=vrms))
-    result = tone_spl(engine, frequencies, **kwargs)
+    result = tone_spl(engines, frequencies, **kwargs)
 
     # Need to reshape for the math in case we provided a different gain for each frequency.
     spl = result['spl'].unstack('channel_name')

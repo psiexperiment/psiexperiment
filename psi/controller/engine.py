@@ -224,10 +224,18 @@ class Engine(PSIContribution):
         This is intended as a utility function to assist various routines that
         may need to do a quick operation before starting the experiment. For
         example, calibration may only need to run a subset of the channels.
+
+        Parameters
+        ----------
+        channel_names : {None, list of string}
+            Names of channels to clone to new engine. If None, all channels
+            will be cloned.
         '''
         new = copy_declarative(self)
         for channel in new.children:
             channel.set_parent(None)
+        if channel_names is None:
+            channel_names = [c.name for c in self.get_channels(active=False)]
         if channel_names is not None:
             for channel_name in channel_names:
                 channel = self.get_channel(channel_name)
