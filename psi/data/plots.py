@@ -538,6 +538,10 @@ class BasePlot(PSIContribution):
     source_name = d_(Str())
     source = Typed(object)
     label = d_(Str())
+    container = Property()
+
+    def _get_container(self):
+        return self.parent.parent
 
     def update(self, event=None):
         pass
@@ -1264,6 +1268,7 @@ class ResultPlot(GroupMixin, SinglePlot):
             x = d.index.values
             y = d.values
         if x.shape == y.shape:
+            x = self.container.x_transform(x)
             deferred_call(self.plot.setData, x, y)
 
     def _default_plot(self):
