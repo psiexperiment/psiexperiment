@@ -482,7 +482,10 @@ class FriendlyCartesianProductRange(FriendlyCartesianProductItem):
         return lambda lb, ub, s: np.arange(lb, ub + s/2, s)
 
     def _get_values(self):
-        return self.range_fn(self.start, self.end, self.step)
+        try:
+            return self.range_fn(self.start, self.end, self.step)
+        except:
+            return []
 
 
 class FriendlyCartesianProductList(FriendlyCartesianProductItem):
