@@ -72,6 +72,12 @@ enamldef SquareWaveEnvelope(ContinuousBlock): block:
         compact_label = 'dc'
         default = 0.5
 
+    Parameter:
+        name = 'alpha'
+        label = 'Tukey Window shape'
+        compact_label = 'alpha'
+        default = 0
+
 
 enamldef SAMEnvelope(ContinuousBlock): block:
 
