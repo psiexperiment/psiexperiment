@@ -145,6 +145,11 @@ enamldef SAMTone(ContinuousBlock): block:
         default = 'yes'
         choices = {'yes': True, 'no': False}
 
+    Parameter:
+        name = 'polarity'
+        label = 'polarity'
+        default = 1
+
 
 enamldef BroadbandNoise(ContinuousBlock):
 
@@ -269,7 +274,7 @@ enamldef Tone(ContinuousBlock):
 
     EnumParameter:
         name = 'polarity'
-        label = 'polarity (radians)'
+        label = 'polarity'
         compact_label = 'pol'
         default = 'positive'
         choices = {'positive': 1, 'negative': -1}
