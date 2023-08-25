@@ -131,7 +131,6 @@ class NIDAQHardwareCIAngPosEncoderChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
     analog input to be created by linking it to an input that has
     `force_active` set to True.
     '''
-
     #: PFI input connected to channel A of the encoder
     terminal_A = d_(Str()).tag(metadata=True)
 
@@ -1081,8 +1080,12 @@ class NIDAQEngine(Engine):
         self._tasks['counter'] = task
 
     def configure_hw_ci(self, channels):
-        task = setup_hw_ci(channels)
-        self._tasks['counter'] = task
+        task = setup_hw_ci(channels,
+                           self.hw_ai_monitor_period,
+                           self._hw_ai_callback,
+                           '{}_hw_ci'.format(self.name))
+        task._properties['sf'] = 1
+        self._tasks['hw_ci'] = task
 
     def configure_hw_ao(self, channels):
         '''
@@ -1122,10 +1125,11 @@ class NIDAQEngine(Engine):
         self.total_do_samples_written = 0
 
     def configure_hw_ai(self, channels):
-        task_name = '{}_hw_ai'.format(self.name)
         channels = sorted(channels, key=op.attrgetter('channel'))
-        task = setup_hw_ai(channels, self.hw_ai_monitor_period,
-                           self._hw_ai_callback, task_name)
+        task = setup_hw_ai(channels,
+                           partial(self.hw_ai_monitor_period, task),
+                           self._hw_ai_callback,
+                           '{}_hw_ai'.format(self.name))
         self._tasks['hw_ai'] = task
         self.ai_fs = task._properties['sample clock rate']
 
@@ -1251,8 +1255,8 @@ class NIDAQEngine(Engine):
         timer.start()
 
     @halt_on_error
-    def _hw_ai_callback(self, samples):
-        samples /= self._tasks['hw_ai']._properties['sf']
+    def _hw_ai_callback(self, task, samples):
+        samples /= task._properties['sf']
         for channel_name, s, cb in self._callbacks.get('ai', []):
             cb(samples[s])
 

@@ -241,11 +241,13 @@ class OutputMixin(Declarative):
 
 
 class HardwareCOChannel(CounterMixin, OutputMixin, HardwareMixin, Channel):
-    pass
+
+    type_code = set_default('hw_co')
 
 
 class HardwareCIChannel(CounterMixin, InputMixin, HardwareMixin, Channel):
-    pass
+
+    type_code = set_default('hw_ci')
 
 
 class HardwareAOChannel(AnalogMixin, OutputMixin, HardwareMixin, Channel):
