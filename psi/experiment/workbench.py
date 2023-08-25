@@ -23,13 +23,12 @@ with enaml.imports():
     from . import error_style
 
 from psi import set_config
-from psi.core.enaml.api import load_manifest, load_manifest_from_file
+from psi.application import load_io_manifest
 from psi.core.enaml import manifest
 
 
 class PSIWorkbench(Workbench):
 
-    io_manifest_class = Value()
     context_plugin = Value()
     controller_plugin = Value()
 
@@ -49,11 +48,7 @@ class PSIWorkbench(Workbench):
         self.get_plugin('enaml.workbench.core')
 
         if io_manifest is not None:
-            if io_manifest.endswith('.enaml'):
-                self.io_manifest_class = load_manifest_from_file(io_manifest, 'IOManifest')
-            else:
-                self.io_manifest_class = load_manifest(f'{io_manifest}.IOManifest')
-            io_manifest = self.io_manifest_class()
+            io_manifest = load_io_manifest(io_manifest)()
             log.info('Registering %r', io_manifest)
             self.register(io_manifest)
             manifests = [io_manifest]
