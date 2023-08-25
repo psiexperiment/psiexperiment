@@ -240,7 +240,11 @@ class OutputMixin(Declarative):
         return self.engine.get_buffer_size(self.name)
 
 
-class CounterChannel(CounterMixin, Channel):
+class HardwareCOChannel(CounterMixin, OutputMixin, HardwareMixin, Channel):
+    pass
+
+
+class HardwareCIChannel(CounterMixin, InputMixin, HardwareMixin, Channel):
     pass
 
 

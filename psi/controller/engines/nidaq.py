@@ -44,7 +44,7 @@ import PyDAQmx as mx
 from psiaudio.pipeline import PipelineData
 from psiaudio.util import dbi
 from ..engine import Engine, EngineStoppedException
-from ..channel import (CounterChannel,
+from ..channel import (HardwareCIChannel, HardwareCOChannel,
                        HardwareAIChannel, HardwareAOChannel, HardwareDIChannel,
                        HardwareDOChannel, SoftwareDIChannel, SoftwareDOChannel)
 
@@ -102,11 +102,43 @@ class NIDAQTimingMixin(Declarative):
     reference_clock = d_(Str()).tag(metadata=True)
 
 
-class NIDAQCounterChannel(NIDAQGeneralMixin, CounterChannel):
+class NIDAQHardwareCOChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
+                             HardwareCOChannel):
 
     high_samples = d_(Int().tag(metadata=True))
     low_samples = d_(Int().tag(metadata=True))
     source_terminal = d_(Str().tag(metadata=True))
+
+
+class NIDAQHardwareCIAngPosEncoderChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
+                                          HardwareCIChannel):
+    '''
+    Reports angular position of rotary encoder in radians.
+
+    Supports decoding two-channel quadrature output in which the output voltage
+    generates a fixed number of pulses per revolution. Channel B typically will
+    lead or lag channel A. The relative phase between the two is an indicator
+    of the direction the shaft is rotating.
+
+    Note that `sample_clock` is required on some (if not all) NI acquisition
+    cards. The counters on M-series cards (e.g., 6221) do not have internal
+    clocks and must be provided with an external clock. A good external clock
+    source would be the `ao` or `ai` sample clock. If you do not have any
+    analog input or output tasks, then you need to make a dummy one so that you
+    have a sample clock that can be used by the counter. Since psiexperiment
+    does not create tasks for any analog inputs that do not appear to be used,
+    you will specifically need to force the analog input to be created by
+    linking it to an input that has `force_active` set to True.
+    '''
+
+    #: PFI input connected to channel A of the encoder
+    terminal_A = d_(Str()).tag(metadata=True)
+
+    #: PFI input connected to channel B of the encoder
+    terminal_B = d_(Str()).tag(metadata=True)
+
+    #: Number of pulses generated per full revolution of the shaft
+    pulses_per_revolution = d_(Int()).tag(metadata=True)
 
 
 class NIDAQHardwareAOChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
