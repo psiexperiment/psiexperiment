@@ -36,7 +36,7 @@ import operator as op
 import sys
 
 from atom.api import (Float, Typed, Str, Int, Bool, Callable, Enum,
-                      Property, Value)
+                      Property, set_default, Value)
 from enaml.core.api import Declarative, d_
 import numpy as np
 import PyDAQmx as mx
@@ -123,12 +123,13 @@ class NIDAQHardwareCIAngPosEncoderChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
     Note that `sample_clock` is required on some (if not all) NI acquisition
     cards. The counters on M-series cards (e.g., 6221) do not have internal
     clocks and must be provided with an external clock. A good external clock
-    source would be the `ao` or `ai` sample clock. If you do not have any
-    analog input or output tasks, then you need to make a dummy one so that you
-    have a sample clock that can be used by the counter. Since psiexperiment
-    does not create tasks for any analog inputs that do not appear to be used,
-    you will specifically need to force the analog input to be created by
-    linking it to an input that has `force_active` set to True.
+    source would be the `{device}/ao/SampleClock` or `{device}/ai/SampleClock`.
+    If you do not have any analog input or output tasks, then you need to make
+    a dummy one so that you have a sample clock that can be used by the
+    counter. Since psiexperiment does not create tasks for any analog inputs
+    that do not appear to be used, you will specifically need to force the
+    analog input to be created by linking it to an input that has
+    `force_active` set to True.
     '''
 
     #: PFI input connected to channel A of the encoder
@@ -251,7 +252,8 @@ def read_digital_lines(task, size=1):
     return data.T
 
 
-def read_hw_ai(task, available_samples=None, channels=1, block_size=1):
+def read_hw_input(task, available_samples=None, channels=1, block_size=1,
+                  input_type='ai'):
     if available_samples is None:
         uint32 = ctypes.c_uint32()
         mx.DAQmxGetReadAvailSampPerChan(task, uint32)
@@ -263,8 +265,11 @@ def read_hw_ai(task, available_samples=None, channels=1, block_size=1):
     samples = blocks*block_size
     data = np.empty((channels, samples), dtype=np.double)
     int32 = ctypes.c_int32()
-    mx.DAQmxReadAnalogF64(task, samples, 0, mx.DAQmx_Val_GroupByChannel, data,
-                          data.size, int32, None)
+    if input_type == 'ai':
+        mx.DAQmxReadAnalogF64(task, samples, 0, mx.DAQmx_Val_GroupByChannel, data,
+                            data.size, int32, None)
+    elif input_type == 'ci':
+        mx.DAQmxReadCounterF64(task, samples, 0, data, data.size, int32, None)
     log.trace('Read %d samples', samples)
     return data
 
@@ -316,8 +321,9 @@ def hw_ao_helper(cb, task, event_type, cb_samples, cb_data):
     return 0
 
 
-def hw_ai_helper(cb, channels, discard, fs, channel_names, task,
-                 event_type=None, cb_samples=None, cb_data=None):
+def hw_input_helper(cb, channels, discard, fs, channel_names, task,
+                    event_type=None, cb_samples=None, cb_data=None,
+                    input_type='ai'):
     try:
         uint32 = ctypes.c_uint32()
         mx.DAQmxGetReadAvailSampPerChan(task, uint32)
@@ -332,7 +338,8 @@ def hw_ai_helper(cb, channels, discard, fs, channel_names, task,
         log.trace('Current read position %d, available samples %d',
                 read_position, available_samples)
 
-        data = read_hw_ai(task, available_samples, channels, cb_samples)
+        data = read_hw_input(task, available_samples, channels, cb_samples,
+                             input_type)
         if data is None:
             return 0
 
@@ -444,7 +451,7 @@ def create_task(name=None):
     return task
 
 
-def setup_counters(channels, task_name='counter'):
+def setup_hw_co(channels, task_name='hw_co'):
     lines = get_channel_property(channels, 'channel', True)
     names = get_channel_property(channels, 'name', True)
     log.debug('Configuring lines {}'.format(lines))
@@ -461,6 +468,57 @@ def setup_counters(channels, task_name='counter'):
     mx.DAQmxCfgSampClkTiming(task, source_terminal, 100, mx.DAQmx_Val_Rising,
                              mx.DAQmx_Val_HWTimedSinglePoint, 2)
     return task
+
+
+def setup_hw_ci(channel, callback_duration, callback, task_name='hw_ci'):
+    '''
+    Set up a hardware-timed counter input channel
+
+    Only single channels are supported due to limitations of the NIDAQ API.
+    Each counter channel must have it's own task (and there are limitations to
+    how many counters can run on each device).
+    '''
+    log.debug('Configuring HW CI channel')
+    if isinstance(channel, (list, tuple)):
+        if len(channel) > 1:
+            raise ValueError('Only single channel counter tasks currently supported')
+        channel = channel[0]
+
+    task = create_task(task_name)
+    mx.DAQmxCreateCIAngEncoderChan(task, channel.channel, '', mx.DAQmx_Val_X4,
+                                   False, 0, mx.DAQmx_Val_AHighBHigh,
+                                   mx.DAQmx_Val_Radians,
+                                   channel.pulses_per_revolution, 0, None)
+    mx.DAQmxSetCIEncoderAInputTerm(task, channel.channel, channel.terminal_A)
+    mx.DAQmxSetCIEncoderBInputTerm(task, channel.channel, channel.terminal_B)
+    setup_timing(task, [channel])
+    configure_hw_input_cb(task, callback_duration, callback, 1, 0,
+                          [channel.name], input_type='ci')
+    return task
+
+
+def configure_hw_input_cb(task, callback_duration, callback, n_channels,
+                          filter_delay, names, input_type='ai'):
+    # Configure buffers so that we do not overwrite unread samples and also
+    # ensure that the buffer is big enough to store a large amount of data.
+    fs = task._properties['sample clock rate']
+    callback_samples = round(callback_duration * fs)
+    mx.DAQmxSetReadOverWrite(task, mx.DAQmx_Val_DoNotOverwriteUnreadSamps)
+    mx.DAQmxSetBufInputBufSize(task, callback_samples*100)
+    result = ctypes.c_uint32()
+    mx.DAQmxGetBufInputBufSize(task, result)
+    buffer_size = result.value
+    log.debug('Buffer size for %s set to %d samples', task, buffer_size)
+
+    # Now, create the callback which will be triggered at the interval
+    # specified by `callback_duration`. Save it as an attribute of task to
+    # ensure it does not get garbage-collected.
+    task._cb = partial(hw_input_helper, callback, n_channels, filter_delay, fs,
+                       names, input_type=input_type)
+    task._cb_ptr = mx.DAQmxEveryNSamplesEventCallbackPtr(task._cb)
+    mx.DAQmxRegisterEveryNSamplesEvent(
+        task, mx.DAQmx_Val_Acquired_Into_Buffer, int(callback_samples), 0,
+        task._cb_ptr, None)
 
 
 def setup_hw_ao(channels, buffer_duration, callback_interval, callback,
@@ -705,14 +763,6 @@ def setup_hw_ai(channels, callback_duration, callback, task_name='hw_ao'):
     mx.DAQmxGetTaskNumChans(task, result)
     n_channels = result.value
 
-    fs = task._properties['sample clock rate']
-    callback_samples = round(callback_duration * fs)
-    mx.DAQmxSetReadOverWrite(task, mx.DAQmx_Val_DoNotOverwriteUnreadSamps)
-    mx.DAQmxSetBufInputBufSize(task, callback_samples*100)
-    mx.DAQmxGetBufInputBufSize(task, result)
-    buffer_size = result.value
-    log.debug('Buffer size for %s set to %d samples', lines, buffer_size)
-
     try:
         info = ctypes.c_int32()
         mx.DAQmxSetAIFilterDelayUnits(task, lines,
@@ -731,13 +781,8 @@ def setup_hw_ai(channels, callback_duration, callback, task_name='hw_ao'):
         # Not a supported property. Set filter delay to 0 by default.
         filter_delay = 0
 
-    task._cb = partial(
-        hw_ai_helper, callback, n_channels, filter_delay, fs, names
-    )
-    task._cb_ptr = mx.DAQmxEveryNSamplesEventCallbackPtr(task._cb)
-    mx.DAQmxRegisterEveryNSamplesEvent(
-        task, mx.DAQmx_Val_Acquired_Into_Buffer, int(callback_samples), 0,
-        task._cb_ptr, None)
+    configure_hw_input_cb(task, callback_duration, callback, n_channels,
+                          filter_delay, names)
 
     mx.DAQmxTaskControl(task, mx.DAQmx_Val_Task_Reserve)
     task._properties['names'] = verify_channel_names(task, names)
@@ -935,16 +980,20 @@ class NIDAQEngine(Engine):
     def configure(self, active=True):
         log.debug('Configuring {} engine'.format(self.name))
 
-        counter_channels = self.get_channels('counter', active=active)
+        hw_ci_channels = self.get_channels('counter', 'input', 'hardware', active=active)
+        hw_co_channels = self.get_channels('counter', 'output', 'hardware', active=active)
         sw_do_channels = self.get_channels('digital', 'output', 'software', active=active)
         hw_ai_channels = self.get_channels('analog', 'input', 'hardware', active=active)
         hw_di_channels = self.get_channels('digital', 'input', 'hardware', active=active)
         hw_ao_channels = self.get_channels('analog', 'output', 'hardware', active=active)
         hw_do_channels = self.get_channels('digital', 'output', 'hardware', active=active)
 
-        if counter_channels:
-            log.debug('Configuring counter channels')
-            self.configure_counters(counter_channels)
+        if hw_co_channels:
+            raise ValueError('NIDAQ engine does not support counter output yet')
+
+        if hw_ci_channels:
+            log.debug('Configuring HW CI channels')
+            self.configure_hw_ci(counter_channels)
 
         if sw_do_channels:
             log.debug('Configuring SW DO channels')
@@ -1007,10 +1056,10 @@ class NIDAQEngine(Engine):
         self._task_done[task_name] = True
         task = self._tasks[task_name]
 
-        # We have frozen the initial arguments (in the case of hw_ai_helper,
+        # We have frozen the initial arguments (in the case of hw_input_helper,
         # that would be cb, channels, discard; in the case of hw_ao_helper,
         # that would be cb) using functools.partial and need to provide task,
-        # cb_samples and cb_data. For hw_ai_helper, setting cb_samples to 1
+        # cb_samples and cb_data. For hw_input_helper, setting cb_samples to 1
         # means that we read all remaning samples, regardless of whether they
         # fit evenly into a block of samples. The other two arguments
         # (event_type and cb_data) are required of the function signature by
@@ -1027,8 +1076,12 @@ class NIDAQEngine(Engine):
             for cb in self._callbacks.get('done', []):
                 cb()
 
-    def configure_counters(self, channels):
-        task = setup_counters(channels)
+    def configure_hw_co(self, channels):
+        task = setup_hw_co(channels)
+        self._tasks['counter'] = task
+
+    def configure_hw_ci(self, channels):
+        task = setup_hw_ci(channels)
         self._tasks['counter'] = task
 
     def configure_hw_ao(self, channels):
