@@ -1162,56 +1162,6 @@ class NIDAQEngine(Engine):
         initial_state = np.zeros(len(channels), dtype=np.uint8)
         self.write_sw_do(initial_state)
 
-    def configure_et(self, lines, clock, names=None):
-        '''
-        Setup change detection with high-precision timestamps
-
-        Anytime a rising or falling edge is detected on one of the specified
-        lines, a timestamp based on the specified clock will be captured. For
-        example, if the clock is 'ao/SampleClock', then the timestamp will be
-        the number of samples played at the point when the line changed state.
-
-        Parameters
-        ----------
-        lines : string
-            Digital lines (in NI-DAQmx syntax, e.g., 'Dev1/port0/line0:4') to
-            monitor.
-        clock : string
-            Reference clock from which timestamps will be drawn.
-        names : string (optional)
-            Aliases for the lines. When aliases are provided, registered
-            callbacks will receive the alias for the line instead of the
-            NI-DAQmx notation.
-
-        Notes
-        -----
-        Be aware of the limitations of your device. All X-series devices support
-        change detection on all ports; however, only some M-series devices do
-        (and then, only on port 0).
-        '''
-        # Find out which device the lines are from. Use this to configure the
-        # event timer. Right now we don't want to deal with multi-device event
-        # timers. If there's more than one device, then we should configure each
-        # separately.
-        raise NotImplementedError
-
-        # TODO: How to determine sampling rate of task?
-        names = channel_names('digital', lines, names)
-        devices = device_list(lines, 'digital')
-        if len(devices) != 1:
-            raise ValueError('Cannot configure multi-device event timer')
-
-        trigger = '/{}/ChangeDetectionEvent'.format(devices[0])
-        counter = '/{}/Ctr0'.format(devices[0])
-        task_name = '{}_et'.format(self.name)
-        et_task = setup_event_timer(trigger, counter, clock, task_name)
-        task_name = '{}_cd'.format(self.name)
-        cd_task = setup_change_detect_callback(lines, self._et_fired, et_task,
-                                               names, task_name)
-        cd_task._names = names
-        self._tasks['et_task'] = et_task
-        self._tasks['cd_task'] = cd_task
-
     def _get_channel_slice(self, task_name, channel_name):
         if channel_name is None:
             return Ellipsis
@@ -1234,10 +1184,6 @@ class NIDAQEngine(Engine):
     def register_di_callback(self, callback, channel_name=None):
         s = self._get_channel_slice('hw_di', channel_name)
         self._callbacks.setdefault('di', []).append((channel_name, s, callback))
-
-    def register_et_callback(self, callback, channel_name=None):
-        s = self._get_channel_slice('cd_task', channel_name)
-        self._callbacks.setdefault('et', []).append((channel_name, s, callback))
 
     def unregister_done_callback(self, callback):
         try:
@@ -1262,10 +1208,6 @@ class NIDAQEngine(Engine):
     def unregister_di_callback(self, callback, channel_name):
         s = self._get_channel_slice('hw_di', channel_name)
         self._callbacks['di'].remove((channel_name, s, callback))
-
-    def unregister_et_callback(self, callback, channel_name):
-        s = self._get_channel_slice('cd_task', channel_name)
-        self._callbacks['et'].remove((channel_name, s, callback))
 
     def write_sw_ao(self, state):
         task = self._tasks['sw_ao']
@@ -1307,11 +1249,6 @@ class NIDAQEngine(Engine):
         self.set_sw_do(name, 1)
         timer = Timer(duration, lambda: self.set_sw_do(name, 0))
         timer.start()
-
-    def _et_fired(self, line_index, change, event_time):
-        for i, cb in self._callbacks.get('et', []):
-            if i == line_index:
-                cb(change, event_time)
 
     @halt_on_error
     def _hw_ai_callback(self, samples):
