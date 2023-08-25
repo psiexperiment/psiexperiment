@@ -202,6 +202,8 @@ class NIDAQHardwareAIChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
     #: a particular device. Can be `None`, `'AC'`, `'DC'` or `'ground'`.
     terminal_coupling = d_(Enum(None, 'AC', 'DC', 'ground')).tag(metadata=True)
 
+    expected_range = set_default((-10, 10))
+
 
 class NIDAQHardwareDIChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
                              HardwareDIChannel):
