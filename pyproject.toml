@@ -15,9 +15,9 @@ maintainers = [
     {name = "Buran Consulting, LLC", email="info@bradburan.com"}
 ]
 dependencies = [
-    "psidata",
-    "psiaudio",
-    "enaml[qt5-pyqt] >=0.13.0",
+    "psidata >= 0.1.7",
+    "psiaudio >= 0.2.4",
+    "enaml >=0.13.0",
     "numpy",
     "palettable",
     "pyqtgraph >=0.11.0",
@@ -33,8 +33,7 @@ ni = ["pydaqmx"]
 tdt = ["tdtpy >=0.9.0"]
 docs = ["sphinx", "sphinx_rtd_theme", "pygments-enaml"]
 test = ["pytest", "pytest-console-scripts", "matplotlib"] # Matplotlib is used in some of the validation scripts.
-bcolz-backend = ["bcolz"]						  		  # No public build exists for Python 3.7+. You will have to make this yourself.
-zarr-backend = ["zarr"]
+zarr = ["zarr"]
 dev = ["coloredlogs"]
 
 [project.scripts]
