@@ -19,6 +19,7 @@ with enaml.imports():
     from enaml.stdlib.message_box import critical
 
 from psi import get_config, set_config
+from psi.core.enaml.api import load_manifest, load_manifest_from_file
 
 
 def disable_quick_edit():
@@ -230,8 +231,9 @@ def list_preferences(experiment, include_default=False):
 
 
 def list_io():
-    io_path = get_config('IO_ROOT')
-    result = list(io_path.glob('*.enaml'))
+    result = []
+    if (io_path := get_config('IO_ROOT', None)) is not None:
+        result.extend(io_path.glob('*.enaml'))
     result.extend(get_config('STANDARD_IO', []))
     return result
 
@@ -287,21 +289,39 @@ def get_default_io():
     '''
     Attempt to figure out the default IO configuration file
 
-    Notes
-    -----
-    * If no files are defined, raise ValueError
-    * If only one file is defined, return it
-    * If more than one file is defined, check for one named "default" first. If
-      none are named "default", check to see if one matches the hostname.
-    * Finally, just return the first one found.
+    Right now it just returns the first one found.
     '''
-    system = get_config('SYSTEM')
     available_io = list_io()
     log.debug('Found the following IO files: %r', available_io)
-
     if len(available_io) == 0:
         raise ValueError('No IO configured for system')
     return available_io[0]
+
+
+def load_io_manifest(io_manifest=None):
+    '''
+    Load the IOManifest from the specified file or module
+
+    Parameters
+    ----------
+    io_manifest : {str, Path, None}
+        If a path (ending in `.enaml`), load the `IOManifest` from the file
+        specified by the path. If a module (e.g., `psilbhb.io.badger`) load the
+        `IOManifest` from the module. If None, loads the manifest returned by
+        `get_default_io`.
+
+    Returns
+    -------
+    io_manifest : IOManifest
+        IOManifest class.
+    '''
+    if io_manifest is None:
+        io_manifest = get_default_io()
+    if str(io_manifest).endswith('.enaml'):
+        klass = load_manifest_from_file(io_manifest, 'IOManifest')
+    else:
+        klass = load_manifest(f'{io_manifest}.IOManifest')
+    return klass
 
 
 def get_default_calibration(io_file):
