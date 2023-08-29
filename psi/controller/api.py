@@ -9,9 +9,9 @@ from .engine import Engine, EngineStoppedException
 from .input import (
     Accumulate, AutoThreshold, Average, Bitmask, Blocked, CalibratedInput,
     Callback, Capture, ContinuousInput, Coroutine, Decimate, DecimateTo, Delay,
-    Detrend, Discard, Downsample, Edges, EpochInput, EventInput, EventRate,
-    EventsToInfo, ExtractEpochs, IIRFilter,Input, MCReference, MCSelect ,
-    RejectEpochs, RMS, SPL, Threshold, Transform
+    Derivative, Detrend, Discard, Downsample, Edges, EpochInput, EventInput,
+    EventRate, EventsToInfo, ExtractEpochs, IIRFilter,Input, MCReference,
+    MCSelect , RejectEpochs, RMS, SPL, Threshold, Transform
 )
 
 from .output import (

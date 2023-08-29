@@ -519,6 +519,15 @@ class Bitmask(Transform):
         return lambda x, b=self.bit: ((x >> b) & 1).astype('bool')
 
 
+class Derivative(ContinuousInput):
+
+    initial_value = d_(Float()).tag(metadata=True)
+
+    def configure_callback(self):
+        cb = super().configure_callback()
+        return pipeline.derivative(self.initial_value, cb).send
+
+
 ################################################################################
 # Event input types
 ################################################################################
