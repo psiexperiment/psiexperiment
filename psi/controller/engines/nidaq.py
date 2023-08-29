@@ -81,10 +81,6 @@ class NIDAQGeneralMixin(Declarative):
     def __str__(self):
         return f'{self.label} ({self.channel})'
 
-    def sync_start(self, channel):
-        self.start_trigger = f'/{channel.device_name}/ao/StartTrigger'
-        channel.start_trigger = ''
-
 
 class NIDAQTimingMixin(Declarative):
 
@@ -101,6 +97,10 @@ class NIDAQTimingMixin(Declarative):
     #: across all NI cards in the PXI chassis are synchronized.
     reference_clock = d_(Str()).tag(metadata=True)
 
+    def sync_start(self, channel):
+        self.start_trigger = f'/{channel.device_name}/ao/StartTrigger'
+        channel.start_trigger = ''
+
 
 class NIDAQHardwareCOChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
                              HardwareCOChannel):
@@ -110,7 +110,7 @@ class NIDAQHardwareCOChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
     source_terminal = d_(Str().tag(metadata=True))
 
 
-class NIDAQHardwareCIAngPosEncoderChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
+class NIDAQHardwareCIAngPosEncoderChannel(NIDAQGeneralMixin,
                                           HardwareCIChannel):
     '''
     Reports angular position of rotary encoder in radians.
@@ -120,16 +120,9 @@ class NIDAQHardwareCIAngPosEncoderChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
     lead or lag channel A. The relative phase between the two is an indicator
     of the direction the shaft is rotating.
 
-    Note that `sample_clock` is required on some (if not all) NI acquisition
-    cards. The counters on M-series cards (e.g., 6221) do not have internal
-    clocks and must be provided with an external clock. A good external clock
-    source would be the `{device}/ao/SampleClock` or `{device}/ai/SampleClock`.
-    If you do not have any analog input or output tasks, then you need to make
-    a dummy one so that you have a sample clock that can be used by the
-    counter. Since psiexperiment does not create tasks for any analog inputs
-    that do not appear to be used, you will specifically need to force the
-    analog input to be created by linking it to an input that has
-    `force_active` set to True.
+    The counters on M-series cards (e.g., 6221) do not have internal
+    clocks and must be provided with an external clock. Another counter on the
+    card typically makes a good sample clock.
     '''
     #: PFI input connected to channel A of the encoder
     terminal_A = d_(Str()).tag(metadata=True)
@@ -139,6 +132,13 @@ class NIDAQHardwareCIAngPosEncoderChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
 
     #: Number of pulses generated per full revolution of the shaft
     pulses_per_revolution = d_(Int()).tag(metadata=True)
+
+    #: Specifies the start trigger for the channel. If None, sampling begins
+    #: when task is started.
+    start_trigger = d_(Str().tag(metadata=True))
+
+    #: Specifies counter output to configure
+    clock_channel = d_(Str()).tag(metadata=True)
 
 
 class NIDAQHardwareAOChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
@@ -320,7 +320,7 @@ def hw_ao_helper(cb, task, event_type, cb_samples, cb_data):
     return 0
 
 
-def hw_input_helper(cb, channels, discard, fs, channel_names, task,
+def hw_input_helper(cb, channels, discard, fs, channel_names, task, task_id,
                     event_type=None, cb_samples=None, cb_data=None,
                     input_type='ai'):
     try:
@@ -328,6 +328,7 @@ def hw_input_helper(cb, channels, discard, fs, channel_names, task,
         mx.DAQmxGetReadAvailSampPerChan(task, uint32)
         available_samples = uint32.value
         if available_samples == 0:
+            log.info('No samples available')
             return 0
 
         uint64 = ctypes.c_uint64()
@@ -349,7 +350,7 @@ def hw_input_helper(cb, channels, discard, fs, channel_names, task,
         if data.shape[-1] > 0:
             s0 = max(0, read_position - discard)
             data = PipelineData(data, fs=fs, s0=s0, channel=channel_names)
-            cb(data)
+            cb(task, data)
     except EngineStoppedException:
         log.info('NIDAQmx task ID %r exiting because engine halted', task)
         mx.DAQmxStopTask(task)
@@ -484,16 +485,35 @@ def setup_hw_ci(channel, callback_duration, callback, task_name='hw_ci'):
         channel = channel[0]
 
     task = create_task(task_name)
+    task_clk = create_task(f'{task_name}_clk')
+
+    # Configure a clock task using the counter output channel specified. This
+    # will set the timing for the input.
+    mx.DAQmxCreateCOPulseChanFreq(task_clk, channel.clock_channel, '',
+                                  mx.DAQmx_Val_Hz, mx.DAQmx_Val_High, 0,
+                                  channel.fs, 0.5)
+    mx.DAQmxCfgImplicitTiming(task_clk, mx.DAQmx_Val_ContSamps, int(channel.fs))
+    if channel.start_trigger:
+        log.debug(f'Setting start trigger to {channel.start_trigger}')
+        mx.DAQmxCfgDigEdgeStartTrig(task_clk, channel.start_trigger,
+                                    mx.DAQmx_Val_Rising)
+
     mx.DAQmxCreateCIAngEncoderChan(task, channel.channel, '', mx.DAQmx_Val_X4,
                                    False, 0, mx.DAQmx_Val_AHighBHigh,
                                    mx.DAQmx_Val_Radians,
                                    channel.pulses_per_revolution, 0, None)
     mx.DAQmxSetCIEncoderAInputTerm(task, channel.channel, channel.terminal_A)
     mx.DAQmxSetCIEncoderBInputTerm(task, channel.channel, channel.terminal_B)
-    setup_timing(task, [channel])
+    mx.DAQmxCfgSampClkTiming(task, f'{channel.clock_channel}InternalOutput',
+                             channel.fs, mx.DAQmx_Val_Rising,
+                             mx.DAQmx_Val_ContSamps, 1000)
+
+    task._properties['names'] = [channel.name]
+    task._properties.update(get_timing_config(task))
+    log.info('%s timing properties: %r', task._name, task._properties)
     configure_hw_input_cb(task, callback_duration, callback, 1, 0,
                           [channel.name], input_type='ci')
-    return task
+    return task, task_clk
 
 
 def configure_hw_input_cb(task, callback_duration, callback, n_channels,
@@ -513,7 +533,7 @@ def configure_hw_input_cb(task, callback_duration, callback, n_channels,
     # specified by `callback_duration`. Save it as an attribute of task to
     # ensure it does not get garbage-collected.
     task._cb = partial(hw_input_helper, callback, n_channels, filter_delay, fs,
-                       names, input_type=input_type)
+                       names, task, input_type=input_type)
     task._cb_ptr = mx.DAQmxEveryNSamplesEventCallbackPtr(task._cb)
     mx.DAQmxRegisterEveryNSamplesEvent(
         task, mx.DAQmx_Val_Acquired_Into_Buffer, int(callback_samples), 0,
@@ -987,12 +1007,12 @@ class NIDAQEngine(Engine):
         hw_ao_channels = self.get_channels('analog', 'output', 'hardware', active=active)
         hw_do_channels = self.get_channels('digital', 'output', 'hardware', active=active)
 
-        if hw_co_channels:
-            raise ValueError('NIDAQ engine does not support counter output yet')
-
         if hw_ci_channels:
             log.debug('Configuring HW CI channels')
-            self.configure_hw_ci(counter_channels)
+            self.configure_hw_ci(hw_ci_channels)
+
+        if hw_co_channels:
+            raise ValueError('NIDAQ engine does not support counter output yet')
 
         if sw_do_channels:
             log.debug('Configuring SW DO channels')
@@ -1077,14 +1097,16 @@ class NIDAQEngine(Engine):
 
     def configure_hw_co(self, channels):
         task = setup_hw_co(channels)
-        self._tasks['counter'] = task
+        self._tasks['hw_co'] = task
 
     def configure_hw_ci(self, channels):
-        task = setup_hw_ci(channels,
-                           self.hw_ai_monitor_period,
-                           self._hw_ai_callback,
-                           '{}_hw_ci'.format(self.name))
+        task, clk_task = setup_hw_ci(
+            channels, self.hw_ai_monitor_period,
+            partial(self._hw_input_callback, 'ci'),
+            '{}_hw_ci'.format(self.name)
+        )
         task._properties['sf'] = 1
+        self._tasks['hw_ci_clk'] = clk_task
         self._tasks['hw_ci'] = task
 
     def configure_hw_ao(self, channels):
@@ -1127,8 +1149,8 @@ class NIDAQEngine(Engine):
     def configure_hw_ai(self, channels):
         channels = sorted(channels, key=op.attrgetter('channel'))
         task = setup_hw_ai(channels,
-                           partial(self.hw_ai_monitor_period, task),
-                           self._hw_ai_callback,
+                           self.hw_ai_monitor_period,
+                           partial(self._hw_input_callback, 'ai'),
                            '{}_hw_ai'.format(self.name))
         self._tasks['hw_ai'] = task
         self.ai_fs = task._properties['sample clock rate']
@@ -1184,6 +1206,10 @@ class NIDAQEngine(Engine):
     def register_ai_callback(self, callback, channel_name=None):
         s = self._get_channel_slice('hw_ai', channel_name)
         self._callbacks.setdefault('ai', []).append((channel_name, s, callback))
+
+    def register_ci_callback(self, callback, channel_name=None):
+        s = self._get_channel_slice('hw_ci', channel_name)
+        self._callbacks.setdefault('ci', []).append((channel_name, s, callback))
 
     def register_di_callback(self, callback, channel_name=None):
         s = self._get_channel_slice('hw_di', channel_name)
@@ -1255,9 +1281,9 @@ class NIDAQEngine(Engine):
         timer.start()
 
     @halt_on_error
-    def _hw_ai_callback(self, task, samples):
+    def _hw_input_callback(self, ctype, task, samples):
         samples /= task._properties['sf']
-        for channel_name, s, cb in self._callbacks.get('ai', []):
+        for channel_name, s, cb in self._callbacks.get(ctype, []):
             cb(samples[s])
 
     def _hw_di_callback(self, samples):

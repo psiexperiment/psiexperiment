@@ -144,7 +144,7 @@ class Input(PSIContribution):
 
     def configure(self):
         cb = self.configure_callback()
-        self.engine.register_ai_callback(cb, self.channel.name)
+        self.channel.register_callback(cb)
         self.configured = True
 
     def configure_callback(self):
