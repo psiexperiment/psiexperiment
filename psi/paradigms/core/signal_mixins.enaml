@@ -44,14 +44,22 @@ enamldef MultiSignalViewManifest(ExperimentManifest): manifest:
                         name << manifest.name + f'{loop_item[0]}_plot'
                         source_name = loop_item[0]
                         pen_color = loop_item[1].get('color', 'k')
+                        decimate_mode = loop_item[1].get('decimate_mode', 'extremes')
 
 
 enamldef SignalViewManifest(MultiSignalViewManifest): manifest:
 
     attr source_name
+    attr decimate_mode = 'extremes'
+    attr color = 'k'
 
     initialized ::
-        manifest.sources = {manifest.source_name: {'color': 'k'}}
+        manifest.sources = {
+            manifest.source_name: {
+                'color': manifest.color,
+                'decimate_mode': manifest.decimate_mode,
+            },
+        }
 
 
 enamldef MultiSignalFFTViewManifest(ExperimentManifest): manifest:

@@ -89,7 +89,7 @@ class Engine(PSIContribution):
 
         Parameters
         ----------
-        mode : {None, 'analog', 'digital'
+        mode : {None, 'analog', 'digital', 'counter'}
             Type of channel
         direction : {None, 'input, 'output'}
             Direction
@@ -155,16 +155,25 @@ class Engine(PSIContribution):
             channel.configure()
         self.configured = True
 
+    def register_callback(self, callback, type_code, channel_name):
+        '''
+        Register callback given channel type code and name
+        '''
+        timing, ctype = type_code.split('_')
+        if timing != 'hw':
+            raise ValueError('Can only register callbacks for hardware-timed tasks')
+        getattr(self, f'register_{ctype}_callback')(callback, channel_name)
+
     def register_ai_callback(self, callback, channel_name=None):
         raise NotImplementedError
 
-    def register_et_callback(self, callback, channel_name=None):
+    def register_ci_callback(self, callback, channel_name=None):
         raise NotImplementedError
 
     def unregister_ai_callback(self, callback, channel_name=None):
         raise NotImplementedError
 
-    def unregister_et_callback(self, callback, channel_name=None):
+    def unregister_ci_callback(self, callback, channel_name=None):
         raise NotImplementedError
 
     def register_done_callback(self, callback):
