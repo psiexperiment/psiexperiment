@@ -19,6 +19,7 @@ class ExperimentManifest(PluginManifest):
     C = d_(Value(), writable=False)
     controller = d_(Value(), writable=False)
     context = d_(Value(), writable=False)
+    data = d_(Value(), writable=False)
 
     def _default_name(self):
         return self.id
@@ -35,6 +36,7 @@ class PSIManifest(PluginManifest):
     C = d_(Value(), writable=False)
     controller = d_(Value(), writable=False)
     context = d_(Value(), writable=False)
+    data = d_(Value(), writable=False)
 
     def _get_id(self):
         class_type = self.__class__.__name__
