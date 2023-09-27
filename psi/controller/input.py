@@ -457,6 +457,8 @@ class AutoThreshold(ContinuousInput):
     '''
     Automatically threshold data as `n` standard deviations computed over
     a window that is `baseline` seconds long.
+
+    The threshold can be overidden by setting `threshold`.
     '''
     #: Number of standard deviations to set threshold at
     n = d_(Int(10)).tag(metadata=True)
@@ -468,10 +470,13 @@ class AutoThreshold(ContinuousInput):
     #: both (i.e., x >= th or x <= th) deflections.
     mode = d_(Enum('positive', 'negative', 'both')).tag(metadata=True)
 
-    # The auto-threshold as determined. It is initially NaN (to indicate the
-    # threshold has not yet been determined). Once threshold is determined, it
-    # will then change to that value).
-    auto_th = Float(np.nan).tag(metadata=True)
+    #: The auto-threshold as determined. It is initially NaN (to indicate the
+    #: threshold has not yet been determined). Once threshold is determined, it
+    #: will then change to that value).
+    auto_th = d_(Float(np.nan).tag(metadata=True), writable=False)
+
+    #: Actual threshold (used for overriding the auto-computed threshold).
+    current_th = Float(np.nan).tag(metadata=True)
 
     def _set_auto_th(self, th):
         '''
@@ -482,12 +487,18 @@ class AutoThreshold(ContinuousInput):
         experiment.
         '''
         self.auto_th = th
+        if np.isnan(self.current_th):
+            self.current_th = th
+
+    def _current_th_cb(self):
+        return self.current_th
 
     def configure_callback(self):
         cb = super().configure_callback()
         return pipeline.auto_th(self.n, self.baseline, cb,
                                 fs=self.source.fs, mode=self.mode,
-                                auto_th_cb=self._set_auto_th).send
+                                auto_th_cb=self._set_auto_th,
+                                current_th_cb=self._current_th_cb).send
 
 
 class Average(ContinuousInput):
