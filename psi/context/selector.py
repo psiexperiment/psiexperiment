@@ -658,7 +658,6 @@ class FriendlyCartesianProduct(BaseSelector):
     def set_preferences(self, state):
         state = self.migrate_state(state, 'forward')
         context_settings = state.pop('context_settings')
-
         klass_map = {
             'list': FriendlyCartesianProductList,
             'range': FriendlyCartesianProductRange,
@@ -666,7 +665,7 @@ class FriendlyCartesianProduct(BaseSelector):
         for k, v in context_settings.items():
             klass = klass_map[v.pop('sequence_type', 'range')]
             for i in self.context_items:
-                if i.name == k:
+                if self.item_name(i.name) == k:
                     item = i
                     break
             else:
