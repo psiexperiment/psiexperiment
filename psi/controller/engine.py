@@ -241,7 +241,7 @@ class Engine(PSIContribution):
             will be cloned.
         '''
         new = copy_declarative(self)
-        for channel in new.children:
+        for channel in new.children[:]:
             channel.set_parent(None)
         if channel_names is None:
             channel_names = [c.name for c in self.get_channels(active=False)]
