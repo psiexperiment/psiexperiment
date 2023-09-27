@@ -85,7 +85,9 @@ class PSIContribution(Declarative):
     def _default_name(self):
         # Provide a default name if none is specified TODO: make this mandatory
         # (i.e., no default?)
-        return self.parent.name + '.' + self.__class__.__name__
+        if self.parent is not None:
+            return self.parent.name + '.' + self.__class__.__name__
+        return self.__class__.__name__
 
     def _default_label(self):
         return self.name.replace('_', ' ')
