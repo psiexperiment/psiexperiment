@@ -31,13 +31,13 @@ from .util import LAYOUT_WILDCARD
 
 layout_fd_kwargs = {
     'name_filters': [LAYOUT_WILDCARD],
-    'current_path': get_config('LAYOUT_ROOT'),
+    'current_path': get_config('LAYOUT_ROOT', None),
 }
 
 
 preferences_fd_kwargs = {
     'name_filters': [PREFERENCES_WILDCARD],
-    'current_path': get_config('PREFERENCES_ROOT'),
+    'current_path': get_config('PREFERENCES_ROOT', None),
 }
 
 
