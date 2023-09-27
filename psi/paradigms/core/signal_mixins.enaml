@@ -11,6 +11,7 @@ from psi.data.plots import (ChannelPlot, FFTChannelPlot, FFTContainer,
 enamldef MultiSignalViewManifest(ExperimentManifest): manifest:
 
     id = 'signal_view'
+    name = 'signal_view'
     title = 'Signal view (time)'
 
     alias time_span: time_container.span
@@ -73,6 +74,8 @@ enamldef MultiSignalFFTViewManifest(ExperimentManifest): manifest:
 
     alias fft_freq_lb: fft_container.freq_lb
     alias fft_freq_ub: fft_container.freq_ub
+    alias x_mode: fft_vb.x_mode
+    alias axis_scale: fft_container.axis_scale
     alias y_label: fft_vb.y_label
     alias y_min: fft_vb.y_min
     alias y_max: fft_vb.y_max
@@ -122,9 +125,6 @@ enamldef MultiSignalFFTViewManifest(ExperimentManifest): manifest:
 enamldef SignalFFTViewManifest(MultiSignalFFTViewManifest): manifest:
 
     attr source_name
-    #attr apply_calibration = False
-    #attr waveform_averages = 1
-    #attr fft_time_span = 1
 
     initialized ::
         manifest.sources = {
