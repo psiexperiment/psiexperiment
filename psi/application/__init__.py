@@ -123,14 +123,17 @@ def configure_logging(level_console=None, level_file=None, filename=None,
     if level_file is None and level_console is None:
         return
     elif level_file is None:
-        log.setLevel(level_console)
+        log.setLevel(level_console.upper())
     elif level_console is None:
-        log.setLevel(level_file)
+        log.setLevel(level_file.upper())
     else:
-        min_level = min(getattr(logging, level_console), getattr(logging, level_file))
+        level_console = getattr(logging, level_console.upper())
+        level_file = getattr(logging, level_file.upper())
+        min_level = min(level_console, level_file)
         log.setLevel(min_level)
 
-    fmt = '{asctime} {levelname:10s}: {threadName:11s} - {name:40s}:: {message}'
+    fmt = '{asctime:s} {levelname:10s}: {threadName:11s} - {name:40s}:: {message}'
+
     if level_console is not None:
         try:
             level_styles = {
