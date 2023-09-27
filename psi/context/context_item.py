@@ -110,7 +110,7 @@ class ContextGroup(PSIContribution):
         visible = False
         if self.hide_when == 'never':
             visible = True
-        for c in self.children:
+        for c in self.subgroups:
             if c.visible:
                 visible = True
         self.visible = visible
