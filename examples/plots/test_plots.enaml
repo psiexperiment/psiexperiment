@@ -1,0 +1,74 @@
+from enaml.application import timed_call
+from enaml.widgets.api import Container, MainWindow
+import numpy as np
+
+from psiaudio.pipeline import PipelineData
+from psi.controller.api import AutoThreshold, ContinuousInput, Edges, HardwareAIChannel
+from psi.data.plots_manifest import PGCanvas
+from psi.data.plots import InfiniteLine, TimepointPlot, ChannelPlot, TimeContainer, ViewBox
+
+
+callback_interval = 0.1
+fs = 100
+
+
+# Set up the plotting hierarchy. This will automatically create a PlotContainer
+# that can be displayed using a PGCanvas widget in Enaml.
+enamldef Plot(TimeContainer):
+    span = 10
+    ViewBox:
+        name = 'vb'
+        y_label = 'Signal (uV)'
+        y_min = -0.5
+        y_max = 1.5
+        ChannelPlot:
+            name = 'ch_plot'
+            decimate_mode = 'none'
+        InfiniteLine:
+            name = 'th_line'
+            direction = 'horizontal'
+            position = 0
+            position ::
+                print(f'Position changed to {position}')
+        TimepointPlot:
+            name = 'th_plot'
+            edges = 'rising'
+
+
+def send_data(cb, o=0):
+    n_samples = int(fs*callback_interval)
+    samples = np.random.random(size=(1, n_samples))
+    samples = PipelineData(samples, fs=fs, s0=o)
+    cb(samples)
+    timed_call(int(callback_interval * 1e3), send_data, cb, o+n_samples)
+
+
+channel = HardwareAIChannel(fs=fs)
+raw_data = ContinuousInput(name='raw_data', source=channel)
+th_data = AutoThreshold(name='th_data', baseline=1, n=2)
+th_edges = Edges(name='th_edges', debounce=1)
+raw_data.add_input(th_data)
+th_data.add_input(th_edges)
+
+
+enamldef Main(MainWindow):
+
+    initial_size = (600, 600)
+    attr plot = Plot()
+
+    initialized ::
+        ch_plot = plot.find('ch_plot')
+        ch_plot.source = raw_data
+        th_plot = plot.find('th_plot')
+        th_plot.source = th_edges
+        th_line = plot.find('th_line')
+
+        th_data.observe('auto_th', lambda event: setattr(th_line, 'position', event['value']))
+        th_line.observe('position', lambda event: setattr(th_data, 'current_th', event['value']))
+
+        cb = raw_data.configure_callback()
+        timed_call(int(callback_interval * 1e3), send_data, cb)
+
+    Container:
+        PGCanvas: canvas:
+            component = plot.container

@@ -19,7 +19,7 @@ pg.setConfigOption('foreground', 'k')
 from psi.core.enaml.api import PSIDockItem, PSIManifest
 from psi.controller.api import ExperimentAction
 from psi.context.context_item import OrderedContextMeta
-from psi.experiment.api import ItemPreferences
+from psi.experiment.api import Preferences
 
 
 class PGCanvas(RawWidget):
@@ -161,11 +161,13 @@ enamldef BasePlotManifest(PSIManifest): manifest:
         id = manifest.id + '.actions'
         point = 'psi.controller.actions'
 
-        ExperimentAction:
-            event = 'io_configured'
-            command = 'psi.data.attach_source'
-            kwargs = {'obj': manifest.contribution}
-            weight = 15
+        Conditional:
+            condition = hasattr(manifest.contribution, 'source')
+            ExperimentAction:
+                event = 'io_configured'
+                command = 'psi.data.attach_source'
+                kwargs = {'obj': manifest.contribution}
+                weight = 15
 
         ExperimentAction:
             # This final update ensures that we always plot new data (otherwise
@@ -202,10 +204,30 @@ enamldef ViewBoxManifest(PSIManifest): manifest:
         Extension:
             id = manifest.id + '.preferences'
             point = 'psi.experiment.preferences'
-            ItemPreferences:
+            Preferences:
                 name << manifest.contribution.name
-                item << manifest.contribution
-                auto_save = ['y_min', 'y_max']
+                set_preferences => (workbench, preferences):
+                    obj = self.get_object(workbench)
+                    if 'x_min' in preferences and obj.x_mode == 'mouse':
+                        obj.parent.x_min = preferences['x_min']
+                        obj.parent.x_max = preferences['x_max']
+                    if 'y_min' in preferences and obj.y_mode == 'mouse':
+                        obj.y_min = preferences['y_min']
+                        obj.y_max = preferences['y_max']
+
+                get_preferences => (workbench):
+                    obj = self.get_object(workbench)
+                    preferences = {}
+                    if obj.x_mode == 'mouse':
+                        preferences['x_min'] = obj.parent.x_min
+                        preferences['x_max'] = obj.parent.x_max
+                    if obj.y_mode == 'mouse':
+                        preferences['y_min'] = obj.y_min
+                        preferences['y_max'] = obj.y_max
+                    return preferences
+
+                get_object => (workbench):
+                    return manifest.contribution
 
 
 enamldef GroupMixinManifest(BasePlotManifest): manifest:
