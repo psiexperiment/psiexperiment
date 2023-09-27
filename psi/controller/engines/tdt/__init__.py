@@ -22,7 +22,7 @@ import numpy as np
 from atom.api import (Float, Typed, Str, Int, Bool, Callable, Enum,
                       Property, Value)
 from enaml.application import deferred_call
-from enaml.core.api import Declarative, d_
+from enaml.core.api import Declarative, d_, d_func
 
 from psiaudio.pipeline import PipelineData
 from psiaudio.util import dbi
@@ -46,8 +46,12 @@ class TDTGeneralMixin(Declarative):
     #: long, then we may have buffer overflow/underflow errors.
     monitor_period = d_(Float(0.1)).tag(metadata=True)
 
-    def __str__(self):
+    @d_func
+    def to_string(self):
         return f'{self.label} ({self.tag})'
+
+    def __str__(self):
+        return self.to_string()
 
     def sync_start(self, channel):
         # All channels are synchronized. Nothing to be done.
@@ -170,17 +174,14 @@ class TDTEngine(Engine):
         super().__init__(*args, **kwargs)
         log.info('Loading DSP circuit %s to %s %d', self.circuit_path,
                  self.device_name, self.device_id)
-        self._project = DSPProject()
-        self._circuit = self._project.load_circuit(self.circuit_path,
-                                                   self.device_name,
-                                                   self.device_id)
-        self._circuit.start()
         log.debug('Loaded DSP circuit')
 
         # Now, we need to inspect the circuit to set the sampling rate of the
         # channels since that's hard-coded by the circuit.
         ai_chans = self.get_channels('analog', 'input', 'hardware', False)
         ao_chans = self.get_channels('analog', 'output', 'hardware', False)
+
+        self.load()
 
         # First, verify that all channels are supported by the engine. If not,
         # raise an error. We don't actually load the channels until we call
@@ -206,7 +207,16 @@ class TDTEngine(Engine):
             c.fs = self._circuit.get_buffer(c.tag, 'w').fs
             log.debug('Updated sampling rate for %d %s %s to %f', id(c), c, c.name, c.fs)
 
+    def load(self):
+        self._project = DSPProject()
+        self._circuit = self._project.load_circuit(self.circuit_path,
+                                                   self.device_name,
+                                                   self.device_id,
+                                                   latch_trigger=1)
+        self._circuit.start()
+
     def configure(self, active=True):
+        self.load()
         log.debug('Configuring %s engine', self.name)
         hw_ai_channels = self.get_channels('analog', 'input', 'hardware',
                                            active=active)
@@ -280,6 +290,7 @@ class TDTEngine(Engine):
         # TODO: Get lock?
         for name, b in self._buffers['hw_ai'].items():
             samples = b.read() / b._sf
+            log_ai.trace('Read %d samples from %s', samples.shape[-1], name)
             if b._discarded < b._discard:
                 to_discard = min(samples.shape[-1], b._discard)
                 b._discarded += to_discard
@@ -337,12 +348,11 @@ class TDTEngine(Engine):
         # handled by the next thread callback for the buffer.
         b = self._buffers['hw_ao'][name]
         samples = b.total_samples_written - offset
-        log.debug('Updating HW AO: %d samples required', samples)
         samples = min(samples, b._max_samples)
         if samples <= 0:
             log_ao.trace('No update of hw ao required')
             return
-
+        log.debug('Updating hw_ao: %d samples required', samples)
         log_ao.trace('Update %s at %d with %d samples', name, offset, samples)
         data = self.get_channel(name).get_samples(offset, samples)
         self.write_hw_ao(name, data, offset)
