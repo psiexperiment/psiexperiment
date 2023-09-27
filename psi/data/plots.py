@@ -104,7 +104,7 @@ class ColorCycleMixin(Declarative):
 
 class PenMixin(Declarative):
 
-    pen = Typed(object)
+    pen = Property()
     pen_color = d_(Typed(object))
     pen_width = d_(Float(0))
     antialias = d_(Bool(False))
@@ -112,7 +112,7 @@ class PenMixin(Declarative):
     def _default_pen_color(self):
         return 'black'
 
-    def _default_pen(self):
+    def _get_pen(self):
         color = make_color(self.pen_color)
         return pg.mkPen(color, width=self.pen_width)
 
@@ -135,30 +135,48 @@ class SymbolMixin(PenMixin):
     symbol_size = d_(Float(10))
     symbol_size_unit = d_(Enum('screen', 'data'))
 
-    edge_color = d_(Typed(object, factory=lambda: 'black'))
-    face_color = d_(Typed(object, factory=lambda: 'black'))
+    color = d_(Typed(object, factory=lambda: 'black'))
+    edge_color = d_(Typed(object))
+    face_color = d_(Typed(object))
+
+    def _default_edge_color(self):
+        return self.color
+
+    def _default_face_color(self):
+        return self.color
+
     edge_width = d_(Float(0))
     antialias = d_(Bool(False))
+    brush = Property()
 
-    pen = Typed(object)
-    brush = Typed(object)
-
-    def _default_pen(self):
+    def _get_pen(self):
         color = make_color(self.edge_color)
         return pg.mkPen(color, width=self.edge_width)
 
-    def _default_brush(self):
+    def _get_brush(self):
         return pg.mkBrush(make_color(self.face_color))
 
-    def plot_kw(self):
-        return {
-            'pen': self.pen,
-            'antialias': self.antialias,
-            'symbol': self.SYMBOL_MAP[self.symbol],
-            'symbolSize': self.symbol_size,
-            'brush': self.brush,
-            'pxMode': self.symbol_size_unit == 'screen',
-        }
+    def plot_kw(self, plot_type):
+        if plot_type == 'scatter':
+            return {
+                'pen': self.pen,
+                'antialias': self.antialias,
+                'symbol': self.SYMBOL_MAP[self.symbol],
+                'symbolSize': self.symbol_size,
+                'brush': self.brush,
+                'pxMode': self.symbol_size_unit == 'screen',
+            }
+        elif plot_type == 'scatter+curve':
+            return {
+                'pen': self.pen,
+                'antialias': self.antialias,
+                'symbol': self.SYMBOL_MAP[self.symbol],
+                'symbolSize': self.symbol_size,
+                'fillBrush': self.brush,
+                'symbolPen': self.pen,
+                'symbolBrush': self.brush,
+                'pxMode': self.symbol_size_unit == 'screen',
+            }
 
 
 class SourceMixin(Declarative):
@@ -830,7 +848,7 @@ class TimepointPlot(SourceMixin, SymbolMixin, SinglePlot):
     y = d_(Float(0))
 
     def _default_plot(self):
-        return pg.ScatterPlotItem(**self.plot_kw())
+        return pg.ScatterPlotItem(**self.plot_kw('scatter'))
 
     def _observe_source(self, event):
         if self.source is not None:
@@ -1422,7 +1440,7 @@ class ResultPlot(SourceMixin, SymbolMixin, GroupMixin, SinglePlot):
             deferred_call(self.plot.setData, x, y)
 
     def _default_plot(self):
-        return pg.PlotDataItem(**self.plot_kw())
+        return pg.PlotDataItem(**self.plot_kw('scatter+curve'))
 
 
 class DataFramePlot(ColorCycleMixin, PSIContribution):
