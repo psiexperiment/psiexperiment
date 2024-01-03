@@ -102,6 +102,92 @@ class ColorCycleMixin(Declarative):
         raise NotImplementedError
 
 
+class PenMixin(Declarative):
+
+    pen = Property()
+    pen_color = d_(Typed(object))
+    pen_width = d_(Float(0))
+    antialias = d_(Bool(False))
+
+    def _default_pen_color(self):
+        return 'black'
+
+    def _get_pen(self):
+        color = make_color(self.pen_color)
+        return pg.mkPen(color, width=self.pen_width)
+
+    def plot_kw(self):
+        return {
+            'pen': self.pen,
+            'antialias': self.antialias,
+        }
+
+
+class SymbolMixin(PenMixin):
+
+    SYMBOL_MAP = {
+        'circle': 'o',
+        'square': 's',
+        'triangle': 't',
+        'diamond': 'd',
+    }
+    symbol = d_(Enum('circle', 'square', 'triangle', 'diamond'))
+    symbol_size = d_(Float(10))
+    symbol_size_unit = d_(Enum('screen', 'data'))
+
+    color = d_(Typed(object, factory=lambda: 'black'))
+    edge_color = d_(Typed(object))
+    face_color = d_(Typed(object))
+
+    def _default_edge_color(self):
+        return self.color
+
+    def _default_face_color(self):
+        return self.color
+
+    edge_width = d_(Float(0))
+    antialias = d_(Bool(False))
+    brush = Property()
+
+    def _get_pen(self):
+        color = make_color(self.edge_color)
+        return pg.mkPen(color, width=self.edge_width)
+
+    def _get_brush(self):
+        return pg.mkBrush(make_color(self.face_color))
+
+    def plot_kw(self, plot_type):
+        if plot_type == 'scatter':
+            return {
+                'pen': self.pen,
+                'antialias': self.antialias,
+                'symbol': self.SYMBOL_MAP[self.symbol],
+                'symbolSize': self.symbol_size,
+                'brush': self.brush,
+                'pxMode': self.symbol_size_unit == 'screen',
+            }
+        elif plot_type == 'scatter+curve':
+            return {
+                'pen': self.pen,
+                'antialias': self.antialias,
+                'symbol': self.SYMBOL_MAP[self.symbol],
+                'symbolSize': self.symbol_size,
+                'fillBrush': self.brush,
+                'symbolPen': self.pen,
+                'symbolBrush': self.brush,
+                'pxMode': self.symbol_size_unit == 'screen',
+            }
+
+
+class SourceMixin(Declarative):
+
+    source_name = d_(Str())
+    source = Typed(object)
+
+    def _observe_source(self, event):
+        raise NotImplementedError
+
+
 ################################################################################
 # Supporting classes
 ################################################################################
@@ -178,7 +264,9 @@ class ChannelDataRange(BaseDataRange):
         self.current_time = max(self.current_times.values())
 
     def event_source_added(self, data, source):
-        self.current_times[source] = data[-1][1]
+        if data.events.empty:
+            return
+        self.current_times[source] = data.events.iloc[-1]['ts']
         self.current_time = max(self.current_times.values())
 
 
@@ -275,11 +363,6 @@ class BasePlotContainer(PSIContribution):
     def update(self, event=None):
         pass
 
-    def find(self, name):
-        for child in self.children:
-            if child.name == name:
-                return child
-
     def _reset_plots(self):
         pass
 
@@ -358,10 +441,45 @@ class FFTContainer(BasePlotContainer):
     '''
     freq_lb = d_(Float(500))
     freq_ub = d_(Float(50000))
-    octave_spacing = d_(Bool(True))
+    axis_scale = d_(Enum('octave', 'octave_linear', 'log10', 'linear'))
+
+    # Define x_lb and x_ub as aliases for freq_lb and freq_ub.
+    x_min = Property()
+    x_max = Property()
+
+    def _get_x_min(self):
+        return self.freq_lb
+
+    def _set_x_min(self, value):
+        self.freq_lb = value
+
+    def _get_x_max(self):
+        return self.freq_ub
+
+    def _set_x_max(self, value):
+        self.freq_ub = value
 
     def _default_x_transform(self):
-        return np.log10
+        if self.axis_scale in ('octave', 'log10'):
+            return np.log10
+        else:
+            return lambda x: x
+
+    def _set_ticks(self):
+        if self.axis_scale in ('octave', 'octave_linear'):
+            major_ticks = util.octave_space(self.freq_lb / 1e3, self.freq_ub / 1e3, 1.0)
+            major_ticklabs = [str(t) for t in major_ticks]
+            major_ticklocs = self.x_transform(major_ticks * 1e3)
+            minor_ticks = util.octave_space(self.freq_lb / 1e3, self.freq_ub / 1e3, 0.125)
+            minor_ticklabs = [str(t) for t in minor_ticks]
+            minor_ticklocs = self.x_transform(minor_ticks * 1e3)
+            ticks = [
+                list(zip(major_ticklocs, major_ticklabs)),
+                list(zip(minor_ticklocs, minor_ticklabs)),
+            ]
+            self.x_axis.setTicks(ticks)
+        #else:
+            #self.x_axis.setTicks()
 
     @observe('container', 'freq_lb', 'freq_ub')
     def _update_x_limits(self, event):
@@ -377,29 +495,17 @@ class FFTContainer(BasePlotContainer):
             # manifests (e.g., so that `psi` can properly list the available
             # paradigms).
             return
-        self.base_viewbox.setXRange(np.log10(self.freq_lb),
-                                    np.log10(self.freq_ub),
+        self.base_viewbox.setXRange(self.x_transform(self.freq_lb),
+                                    self.x_transform(self.freq_ub),
                                     padding=0)
-        if self.octave_spacing:
-            major_ticks = util.octave_space(self.freq_lb / 1e3, self.freq_ub / 1e3, 1.0)
-            major_ticklabs = [str(t) for t in major_ticks]
-            major_ticklocs = np.log10(major_ticks * 1e3)
-            minor_ticks = util.octave_space(self.freq_lb / 1e3, self.freq_ub / 1e3, 0.125)
-            minor_ticklabs = [str(t) for t in minor_ticks]
-            minor_ticklocs = np.log10(minor_ticks * 1e3)
-            ticks = [
-                list(zip(major_ticklocs, major_ticklabs)),
-                list(zip(minor_ticklocs, minor_ticklabs)),
-            ]
-            self.x_axis.setTicks(ticks)
-        else:
-            self.x_axis.setTicks()
+        self._set_ticks()
 
     def _default_x_axis(self):
         x_axis = super()._default_x_axis()
         x_axis.setLabel('Frequency', units='Hz')
         x_axis.logTickStrings = format_log_ticks
-        x_axis.setLogMode(True)
+        if self.axis_scale in ('octave', 'log10'):
+            x_axis.setLogMode(True)
         return x_axis
 
 
@@ -418,6 +524,7 @@ class ViewBox(ColorCycleMixin, PSIContribution):
 
     y_min = d_(Float(0))
     y_max = d_(Float(0))
+    x_mode = d_(Enum('fixed', 'mouse'))
     y_mode = d_(Enum('mouse', 'fixed'))
     y_label = d_(Str())
     y_autoscale = d_(Bool(False))
@@ -443,16 +550,19 @@ class ViewBox(ColorCycleMixin, PSIContribution):
     def _sync_limits(self, vb=None):
         with self.suppress_notifications():
             box = self.viewbox.viewRange()
+            if self.x_mode == 'mouse':
+                self.parent.x_min = float(box[0][0])
+                self.parent.x_max = float(box[0][1])
             self.y_min = float(box[1][0])
             self.y_max = float(box[1][1])
 
     def _default_viewbox(self):
-        return pg.ViewBox(enableMenu=False)
+        return pg.ViewBox(enableMenu=True)
 
     def _configure_viewbox(self):
         viewbox = self.viewbox
         viewbox.setMouseEnabled(
-            x=False,
+            x=self.x_mode == 'mouse',
             y=self.y_mode == 'mouse'
         )
         viewbox.disableAutoRange()
@@ -461,6 +571,8 @@ class ViewBox(ColorCycleMixin, PSIContribution):
         viewbox.setYRange(self.y_min, self.y_max, padding=0)
 
         for child in self.children:
+            if not isinstance(child, BasePlot):
+                continue
             plots = child.get_plots()
             if isinstance(plots, dict):
                 for label, plot in plots.items():
@@ -480,6 +592,8 @@ class ViewBox(ColorCycleMixin, PSIContribution):
 
     def update(self, event=None):
         for child in self.children:
+            if not isinstance(child, BasePlot):
+                continue
             child.update()
 
     def add_plot(self, plot, label=None):
@@ -531,9 +645,11 @@ class BasePlot(PSIContribution):
     # Make this weak-referenceable so we can bind methods to Qt slots.
     __slots__ = '__weakref__'
 
-    source_name = d_(Str())
-    source = Typed(object)
     label = d_(Str())
+    container = Property()
+
+    def _get_container(self):
+        return self.parent.parent
 
     def update(self, event=None):
         pass
@@ -545,31 +661,19 @@ class BasePlot(PSIContribution):
 ################################################################################
 # Single plots
 ################################################################################
-class SinglePlot(BasePlot):
+class SinglePlot(PenMixin, BasePlot):
 
-    pen_color = d_(Typed(object))
-    pen_width = d_(Float(0))
-    antialias = d_(Bool(False))
     label = d_(Str())
-
-    pen = Typed(object)
     plot = Typed(object)
 
     def get_plots(self):
         return [self.plot]
 
-    def _default_pen_color(self):
-        return 'black'
-
-    def _default_pen(self):
-        color = make_color(self.pen_color)
-        return pg.mkPen(color, width=self.pen_width)
-
     def _default_name(self):
         return self.source_name + '_plot'
 
 
-class ChannelPlot(SinglePlot):
+class ChannelPlot(SourceMixin, SinglePlot):
 
     downsample = Int(0)
     decimate_mode = d_(Enum('extremes', 'mean', 'none'))
@@ -634,21 +738,21 @@ class ChannelPlot(SinglePlot):
                 x = np.c_[t, t].ravel()
                 y = np.c_[d_min, d_max].ravel()
                 if np.isnan(y).all():
-                    deferred_call(self.plot.clear)
+                    deferred_call(self.plot.setData, [], [])
                 elif x.shape == y.shape:
                     deferred_call(self.plot.setData, x, y, connect='pairs')
             elif self.decimate_mode == 'mean':
                 d = decimate_mean(data, self.downsample)
                 t = t[:len(d)]
                 if np.isnan(d).all():
-                    deferred_call(self.plot.clear)
+                    deferred_call(self.plot.setData, [], [])
                 elif t.shape == d.shape:
                     deferred_call(self.plot.setData, t, d)
         else:
             t = t[:len(data)]
             d = data[:len(t)]
             if np.isnan(d).all():
-                deferred_call(self.plot.clear)
+                deferred_call(self.plot.setData, [], [])
             elif t.shape == d.shape:
                 deferred_call(self.plot.setData, t, d)
 
@@ -718,7 +822,7 @@ class FFTChannelPlot(ChannelPlot):
         if self.source.fs:
             time_span = self.time_span / self.waveform_averages
             self._freq = get_freq(self.source.fs, time_span)
-            self._x = np.log10(self._freq)
+            self._x = self.container.x_transform(self._freq)
 
     def update(self, event=None):
         if self._buffer.get_time_ub() >= self.time_span:
@@ -731,9 +835,56 @@ class FFTChannelPlot(ChannelPlot):
             else:
                 db = util.db(psd)
             if np.isnan(db).all():
-                deferred_call(self.plot.clear)
+                deferred_call(self.plot.setData, [], [])
             elif self._x.shape == db.shape:
                 deferred_call(self.plot.setData, self._x, db)
+
+
+class TimepointPlot(SourceMixin, SymbolMixin, SinglePlot):
+
+    edges = d_(Enum('rising', 'falling', 'both'))
+    _rising = Typed(list, ())
+    _falling = Typed(list, ())
+    y = d_(Float(0))
+
+    def _default_plot(self):
+        return pg.ScatterPlotItem(**self.plot_kw('scatter'))
+
+    def _observe_source(self, event):
+        if self.source is not None:
+            self.parent.data_range.add_event_source(self.source)
+            self.source.add_callback(self._append_data)
+
+    def _observe_y(self, event):
+        self.update()
+
+    def _append_data(self, data):
+        if data.events.empty:
+            return
+        for (_, row) in data.events.iterrows():
+            if row['event'] == 'rising':
+                self._rising.append(row['ts'])
+            if row['event'] == 'falling':
+                self._falling.append(row['ts'])
+        self.update()
+
+    def update(self, event=None):
+        # Discard unnecessary samples. Pad lower and upper range since
+        # PyQtGraph sometimes applies a little extra padding to the visible
+        # range.
+        lb, ub = self.parent.data_range.current_range
+        lb -= 1
+        ub += 1
+        self._rising = [ts for ts in self._rising if lb <= ts <= ub]
+        self._falling = [ts for ts in self._falling if lb <= ts <= ub]
+
+        x = []
+        if self.edges in ('rising', 'both'):
+            x.extend(self._rising)
+        if self.edges in ('falling', 'both'):
+            x.extend(self._falling)
+        y = np.full_like(x, self.y)
+        self.plot.setData(x, y)
 
 
 class BaseTimeseriesPlot(SinglePlot):
@@ -749,7 +900,7 @@ class BaseTimeseriesPlot(SinglePlot):
         return pg.mkBrush(self.fill_color)
 
     def _default_plot(self):
-        plot = pg.QtGui.QGraphicsPathItem()
+        plot = pg.QtWidgets.QGraphicsPathItem()
         plot.setPen(self.pen)
         plot.setBrush(self.brush)
         return plot
@@ -811,7 +962,10 @@ class EventPlot(BaseTimeseriesPlot):
 
 
 class TimeseriesPlot(BaseTimeseriesPlot):
-
+    '''
+    Plots rectangles indicating the span between a "rising" and "falling"
+    event.
+    '''
     source_name = d_(Str())
     source = Typed(object)
 
@@ -821,15 +975,44 @@ class TimeseriesPlot(BaseTimeseriesPlot):
     def _observe_source(self, event):
         if self.source is not None:
             self.parent.data_range.add_event_source(self.source)
+            # Need to observe the current time to ensure that rectangles that
+            # have not recieved a "falling" event continue to "expand" as time
+            # advances.
             self.parent.data_range.observe('current_time', self.update)
             self.source.add_callback(self._append_data)
 
     def _append_data(self, data):
-        for (etype, value) in data:
-            if etype == 'rising':
-                self._rising.append(value)
-            elif etype == 'falling':
-                self._falling.append(value)
+        for (_, row) in data.events.iterrows():
+            if row['event'] == 'rising':
+                self._rising.append(row['ts'])
+            if row['event'] == 'falling':
+                self._falling.append(row['ts'])
+
+
+################################################################################
+# Plot widgets
+################################################################################
+class InfiniteLine(SinglePlot):
+
+    direction = d_(Enum('vertical', 'horizontal'))
+    position = d_(Float())
+
+    def _default_plot(self):
+        angle = 90 if self.direction == 'vertical' else 0
+        plot = pg.InfiniteLine(
+            self.position,
+            angle=angle,
+            pen=self.pen,
+            movable=True
+        )
+        plot.sigPositionChanged.connect(self._update_position)
+        return plot
+
+    def _observe_position(self, event):
+        deferred_call(self.plot.setValue, self.position)
+
+    def _update_position(self, plot):
+        self.position = plot.value()
 
 
 ################################################################################
@@ -948,7 +1131,10 @@ class GroupMixin(ColorCycleMixin):
         if self.last_seen_key is None:
             return
         if self.last_seen_key[0] != self.selected_tab:
-            self.selected_tab = self.last_seen_key[0]
+            # This should be deferred to the main thread since this causes some
+            # updates in the user interface (to highlight the button that
+            # represents the current tab) 
+            deferred_call(setattr, self, 'selected_tab', self.last_seen_key[0])
 
     def _reset_plots(self):
         # Clear any existing plots and reset color cycle
@@ -990,7 +1176,7 @@ class GroupMixin(ColorCycleMixin):
         self.parent.parent.add_legend_item(plot, label)
 
 
-class EpochGroupMixin(GroupMixin):
+class EpochGroupMixin(SourceMixin, GroupMixin):
 
     duration = Float()
     channel = d_(Int(0))
@@ -1069,16 +1255,18 @@ class EpochGroupMixin(GroupMixin):
                 if data:
                     x = self._x
                     y = self._y(concat(data, axis='epoch'))
+                    if np.isnan(y).all():
+                        todo.append((plot.setData, ([], [])))
+                    elif x.shape == y.shape:
+                        todo.append((plot.setData, (x, y)))
                 else:
-                    x = y = np.array([])
-                if np.isnan(y).all():
-                    todo.append((plot.clear, ()))
-                elif x.shape == y.shape:
-                    todo.append((plot.setData, (x, y)))
+                    todo.append((plot.setData, ([], [])))
 
         def update():
+            nonlocal todo
             for setter, args in todo:
                 setter(*args)
+
         deferred_call(update)
 
 
@@ -1114,7 +1302,7 @@ class GroupedEpochFFTPlot(EpochGroupMixin, BasePlot):
         # TODO: This could be a utility function stored in the parent?
         if self.source.fs and self.duration:
             self._freq = get_freq(self.source.fs, self.duration / self.waveform_averages)
-            self._x = np.log10(self._freq)
+            self._x = self.container.x_transform(self._freq)
 
     def _y(self, epoch):
         epoch = np.asarray(epoch)[:, self.channel]
@@ -1144,7 +1332,7 @@ class GroupedEpochPhasePlot(EpochGroupMixin, BasePlot):
         # TODO: This could be a utility function stored in the parent?
         if self.source.fs and self.duration:
             self._freq = get_freq(self.source.fs, self.duration)
-            self._x = np.log10(self._freq)
+            self._x = self.container.x_transform(self._freq)
 
     def _y(self, epoch):
         y = super()._y(epoch)
@@ -1207,21 +1395,11 @@ class StackedEpochAveragePlot(EpochGroupMixin, BasePlot):
 ################################################################################
 # Simple plotters
 ################################################################################
-class ResultPlot(GroupMixin, SinglePlot):
+class ResultPlot(SourceMixin, SymbolMixin, GroupMixin, SinglePlot):
 
     x_column = d_(Str())
     y_column = d_(Str())
     average = d_(Bool())
-
-    SYMBOL_MAP = {
-        'circle': 'o',
-        'square': 's',
-        'triangle': 't',
-        'diamond': 'd',
-    }
-    symbol = d_(Enum('circle', 'square', 'triangle', 'diamond'))
-    symbol_size = d_(Float(10))
-    symbol_size_unit = d_(Enum('screen', 'data'))
 
     def get_plots(self):
         return {self.label: self.plot}
@@ -1258,17 +1436,11 @@ class ResultPlot(GroupMixin, SinglePlot):
             x = d.index.values
             y = d.values
         if x.shape == y.shape:
+            x = self.container.x_transform(x)
             deferred_call(self.plot.setData, x, y)
 
     def _default_plot(self):
-        symbol_code = self.SYMBOL_MAP[self.symbol]
-        color = QColor(self.pen_color)
-        pen = pg.mkPen(color, width=self.pen_width)
-        brush = pg.mkBrush(color)
-        return pg.PlotDataItem(pen=pen, antialias=self.antialias,
-                               symbol=symbol_code, symbolSize=self.symbol_size,
-                               symbolPen=pen, symbolBrush=brush,
-                               pxMode=self.symbol_size_unit=='screen')
+        return pg.PlotDataItem(**self.plot_kw('scatter+curve'))
 
 
 class DataFramePlot(ColorCycleMixin, PSIContribution):
@@ -1358,7 +1530,7 @@ class DataFramePlot(ColorCycleMixin, PSIContribution):
             nonlocal todo
             for plot, x, y in todo:
                 if np.isnan(y).all():
-                    plot.clear()
+                    plot.setData([], [])
                 else:
                     plot.setData(x, y)
         deferred_call(update)

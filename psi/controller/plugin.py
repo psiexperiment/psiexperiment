@@ -76,7 +76,6 @@ def find_engines(point):
                     m = 'Only one engine can be defined as the master'
                     raise ValueError(m)
                 master_engine = e
-
     engines = dict(sorted(engines.items(), key=lambda e: e[1].weight))
 
     # The last engine is the master by default
@@ -416,7 +415,9 @@ class ControllerPlugin(Plugin):
     def start_engines(self):
         log.debug('Starting engines')
         for engine in self._engines.values():
-            engine.start()
+            if engine is not self._master_engine:
+                engine.start()
+        self._master_engine.start()
         self.invoke_actions('engines_started')
 
     def stop_engines(self):

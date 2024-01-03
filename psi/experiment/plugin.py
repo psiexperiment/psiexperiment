@@ -209,3 +209,14 @@ class ExperimentPlugin(PSIPlugin):
                 log.warn('Preference %s missing', name)
             else:
                 preference.set_preferences(self.workbench, state[name])
+
+    def find_status_item(self, status_item_name):
+        available_names = []
+        for item in self._status_items:
+            if item.name == status_item_name:
+                return item
+            available_names.append(item.name)
+
+        available_names = ', '.join(available_names)
+        m = f'Status item {viewbox_name} not available. Valid choices are {available_names}.'
+        raise AttributeError(m)

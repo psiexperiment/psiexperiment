@@ -72,6 +72,12 @@ enamldef SquareWaveEnvelope(ContinuousBlock): block:
         compact_label = 'dc'
         default = 0.5
 
+    Parameter:
+        name = 'alpha'
+        label = 'Tukey Window shape'
+        compact_label = 'alpha'
+        default = 0
+
 
 enamldef SAMEnvelope(ContinuousBlock): block:
 
@@ -138,6 +144,11 @@ enamldef SAMTone(ContinuousBlock): block:
         name = 'equalize'
         default = 'yes'
         choices = {'yes': True, 'no': False}
+
+    Parameter:
+        name = 'polarity'
+        label = 'polarity'
+        default = 1
 
 
 enamldef BroadbandNoise(ContinuousBlock):
@@ -231,6 +242,17 @@ enamldef BandlimitedFIRNoise(BroadbandNoise):
         compact_label = 'pol.'
         default = 1
 
+    Parameter:
+        name = 'max_correction'
+        label = 'Max. eq. correction (dB)'
+        default = 20
+
+    EnumParameter:
+        name = 'audiogram_weighting'
+        label = 'Audiogram weighting'
+        default = 'none'
+        choices = {'none': None, 'mouse': "'mouse'"}
+
 
 enamldef Tone(ContinuousBlock):
 
@@ -252,7 +274,7 @@ enamldef Tone(ContinuousBlock):
 
     EnumParameter:
         name = 'polarity'
-        label = 'polarity (radians)'
+        label = 'polarity'
         compact_label = 'pol'
         default = 'positive'
         choices = {'positive': 1, 'negative': -1}
@@ -385,6 +407,17 @@ enamldef Chirp(EpochBlock):
         default = 'yes'
         choices = {'yes': True, 'no': False}
 
+    Parameter:
+        name = 'max_correction'
+        label = 'Max. eq. correction (dB)'
+        default = 20
+
+    EnumParameter:
+        name = 'audiogram_weighting'
+        label = 'Audiogram weighting'
+        default = 'none'
+        choices = {'none': None, 'mouse': "'mouse'"}
+
 
 enamldef BandlimitedClick(EpochBlock):
 
@@ -411,6 +444,22 @@ enamldef BandlimitedClick(EpochBlock):
         name = 'level'
         label = 'level (dB)'
         default = 1
+
+    EnumParameter:
+        name = 'equalize'
+        default = 'yes'
+        choices = {'yes': True, 'no': False}
+
+    Parameter:
+        name = 'max_correction'
+        label = 'Max. eq. correction (dB)'
+        default = 20
+
+    EnumParameter:
+        name = 'audiogram_weighting'
+        label = 'Audiogram weighting'
+        default = 'none'
+        choices = {'none': None, 'mouse': "'mouse'"}
 
 
 enamldef WavSequence(ContinuousBlock):

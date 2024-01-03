@@ -11,7 +11,7 @@ from enaml.workbench.api import Extension, ExtensionPoint, PluginManifest
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, Branding, MenuItem
 
-from ..util import get_tagged_values, rpc
+from ..util import get_tagged_values, log_with_header, rpc
 
 from .plugin import ControllerPlugin
 from .experiment_action import (ExperimentState, ExperimentEvent,
@@ -85,25 +85,6 @@ def log_commands(event):
     plugin = event.workbench.get_plugin('enaml.workbench.core')
     commands = [f' * {s}' for s in sorted(plugin._commands.keys())]
     log_with_header('Available commands', commands)
-
-
-def log_with_header(header, info):
-    '''
-    Parameters
-    ----------
-    header : str
-        Title to show in header
-    info : sequence
-        List or tuple of strings (one string per line) to put in the logging
-        message.
-
-    Utility function to log multiple lines with a header.
-    '''
-    hline = '*' * 80
-    text = f'* {header.ljust(76)} *'
-    header = '\n'.join([hline, text, hline])
-    info = '\n'.join(info)
-    log.info(f'\n{header}\n{info}')
 
 
 def start_experiment(event):

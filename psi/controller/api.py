@@ -1,7 +1,7 @@
 from .channel import (
-    Channel, HardwareAIChannel, HardwareAOChannel, HardwareDIChannel,
-    HardwareDOChannel, SoftwareAIChannel, SoftwareAOChannel, SoftwareDIChannel,
-    SoftwareDOChannel
+    Channel, ChannelOutOfRange, HardwareAIChannel, HardwareAOChannel,
+    HardwareDIChannel, HardwareDOChannel, SoftwareAIChannel, SoftwareAOChannel,
+    SoftwareDIChannel, SoftwareDOChannel
 )
 
 from .engine import Engine, EngineStoppedException
@@ -9,9 +9,9 @@ from .engine import Engine, EngineStoppedException
 from .input import (
     Accumulate, AutoThreshold, Average, Bitmask, Blocked, CalibratedInput,
     Callback, Capture, ContinuousInput, Coroutine, Decimate, DecimateTo, Delay,
-    Detrend, Discard, Downsample, Edges, EpochInput, EventInput, EventRate,
-    EventsToInfo, ExtractEpochs, IIRFilter,Input, MCReference, MCSelect ,
-    RejectEpochs, RMS, SPL, Threshold, Transform
+    Derivative, Detrend, Discard, Downsample, Edges, EpochInput, EventInput,
+    EventRate, EventsToInfo, ExtractEpochs, IIRFilter,Input, MCReference,
+    MCSelect , RejectEpochs, RMS, SPL, Threshold, Transform
 )
 
 from .output import (

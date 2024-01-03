@@ -89,3 +89,7 @@ class ZarrStore(BaseStore):
         params = {'filename': filename}
         core = workbench.get_plugin('enaml.workbench.core')
         core.invoke_command(cmd, params)
+
+    def get_ai_signal(self, name):
+        from psidata.zarr_tools import ZarrSignal
+        return ZarrSignal(self._stores[name])

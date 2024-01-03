@@ -6,8 +6,15 @@ from enaml.workbench.core.api import Command
 
 from psi.controller.experiment_action import ExperimentAction
 from psi.data.sinks.api import TextStore
+from psi.util import log_with_header
 
 from .plugin import CalibrationPlugin
+
+
+def log_calibrators(event):
+    plugin = event.workbench.get_plugin('psi.controller.calibration')
+    calibrators = [f' * {s}' for s in plugin._calibrators]
+    log_with_header('Calibrators to run', calibrators)
 
 
 def run_calibration(event):
@@ -34,6 +41,9 @@ enamldef CalibrationManifest(PluginManifest): manifest:
         Command:
             id = 'psi.controller.calibration.start'
             handler = run_calibration
+        Command:
+            id = 'psi.controller.calibration.log_calibrators'
+            handler = log_calibrators
 
     Extension:
         id = manifest.id + '.calibration_store'
@@ -50,3 +60,6 @@ enamldef CalibrationManifest(PluginManifest): manifest:
             weight = 10
             event = 'experiment_prepare'
             command = 'psi.controller.calibration.start'
+        ExperimentAction:
+            event = 'plugins_started'
+            command = 'psi.controller.calibration.log_calibrators'

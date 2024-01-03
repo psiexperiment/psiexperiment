@@ -46,6 +46,7 @@ class BaseCalibrate(PSIContribution):
 
     result = d_(Dict())
 
+    #: Add a DockItem showing the results of the calibration?
     show_widget = d_(Bool(True))
 
     def save_dataframe(self, core_plugin, dataframe, name):
@@ -153,6 +154,12 @@ class ChirpCalibrate(BaseCalibrate):
 
     Useful for in-ear calibrations. The calibration will be saved.
     '''
+    #: If not provided and show_widget is True, the viewbox name will
+    #: automatically be generated and a plot added to the experiment GUI. If
+    #: you want this calibration result to share a viewbox with another plot,
+    #: provide the name of that viewbox. Be sure to set show_widget to False as
+    #: well otherwise you'll get a useless widget.
+    viewbox_name = d_(Str())
 
     #: Duration of chirp
     duration = d_(Float(20e-3))
@@ -162,6 +169,9 @@ class ChirpCalibrate(BaseCalibrate):
 
     #: Number of repetitions to average
     repetitions = d_(Int(64))
+
+    def _default_viewbox_name(self):
+        return self.name
 
     def get_config(self, controller, core):
         # As of now, we do not do anything with the value provided for each

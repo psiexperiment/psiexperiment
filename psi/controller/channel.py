@@ -15,6 +15,16 @@ from .output import QueuedEpochOutput, ContinuousOutput, EpochOutput
 from ..core.enaml.api import PSIContribution
 
 
+class ChannelOutOfRange(ValueError):
+
+    def __init__(self, expected_sf, max_sf):
+        self.expected_sf = expected_sf
+        self.max_sf = max_sf
+        self.db = db = util.db(expected_sf, max_sf)
+        mesg = f'Requested level exceeds max output of channel by {db:.1f} dB'
+        super().__init__(mesg)
+
+
 class Channel(PSIContribution):
 
     #: Globally-unique name of channel used for identification
@@ -154,6 +164,8 @@ class InputMixin(Declarative):
         callback = Callback(function=cb)
         self.add_input(callback)
 
+    def register_callback(self, cb):
+        self.engine.register_callback(cb, self.type_code, self.name)
 
 class AnalogMixin(Declarative):
 
@@ -183,7 +195,6 @@ class AnalogMixin(Declarative):
                 f'Try reducing your stimulus level by at least {rel_db:.1f} dB.'
             raise ValueError(m)
 
-
 class DigitalMixin(Declarative):
 
     # Used to properly configure data storage.
@@ -191,6 +202,9 @@ class DigitalMixin(Declarative):
 
 
 class CounterMixin(Declarative):
+
+    # Used to properly configure data storage.
+    dtype = d_(Str('double')).tag(metadata=True)
 
     def _get_active(self):
         return True
@@ -230,8 +244,14 @@ class OutputMixin(Declarative):
         return self.engine.get_buffer_size(self.name)
 
 
-class CounterChannel(CounterMixin, Channel):
-    pass
+class HardwareCOChannel(CounterMixin, OutputMixin, HardwareMixin, Channel):
+
+    type_code = set_default('hw_co')
+
+
+class HardwareCIChannel(CounterMixin, InputMixin, HardwareMixin, Channel):
+
+    type_code = set_default('hw_ci')
 
 
 class HardwareAOChannel(AnalogMixin, OutputMixin, HardwareMixin, Channel):

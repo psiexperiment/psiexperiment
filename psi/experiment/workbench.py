@@ -23,15 +23,15 @@ with enaml.imports():
     from . import error_style
 
 from psi import set_config
-from psi.core.enaml.api import load_manifest, load_manifest_from_file
+from psi.application import load_io_manifest
 from psi.core.enaml import manifest
 
 
 class PSIWorkbench(Workbench):
 
-    io_manifest_class = Value()
     context_plugin = Value()
     controller_plugin = Value()
+    data_plugin = Value()
 
     def register_core_plugins(self, io_manifest, controller_manifests):
         # Note, the get_plugin calls appear to be necessary to properly
@@ -49,11 +49,7 @@ class PSIWorkbench(Workbench):
         self.get_plugin('enaml.workbench.core')
 
         if io_manifest is not None:
-            if io_manifest.endswith('.enaml'):
-                self.io_manifest_class = load_manifest_from_file(io_manifest, 'IOManifest')
-            else:
-                self.io_manifest_class = load_manifest(f'{io_manifest}.IOManifest')
-            io_manifest = self.io_manifest_class()
+            io_manifest = load_io_manifest(io_manifest)()
             log.info('Registering %r', io_manifest)
             self.register(io_manifest)
             manifests = [io_manifest]
@@ -79,6 +75,8 @@ class PSIWorkbench(Workbench):
         self.get_plugin('psi.controller.calibration')
         log.info('Loading context plugin')
         self.context_plugin = self.get_plugin('psi.context')
+        log.info('Loading data plugin')
+        self.data_plugin = self.get_plugin('psi.data')
 
         log.info('Binding key plugins to manifests')
         for manifest in self._manifests.values():
@@ -87,6 +85,7 @@ class PSIWorkbench(Workbench):
                 manifest.C = self.context_plugin.lookup
                 manifest.context = self.context_plugin
                 manifest.controller = self.controller_plugin
+                manifest.data = self.data_plugin
 
     def register(self, manifest):
         if isinstance(manifest, str):
@@ -96,6 +95,7 @@ class PSIWorkbench(Workbench):
             manifest.C = self.context_plugin.lookup
             manifest.context = self.context_plugin
             manifest.controller = self.controller_plugin
+            manifest.data = self.data_plugin
         super().register(manifest)
 
     def start_workspace(self,

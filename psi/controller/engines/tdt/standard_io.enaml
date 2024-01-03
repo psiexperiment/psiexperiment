@@ -52,12 +52,15 @@ enamldef Medusa4ZTDTEngine(BaseTDTEngine):
     circuit = 'RZ6-standard-Medusa4Z'
 
     TDTHardwareAIChannel:
-        tag = 'ai3'
+        tag = 'ai_dec1'
         label = 'Medusa 1'
         name = 'eeg_channel'
         dtype = 'float32'
         decimation = 4
         filter_delay << medusa4z_delay
+
+        to_string => ():
+            return f'{self.label} (ai3)'
 
 
 enamldef RA4PATDTEngine(BaseTDTEngine):
@@ -68,9 +71,38 @@ enamldef RA4PATDTEngine(BaseTDTEngine):
     circuit = 'RZ6-standard-RA4PAx20'
 
     TDTHardwareAIChannel:
-        tag = 'ai3'
+        tag = 'ai_dec1'
         label = 'Medusa 1'
         name = 'eeg_channel'
         dtype = 'float32'
         decimation = 4
         filter_delay << RA4PA_delay
+
+        to_string => ():
+            return f'{self.label} (ai3)'
+
+
+enamldef DebugTDTEngine(BaseTDTEngine):
+
+    ao_delay = 0
+    ai_delay = 0
+    circuit = 'RZ6-debugging'
+
+    TDTHardwareAIChannel:
+        tag = 'ai3'
+        label = 'AO1 + AO2 monitor'
+        name = 'combined_monitor'
+        dtype = 'float32'
+
+    TDTHardwareAIChannel:
+        tag = 'ai4'
+        label = 'Spike generator'
+        name = 'spike_generator'
+        dtype = 'float32'
+
+    TDTHardwareAIChannel:
+        tag = 'ai_dec1'
+        label = 'AO1 + AO2 monitor (decimated)'
+        name = 'combined_monitor_dec'
+        dtype = 'float32'
+        decimation = 4

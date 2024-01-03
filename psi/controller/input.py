@@ -15,6 +15,7 @@ log = logging.getLogger(__name__)
 
 from collections import deque
 from functools import partial
+import threading
 
 import numpy as np
 from scipy import signal
@@ -143,7 +144,7 @@ class Input(PSIContribution):
 
     def configure(self):
         cb = self.configure_callback()
-        self.engine.register_ai_callback(cb, self.channel.name)
+        self.channel.register_callback(cb)
         self.configured = True
 
     def configure_callback(self):
@@ -456,17 +457,48 @@ class AutoThreshold(ContinuousInput):
     '''
     Automatically threshold data as `n` standard deviations computed over
     a window that is `baseline` seconds long.
+
+    The threshold can be overidden by setting `threshold`.
     '''
     #: Number of standard deviations to set threshold at
-    n = d_(Int(4))
+    n = d_(Int(10)).tag(metadata=True)
 
     #: Duration, in seconds, to calculate threshold over.
-    baseline = d_(Float(30))
+    baseline = d_(Float(30)).tag(metadata=True)
+
+    #: Whether to detect positive (i.e., x >= th), negative (i.e., x <= th), or
+    #: both (i.e., x >= th or x <= th) deflections.
+    mode = d_(Enum('positive', 'negative', 'both')).tag(metadata=True)
+
+    #: The auto-threshold as determined. It is initially NaN (to indicate the
+    #: threshold has not yet been determined). Once threshold is determined, it
+    #: will then change to that value).
+    auto_th = d_(Float(np.nan).tag(metadata=True), writable=False)
+
+    #: Actual threshold (used for overriding the auto-computed threshold).
+    current_th = Float(np.nan).tag(metadata=True)
+
+    def _set_auto_th(self, th):
+        '''
+        Supporting method to store calculated auto-threshold
+
+        This is useful in situations where we want this information to be
+        stored in the io.json files that are generated at the end of the
+        experiment.
+        '''
+        self.auto_th = th
+        if np.isnan(self.current_th):
+            self.current_th = th
+
+    def _current_th_cb(self):
+        return self.current_th
 
     def configure_callback(self):
         cb = super().configure_callback()
         return pipeline.auto_th(self.n, self.baseline, cb,
-                                fs=self.parent.fs).send
+                                fs=self.source.fs, mode=self.mode,
+                                auto_th_cb=self._set_auto_th,
+                                current_th_cb=self._current_th_cb).send
 
 
 class Average(ContinuousInput):
@@ -492,10 +524,19 @@ class Delay(ContinuousInput):
 
 class Bitmask(Transform):
 
-    bit = d_(Int(0))
+    bit = d_(Int(0)).tag(metadata=True)
 
     def _default_function(self):
         return lambda x, b=self.bit: ((x >> b) & 1).astype('bool')
+
+
+class Derivative(ContinuousInput):
+
+    initial_value = d_(Float()).tag(metadata=True)
+
+    def configure_callback(self):
+        cb = super().configure_callback()
+        return pipeline.derivative(self.initial_value, cb).send
 
 
 ################################################################################
@@ -523,8 +564,8 @@ class Edges(EventInput):
 
 class EventsToInfo(EventInput):
 
-    trigger_edge = d_(Enum('rising', 'falling'))
-    base_info = d_(Dict())
+    trigger_edge = d_(Enum('rising', 'falling')).tag(metadata=True)
+    base_info = d_(Dict()).tag(metadata=True)
 
     def configure_callback(self):
         cb = super().configure_callback()
@@ -553,13 +594,13 @@ class EventRate(EventInput):
     block_step_samples = Property().tag(metadata=True)
 
     def _get_block_step_samples(self):
-        return int(np.round(self.block_step * self.parent.fs))
+        return int(np.round(self.block_step * self.source.fs))
 
     def _get_block_size_samples(self):
-        return int(np.round(self.block_size * self.parent.fs))
+        return int(np.round(self.block_size * self.source.fs))
 
     def _get_fs(self):
-        return self.parent.fs / self.block_step_samples
+        return self.source.fs / self.block_step_samples
 
     def configure_callback(self):
         cb = super().configure_callback()
@@ -574,6 +615,7 @@ class ExtractEpochs(EpochInput):
 
     added_queue = d_(Typed(deque, {}))
     removed_queue = d_(Typed(deque, {}))
+    _source_complete = Typed(threading.Event, {})
 
     #: Duration to buffer (allowing for lookback captures where we belatedly
     #: notify the coroutine that we wish to capture an epoch).
@@ -597,6 +639,17 @@ class ExtractEpochs(EpochInput):
     #: such as to a queue).
     epoch_event = d_(Str())
 
+    def subscribe_to_queue(self, queue):
+        '''
+        Connect this input to an instance of psiaudio.queue.SignalQueue
+        '''
+        queue.connect(self.added_queue.append, 'added')
+        queue.connect(self.removed_queue.append, 'removed')
+        queue.connect(self.source_complete, 'empty')
+
+    def source_complete(self, info):
+        self._source_complete.set()
+
     def mark_complete(self):
         self.complete = True
 
@@ -610,7 +663,8 @@ class ExtractEpochs(EpochInput):
             buffer_size=self.buffer_size, target=cb,
             empty_queue_cb=self.mark_complete,
             removed_queue=self.removed_queue, prestim_time=self.prestim_time,
-            poststim_time=self.poststim_time).send
+            poststim_time=self.poststim_time,
+            source_complete=self._source_complete).send
 
     def _get_duration(self):
         return self.epoch_size + self.poststim_time + self.prestim_time

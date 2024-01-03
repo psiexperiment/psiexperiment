@@ -1,3 +1,6 @@
+'''
+Manifests for specific calibration routines (e.g., chirp, tone).
+'''
 import logging
 log = logging.getLogger(__name__)
 
@@ -14,7 +17,11 @@ from psi.data.api import FFTContainer, ResultPlot, TimeContainer, ViewBox
 
 def plot_chirp_result(workbench, manifest, event):
     data = workbench.get_plugin('psi.data')
-    vb = data.find_viewbox(manifest.contribution.name)
+    try:
+        vb = data.find_viewbox(manifest.contribution.viewbox_name)
+    except AttributeError as e:
+        log.warning(str(e))
+        return
 
     norm_spl = manifest.contribution.result['calibration']['norm_spl'].dropna()
     for (s, m), n_spl in norm_spl.groupby(['ao_channel', 'channel']):
@@ -29,17 +36,16 @@ enamldef ChirpCalibrateManifest(PSIManifest): manifest:
         id = manifest.id + '.plots'
         point = 'psi.data.plots'
 
+        initialized ::
+            cb = partial(plot_chirp_result, workbench, manifest)
+            manifest.contribution.observe('result', cb)
+
         Conditional:
             condition << manifest.contribution.show_widget
 
             FFTContainer:
                 freq_lb = 5000
                 freq_ub = 50000
-
-                initialized ::
-                    cb = partial(plot_chirp_result, workbench, manifest)
-                    manifest.contribution.observe('result', cb)
-
                 name = manifest.contribution.name + '.result'
                 label = manifest.contribution.label + ' results'
 

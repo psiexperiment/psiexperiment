@@ -161,7 +161,26 @@ class BaseSelector(PSIContribution):
     #: of the roving parameters (the user can still enter the values they want).
     user_managed = d_(Bool(True))
 
+    #: If empty, all context items are selectable. Otherwise, list context
+    #: items that can be selected for roving. If user_managed is True, then the
+    #: user can check off which context items in this list will be roved. If
+    #: user_managed is False, then the items in this list will always be shown
+    #: in the selector.
+    can_manage = d_(Typed(list, []))
+
     context_items = List()
+
+    #: Programatically-set details (e.g., transforms, spacing, etc.) that are
+    #: provided by specific paradigms including:
+    #: * inverse_transform_fn - Function to convert from UI field to value
+    #:   required by program. If not provided, identity transform is used.
+    #: * unit - Unit of field as shown in UI. If not provided, no unit is used.
+    #: * user_friendly_name - Name to show in UI. If not provided, defaults to
+    #:   label set on Parameter.
+    #: * user_friendly_name_plural - Name to show in UI when the plural form is
+    #:   needed. If not provided, assumes "s" can be appended to
+    #:   `user_friendly_name`.
+    context_detail = d_(Dict())
 
     #: Since order of context items is important for certain selectors (e.g.,
     #: the CartesianProduct), this attribute is used to persist experiment
@@ -225,6 +244,83 @@ class BaseSelector(PSIContribution):
     def set_preferences(self, state):
         return dict_to_declarative(self, state)
 
+    @d_func
+    def item_name(self, item_name):
+        '''
+        Given the item name, return a modified item name (if needed).
+
+        The primary use-case for this is to switch between two sets of defaults
+        depending on whether we are working with level specified as dB
+        attenuation or dB SPL. If we specify `context_detail` as::
+
+            {
+                'cal::target_tone_level': {
+                    'user_friendly_name': 'levels',
+                    'step_unit': 'dB',
+                    'order_user_managed': True,
+                    'unit': 'dB SPL',
+                },
+                'atten::target_tone_level': {
+                {
+                    'user_friendly_name': 'levels',
+                    'step_unit': 'dB',
+                    'order_user_managed': True,
+                    'unit': 'dB re 1Vrms',
+                },
+            }
+
+        By overriding this function, you can intercept a request for
+        `target_tone_level` and return either `cal::target_tone_level` or
+        `atten::target_tone_level` depending on whether a calibration has been
+        loaded for the speaker.
+        '''
+        return item_name
+
+    @d_func
+    def item_label(self, item):
+        '''
+        Given the item, return a label for use in the UI.
+        '''
+        item_name = self.item_name(item.name)
+        detail = self.context_detail.get(item_name, {})
+        name = detail.get('user_friendly_name', None)
+        unit = detail.get('unit', None)
+        if name is None or unit is None:
+            return item.label
+        else:
+            return f'{name} ({unit})'
+
+    @d_func
+    def item_transform(self, item, value):
+        item_name = self.item_name(item.name)
+        detail = self.context_detail.get(item_name, {})
+        fn = detail.get('transform_fn', lambda x: x)
+        return fn(item.coerce_to_type(value))
+
+    @d_func
+    def item_inverse_transform(self, item, value):
+        item_name = self.item_name(item.name)
+        detail = self.context_detail.get(item_name, {})
+        fn = detail.get('inverse_transform_fn', lambda x: x)
+        return fn(item.coerce_to_type(value))
+
+    def get_formatter(self, names=None):
+        if names is None:
+            names = [i.name for i in self.context_items]
+        formatters = []
+        for name in names:
+            name = self.item_name(name)
+            detail = self.context_detail.get(name, {})
+            inverse_transform_fn = detail.get('inverse_transform_fn', lambda x: x)
+            unit = detail.get('unit', '')
+            formatters.append(lambda x, fn=inverse_transform_fn, u=unit: f'{fn(x)} {u}')
+
+        def formatter(setting, sep):
+            nonlocal formatters
+            return sep.join(f(s) for f, s in zip(formatters, setting))
+
+        return formatter
+
 
 class SingleSetting(BaseSelector):
     '''
@@ -274,14 +370,15 @@ class SingleSetting(BaseSelector):
 
     def get_value(self, item):
         '''
-        Get the value for the item
+        Get the value for the item for display in the UI
 
         Parameters
         ----------
         item : ContextItem
             Item to get value for
         '''
-        return self.setting[item.name]
+        value = self.setting[item.name]
+        return self.item_inverse_transform(item, value)
 
     def set_value(self, item, value):
         '''
@@ -292,6 +389,7 @@ class SingleSetting(BaseSelector):
         item : ContextItem
             Item to set value for
         '''
+        value = self.item_transform(item, value)
         self.setting[item.name] = value
         self.updated = True
 
@@ -418,11 +516,13 @@ class SequenceSelector(BaseSelector):
     def set_value(self, setting_index, item, value):
         # TODO: It's weird that some methods take the index of the setting,
         # while others take the setting object. Need to sanitize this.
+        value = self.item_transform(item, value)
         self.settings[setting_index][item.name] = value
         self.updated = True
 
     def get_value(self, setting_index, item):
-        return self.settings[setting_index][item.name]
+        value = self.settings[setting_index][item.name]
+        return self.item_inverse_transform(item, value)
 
 
 class FriendlyCartesianProductItem(Atom):
@@ -482,7 +582,10 @@ class FriendlyCartesianProductRange(FriendlyCartesianProductItem):
         return lambda lb, ub, s: np.arange(lb, ub + s/2, s)
 
     def _get_values(self):
-        return self.range_fn(self.start, self.end, self.step)
+        try:
+            return self.range_fn(self.start, self.end, self.step)
+        except:
+            return []
 
 
 class FriendlyCartesianProductList(FriendlyCartesianProductItem):
@@ -498,49 +601,8 @@ class FriendlyCartesianProduct(BaseSelector):
     Like the CartesianProduct selector, but offers a much more user-friendly
     interface that allows for customizing the range and settings used.
     '''
-    user_managed = set_default(True)
-
     #: Tracks the user-configurable values.
     context_settings = Dict().tag(preference=True)
-
-    #: Programatically-set details (e.g., transforms, spacing, etc.)
-    context_detail = d_(Dict())
-
-    #: If empty, all context items are selectable. Otherwise, list context
-    #: items that can be selected for roving.
-    can_manage = d_(Typed(list, []))
-
-    @d_func
-    def item_name(self, item_name):
-        '''
-        Given the item and field name, return the appropriate field name.
-
-        The primary use-case for this is to switch between two sets of defaults
-        depending on whether we are working with level specified as dB
-        attenuation or dB SPL. If we specify `context_detail` as::
-
-            {
-                'cal::target_tone_level': {
-                    'user_friendly_name': 'levels',
-                    'step_unit': 'dB',
-                    'order_user_managed': True,
-                    'unit': 'dB SPL',
-                },
-                'atten::target_tone_level': {
-                {
-                    'user_friendly_name': 'levels',
-                    'step_unit': 'dB',
-                    'order_user_managed': True,
-                    'unit': 'dB re 1Vrms',
-                },
-            }
-
-        By overriding this function, you can intercept a request for
-        `target_tone_level` and return either `cal::target_tone_level` or
-        `atten::target_tone_level` depending on whether a calibration has been
-        loaded for the speaker.
-        '''
-        return item_name
 
     @d_func
     def migrate_state(self, state, direction):
@@ -566,8 +628,6 @@ class FriendlyCartesianProduct(BaseSelector):
 
     def append_item(self, item):
         name = self.item_name(item.name)
-        if name not in self.context_detail:
-            raise ValueError(f'Cannot rove item {item.name}')
         if name not in self.context_settings:
             self.context_settings[name] = self.make_setting(item, FriendlyCartesianProductRange)
         super().append_item(item)
@@ -592,28 +652,12 @@ class FriendlyCartesianProduct(BaseSelector):
         context_items.insert(b, context_items.pop(a))
         self.context_items = context_items
 
-    def get_formatter(self, names=None):
-        if names is None:
-            names = [i.name for i in self.context_items]
-        formatters = []
-        for name in names:
-            name = self.item_name(name)
-            setting = self.context_settings[name]
-            formatters.append(lambda x, fn=setting.inverse_transform_fn, u=setting.unit: f'{fn(x)} {u}')
-
-        def formatter(setting, sep):
-            nonlocal formatters
-            return sep.join(f(s) for f, s in zip(formatters, setting))
-
-        return formatter
-
     def get_preferences(self):
         return self.migrate_state(super().get_preferences(), 'reverse')
 
     def set_preferences(self, state):
         state = self.migrate_state(state, 'forward')
         context_settings = state.pop('context_settings')
-
         klass_map = {
             'list': FriendlyCartesianProductList,
             'range': FriendlyCartesianProductRange,
@@ -621,7 +665,7 @@ class FriendlyCartesianProduct(BaseSelector):
         for k, v in context_settings.items():
             klass = klass_map[v.pop('sequence_type', 'range')]
             for i in self.context_items:
-                if i.name == k:
+                if self.item_name(i.name) == k:
                     item = i
                     break
             else:

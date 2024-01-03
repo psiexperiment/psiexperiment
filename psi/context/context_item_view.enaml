@@ -165,6 +165,7 @@ template ContextItemTemplate(context_item, MemberType: Parameter):
 
         Label:
             text << context_item.label
+            tool_tip << context_item.name
 
         DynamicTemplate:
             base = WidgetTemplate
@@ -215,6 +216,7 @@ template WidgetTemplate(context_item, MemberType: EnumParameter):
         items << sorted(context_item.choices.keys())
         selected := context_item.selected
         enabled << context_item.editable
+        tool_tip << context_item.name
 
 
 template WidgetTemplate(context_item, MemberType: BoolParameter):
@@ -226,6 +228,7 @@ template WidgetTemplate(context_item, MemberType: BoolParameter):
         text = ''
         checked << eval(context_item.expression)
         enabled << context_item.editable
+        tool_tip << context_item.name
         toggled ::
             context_item.expression = 'True' if checked else 'False'
 

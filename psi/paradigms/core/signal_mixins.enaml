@@ -1,3 +1,4 @@
+from enaml.core.api import Looper
 from enaml.workbench.api import Extension
 
 from psi.core.enaml.api import ExperimentManifest
@@ -7,7 +8,7 @@ from psi.data.plots import (ChannelPlot, FFTChannelPlot, FFTContainer,
 ################################################################################
 # Microphone mixins
 ################################################################################
-enamldef SignalViewManifest(ExperimentManifest): manifest:
+enamldef MultiSignalViewManifest(ExperimentManifest): manifest:
 
     id = 'signal_view'
     name = 'signal_view'
@@ -15,8 +16,13 @@ enamldef SignalViewManifest(ExperimentManifest): manifest:
 
     alias time_span: time_container.span
     alias time_delay: time_container.delay
-    alias source_name: time_plot.source_name
     alias y_label: vb.y_label
+    alias y_min: vb.y_min
+    alias y_max: vb.y_max
+    alias y_mode: vb.y_mode
+    alias save_limits: vb.save_limits
+
+    attr sources
 
     Extension:
         id = 'plots'
@@ -35,25 +41,57 @@ enamldef SignalViewManifest(ExperimentManifest): manifest:
                 y_mode = 'mouse'
                 save_limits = True
 
-                ChannelPlot: time_plot:
-                    name << manifest.name + '_plot'
-                    pen_color = 'k'
-                    source_name = 'microphone'
+                Looper:
+                    iterable << sources.items() if sources is not None else []
+
+                    ChannelPlot: time_plot:
+                        name << manifest.name + f'{loop_item[0]}_plot'
+                        source_name = loop_item[0]
+                        pen_color = loop_item[1].get('color', 'k')
+                        decimate_mode = loop_item[1].get('decimate_mode', 'extremes')
 
 
-enamldef SignalFFTViewManifest(ExperimentManifest): manifest:
+enamldef SignalViewManifest(MultiSignalViewManifest): manifest:
+
+    attr source_name
+    attr decimate_mode = 'extremes'
+    attr color = 'k'
+
+    initialized ::
+        manifest.sources = {
+            manifest.source_name: {
+                'color': manifest.color,
+                'decimate_mode': manifest.decimate_mode,
+            },
+        }
+
+
+enamldef MultiSignalFFTViewManifest(ExperimentManifest): manifest:
 
     id = 'signal_fft_view'
     name = 'signal_fft_view'
     title = 'Signal view (PSD)'
 
-    alias fft_time_span: fft_plot.time_span
     alias fft_freq_lb: fft_container.freq_lb
     alias fft_freq_ub: fft_container.freq_ub
-    alias source_name: fft_plot.source_name
+    alias x_mode: fft_vb.x_mode
+    alias axis_scale: fft_container.axis_scale
     alias y_label: fft_vb.y_label
-    alias apply_calibration: fft_plot.apply_calibration
-    alias waveform_averages: fft_plot.waveform_averages
+    alias y_min: fft_vb.y_min
+    alias y_max: fft_vb.y_max
+    alias y_mode: fft_vb.y_mode
+    alias save_limits: fft_vb.save_limits
+
+    #: Must be a dictionary mapping source_name to a dictionary of
+    #: FFTChannelPlot properties (currently supported properties include color,
+    #: apply_calibration, fft_time_span, and waveform_averages). For example:
+    #: sources = {'probe_mic': {'color': 'k'}, 'elicitor_mic': {'color': 'r'}}
+    attr sources
+
+    # Set default values if not provided in sources
+    attr fft_time_span = 1
+    attr waveform_averages = 1
+    attr apply_calibration = False
 
     Extension:
         id = manifest.id  + '.plots'
@@ -72,8 +110,25 @@ enamldef SignalFFTViewManifest(ExperimentManifest): manifest:
                 y_mode = 'mouse'
                 save_limits = True
 
-                FFTChannelPlot: fft_plot:
-                    name << manifest.name + '_plot'
-                    source_name = 'microphone'
-                    pen_color = 'k'
-                    time_span = 0.25
+                Looper:
+                    iterable << sources.items() if sources is not None else []
+
+                    FFTChannelPlot:
+                        name << manifest.name + f'{loop_item[0]}_plot'
+                        source_name = loop_item[0]
+                        pen_color = loop_item[1].get('color', 'k')
+                        apply_calibration = loop_item[1].get('apply_calibration', manifest.apply_calibration)
+                        waveform_averages = loop_item[1].get('waveform_averages', manifest.waveform_averages)
+                        time_span = loop_item[1].get('fft_time_span', manifest.fft_time_span)
+
+
+enamldef SignalFFTViewManifest(MultiSignalFFTViewManifest): manifest:
+
+    attr source_name
+
+    initialized ::
+        manifest.sources = {
+            manifest.source_name: {
+                'color': 'k',
+            }
+        }

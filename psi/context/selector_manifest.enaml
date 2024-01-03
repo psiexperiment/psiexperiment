@@ -145,7 +145,9 @@ class SequenceTable(EditableTable):
         self.selector.set_value(row, item, value)
 
     def get_column_label(self, col):
-        return self.selector.context_items[col].compact_label
+        item = self.selector.context_items[col]
+        label = self.selector.item_label(item)
+        return label[0].capitalize() + label[1:]
 
     def remove_row(self, row):
         setting = self.selector.settings[row]
