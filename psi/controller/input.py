@@ -702,16 +702,38 @@ class RejectEpochs(EpochInput):
     #: Percent of epochs rejected.
     reject_percent = Float()
 
-    def status_cb(self, n_total, n_accepted):
+    #: Number of most recent epochs over which `running_reject_percent` is
+    #: calculated.
+    running_N = Int(100)
+
+    #: Running percent of last N epochs rejected.
+    running_reject_percent = Float()
+
+    #: List indicating True/False status of accepted/rejected epochs.
+    accepted = List()
+
+    def status_cb(self, accepted):
         def update():
             # Update the status. Must be wrapped in a deferred call to ensure
             # that the update occurs on the GUI thread.
             nonlocal self
-            nonlocal n_total
-            nonlocal n_accepted
+            nonlocal accepted
+
+            accepted = list(accepted)
+            n_total = len(accepted)
+            n_accepted = accepted.count(True)
+
             self.total += n_total
             self.rejects += n_total - n_accepted
             self.reject_percent = self.rejects / self.total * 100
+
+            # Compute reject rate of last N epochs.
+            self.accepted.extend(accepted)
+            subset = self.accepted[-self.running_N:]
+            running_n_accepted = subset.count(True)
+            running_n = len(subset)
+            self.running_reject_percent = (1 - (running_n_accepted / running_n)) * 100
+
         deferred_call(update)
 
     def configure_callback(self):

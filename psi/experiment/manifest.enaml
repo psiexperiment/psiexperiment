@@ -8,8 +8,9 @@ import yaml
 
 import numpy as np
 
-from enaml.widgets.api import FileDialogEx, Form, HGroup, Label, VGroup
 from enaml.core.api import Looper, Include
+from enaml.layout.api import align, hbox, vbox
+from enaml.widgets.api import Container, FileDialogEx, HGroup, Label, VGroup
 from enaml.workbench.api import Extension, PluginManifest, ExtensionPoint
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
@@ -161,12 +162,26 @@ enamldef StatusDockItem(PSIDockItem):
     title = 'Experiment Status'
     attr plugin
 
-    Form:
+    Container:
+        layout_constraints => ():
+            widgets = self.visible_widgets()
+            labels = widgets[::2]
+            groups = widgets[1::2]
+            log.warn([g.anchor for g in groups])
+            return [
+                vbox(*[hbox(l, g) for l, g in zip(labels, groups)]),
+                *[align('v_center', l, g.anchor) for l, g in zip(labels, groups)]
+            ]
+
         Looper:
             iterable << plugin._status_items.values()
             Label:
                 text << loop_item.label
             HGroup:
+                share_layout = True
+                # This is the anchor against which we will align the v_center
+                # of the label.
+                attr anchor = loop_item.anchor
                 padding = 0
                 spacing = 0
                 Include:

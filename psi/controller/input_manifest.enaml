@@ -4,9 +4,10 @@ from functools import partial
 import numpy as np
 
 from enaml.core.api import Conditional
+from enaml.layout.api import align, hbox, vbox
 from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
-from enaml.widgets.api import ProgressBar
+from enaml.widgets.api import Container, Label, ProgressBar
 
 from .experiment_action import (ExperimentEvent, ExperimentState,
                                 ExperimentAction)
@@ -147,7 +148,27 @@ enamldef RejectEpochsManifest(InputManifest): manifest:
 
         StatusItem:
             label = 'Epoch reject'
-            ProgressBar:
-                maximum << 100
-                value << int(manifest.contribution.reject_percent)
-                text_visible = True
+            anchor = label_all
+            Container:
+                share_layout = True
+                padding = 0
+                constraints = [
+                    hbox(
+                        vbox(label_all, label_running),
+                        vbox(pb_all, pb_running),
+                    ),
+                    align('v_center', label_all, pb_all),
+                    align('v_center', label_running, pb_running),
+                ]
+                Label: label_all:
+                    text = 'All'
+                Label: label_running:
+                    text = 'Last 100'
+                ProgressBar: pb_all:
+                    maximum = 100
+                    value << int(manifest.contribution.reject_percent)
+                    text_visible = True
+                ProgressBar: pb_running:
+                    maximum = 100
+                    value << int(manifest.contribution.running_reject_percent)
+                    text_visible = True
