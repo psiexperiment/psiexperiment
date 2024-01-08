@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 from psi.core.enaml.api import load_manifest
 
 
@@ -10,6 +13,7 @@ class ParadigmManager:
         self.broken_paradigms = {}
 
     def register(self, paradigm, exception=None):
+        log.info('Registering experiment paradigm %s', paradigm.name)
         self.paradigms[paradigm.name] = paradigm
         if exception is not None:
             raise
@@ -62,6 +66,7 @@ class PluginDescription:
 
     def __init__(self, manifest, selected=False, required=None, name=None,
                  title=None, attrs=None):
+        log.info('Initializing PluginDescription %s with name %r', manifest, name)
         if attrs is None:
             attrs = {}
         self.manifest = load_manifest(manifest)(**attrs)
@@ -101,6 +106,7 @@ class ParadigmDescription:
             List of tuples containing information about the plugins that are
             available for this particular paradigm.
         '''
+        log.info('Initializing ParadigmDescrption %s', name)
         self.name = name
         self.title = title
         self.experiment_type = experiment_type
