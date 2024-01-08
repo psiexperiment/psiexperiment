@@ -534,6 +534,8 @@ class ViewBox(ColorCycleMixin, PSIContribution):
 
     @observe('y_min', 'y_max')
     def _update_limits(self, event=None):
+        if event['type'] == 'create':
+            return
         if self.y_autoscale:
             return
         self.viewbox.setYRange(self.y_min, self.y_max, padding=0)

@@ -87,7 +87,7 @@ class PluginDescription:
 
 class ParadigmDescription:
 
-    def __init__(self, name, title, experiment_type, plugin_info):
+    def __init__(self, name, title, experiment_type, plugin_info, info=None):
         '''
         Parameters
         ----------
@@ -105,11 +105,18 @@ class ParadigmDescription:
         plugin_info : list
             List of tuples containing information about the plugins that are
             available for this particular paradigm.
+        info : {None, dict}
+            Additional details that may be needed for customizing details such
+            as the launcher.
         '''
         log.info('Initializing ParadigmDescrption %s', name)
         self.name = name
         self.title = title
         self.experiment_type = experiment_type
+
+        if info is None:
+            info = {}
+        self.info = info
 
         global paradigm_manager
         try:
