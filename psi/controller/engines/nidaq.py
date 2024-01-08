@@ -311,6 +311,8 @@ def device_list(task):
 def hw_ao_helper(cb, task, event_type, cb_samples, cb_data):
     try:
         cb(cb_samples)
+    except mx.InvalidTaskError:
+        log.info('NIDAQmx task ID %r exiting because engine halted', task)
     except EngineStoppedException:
         log.info('NIDAQmx task ID %r exiting because engine halted', task)
         mx.DAQmxStopTask(task)
@@ -351,6 +353,8 @@ def hw_input_helper(cb, channels, discard, fs, channel_names, task, task_id,
             s0 = max(0, read_position - discard)
             data = PipelineData(data, fs=fs, s0=s0, channel=channel_names)
             cb(task, data)
+    except mx.InvalidTaskError:
+        log.info('NIDAQmx task ID %r exiting because engine halted', task)
     except EngineStoppedException:
         log.info('NIDAQmx task ID %r exiting because engine halted', task)
         mx.DAQmxStopTask(task)
