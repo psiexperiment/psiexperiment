@@ -212,6 +212,9 @@ enamldef ExperimentManifest(PluginManifest): manifest:
         point = 'psi.controller.actions'
         ExperimentEvent:
             name = 'plugins_started'
+        ExperimentEvent:
+            # Invoked when the user has successfully closed the window.
+            name = 'window_closed'
 
     Extension:
         id = manifest.id + '.commands'

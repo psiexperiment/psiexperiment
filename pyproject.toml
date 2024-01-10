@@ -25,6 +25,7 @@ dependencies = [
     "pandas",
     "pyyaml",
     "pywin32; os_name=='nt'",
+    "websockets",
 ]
 dynamic = ["version"]
 

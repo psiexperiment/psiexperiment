@@ -1,3 +1,4 @@
+from enaml.application import deferred_call
 from enaml.core.api import Include
 from enaml.stdlib.message_box import warning
 from enaml.widgets.api import Container, StatusBar
@@ -20,6 +21,8 @@ enamldef ExperimentWorkbenchWindow(WorkbenchWindow):
             change['value'].ignore()
             m = 'Please stop the experiment before exiting.'
             warning(self, 'Experiment running', m)
+        else:
+            plugin.invoke_actions('window_closed')
 
     Include:
         objects << list(workbench.get_plugin('psi.experiment')._toolbars.values())

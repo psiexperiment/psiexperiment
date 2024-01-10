@@ -8,62 +8,91 @@ from threading import Thread
 from urllib.parse import urlparse
 
 from atom.api import set_default, Str, Typed, Value
+from enaml.application import deferred_call
 from enaml.workbench.api import Extension, Plugin
 from enaml.workbench.core.api import Command
 import websockets
 
-from psi.controller.api import ExperimentAction
+from psi.controller.api import EventLogger, ExperimentAction
 from psi.core.enaml.api import ExperimentManifest
 
 
-async def send_handler(send_queue, websocket):
+def core_command_cb(core, mesg):
+    core.invoke_command(mesg['command'], parameters=mesg.get('parameters', {}))
+
+
+async def send_handler(websocket, send_queue):
     while True:
         mesg = await send_queue.get()
         log.info('Sending mesg via websocket: %r', mesg)
         await websocket.send(mesg)
 
 
-async def recv_handler(websocket, core):
+async def recv_handler(websocket, recv_cb):
     while True:
         mesg = json.loads(await websocket.recv())
         log.info('Recieved mesg from websocket: %r', mesg)
-        core.invoke_command(mesg['command'],
-                            parameters=mesg.get('parameters', {}))
+        recv_cb(mesg)
 
 
-async def handler(send_queue, core, websocket):
-    log.info(f'Connection from {websocket}')
-    send_task = asyncio.create_task(send_handler(send_queue, websocket))
-    recv_task = asyncio.create_task(recv_handler(websocket, core))
-    await asyncio.gather(send_task, recv_task)
+async def stop_handler(stop):
+    await stop.wait()
+    log.info('exiting')
 
 
-def start_websocket_server(host, port, loop, send_queue, core):
-    cb = partial(handler, send_queue, core)
+async def connect_handler(stop, send_queue, recv_cb, websocket):
+    try:
+        log.info(f'Connection from {websocket}')
+        send_task = asyncio.create_task(send_handler(websocket, send_queue))
+        recv_task = asyncio.create_task(recv_handler(websocket, recv_cb))
+        stop_task = asyncio.create_task(stop_handler(stop))
+        await asyncio.wait([stop_task, send_task, recv_task],
+                           return_when=asyncio.FIRST_COMPLETED)
+        send_task.cancel()
+        recv_task.cancel()
+        try:
+            await asyncio.gather(send_task, recv_task)
+        except asyncio.CancelledError:
+            pass
+    except websockets.ConnectionClosedOK:
+        log.info('Connection for {websocket} closed')
+        stop_task.cancel()
+        send_task.cancel()
+        recv_task.cancel()
+        try:
+            await asyncio.gather(stop_task, send_task, recv_task)
+        except asyncio.CancelledError:
+            pass
+
+
+def start_websocket_server(host, port, loop, stop, send_queue, recv_cb):
+    cb = partial(connect_handler, stop, send_queue, recv_cb)
     server = websockets.serve(cb, host, port, loop=loop)
     loop.run_until_complete(server)
-    log.info(f'Websocket server listening on ws://{host}:{port}')
+    log.info(f'Websocket server listening on ws://%s:%s', host, port)
     loop.run_forever()
 
 
-class WebsocketPlugin(Plugin):
+def start_websocket_client(uri, loop, stop, send_queue, recv_cb):
+    client = loop.run_until_complete(websockets.connect(uri, loop=loop))
+    log.info(f'Websocket client connected to %s', uri)
+    loop.run_until_complete(connect_handler(stop, send_queue, recv_cb, client))
+    loop.run_until_complete(client.close())
 
-    websocket_uri = Str('ws://localhost:8765')
+
+class BaseWebsocketPlugin(Plugin):
 
     loop = Value()
+    websocket_uri = Str('ws://localhost:8765')
     send_queue = Typed(asyncio.Queue, args=())
     thread = Typed(Thread)
+    stop = Typed(asyncio.Event)
 
     def _default_loop(self):
         return asyncio.new_event_loop()
 
-    def start_server(self, event):
-        core = event.workbench.get_plugin('enaml.workbench.core')
-        host, port = urlparse(self.websocket_uri).netloc.split(':')
-        args = (host, port, self.loop, self.send_queue, core)
-        self.thread = Thread(target=start_websocket_server, args=args,
-                             daemon=True)
-        self.thread.start()
+    def _default_stop(self):
+        return asyncio.Event()
 
     def send_experiment_event(self, event):
         self._send_message(json.dumps(event.parameters['data']))
@@ -74,19 +103,57 @@ class WebsocketPlugin(Plugin):
     def _send_message(self, message):
         self.loop.call_soon_threadsafe(self.send_queue.put_nowait, message)
 
+    def disconnect(self):
+        deferred_call(self._disconnect)
 
-enamldef WebsocketManifest(ExperimentManifest): manifest:
+    def _disconnect(self):
+        log.info('Stop request recieved')
+        self.loop.call_soon_threadsafe(self.stop.set)
+        self.thread.join()
+        log.info('Shut down websocket connection')
 
+
+class WebsocketServerPlugin(BaseWebsocketPlugin):
+    '''
+    Sets up a server
+    '''
+    def start_thread(self, recv_cb):
+        host, port = urlparse(self.websocket_uri).netloc.split(':')
+        args = (host, port, self.loop, self.stop, self.send_queue, recv_cb)
+        self.thread = Thread(target=start_websocket_server, args=args,
+                             daemon=True)
+        self.thread.start()
+
+
+class WebsocketClientPlugin(BaseWebsocketPlugin):
+    '''
+    Sets up a client
+    '''
+    def start_thread(self, recv_cb):
+        args = (self.websocket_uri, self.loop, self.stop, self.send_queue,
+                recv_cb)
+        self.thread = Thread(target=start_websocket_client, args=args,
+                             daemon=True)
+        self.thread.start()
+
+
+enamldef BaseWebsocketManifest(ExperimentManifest): manifest:
+    '''
+    Makes the WebSocket plugin available for communication
+
+    When plugins are loaded into ps, the websocket server is started. All
+    experiment events are sent via websockets.
+    '''
     id = 'psi.websocket'
-    factory = WebsocketPlugin
 
     Extension:
         id = 'websocket_commands'
         point = 'enaml.workbench.core.commands'
 
         Command:
-            id = 'websocket.start_server'
-            handler = lambda e: workbench.get_plugin('psi.websocket').start_server(e)
+            id = 'websocket.start'
+            handler = lambda e: workbench.get_plugin('psi.websocket') \
+                .start_thread(partial(core_command_cb, workbench.get_plugin('enaml.workbench.core')))
 
         Command:
             id = 'websocket.send_message'
@@ -96,14 +163,37 @@ enamldef WebsocketManifest(ExperimentManifest): manifest:
             id = 'websocket.send_experiment_event'
             handler = lambda e: workbench.get_plugin('psi.websocket').send_experiment_event(e)
 
+        Command:
+            id = 'websocket.disconnect'
+            handler = lambda e: workbench.get_plugin('psi.websocket').disconnect()
+
     Extension:
         id = 'websocket_actions'
         point = 'psi.controller.actions'
 
         ExperimentAction:
             event = 'plugins_started'
-            command = 'websocket.start_server'
+            command = 'websocket.start'
+
+        EventLogger:
+            command = 'websocket.send_experiment_event'
 
         ExperimentAction:
-            event = 'experiment_event'
-            command = 'websocket.send_experiment_event'
+            event = 'window_closed'
+            command = 'websocket.disconnect'
+
+
+enamldef WebsocketServerManifest(BaseWebsocketManifest): manifest:
+    '''
+    Set up a websocket server for communication
+    '''
+    id = 'psi.websocket'
+    factory = WebsocketServerPlugin
+
+
+enamldef WebsocketClientManifest(BaseWebsocketManifest): manifest:
+    '''
+    Attempt to connect to websocket server for communication
+    '''
+    id = 'psi.websocket'
+    factory = WebsocketClientPlugin
