@@ -20,7 +20,8 @@ from .output import (
 )
 
 from .experiment_action import (
-    ExperimentAction, ExperimentCallback, ExperimentEvent, ExperimentState
+    EventLogger, ExperimentAction, ExperimentCallback, ExperimentEvent,
+    ExperimentState
 )
 
 import enaml

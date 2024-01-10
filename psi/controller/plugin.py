@@ -22,9 +22,9 @@ from .engine import Engine
 from .output import BaseOutput, Synchronized
 from .input import Input
 
-from .experiment_action import (ExperimentAction, ExperimentActionBase,
-                                ExperimentCallback, ExperimentEvent,
-                                ExperimentState)
+from .experiment_action import (EventLogger, ExperimentAction,
+                                ExperimentActionBase, ExperimentCallback,
+                                ExperimentEvent, ExperimentState)
 
 
 IO_POINT = 'psi.controller.io'
@@ -195,6 +195,7 @@ class ControllerPlugin(Plugin):
     _events = Typed(dict, {})
     _states = Typed(dict, {})
     _action_context = Typed(dict, {})
+    _event_loggers = Typed(list, [])
     _timers = Typed(dict, {})
 
     # Plugin actions are automatically registered when the manifests are
@@ -345,6 +346,7 @@ class ControllerPlugin(Plugin):
 
     def _refresh_actions(self, event=None):
         actions = []
+        event_loggers = []
         events = {}
         states = {}
 
@@ -354,6 +356,7 @@ class ControllerPlugin(Plugin):
             found_states = extension.get_children(ExperimentState)
             found_events = extension.get_children(ExperimentEvent)
             found_actions = extension.get_children(ExperimentActionBase)
+            found_loggers = extension.get_children(EventLogger)
 
             for state in found_states:
                 if state.name in states:
@@ -372,6 +375,7 @@ class ControllerPlugin(Plugin):
                 log.debug('... Found action %s', action)
 
             actions.extend(found_actions)
+            event_loggers.extend(found_loggers)
 
         context = {}
         for state_name in states:
@@ -384,6 +388,7 @@ class ControllerPlugin(Plugin):
         self._events = events
         self._plugin_actions = actions
         self._action_context = context
+        self._event_loggers = event_loggers
 
     def register_action(self, event, command, kwargs=None):
         if kwargs is None:
@@ -530,17 +535,18 @@ class ControllerPlugin(Plugin):
                 return True
         return False
 
+    def _log_event(self, event_name, timestamp, kw):
+        data = {
+            'event': event_name, 
+            'timestamp': timestamp,
+            'info': json.dumps(kw, cls=PSIJsonEncoder)
+        }
+        for logger in self._event_loggers:
+            logger._invoke(self.core, data)
+
     def _invoke_actions(self, event_name, timestamp=None, kw=None, skip_errors=False):
         log.debug('Triggering event {}'.format(event_name))
-
-        if timestamp is not None:
-            # TODO: This seems like cruft. Keep? The original goal is to make
-            # sure this gets logged, but I feel like there are better ways to
-            # handle this.
-            data = {'event': event_name, 'timestamp': timestamp,
-                    'info': json.dumps(kw, cls=PSIJsonEncoder)}
-            self.invoke_actions('experiment_event', kw={'data': data},
-                                skip_errors=skip_errors)
+        deferred_call(self._log_event, event_name, timestamp, kw)
 
         # If this is a stateful event, update the associated state.
         if event_name.endswith('_start'):

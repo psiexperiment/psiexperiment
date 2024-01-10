@@ -2,7 +2,7 @@ from enaml.core.api import Conditional
 from enaml.widgets.api import Container, DockItem
 from enaml.workbench.api import Extension
 
-from psi.controller.api import ExperimentAction
+from psi.controller.api import EventLogger
 from psi.core.enaml.api import ListDictTable
 from psi.experiment.api import ItemPreferences
 from .table_store import TableStore, TableStoreManifest
@@ -19,8 +19,7 @@ enamldef EventLogManifest(TableStoreManifest): manifest:
         id = manifest.id + '.event_log_actions'
         point = 'psi.controller.actions'
 
-        ExperimentAction:
-            event = 'experiment_event'
+        EventLogger:
             command = contribution.name + '.save'
 
     Conditional:
@@ -38,7 +37,6 @@ enamldef EventLogManifest(TableStoreManifest): manifest:
                 Container:
                     ListDictTable: table:
                         data << manifest.contribution._data[:]
-                        #columns = ['event', 'timestamp', 'info']
                         column_info = {
                             'event': {'label': 'Event Name'},
                             'timestamp': {'label': 'Time (sec)', 'to_string': '{:.2f}'.format},
