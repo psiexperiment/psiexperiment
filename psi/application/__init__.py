@@ -225,7 +225,7 @@ def list_preferences(experiment, include_default=False):
     from psi.experiment.util import PREFERENCES_WILDCARD
     if not isinstance(experiment, str):
         experiment = experiment.name
-    p_root = get_config('PREFERENCES_ROOT') / experiment
+    p_root = Path(get_config('PREFERENCES_ROOT')) / experiment
     p_glob = PREFERENCES_WILDCARD[:-1].split('(')[1]
     matches = p_root.glob(p_glob)
     if not include_default:
@@ -236,7 +236,7 @@ def list_preferences(experiment, include_default=False):
 def list_io():
     result = []
     if (io_path := get_config('IO_ROOT', None)) is not None:
-        result.extend(io_path.glob('*.enaml'))
+        result.extend(Path(io_path).glob('*.enaml'))
     result.extend(get_config('STANDARD_IO', []))
     return result
 
