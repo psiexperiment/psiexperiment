@@ -21,63 +21,109 @@ def core_command_cb(core, mesg):
     core.invoke_command(mesg['command'], parameters=mesg.get('parameters', {}))
 
 
-async def send_handler(websocket, send_queue):
-    while True:
-        mesg = await send_queue.get()
-        log.info('Sending mesg via websocket: %r', mesg)
-        await websocket.send(mesg)
+class MessageHandler:
+    '''
+    Basic message handler that sends/recieves messages between a client/server.
+    This can be used by both the server and client. Handles shutdowns
+    gracefully.
+    '''
 
+    def __init__(self, ws, send_queue, recv_cb, stop):
+        self.ws = ws
+        self.send_queue = send_queue
+        self.recv_cb = recv_cb
+        self.stop = stop
 
-async def recv_handler(websocket, recv_cb):
-    while True:
-        mesg = json.loads(await websocket.recv())
-        log.info('Recieved mesg from websocket: %r', mesg)
-        recv_cb(mesg)
+    async def send_handler(self):
+        while True:
+            mesg = await self.send_queue.get()
+            log.info('Sending mesg via websocket: %r', mesg)
+            await self.ws.send(mesg)
 
+    async def recv_handler(self):
+        while True:
+            mesg = json.loads(await self.ws.recv())
+            log.info('Recieved mesg from websocket: %r', mesg)
+            self.recv_cb(mesg)
 
-async def stop_handler(stop):
-    await stop.wait()
-    log.info('exiting')
+    async def stop_handler(self):
+        await self.stop.wait()
+        log.info('exiting')
 
-
-async def connect_handler(stop, send_queue, recv_cb, websocket):
-    try:
-        log.info(f'Connection from {websocket}')
-        send_task = asyncio.create_task(send_handler(websocket, send_queue))
-        recv_task = asyncio.create_task(recv_handler(websocket, recv_cb))
-        stop_task = asyncio.create_task(stop_handler(stop))
-        await asyncio.wait([stop_task, send_task, recv_task],
-                           return_when=asyncio.FIRST_COMPLETED)
-        send_task.cancel()
-        recv_task.cancel()
+    async def listen(self):
         try:
-            await asyncio.gather(send_task, recv_task)
-        except asyncio.CancelledError:
-            pass
-    except websockets.ConnectionClosedOK:
-        log.info('Connection for {websocket} closed')
-        stop_task.cancel()
-        send_task.cancel()
-        recv_task.cancel()
-        try:
-            await asyncio.gather(stop_task, send_task, recv_task)
-        except asyncio.CancelledError:
-            pass
+            log.info(f'Connect {self.ws}')
+            send_task = asyncio.create_task(self.send_handler())
+            recv_task = asyncio.create_task(self.recv_handler())
+            stop_task = asyncio.create_task(self.stop_handler())
+            await asyncio.wait([stop_task, send_task, recv_task],
+                               return_when=asyncio.FIRST_COMPLETED)
+            send_task.cancel()
+            recv_task.cancel()
+            try:
+                await asyncio.gather(send_task, recv_task)
+            except asyncio.CancelledError:
+                pass
+        except websockets.ConnectionClosedOK:
+            log.info(f'Connection for %r closed', self.ws)
+            stop_task.cancel()
+            send_task.cancel()
+            recv_task.cancel()
+            try:
+                await asyncio.gather(stop_task, send_task, recv_task)
+            except asyncio.CancelledError:
+                pass
 
 
-def start_websocket_server(host, port, loop, stop, send_queue, recv_cb):
-    cb = partial(connect_handler, stop, send_queue, recv_cb)
-    server = websockets.serve(cb, host, port, loop=loop)
-    loop.run_until_complete(server)
-    log.info(f'Websocket server listening on ws://%s:%s', host, port)
-    loop.run_forever()
+class WebsocketServer:
+    '''
+    Manages a list of client connections. Each client has a separate
+    MessageHandler for differentiation between the clients.
+    '''
+    def __init__(self, uri, loop, stop, send_queue, recv_cb):
+        self.stop = stop
+        self.send_queue = send_queue
+        self.recv_cb = recv_cb
+        self.clients = {}
+
+        host, port = urlparse(uri).netloc.split(':')
+        self.ws = websockets.serve(self.connect, host, port, loop=loop)
+        loop.run_until_complete(self.ws)
+        log.info(f'Websocket server listening on %s', uri)
+        loop.run_until_complete(self.send_handler())
+
+    async def send_handler(self):
+        while True:
+            client_id, mesg = json.loads(await self.send_queue.get())
+            if client_id == 'broadcast':
+                clients = self.clients.values()
+            else:
+                clients = [self.clients[client_id]]
+            for client in clients:
+                log.info('Sending mesg via %r: %r', client, mesg)
+                client.put_nowait(json.dumps(mesg))
+
+    async def connect(self, ws):
+        send_queue = asyncio.Queue()
+        comm = MessageHandler(ws, send_queue, self.recv_cb, self.stop)
+        self.clients[ws] = send_queue
+        await comm.listen()
+        del self.clients[ws]
 
 
-def start_websocket_client(uri, loop, stop, send_queue, recv_cb):
-    client = loop.run_until_complete(websockets.connect(uri, loop=loop))
-    log.info(f'Websocket client connected to %s', uri)
-    loop.run_until_complete(connect_handler(stop, send_queue, recv_cb, client))
-    loop.run_until_complete(client.close())
+class WebsocketClient:
+
+    def __init__(self, uri, loop, stop, send_queue, recv_cb):
+        self.stop = stop
+        self.send_queue = send_queue
+        self.recv_cb = recv_cb
+
+        self.ws = loop.run_until_complete(websockets.connect(uri, loop=loop))
+        self.comm = MessageHandler(self.ws, send_queue, recv_cb, stop)
+
+        log.info(f'Websocket client connected to %s', uri)
+        loop.run_until_complete(self.comm.listen())
+        loop.run_until_complete(self.ws.close())
 
 
 class BaseWebsocketPlugin(Plugin):
@@ -118,11 +164,12 @@ class WebsocketServerPlugin(BaseWebsocketPlugin):
     Sets up a server
     '''
     def start_thread(self, recv_cb):
-        host, port = urlparse(self.websocket_uri).netloc.split(':')
-        args = (host, port, self.loop, self.stop, self.send_queue, recv_cb)
-        self.thread = Thread(target=start_websocket_server, args=args,
-                             daemon=True)
+        args = (self.websocket_uri, self.loop, self.stop, self.send_queue, recv_cb)
+        self.thread = Thread(target=WebsocketServer, args=args, daemon=True)
         self.thread.start()
+
+    def send_message(self, message, client_id='broadcast'):
+        self._send_message(json.dumps([client_id, message]))
 
 
 class WebsocketClientPlugin(BaseWebsocketPlugin):
@@ -130,10 +177,8 @@ class WebsocketClientPlugin(BaseWebsocketPlugin):
     Sets up a client
     '''
     def start_thread(self, recv_cb):
-        args = (self.websocket_uri, self.loop, self.stop, self.send_queue,
-                recv_cb)
-        self.thread = Thread(target=start_websocket_client, args=args,
-                             daemon=True)
+        args = (self.websocket_uri, self.loop, self.stop, self.send_queue, recv_cb)
+        self.thread = Thread(target=WebsocketClient, args=args, daemon=True)
         self.thread.start()
 
 
