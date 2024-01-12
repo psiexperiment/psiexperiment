@@ -176,12 +176,11 @@ enamldef ControllerManifest(ControllerManifestBase): manifest:
     Defines the core functionality that most controller plugins will share
     (start, stop, pause, apply/revert settings).
     '''
-    # Set attrs that guide experiment description
-    name = 'controller'
-    required = True
-
     id = 'psi.controller'
     factory = ControllerPlugin
+
+    # Set attrs that guide experiment description
+    required = True
 
     attr window_title = 'psiexperiment'
 

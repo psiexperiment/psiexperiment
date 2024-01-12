@@ -11,7 +11,6 @@ from psi.data.plots import (ChannelPlot, FFTChannelPlot, FFTContainer,
 enamldef MultiSignalViewManifest(ExperimentManifest): manifest:
 
     id = 'signal_view'
-    name = 'signal_view'
     title = 'Signal view (time)'
 
     alias time_span: time_container.span
@@ -29,13 +28,13 @@ enamldef MultiSignalViewManifest(ExperimentManifest): manifest:
         point = 'psi.data.plots'
 
         TimeContainer: time_container:
-            name << manifest.name + '_container'
+            name << manifest.id + '_container'
             label << manifest.title
             span = 4
             delay = 0.125
 
             ViewBox: vb:
-                name << manifest.name + '_vb'
+                name << manifest.id + '_vb'
                 y_min = -0.2
                 y_max = 0.2
                 y_mode = 'mouse'
@@ -45,7 +44,7 @@ enamldef MultiSignalViewManifest(ExperimentManifest): manifest:
                     iterable << sources.items() if sources is not None else []
 
                     ChannelPlot: time_plot:
-                        name << manifest.name + f'{loop_item[0]}_plot'
+                        name << manifest.id + f'{loop_item[0]}_plot'
                         source_name = loop_item[0]
                         pen_color = loop_item[1].get('color', 'k')
                         decimate_mode = loop_item[1].get('decimate_mode', 'extremes')
@@ -69,7 +68,6 @@ enamldef SignalViewManifest(MultiSignalViewManifest): manifest:
 enamldef MultiSignalFFTViewManifest(ExperimentManifest): manifest:
 
     id = 'signal_fft_view'
-    name = 'signal_fft_view'
     title = 'Signal view (PSD)'
 
     alias fft_freq_lb: fft_container.freq_lb
@@ -98,7 +96,7 @@ enamldef MultiSignalFFTViewManifest(ExperimentManifest): manifest:
         point = 'psi.data.plots'
 
         FFTContainer: fft_container:
-            name << manifest.name + '_container'
+            name << manifest.id + '_container'
             label << manifest.title
             freq_lb = 5
             freq_ub = 50000
