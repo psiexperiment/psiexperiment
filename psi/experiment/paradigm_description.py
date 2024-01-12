@@ -65,12 +65,37 @@ class ParadigmManager:
 class PluginDescription:
 
     def __init__(self, manifest, selected=False, required=None, name=None,
-                 title=None, attrs=None):
+                 title=None, attrs=None, info=None):
+        '''
+        Define an experiment plugin
+
+        Parameters
+        ----------
+        manifest : str
+            Path to the manifest class that defines the plugin, e.g.,
+            `psi.paradigms.core.signal_mixins.SignalMixinManifest`.
+        selected : bool
+            Should this plugin be selected by default?
+        required : bool
+            Should this plugin always be loaded?
+        title : str
+            Title of plugin to show in menus for selecting and
+            loading/unloading plugins.
+        attrs : {None, dict}
+            Dictionary of attributes to set on the plugin manifest instance
+            (useful for reusing plugins and customizing behavior).
+        info : {None, dict}
+            Additional details that may be needed for customizing details such
+            as the launcher.
+        '''
         log.info('Initializing PluginDescription %s with name %r', manifest, name)
         if attrs is None:
             attrs = {}
+        if info is None:
+            info = {}
         self.manifest = load_manifest(manifest)(**attrs)
         self.selected = selected
+        self.info = info
 
         # Default values are loaded directly from the PluginManifest if the
         # provided value is None.
