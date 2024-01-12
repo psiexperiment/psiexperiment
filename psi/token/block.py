@@ -32,10 +32,10 @@ class Block(Declarative):
                 p.visible = False
         for h in self.hide:
             if h not in names:
-                raise AttributeError('Cannot hide %s. Parameter not in %s.', h, self.name)
+                raise AttributeError(f'Cannot hide {h}. Parameter not in {self.name}.')
         for v in self.values.keys():
             if v not in names:
-                raise AttributeError('Cannot set value for %s. Parameter not in %s.', h, self.name)
+                raise AttributeError('Cannot set value for {v}. Parameter not in {self.name}.')
 
     def get_children(self, child_type):
         return [c for c in self.children if isinstance(c, child_type)]
