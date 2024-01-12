@@ -102,7 +102,7 @@ enamldef MultiSignalFFTViewManifest(ExperimentManifest): manifest:
             freq_ub = 50000
 
             ViewBox: fft_vb:
-                name << manifest.name + '_vb'
+                name << manifest.id + '_vb'
                 y_min = -10
                 y_max = 100
                 y_mode = 'mouse'
@@ -112,7 +112,7 @@ enamldef MultiSignalFFTViewManifest(ExperimentManifest): manifest:
                     iterable << sources.items() if sources is not None else []
 
                     FFTChannelPlot:
-                        name << manifest.name + f'{loop_item[0]}_plot'
+                        name << manifest.id + f'{loop_item[0]}_plot'
                         source_name = loop_item[0]
                         pen_color = loop_item[1].get('color', 'k')
                         apply_calibration = loop_item[1].get('apply_calibration', manifest.apply_calibration)
