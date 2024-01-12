@@ -170,7 +170,8 @@ enamldef StatusDockItem(PSIDockItem):
             log.warn([g.anchor for g in groups])
             return [
                 vbox(*[hbox(l, g) for l, g in zip(labels, groups)]),
-                *[align('v_center', l, g.anchor) for l, g in zip(labels, groups)]
+                *[align('v_center', l, g.anchor) for l, g in zip(labels, groups)],
+                align('width', *labels),
             ]
 
         Looper:
