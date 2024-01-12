@@ -41,6 +41,8 @@ class TableStore(BaseStore):
             return
         path = self.get_filename()
         self._store = path.open('w', newline='\n')
+        # Save data that has been queued up
+        self._save_data(self._data)
         atexit.register(self._store.close)
 
     def _save_data(self, data):
@@ -63,19 +65,15 @@ class TableStore(BaseStore):
         if flush:
             self.flush()
 
-    def _update_widget(self, data):
+    def process_table(self, data):
+        if self.save_data and self._store is not None:
+            self._save_data(data)
+            if flush:
+                self.flush()
         if isinstance(data, Mapping):
             self._data.append(data)
         else:
             self._data.extend(data)
-
-    def process_table(self, data):
-        if self.save_data:
-            self._save_data(data)
-        if self.show_widget:
-            self._update_widget(data)
-        if flush:
-            self.flush()
 
     def flush(self):
         if self._store.closed:
