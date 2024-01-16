@@ -156,6 +156,16 @@ def get_default_preferences(event):
         pass
 
 
+def minimize_window(event):
+    ui = event.workbench.get_plugin('enaml.workbench.ui')
+    ui.window.proxy.widget.showMinimized()
+
+
+def show_window(event):
+    ui = event.workbench.get_plugin('enaml.workbench.ui')
+    ui.window.proxy.widget.showNormal()
+
+
 enamldef StatusDockItem(PSIDockItem):
 
     name = 'experiment_status'
@@ -244,6 +254,12 @@ enamldef ExperimentManifest(PluginManifest): manifest:
         Command:
             id = 'psi.get_default_preferences'
             handler = get_default_preferences
+        Command:
+            id = 'psi.minimize_window'
+            handler = minimize_window
+        Command:
+            id = 'psi.show_window'
+            handler = show_window
 
     Extension:
         id = manifest.id + '.actions'
