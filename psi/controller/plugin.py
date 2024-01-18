@@ -615,11 +615,14 @@ class ControllerPlugin(Plugin):
             self.stop_experiment(True)
             raise
 
-    def stop_experiment(self, skip_errors=False):
+    def stop_experiment(self, skip_errors=False, kw=None):
         deferred_call(lambda: setattr(self, 'experiment_state', 'stopped'))
         if self.experiment_state not in ('running', 'paused'):
             return []
-        return self.invoke_actions('experiment_end', self.get_ts(), skip_errors=skip_errors)
+        if kw is None:
+            kw = {}
+        return self.invoke_actions('experiment_end', self.get_ts(),
+                                   skip_errors=skip_errors, kw=kw)
 
     def get_ts(self):
         return self._master_engine.get_ts()

@@ -99,7 +99,11 @@ def stop_experiment(event):
     stop_reason = event.parameters.get('stop_reason', '')
     skip_errors = event.parameters.get('skip_errors', True)
     controller = event.workbench.get_plugin('psi.controller')
-    results = set(controller.stop_experiment(skip_errors=skip_errors))
+    kw = {
+        'error_message': error_message,
+        'stop_reason': stop_reason,
+    }
+    results = set(controller.stop_experiment(skip_errors=skip_errors, kw=kw))
     mesg = '\n'.join(r.strip() for r in results if r is not None)
     controller._wrapup(message=mesg, stop_reason=stop_reason,
                        error_message=error_message)
