@@ -15,7 +15,6 @@ from enaml.qt.QtCore import QTimer
 from enaml.workbench.api import Extension
 from enaml.workbench.plugin import Plugin
 
-from ..util import PSIJsonEncoder
 from .calibration.util import load_calibration
 from .channel import Channel, OutputMixin, InputMixin
 from .engine import Engine
@@ -537,9 +536,9 @@ class ControllerPlugin(Plugin):
 
     def _log_event(self, event_name, timestamp, kw):
         data = {
-            'event': event_name, 
+            'event': event_name,
             'timestamp': timestamp,
-            'info': json.dumps(kw, cls=PSIJsonEncoder)
+            'info': kw,
         }
         for logger in self._event_loggers:
             logger._invoke(self.core, data)

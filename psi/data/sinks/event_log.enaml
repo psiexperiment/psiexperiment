@@ -1,3 +1,5 @@
+import json
+
 from enaml.core.api import Conditional
 from enaml.widgets.api import Container, DockItem
 from enaml.workbench.api import Extension
@@ -5,12 +7,18 @@ from enaml.workbench.api import Extension
 from psi.controller.api import EventLogger
 from psi.core.enaml.api import ListDictTable
 from psi.experiment.api import ItemPreferences
+from psi.util import PSIJsonEncoder
 from .table_store import TableStore, TableStoreManifest
 
 class EventLog(TableStore):
 
     name = 'event_log'
     label= 'Event Log'
+
+    def process_table(self, data):
+        data = data.copy()
+        data['info'] = json.dumps(data['info'], cls=PSIJsonEncoder)
+        super().process_table(data)
 
 
 enamldef EventLogManifest(TableStoreManifest): manifest:
