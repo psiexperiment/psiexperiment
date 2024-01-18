@@ -16,7 +16,7 @@ from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
 from enaml.workbench.ui.api import Workspace
 
-from psi.controller.experiment_action import ExperimentEvent
+from psi.controller.experiment_action import ExperimentAction, ExperimentEvent
 from psi.core.enaml.api import PSIDockItem
 
 from .. import get_config
@@ -166,6 +166,19 @@ def show_window(event):
     ui.window.proxy.widget.showNormal()
 
 
+def set_dock_style(event):
+    ui = event.workbench.get_plugin('enaml.workbench.ui')
+    ui.workspace.dock_area.style = event.parameters['style_name']
+
+
+def update_dock_style(event):
+    ui = event.workbench.get_plugin('enaml.workbench.ui')
+    if event.parameters['stop_reason'] == '':
+        ui.workspace.dock_area.style = 'complete'
+    else:
+        ui.workspace.dock_area.style = 'error'
+
+
 enamldef StatusDockItem(PSIDockItem):
 
     name = 'experiment_status'
@@ -226,6 +239,9 @@ enamldef ExperimentManifest(PluginManifest): manifest:
         ExperimentEvent:
             # Invoked when the user has successfully closed the window.
             name = 'window_closed'
+        ExperimentAction:
+            event = 'experiment_end'
+            command = 'psi.update_dock_style'
 
     Extension:
         id = manifest.id + '.commands'
@@ -260,6 +276,12 @@ enamldef ExperimentManifest(PluginManifest): manifest:
         Command:
             id = 'psi.show_window'
             handler = show_window
+        Command:
+            id = 'psi.set_dock_style'
+            handler = set_dock_style
+        Command:
+            id = 'psi.update_dock_style'
+            handler = update_dock_style
 
     Extension:
         id = manifest.id + '.actions'
@@ -329,7 +351,6 @@ enamldef ExperimentManifest(PluginManifest): manifest:
             path = '/configuration/get_default_preferences'
             label = 'Revert to default preferences'
             command = 'psi.get_default_preferences'
-
         ActionItem:
             path = '/configuration/load_shell'
             label = 'Open IPython shell'

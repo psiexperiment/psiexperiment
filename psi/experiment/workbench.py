@@ -20,7 +20,7 @@ with enaml.imports():
     from psi.token.manifest import TokenManifest
     from psi.controller.calibration.manifest import CalibrationManifest
 
-    from . import error_style
+    from . import dock_area_styles
 
 from psi import set_config
 from psi.application import load_io_manifest
@@ -151,5 +151,5 @@ class PSIWorkbench(Workbench):
 
         # Now, open workspace
         if base_path is None:
-            ui.workspace.dock_area.style = 'error'
+            ui.workspace.dock_area.style = 'nosave'
         ui.start_application()
