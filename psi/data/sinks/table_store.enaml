@@ -46,6 +46,12 @@ class TableStore(BaseStore):
         atexit.register(self._store.close)
 
     def _save_data(self, data):
+        # This is an important guard for the `self._save_data` in `prepare`. We
+        # don't want to be preparing stuff such as the columns without having
+        # some actual data to inspect.
+        if not data:
+            return
+
         if isinstance(data, Mapping):
             df = pd.DataFrame(pd.Series(data)).T
         else:
