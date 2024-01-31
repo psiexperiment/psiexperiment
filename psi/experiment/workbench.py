@@ -107,7 +107,8 @@ class PSIWorkbench(Workbench):
                         load_layout=True,
                         preferences_file=None,
                         layout_file=None,
-                        calibration_file=None):
+                        calibration_file=None, 
+                        ):
 
         ui = self.get_plugin('enaml.workbench.ui')
         core = self.get_plugin('enaml.workbench.core')
@@ -115,6 +116,25 @@ class PSIWorkbench(Workbench):
 
         ui.select_workspace(workspace)
         ui.show_window()
+
+        # These calls to the API are necessary since they must happen prior to
+        # starting the application. If we call start_application first, we will
+        # get a "flash" as the window appears then disappears.
+        if 'psi.hide_window' in commands:
+            ui.window.proxy.widget.hide()
+            commands.remove('psi.hide_window')
+        elif 'psi.minimize_window' in commands:
+            ui.window.proxy.widget.showMinimized()
+            commands.remove('psi.minimize_window')
+
+        if load_layout and layout_file is not None:
+            core.invoke_command('psi.load_layout', {'filename': layout_file})
+        elif load_layout and layout_file is None:
+            core.invoke_command('psi.get_default_layout')
+        if load_preferences and preferences_file is not None:
+            core.invoke_command('psi.load_preferences', {'filename': preferences_file})
+        elif load_preferences and preferences_file is None:
+            core.invoke_command('psi.get_default_preferences')
 
         commands = [] if commands is None else [(c,) for c in commands]
 
@@ -152,4 +172,5 @@ class PSIWorkbench(Workbench):
         # Now, open workspace
         if base_path is None:
             ui.workspace.dock_area.style = 'nosave'
+
         ui.start_application()

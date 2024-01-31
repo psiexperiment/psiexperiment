@@ -8,6 +8,7 @@ import yaml
 
 import numpy as np
 
+from enaml.application import deferred_call
 from enaml.core.api import Looper, Include
 from enaml.layout.api import align, hbox, vbox
 from enaml.widgets.api import Container, FileDialogEx, HGroup, Label, VGroup
@@ -158,12 +159,17 @@ def get_default_preferences(event):
 
 def minimize_window(event):
     ui = event.workbench.get_plugin('enaml.workbench.ui')
-    ui.window.proxy.widget.showMinimized()
+    deferred_call(ui.window.proxy.widget.showMinimized)
+
+
+def hide_window(event):
+    ui = event.workbench.get_plugin('enaml.workbench.ui')
+    deferred_call(ui.window.proxy.widget.hide)
 
 
 def show_window(event):
     ui = event.workbench.get_plugin('enaml.workbench.ui')
-    ui.window.proxy.widget.showNormal()
+    deferred_call(ui.window.proxy.widget.showNormal)
 
 
 def set_dock_style(event):
@@ -173,10 +179,8 @@ def set_dock_style(event):
 
 def update_dock_style(event):
     ui = event.workbench.get_plugin('enaml.workbench.ui')
-    if event.parameters['stop_reason'] == '':
-        ui.workspace.dock_area.style = 'complete'
-    else:
-        ui.workspace.dock_area.style = 'error'
+    style = 'complete' if event.parameters['stop_reason'] == '' else 'error'
+    ui.workspace.dock_area.style = style
 
 
 enamldef StatusDockItem(PSIDockItem):
@@ -273,6 +277,9 @@ enamldef ExperimentManifest(PluginManifest): manifest:
         Command:
             id = 'psi.minimize_window'
             handler = minimize_window
+        Command:
+            id = 'psi.hide_window'
+            handler = hide_window
         Command:
             id = 'psi.show_window'
             handler = show_window
