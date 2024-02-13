@@ -1388,7 +1388,7 @@ class NIDAQEngine(Engine):
 
     def _get_hw_do_samples(self, offset, samples):
         channels = self.get_channels('digital', 'output', 'hardware')
-        data = np.empty((len(channels), samples), dtype=np.bool)
+        data = np.empty((len(channels), samples), dtype=bool)
         for channel, ch_data in zip(channels, data):
             channel.get_samples(offset, samples, out=ch_data)
         return data
