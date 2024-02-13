@@ -1,6 +1,12 @@
+import logging
+log = logging.getLogger(__name__)
+
+from fnmatch import fnmatch
 import json
 
-from enaml.core.api import Conditional
+from atom.api import List, Str
+
+from enaml.core.api import Conditional, d_
 from enaml.widgets.api import Container, DockItem
 from enaml.workbench.api import Extension
 
@@ -13,11 +19,20 @@ from .table_store import TableStore, TableStoreManifest
 class EventLog(TableStore):
 
     name = 'event_log'
-    label= 'Event Log'
+    label = 'Event Log'
+    exclude = d_(List(Str()))
 
     def process_table(self, data):
+        for e in self.exclude:
+            if fnmatch(data['event'], e):
+                return
+
         data = data.copy()
-        data['info'] = json.dumps(data['info'], cls=PSIJsonEncoder)
+        try:
+            data['info'] = json.dumps(data['info'], cls=PSIJsonEncoder)
+        except TypeError:
+            log.error('Event log: error processing %r', data)
+            raise
         super().process_table(data)
 
 
