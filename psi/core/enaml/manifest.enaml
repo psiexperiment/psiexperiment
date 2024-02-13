@@ -8,30 +8,32 @@ from .contribution import PSIContribution
 
 class ExperimentManifest(PluginManifest):
     '''
-    Manifest providing simple access to the context namespce, context plugin,
+    Manifest providing simple access to the context namespace, context plugin,
     and controller plugin.
     '''
-
-    name = d_(Str())
     title = d_(Str())
     required = d_(Bool(False))
+
+    name = Property()
+
+    def _get_name(self):
+        log.warning('Attempt to use obsolete property name on %s.', self.id)
+        return self.id
 
     C = d_(Value(), writable=False)
     controller = d_(Value(), writable=False)
     context = d_(Value(), writable=False)
     data = d_(Value(), writable=False)
 
-    def _default_name(self):
-        return self.id
-
     def _default_title(self):
-        return self.name.replace('_', ' ').capitalize()
+        return self.id.replace('_', ' ').capitalize()
 
 
 class PSIManifest(PluginManifest):
 
     contribution = Typed(PSIContribution)
     id = Property(cached=True)
+    name = Property()
 
     C = d_(Value(), writable=False)
     controller = d_(Value(), writable=False)
@@ -41,3 +43,8 @@ class PSIManifest(PluginManifest):
     def _get_id(self):
         class_type = self.__class__.__name__
         return f'{self.contribution.name}.{class_type}'
+
+    def _get_name(self):
+        log.warning('Attempt to use obsolete property name on %s.', self.id)
+        return self.id
+

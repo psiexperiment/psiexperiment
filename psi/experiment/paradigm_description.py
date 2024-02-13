@@ -1,3 +1,7 @@
+import logging
+log = logging.getLogger(__name__)
+
+from psi.application import list_preferences
 from psi.core.enaml.api import load_manifest
 
 
@@ -10,6 +14,7 @@ class ParadigmManager:
         self.broken_paradigms = {}
 
     def register(self, paradigm, exception=None):
+        log.info('Registering experiment paradigm %s', paradigm.name)
         self.paradigms[paradigm.name] = paradigm
         if exception is not None:
             raise
@@ -60,17 +65,43 @@ class ParadigmManager:
 
 class PluginDescription:
 
-    def __init__(self, manifest, selected=False, required=None, name=None,
-                 title=None, attrs=None):
+    def __init__(self, manifest, selected=False, required=None, id=None,
+                 title=None, attrs=None, info=None):
+        '''
+        Define an experiment plugin
+
+        Parameters
+        ----------
+        manifest : str
+            Path to the manifest class that defines the plugin, e.g.,
+            `psi.paradigms.core.signal_mixins.SignalMixinManifest`.
+        selected : bool
+            Should this plugin be selected by default?
+        required : bool
+            Should this plugin always be loaded?
+        title : str
+            Title of plugin to show in menus for selecting and
+            loading/unloading plugins.
+        attrs : {None, dict}
+            Dictionary of attributes to set on the plugin manifest instance
+            (useful for reusing plugins and customizing behavior).
+        info : {None, dict}
+            Additional details that may be needed for customizing details such
+            as the launcher.
+        '''
+        log.info('Initializing PluginDescription %s with id %r', manifest, id)
         if attrs is None:
             attrs = {}
+        if info is None:
+            info = {}
         self.manifest = load_manifest(manifest)(**attrs)
         self.selected = selected
+        self.info = info
 
         # Default values are loaded directly from the PluginManifest if the
         # provided value is None.
         self.setdefault('required', required)
-        self.setdefault('name', name)
+        self.setdefault('id', id)
         self.setdefault('title', title)
 
     def setdefault(self, attr, value):
@@ -82,7 +113,7 @@ class PluginDescription:
 
 class ParadigmDescription:
 
-    def __init__(self, name, title, experiment_type, plugin_info):
+    def __init__(self, name, title, experiment_type, plugin_info, info=None):
         '''
         Parameters
         ----------
@@ -100,10 +131,18 @@ class ParadigmDescription:
         plugin_info : list
             List of tuples containing information about the plugins that are
             available for this particular paradigm.
+        info : {None, dict}
+            Additional details that may be needed for customizing details such
+            as the launcher.
         '''
+        log.info('Initializing ParadigmDescrption %s', name)
         self.name = name
         self.title = title
         self.experiment_type = experiment_type
+
+        if info is None:
+            info = {}
+        self.info = info
 
         global paradigm_manager
         try:
@@ -113,24 +152,27 @@ class ParadigmDescription:
             print(plugin_info)
             paradigm_manager.register(self, exc)
 
-    def enable_plugin(self, plugin_name):
+    def enable_plugin(self, plugin_id):
         for p in self.plugins:
-            if p.name == plugin_name:
+            if p.id == plugin_id:
                 p.selected = True
                 break
         else:
-            choices = ', '.join(p.name for p in self.plugins)
-            raise ValueError(f'Plugin {plugin_name} not found. ' \
+            choices = ', '.join(p.id for p in self.plugins)
+            raise ValueError(f'Plugin {plugin_id} not found. ' \
                              f'Valid plugins are {choices}.')
 
-    def disable_plugin(self, plugin_name):
+    def disable_plugin(self, plugin_id):
         for p in self.plugins:
-            if p.name == plugin_name:
+            if p.id == plugin_id:
                 p.selected = False
 
     def disable_all_plugins(self):
         for p in self.plugins:
             p.selected = False
+
+    def list_preferences(self):
+        return list_preferences(self.name)
 
 
 paradigm_manager = ParadigmManager()

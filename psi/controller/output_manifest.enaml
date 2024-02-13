@@ -110,6 +110,9 @@ def initialize_factory(output, block, context):
     if 'input_factories' in params:
         block_context['input_factories'] = input_factories
 
+    # Values set by `values` attribute on the block override anything we can
+    # pull in.
+    block_context.update(block.values)
     return block.factory(**block_context)
 
 

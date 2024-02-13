@@ -48,8 +48,6 @@ def save_config(store, event):
 
 enamldef ConfigStoreManifest(PSIManifest): manifest:
 
-    name = 'config_store'
-
     Extension:
         id = manifest.id + '.commands'
         point = 'enaml.workbench.core.commands'

@@ -144,3 +144,14 @@ class ExperimentCallback(ExperimentActionBase):
 
     def __str__(self):
         return f'ExperimentCallback: {self.callback}'
+
+
+class EventLogger(Declarative):
+
+    command = d_(Str())
+
+    def _invoke(self, core, kwargs):
+        return core.invoke_command(self.command, parameters={'data': kwargs})
+
+    def __str__(self):
+        return f'EventLogger: {self.callback}'

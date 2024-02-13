@@ -4,68 +4,187 @@ log = logging.getLogger(__name__)
 import asyncio
 from functools import partial
 import json
-from threading import Thread
+import os
+import re
+import threading
 from urllib.parse import urlparse
 
-from atom.api import set_default, Str, Typed, Value
+from atom.api import Callable, Property, Str, Typed, Value
+from enaml.application import deferred_call
 from enaml.workbench.api import Extension, Plugin
 from enaml.workbench.core.api import Command
 import websockets
 
-from psi.controller.api import ExperimentAction
+from psi.controller.api import EventLogger, ExperimentAction, ExperimentEvent
 from psi.core.enaml.api import ExperimentManifest
 
 
-async def send_handler(send_queue, websocket):
-    while True:
-        mesg = await send_queue.get()
-        log.info('Sending mesg via websocket: %r', mesg)
-        await websocket.send(mesg)
+def core_command_cb(workbench, mesg):
+    core = workbench.get_plugin('enaml.workbench.core')
+    core.invoke_command(mesg['command'], parameters=mesg.get('parameters', {}))
 
 
-async def recv_handler(websocket, core):
-    while True:
-        mesg = json.loads(await websocket.recv())
-        log.info('Recieved mesg from websocket: %r', mesg)
-        core.invoke_command(mesg['command'],
-                            parameters=mesg.get('parameters', {}))
+class MessageHandler:
+    '''
+    Basic message handler that sends/recieves messages between a client/server.
+    This can be used by both the server and client. Handles shutdowns
+    gracefully.
+    '''
+
+    def __init__(self, ws, send_queue, recv_cb, stop):
+        self.ws = ws
+        self.send_queue = send_queue
+        self.recv_cb = recv_cb
+        self.stop = stop
+
+    async def stop_handler(self):
+        await self.stop.wait()
+        log.info('exiting')
+
+    async def listen(self):
+        try:
+            send_task = asyncio.create_task(self.send_handler())
+            recv_task = asyncio.create_task(self.recv_handler())
+            stop_task = asyncio.create_task(self.stop_handler())
+            await asyncio.wait([stop_task, send_task, recv_task],
+                               return_when=asyncio.FIRST_COMPLETED)
+            send_task.cancel()
+            recv_task.cancel()
+            try:
+                await asyncio.gather(send_task, recv_task)
+            except asyncio.CancelledError:
+                pass
+        except websockets.ConnectionClosedOK:
+            log.info(f'Connection for %r closed', self.ws)
+            stop_task.cancel()
+            send_task.cancel()
+            recv_task.cancel()
+            try:
+                await asyncio.gather(stop_task, send_task, recv_task)
+            except asyncio.CancelledError:
+                pass
 
 
-async def handler(send_queue, core, websocket):
-    log.info(f'Connection from {websocket}')
-    send_task = asyncio.create_task(send_handler(send_queue, websocket))
-    recv_task = asyncio.create_task(recv_handler(websocket, core))
-    await asyncio.gather(send_task, recv_task)
+class ClientMessageHandler(MessageHandler):
+
+    async def recv_handler(self):
+        # Ensure client identity received first.
+        while True:
+            mesg = json.loads(await self.ws.recv())
+            log.info('Recieved mesg from websocket: %r', mesg)
+            self.recv_cb(mesg)
+
+    async def send_handler(self):
+        # Ensure client identity sent first.
+        pid_info = {
+            'pid': os.getpid(),
+            'ppid': os.getppid(),
+        }
+        await self.ws.send(json.dumps(pid_info))
+        log.info(f'Websocket connection from %r to server', pid_info)
+        while True:
+            mesg = await self.send_queue.get()
+            log.info('Sending mesg via websocket: %r', mesg)
+            await self.ws.send(mesg)
 
 
-def start_websocket_server(host, port, loop, send_queue, core):
-    cb = partial(handler, send_queue, core)
-    server = websockets.serve(cb, host, port, loop=loop)
-    loop.run_until_complete(server)
-    log.info(f'Websocket server listening on ws://{host}:{port}')
-    loop.run_forever()
+class ServerMessageHandler(MessageHandler):
+
+    async def recv_handler(self):
+        # Ensure client identity received first.
+        self.pid_info = json.loads(await self.ws.recv())
+        self.client_id = self.pid_info['ppid']
+        log.info(f'Websocket connection from %r', self.pid_info)
+        while True:
+            mesg = json.loads(await self.ws.recv())
+            mesg['client_id'] = self.client_id
+            log.info('Recieved mesg from websocket: %r', mesg)
+            self.recv_cb(mesg)
+
+    async def send_handler(self):
+        while True:
+            mesg = await self.send_queue.get()
+            log.info('Sending mesg via websocket: %r', mesg)
+            await self.ws.send(mesg)
 
 
-class WebsocketPlugin(Plugin):
+class WebsocketServer:
+    '''
+    Manages a list of client connections. Each client has a separate
+    MessageHandler for differentiation between the clients.
+    '''
+    def __init__(self, plugin):
+        self.plugin = plugin
+        self.clients = {}
 
-    websocket_uri = Str('ws://localhost:8765')
+        host, port = urlparse(plugin.uri).netloc.split(':')
+        self.ws = websockets.serve(self.connect, host, port, loop=plugin.loop)
+        plugin.loop.run_until_complete(self.ws)
+        log.info(f'Websocket server listening on %s', plugin.uri)
+        plugin.loop.run_until_complete(self.send_handler())
+
+    async def send_handler(self):
+        while True:
+            payload = await self.plugin.send_queue.get()
+            client_id, mesg = json.loads(payload)
+            if client_id == 'broadcast':
+                queues = self.clients.values()
+            else:
+                for comm, queue in self.clients.items():
+                    if comm.pid_info['ppid'] == client_id:
+                        queues = [queue]
+                else:
+                    log.warning('No such client %r', client_id)
+
+            for queue in queues:
+                log.info('Sending mesg: %r', mesg)
+                queue.put_nowait(json.dumps(mesg))
+
+    async def connect(self, ws):
+        send_queue = asyncio.Queue()
+        comm = ServerMessageHandler(ws, send_queue, self.plugin.recv_cb,
+                                    self.plugin.stop)
+        self.clients[comm] = send_queue
+        self.plugin.connected()
+        await comm.listen()
+        del self.clients[comm]
+
+
+class WebsocketClient:
+
+    def __init__(self, plugin):
+        self.plugin = plugin
+        self.ws = plugin.loop.run_until_complete(websockets.connect(plugin.uri, loop=plugin.loop))
+        self.comm = ClientMessageHandler(self.ws, plugin.send_queue,
+                                         plugin.recv_cb, plugin.stop)
+        plugin.connected()
+        log.info(f'Websocket client connected to %s', plugin.uri)
+        plugin.loop.run_until_complete(self.comm.listen())
+        plugin.loop.run_until_complete(self.ws.close())
+
+
+class BaseWebsocketPlugin(Plugin):
 
     loop = Value()
+    uri = Str('ws://localhost:8765')
     send_queue = Typed(asyncio.Queue, args=())
-    thread = Typed(Thread)
+    thread = Typed(threading.Thread)
+    stop = Typed(asyncio.Event)
+    recv_cb = Callable()
+    connect_cb = Callable()
+    event_filter = Value()
 
     def _default_loop(self):
         return asyncio.new_event_loop()
 
-    def start_server(self, event):
-        core = event.workbench.get_plugin('enaml.workbench.core')
-        host, port = urlparse(self.websocket_uri).netloc.split(':')
-        args = (host, port, self.loop, self.send_queue, core)
-        self.thread = Thread(target=start_websocket_server, args=args,
-                             daemon=True)
-        self.thread.start()
+    def _default_stop(self):
+        return asyncio.Event()
 
     def send_experiment_event(self, event):
+        if self.event_filter is not None:
+            event_name = event.parameters['data']['event']
+            if self.event_filter.match(event_name) is None:
+                return
         self._send_message(json.dumps(event.parameters['data']))
 
     def send_message(self, message):
@@ -74,27 +193,80 @@ class WebsocketPlugin(Plugin):
     def _send_message(self, message):
         self.loop.call_soon_threadsafe(self.send_queue.put_nowait, message)
 
+    def disconnect(self):
+        deferred_call(self._disconnect)
 
-enamldef WebsocketManifest(ExperimentManifest): manifest:
+    def _disconnect(self):
+        log.info('Stop request recieved')
+        self.loop.call_soon_threadsafe(self.stop.set)
+        self.thread.join()
+        log.info('Shut down websocket connection')
 
+    def connected(self):
+        if self.connect_cb is not None:
+            self.connect_cb()
+
+    def set_event_filter(self, event_filter):
+        log.info('Updated event filter to %r', event_filter)
+        if event_filter is not None:
+            self.event_filter = re.compile(event_filter)
+        else:
+            self.event_filter = None
+
+
+class WebsocketServerPlugin(BaseWebsocketPlugin):
+    '''
+    Sets up a server
+    '''
+    def start_thread(self):
+        self.thread = threading.Thread(target=WebsocketServer, args=(self,), daemon=True)
+        self.thread.start()
+
+    def send_message(self, message, client_id='broadcast'):
+        self._send_message(json.dumps([client_id, message]))
+
+
+class WebsocketClientPlugin(BaseWebsocketPlugin):
+    '''
+    Sets up a client
+    '''
+    def start_thread(self):
+        self.thread = threading.Thread(target=WebsocketClient, args=(self,), daemon=True)
+        self.thread.start()
+
+
+enamldef BaseWebsocketManifest(ExperimentManifest): manifest:
+    '''
+    Makes the WebSocket plugin available for communication
+
+    When plugins are loaded into ps, the websocket server is started. All
+    experiment events are sent via websockets.
+    '''
     id = 'psi.websocket'
-    factory = WebsocketPlugin
 
     Extension:
         id = 'websocket_commands'
         point = 'enaml.workbench.core.commands'
 
         Command:
-            id = 'websocket.start_server'
-            handler = lambda e: workbench.get_plugin('psi.websocket').start_server(e)
+            id = 'websocket.start'
+            handler = lambda e: workbench.get_plugin('psi.websocket').start_thread()
 
         Command:
             id = 'websocket.send_message'
             handler = lambda e: workbench.get_plugin('psi.websocket').send_message(e.parameters['message'])
 
         Command:
+            id = 'websocket.set_event_filter'
+            handler = lambda e: workbench.get_plugin('psi.websocket').set_event_filter(e.parameters['event_filter'])
+
+        Command:
             id = 'websocket.send_experiment_event'
             handler = lambda e: workbench.get_plugin('psi.websocket').send_experiment_event(e)
+
+        Command:
+            id = 'websocket.disconnect'
+            handler = lambda e: workbench.get_plugin('psi.websocket').disconnect()
 
     Extension:
         id = 'websocket_actions'
@@ -102,8 +274,36 @@ enamldef WebsocketManifest(ExperimentManifest): manifest:
 
         ExperimentAction:
             event = 'plugins_started'
-            command = 'websocket.start_server'
+            command = 'websocket.start'
+
+        EventLogger:
+            command = 'websocket.send_experiment_event'
 
         ExperimentAction:
-            event = 'experiment_event'
-            command = 'websocket.send_experiment_event'
+            event = 'window_closed'
+            command = 'websocket.disconnect'
+
+        ExperimentEvent:
+            name = 'websocket_connected'
+
+
+enamldef WebsocketServerManifest(BaseWebsocketManifest): manifest:
+    '''
+    Set up a websocket server for communication
+    '''
+    id = 'psi.websocket'
+    factory = lambda: WebsocketServerPlugin(**kwargs)
+    attr kwargs = {
+        'recv_cb': partial(core_command_cb, workbench.get_plugin('enaml.workbench.core')),
+    }
+
+
+enamldef WebsocketClientManifest(BaseWebsocketManifest): manifest:
+    '''
+    Attempt to connect to websocket server for communication
+    '''
+    id = 'psi.websocket'
+    factory = lambda: WebsocketClientPlugin(**kwargs)
+    attr kwargs = {
+        'recv_cb': partial(core_command_cb, workbench),
+    }
