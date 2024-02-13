@@ -10,6 +10,7 @@ from atom.api import (Str, Dict, Event, Typed, Property, Float, Int,
 import enaml
 from enaml.core.api import Declarative, d_
 
+from psiaudio.stim import FixedWaveform
 from psiaudio.queue import AbstractSignalQueue
 
 from psi.util import SignalBuffer
@@ -75,9 +76,6 @@ class HardwareOutput(BaseOutput):
     fs = Property().tag(metadata=True)
     calibration = Property().tag(metadata=True)
     filter_delay = Property().tag(metadata=True)
-
-    # TODO: clean this up. it's sort of hackish.
-    token = d_(Typed(Declarative)).tag(metadata=True)
 
     # Can the user configure properties (such as the token) via the GUI?
     configurable = d_(Bool(True))
@@ -258,7 +256,35 @@ class MUXOutput(HardwareOutput):
         return buffer
 
 
+class SimpleOutput(BufferedOutput):
+
+    def get_next_samples(self, samples):
+        return np.zeros(samples, dtype=self.dtype)
+
+
 class EpochOutput(BaseAnalogOutput):
+
+    # TODO: clean this up. it's sort of hackish.
+    token = d_(Typed(Declarative)).tag(metadata=True)
+
+    def set_waveform(self, waveform):
+        self.source = FixedWaveform(self.fs, waveform)
+
+    def start_waveform(self, ts, update_engine=True):
+        sample = round(int(self.fs * ts))
+        self.activate(sample)
+        if update_engine:
+            self.engine.update_hw_ao(self.channel.name, sample)
+
+    def play_waveform(self, waveform, ts, update_engine=True):
+        self.set_waveform(waveform)
+        self.start_waveform(ts, update_engine)
+
+    def stop_waveform(self, ts, update_engine=True):
+        sample = round(int(self.fs * ts))
+        self.deactivate(sample)
+        if update_engine:
+            self.engine.update_hw_ao(self.channel.name, sample)
 
     def get_next_samples(self, samples):
         if self.paused or not self.active:
@@ -394,6 +420,9 @@ class QueuedEpochOutput(BaseAnalogOutput):
 
 
 class ContinuousOutput(BaseAnalogOutput):
+
+    # TODO: clean this up. it's sort of hackish.
+    token = d_(Typed(Declarative)).tag(metadata=True)
 
     def get_next_samples(self, samples):
         if self.paused or not self.active:

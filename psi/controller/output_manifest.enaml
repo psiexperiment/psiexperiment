@@ -14,8 +14,6 @@ from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
 
-from psiaudio.queue import queues
-
 from psi.context.api import ContextGroup, Parameter
 from psi.experiment.api import ItemPreferences, Preferences
 
@@ -484,11 +482,28 @@ enamldef AnalogOutputManifest(PSIManifest): manifest:
     Extension:
         id = manifest.id + '.output_commands'
         point = 'enaml.workbench.core.commands'
-        Conditional:
-            condition << manifest.contribution.configurable
-            Command:
-                id = manifest.contribution.name + '.set_token'
-                handler = partial(set_token, output=contribution, output_type=output_type)
+        Command:
+            id = manifest.contribution.name + '.prepare'
+            handler = partial(prepare_output, output=contribution)
+        Command:
+            id = manifest.contribution.name + '.start'
+            handler = partial(start_output, output=contribution)
+        Command:
+            id = manifest.contribution.name + '.clear'
+            handler = partial(clear_output, output=contribution)
+        Command:
+            id = manifest.contribution.name + '.pause'
+            handler = partial(output_pause, output=contribution)
+        Command:
+            id = manifest.contribution.name + '.resume'
+            handler = partial(output_resume, output=contribution)
+
+
+enamldef TokenAnalogOutputManifest(PSIManifest): manifest:
+
+    Extension:
+        id = manifest.id + '.output_commands'
+        point = 'enaml.workbench.core.commands'
         Command:
             id = manifest.contribution.name + '.prepare'
             handler = partial(prepare_output, output=contribution)
@@ -508,10 +523,17 @@ enamldef AnalogOutputManifest(PSIManifest): manifest:
     Conditional:
         condition << manifest.contribution.configurable
 
+        Extension:
+            id = manifest.id + '.token_output_commands'
+            point = 'enaml.workbench.core.commands'
+            Command:
+                id = manifest.contribution.name + '.set_token'
+                handler = partial(set_token, output=contribution, output_type=output_type)
+
         # Create a menu of the tokens available for the output if it's a
         # configurable output.
         Extension:
-            id = manifest.id + '.output_menu'
+            id = manifest.id + '.token_output_menu'
             point = 'enaml.workbench.ui.actions'
             MenuItem: menu:
                 path = '/equipment/output/{}'.format(manifest.contribution.name)
@@ -542,7 +564,7 @@ enamldef AnalogOutputManifest(PSIManifest): manifest:
 
         # Save the selected token and restore it
         Extension:
-            id = manifest.id + '.preferences'
+            id = manifest.id + '.token_preferences'
             point = 'psi.experiment.preferences'
             rank = 10
             ItemPreferences:
@@ -566,7 +588,7 @@ enamldef AnalogOutputManifest(PSIManifest): manifest:
                     core.invoke_command(command, parameters={'token': token})
 
     Extension:
-        id = manifest.id + '.items'
+        id = manifest.id + '.token_items'
         point = 'psi.context.items'
 
         ContextGroup:
@@ -579,7 +601,7 @@ enamldef AnalogOutputManifest(PSIManifest): manifest:
                                   manifest.contribution.token)
 
     Extension:
-        id = manifest.id + '.actions'
+        id = manifest.id + '.token_actions'
         point = 'psi.controller.actions'
         ExperimentState:
             name = manifest.contribution.name
@@ -602,7 +624,7 @@ def get_tokens(workbench, ttype):
         return {}
 
 
-enamldef EpochOutputManifest(AnalogOutputManifest): manifest:
+enamldef EpochOutputManifest(TokenAnalogOutputManifest): manifest:
 
     attr tokens = get_tokens(workbench, 'epoch')
     attr output_type = 'epoch'
@@ -665,7 +687,7 @@ enamldef SelectorQueuedEpochOutputManifest(QueuedEpochOutputManifest): manifest:
             command = manifest.contribution.name + '.prepare_queue'
 
 
-enamldef ContinuousOutputManifest(AnalogOutputManifest): manifest:
+enamldef ContinuousOutputManifest(TokenAnalogOutputManifest): manifest:
 
     attr tokens = get_tokens(workbench, 'continuous')
     attr output_type = 'continuous'
