@@ -73,7 +73,7 @@ enamldef TrialLogManifest(TableStoreManifest): manifest:
                         name = 'tl_table'
                         data << manifest.contribution._data[:]
                         get_cell_color => (row, column):
-                            tt = data[row]['trial_type']
+                            tt = data[row].get('trial_type', None)
                             return GONOGO_COLORS.get(tt, 'white')
                         autoscroll = True
                         columns_movable = False
