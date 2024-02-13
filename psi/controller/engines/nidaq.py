@@ -1431,7 +1431,7 @@ class NIDAQEngine(Engine):
         if samples <= 0:
             return
 
-        log.info('Updating hw do at %d with %d samples', offset, samples)
+        log.trace('Updating hw do at %d with %d samples', offset, samples)
         data = self._get_hw_do_samples(offset, samples)
         self.write_hw_do(data, offset=offset, timeout=0)
 
@@ -1460,7 +1460,7 @@ class NIDAQEngine(Engine):
 
             # Calculate total samples written
             self.total_ao_samples_written += (relative_offset + data.shape[-1])
-            log.debug('Writing hw ao %r at %d', data.shape, offset)
+            log.trace('Writing hw ao %r at %d', data.shape, offset)
 
         except mx.InvalidTaskError:
             if self.stopped.is_set():
@@ -1493,7 +1493,7 @@ class NIDAQEngine(Engine):
                                   mx.DAQmx_Val_GroupByChannel,
                                   data.astype(np.uint8), result, None)
         mx.DAQmxSetWriteOffset(task, 0)
-        log.info('Writing %r samples to hw do at offset %d', data.shape, offset)
+        log.trace('Writing %r samples to hw do at offset %d', data.shape, offset)
 
         # Calculate total samples written
         self.total_do_samples_written += (relative_offset + data.shape[-1])
