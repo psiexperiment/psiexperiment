@@ -194,6 +194,8 @@ class ChirpCalibrate(BaseCalibrate):
         )
         result = result.sort_index()
         sens = result.loc[ai_channel.name, 'sens']
+
+        # Ensure that calibration is set
         ao_channel.calibration = InterpCalibration(sens.index, sens.values)
         result['gain'] = self.gain
         result['duration'] = self.duration
