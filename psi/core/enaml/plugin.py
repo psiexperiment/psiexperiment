@@ -10,12 +10,12 @@ from .util import load_manifests
 
 class PSIPlugin(Plugin):
 
-    def raise_duplicate_error(self, obj, attr_name, extension,
+    def raise_duplicate_error(self, obj, attr_name, extension, orig_extension,
                               error_type=ValueError):
         mesg = f'''
         Could not load "{getattr(obj, attr_name)}" from extension
         "{extension.id}" since a {obj.__class__.__name__} with the same
-        {attr_name} has already been registered.
+        {attr_name} has already been registered by {orig_extension.id}.".
         '''
         raise error_type(textwrap.fill(textwrap.dedent(mesg)))
 
@@ -41,6 +41,9 @@ class PSIPlugin(Plugin):
         log.debug('Loading plugins for extension point %s', point_id)
         point = self.workbench.get_extension_point(point_id)
         items = {}
+        # Track the original source of the attribute that way we can provide
+        # more informative error message if we have a duplicate.
+        item_source = {}
         for extension in point.extensions:
             log.debug('... Found extension %s', extension.id)
             children = extension.get_children(plugin_type)
@@ -50,8 +53,9 @@ class PSIPlugin(Plugin):
                 attr = getattr(item, unique_attr)
                 log.debug('... ... found contribution %s', attr)
                 if attr in items:
-                    self.raise_duplicate_error(item, unique_attr, extension)
+                    self.raise_duplicate_error(item, unique_attr, extension, item_source[attr])
                 items[attr] = item
+                item_source[attr] = extension
 
         return items
 
