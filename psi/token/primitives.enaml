@@ -6,8 +6,8 @@ log = logging.getLogger(__name__)
 from psiaudio.stim import (
     BandlimitedClickFactory, BandlimitedNoiseFactory,
     BandlimitedFIRNoiseFactory, BroadbandNoiseFactory, ChirpFactory,
-    Cos2EnvelopeFactory, GateFactory, RepeatFactory, SAMEnvelopeFactory,
-    SAMToneFactory, ShapedNoiseFactory, SilenceFactory,
+    Cos2EnvelopeFactory, EnvelopeFactory, GateFactory, RepeatFactory,
+    SAMEnvelopeFactory, SAMToneFactory, ShapedNoiseFactory, SilenceFactory,
     SquareWaveEnvelopeFactory, SquareWaveFactory, ToneFactory,
     WavSequenceFactory
 )
@@ -46,6 +46,34 @@ enamldef Cos2Envelope(Gate): block:
         label = 'rise time (s)'
         compact_label = 'env rise'
         default = 1.0
+
+
+enamldef Envelope(Gate): block:
+
+    factory = EnvelopeFactory
+    name = 'envelope'
+    label = 'envelope'
+
+    EnumParameter:
+        name = 'envelope'
+        label = 'Envelope'
+        compact_label = 'env'
+        default = 'bartlett'
+        choices = {
+            'bartlett': "'bartlett'",
+        }
+
+    Parameter:
+        name = 'rise_time'
+        label = 'Rise Time'
+        compact_label = 'rise'
+        default = None
+
+    Parameter:
+        name = 'transform'
+        label = 'Transform'
+        compact_label = 'T'
+        default = None
 
 
 enamldef SquareWaveEnvelope(ContinuousBlock): block:
