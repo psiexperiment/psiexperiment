@@ -137,6 +137,8 @@ enamldef ResultPopup(PopupView): popup:
 
 def show_results(message, stop_reason, error_message):
     if message or error_message:
+        if message == 'Saved data to disk':
+            return
         view = ResultPopup(message=message, error_message=error_message)
         # There is no guarantee show_results will be invoked in the main
         # process, so anything GUI related needs to be scheduled on the main
