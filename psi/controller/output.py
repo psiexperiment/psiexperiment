@@ -309,7 +309,7 @@ class EpochOutput(BaseAnalogOutput):
         return np.concatenate(waveforms, axis=-1)
 
 
-class QueuedEpochOutput(BaseAnalogOutput):
+class QueuedEpochOutput(EpochOutput):
 
     queue = d_(Typed(AbstractSignalQueue))
 
