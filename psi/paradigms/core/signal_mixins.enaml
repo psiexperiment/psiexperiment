@@ -111,7 +111,7 @@ enamldef MultiSignalViewManifest(ExperimentManifest): manifest:
     alias sources: ext.sources
 
     MultiSignalViewExtension: ext:
-        id = manifest.id + '.plots'
+        id = manifest.id
         title = manifest.title
 
 
@@ -157,7 +157,7 @@ enamldef MultiSignalFFTViewManifest(ExperimentManifest): manifest:
     alias sources: ext.sources
 
     MultiSignalViewFFTExtension: ext:
-        id = manifest.id + '.plots'
+        id = manifest.id
         title = manifest.title
 
 
