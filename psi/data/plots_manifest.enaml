@@ -241,7 +241,7 @@ enamldef GroupMixinManifest(BasePlotManifest): manifest:
             handler = partial(set_group_keys, manifest.contribution)
 
     Conditional:
-        condition = manifest.contribution.autogenerate_keys != 'none'
+        condition = manifest.contribution.autogenerate_keys != 'neither'
 
         Extension:
             id = manifest.id + '.stacked_actions'
