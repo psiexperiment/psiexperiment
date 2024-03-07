@@ -617,10 +617,12 @@ class ControllerPlugin(Plugin):
 
     def stop_experiment(self, skip_errors=False, kw=None):
         deferred_call(lambda: setattr(self, 'experiment_state', 'stopped'))
-        if self.experiment_state not in ('running', 'paused'):
-            return []
+        #if self.experiment_state not in ('running', 'paused'):
+        #    log.debug('Nothing to do since experiment is not running. Returning.')
+        #    return []
         if kw is None:
             kw = {}
+        log.debug('Invoking actions for experiment end.')
         return self.invoke_actions('experiment_end', self.get_ts(),
                                    skip_errors=skip_errors, kw=kw)
 
