@@ -12,6 +12,7 @@ from enaml.widgets.api import Action, DockItem, ToolBar
 from enaml.widgets.toolkit_object import ToolkitObject
 
 from psi.core.enaml.api import PSIPlugin
+from .metadata_item import MetadataItem
 from .preferences import Preferences
 from .status_item import StatusItem
 
@@ -20,6 +21,7 @@ TOOLBAR_POINT = 'psi.experiment.toolbar'
 WORKSPACE_POINT = 'psi.experiment.workspace'
 STATUS_POINT = 'psi.experiment.status'
 PREFERENCES_POINT = 'psi.experiment.preferences'
+METADATA_POINT = 'psi.experiment.metadata'
 
 
 def fix_legacy_toolbar_layout(layout):
@@ -66,6 +68,7 @@ class ExperimentPlugin(PSIPlugin):
     _workspace_contributions = Typed(dict)
     _toolbars = Typed(dict, {})
     _status_items = Typed(dict)
+    _metadata_items = Typed(dict)
 
     def remap_layout(self, name):
         return name
@@ -79,6 +82,7 @@ class ExperimentPlugin(PSIPlugin):
         self._refresh_workspace()
         self._refresh_toolbars()
         self._refresh_preferences()
+        self._refresh_metadata()
         self._bind_observers()
 
     def stop(self):
@@ -117,6 +121,21 @@ class ExperimentPlugin(PSIPlugin):
         log.info(f'Found status items {", ".join(l for l in status_items)}')
         self._status_items = status_items
 
+    def _refresh_metadata(self, event=None):
+        metadata_items = self.load_plugins(METADATA_POINT, MetadataItem, 'name')
+        log.info(f'Found metadata items {", ".join(l for l in metadata_items)}')
+        self._metadata_items = metadata_items
+
+    def metadata_to_dict(self):
+        md = {}
+        for item in self._metadata_items.values():
+            tmp = md
+            levels = item.name.split('.')
+            for level in levels[:-1]:
+                tmp = tmp.setdefault(level, {})
+            tmp[levels[-1]] = item.value
+        return md
+
     def _bind_observers(self):
         self.workbench.get_extension_point(PREFERENCES_POINT) \
             .observe('extensions', self._refresh_preferences)
@@ -126,6 +145,8 @@ class ExperimentPlugin(PSIPlugin):
             .observe('extensions', self._refresh_workspace)
         self.workbench.get_extension_point(STATUS_POINT) \
             .observe('extensions', self._refresh_status)
+        self.workbench.get_extension_point(METADATA_POINT) \
+            .observe('extensions', self._refresh_metadata)
 
     def _unbind_observers(self):
         self.workbench.get_extension_point(PREFERENCES_POINT) \
@@ -136,6 +157,8 @@ class ExperimentPlugin(PSIPlugin):
             .unobserve('extensions', self._refresh_workspace)
         self.workbench.get_extension_point(STATUS_POINT) \
             .unobserve('extensions', self._refresh_status)
+        self.workbench.get_extension_point(METADATA_POINT) \
+            .unobserve('extensions', self._refresh_metadata)
 
     def _get_toolbar_layout(self):
         # TODO: This needs some work. It's not *quite* working 100%, especially

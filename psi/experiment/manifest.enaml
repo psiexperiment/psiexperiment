@@ -17,10 +17,16 @@ from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
 from enaml.workbench.ui.api import Workspace
 
+import psi.version
+import psiaudio.version
+import psidata.version
+
 from psi.controller.experiment_action import ExperimentAction, ExperimentEvent
 from psi.core.enaml.api import PSIDockItem
+from psi.data.sinks.text_store import TextStore
 
 from .. import get_config
+from .metadata_item import MetadataItem
 from .workspace import ExperimentWorkspace
 from .workbench_window import ExperimentWorkbenchWindow
 from .plugin import ExperimentPlugin
@@ -183,6 +189,12 @@ def update_dock_style(event):
     ui.workspace.dock_area.style = style
 
 
+def write_metadata(event):
+    store = event.workbench.get_plugin('psi.data').find_sink('metadata')
+    experiment = event.workbench.get_plugin('psi.experiment')
+    store.save_mapping('metadata', experiment.metadata_to_dict())
+
+
 enamldef StatusDockItem(PSIDockItem):
 
     name = 'experiment_status'
@@ -236,6 +248,12 @@ enamldef ExperimentManifest(PluginManifest): manifest:
         factory = lambda workbench: ExperimentWorkbenchWindow()
 
     Extension:
+        id = manifest.id + '.data'
+        point = 'psi.data.sinks'
+        TextStore:
+            name = 'metadata'
+
+    Extension:
         id = manifest.id + '.controller_actions'
         point = 'psi.controller.actions'
         ExperimentEvent:
@@ -246,6 +264,9 @@ enamldef ExperimentManifest(PluginManifest): manifest:
         ExperimentAction:
             event = 'experiment_end'
             command = 'psi.update_dock_style'
+        ExperimentAction:
+            event = 'experiment_start'
+            command = 'psi.write_metadata'
 
     Extension:
         id = manifest.id + '.commands'
@@ -289,6 +310,9 @@ enamldef ExperimentManifest(PluginManifest): manifest:
         Command:
             id = 'psi.update_dock_style'
             handler = update_dock_style
+        Command:
+            id = 'psi.write_metadata'
+            handler = write_metadata
 
     Extension:
         id = manifest.id + '.actions'
@@ -375,8 +399,27 @@ enamldef ExperimentManifest(PluginManifest): manifest:
     ExtensionPoint:
         id = 'status'
 
+    ExtensionPoint:
+        id = 'metadata'
+
     Extension:
         # Provides the default Status DockItem pane.
         id = manifest.id + '.workspace'
         point = 'psi.experiment.workspace'
         factory = lambda plugin: [StatusDockItem(plugin=plugin)]
+
+    Extension:
+        id = manifest.id + '.metadata'
+        point = 'psi.experiment.metadata'
+
+        MetadataItem:
+            name = 'version.psi'
+            value = psi.version.__version__
+
+        MetadataItem:
+            name = 'version.psidata'
+            value = psidata.version.__version__
+
+        MetadataItem:
+            name = 'version.psiaudio'
+            value = psiaudio.version.__version__
