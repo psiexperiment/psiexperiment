@@ -110,7 +110,15 @@ enamldef ContextMetaPopup(PopupView): cm_popup:
 # ContextItemTemplate
 ################################################################################
 def get_scope(default_scope, workbench):
-    for selector in workbench.get_plugin('psi.context').selectors.values():
+    # I'm not sure why we decided that the default scope should be overridden
+    # if the selector is *not* user-managed. I think this may have to do with
+    # whether or not we can check a box for adding an item to the selector. If
+    # so, then this is likely not the best way to handle this and we may need
+    # to separate the logic.
+    selectors = workbench.get_plugin('psi.context').selectors.values()
+    if len(selectors) == 0:
+        return default_scope
+    for selector in selectors:
         if selector.user_managed:
             return default_scope
     return 'experiment'
