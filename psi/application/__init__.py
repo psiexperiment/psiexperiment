@@ -9,6 +9,7 @@ from pathlib import Path
 import pdb
 import re
 import sys
+import tempfile
 import textwrap
 import traceback
 import warnings
@@ -20,6 +21,8 @@ with enaml.imports():
 
 from psi import get_config, set_config
 from psi.core.enaml.api import load_manifest, load_manifest_from_file
+
+DEFAULT_LOG_ROOT = Path(tempfile.gettempdir()) / 'psi'
 
 
 def disable_quick_edit():
@@ -189,7 +192,8 @@ def _main(args):
         # warnings.
         dt_string = dt.datetime.now().strftime('%Y-%m-%d %H%M')
         filename = '{} {}'.format(dt_string, args.experiment)
-        log_root = get_config('LOG_ROOT')
+        log_root = get_config('LOG_ROOT', DEFAULT_LOG_ROOT)
+        log_root.mkdir(parents=True, exist_ok=True)
         configure_logging(args.debug_level_console,
                           args.debug_level_file,
                           os.path.join(log_root, filename),
