@@ -146,9 +146,9 @@ class QEditableTableView(QTableView):
             self.setSelectionMode(self.NoSelection)
         else:
             flag_name = '{}Selection'.format(select_mode.capitalize())
-            self.setSelectionMode(getattr(self, flag_name))
+            self.setSelectionMode(getattr(self.SelectionMode, flag_name))
         flag_name = 'Select{}'.format(select_behavior.capitalize())
-        self.setSelectionBehavior(getattr(self, flag_name))
+        self.setSelectionBehavior(getattr(self.SelectionBehavior, flag_name))
         self.selectionModel().selectionChanged.connect(self._selection_changed)
         self.setShowGrid(self.model.interface.show_grid)
 
@@ -185,7 +185,7 @@ class QEditableTableView(QTableView):
         else:
             resize_mode = resize_mode.capitalize()
         log.debug('Setting header resize mode to %s', resize_mode)
-        header.setSectionResizeMode(getattr(header, resize_mode))
+        header.setSectionResizeMode(getattr(header.ResizeMode, resize_mode))
 
     def remove_selected_rows(self):
         selection_model = self.selectionModel()
