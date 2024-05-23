@@ -1105,13 +1105,19 @@ class GroupMixin(ColorCycleMixin):
     fmt_plot_label_cb = d_(Callable())
 
     #: Function that takes the epoch metadata and returns a key that is used to
-    #: assign the epoch to a group. Return None to exclude the epoch from the
-    #: group criteria.
+    #: assign the epoch to a plot and tab. Return None to exclude the epoch
+    #: from the plots. Return two tuples (plot_key, tab_key) containing the
+    #: unique identifier for that particular metadata record.
     @d_func
     def group_key(self, md):
-        plot_key = tuple(md[a] for a in self.plot_grouping)
-        tab_key = tuple(md[a] for a in self.tab_grouping)
-        return tab_key, plot_key
+        try:
+            plot_key = tuple(md[a] for a in self.plot_grouping)
+            tab_key = tuple(md[a] for a in self.tab_grouping)
+            return tab_key, plot_key
+        except KeyError:
+            valid_keys = ', '.join(sorted(md.keys()))
+            log.info('Invalid key. Valid keys in metadata include %s', valid_keys)
+            raise
 
     def _default_fmt_plot_label_cb(self):
         return lambda x, s: s.join(str(v) for v in x)
