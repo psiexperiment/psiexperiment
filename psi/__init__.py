@@ -156,9 +156,14 @@ def set_config(setting, value):
     _config[setting] = value
 
 
-CFG_ERR_MESG = '''
-Could not find setting "{}" in configuration. This may be because the
-configuration file is missing. Please run psi-config to create it.
+CFG_ERR_MESG = f'''
+Could not find setting "{{}}" in the configuration file. This may be because
+the configuration file is missing. The configuration file was expected to be
+found at {get_config_file()}.
+
+You can either create this file manually or run `psi-config` to create it. A
+different location for the file can be specified by setting the environment
+variable PSI_CONFIG_FILE.
 '''
 
 # Special singleton value that enables us to use `get_config` with None as the
@@ -177,7 +182,7 @@ def get_config(setting=None, default_value=NoDefault):
                 return _config.get(setting, default_value)
             else:
                 return _config[setting]
-        except AttributeError as e:
+        except KeyError as e:
             if CONFIG_LOADED:
                 raise
             mesg = CFG_ERR_MESG.strip().format(setting)
