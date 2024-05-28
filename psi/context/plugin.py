@@ -143,11 +143,21 @@ class ContextPlugin(PSIPlugin):
 
     def _refresh_items(self, event=None):
         # Find all plugin contributions
-        context_groups = self.load_plugins(ITEMS_POINT, ContextGroup, 'name')
-        context_sets = self.load_plugins(ITEMS_POINT, ContextSet, 'name')
-        context_items = self.load_plugins(ITEMS_POINT, ContextItem, 'name')
-        context_meta = self.load_plugins(ITEMS_POINT, ContextMeta, 'name')
-        context_expressions = self.load_plugins(ITEMS_POINT, Expression, 'parameter')
+        plugin_info = {
+            ContextGroup: 'name',
+            ContextSet: 'name',
+            ContextItem: 'name',
+            ContextMeta: 'name',
+            Expression: 'parameter'
+        }
+        items = self.load_multiple_plugins(ITEMS_POINT, plugin_info)
+        log.error(items)
+
+        context_groups = items[ContextGroup]
+        context_sets = items[ContextSet]
+        context_items = items[ContextItem]
+        context_meta = items[ContextMeta]
+        context_expressions = items[Expression]
 
         # At this point, `context_items` is only the "orphan" context items
         # where the group has not yet been assigned.
