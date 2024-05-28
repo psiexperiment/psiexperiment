@@ -198,17 +198,20 @@ class ContextItem(Declarative):
     def __repr__(self):
         return f'<{self.__class__.__name__}: {self}>'
 
-    def __str__(self):
-        flags = [f'scope {self.scope}']
+    def get_flags(self):
+        flags = []
         if isinstance(self.parent, ContextGroup):
-            flags.append(f'group {self.parent.name}')
+            flags.append(f'aaagroup {self.parent.name}')
         elif self.group_name:
             flags.append(f'group {self.group_name}')
         if not self.visible:
             flags.append('not visible')
         if not self.editable:
-            flags.append('not ediable')
-        flags = ', '.join(flags)
+            flags.append('not editable')
+        return flags
+
+    def __str__(self):
+        flags = ', '.join(self.get_flags())
         return f'{self.name} ({flags})'
 
     def get_preferences(self):
@@ -271,6 +274,11 @@ class Parameter(ContextItem):
 
     def set_value(self, value):
         self.expression = self.to_expression(value)
+
+    def get_flags(self):
+        flags = super().get_flags()
+        flags.append(f'scope {self.scope}')
+        return flags
 
 
 class EnumParameter(Parameter):
