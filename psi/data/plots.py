@@ -90,6 +90,7 @@ class ColorCycleMixin(Declarative):
             nonlocal iterable
             for color in iterable:
                 yield make_color(color)
+
         return qcolor_iterable()
 
     @d_func
@@ -1248,6 +1249,9 @@ class EpochGroupMixin(SourceMixin, GroupMixin):
         self.update(tab_changed=True)
 
     def update(self, event=None, tab_changed=False):
+        deferred_call(self._update, event, tab_changed)
+
+    def _update(self, event=None, tab_changed=False):
         todo = []
         if self._x is None:
             return
