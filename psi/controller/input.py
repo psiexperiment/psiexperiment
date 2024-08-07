@@ -92,6 +92,16 @@ class Input(PSIContribution):
 
     configured = Bool(False)
 
+    def _observe_source(self, event):
+        self.source.observe('fs', self._fs_updated)
+
+    def _fs_updated(self, event):
+        event = event.copy()
+        event['newvalue'] = self.fs
+        self.notify('fs', event)
+        member = self.get_member('fs')
+        member.notify(self, event)
+
     def _default_name(self):
         if self.source is not None:
             base_name = self.source.name
