@@ -17,7 +17,7 @@ maintainers = [
 dependencies = [
     "psidata >= 0.1.7",
     "psiaudio >= 0.2.4",
-    "enaml >=0.13.0",
+    "enaml[qt6-pyside] >=0.13.0",
     "numpy",
     "palettable",
     "pyqtgraph >=0.11.0",
