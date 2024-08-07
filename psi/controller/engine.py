@@ -5,7 +5,7 @@ import threading
 
 import numpy as np
 
-from atom.api import (Str, Float, Bool, observe, Property, Int, Typed,
+from atom.api import (Str, Float, Bool, observe, Property, Int, List, Typed,
                       Value)
 from enaml.core.api import Declarative, d_
 
@@ -76,11 +76,20 @@ class Engine(PSIContribution):
     #: run out of samples. This poll period is a suggestion, not a contract.
     hw_ao_monitor_period = d_(Float(1)).tag(metadata=True)
 
+    channels = List(Typed(Channel))
+
+    def initialized(self):
+        self.channels = [c for c in self.children if isinstance(c, Channel)]
+
     def _default_lock(self):
         return threading.RLock()
 
     def _default_stopped(self):
         return threading.Event()
+
+    def add_channel(self, channel):
+        self.channels.append(channel)
+        channel.engine = self
 
     def get_channels(self, mode=None, direction=None, timing=None,
                      active=True):
@@ -100,7 +109,7 @@ class Engine(PSIContribution):
             If True, return only channels that have configured inputs or
             outputs.
         '''
-        channels = [c for c in self.children if isinstance(c, Channel)]
+        channels = self.channels[:]
 
         if active:
             channels = [c for c in channels if c.active]
@@ -135,7 +144,7 @@ class Engine(PSIContribution):
 
     def get_channel(self, channel_name):
         # Channel names are sometimes prefixed with the channel type (e.g.,
-        # hw_ao) and will appear as "hw_ao::speaker_1" instead of "speaker_1". 
+        # hw_ao) and will appear as "hw_ao::speaker_1" instead of "speaker_1".
         if '::' in channel_name:
             _, channel_name = channel_name.split('::')
         channels = self.get_channels(active=False)
