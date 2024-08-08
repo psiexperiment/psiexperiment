@@ -157,6 +157,7 @@ class Engine(PSIContribution):
 
     def remove_channel(self, channel):
         channel.set_parent(None)
+        self.channels.remove(channel)
 
     def configure(self):
         for channel in self.get_channels():
