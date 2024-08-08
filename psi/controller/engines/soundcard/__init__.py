@@ -15,7 +15,8 @@ from psi.controller.api import (Engine, HardwareAIChannel, HardwareAOChannel)
 from psi.controller.engines.thread import DAQThread
 from psi.controller.engines.callback import ChannelSliceCallbackMixin
 
-# Recommended to be a power of two
+# Must be a power of two (presumably since the underlying portaudio library
+# manages the RingBuffer and splits it into two sections).
 QSIZE = 512
 STEPSIZE = 4096
 
@@ -41,8 +42,6 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
     _threads = Typed(dict, {})
 
     _stream = Value()
-    _t0 = Float()
-    _s0 = Int(0)
     _stop_requested = Value()
 
     _data = Value()
@@ -142,18 +141,10 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
     def _hw_ai_callback(self, n_channels):
         while self._hw_ai_buffer.read_available > STEPSIZE:
             samples = np.frombuffer(self._hw_ai_buffer.read(), dtype='float32')
-            #read, buf1, buf2 = self._hw_ai_buffer.get_read_buffers(STEPSIZE)
-            #if read != STEPSIZE:
-                #raise ValueError
-            #if buf2:
-                #raise ValueError
-            #print(samples)
-            #samples = np.frombuffer(samples, dtype='float32')
             samples.shape = -1, n_channels
 
             data = PipelineData(samples.T, fs=96000, s0=self._total_samples_read)
             for channel_name, cb in self._callbacks.get('ai', []):
-                #if channel_name == name:
                 cb(data)
 
             self._total_samples_read += len(samples)
