@@ -47,7 +47,10 @@ class SoundcardEngine(Engine):
     #: Total samples read from the portaudio ringbuffer.
     _total_samples_read = Int()
 
-    fs = Int(96000)
+    #: These are standard sampling rates in most sound cards. Not all sound
+    #: cards may support the highest sampling rates. Calling the result of
+    #: `Enum` with a value sets the default.
+    fs = Enum(44100, 48000, 96000, 192000)(96000)
 
     def configure(self, active=True):
         self._data = []
