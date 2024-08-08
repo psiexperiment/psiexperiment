@@ -13,6 +13,7 @@ import sounddevice as sd
 from psiaudio.pipeline import PipelineData
 from psi.controller.api import (Engine, HardwareAIChannel, HardwareAOChannel)
 from psi.controller.engines.thread import DAQThread
+from psi.controller.engines.callback import ChannelSliceCallbackMixin
 
 # Recommended to be a power of two
 QSIZE = 512
@@ -29,7 +30,7 @@ class SoundcardHardwareAOChannel(HardwareAOChannel):
     channel = d_(Int()).tag(metadata=True)
 
 
-class SoundcardEngine(Engine):
+class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
 
     #: Must be a valid device name as visible to sounddevice. To get a list of
     #: devices type `python -m sounddevice` at the command prompt.
@@ -37,7 +38,6 @@ class SoundcardEngine(Engine):
 
     #: Flag indicating whether engine was configured
     _configured = Bool(False)
-    _callbacks = Typed(dict, {})
     _threads = Typed(dict, {})
 
     _stream = Value()

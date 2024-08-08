@@ -43,6 +43,7 @@ import PyDAQmx as mx
 
 from psiaudio.pipeline import PipelineData
 from psiaudio.util import dbi
+from .callback import ChannelSliceCallbackMixin
 from ..engine import Engine, EngineStoppedException
 from ..channel import (HardwareCIChannel, HardwareCOChannel,
                        HardwareAIChannel, HardwareAOChannel, HardwareDIChannel,
@@ -998,7 +999,7 @@ def with_lock(f):
 ################################################################################
 # Engine
 ################################################################################
-class NIDAQEngine(Engine):
+class NIDAQEngine(ChannelSliceCallbackMixin, Engine):
     '''
     Hardware interface
 
@@ -1270,57 +1271,6 @@ class NIDAQEngine(Engine):
         initial_state = np.zeros(len(channels), dtype=np.uint8)
         self.write_sw_do(initial_state)
 
-    def _get_channel_slice(self, task_name, channel_name):
-        if channel_name is None:
-            return Ellipsis
-        # We want the channel slice to preserve dimensiality (i.e, we don't
-        # want to drop the channel dimension from the PipelineData object).
-        i = self._tasks[task_name]._properties['names'].index(channel_name)
-        return [i]
-
-    def register_done_callback(self, callback):
-        self._callbacks.setdefault('done', []).append(callback)
-
-    def register_ao_callback(self, callback, channel_name=None):
-        s = self._get_channel_slice('hw_ao', channel_name)
-        self._callbacks.setdefault('ao', []).append((channel_name, s, callback))
-
-    def register_ai_callback(self, callback, channel_name=None):
-        s = self._get_channel_slice('hw_ai', channel_name)
-        self._callbacks.setdefault('ai', []).append((channel_name, s, callback))
-
-    def register_ci_callback(self, callback, channel_name=None):
-        s = self._get_channel_slice('hw_ci', channel_name)
-        self._callbacks.setdefault('ci', []).append((channel_name, s, callback))
-
-    def register_di_callback(self, callback, channel_name=None):
-        s = self._get_channel_slice('hw_di', channel_name)
-        self._callbacks.setdefault('di', []).append((channel_name, s, callback))
-
-    def unregister_done_callback(self, callback):
-        try:
-            self._callbacks['done'].remove(callback)
-        except KeyError:
-            log.warning('Callback no longer exists.')
-
-    def unregister_ao_callback(self, callback, channel_name):
-        try:
-            s = self._get_channel_slice('hw_ao', channel_name)
-            self._callbacks['ao'].remove((channel_name, s, callback))
-        except (KeyError, AttributeError):
-            log.warning('Callback no longer exists.')
-
-    def unregister_ai_callback(self, callback, channel_name):
-        try:
-            s = self._get_channel_slice('hw_ai', channel_name)
-            self._callbacks['ai'].remove((channel_name, s, callback))
-        except (KeyError, AttributeError):
-            log.warning('Callback no longer exists.')
-
-    def unregister_di_callback(self, callback, channel_name):
-        s = self._get_channel_slice('hw_di', channel_name)
-        self._callbacks['di'].remove((channel_name, s, callback))
-
     def write_sw_ao(self, state):
         task = self._tasks['sw_ao']
         state = np.array(state).astype(np.double)
@@ -1475,7 +1425,7 @@ class NIDAQEngine(Engine):
             # Let's only log this information on an Exception.
             maxval = np.abs(data).max(axis=-1)
             log.info('Failed to write %r samples starting at %r', data.shape, offset)
-            log.info(' * Offset is %d samples relative to current write position %d', 
+            log.info(' * Offset is %d samples relative to current write position %d',
                      relative_offset, self.total_ao_samples_written)
             log.info(' * Current read position is %d', self.ao_sample_clock())
             log.info(' * Maximum value attempted to write is %r', maxval)
