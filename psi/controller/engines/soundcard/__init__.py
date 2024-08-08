@@ -187,35 +187,3 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
         self._stop_requested.set()
         self.complete()
         self._configured = False
-
-    def register_done_callback(self, callback):
-        self._callbacks.setdefault('done', []).append(callback)
-
-    def register_ao_callback(self, callback, channel_name=None):
-        self._callbacks.setdefault('ao', []).append((channel_name, callback))
-
-    def register_ai_callback(self, callback, channel_name=None):
-        self._callbacks.setdefault('ai', []).append((channel_name, callback))
-
-    def unregister_done_callback(self, callback):
-        try:
-            self._callbacks['done'].remove(callback)
-        except KeyError:
-            log.warning('Callback no longer exists.')
-
-    def unregister_ao_callback(self, callback, channel_name=None):
-        try:
-            self._callbacks['ao'].remove((channel_name, callback))
-        except (KeyError, AttributeError):
-            log.warning('Callback no longer exists.')
-
-    def unregister_ai_callback(self, callback, channel_name=None):
-        try:
-            self._callbacks['ai'].remove((channel_name, callback))
-        except (KeyError, AttributeError):
-            log.warning('Callback no longer exists.')
-
-    def complete(self):
-        log.debug('Triggering "done" callbacks')
-        for cb in self._callbacks.get('done', []):
-            cb()

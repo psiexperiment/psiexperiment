@@ -6,6 +6,11 @@ class BaseCallbackMixin:
     #: Dictionary of callbacks
     _callbacks = Dict()
 
+    def complete(self):
+        log.debug('Triggering "done" callbacks')
+        for cb in self._callbacks.get('done', []):
+            cb()
+
 
 class ChannelSliceCallbackMixin(BaseCallbackMixin):
 
