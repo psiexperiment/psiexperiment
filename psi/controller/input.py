@@ -97,7 +97,7 @@ class Input(PSIContribution):
 
     def _fs_updated(self, event):
         event = event.copy()
-        event['newvalue'] = self.fs
+        event['value'] = self.fs
         self.notify('fs', event)
         member = self.get_member('fs')
         member.notify(self, event)

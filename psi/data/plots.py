@@ -466,7 +466,7 @@ class EpochTimeContainer(BaseTimeContainer):
 
 
 def format_log_ticks(values, scale, spacing):
-    values = 10**np.array(values).astype(np.float)
+    values = 10**np.array(values).astype(float)
     return ['{:.1f}'.format(v * 1e-3) for v in values]
 
 
@@ -729,6 +729,7 @@ class ChannelPlot(SourceMixin, SinglePlot):
         if self.source is not None:
             self.parent.data_range.add_source(self.source)
             self.parent.data_range.observe('span', self._update_time)
+            self.source.observe('fs', self._update_time)
             self.source.add_callback(self._append_data)
             self.parent.viewbox.sigResized.connect(self._update_decimation)
             self._update_time(None)
@@ -844,12 +845,12 @@ class FFTChannelPlot(ChannelPlot):
         if self.source is not None:
             self.source.add_callback(self._append_data)
             self.source.observe('fs', self._cache_x)
-            self._update_buffer()
-            self._cache_x()
+            self.source.observe('fs', self._update_buffer)
 
     def _update_buffer(self, event=None):
-        self._buffer = SignalBuffer(self.source.fs, self.time_span,
-                                    n_channels=self.source.n_channels)
+        if self.source.fs:
+            self._buffer = SignalBuffer(self.source.fs, self.time_span,
+                                        n_channels=self.source.n_channels)
 
     def _append_data(self, data):
         self._buffer.append_data(data)
@@ -1180,7 +1181,7 @@ class GroupMixin(ColorCycleMixin):
         if self.last_seen_key[0] != self.selected_tab:
             # This should be deferred to the main thread since this causes some
             # updates in the user interface (to highlight the button that
-            # represents the current tab) 
+            # represents the current tab)
             deferred_call(setattr, self, 'selected_tab', self.last_seen_key[0])
 
     def _reset_plots(self):
