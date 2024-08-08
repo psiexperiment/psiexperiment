@@ -86,15 +86,15 @@ class HardwareOutput(BaseOutput):
         # TODO: Do we still use this?
         self.callbacks.append(cb)
 
-    def notify(self, data):
-        # TODO: Do we still use this?
-        if not self.callbacks:
-            return
-        # Correct for filter delay
-        d = data.copy()
-        d['t0'] += self.filter_delay
-        for cb in self.callbacks:
-            cb(d)
+    #def notify(self, data):
+    #    # TODO: Do we still use this?
+    #    if not self.callbacks:
+    #        return
+    #    # Correct for filter delay
+    #    d = data.copy()
+    #    d['t0'] += self.filter_delay
+    #    for cb in self.callbacks:
+    #        cb(d)
 
     def _get_filter_delay(self):
         return self.target.filter_delay
@@ -127,12 +127,32 @@ class BufferedOutput(HardwareOutput):
     # subclasses as needed.
     _offset = Int(0)
 
+    def initialized(self):
+        self._update_buffer()
+
+    def _observe_target(self, event):
+        self.target.observe('fs', self._fs_updated)
+
+    def _fs_updated(self, event):
+        # Ensure that changes to the parent sampling rate get propagated down
+        # the output hierarchy so that downstream nodes can respond accordingly
+        # (e.g., plots can update their buffer sizes to accomodate data at the
+        # correct sampling rate). Enaml has static and dynamic observers, so we
+        # need to trigger both (this is an implementation quirk that is usually
+        # invisible to most end-users).
+        event = event.copy()
+        event['value'] = self.fs
+        self.notify('fs', event)
+        member = self.get_member('fs')
+        member.notify(self, event)
+        self._update_buffer()
+
+    def _update_buffer(self):
+        self._buffer = SignalBuffer(self.fs, self.buffer_size, 0, self.dtype)
+
     def _get_buffer_size(self):
         # TODO ????
         return self.channel.buffer_size
-
-    def _default__buffer(self):
-        return SignalBuffer(self.fs, self.buffer_size, 0, self.dtype)
 
     def get_samples(self, offset, samples, out):
         '''
