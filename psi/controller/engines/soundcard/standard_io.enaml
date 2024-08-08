@@ -1,0 +1,42 @@
+import sounddevice as sd
+
+from atom.api import set_default
+from enaml.core.api import Looper
+from enaml.widgets.api import Label
+
+from . import (
+    SoundcardEngine,
+    SoundcardHardwareAIChannel,
+    SoundcardHardwareAOChannel
+)
+
+
+def get_channels(device_name, direction):
+    result = sd.query_devices(device_name)
+    return result[f'max_{direction}_channels']
+
+
+enamldef BaseSoundcardEngine(SoundcardEngine):
+    '''
+    Automatically creates input and output channels for the number of input and
+    output channels that are available to a particular device.
+    '''
+
+    Looper:
+        iterable << range(get_channels(device_name, 'input'))
+
+        SoundcardHardwareAIChannel:
+            channel = loop_item
+            name = f'ai{loop.item}'
+
+    Looper:
+        iterable << range(get_channels(device_name, 'output'))
+
+        SoundcardHardwareAOChannel:
+            channel = loop_item
+            name = f'ao{loop.item}'
+
+
+enamldef ASIOFirefaceUSBEngine(BaseSoundcardEngine):
+
+    device_name = 'ASIO Fireface USB'
