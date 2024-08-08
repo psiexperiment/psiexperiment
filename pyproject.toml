@@ -32,6 +32,7 @@ dynamic = ["version"]
 [project.optional-dependencies]
 ni = ["pydaqmx"]
 tdt = ["tdtpy >=0.10.2"]
+soundcard = ["sounddevice", "rtmixer"]
 docs = ["sphinx", "sphinx_rtd_theme", "pygments-enaml"]
 test = ["pytest", "pytest-console-scripts", "matplotlib"] # Matplotlib is used in some of the validation scripts.
 zarr = ["zarr"]
