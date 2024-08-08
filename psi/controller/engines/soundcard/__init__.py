@@ -39,7 +39,9 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
 
     #: Flag indicating whether engine was configured
     _configured = Bool(False)
-    _threads = Typed(dict, {})
+
+    #: Dictionary of threads that need to be started/polled.
+    _tasks = Typed(dict, {})
 
     _stream = Value()
     _stop_requested = Value()
@@ -114,12 +116,15 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
         elementsize = len(ao_channels) * samplesize
         self._hw_ao_buffer = rtmixer.RingBuffer(elementsize, STEPSIZE * QSIZE)
         self._actions.append(self._stream.play_ringbuffer(self._hw_ao_buffer))
-        self._threads['hw_ao'] = DAQThread(
+        task = self._tasks['hw_ao'] = DAQThread(
             1e-3,
             self._stop_requested,
             lambda: self._hw_ao_callback(len(ao_channels)),
             name='hw_ao'
         )
+        task._properties = {'names': [c.name for c in ao_channels]}
+        print(task._properties)
+
         self._total_samples_written = 0
 
     def _configure_ai_cb(self, ai_channels):
@@ -130,12 +135,13 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
         elementsize = len(ai_channels) * samplesize
         self._hw_ai_buffer = rtmixer.RingBuffer(elementsize, STEPSIZE * QSIZE)
         self._actions.append(self._stream.record_ringbuffer(self._hw_ai_buffer))
-        self._threads['hw_ai'] = DAQThread(
+        task = self._tasks['hw_ai'] = DAQThread(
             1e-3,
             self._stop_requested,
             lambda: self._hw_ai_callback(len(ai_channels)),
             name='hw_ai'
         )
+        task._properties = {'names': [c.name for c in ai_channels]}
         self._total_samples_read = 0
 
     def _hw_ai_callback(self, n_channels):
@@ -144,8 +150,8 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
             samples.shape = -1, n_channels
 
             data = PipelineData(samples.T, fs=96000, s0=self._total_samples_read)
-            for channel_name, cb in self._callbacks.get('ai', []):
-                cb(data)
+            for channel_name, s, cb in self._callbacks.get('ai', []):
+                cb(data[s])
 
             self._total_samples_read += len(samples)
 
@@ -163,9 +169,12 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
         buffer = data.astype('float32').T.tobytes()
         result = self._hw_ao_buffer.write(buffer)
 
-    def play(self, data, name, start=0, allow_belated=True):
+    def play(self, data, channel_names, start=0, allow_belated=True):
+        i = self._get_channel_slice('hw_ao', channel_names)
+        if len(i) != len(data):
+            raise ValueError('Number of channels does not match data shape')
         buffer = data.astype('float32').T.tobytes()
-        return self._stream.play_buffer(buffer, channels=[1])
+        return self._stream.play_buffer(buffer, channels=i)
 
     #: Size of buffer (in seconds). This defines how much data is pregenerated
     #: for the buffer before starting acquisition. This is important because
@@ -177,7 +186,7 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
     def start(self):
         # Preload with data
         self._hw_ao_callback()
-        for thread in self._threads.values():
+        for thread in self._tasks.values():
             thread.start()
         self._stream.start()
 

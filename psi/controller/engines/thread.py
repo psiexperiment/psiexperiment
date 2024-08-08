@@ -51,5 +51,3 @@ class DAQThread(Thread):
             pr.dump_stats(path)
 
         log.debug('Exiting acquistion thread')
-
-
