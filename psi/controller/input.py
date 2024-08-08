@@ -96,6 +96,12 @@ class Input(PSIContribution):
         self.source.observe('fs', self._fs_updated)
 
     def _fs_updated(self, event):
+        # Ensure that changes to the parent sampling rate get propagated down
+        # the input hierarchy so that downstream nodes can respond accordingly
+        # (e.g., plots can update their buffer sizes to accomodate data at the
+        # correct sampling rate). Enaml has static and dynamic observers, so we
+        # need to trigger both (this is an implementation quirk that is usually
+        # invisible to most end-users).
         event = event.copy()
         event['value'] = self.fs
         self.notify('fs', event)
