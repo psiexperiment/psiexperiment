@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 from atom.api import Dict
 
 
@@ -14,13 +17,18 @@ class BaseCallbackMixin:
 
 class ChannelSliceCallbackMixin(BaseCallbackMixin):
 
-    def _get_channel_slice(self, task_name, channel_name):
-        if channel_name is None:
+    def _get_channel_slice(self, task_name, channel_names):
+        if channel_names is None:
             return Ellipsis
-        # We want the channel slice to preserve dimensiality (i.e, we don't
-        # want to drop the channel dimension from the PipelineData object).
-        i = self._tasks[task_name]._properties['names'].index(channel_name)
-        return [i]
+
+        names = self._tasks[task_name]._properties['names']
+        if isinstance(channel_names, str):
+            # We want the channel slice to preserve dimensiality (i.e, we don't
+            # want to drop the channel dimension from the PipelineData object),
+            # so we return it as a list.
+            return [names.index(channel_names)]
+
+        return [names.index(c) for c in channel_names]
 
     def register_done_callback(self, callback):
         self._callbacks.setdefault('done', []).append(callback)
