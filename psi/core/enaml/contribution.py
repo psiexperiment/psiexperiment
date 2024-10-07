@@ -98,7 +98,7 @@ class PSIContribution(Declarative):
         Can be used to convert a label provided to a valid name
         '''
         # TODO: Get rid of this?
-        return re.sub('\W|^(?=\d)', '_', label)
+        return re.sub(r'\W|^(?=\d)', '_', label)
 
     def find_manifest_class(self):
         return find_manifest_class(self)
