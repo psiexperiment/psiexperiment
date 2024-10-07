@@ -447,6 +447,28 @@ enamldef Chirp(EpochBlock):
         choices = {'none': None, 'mouse': "'mouse'"}
 
 
+enamldef Click(EpochBlock):
+
+    factory = ClickFactory
+    name = 'click'
+    label = 'click'
+
+    Parameter:
+        name = 'level'
+        label = 'level (dB)'
+        default = 1
+
+    Parameter:
+        name = 'duration'
+        label = 'duration (s)'
+        default = 100e-6
+
+    Parameter:
+        name = 'polarity'
+        label = 'polarity'
+        default = 'condensation'
+
+
 enamldef BandlimitedClick(EpochBlock):
 
     factory = BandlimitedClickFactory
