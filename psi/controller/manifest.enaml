@@ -103,10 +103,12 @@ def stop_experiment(event):
         'error_message': error_message,
         'stop_reason': stop_reason,
     }
-    results = set(controller.stop_experiment(skip_errors=skip_errors, kw=kw))
-    mesg = '\n'.join(r.strip() for r in results if r is not None)
-    controller._wrapup(message=mesg, stop_reason=stop_reason,
-                       error_message=error_message)
+    results = controller.stop_experiment(skip_errors=skip_errors, kw=kw)
+    if results is not None:
+        results = set(controller.stop_experiment(skip_errors=skip_errors, kw=kw))
+        mesg = '\n'.join(r.strip() for r in results if r is not None)
+        controller._wrapup(message=mesg, stop_reason=stop_reason,
+                           error_message=error_message)
 
 
 enamldef ResultPopup(PopupView): popup:

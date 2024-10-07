@@ -46,7 +46,7 @@ class PSIPlugin(Plugin):
         '''
         plugin_info = {plugin_type: unique_attr}
         result = self.load_multiple_plugins(point_id, plugin_info, **factory_kw)
-        return result[plugin_type]
+        return result.get(plugin_type, {})
 
     def load_multiple_plugins(self, point_id, plugin_info, **factory_kw):
         '''
