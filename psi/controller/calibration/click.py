@@ -113,6 +113,7 @@ def click_spl(engines, *args, **kwargs):
         channel = channel_map[channel_name]
         df['click_spl'] = channel.calibration.get_db(frequency, df['click_rms'])
         df['silence_spl'] = channel.calibration.get_db(frequency, df['silence_rms'])
+        df.attrs = {}
         return df
 
     new_result = result.groupby('channel', group_keys=False) \

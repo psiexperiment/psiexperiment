@@ -23,12 +23,20 @@ def merge_results(results, names=['ao_channel']):
 
     merged = {}
     for key, value in to_merge.items():
+        log.error(value)
         v0 = next(iter(value.values()))
         if isinstance(v0, pd.DataFrame):
-            merged[key] = pd.concat(value.values(), keys=value.keys(), names=names)
+            new_values = {}
+            # This is a work-around otherwise pandas attempts to compare the
+            # `attrs` dict to determine if they can be propagated.
+            for k, v in value.items():
+                v = v.copy()
+                v.attrs = {}
+                new_values[k] = v
+            merged[key] = pd.concat(new_values, names=names)
         elif isinstance(v0, dict):
             index = pd.MultiIndex.from_tuples(value.keys(), names=names)
-            merged[key] = pd.DataFrame(value.values(), index=index)
+            merged[key] = pd.DataFrame(value, index=index)
         else:
             raise ValueError('Unable to merge calibration results')
 
