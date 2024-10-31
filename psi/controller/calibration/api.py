@@ -1,7 +1,10 @@
 from .acquire import acquire
-from .calibrate import BaseCalibrate, ChirpCalibrate, ToneCalibrate
+from .calibrate import (
+    BaseCalibrate, ChirpCalibrate, ClickCalibrate, ToneCalibrate
+)
 from .calibrate_manifest import (
-    BaseCalibrateManifest, ChirpCalibrateManifest, ToneCalibrateManifest
+    BaseCalibrateManifest, ChirpCalibrateManifest, ClickCalibrateManifest,
+    ToneCalibrateManifest
 )
 from .chirp import chirp_sens
 from .plugin import CalibrationPlugin

@@ -77,8 +77,8 @@ def chirp_power(engine, ao_channel_name, ai_channel_names, start_frequency=500,
         })
         waveforms[ai_channel.name] = signal
 
-    waveforms = pd.concat(waveforms.values(), keys=waveforms.keys(), names=['channel'])
-    result = pd.concat(result.values(), keys=result.keys(), names=['channel'])
+    waveforms = pd.concat(waveforms, names=['channel'])
+    result = pd.concat(result, names=['channel'])
     if debug:
         result.attrs['waveforms'] = waveforms
         result.attrs['fs'] = {c.name: c.fs for c in recording}

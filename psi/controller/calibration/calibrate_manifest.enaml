@@ -30,6 +30,34 @@ def plot_chirp_result(workbench, manifest, event):
                 log_x=True, label=label)
 
 
+def plot_click_result(workbench, manifest, event):
+    data = workbench.get_plugin('psi.data')
+    try:
+        psd_vb = data.find_viewbox(manifest.contribution.psd_viewbox_name)
+        waveform_vb = data.find_viewbox(manifest.contribution.waveform_viewbox_name)
+    except AttributeError as e:
+        log.warning(str(e))
+        return
+
+    if not manifest.contribution.result:
+        return
+
+    norm_spl = manifest.contribution.result['SPL']['click_spl'].dropna()
+    for (s, m), n_spl in norm_spl.groupby(['ao_channel', 'channel']):
+        label = f'{s} ({m})'
+        psd_vb.plot(n_spl.index.get_level_values('frequency'), n_spl.values,
+                log_x=True, label=label)
+
+    log.error(manifest.contribution.result.keys())
+    waveforms = manifest.contribution.result['waveforms'].dropna()
+    for (s, m), w in waveforms.groupby(['ao_channel', 'channel']):
+        label = f'{s} ({m})'
+        w_mean = w.mean(axis=0)
+        log.error(w_mean)
+        waveform_vb.plot(w_mean.index.get_level_values('time'),
+                         w_mean.values, log_x=True, label=label)
+
+
 enamldef ChirpCalibrateManifest(PSIManifest): manifest:
 
     Extension:
@@ -86,3 +114,44 @@ enamldef ToneCalibrateManifest(BaseCalibrateManifest): manifest:
         'snr': {'label': 'SNR (dB)', 'to_string': '{:.0f}'.format, 'width': 30},
         'thd': {'label': 'THD (%)', 'to_string': '{:.0f}'.format, 'width': 30},
     }
+
+
+enamldef ClickCalibrateManifest(BaseCalibrateManifest): manifest:
+
+    column_info = {
+        'ao_channel': {'label': 'Channel'},
+        'norm_spl': {'label': 'SPL (1 Vrms)', 'to_string': '{:.0f}'.format, 'width': 30},
+        'noise_floor': {'label': 'Noise floor SPL', 'to_string': '{:.0f}'.format, 'width': 30},
+    }
+
+    Extension:
+        id = manifest.id + '.plots'
+        point = 'psi.data.plots'
+
+        initialized ::
+            cb = partial(plot_click_result, workbench, manifest)
+            manifest.contribution.observe('result', cb)
+
+        Conditional:
+            condition << manifest.contribution.show_widget
+
+            TimeContainer:
+                name = manifest.contribution.name + '.waveform_result'
+                label = manifest.contribution.label + ' waveform result'
+                span = 0.01
+
+                ViewBox: vb:
+                    y_min = 60
+                    y_max = 160
+                    name = manifest.contribution.name + '.waveform'
+
+            FFTContainer:
+                freq_lb = 5000
+                freq_ub = 50000
+                name = manifest.contribution.name + '.psd_result'
+                label = manifest.contribution.label + ' PSD result'
+
+                ViewBox: vb:
+                    y_min = 60
+                    y_max = 160
+                    name = manifest.contribution.name + '.psd'

@@ -10,6 +10,7 @@ from psi.core.enaml.api import PSIContribution
 
 from psiaudio.calibration import FlatCalibration, InterpCalibration, PointCalibration
 from .chirp import chirp_sens
+from .click import click_sens
 from .tone import tone_sens
 
 
@@ -22,13 +23,15 @@ def merge_results(results, names=['ao_channel']):
 
     merged = {}
     for key, value in to_merge.items():
-        if key == 'fs':
+        v0 = next(iter(value.values()))
+        if isinstance(v0, pd.DataFrame):
+            merged[key] = pd.concat(value.values(), keys=value.keys(), names=names)
+        elif isinstance(v0, dict):
             index = pd.MultiIndex.from_tuples(value.keys(), names=names)
             merged[key] = pd.DataFrame(value.values(), index=index)
         else:
-            for v in value.values():
-                v.attrs = {}
-            merged[key] = pd.concat(value.values(), keys=value.keys(), names=names)
+            raise ValueError('Unable to merge calibration results')
+
     return merged
 
 
@@ -81,6 +84,66 @@ class BaseCalibrate(PSIContribution):
 
     def run_calibration(self, ao_channel, ai_channel, kwargs):
         raise NotImplementedError
+
+
+class ClickCalibrate(BaseCalibrate):
+    '''
+    Calibrate clicks using the specified output using the specified input
+
+    Useful for in-ear calibrations. The calibration will be saved.
+    '''
+    #: If not provided and show_widget is True, the viewbox name will
+    #: automatically be generated and a plot added to the experiment GUI. If
+    #: you want this calibration result to share a viewbox with another plot,
+    #: provide the name of that viewbox. Be sure to set show_widget to False as
+    #: well otherwise you'll get a useless widget.
+    waveform_viewbox_name = d_(Str())
+    psd_viewbox_name = d_(Str())
+
+    #: Duration of calibration click. Should match duration that's intended to
+    #: be used in experiment.
+    duration = d_(Float(100e-6))
+
+    #: Interval between clicks. If it's too short, then click will be cut off.
+    iti = d_(Float(10e-3))
+
+    #: Number of clicks to average. This mainly affects noise floor
+    #: calculations.
+    repetitions = d_(Int(10))
+
+    def _default_waveform_viewbox_name(self):
+        return self.name + '.waveform'
+
+    def _default_psd_viewbox_name(self):
+        return self.name + '.psd'
+
+    def get_config(self, controller, core):
+        # As of now, we do not do anything with the value provided for each
+        # output name in the dictionary. This is for future compatibility.
+        ao = {}
+        for output_name, _ in self.outputs.items():
+            output = controller.get_output(output_name)
+            ao[output.channel] = {}
+        return ao
+
+    def run_calibration(self, ao_channel, ai_channel, kwargs):
+        result = click_sens(
+            engines=[ao_channel.engine],
+            gain=self.gain,
+            ao_channel_name=ao_channel.name,
+            ai_channel_names=[ai_channel.name],
+            duration=self.duration,
+            iti=self.iti,
+            **kwargs
+        )
+        result['gain'] = self.gain
+        result['iti'] = self.iti
+        result['duration'] = self.duration
+
+        # Set the calibration
+        norm_spl = result.loc[ai_channel.name, 'norm_spl']
+        ao_channel.calibration = FlatCalibration.from_spl(norm_spl)
+        return result
 
 
 class ToneCalibrate(BaseCalibrate):
