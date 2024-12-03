@@ -21,20 +21,23 @@ enamldef BaseSoundcardEngine(SoundcardEngine):
     Automatically creates input and output channels for the number of input and
     output channels that are available to a particular device.
     '''
+    name = 'ASIO'
 
     Looper:
         iterable << range(get_channels(device_name, 'input'))
 
         SoundcardHardwareAIChannel:
             channel = loop_item
-            name = f'ai{loop.item}'
+            name = f'microphone_{loop.item + 1}'
+            fs = parent.fs
 
     Looper:
         iterable << range(get_channels(device_name, 'output'))
 
         SoundcardHardwareAOChannel:
             channel = loop_item
-            name = f'ao{loop.item}'
+            name = f'speaker_{loop.item + 1}'
+            fs = parent.fs
 
 
 enamldef ASIOFirefaceUSBEngine(BaseSoundcardEngine):
