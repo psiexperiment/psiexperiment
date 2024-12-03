@@ -72,6 +72,9 @@ class Channel(PSIContribution):
     def _get_channel(self):
         return self
 
+    def _default_label(self):
+        return self.name.replace('_', ' ').capitalize()
+
     def _observe_name(self, event):
         self.reference = self._default_reference()
 
