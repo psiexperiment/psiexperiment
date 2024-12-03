@@ -93,7 +93,10 @@ class Input(PSIContribution):
     configured = Bool(False)
 
     def _observe_source(self, event):
-        self.source.observe('fs', self._fs_updated)
+        if (obj := event.get('oldvalue')) is not None:
+            obj.unobserve('fs', self._fs_updated)
+        elif (obj := event.get('value')) is not None:
+            obj.observe('fs', self._fs_updated)
 
     def _fs_updated(self, event):
         # Ensure that changes to the parent sampling rate get propagated down

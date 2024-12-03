@@ -78,6 +78,12 @@ class Engine(PSIContribution):
 
     channels = List(Typed(Channel))
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # This is needed to give Conditional and Looper blocks a chance to
+        # properly set up.
+        self.initialize()
+
     def initialized(self):
         self.channels = [c for c in self.children if isinstance(c, Channel)]
 

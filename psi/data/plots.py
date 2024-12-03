@@ -846,6 +846,8 @@ class FFTChannelPlot(ChannelPlot):
             self.source.add_callback(self._append_data)
             self.source.observe('fs', self._cache_x)
             self.source.observe('fs', self._update_buffer)
+            self._cache_x()
+            self._update_buffer()
 
     def _update_buffer(self, event=None):
         if self.source.fs:
