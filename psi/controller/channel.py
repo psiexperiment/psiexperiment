@@ -69,6 +69,9 @@ class Channel(PSIContribution):
     # Labels for channels
     channel_labels = d_(List()).tag(metadata=True)
 
+    def _default_label(self):
+        return self.name.replace('_', ' ').capitalize()
+
     def _observe_name(self, event):
         self.reference = self._default_reference()
 
