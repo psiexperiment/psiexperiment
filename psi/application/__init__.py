@@ -72,6 +72,7 @@ class ExceptionHandler:
     def __init__(self):
         self.workbench = None
         self.logfile = None
+        self.stopping = False
 
     def __enter__(self):
         sys.excepthook = sys.__excepthook__
@@ -104,13 +105,16 @@ class ExceptionHandler:
                 core = self.workbench.get_plugin('enaml.workbench.core')
                 parameters = {'stop_reason': 'error', 'skip_errors': True,
                               'error_message': mesg}
-                try:
-                    core.invoke_command('psi.set_dock_style', {'style_name': 'error'})
-                    #core.invoke_command('psi.controller.stop', parameters)
-                except Exception as e:
-                    log.exception(e)
-                    window = self.workbench.get_plugin('enaml.workbench.ui').window
-                    deferred_call(critical, window, 'Oops :(', mesg)
+                if not self.stopping:
+                    try:
+                        self.stopping = True
+                        log.info('Invoking stop command')
+                        core.invoke_command('psi.set_dock_style', {'style_name': 'error'})
+                        core.invoke_command('psi.controller.stop', parameters)
+                    except Exception as e:
+                        log.exception(e)
+                        window = self.workbench.get_plugin('enaml.workbench.ui').window
+                        deferred_call(critical, window, 'Oops :(', mesg)
             sys.excepthook(*args)
 
 
