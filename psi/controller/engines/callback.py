@@ -1,10 +1,10 @@
 import logging
 log = logging.getLogger(__name__)
 
-from atom.api import Dict
+from atom.api import Atom, Dict
 
 
-class BaseCallbackMixin:
+class BaseCallbackMixin(Atom):
 
     #: Dictionary of callbacks
     _callbacks = Dict()
@@ -16,6 +16,9 @@ class BaseCallbackMixin:
 
 
 class ChannelSliceCallbackMixin(BaseCallbackMixin):
+
+    #: Dictionary of callbacks
+    _callbacks = Dict()
 
     def _get_channel_slice(self, task_name, channel_names):
         if channel_names is None:
@@ -72,4 +75,3 @@ class ChannelSliceCallbackMixin(BaseCallbackMixin):
     def unregister_di_callback(self, callback, channel_name):
         s = self._get_channel_slice('hw_di', channel_name)
         self._callbacks['di'].remove((channel_name, s, callback))
-

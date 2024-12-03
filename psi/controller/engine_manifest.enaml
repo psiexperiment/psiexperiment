@@ -10,4 +10,5 @@ enamldef EngineManifest(PSIManifest): manifest:
         id = 'actions.' + manifest.contribution.name
         point = 'psi.controller.actions'
         ExperimentState:
+            # These actions are managed by the controller plugin
             name = manifest.contribution.name

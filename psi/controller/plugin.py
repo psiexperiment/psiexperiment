@@ -149,6 +149,7 @@ def invoke_action(core, action, event_name, timestamp, kw, skip_errors=False):
             f'event, the following error was received:\n\n{e}.'
         log.error(m)
         if not skip_errors:
+            log.error('Reraising error')
             raise RuntimeError(m) from e
 
 
@@ -508,7 +509,6 @@ class ControllerPlugin(Plugin):
 
     def invoke_actions(self, event_name, timestamp=None, delayed=False,
                        cancel_existing=True, kw=None, skip_errors=False):
-        log.debug('Invoking actions for %s', event_name)
         if cancel_existing:
             deferred_call(self.stop_timer, event_name)
         if delayed:
@@ -555,7 +555,7 @@ class ControllerPlugin(Plugin):
             logger._invoke(self.core, data)
 
     def _invoke_actions(self, event_name, timestamp=None, kw=None, skip_errors=False):
-        log.debug('Triggering event {}'.format(event_name))
+        log.debug('Invoking actions for {}'.format(event_name))
         deferred_call(self._log_event, event_name, timestamp, kw)
 
         # If this is a stateful event, update the associated state.
@@ -581,6 +581,7 @@ class ControllerPlugin(Plugin):
             (self.experiment_state == 'initialized')
         results = []
         for action in self._actions:
+            log.debug(f'... checking {action}')
             if action.match(context, ignore_missing):
                 result = invoke_action(self.core, action, event_name,
                                        timestamp, kw, skip_errors)
@@ -628,12 +629,11 @@ class ControllerPlugin(Plugin):
 
     def stop_experiment(self, skip_errors=False, kw=None):
         deferred_call(lambda: setattr(self, 'experiment_state', 'stopped'))
-        if self.experiment_state == 'stopped':
-            log.debug('Nothing to do since experiment is already stopped.')
+        if self.experiment_state not in ('running', 'paused'):
+            log.debug('Nothing to do since experiment is not running. Returning.')
             return []
         if kw is None:
             kw = {}
-        log.debug('Invoking actions for experiment end.')
         return self.invoke_actions('experiment_end', self.get_ts(),
                                    skip_errors=skip_errors, kw=kw)
 
