@@ -131,7 +131,8 @@ class BufferedOutput(HardwareOutput):
         self._update_buffer()
 
     def _observe_target(self, event):
-        self.target.observe('fs', self._fs_updated)
+        if self.target is not None:
+            self.target.observe('fs', self._fs_updated)
 
     def _fs_updated(self, event):
         # Ensure that changes to the parent sampling rate get propagated down
@@ -148,7 +149,8 @@ class BufferedOutput(HardwareOutput):
         self._update_buffer()
 
     def _update_buffer(self):
-        self._buffer = SignalBuffer(self.fs, self.buffer_size, 0, self.dtype)
+        if self.channel is not None:
+            self._buffer = SignalBuffer(self.fs, self.buffer_size, 0, self.dtype)
 
     def _get_buffer_size(self):
         # TODO ????
