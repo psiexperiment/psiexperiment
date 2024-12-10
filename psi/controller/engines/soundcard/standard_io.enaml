@@ -28,7 +28,7 @@ enamldef BaseSoundcardEngine(SoundcardEngine):
 
         SoundcardHardwareAIChannel:
             channel = loop_item
-            name = f'microphone_{loop.item + 1}'
+            name = f'input_{loop.item + 1}'
             fs = parent.fs
 
     Looper:
