@@ -86,15 +86,14 @@ class HardwareOutput(BaseOutput):
         # TODO: Do we still use this?
         self.callbacks.append(cb)
 
-    #def notify(self, data):
-    #    # TODO: Do we still use this?
-    #    if not self.callbacks:
-    #        return
-    #    # Correct for filter delay
-    #    d = data.copy()
-    #    d['t0'] += self.filter_delay
-    #    for cb in self.callbacks:
-    #        cb(d)
+    def notify(self, data):
+        if not self.callbacks:
+            return
+        # Correct for filter delay
+        d = data.copy()
+        d['t0'] += self.filter_delay
+        for cb in self.callbacks:
+            cb(d)
 
     def _get_filter_delay(self):
         return self.target.filter_delay
@@ -133,6 +132,7 @@ class BufferedOutput(HardwareOutput):
     def _observe_target(self, event):
         if self.target is not None:
             self.target.observe('fs', self._fs_updated)
+        self._update_buffer()
 
     def _fs_updated(self, event):
         # Ensure that changes to the parent sampling rate get propagated down
