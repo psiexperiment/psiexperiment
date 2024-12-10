@@ -9,7 +9,7 @@ from psiaudio.stim import (
     ClickFactory, Cos2EnvelopeFactory, EnvelopeFactory, GateFactory,
     RepeatFactory, SAMEnvelopeFactory, SAMToneFactory, ShapedNoiseFactory,
     SilenceFactory, SquareWaveEnvelopeFactory, SquareWaveFactory, ToneFactory,
-    WavSequenceFactory
+    WavFileFactory, WavSequenceFactory
 )
 
 from psi.context.api import BoolParameter, EnumParameter, Parameter
@@ -510,6 +510,31 @@ enamldef BandlimitedClick(EpochBlock):
         label = 'Audiogram weighting'
         default = 'none'
         choices = {'none': None, 'mouse': "'mouse'"}
+
+
+enamldef WavFile(EpochBlock):
+
+    factory = WavFileFactory
+    name = 'Wav file'
+    label = 'Wav'
+
+    Parameter:
+        name = 'filename'
+        label = 'filename'
+        dtype = 'U'
+
+    Parameter:
+        name = 'level'
+        label = 'level (dB SPL)'
+        dtype = 'double'
+
+    EnumParameter:
+        name = 'normalization'
+        default = 'RMS'
+        # The values are interpreted as Python expressions, so it's important
+        # to include the string delimiter as it will be evaluated by
+        # `ast.literal_eval`).
+        choices = {'RMS': "'rms'", 'peak': "'pe'"}
 
 
 enamldef WavSequence(ContinuousBlock):
