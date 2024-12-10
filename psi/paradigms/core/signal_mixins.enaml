@@ -79,6 +79,7 @@ enamldef MultiSignalViewFFTExtension(Extension): ext:
             y_max = 100
             y_mode = 'mouse'
             save_limits = True
+            y_label = 'PSD (dB SPL)' if apply_calibration else 'PSD (dB re 1Vrms)'
 
             Looper:
                 iterable << sources.items() if sources is not None else []
