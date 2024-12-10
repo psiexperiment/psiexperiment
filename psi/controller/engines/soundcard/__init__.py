@@ -10,6 +10,7 @@ import numpy as np
 import rtmixer
 import sounddevice as sd
 
+from psiaudio import util
 from psiaudio.pipeline import PipelineData
 from psi.controller.api import (Engine, HardwareAIChannel, HardwareAOChannel)
 from psi.controller.engines.thread import DAQThread
@@ -19,6 +20,23 @@ from psi.controller.engines.callback import ChannelSliceCallbackMixin
 # manages the RingBuffer and splits it into two sections).
 QSIZE = 512
 STEPSIZE = 4096
+
+
+def halt_on_error(f):
+    def wrapper(self, *args, **kwargs):
+        try:
+            f(self, *args, **kwargs)
+        except Exception as e:
+            try:
+                self._stream.stop()
+                self._stream.close()
+            except:
+                raise
+                pass
+            # Be sure to raise the exception so it can be recaptured by our
+            # custom excepthook handler
+            raise
+    return wrapper
 
 
 class SoundcardHardwareAIChannel(HardwareAIChannel):
@@ -49,7 +67,7 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
     _data = Value()
     _actions = Dict()
     _hw_ai_buffer = Value()
-    _hw_ao_buffer = Value()
+    _hw_ao_buffer = Dict()
 
     #: Total samples read from the portaudio ringbuffer.
     _total_samples_read = Int()
@@ -112,24 +130,6 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
         self._configured = True
         super().configure()
 
-    def _configure_ao_cb(self, ao_channels):
-        log.info('Configuring AO callback for %r', ao_channels)
-        if isinstance(self._stream.samplesize, tuple):
-            samplesize = self._stream.samplesize[1]
-        else:
-            samplesize = self._stream.samplesize
-        elementsize = len(ao_channels) * samplesize
-        self._hw_ao_buffer = rtmixer.RingBuffer(elementsize, STEPSIZE * QSIZE)
-        self._actions['hw_ao'] = self._stream.play_ringbuffer(self._hw_ao_buffer)
-        task = self._tasks['hw_ao'] = DAQThread(
-            1e-3,
-            self._stop_requested,
-            lambda: self._hw_ao_callback(len(ao_channels)),
-            name='hw_ao'
-        )
-        task._properties = {'names': [c.name for c in ao_channels]}
-        self._total_samples_written = 0
-
     def _configure_ai_cb(self, ai_channels):
         log.info('Configuring AI callback for %r', ai_channels)
         if isinstance(self._stream.samplesize, tuple):
@@ -170,19 +170,65 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
                     self._stream.wait(cancel_action)
                     self._check_done()
 
-    def _get_hw_ao_samples(self, offset, samples):
-        channels = self.get_channels('analog', 'output', 'hardware')
-        data = np.empty((len(channels), samples), dtype=np.double)
-        for channel, ch_data in zip(channels, data):
-            channel.get_samples(offset, samples, out=ch_data)
-        return data
+    def _configure_ao_cb(self, ao_channels):
+        log.info('Configuring AO callback for %r', ao_channels)
+        if isinstance(self._stream.samplesize, tuple):
+            samplesize = self._stream.samplesize[1]
+        else:
+            samplesize = self._stream.samplesize
 
-    def _hw_ao_callback(self, n_channels=None):
-        if (n := self._hw_ao_buffer.write_available) <= 0:
-            return
-        data = self._get_hw_ao_samples(self._total_samples_written, n)
-        buffer = data.astype('float32').T.tobytes()
-        result = self._hw_ao_buffer.write(buffer)
+        for c in ao_channels:
+            # First argument to RingBuffer should be channel number x
+            # samplesize. Since we are create a separate buffer for each
+            # channel, this should work well.
+            self._hw_ao_buffer[c] = buffer = rtmixer.RingBuffer(samplesize, STEPSIZE * QSIZE)
+            self._actions[f'hw_ao_{c.name}'] = self._stream.play_ringbuffer(buffer)
+            task = self._tasks[f'hw_ao_{c.name}'] = DAQThread(
+                1e-3,
+                self._stop_requested,
+                lambda: self._hw_ao_callback(c),
+                name='hw_ao'
+            )
+            task._properties = {'name': c.name}
+            task._total_samples_written = 0
+
+    @halt_on_error
+    def update_hw_ao(self, name, offset):
+        with self.lock:
+            if isinstance(self._stream.samplesize, tuple):
+                samplesize = self._stream.samplesize[1]
+            else:
+                samplesize = self._stream.samplesize
+            channel = self.get_channel(name)
+            task = self._tasks[f'hw_ao_{channel.name}']
+
+            log.error('Update requested for %s at %d', name, offset)
+            cancel_action = self._stream.cancel(self._actions[f'hw_ao_{name}'])
+            start_time = offset / self._stream.samplerate
+
+            self._hw_ao_buffer[channel] = buffer = rtmixer.RingBuffer(samplesize, STEPSIZE * QSIZE)
+
+            data = channel.get_samples(offset, buffer.write_available)
+            task._total_samples_written = offset + data.shape[-1]
+            buffer.write(data)
+
+            self._hw_ao_callback(channel)
+            self._actions[f'hw_ao_{channel.name}'] = \
+                self._stream.play_ringbuffer(buffer,
+                                            start=start_time,
+                                            allow_belated=True)
+            log.error('Done updating. Start @ %r', start_time)
+
+    @halt_on_error
+    def _hw_ao_callback(self, channel):
+        with self.lock:
+            buffer = self._hw_ao_buffer[channel]
+            task = self._tasks[f'hw_ao_{channel.name}']
+            if (samples := buffer.write_available) <= 0:
+                return
+            data = channel.get_samples(task._total_samples_written, samples)
+            task._total_samples_written += data.shape[-1]
+            buffer.write(data)
 
     def _check_done(self):
         log.info('Checking to see if stream is complete')
@@ -206,10 +252,11 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
 
     def start(self):
         # Preload with data if we have an output task
-        if self._hw_ao_buffer is not None:
-            self._hw_ao_callback()
+        for channel in self._hw_ao_buffer.keys():
+            self._hw_ao_callback(channel)
         for thread in self._tasks.values():
             thread.start()
+        log.error('Starting stream')
         self._stream.start()
 
     def stop(self):
