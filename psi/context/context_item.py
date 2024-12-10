@@ -4,8 +4,8 @@ log = logging.getLogger(__name__)
 import numpy as np
 
 from enaml.core.declarative import Declarative, d_
-from atom.api import (Str, Typed, Value, Enum, List, Event, Property,
-                      observe, Bool, Dict, Coerced)
+from atom.api import (set_default, Str, Typed, Value, Enum, List, Event,
+                      Property, observe, Bool, Dict, Coerced)
 
 from psi.core.enaml.api import PSIContribution
 from ..util import get_tagged_members, get_tagged_values
@@ -329,6 +329,7 @@ class FileParameter(Parameter):
     file_mode = d_(Enum('any_file', 'existing_file', 'directory'))
     current_path = d_(Str())
     name_filters = d_(List(Str()))
+    dtype = set_default('U')
 
     def _get_expression(self):
         return '"{}"'.format(self.path)
