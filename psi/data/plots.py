@@ -16,7 +16,7 @@ from atom.api import (Str, Float, Tuple, Int, Typed, Property, Atom,
                       Bool, Enum, List, Dict, Callable, Value, observe)
 
 from enaml.application import deferred_call, timed_call
-from enaml.colors import parse_color
+from enaml.colors import Color, parse_color
 from enaml.core.api import Looper, Declarative, d_, d_func
 from enaml.qt.QtGui import QColor
 
@@ -55,6 +55,8 @@ def make_color(color):
         return QColor(*color)
     elif isinstance(color, str):
         return QColor(color)
+    elif isinstance(color, Color):
+        return QColor(color.red, color.green, color.blue, color.alpha)
     else:
         raise ValueError('Unknown color %r', color)
 
