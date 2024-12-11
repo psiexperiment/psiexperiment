@@ -375,6 +375,7 @@ class QueuedEpochOutput(EpochOutput):
         self._update_queue()
 
     def _observe_target(self, event):
+        super()._observe_target(event)
         self._update_queue()
 
     def _update_queue(self):
