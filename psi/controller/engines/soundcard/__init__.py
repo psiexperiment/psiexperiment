@@ -209,6 +209,7 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
             self._hw_ao_buffer[channel] = buffer = rtmixer.RingBuffer(samplesize, STEPSIZE * QSIZE)
 
             data = channel.get_samples(offset, buffer.write_available)
+            data = data.astype('float32')
             task._total_samples_written = offset + data.shape[-1]
             buffer.write(data)
 
@@ -227,8 +228,9 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
             if (samples := buffer.write_available) <= 0:
                 return
             data = channel.get_samples(task._total_samples_written, samples)
-            task._total_samples_written += data.shape[-1]
+            data = data.astype('float32')
             buffer.write(data)
+            task._total_samples_written += data.shape[-1]
 
     def _check_done(self):
         log.info('Checking to see if stream is complete')
