@@ -530,11 +530,11 @@ enamldef WavFile(EpochBlock):
 
     EnumParameter:
         name = 'normalization'
-        default = 'RMS'
+        default = 'None'
         # The values are interpreted as Python expressions, so it's important
         # to include the string delimiter as it will be evaluated by
         # `ast.literal_eval`).
-        choices = {'RMS': "'rms'", 'peak': "'pe'"}
+        choices = {'None': "None", 'RMS': "'rms'", 'peak': "'pe'"}
 
 
 enamldef WavSequence(ContinuousBlock):
