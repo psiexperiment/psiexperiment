@@ -50,13 +50,20 @@ def get_color_cycle(name, n):
         yield tuple(int(v * 255) for v in cmap(i))
 
 
-def make_color(color):
+def make_color(color, alpha=None):
     if isinstance(color, (tuple, list)):
-        return QColor(*color)
+        obj = QColor(*color)
     elif isinstance(color, str):
-        return QColor(color)
+        obj = QColor()
+        print(color)
+        obj.setNamedColor(color)
     else:
         raise ValueError('Unknown color %r', color)
+    if alpha is not None:
+        obj.setAlphaF(alpha)
+        if not obj.isValid():
+            raise ValueError('Cannot create QColor from %r', color)
+    return obj
 
 
 ################################################################################
@@ -108,6 +115,7 @@ class PenMixin(Declarative):
     pen = Property()
     pen_color = d_(Typed(object))
     pen_width = d_(Float(0))
+    pen_alpha = d_(Float(1))
     antialias = d_(Bool(False))
 
     def _default_pen_color(self):
