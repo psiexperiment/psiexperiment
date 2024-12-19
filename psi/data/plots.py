@@ -291,6 +291,7 @@ class BasePlotContainer(PSIContribution):
     base_viewbox = Property()
     legend = Typed(pg.LegendItem)
     x_transform = Callable()
+    inv_x_transform = Callable()
 
     buttons = d_(List())
     max_buttons = d_(Int(8))
@@ -323,6 +324,9 @@ class BasePlotContainer(PSIContribution):
             self.auto_select = False
 
     def _default_x_transform(self):
+        return lambda x: x
+
+    def _default_inv_x_transform(self):
         return lambda x: x
 
     def _default_container(self):
@@ -471,6 +475,12 @@ class FFTContainer(BasePlotContainer):
     def _default_x_transform(self):
         if self.axis_scale in ('octave', 'log10'):
             return np.log10
+        else:
+            return lambda x: x
+
+    def _default_inv_x_transform(self):
+        if self.axis_scale in ('octave', 'log10'):
+            return lambda x: 10**x
         else:
             return lambda x: x
 
@@ -1007,23 +1017,25 @@ class InfiniteLine(SinglePlot):
 
     direction = d_(Enum('vertical', 'horizontal'))
     position = d_(Float())
+    movable = d_(Bool(False))
 
     def _default_plot(self):
         angle = 90 if self.direction == 'vertical' else 0
         plot = pg.InfiniteLine(
-            self.position,
+            self.container.x_transform(self.position),
             angle=angle,
             pen=self.pen,
-            movable=True
+            movable=self.movable,
         )
         plot.sigPositionChanged.connect(self._update_position)
         return plot
 
     def _observe_position(self, event):
-        deferred_call(self.plot.setValue, self.position)
+        deferred_call(self.plot.setValue,
+                      self.container.inv_x_transform(self.position))
 
     def _update_position(self, plot):
-        self.position = plot.value()
+        self.position = self.container.x_transform(plot.value())
 
 
 ################################################################################
