@@ -122,10 +122,10 @@ def click_spl(engines, *args, **kwargs):
     return new_result
 
 
-def click_sens(gain=-40, vrms=1, **kwargs):
+def click_sens(gain=-40, vrms=1, duration=100e-6, iti=0.001, **kwargs):
     '''
     Given a single output, measure sensitivity of output based on multiple
-    input channels.
+    input channels for a click.
 
     Parameters
     ----------
@@ -145,18 +145,26 @@ def click_sens(gain=-40, vrms=1, **kwargs):
         choose the most trustworthy input.
     '''
     kwargs.update(dict(gain=gain, vrms=vrms))
-    result = click_spl(**kwargs)
+    result = click_spl(duration=duration, iti=iti, **kwargs)
 
     # Calculate the overall SPL of the click
     spl = result.groupby('channel')['click_spl'].apply(util.rms_rfft_db)
     nf = result.groupby('channel')['silence_spl'].apply(util.rms_rfft_db)
-
     norm_spl = spl - (gain + util.db(vrms))
+
+    # This is also known as the crest factor. This is the square root of the
+    # peak to average power. The PAPR calculation is based on the theoretical
+    # PAPR of a PWM signal.
+    papr = util.db(np.sqrt((iti+duration) / iti))
+    pe_spl = spl + papr
+    norm_pe_spl = norm_spl + papr
 
     sens = pd.DataFrame({
         'spl': spl,
+        'pe_spl': pe_spl,
         'noise_floor': nf,
         'norm_spl': norm_spl,
+        'norm_pe_spl': norm_pe_spl,
     })
     sens.attrs['SPL'] = result.copy()
     sens.attrs['SPL'].attrs = {}

@@ -149,7 +149,7 @@ class ClickCalibrate(BaseCalibrate):
         result['duration'] = self.duration
 
         # Set the calibration
-        norm_spl = result.loc[ai_channel.name, 'norm_spl']
+        norm_spl = result.loc[ai_channel.name, 'norm_pe_spl']
         ao_channel.calibration = FlatCalibration.from_spl(norm_spl)
         return result
 
