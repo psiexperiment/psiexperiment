@@ -119,6 +119,8 @@ def connect_trigger(event):
     # At least with the NI hardware I'm familiar with, counter channels require
     # an external clock (e.g., provided by an analog input our output task).
     # So, we cannot use the co_channel or ci_channel for setting the start trigger.
+    log.info('Found %d output channels and %d input channels',
+             len(ao_channels), len(ai_channels))
     if ao_channels:
         c = ao_channels[0]
         direction = 'ao'
@@ -126,7 +128,8 @@ def connect_trigger(event):
         c = ai_channels[0]
         direction = 'ai'
 
-    dev = c.channel.split('/', 1)[0]
+    log.info('Using %r as the reference channel (%s)', c, c.channel)
+    dev = c.channel.strip('/').split('/', 1)[0]
     trigger = f'/{dev}/{direction}/StartTrigger'
     master_engine = None
     for c in channels:
