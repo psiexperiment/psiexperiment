@@ -72,8 +72,8 @@ enamldef ChirpCalibrateManifest(PSIManifest): manifest:
             condition << manifest.contribution.show_widget
 
             FFTContainer:
-                freq_lb = 5000
-                freq_ub = 50000
+                freq_lb << manifest.contribution.start_frequency
+                freq_ub << manifest.contribution.end_frequency
                 name = manifest.contribution.name + '.result'
                 label = manifest.contribution.label + ' results'
 

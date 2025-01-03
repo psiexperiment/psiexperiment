@@ -8,7 +8,6 @@ from psiaudio.stim import ChirpFactory, SilenceFactory
 from psiaudio.calibration import FlatCalibration, InterpCalibration
 from psiaudio import util
 
-from .acquire import acquire
 
 
 def chirp_power(engine, ao_channel_name, ai_channel_names, start_frequency=500,
@@ -28,6 +27,9 @@ def chirp_power(engine, ao_channel_name, ai_channel_names, start_frequency=500,
         Dataframe will be indexed by output channel name and frequency. Columns
         will be rms (in V), snr (in DB) and thd (in percent).
     '''
+    # Avoid circular import
+    from .acquire import acquire
+
     calibration = FlatCalibration.as_attenuation(vrms=vrms)
     factory_kw = {
         'start_frequency': start_frequency,
