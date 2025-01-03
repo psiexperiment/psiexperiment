@@ -335,24 +335,28 @@ class BasePlotContainer(PSIContribution):
 
         # Add the x and y axes to the layout, along with the viewbox.
         for i, child in enumerate(self.children):
-            container.addItem(child.y_axis, i, 0)
-            container.addItem(child.viewbox, i, 1)
             try:
-                # This raises an "already taken" QGridLayoutEngine error. The
-                # obvious explanation is because the current viewbox also
-                # occupies this cell.
-                container.addItem(child.viewbox_norm, i, 1)
-            except AttributeError:
+                container.addItem(child.y_axis, i, 0)
+                container.addItem(child.viewbox, i, 1)
+                try:
+                    # This raises an "already taken" QGridLayoutEngine error. The
+                    # obvious explanation is because the current viewbox also
+                    # occupies this cell.
+                    container.addItem(child.viewbox_norm, i, 1)
+                except AttributeError:
+                    pass
+                child._configure_viewbox()
+            except:
                 pass
 
-            child._configure_viewbox()
 
         if self.x_axis is not None:
             container.addItem(self.x_axis, i+1, 1)
 
         # Link the child viewboxes together
-        for child in self.children[1:]:
-            child.viewbox.setXLink(self.children[0].viewbox)
+        children = [c for c in self.children if isinstance(c, ViewBox)]
+        for child in children[1:]:
+            child.viewbox.setXLink(children[0].viewbox)
 
         return container
 
@@ -433,7 +437,8 @@ class TimeContainer(BaseTimeContainer):
 
     def update(self, event=None):
         for child in self.children:
-            child.update()
+            if isinstance(child, ViewBox):
+                child.update()
         super().update()
 
 
@@ -475,12 +480,6 @@ class FFTContainer(BasePlotContainer):
     def _default_x_transform(self):
         if self.axis_scale in ('octave', 'log10'):
             return np.log10
-        else:
-            return lambda x: x
-
-    def _default_inv_x_transform(self):
-        if self.axis_scale in ('octave', 'log10'):
-            return lambda x: 10**x
         else:
             return lambda x: x
 
@@ -1017,25 +1016,23 @@ class InfiniteLine(SinglePlot):
 
     direction = d_(Enum('vertical', 'horizontal'))
     position = d_(Float())
-    movable = d_(Bool(False))
 
     def _default_plot(self):
         angle = 90 if self.direction == 'vertical' else 0
         plot = pg.InfiniteLine(
-            self.container.x_transform(self.position),
+            self.position,
             angle=angle,
             pen=self.pen,
-            movable=self.movable,
+            movable=True
         )
         plot.sigPositionChanged.connect(self._update_position)
         return plot
 
     def _observe_position(self, event):
-        deferred_call(self.plot.setValue,
-                      self.container.inv_x_transform(self.position))
+        deferred_call(self.plot.setValue, self.position)
 
     def _update_position(self, plot):
-        self.position = self.container.x_transform(plot.value())
+        self.position = plot.value()
 
 
 ################################################################################
@@ -1269,9 +1266,6 @@ class EpochGroupMixin(SourceMixin, GroupMixin):
         self.update(tab_changed=True)
 
     def update(self, event=None, tab_changed=False):
-        deferred_call(self._update, event, tab_changed)
-
-    def _update(self, event=None, tab_changed=False):
         todo = []
         if self._x is None:
             return
