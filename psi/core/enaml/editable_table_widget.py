@@ -16,6 +16,7 @@ from enaml.qt.QtWidgets import QAbstractItemView, QHeaderView, QStyledItemDelega
 from enaml.qt.QtGui import QBrush, QColor
 
 from .event_filter import EventFilter
+from .util import make_color
 
 
 class QDelegate(QStyledItemDelegate):
@@ -67,9 +68,7 @@ class QEditableTableModel(QAbstractTableModel):
         r = index.row()
         c = index.column()
         color_name = self.interface.get_cell_color(r, c)
-        color = QColor()
-        color.setNamedColor(color_name)
-        return color
+        return make_color(color_name)
 
     def cellFrac(self, index):
         r = index.row()
