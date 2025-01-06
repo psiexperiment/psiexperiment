@@ -12,4 +12,5 @@ with enaml.imports():
     from .manifest import ExperimentManifest, PSIManifest
 
 from .plugin import PSIPlugin
-from .util import (load_enaml_module_from_file, load_manifests, load_manifest_from_file)
+from .util import (load_enaml_module_from_file, load_manifests,
+                   load_manifest_from_file, make_color)

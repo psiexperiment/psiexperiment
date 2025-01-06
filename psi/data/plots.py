@@ -16,15 +16,13 @@ from atom.api import (Str, Float, Tuple, Int, Typed, Property, Atom,
                       Bool, Enum, List, Dict, Callable, Value, observe)
 
 from enaml.application import deferred_call, timed_call
-from enaml.colors import Color, parse_color
 from enaml.core.api import Looper, Declarative, d_, d_func
-from enaml.qt.QtGui import QColor
 
 from psiaudio import util
 from psiaudio.pipeline import concat, PipelineData
 
 from psi.util import SignalBuffer, ConfigurationException
-from psi.core.enaml.api import PSIContribution
+from psi.core.enaml.api import make_color, PSIContribution
 from psi.context.context_item import ContextMeta
 
 
@@ -48,23 +46,6 @@ def get_color_cycle(name, n):
     cmap = getattr(module, cmap_name).mpl_colormap.resampled(n)
     for i in np.linspace(0, 1, n):
         yield tuple(int(v * 255) for v in cmap(i))
-
-
-def make_color(color, alpha=None):
-    if isinstance(color, (tuple, list)):
-        obj = QColor(*color)
-    elif isinstance(color, str):
-        obj = QColor()
-        obj.setNamedColor(color)
-    elif isinstance(color, Color):
-        return QColor(color.red, color.green, color.blue, color.alpha)
-    else:
-        raise ValueError('Unknown color %r', color)
-    if alpha is not None:
-        obj.setAlphaF(alpha)
-        if not obj.isValid():
-            raise ValueError('Cannot create QColor from %r', color)
-    return obj
 
 
 ################################################################################
