@@ -4,7 +4,6 @@ log = logging.getLogger(__name__)
 import numpy as np
 import pandas as pd
 
-from .acquire import acquire
 from psiaudio import util
 from psiaudio.calibration import FlatCalibration, PointCalibration
 from psiaudio.stim import ClickFactory, SilenceFactory
@@ -25,6 +24,8 @@ def click_power(engines, ao_channel_name, ai_channel_names, gain=0, vrms=1,
         Dataframe will be indexed by output channel name. Columns
         will be rms (in V), snr (in DB) and thd (in percent).
     '''
+    from .acquire import acquire
+
     calibration = FlatCalibration.as_attenuation(vrms=vrms)
     factory_kw = {
         'calibration': calibration,
