@@ -1016,6 +1016,7 @@ class InfiniteLine(SinglePlot):
 
     direction = d_(Enum('vertical', 'horizontal'))
     position = d_(Float())
+    movable = d_(Bool(True))
 
     def _default_plot(self):
         angle = 90 if self.direction == 'vertical' else 0
@@ -1023,13 +1024,16 @@ class InfiniteLine(SinglePlot):
             self.position,
             angle=angle,
             pen=self.pen,
-            movable=True
+            movable=self.movable,
         )
         plot.sigPositionChanged.connect(self._update_position)
         return plot
 
     def _observe_position(self, event):
         deferred_call(self.plot.setValue, self.position)
+
+    def _observe_movable(self, event):
+        deferred_call(self.plot.setMovable, self.movable)
 
     def _update_position(self, plot):
         self.position = plot.value()
