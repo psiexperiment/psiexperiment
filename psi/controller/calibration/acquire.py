@@ -1,6 +1,7 @@
 import logging
 log = logging.getLogger(__name__)
 
+from collections import UserDict
 from functools import partial
 import time
 
@@ -9,7 +10,34 @@ import pandas as pd
 
 from psiaudio.pipeline import concat
 from psiaudio.queue import FIFOSignalQueue
-from psi.controller.api import ExtractEpochs
+from psi.controller.api import Channel, ExtractEpochs
+
+
+class AcquireResult(UserDict):
+    '''
+    Subclass of dict that allows results to be indexed by channel object,
+    channel name, or channel reference
+    '''
+
+    def __init__(self, *args, **kw):
+        super().__init__(*args, **kw)
+        self._mapping = {}
+
+    def __setitem__(self, key, value):
+        super().__setitem__(key, value)
+        self._mapping.update({
+            key.name: key,
+            key.reference: key,
+        })
+
+    def __getitem__(self, key):
+        try:
+            return super().__getitem__(key)
+        except KeyError:
+            if isinstance(key, Channel):
+                key = key.reference
+            new_key = self._mapping[key]
+            return super().__getitem__(new_key)
 
 
 def _reindex(x):
@@ -86,7 +114,7 @@ def acquire(engines, ao_channel_name, ai_channel_names, setup_queue_cb,
     for engine in extra_engines:
         engine.stop()
 
-    result = {}
+    result = AcquireResult()
     for ai_channel, epochs in data.items():
         epochs = concat(epochs, axis='epoch')
         keys = pd.DataFrame(epochs.metadata)
@@ -104,3 +132,18 @@ def acquire(engines, ao_channel_name, ai_channel_names, setup_queue_cb,
         result[ai_channel] = pd.DataFrame(epochs[:, 0], index=col_index, columns=time_index)
 
     return result
+
+
+def acquire_waveforms(engines, ao_channel_name, ai_channel_names, waveforms,
+                      epoch_size, repetitions=1, iti=0.1, trim=0):
+
+    if isinstance(waveforms, list):
+        waveforms = {i: w for i, w in enumerate(waveforms)}
+
+    def setup_queue_cb(ao_channel, queue):
+        nonlocal waveforms
+        for i, waveform in waveforms.items():
+            queue.append(waveform, repetitions, iti, metadata={'waveform': i})
+
+    return acquire(engines, ao_channel_name, ai_channel_names, setup_queue_cb,
+                   epoch_size, trim)
