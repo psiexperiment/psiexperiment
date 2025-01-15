@@ -1,3 +1,6 @@
+import logging
+log = logging.getLogger(__name__)
+
 from atom.api import Bool, Property, Str, Typed, Value
 
 from enaml.core.api import d_

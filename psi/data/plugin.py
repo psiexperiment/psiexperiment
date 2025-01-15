@@ -63,6 +63,9 @@ class DataPlugin(PSIPlugin):
         load_manifests(containers, self.workbench)
         log.debug('Found %d plot containers', len(containers))
         self._containers = containers
+        # Have containers update their viewbox layouts
+        for c in self._containers:
+            c._update_container()\
 
     def _bind_observers(self):
         self.workbench.get_extension_point(SINK_POINT) \
