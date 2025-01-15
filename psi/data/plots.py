@@ -50,13 +50,20 @@ def get_color_cycle(name, n):
         yield tuple(int(v * 255) for v in cmap(i))
 
 
-def make_color(color):
+def make_color(color, alpha=None):
     if isinstance(color, (tuple, list)):
-        return QColor(*color)
+        obj = QColor(*color)
     elif isinstance(color, str):
-        return QColor(color)
+        obj = QColor()
+        print(color)
+        obj.setNamedColor(color)
     else:
         raise ValueError('Unknown color %r', color)
+    if alpha is not None:
+        obj.setAlphaF(alpha)
+        if not obj.isValid():
+            raise ValueError('Cannot create QColor from %r', color)
+    return obj
 
 
 ################################################################################
@@ -90,6 +97,7 @@ class ColorCycleMixin(Declarative):
             nonlocal iterable
             for color in iterable:
                 yield make_color(color)
+
         return qcolor_iterable()
 
     @d_func
@@ -107,6 +115,7 @@ class PenMixin(Declarative):
     pen = Property()
     pen_color = d_(Typed(object))
     pen_width = d_(Float(0))
+    pen_alpha = d_(Float(1))
     antialias = d_(Bool(False))
 
     def _default_pen_color(self):
@@ -282,6 +291,7 @@ class BasePlotContainer(PSIContribution):
     base_viewbox = Property()
     legend = Typed(pg.LegendItem)
     x_transform = Callable()
+    inv_x_transform = Callable()
 
     buttons = d_(List())
     max_buttons = d_(Int(8))
@@ -320,7 +330,10 @@ class BasePlotContainer(PSIContribution):
 
     def _default_x_transform(self):
         return lambda x: x
-
+      
+    def _default_inv_x_transform(self):
+        return lambda x: x
+      
     def _update_container(self):
         container = self.container
         try:
@@ -333,14 +346,18 @@ class BasePlotContainer(PSIContribution):
             container.addItem(child.y_axis, i, 0)
             container.addItem(child.viewbox, i, 1)
             try:
-                # This raises an "already taken" QGridLayoutEngine error. The
-                # obvious explanation is because the current viewbox also
-                # occupies this cell.
-                container.addItem(child.viewbox_norm, i, 1)
-            except AttributeError:
+                container.addItem(child.y_axis, i, 0)
+                container.addItem(child.viewbox, i, 1)
+                try:
+                    # This raises an "already taken" QGridLayoutEngine error. The
+                    # obvious explanation is because the current viewbox also
+                    # occupies this cell.
+                    container.addItem(child.viewbox_norm, i, 1)
+                except AttributeError:
+                    pass
+                child._configure_viewbox()
+            except:
                 pass
-
-            child._configure_viewbox()
 
         if self.x_axis is not None:
             container.addItem(self.x_axis, len(self.viewboxes)+1, 1)
@@ -1016,6 +1033,7 @@ class InfiniteLine(SinglePlot):
 
     direction = d_(Enum('vertical', 'horizontal'))
     position = d_(Float())
+    movable = d_(Bool(True))
 
     def _default_plot(self):
         angle = 90 if self.direction == 'vertical' else 0
@@ -1023,13 +1041,16 @@ class InfiniteLine(SinglePlot):
             self.position,
             angle=angle,
             pen=self.pen,
-            movable=True
+            movable=self.movable,
         )
         plot.sigPositionChanged.connect(self._update_position)
         return plot
 
     def _observe_position(self, event):
         deferred_call(self.plot.setValue, self.position)
+
+    def _observe_movable(self, event):
+        deferred_call(self.plot.setMovable, self.movable)
 
     def _update_position(self, plot):
         self.position = plot.value()

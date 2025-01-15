@@ -3,7 +3,7 @@ from enaml.workbench.api import Extension
 
 from psi.core.enaml.api import ExperimentManifest
 from psi.data.plots import (ChannelPlot, FFTChannelPlot, FFTContainer,
-                            TimeContainer, ViewBox)
+                            InfiniteLine, TimeContainer, ViewBox)
 
 
 ################################################################################
@@ -66,6 +66,12 @@ enamldef MultiSignalViewFFTExtension(Extension): ext:
     attr waveform_averages = 1
     attr apply_calibration = False
 
+    #: List of vertical lines to add to plot (e.g., 60 Hz). Each entry should
+    #: be a dictionary with at least one key (position), indicating where the
+    #: line appears in the plot. Optional keys include color, width, alpha, and
+    #: movable.
+    attr vlines = []
+
     attr sources
 
     FFTContainer: fft_container:
@@ -79,6 +85,17 @@ enamldef MultiSignalViewFFTExtension(Extension): ext:
             y_max = 100
             y_mode = 'mouse'
             save_limits = True
+
+            Looper:
+                iterable << enumerate(vlines)
+                InfiniteLine:
+                    name = ext.id + str(loop_item[0])
+                    direction = 'vertical'
+                    position = loop_item[1]['position']
+                    pen_color = loop_item[1].get('color', 'k')
+                    pen_width = loop_item[1].get('width', 0)
+                    pen_alpha = loop_item[1].get('alpha', 1)
+                    movable = loop_item[1].get('movable', False)
 
             Looper:
                 iterable << sources.items() if sources is not None else []
@@ -144,6 +161,7 @@ enamldef MultiSignalFFTViewManifest(ExperimentManifest): manifest:
     alias y_max: ext.y_max
     alias y_mode: ext.y_mode
     alias save_limits: ext.save_limits
+    alias vlines: ext.vlines
 
     # Provide default values if not provided in sources
     alias fft_time_span: ext.fft_time_span

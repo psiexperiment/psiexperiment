@@ -4,7 +4,6 @@ log = logging.getLogger(__name__)
 import numpy as np
 import pandas as pd
 
-from .acquire import acquire
 from psiaudio.util import db, process_tone, tone_power_conv, tone_phase_conv
 from psiaudio.calibration import FlatCalibration, PointCalibration
 from psiaudio.stim import ToneFactory, SilenceFactory
@@ -26,6 +25,8 @@ def tone_power(engines, frequencies, ao_channel_name, ai_channel_names, gains=0,
         Dataframe will be indexed by output channel name and frequency. Columns
         will be rms (in V), snr (in DB) and thd (in percent).
     '''
+    from .acquire import acquire
+
     frequencies = np.asarray(frequencies)
     if np.isscalar(gains):
         gains = [gains] * len(frequencies)

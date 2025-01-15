@@ -99,4 +99,8 @@ class ExpressionNamespace(Atom):
         # Note that in the past I was forcing a copy of self._locals to ensure
         # that the GUI was updated as needed; however, this proved to be a very
         # slow process since it triggered a cascade of GUI updates. 
-        self._locals[name] = expr.evaluate(c)
+        try:
+            self._locals[name] = expr.evaluate(c)
+        except Exception:
+            log.error('Unable to evaluate expression %s for %s', expr._expression, name)
+            raise

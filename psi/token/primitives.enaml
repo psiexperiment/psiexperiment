@@ -6,9 +6,9 @@ log = logging.getLogger(__name__)
 from psiaudio.stim import (
     BandlimitedClickFactory, BandlimitedNoiseFactory,
     BandlimitedFIRNoiseFactory, BroadbandNoiseFactory, ChirpFactory,
-    Cos2EnvelopeFactory, EnvelopeFactory, GateFactory, RepeatFactory,
-    SAMEnvelopeFactory, SAMToneFactory, ShapedNoiseFactory, SilenceFactory,
-    SquareWaveEnvelopeFactory, SquareWaveFactory, ToneFactory,
+    ClickFactory, Cos2EnvelopeFactory, EnvelopeFactory, GateFactory,
+    RepeatFactory, SAMEnvelopeFactory, SAMToneFactory, ShapedNoiseFactory,
+    SilenceFactory, SquareWaveEnvelopeFactory, SquareWaveFactory, ToneFactory,
     WavSequenceFactory
 )
 
@@ -445,6 +445,28 @@ enamldef Chirp(EpochBlock):
         label = 'Audiogram weighting'
         default = 'none'
         choices = {'none': None, 'mouse': "'mouse'"}
+
+
+enamldef Click(EpochBlock):
+
+    factory = ClickFactory
+    name = 'click'
+    label = 'click'
+
+    Parameter:
+        name = 'level'
+        label = 'level (dB)'
+        default = 1
+
+    Parameter:
+        name = 'duration'
+        label = 'duration (s)'
+        default = 100e-6
+
+    Parameter:
+        name = 'polarity'
+        label = 'polarity'
+        default = '"condensation"'
 
 
 enamldef BandlimitedClick(EpochBlock):
