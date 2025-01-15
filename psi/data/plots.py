@@ -296,6 +296,11 @@ class BasePlotContainer(PSIContribution):
     #: the widget used to allow the user to select).
     fmt_button_cb = d_(Callable())
 
+    viewboxes = Property()
+
+    def _get_viewboxes(self):
+        return [c for c in self.children if isinstance(c, ViewBox)]
+
     def _default_fmt_button_cb(self):
         return lambda x, s: s.join(str(v) for v in x)
 
@@ -316,12 +321,15 @@ class BasePlotContainer(PSIContribution):
     def _default_x_transform(self):
         return lambda x: x
 
-    def _default_container(self):
-        container = pg.GraphicsLayout()
-        container.setSpacing(10)
+    def _update_container(self):
+        container = self.container
+        try:
+            container.clear()
+        except:
+            pass
 
         # Add the x and y axes to the layout, along with the viewbox.
-        for i, child in enumerate(self.children):
+        for i, child in enumerate(self.viewboxes):
             container.addItem(child.y_axis, i, 0)
             container.addItem(child.viewbox, i, 1)
             try:
@@ -335,12 +343,15 @@ class BasePlotContainer(PSIContribution):
             child._configure_viewbox()
 
         if self.x_axis is not None:
-            container.addItem(self.x_axis, i+1, 1)
+            container.addItem(self.x_axis, len(self.viewboxes)+1, 1)
 
         # Link the child viewboxes together
-        for child in self.children[1:]:
-            child.viewbox.setXLink(self.children[0].viewbox)
+        for child in self.viewboxes[1:]:
+            child.viewbox.setXLink(self.base_viewbox)
 
+    def _default_container(self):
+        container = pg.GraphicsLayout()
+        container.setSpacing(10)
         return container
 
     def add_legend_item(self, plot, label):
@@ -352,12 +363,15 @@ class BasePlotContainer(PSIContribution):
         return legend
 
     def _get_base_viewbox(self):
-        return self.children[0].viewbox
+        if len(self.viewboxes) == 0:
+            return None
+        return self.viewboxes[0].viewbox
 
     def _default_x_axis(self):
         x_axis = pg.AxisItem('bottom')
         x_axis.setGrid(64)
-        x_axis.linkToView(self.children[0].viewbox)
+        if self.base_viewbox is not None:
+            x_axis.linkToView(self.base_viewbox)
         return x_axis
 
     def update(self, event=None):
@@ -394,10 +408,13 @@ class BaseTimeContainer(BasePlotContainer):
     span = d_(Float(1))
     delay = d_(Float(0.25))
 
+    def _update_container(self):
+        super()._update_container()
+        if self.base_viewbox is not None:
+            self.base_viewbox.setXRange(0, self.span, padding=0)
+
     def _default_container(self):
         container = super()._default_container()
-        # Ensure that the x axis shows the planned range
-        self.base_viewbox.setXRange(0, self.span, padding=0)
         self.data_range.observe('current_range', self.update)
         return container
 
@@ -420,7 +437,8 @@ class TimeContainer(BaseTimeContainer):
 
     def update(self, event=None):
         for child in self.children:
-            child.update()
+            if isinstance(child, ViewBox):
+                child.update()
         super().update()
 
 
