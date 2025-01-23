@@ -10,9 +10,9 @@ from psiaudio import util
 
 
 
-def chirp_power(engine, ao_channel_name, ai_channel_names, start_frequency=500,
-                end_frequency=50000, gain=0, vrms=1, repetitions=64,
-                duration=20e-3, iti=0.001, debug=False):
+def chirp_power(engines, ao_channel_name, ai_channel_names,
+                start_frequency=500, end_frequency=50000, gain=0, vrms=1,
+                repetitions=64, duration=20e-3, iti=0.001, debug=False):
     '''
     Given a single output, measure response in multiple input channels using
     chirp.
@@ -58,7 +58,7 @@ def chirp_power(engine, ao_channel_name, ai_channel_names, start_frequency=500,
         waveform = factory.next(samples)
         queue.append(waveform, repetitions, iti, metadata={'gain': -400})
 
-    recording = acquire(engine, ao_channel_name, ai_channel_names,
+    recording = acquire(engines, ao_channel_name, ai_channel_names,
                         setup_queue_cb, duration + iti, 0)
 
     result = {}
@@ -87,23 +87,28 @@ def chirp_power(engine, ao_channel_name, ai_channel_names, start_frequency=500,
     return result
 
 
-def chirp_spl(engine, **kwargs):
+def chirp_spl(engines, **kwargs):
+
+    channel_map = {}
+    for engine in engines:
+        for channel in engine.get_channels(active=False):
+            channel_map[channel.name] = channel
 
     def map_spl(series, engine):
         channel_name, = series.index.get_level_values('channel').unique()
-        channel = engine.get_channel(channel_name)
+        channel = channel_map[channel_name]
         frequency = series.index.get_level_values('frequency')
         series['spl'] = channel.calibration.get_db(frequency, series['rms'])
         return series
 
-    result = chirp_power(engine, **kwargs)
+    result = chirp_power(engines, **kwargs)
     new_result = result.groupby('channel', group_keys=False) \
         .apply(map_spl, engine=engine)
     new_result.attrs.update(result.attrs)
     return new_result
 
 
-def chirp_sens(engine, gain=-40, vrms=1, **kwargs):
-    result = chirp_spl(engine, gain=gain, vrms=vrms, **kwargs)
+def chirp_sens(engines, gain=-40, vrms=1, **kwargs):
+    result = chirp_spl(engines, gain=gain, vrms=vrms, **kwargs)
     result['sens'] = result['norm_spl'] = result['spl'] - util.db(result['chirp_rms'])
     return result
