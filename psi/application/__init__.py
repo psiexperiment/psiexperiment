@@ -174,6 +174,8 @@ def configure_logging(level_console=None, level_file=None, filename=None,
 
     tdt_logger = logging.getLogger('tdt')
     tdt_logger.setLevel('INFO')
+    websockets_logger = logging.getLogger('websockets')
+    websockets_logger.setLevel('INFO')
     sys.excepthook = exception_handler
 
 
