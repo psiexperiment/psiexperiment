@@ -136,7 +136,7 @@ class ClickCalibrate(BaseCalibrate):
 
     def run_calibration(self, ao_channel, ai_channel, kwargs):
         result = click_sens(
-            engines=[ao_channel.engine],
+            engines=[ao_channel.engine, ai_channel.engine],
             gain=self.gain,
             ao_channel_name=ao_channel.name,
             ai_channel_names=[ai_channel.name],
@@ -202,7 +202,7 @@ class ToneCalibrate(BaseCalibrate):
 
     def run_calibration(self, ao_channel, ai_channel, kwargs):
         result = tone_sens(
-            ao_channel.engine,
+            [ao_channel.engine, ai_channel.engine],
             gains=self.gain,
             ao_channel_name=ao_channel.name,
             ai_channel_names=[ai_channel.name],
@@ -241,6 +241,12 @@ class ChirpCalibrate(BaseCalibrate):
     #: Number of repetitions to average
     repetitions = d_(Int(64))
 
+    #: Start frequency of chirp
+    start_frequency = d_(Float(500))
+
+    #: End frequency of chirp
+    end_frequency = d_(Float(50000))
+
     def _default_viewbox_name(self):
         return self.name
 
@@ -255,13 +261,15 @@ class ChirpCalibrate(BaseCalibrate):
 
     def run_calibration(self, ao_channel, ai_channel, kwargs):
         result = chirp_sens(
-            ao_channel.engine,
+            [ao_channel.engine, ai_channel.engine],
             self.gain,
             ao_channel_name=ao_channel.name,
             ai_channel_names=[ai_channel.name],
             duration=self.duration,
             iti=self.iti,
-            repetitions=self.repetitions
+            repetitions=self.repetitions,
+            start_frequency=self.start_frequency,
+            end_frequency=self.end_frequency,
         )
         result = result.sort_index()
         sens = result.loc[ai_channel.name, 'sens']
