@@ -157,6 +157,9 @@ class ControllerPlugin(Plugin):
     # Tracks the state of the controller.
     experiment_state = Enum('initialized', 'running', 'paused', 'stopped')
 
+    # Are engines running?
+    engines_running = Bool(False)
+
     # Provides direct access to plugins rather than going through the core
     # command system. Right now the context plugin is so fundamentally important
     # to the controller that it would be cumbersome to use the core command
@@ -417,14 +420,21 @@ class ControllerPlugin(Plugin):
         self.invoke_actions('engines_configured')
 
     def start_engines(self):
+        if self.engines_running:
+            raise ValueError('Engines already running')
+
         log.debug('Starting engines')
         for engine in self._engines.values():
             if engine is not self._master_engine:
                 engine.start()
         self._master_engine.start()
+        self.engines_running = True
         self.invoke_actions('engines_started')
 
     def stop_engines(self):
+        if not self.engines_running:
+            raise ValueError('Engines not running')
+
         for name, timer in list(self._timers.items()):
             log.debug('Stopping timer %s', name)
             timer.timeout.disconnect()
@@ -433,6 +443,7 @@ class ControllerPlugin(Plugin):
         for engine in self._engines.values():
             log.debug('Stopping engine %r', engine)
             engine.stop()
+        self.engines_running = False
         self.invoke_actions('engines_stopped')
 
     def reset_engines(self):
@@ -617,9 +628,9 @@ class ControllerPlugin(Plugin):
 
     def stop_experiment(self, skip_errors=False, kw=None):
         deferred_call(lambda: setattr(self, 'experiment_state', 'stopped'))
-        #if self.experiment_state not in ('running', 'paused'):
-        #    log.debug('Nothing to do since experiment is not running. Returning.')
-        #    return []
+        if self.experiment_state == 'stopped':
+            log.debug('Nothing to do since experiment is already stopped.')
+            return []
         if kw is None:
             kw = {}
         log.debug('Invoking actions for experiment end.')
