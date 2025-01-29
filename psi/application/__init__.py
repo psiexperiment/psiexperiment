@@ -106,7 +106,7 @@ class ExceptionHandler:
                               'error_message': mesg}
                 try:
                     core.invoke_command('psi.set_dock_style', {'style_name': 'error'})
-                    core.invoke_command('psi.controller.stop', parameters)
+                    #core.invoke_command('psi.controller.stop', parameters)
                 except Exception as e:
                     log.exception(e)
                     window = self.workbench.get_plugin('enaml.workbench.ui').window
