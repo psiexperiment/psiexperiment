@@ -16,6 +16,18 @@ log.addHandler(logging.NullHandler())
 # Flag indicating whether user configuration file was loaded.
 CONFIG_LOADED = False
 
+
+DEFAULT_CONFIG = {
+    'LOG_ROOT': os.path.expanduser('~/Documents/psi/logs'),
+    'DATA_ROOT': os.path.expanduser('~/Documents/psi/data'),
+    'PROCESSED_ROOT': os.path.expanduser('~/Documents/psi/processed'),
+    'PREFERENCES_ROOT': os.path.expanduser('~/Documents/psi/preferences'),
+    'LAYOUT_ROOT': os.path.expanduser('~/Documents/psi/layout'),
+    'CFTS_ROOT': os.path.expanduser('~/Documents/psi/cfts'),
+    'IO_ROOT': os.path.expanduser('~/Documents/psi/io'),
+}
+
+
 # Container for configuration variables
 _config = {}
 
@@ -131,7 +143,7 @@ def load_config():
     # Load the default settings
     global CONFIG_LOADED
 
-    config = {}
+    config = DEFAULT_CONFIG.copy()
     config_path = get_config_file()
     if config_path.exists():
         spec = importlib.util.spec_from_file_location('settings', config_path)

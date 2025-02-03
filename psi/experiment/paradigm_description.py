@@ -1,6 +1,9 @@
 import logging
 log = logging.getLogger(__name__)
 
+import importlib
+import inspect
+
 from psi.application import list_preferences
 from psi.core.enaml.api import load_manifest
 
@@ -60,6 +63,9 @@ class ParadigmManager:
         description
             Instance of ParadigmDescription for the experiment paradigm
         '''
+        if '.' in name:
+            module, name = name.rsplit('.', 1)
+            module = importlib.import_module(module)
         return self.paradigms[name]
 
 
@@ -135,10 +141,14 @@ class ParadigmDescription:
             Additional details that may be needed for customizing details such
             as the launcher.
         '''
-        log.info('Initializing ParadigmDescrption %s', name)
+        log.info('Initializing ParadigmDescription %s', name)
         self.name = name
         self.title = title
         self.experiment_type = experiment_type
+
+        frame = inspect.stack()[1]
+        self.module = inspect.getmodule(frame[0]).__name__
+        self.full_name = f'{self.module}.{self.name}'
 
         if info is None:
             info = {}
@@ -149,7 +159,6 @@ class ParadigmDescription:
             self.plugins = [PluginDescription(**d) for d in plugin_info]
             paradigm_manager.register(self)
         except Exception as exc:
-            print(plugin_info)
             paradigm_manager.register(self, exc)
 
     def enable_plugin(self, plugin_id):

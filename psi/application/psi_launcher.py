@@ -15,7 +15,7 @@ def main():
             # the PluginAction.
             paradigm = paradigm_manager.get_paradigm(value)
             paradigm.disable_all_plugins()
-            setattr(namespace, 'experiment', value)
+            setattr(namespace, 'experiment', paradigm.name)
             setattr(namespace, 'controller', paradigm)
 
     class PluginAction(argparse.Action):
@@ -26,7 +26,6 @@ def main():
     load_paradigm_descriptions()
     parser = argparse.ArgumentParser(description='Run experiment')
     parser.add_argument('experiment', type=str, help='Experiment to run',
-                        choices=paradigm_manager.list_paradigm_names(),
                         action=ControllerAction)
     parser.add_argument('--plugins', type=str, nargs='*',
                         help='Plugins to load', action=PluginAction)
