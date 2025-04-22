@@ -444,6 +444,7 @@ class ControllerPlugin(Plugin):
         for engine in self._engines.values():
             log.debug('Stopping engine %r', engine)
             engine.stop()
+
         self.engines_running = False
         self.invoke_actions('engines_stopped')
 

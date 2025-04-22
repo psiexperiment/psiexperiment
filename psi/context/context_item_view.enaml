@@ -245,6 +245,7 @@ template WidgetTemplate(context_item, MemberType: BoolParameter):
 # The container to tie it all together
 ################################################################################
 enamldef ContextItemView(HGroup): container:
+
     attr context_item
     padding = 0
     spacing = 0
