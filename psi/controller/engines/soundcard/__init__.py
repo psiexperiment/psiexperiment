@@ -4,7 +4,9 @@ log = logging.getLogger(__name__)
 import time
 from threading import Event
 
-from atom.api import Bool, Dict, Enum, Float, List, Int, Str, Typed, Value
+from atom.api import (Bool, Dict, Enum, Float, List, Int, Property, Str,
+                      FixedTuple, Typed, Value)
+from enaml.application import deferred_call
 from enaml.core.api import d_
 import numpy as np
 import rtmixer
@@ -42,6 +44,24 @@ def halt_on_error(f):
 class SoundcardHardwareAIChannel(HardwareAIChannel):
 
     channel = d_(Int()).tag(metadata=True)
+
+    # This is the default input sensitivity for most RME devices that are
+    # controlled via TotalmixFX. Some inputs can be configured to have
+    # different sensitivity. This is the value reported in dBu. Likely either
+    # +13 or +19 dBu. This is in addition to any external gain (e.g., from an
+    # input preamp).
+    dBFS = d_(FixedTuple(Float(19), Enum('dBu', 'dBV'))).tag(metadata=True)
+
+    total_gain = Property().tag(metadata=True)
+
+    def _get_total_gain(self):
+        s, unit = self.dBFS
+        if unit == 'dBu':
+            #s += util.db(0.7746)
+            pass
+        elif unit == 'dBV':
+            pass
+        return -s + self.gain
 
 
 class SoundcardHardwareAOChannel(HardwareAOChannel):
@@ -139,26 +159,29 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
         elementsize = len(ai_channels) * samplesize
         self._hw_ai_buffer = rtmixer.RingBuffer(elementsize, STEPSIZE * QSIZE)
         self._actions['hw_ai'] = self._stream.record_ringbuffer(self._hw_ai_buffer)
+        sf = util.dbi(np.array([c.total_gain for c in ai_channels]))
         task = self._tasks['hw_ai'] = DAQThread(
             1e-3,
             self._stop_requested,
-            lambda: self._hw_ai_callback(len(ai_channels)),
+            lambda: self._hw_ai_callback(len(ai_channels), sf),
             name='hw_ai'
         )
         task._properties = {
             'names': [c.name for c in ai_channels],
+            'sf': sf,
         }
         self._total_samples_read = 0
         # Find the maximum number of samples we need. If 0, then we will
         # acquire continuously.
         self._samples_to_read = max(c.samples for c in ai_channels)
 
-    def _hw_ai_callback(self, n_channels):
+    def _hw_ai_callback(self, n_channels, sf):
         while self._hw_ai_buffer.read_available > STEPSIZE:
             samples = np.frombuffer(self._hw_ai_buffer.read(), dtype='float32')
             samples.shape = -1, n_channels
 
             data = PipelineData(samples.T, fs=96000, s0=self._total_samples_read)
+            data /= sf
             for channel_name, s, cb in self._callbacks.get('ai', []):
                 cb(data[s])
 
@@ -265,8 +288,8 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
         if not self._configured:
             return
         self._stop_requested.set()
-        self.complete()
         self._configured = False
+        deferred_call(self.complete)
 
     def complete(self):
         log.debug('Triggering "done" callbacks')

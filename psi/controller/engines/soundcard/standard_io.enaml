@@ -1,3 +1,7 @@
+import os
+os.environ['SD_ENABLE_ASIO'] = '1'
+
+
 import sounddevice as sd
 
 from atom.api import set_default
@@ -23,20 +27,26 @@ enamldef BaseSoundcardEngine(SoundcardEngine):
     '''
     name = 'ASIO'
 
+    attr input_map = {}
+    attr output_map = {}
+
     Looper:
-        iterable << range(get_channels(device_name, 'input'))
+        iterable << input_map.items()
 
         SoundcardHardwareAIChannel:
-            channel = loop_item
-            name = f'input_{loop.item + 1}'
+            channel = loop_item[0]
+            label = loop_item[1]['label']
+            name = loop_item[1]['name']
+            dBFS = loop_item[1]['dBFS']
             fs = parent.fs
 
     Looper:
-        iterable << range(get_channels(device_name, 'output'))
+        iterable << output_map.items()
 
         SoundcardHardwareAOChannel:
-            channel = loop_item
-            name = f'speaker_{loop.item + 1}'
+            channel = loop_item[0]
+            label = loop_item[1]['label']
+            name = loop_item[1]['name']
             fs = parent.fs
 
 
