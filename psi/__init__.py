@@ -17,6 +17,9 @@ log.addHandler(logging.NullHandler())
 CONFIG_LOADED = False
 
 
+# Create default paths and then override using environment variables. All
+# environment variables must be prefixed with `PSI_` to minimize the chance of
+# collision with existing environment variables.
 DEFAULT_CONFIG = {
     'LOG_ROOT': os.path.expanduser('~/Documents/psi/logs'),
     'DATA_ROOT': os.path.expanduser('~/Documents/psi/data'),
@@ -27,6 +30,8 @@ DEFAULT_CONFIG = {
     'IO_ROOT': os.path.expanduser('~/Documents/psi/io'),
 }
 
+for k, v in DEFAULT_CONFIG.items():
+    DEFAULT_CONFIG[k] = os.environ.get(f'PSI_{k}', v)
 
 # Container for configuration variables
 _config = {}
