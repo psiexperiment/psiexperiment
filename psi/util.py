@@ -6,6 +6,7 @@ import inspect
 import json
 from pathlib import Path
 import threading
+import textwrap
 import uuid
 
 import numpy as np
@@ -449,3 +450,15 @@ def log_with_header(header, info):
     log.info(f'\n{header}\n{info}')
 
 
+def wrap_text(text):
+    '''
+    Format message for display in the console
+
+    This strips leading whitespace and wraps to a uniform width while
+    preserving double line-breaks that indicate paragraphs.
+    '''
+    formatted = []
+    for paragraph in text.split('\n\n'):
+        if paragraph.strip() != '':
+            formatted.append(textwrap.fill(textwrap.dedent(paragraph)))
+    return '\n\n'.join(formatted).strip()

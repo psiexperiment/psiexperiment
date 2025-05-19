@@ -9,7 +9,6 @@ from pathlib import Path
 import pdb
 import re
 import sys
-import textwrap
 import traceback
 import warnings
 
@@ -19,6 +18,7 @@ with enaml.imports():
     from enaml.stdlib.message_box import critical
 
 from psi import get_config, set_config
+from psi.util import wrap_text
 from psi.core.enaml.api import load_manifest, load_manifest_from_file
 
 
@@ -91,7 +91,7 @@ class ExceptionHandler:
         mesg = mesg_template.format(args[1], log_mesg)
         mesg = re.sub(r'(?<!\n)\n(?!\n)', ' ', mesg)
         mesg = re.sub(r' +', ' ', mesg)
-        return textwrap.fill(mesg, replace_whitespace=False)
+        return wrap_text(mesg)
 
     def __call__(self, *args):
         with self:
@@ -302,10 +302,17 @@ def get_default_io():
 
     Right now it just returns the first one found.
     '''
+    mesg = f'''
+    No IO configured for the system.
+
+    Please create an IO config file. This file should go in
+    {get_config('IO_ROOT')}. The location of the IO config files can be set via
+    the `PSI_IO_ROOT` environment variable.
+    '''
     available_io = list_io()
     log.debug('Found the following IO files: %r', available_io)
     if len(available_io) == 0:
-        raise ValueError('No IO configured for system')
+        raise ValueError(wrap_text(mesg))
     return available_io[0]
 
 
