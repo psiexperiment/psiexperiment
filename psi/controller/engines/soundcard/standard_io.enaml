@@ -27,6 +27,8 @@ enamldef BaseSoundcardEngine(SoundcardEngine):
     '''
     name = 'ASIO'
 
+    # Convenience approach for quickly assembling list of inputs/outputs. Can
+    # be declared the typical way as well.
     attr input_map = {}
     attr output_map = {}
 
@@ -38,7 +40,6 @@ enamldef BaseSoundcardEngine(SoundcardEngine):
             label = loop_item[1]['label']
             name = loop_item[1]['name']
             dBFS = loop_item[1]['dBFS']
-            fs = parent.fs
 
     Looper:
         iterable << output_map.items()
@@ -47,7 +48,6 @@ enamldef BaseSoundcardEngine(SoundcardEngine):
             channel = loop_item[0]
             label = loop_item[1]['label']
             name = loop_item[1]['name']
-            fs = parent.fs
 
 
 enamldef ASIOFirefaceUSBEngine(BaseSoundcardEngine):

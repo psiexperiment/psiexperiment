@@ -52,7 +52,13 @@ class SoundcardHardwareAIChannel(HardwareAIChannel):
     # input preamp).
     dBFS = d_(FixedTuple(Float(19), Enum('dBu', 'dBV'))).tag(metadata=True)
 
+    # Defines total gain in units of dBV so that we can convert the unit
+    # reported by the sound card API to dBV.
     total_gain = Property().tag(metadata=True)
+
+    # This is set by the sound card containing this engine, so we cannot set it
+    # manually on a per-channel basis.
+    fs = Property().tag(metadata=True)
 
     def _get_total_gain(self):
         s, unit = self.dBFS
@@ -63,11 +69,20 @@ class SoundcardHardwareAIChannel(HardwareAIChannel):
             pass
         return -s + self.gain
 
+    def _get_fs(self):
+        return self.engine.fs
+
 
 class SoundcardHardwareAOChannel(HardwareAOChannel):
 
     channel = d_(Int()).tag(metadata=True)
 
+    # This is set by the sound card containing this engine, so we cannot set it
+    # manually on a per-channel basis.
+    fs = Property().tag(metadata=True)
+
+    def _get_fs(self):
+        return self.engine.fs
 
 class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
 
@@ -113,11 +128,6 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
 
         ai_chan_number = [c.channel for c in ai_channels]
         ao_chan_number = [c.channel for c in ao_channels]
-
-        for channel in ai_channels:
-            channel.fs = self.fs
-        for channel in ao_channels:
-            channel.fs = self.fs
 
         if ai_channels and ao_channels:
             self._stream = rtmixer.MixerAndRecorder(
@@ -186,6 +196,7 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
                 cb(data[s])
 
             self._total_samples_read += len(samples)
+            log.error('Total: %d Read: %d', self._total_samples_read, self._samples_to_read)
             if self._samples_to_read > 0:
                 if self._total_samples_read > self._samples_to_read:
                     cancel_action = self._stream.cancel(self._actions['hw_ai'])
