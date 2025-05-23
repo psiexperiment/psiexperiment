@@ -214,9 +214,6 @@ class CounterMixin(Declarative):
     # Used to properly configure data storage.
     dtype = d_(Str('double')).tag(metadata=True)
 
-    def _get_active(self):
-        return True
-
 
 class OutputMixin(Declarative):
 
