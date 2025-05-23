@@ -170,6 +170,7 @@ class InputMixin(Declarative):
     def register_callback(self, cb):
         self.engine.register_callback(cb, self.type_code, self.name)
 
+
 class AnalogMixin(Declarative):
 
     # Used to properly configure data storage.
@@ -198,6 +199,7 @@ class AnalogMixin(Declarative):
                 f'Try reducing your stimulus level by at least {rel_db:.1f} dB.'
             raise ValueError(m)
 
+
 class DigitalMixin(Declarative):
 
     # Used to properly configure data storage.
@@ -208,9 +210,6 @@ class CounterMixin(Declarative):
 
     # Used to properly configure data storage.
     dtype = d_(Str('double')).tag(metadata=True)
-
-    def _get_active(self):
-        return True
 
 
 class OutputMixin(Declarative):
