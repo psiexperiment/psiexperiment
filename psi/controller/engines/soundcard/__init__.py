@@ -1,3 +1,5 @@
+
+
 import logging
 log = logging.getLogger(__name__)
 
@@ -84,6 +86,7 @@ class SoundcardHardwareAOChannel(HardwareAOChannel):
     def _get_fs(self):
         return self.engine.fs
 
+
 class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
 
     #: Must be a valid device name as visible to sounddevice. To get a list of
@@ -104,6 +107,13 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
     _hw_ai_buffer = Value()
     _hw_ao_buffer = Dict()
 
+    #: Mapping of output channel name (which is used by the generic
+    #: psiexperiment API to refer to individual channels) to the channel number
+    #: in the port audio stream. Used internally to determine which channel is
+    #: provided to the portaudio library. In the underlying sound libraries,
+    #: channel numbering starts at 1.
+    _ao_channel_map = Dict()
+
     #: Total samples read from the portaudio ringbuffer.
     _total_samples_read = Int()
 
@@ -118,6 +128,11 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
     #: `Enum` with a value sets the default.
     fs = Enum(44100, 48000, 96000, 192000)(96000)
 
+    #: Initial timestamp of the stream when it's first started (apparently the
+    #: behavior of the stream start time is undefined, so we just need to
+    #: capture this and then subtract from calls to `get_ts`).
+    t0 = Float()
+
     def configure(self, active=True):
         self._data = []
         log.info('Initializing sound card %s', self.device_name)
@@ -128,6 +143,9 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
 
         ai_chan_number = [c.channel for c in ai_channels]
         ao_chan_number = [c.channel for c in ao_channels]
+
+        # Create mapping of channel name to input channel.
+        self._ao_channel_map = {c.name: i+1 for i, c in enumerate(ao_channels)}
 
         if ai_channels and ao_channels:
             self._stream = rtmixer.MixerAndRecorder(
@@ -190,13 +208,12 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
             samples = np.frombuffer(self._hw_ai_buffer.read(), dtype='float32')
             samples.shape = -1, n_channels
 
-            data = PipelineData(samples.T, fs=96000, s0=self._total_samples_read)
-            data /= sf
+            data = PipelineData(samples.T, fs=self.fs, s0=self._total_samples_read)
+            data /= sf[..., np.newaxis]
             for channel_name, s, cb in self._callbacks.get('ai', []):
                 cb(data[s])
 
             self._total_samples_read += len(samples)
-            log.error('Total: %d Read: %d', self._total_samples_read, self._samples_to_read)
             if self._samples_to_read > 0:
                 if self._total_samples_read > self._samples_to_read:
                     cancel_action = self._stream.cancel(self._actions['hw_ai'])
@@ -273,11 +290,21 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
             self.stop()
 
     def play(self, data, channel_names, start=0, allow_belated=True):
-        i = self._get_channel_slice('hw_ao', channel_names)
+        if isinstance(channel_names, str):
+            channel_names = [channel_names]
+            if data.ndim != 2:
+                data = data[np.newaxis]
+        if data.ndim != 2:
+            raise ValueError('Data must be 2D when providing list of channels')
+        i = [self._ao_channel_map[name] for name in channel_names]
         if len(i) != len(data):
             raise ValueError('Number of channels does not match data shape')
         buffer = data.astype('float32').T.tobytes()
-        return self._stream.play_buffer(buffer, channels=i)
+        return self._stream.play_buffer(buffer, start=start, channels=i)
+
+    def stop_action(self, action):
+        cancel_action = self._stream.cancel(action)
+        log.error(cancel_action)
 
     #: Size of buffer (in seconds). This defines how much data is pregenerated
     #: for the buffer before starting acquisition. This is important because
@@ -292,8 +319,8 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
             self._hw_ao_callback(channel)
         for thread in self._tasks.values():
             thread.start()
-        log.error('Starting stream')
         self._stream.start()
+        self.t0 = self._stream.time
 
     def stop(self):
         if not self._configured:
@@ -309,7 +336,7 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
 
     def get_ts(self):
         try:
-            return self._stream.time
+            return self._stream.time - self.t0
         except Exception as e:
             log.exception(e)
             return np.nan
