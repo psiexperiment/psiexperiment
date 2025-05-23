@@ -532,6 +532,8 @@ class EditableTable(RawWidget):
     def _get_data(self, row_index, column_index):
         try:
             value = self.get_data(row_index, column_index)
+            if value is None:
+                return
             column = self.get_columns()[column_index]
             formatter = self.column_info.get(column, {}).get('to_string', str)
             return formatter(value)
