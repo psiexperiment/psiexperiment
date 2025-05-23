@@ -17,7 +17,7 @@ from .plugin import DataPlugin
 from .sinks.api import ConfigStore
 
 
-def set_base_path(event):
+def set_base_path(event, cleanup=True):
     base_path = event.parameters['base_path']
     is_temp = event.parameters['is_temp']
 
@@ -33,7 +33,7 @@ def set_base_path(event):
     elif len(list(base_path.iterdir())) != 0:
         raise IOError('Base path exists and it is not empty')
 
-    if is_temp:
+    if is_temp and cleanup:
         atexit.register(shutil.rmtree, base_path)
 
     data.set_base_path(base_path, is_temp)

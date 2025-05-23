@@ -1,0 +1,16 @@
+import atexit
+import shutil
+
+from atom.api import Enum
+
+from psi.application import exception_handler
+from psi.data.api import Sink
+
+
+class Logger(Sink):
+
+    def set_base_path(self, base_path, is_temp):
+        # Registers an atexit handler to copy the logfile that was generated to the experiment folder.
+        dest_log_file = base_path / 'experiment_log.txt'
+        src_log_file = exception_handler.logfile
+        atexit.register(shutil.copy, src_log_file, dest_log_file)
