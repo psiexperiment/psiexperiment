@@ -110,10 +110,12 @@ def connect_trigger(event):
         log.info('No channels are active.')
         return
 
-    # If only one channel is active, we don't have any sync issues.
+    # If only one channel is active, we don't have any sync issues. Ensure
+    # master engine is set properly.
     if len(channels) == 1:
         log.info('Only one channel active. Disabling start trigger.')
         channels[0].start_trigger = ''
+        controller._master_engine = channels[0].engine
         return
 
     # At least with the NI hardware I'm familiar with, counter channels require
@@ -1067,6 +1069,7 @@ class NIDAQEngine(Engine):
     ao_fs = Typed(float).tag(metadata=True)
     do_fs = Typed(float).tag(metadata=True)
     ai_fs = Typed(float).tag(metadata=True)
+    ci_fs = Typed(float).tag(metadata=True)
 
     # This defines the function for the clock that synchronizes the tasks.
     sample_time = Callable()
@@ -1128,6 +1131,8 @@ class NIDAQEngine(Engine):
             self.sample_time = self.ao_sample_time
         elif hw_ai_channels:
             self.sample_time = self.ai_sample_time
+        elif hw_ci_channels:
+            self.sample_time = self.ci_sample_time
 
         # Configure task done events so that we can fire a callback if
         # acquisition is done. This does not seem to be working the way I want
@@ -1190,6 +1195,7 @@ class NIDAQEngine(Engine):
         task._properties['sf'] = 1
         self._tasks['hw_ci_clk'] = clk_task
         self._tasks['hw_ci'] = task
+        self.ci_fs = task._properties['sample clock rate']
 
     def configure_hw_ao(self, channels):
         '''
@@ -1510,10 +1516,10 @@ class NIDAQEngine(Engine):
 
     def start(self):
         if not self._configured:
-            log.debug('Tasks were not configured yet')
+            log.debug('Tasks for engine %s were not configured yet', self.name)
             self.configure()
 
-        log.debug('Reserving NIDAQmx task resources')
+        log.debug('Reserving NIDAQmx task resources for engine %s', self.name)
         for task in self._tasks.values():
             mx.DAQmxTaskControl(task, mx.DAQmx_Val_Task_Commit)
 
@@ -1522,9 +1528,9 @@ class NIDAQEngine(Engine):
         if 'hw_do' in self._tasks:
             self.hw_do_callback(self._get_hw_do_space_available())
 
-        log.debug('Starting NIDAQmx tasks')
+        log.debug('Starting NIDAQmx tasks for engine %s', self.name)
         for task in self._tasks.values():
-            log.info('Starting task {}'.format(task._name))
+            log.info('Starting task %s', task._name)
             mx.DAQmxStartTask(task)
 
     def stop(self):
@@ -1542,6 +1548,15 @@ class NIDAQEngine(Engine):
             mx.DAQmxClearTask(task)
         self._callbacks = {}
         self._configured = False
+
+    def ci_sample_clock(self):
+        task = self._tasks['hw_ci']
+        result = ctypes.c_uint64()
+        mx.DAQmxGetReadTotalSampPerChanAcquired(task, result)
+        return result.value
+
+    def ci_sample_time(self):
+        return self.ci_sample_clock()/self.ci_fs
 
     def ai_sample_clock(self):
         task = self._tasks['hw_ai']
