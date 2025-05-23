@@ -203,6 +203,8 @@ class NIDAQHardwareCIAngPosEncoderChannel(NIDAQGeneralMixin,
     The counters on M-series cards (e.g., 6221) do not have internal
     clocks and must be provided with an external clock. Another counter on the
     card typically makes a good sample clock.
+
+    FOr the M-series cards, we cannot set reference clock to the PXI chassis.
     '''
     #: PFI input connected to channel A of the encoder
     terminal_A = d_(Str()).tag(metadata=True)
@@ -588,6 +590,7 @@ def setup_hw_ci(channel, callback_duration, callback, task_name='hw_ci'):
                                    channel.pulses_per_revolution, 0, None)
     mx.DAQmxSetCIEncoderAInputTerm(task, channel.channel, channel.terminal_A)
     mx.DAQmxSetCIEncoderBInputTerm(task, channel.channel, channel.terminal_B)
+
     mx.DAQmxCfgSampClkTiming(task, f'{channel.clock_channel}InternalOutput',
                              channel.fs, mx.DAQmx_Val_Rising,
                              mx.DAQmx_Val_ContSamps, 1000)
