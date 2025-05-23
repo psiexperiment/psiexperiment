@@ -425,8 +425,10 @@ class ControllerPlugin(Plugin):
 
         log.debug('Starting engines')
         for engine in self._engines.values():
-            if engine is not self._master_engine:
-                engine.start()
+            # Check to see if engine is being used
+            if engine.get_channels():
+                if engine is not self._master_engine:
+                    engine.start()
         self._master_engine.start()
         self.engines_running = True
         self.invoke_actions('engines_started')
@@ -441,8 +443,9 @@ class ControllerPlugin(Plugin):
             timer.stop()
             del self._timers[name]
         for engine in self._engines.values():
-            log.debug('Stopping engine %r', engine)
-            engine.stop()
+            if engine.get_channels():
+                log.debug('Stopping engine %r', engine)
+                engine.stop()
         self.engines_running = False
         self.invoke_actions('engines_stopped')
 
