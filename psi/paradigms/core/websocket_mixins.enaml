@@ -9,11 +9,14 @@ import re
 import threading
 from urllib.parse import urlparse
 
-from atom.api import Callable, Property, Str, Typed, Value
+from atom.api import Callable, Property, Str, Typed, Value, set_default
 from enaml.application import deferred_call
 from enaml.workbench.api import Extension, Plugin
 from enaml.workbench.core.api import Command
+
 import websockets
+from websockets.asyncio.server import serve
+from websockets.asyncio.client import connect
 
 from psi.controller.api import EventLogger, ExperimentAction, ExperimentEvent
 from psi.core.enaml.api import ExperimentManifest
@@ -116,12 +119,17 @@ class WebsocketServer:
     def __init__(self, plugin):
         self.plugin = plugin
         self.clients = {}
+        self.plugin.loop.run_until_complete(self.start_server())
+        self.plugin.listening.set()
+        self.plugin.loop.run_until_complete(self.send_handler())
+        self.plugin.listening.clear()
 
-        host, port = urlparse(plugin.uri).netloc.split(':')
-        self.ws = websockets.serve(self.connect, host, port, loop=plugin.loop)
-        plugin.loop.run_until_complete(self.ws)
-        log.info(f'Websocket server listening on %s', plugin.uri)
-        plugin.loop.run_until_complete(self.send_handler())
+    async def start_server(self):
+        host, port = urlparse(self.plugin.uri).netloc.split(':')
+        self.ws = await serve(self.connect, host, port)
+        port = self.ws.sockets[0].getsockname()[1]
+        self.plugin.connected_uri = f'ws://{host}:{port}'
+        log.info(f'Server started on {self.plugin.connected_uri}')
 
     async def send_handler(self):
         while True:
@@ -154,7 +162,7 @@ class WebsocketClient:
 
     def __init__(self, plugin):
         self.plugin = plugin
-        self.ws = plugin.loop.run_until_complete(websockets.connect(plugin.uri, loop=plugin.loop))
+        self.ws = plugin.loop.run_until_complete(connect(plugin.uri))
         self.comm = ClientMessageHandler(self.ws, plugin.send_queue,
                                          plugin.recv_cb, plugin.stop)
         plugin.connected()
@@ -166,7 +174,9 @@ class WebsocketClient:
 class BaseWebsocketPlugin(Plugin):
 
     loop = Value()
-    uri = Str('ws://localhost:8765')
+
+    uri = Str()
+
     send_queue = Typed(asyncio.Queue, args=())
     thread = Typed(threading.Thread)
     stop = Typed(asyncio.Event)
@@ -218,9 +228,24 @@ class WebsocketServerPlugin(BaseWebsocketPlugin):
     '''
     Sets up a server
     '''
+    #: Set port number to 0 to let the OS dynamically select a free port.
+    uri = set_default('ws://localhost:0')
+
+    #: The actual URI that was used for connection (i.e., if we set port to 0,
+    #: then port is automatically selected)'
+    connected_uri = Str()
+
+    #: Event that's set while server is accepting connections from clients.
+    listening = Value()
+
+    def _default_listening(self):
+        return threading.Event()
+
     def start_thread(self):
         self.thread = threading.Thread(target=WebsocketServer, args=(self,), daemon=True)
         self.thread.start()
+        self.listening.wait()
+        return self.connected_uri
 
     def send_message(self, message, client_id='broadcast'):
         self._send_message(json.dumps([client_id, message]))
@@ -306,4 +331,5 @@ enamldef WebsocketClientManifest(BaseWebsocketManifest): manifest:
     factory = lambda: WebsocketClientPlugin(**kwargs)
     attr kwargs = {
         'recv_cb': partial(core_command_cb, workbench),
+        'uri': os.environ['WEBSOCKETS_URI'],
     }
