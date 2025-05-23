@@ -574,11 +574,18 @@ class Edges(EventInput):
     #: Edges to detect.
     detect = d_(Enum('rising', 'falling', 'both')).tag(metadata=True)
 
+    #: If 0, pipleine is updated continuously even if no events are detected.
+    #: This can be important in the case of downstream code that compute the
+    #: rate of an event over time. For performance reasons, it's better to
+    #: change from the default of 0 unless otherwise needed.
+    min_events = d_(Int(0)).tag(metadata=True)
+
     def configure_callback(self):
         cb = super().configure_callback()
         return pipeline.edges(min_samples=self.debounce,
                               initial_state=self.initial_state, target=cb,
-                              fs=self.fs, detect=self.detect).send
+                              fs=self.fs, detect=self.detect,
+                              min_events=self.min_events).send
 
 
 class EventsToInfo(EventInput):

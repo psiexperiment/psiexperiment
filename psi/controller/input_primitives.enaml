@@ -20,3 +20,4 @@ enamldef ADC(IIRFilter): acd:
                 name << acd.name + '_digital'
                 debounce = 2
                 detect = 'both'
+                min_events = 1
