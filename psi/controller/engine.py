@@ -237,10 +237,13 @@ class Engine(PSIContribution):
     def get_buffer_size(self, channel_name):
         raise NotImplementedError
 
-    def update_hw_ao_multiple(self, offsets, channel_names):
+    def update_hw_ao_multiple(self, channel_names, offsets):
         raise NotImplementedError
 
-    def update_hw_ao(self, offsets, channel_name, method):
+    def update_hw_ao(self, channel_name, offset, method):
+        raise NotImplementedError
+
+    def update_hw_do(self, channel_name, offset, method):
         raise NotImplementedError
 
     def clone(self, channel_names=None):
