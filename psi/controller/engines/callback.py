@@ -24,7 +24,12 @@ class ChannelSliceCallbackMixin(BaseCallbackMixin):
         if channel_names is None:
             return Ellipsis
 
-        names = self._tasks[task_name]._properties['names']
+        try:
+            names = self._tasks[task_name]._properties['names']
+        except KeyError as e:
+            valid_keys = ', '.join(self._tasks.keys())
+            raise ValueError('No task named %s. Valid tasks are %s.', task_name, valid_keys) from e
+
         if isinstance(channel_names, str):
             # We want the channel slice to preserve dimensiality (i.e, we don't
             # want to drop the channel dimension from the PipelineData object),
