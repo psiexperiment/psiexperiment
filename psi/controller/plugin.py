@@ -584,7 +584,7 @@ class ControllerPlugin(Plugin):
             (self.experiment_state == 'initialized')
         results = []
         for action in self._actions:
-            log.debug(f'... checking {action}')
+            log.trace(f'... checking {action}')
             if action.match(context, ignore_missing):
                 result = invoke_action(self.core, action, event_name,
                                        timestamp, kw, skip_errors)
