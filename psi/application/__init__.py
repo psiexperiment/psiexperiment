@@ -163,6 +163,7 @@ def configure_logging(level_console=None, level_file=None, filename=None,
 
     if filename is not None and level_file is not None:
         file_handler = logging.FileHandler(filename, 'w', 'UTF-8')
+        formatter = logging.Formatter(fmt, style='{')
         file_handler.setFormatter(formatter)
         file_handler.setLevel(level_file)
         log.addHandler(file_handler)
