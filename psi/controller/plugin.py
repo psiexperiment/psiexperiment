@@ -339,7 +339,7 @@ class ControllerPlugin(Plugin):
         elif source_name in self._channels:
             source = self._channels[source_name]
         else:
-            m = "Unknown source {}".format(source_name)
+            m = "Unknown source {}. Cannot configure {}.".format(source_name, input_name)
             raise ValueError(m)
 
         i = self._inputs[input_name]
