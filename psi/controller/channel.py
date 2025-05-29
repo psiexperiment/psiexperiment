@@ -43,31 +43,36 @@ class Channel(PSIContribution):
     #: Is channel active during experiment?
     active = Property().tag(metadata=True)
 
-    # SI unit (e.g., V)
+    #: SI unit (e.g., V)
     unit = d_(Str()).tag(metadata=True)
 
-    # Number of samples to acquire before task ends. Typically will be set to
-    # 0 to indicate continuous acquisition.
+    #: Number of samples to acquire before task ends. Typically will be set to
+    #: 0 to indicate continuous acquisition.
     samples = d_(Int(0)).tag(metadata=True)
 
-    # Parent engine (automatically derived by Enaml hierarchy)
+    #: Parent engine (automatically derived by Enaml hierarchy)
     engine = Property().tag(metadata=True)
 
-    # Calibration of channel
+    #: Calibration of channel
     calibration = d_(Typed(BaseCalibration, factory=FlatCalibration.unity)) \
         .tag(metadata=True)
 
-    # Can the user modify the channel calibration?
+    #: Can the user modify the channel calibration?
     calibration_user_editable = d_(Bool(False)).tag(metadata=True)
 
     filter_delay = d_(Float(0).tag(metadata=True))
 
-    # Number of channels in the stream. This is for multichannel input that is
-    # best processed as a group (e.g., from the Biosemi).
+    #: Number of channels in the stream. This is for multichannel input that is
+    #: best processed as a group (e.g., from the Biosemi).
     n_channels = d_(Int(1)).tag(metadata=True)
 
-    # Labels for channels
+    #: Labels for channels
     channel_labels = d_(List()).tag(metadata=True)
+
+    #: List of supported devices (e.g., speaker, measurement_microphone,
+    #: generic_microphone, etc.). This is generally used by cftscal to generate
+    #: lists of channels that can be used for particular purposes.
+    supported_devices = d_(List()).tag(metadata=True)
 
     def _get_channel(self):
         return self
