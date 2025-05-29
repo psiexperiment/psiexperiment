@@ -122,3 +122,12 @@ class DataPlugin(PSIPlugin):
             return self._sinks[sink_name]
         except KeyError:
             raise AttributeError(f'Sink "{sink_name}" not available')
+
+    def find_source(self, source_name):
+        for sink in self._sinks.values():
+            if hasattr(sink, 'get_source'):
+                try:
+                    return sink.get_source(source_name)
+                except:
+                    continue
+        raise AttributeError(f'Could not find source "{source_name}"')
