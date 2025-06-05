@@ -169,6 +169,8 @@ class ControllerPlugin(Plugin):
     context = Typed(Plugin)
     data = Typed(Plugin)
 
+    _lock = Typed(threading.Lock)
+
     # We should not respond to changes during the course of a trial. These
     # flags indicate changes or requests from the user are pending and should
     # be processed when the opportunity arises (e.g., at the end of the trial).
@@ -208,6 +210,9 @@ class ControllerPlugin(Plugin):
     _plugin_actions = Typed(list, {})
     _registered_actions = Typed(list, {})
     _actions = Property()
+
+    def _default__lock(self):
+        return threading.Lock()
 
     def _get__actions(self):
         return self._registered_actions + self._plugin_actions
@@ -411,48 +416,48 @@ class ControllerPlugin(Plugin):
         self.invoke_actions('io_configured')
 
     def configure_engines(self):
-        log.debug('Configuring engines')
-        for engine in self._engines.values():
-            # Check to see if engine is being used
-            if engine.get_channels():
-                engine.configure()
-                cb = partial(self.invoke_actions, '{}_end'.format(engine.name))
-                engine.register_done_callback(cb)
-        self.invoke_actions('engines_configured')
+        with self._lock:
+            for engine in self._engines.values():
+                # Check to see if engine is being used
+                if engine.get_channels():
+                    engine.configure()
+                    cb = partial(self.invoke_actions, '{}_end'.format(engine.name))
+                    engine.register_done_callback(cb)
+            self.invoke_actions('engines_configured')
 
     def start_engines(self):
-        if self.engines_running:
-            raise ValueError('Engines already running')
-
-        log.debug('Starting engines')
-        for engine in self._engines.values():
-            # Check to see if engine is being used
-            if engine.get_channels():
-                if engine is not self._master_engine:
-                    engine.start()
-        self._master_engine.start()
-        self.engines_running = True
-        self.invoke_actions('engines_started')
+        with self._lock:
+            if self.engines_running:
+                raise ValueError('Engines already running')
+            for engine in self._engines.values():
+                # Check to see if engine is being used
+                if engine.get_channels():
+                    if engine is not self._master_engine:
+                        engine.start()
+            self._master_engine.start()
+            self.engines_running = True
+            self.invoke_actions('engines_started')
 
     def stop_engines(self):
-        if not self.engines_running:
-            raise ValueError('Engines not running')
-
-        for name, timer in list(self._timers.items()):
-            log.debug('Stopping timer %s', name)
-            timer.timeout.disconnect()
-            timer.stop()
-            del self._timers[name]
-        for engine in self._engines.values():
-            if engine.get_channels():
-                log.debug('Stopping engine %r', engine)
-                engine.stop()
-        self.engines_running = False
-        self.invoke_actions('engines_stopped')
+        with self._lock:
+            if not self.engines_running:
+                raise ValueError('Engines not running')
+            for name, timer in list(self._timers.items()):
+                log.debug('Stopping timer %s', name)
+                timer.timeout.disconnect()
+                timer.stop()
+                del self._timers[name]
+            for engine in self._engines.values():
+                if engine.get_channels():
+                    log.debug('Stopping engine %r', engine)
+                    engine.stop()
+            self.engines_running = False
+            self.invoke_actions('engines_stopped')
 
     def reset_engines(self):
-        for engine in self._engines.values():
-            engine.reset()
+        with self._lock:
+            for engine in self._engines.values():
+                engine.reset()
 
     def get_output(self, output_name):
         try:
@@ -631,14 +636,16 @@ class ControllerPlugin(Plugin):
             raise
 
     def stop_experiment(self, skip_errors=False, kw=None):
-        deferred_call(lambda: setattr(self, 'experiment_state', 'stopped'))
         if self.experiment_state not in ('running', 'paused'):
             log.debug('Nothing to do since experiment is not running. Returning.')
             return []
+        # Set this flag before invoking actions since some of the actions may
+        # trigger a circular loop that results in `stop_experiment` getting
+        # called again.
+        self.experiment_state = 'stopped'
         if kw is None:
             kw = {}
-        return self.invoke_actions('experiment_end', self.get_ts(),
-                                   skip_errors=skip_errors, kw=kw)
+        return self.invoke_actions('experiment_end', self.get_ts(), skip_errors=skip_errors, kw=kw)
 
     def get_ts(self):
         return self._master_engine.get_ts()
