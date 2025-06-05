@@ -5,8 +5,8 @@ import threading
 
 import numpy as np
 
-from atom.api import (Str, Float, Bool, observe, Property, Int, List, Typed,
-                      Value)
+from atom.api import (observe, Str, Float, Bool, observe, Property, Int, List,
+                      Typed, Value)
 from enaml.core.api import Declarative, d_
 
 from psi.core.enaml.api import PSIContribution
@@ -86,6 +86,8 @@ class Engine(PSIContribution):
 
     def initialized(self):
         self.channels = [c for c in self.children if isinstance(c, Channel)]
+        for c in self.channels:
+            c.engine = self
 
     def _default_lock(self):
         return threading.RLock()
@@ -162,7 +164,7 @@ class Engine(PSIContribution):
                              f'Valid channels are {valid}.')
 
     def remove_channel(self, channel):
-        channel.set_parent(None)
+        channel.engine = None
         self.channels.remove(channel)
 
     def configure(self):
@@ -240,18 +242,22 @@ class Engine(PSIContribution):
     def update_hw_ao_multiple(self, channel_names, offsets):
         raise NotImplementedError
 
-    def update_hw_ao(self, channel_name, offset, method):
-        raise NotImplementedError
+    def update_hw_ao(self, channel_name, offset, method=None):
+        pass
+        #raise NotImplementedError
 
-    def update_hw_do(self, channel_name, offset, method):
+    def update_hw_do(self, channel_name, offset, method=None):
         raise NotImplementedError
 
     def clone(self, channel_names=None):
         '''
         Return a copy of this engine with specified channels included
         This is intended as a utility function to assist various routines that
-        may need to do a quick operation before starting the experiment. For
-        example, calibration may only need to run a subset of the channels.
+        may need to do a quick operation before starting the experiment.
+
+        The reason why this is necessary is to avoid interactions between
+        configuring the channels for calibration and configuring the channels
+        for the experiment.
 
         Parameters
         ----------
@@ -260,13 +266,17 @@ class Engine(PSIContribution):
             will be cloned.
         '''
         new = copy_declarative(self)
-        for channel in new.children[:]:
-            channel.set_parent(None)
+        for channel in new.channels:
+            print(f'removing {channel}')
+            new.remove_channel(channel)
+
         if channel_names is None:
             channel_names = [c.name for c in self.get_channels(active=False)]
+
         if channel_names is not None:
             for channel_name in channel_names:
                 channel = self.get_channel(channel_name)
                 new_channel = copy_declarative(channel, parent=new,
                                                exclude=['inputs', 'outputs'])
+                new.add_channel(new_channel)
         return new
