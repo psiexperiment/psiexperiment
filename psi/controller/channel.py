@@ -4,7 +4,8 @@ log = logging.getLogger(__name__)
 import numpy as np
 
 from atom.api import (
-    Bool, Float, Int, List, observe, Property, Tuple, Typed, set_default, Str
+    Bool, Float, ForwardTyped, Int, List, observe, Property, Tuple, Typed,
+    set_default, Str
 )
 from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
@@ -23,6 +24,12 @@ class ChannelOutOfRange(ValueError):
         self.db = db = util.db(expected_sf, max_sf)
         mesg = f'Requested level exceeds max output of channel by {db:.1f} dB'
         super().__init__(mesg)
+
+
+def engine_class():
+    # Needed to support the ForwardTyped declaration of Engine
+    from .engine import Engine
+    return Engine
 
 
 class Channel(PSIContribution):
@@ -50,8 +57,10 @@ class Channel(PSIContribution):
     #: 0 to indicate continuous acquisition.
     samples = d_(Int(0)).tag(metadata=True)
 
-    #: Parent engine (automatically derived by Enaml hierarchy)
-    engine = Property().tag(metadata=True)
+    #: Engine channel belongs to. This is typically determined by the Enaml
+    #: hierarchy in the IOManifest file and is set in `Engine.initialized`, but
+    #: can be set explicitly (e.g., via `Engine.clone`)
+    engine = ForwardTyped(engine_class).tag(metadata=True)
 
     #: Calibration of channel
     calibration = d_(Typed(BaseCalibration, factory=FlatCalibration.unity)) \
@@ -60,6 +69,7 @@ class Channel(PSIContribution):
     #: Can the user modify the channel calibration?
     calibration_user_editable = d_(Bool(False)).tag(metadata=True)
 
+    #: Delay, in seconds, of filter that needs to be comepnsated for
     filter_delay = d_(Float(0).tag(metadata=True))
 
     #: Number of channels in the stream. This is for multichannel input that is
@@ -93,12 +103,6 @@ class Channel(PSIContribution):
         super().__init__(*args, **kwargs)
         self.members()['name'].tag(metadata=True)
 
-    def _get_engine(self):
-        return self.parent
-
-    def _set_engine(self, engine):
-        self.set_parent(engine)
-
     def configure(self):
         pass
 
@@ -127,17 +131,13 @@ class HardwareMixin(Declarative):
 
     fs = d_(Float()).tag(metadata=True)
 
-    def get_samples(self, offset, samples, out=None):
+    def get_samples(self, offset, samples, out):
         '''
         Generate samples starting at offset
         '''
-        if out is None:
-            out = np.empty(samples, dtype=self.dtype)
         n_outputs = len(self.outputs)
-        waveforms = np.empty((n_outputs, samples))
-        for output, waveform in zip(self.outputs, waveforms):
-            output.get_samples(offset, samples, out=waveform)
-        return np.sum(waveforms, axis=0, out=out)
+        for output in self.outputs:
+            output.get_samples(offset, samples, out=out)
 
 
 class SoftwareMixin(Declarative):
@@ -223,7 +223,6 @@ class CounterMixin(Declarative):
 class OutputMixin(Declarative):
 
     outputs = List().tag(metadata=True)
-    buffer_size = Property().tag(metadata=True)
 
     def _get_active(self):
         return len(self.outputs) > 0
@@ -249,9 +248,6 @@ class OutputMixin(Declarative):
                               name=name)
         self.add_output(o)
         return o
-
-    def _get_buffer_size(self):
-        return self.engine.get_buffer_size(self.name)
 
 
 class HardwareCOChannel(CounterMixin, OutputMixin, HardwareMixin, Channel):
