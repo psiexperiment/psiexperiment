@@ -20,15 +20,13 @@ class ChannelSliceCallbackMixin(BaseCallbackMixin):
     #: Dictionary of callbacks
     _callbacks = Dict()
 
+    #: List of channel names for each task_name
+    _channel_names = Dict()
+
     def _get_channel_slice(self, task_name, channel_names):
         if channel_names is None:
             return Ellipsis
-
-        try:
-            names = self._tasks[task_name]._properties['names']
-        except KeyError as e:
-            valid_keys = ', '.join(self._tasks.keys())
-            raise ValueError('No task named %s. Valid tasks are %s.', task_name, valid_keys) from e
+        names = self._channel_names[task_name]
 
         if isinstance(channel_names, str):
             # We want the channel slice to preserve dimensiality (i.e, we don't
