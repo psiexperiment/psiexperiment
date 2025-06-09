@@ -235,8 +235,7 @@ class EpochOutput(BaseAnalogOutput):
         self.deactivate(sample)
 
     def get_next_samples(self, samples):
-        # Pad with zero
-        return self.source.next(waveform_samples)
+        return self.source.next(samples)
 
 
 class QueuedEpochOutput(EpochOutput):
