@@ -5,11 +5,14 @@ os.environ['SD_ENABLE_ASIO'] = '1'
 import logging
 log = logging.getLogger(__name__)
 
+import sys
 import time
-from threading import Event
+from collections import deque
+from threading import Thread
 
 from atom.api import (Bool, Dict, Enum, Float, List, Int, Property, Str,
                       FixedTuple, Tuple, Typed, Value)
+from enaml.application import deferred_call
 from enaml.core.api import d_
 import numpy as np
 
@@ -19,6 +22,35 @@ from psi.controller.api import (Engine, HardwareAIChannel, HardwareAOChannel)
 from psi.controller.engines.callback import ChannelSliceCallbackMixin
 
 from .playrec import PlayRec
+
+
+class SDAIThread(Thread):
+
+    def __init__(self, fs, queue, sf, callbacks, poll_interval=0.01):
+        super().__init__(daemon=True)
+        self.fs = fs
+        self.queue = queue
+        self.callbacks = callbacks
+        self.sf = sf
+        self.poll_interval = poll_interval
+
+    def run(self):
+        # This is a rather complicated piece of code because we need to
+        # override the threading module's built-in exception handling as well
+        # as defe the exception back to the main thread (where it will properly
+        # handle exceptions). If we call psi.application.exception_handler
+        # directly from the thread, it will not have access to the application
+        # instance (or workspace).
+        try:
+            while True:
+                while self.queue:
+                    data, s0 = self.queue.popleft()
+                    data = PipelineData(data / self.sf[..., np.newaxis], fs=self.fs, s0=s0)
+                    for channel_name, s, cb in self.callbacks.get('ai', []):
+                        cb(data[s])
+                time.sleep(self.poll_interval)
+        except:
+            deferred_call(sys.excepthook, *sys.exc_info())
 
 
 def halt_on_error(f):
@@ -116,8 +148,12 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
     _total_samples_written = Int()
 
     #: Samples to discard from input to correct for delays between output and
-    #: input. This is dependent on block size and other things.
-    _samples_to_discard = Int()
+    #: input. This is dependent on block size and other things. See
+    #: measure_delay module.
+    latency_samples = d_(Int(0))
+
+    #: Tracks remaining samples to discard to correct for latency.
+    _samples_to_discard = Int(0)
 
     #: Factor to scale analog inputs by to correct for gain and other factors.
     _hw_ai_sf = Value()
@@ -134,6 +170,9 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
     #: behavior of the stream start time is undefined, so we just need to
     #: capture this and then subtract from calls to `get_ts`).
     t0 = Float()
+
+    hw_ai_queue = Typed(deque)
+    hw_ai_thread = Typed(Thread)
 
     def configure(self, active=True):
         log.info('Initializing sound card %s', self.device_name)
@@ -154,6 +193,14 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
             self._configure_ao_cb(ao_channels)
 
         self._stream = PlayRec(**pr_kw)
+
+        # Pass in callbacks by reference so that the thread has updated info on
+        # all the callbacks as they are created and added.
+        self.hw_ai_queue = deque()
+        self.hw_ai_thread = SDAIThread(self.fs, self.hw_ai_queue,
+                                       self._hw_ai_sf, self._callbacks)
+        self.hw_ai_thread.start()
+
         self._configured = True
         super().configure()
 
@@ -165,7 +212,7 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
         # acquire continuously.
         self._samples_to_read = max(c.samples for c in ai_channels)
         self._channel_names['hw_ai'] = [c.name for c in ai_channels]
-        self._samples_to_discard = 4064
+        self._samples_to_discard = self.latency_samples
 
     def _hw_ai_callback(self, offset, samples, data):
         # Process the incoming data and push through the pipeline.
@@ -181,9 +228,7 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
         if s0 != self._total_samples_read:
             raise ValueError
 
-        data = PipelineData(data, fs=self.fs, s0=s0) / self._hw_ai_sf[..., np.newaxis]
-        for channel_name, s, cb in self._callbacks.get('ai', []):
-            deferred_call(cb, data[s])
+        self.hw_ai_queue.append((data, s0))
         self._total_samples_read += samples
 
         # Check whether we are supposed to stop after a certain number of
@@ -202,7 +247,7 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
 
     def _hw_ao_callback(self, offset, samples, buffer):
         if offset != self._total_samples_written:
-            raise ValueError
+            raise ValueError(f'Offset alignment issue. Requested data at {offset}. Expected {self._total_samples_written}.')
 
         for i, channel in enumerate(self._hw_ao_channels):
             channel.get_samples(offset, samples, buffer[i])

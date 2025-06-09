@@ -13,7 +13,24 @@ import sounddevice as sd
 class BaseCallbackContext:
 
     def __init__(self):
-        self.s0 = 0
+        self.ao_s0 = 0
+        self.ai_s0 = 0
+
+    def process_ao(self, outdata, samples):
+        buffer = np.zeros_like(outdata.T)
+        self.ao_cb(self.ao_s0, samples, buffer)
+        outdata[:] = buffer.T
+        self.ao_s0 += samples
+
+    def _process_ai_firstcall(self, indata, samples):
+        # Drop first input buffer since we are priming the output buffer on the first call.
+        self.process_ai = self._process_ai
+
+    def _process_ai(self, indata, samples):
+        self.ai_cb(self.ai_s0, samples, indata.T.copy())
+        self.ai_s0 += samples
+
+    process_ai = _process_ai_firstcall
 
     def __call__(self, *args):
         raise NotImplementedError
@@ -27,8 +44,7 @@ class RecordCallbackContext(BaseCallbackContext):
 
     def __call__(self, indata, samples, time, status):
         # Read the next segment to the input buffer
-        self.ai_cb(self.s0, samples, indata.T.copy())
-        self.s0 += samples
+        self.process_ai(indata, samples)
 
 
 class PlayCallbackContext(BaseCallbackContext):
@@ -39,8 +55,7 @@ class PlayCallbackContext(BaseCallbackContext):
 
     def __call__(self, outdata, samples, time, status):
         # Write the next segment to the output buffer
-        outdata[:] = self.ao_cb(samples)
-        self.s0 += samples
+        self.process_ao(outdata, samples)
 
 
 class PlayRecordCallbackContext(BaseCallbackContext):
@@ -51,12 +66,8 @@ class PlayRecordCallbackContext(BaseCallbackContext):
         self.ao_cb = ao_cb
 
     def __call__(self, indata, outdata, samples, time, status):
-        # Read the next segment to the input buffer
-        buffer = np.zeros_like(outdata.T)
-        self.ao_cb(self.s0, samples, buffer)
-        outdata[:] = buffer.T
-        self.ai_cb(self.s0, samples, indata.T.copy())
-        self.s0 += samples
+        self.process_ao(outdata, samples)
+        self.process_ai(indata, samples)
 
 
 class PlayRec:
@@ -145,54 +156,4 @@ class PlayRec:
 
     def stop(self):
         self.stream.stop()
-
-    def __del__(self):
-        if hasattr(self, 'stream'):
-            self.stream.close()
-
-
-def test_delay():
-    # This can be used to characterize the delays in the system
-    import time
-    import matplotlib.pyplot as plt
-    import numpy as np
-
-    fs = 96e3
-
-    data = []
-    signal = []
-
-    def ai_cb(s0, samples, d):
-        nonlocal data
-        data.append(d)
-
-    def ao_cb(s0, samples, buffer):
-        nonlocal signal
-        t = (np.arange(samples) + s0) / fs
-        w = 0.001 * np.sin(2 * np.pi * 1e3 * t)
-        w = np.zeros(samples)
-        if len(signal) == 0:
-            w[:10] = 1
-        signal.append(w)
-        buffer[0] = w
-        #return w[np.newaxis]
-
-    dev = PlayRec(fs, 'ASIO Fireface USB', [0, 12], [0], ai_cb, ao_cb)
-    dev.start()
-    time.sleep(0.5)
-    dev.stop()
-
-    data = np.concatenate(data, axis=-1)
-    signal = np.concatenate(signal, axis=-1)
-    loopback_delay = np.flatnonzero(data[0] > 0)[0]
-    #output_delay = np.flatnonzero(data[1] > 0.01)[0]
-    #print('Loopback delay samples: %d, mic input delay samples: %d', loopback_delay, output_delay)
-    print(loopback_delay, loopback_delay / fs)
-
-    plt.plot(data.T)
-    plt.plot(signal, 'k')
-    plt.show()
-
-
-if __name__ == '__main__':
-    test_delay()
+        self.stream.close()
