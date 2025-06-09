@@ -45,7 +45,7 @@ def add_default_options(parser):
                         help='Debug mode?')
     parser.add_argument('--debug-warning', default=False, action='store_true',
                         help='Show warnings?')
-    parser.add_argument('--debug-level-console', type=str, default='DEBUG',
+    parser.add_argument('--debug-level-console', type=str, default='INFO',
                         help='Logging level for console')
     parser.add_argument('--debug-level-file', type=str, default='INFO',
                         help='Logging level for file')
