@@ -10,7 +10,6 @@ from threading import Event
 
 from atom.api import (Bool, Dict, Enum, Float, List, Int, Property, Str,
                       FixedTuple, Tuple, Typed, Value)
-from enaml.application import deferred_call
 from enaml.core.api import d_
 import numpy as np
 
@@ -20,6 +19,7 @@ from psi.controller.api import (Engine, HardwareAIChannel, HardwareAOChannel)
 from psi.controller.engines.callback import ChannelSliceCallbackMixin
 
 from .playrec import PlayRec
+
 
 def halt_on_error(f):
     def wrapper(self, *args, **kwargs):
