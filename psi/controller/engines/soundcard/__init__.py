@@ -26,7 +26,7 @@ from .playrec import PlayRec
 
 class SDAIThread(Thread):
 
-    def __init__(self, fs, queue, sf, callbacks, poll_interval=0.01):
+    def __init__(self, fs, queue, sf, callbacks, poll_interval=0.001):
         super().__init__(daemon=True)
         self.fs = fs
         self.queue = queue
@@ -43,8 +43,17 @@ class SDAIThread(Thread):
         # instance (or workspace).
         try:
             while True:
+                data, s0_all = [], []
+                # Pull all pending data from queue and chunk it together before
+                # sending to downstream pipelines (to avoid falling behind with
+                # repeated calls to the callbacks).
                 while self.queue:
-                    data, s0 = self.queue.popleft()
+                    d, s0 = self.queue.popleft()
+                    data.append(d)
+                    s0_all.append(s0)
+                if len(data):
+                    data = np.concatenate(data, axis=-1)
+                    s0 = s0_all[0]
                     data = PipelineData(data / self.sf[..., np.newaxis], fs=self.fs, s0=s0)
                     for channel_name, s, cb in self.callbacks.get('ai', []):
                         cb(data[s])
