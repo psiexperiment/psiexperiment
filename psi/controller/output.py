@@ -401,23 +401,24 @@ class TimedTrigger(BufferedOutput):
     _stop = Int(0)
 
     def trigger(self, timestamp, duration):
-        log.error(f'Triggering at {timestamp} for {duration}')
         self._start = int(round(self.fs * timestamp))
         self._stop = self._start + int(round(self.fs * duration))
-        self.rebuffer(timestamp)
 
-    def get_next_samples(self, samples):
-        ttl = np.zeros(samples, dtype=self.dtype)
-        buffered_ub = self._buffer.get_samples_ub()
-        lb = int(np.clip(self._start - buffered_ub, 0, None))
-        ub = int(np.clip(self._stop - buffered_ub, 0, None))
-        ttl[..., lb:ub] = True
-        return ttl
+    def get_samples(self, offset, samples, out):
+        '''
+        Load TTL into buffer
+        '''
+        # Check to see if we need to do anythying.
+        if samples == 0:
+            return
+        if (offset + samples) < self._start:
+            return
+        if (offset + samples) > self._stop:
+            return
 
-    def rebuffer(self, time):
-        offset = int(round(time * self.fs))
-        self._buffer.invalidate_samples(offset)
-        self.engine.update_hw_do(self.channel.name, offset)
+        lb = self._start - offset
+        ub = self._stop - offset
+        out[lb:ub] += 1
 
 
 class Trigger(BaseOutput):
