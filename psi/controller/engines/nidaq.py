@@ -436,6 +436,7 @@ def hw_input_helper(cb, channels, discard, fs, channel_names, task, task_id,
             s0 = max(0, read_position - discard)
             data = PipelineData(data, fs=fs, s0=s0, channel=channel_names)
             cb(task, data)
+
     except mx.InvalidTaskError:
         log.info('NIDAQmx task ID %r exiting because engine halted', task)
     except EngineStoppedException:
@@ -1246,6 +1247,7 @@ class NIDAQEngine(ChannelSliceCallbackMixin, Engine):
                            '{}_hw_ai'.format(self.name))
         self._tasks['hw_ai'] = task
         self.ai_fs = task._properties['sample clock rate']
+        self._channel_names['hw_ai'] = task._properties['names']
 
     def configure_sw_ao(self, lines, expected_range, names=None,
                         initial_state=None):
