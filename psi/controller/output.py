@@ -79,6 +79,10 @@ class HardwareOutput(BaseOutput):
     # Can the user configure properties (such as the token) via the GUI?
     configurable = d_(Bool(True))
 
+    #: Datatype of output (double is usually good for analog outputs and bool
+    #: is good for digital outputs)
+    dtype = Str('double').tag(metadata=True)
+
     callbacks = List()
 
     #: Starting time of output
@@ -107,11 +111,7 @@ class HardwareOutput(BaseOutput):
         return self.channel.calibration
 
 
-class BufferedOutput(HardwareOutput):
-
-    #: Datatype of output (double is usually good for analog outputs and bool
-    #: is good for digital outputs)
-    dtype = Str('double').tag(metadata=True)
+class BaseAnalogOutput(HardwareOutput):
 
     # Starting offset of sample generation for source. Should be set by
     # subclasses as needed.
@@ -153,12 +153,18 @@ class BufferedOutput(HardwareOutput):
         raise NotImplementedError
 
 
-class BaseAnalogOutput(BufferedOutput):
+class NullOutput(BaseAnalogOutput):
+
+    def get_next_samples(self, samples):
+        return np.zeros(samples, dtype=self.dtype)
+
+
+class AnalogOutputWithSource(BaseAnalogOutput):
 
     #: This is managed by the manifest
     source = Typed(object).tag(metadata=True)
     source_md = Dict()
-    active = Bool(False).tag(metadata=True)
+    active = Bool(False)
     paused = Bool(False)
 
     def activate(self, offset):
@@ -183,6 +189,33 @@ class BaseAnalogOutput(BufferedOutput):
 
     def is_ready(self):
         return self.source is not None
+
+    def get_samples(self, offset, samples, out):
+        if not self.active or self.paused:
+            return
+        super().get_samples(offset, samples, out)
+
+
+class EpochOutput(AnalogOutputWithSource):
+
+    # TODO: clean this up. it's sort of hackish.
+    token = d_(Typed(Declarative)).tag(metadata=True)
+
+    def set_waveform(self, waveform):
+        self.source = FixedWaveform(self.fs, waveform)
+
+    def start_waveform(self, ts):
+        sample = round(int(self.fs * ts))
+        self.activate(sample)
+
+    def stop_waveform(self, ts):
+        sample = round(int(self.fs * ts))
+        self.deactivate(sample)
+
+    def get_next_samples(self, samples):
+        if self.source is None:
+            return np.zeros(samples)
+        return self.source.next(samples)
 
 
 class MUXOutput(HardwareOutput):
@@ -210,32 +243,6 @@ class MUXOutput(HardwareOutput):
         for output in self.outputs:
             s += output.get_next_samples(samples)
         return s
-
-
-class SimpleOutput(BufferedOutput):
-
-    def get_next_samples(self, samples):
-        return np.zeros(samples, dtype=self.dtype)
-
-
-class EpochOutput(BaseAnalogOutput):
-
-    # TODO: clean this up. it's sort of hackish.
-    token = d_(Typed(Declarative)).tag(metadata=True)
-
-    def set_waveform(self, waveform):
-        self.source = FixedWaveform(self.fs, waveform)
-
-    def start_waveform(self, ts):
-        sample = round(int(self.fs * ts))
-        self.activate(sample)
-
-    def stop_waveform(self, ts):
-        sample = round(int(self.fs * ts))
-        self.deactivate(sample)
-
-    def get_next_samples(self, samples):
-        return self.source.next(samples)
 
 
 class QueuedEpochOutput(EpochOutput):
@@ -351,8 +358,11 @@ class QueuedEpochOutput(EpochOutput):
 
 class ContinuousOutput(BaseAnalogOutput):
 
-    # TODO: clean this up. it's sort of hackish.
+    # TODO: clean this up. it's sort of hackish. Do we even need to
+    # differentiate between this and EpochOutput? 
     token = d_(Typed(Declarative)).tag(metadata=True)
+    active = Bool(False)
+    paused = Bool(False)
 
     def get_next_samples(self, samples):
         if self.paused or not self.active:
@@ -371,10 +381,10 @@ class ContinuousQueuedOutput(ContinuousOutput):
             'decrement': [],
         }
 
-    def _observe_source(self, event):
-        if hasattr(self.source, 'connect'):
-            for e in self.notifiers:
-                self.source.connect(partial(self.notify, e), e)
+    #def _observe_source(self, event):
+    #    if hasattr(self.source, 'connect'):
+    #        for e in self.notifiers:
+    #            self.source.connect(partial(self.notify, e), e)
 
     def connect(self, callback, event='added'):
         if event not in self.notifiers:
@@ -394,11 +404,18 @@ class ContinuousQueuedOutput(ContinuousOutput):
         super().resume(time)
 
 
-class TimedTrigger(BufferedOutput):
+class TimedTrigger(HardwareOutput):
 
     dtype = set_default('bool')
+
+    #: First sample of TTL
     _start = Int(0)
+
+    #: Last sample of TTL
     _stop = Int(0)
+
+    #: Desired level of TTL on output.
+    ttl_level = Float(1)
 
     def trigger(self, timestamp, duration):
         self._start = int(round(self.fs * timestamp))
@@ -416,9 +433,10 @@ class TimedTrigger(BufferedOutput):
         if (offset + samples) > self._stop:
             return
 
-        lb = self._start - offset
-        ub = self._stop - offset
-        out[lb:ub] += 1
+        # Clip bounds to range of samples needed in buffer
+        lb = max(0, self._start - offset)
+        ub = min(samples, self._stop - offset)
+        out[lb:ub] += self.ttl_level
 
 
 class Trigger(BaseOutput):
