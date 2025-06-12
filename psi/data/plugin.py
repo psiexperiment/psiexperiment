@@ -14,7 +14,7 @@ from psi import get_config
 from psi.core.enaml.api import load_manifests, PSIPlugin
 
 from .sink import Sink
-from .plots import BasePlotContainer
+from .plots import BasePlot, BasePlotContainer, ViewBox
 
 import textwrap
 
@@ -26,8 +26,11 @@ PLOT_POINT = 'psi.data.plots'
 class DataPlugin(PSIPlugin):
 
     _sinks = Typed(dict, {})
-    _containers = Typed(list, [])
+    _containers = Typed(dict, {})
+    _plots = Typed(dict, {})
+    _viewboxes = Typed(dict, {})
 
+    # TODO, is this still needed
     inputs = Typed(dict, {})
     context_info = Typed(dict, {})
 
@@ -54,18 +57,31 @@ class DataPlugin(PSIPlugin):
         self._sinks = sinks
 
     def _refresh_plots(self, event=None):
-        containers = []
-        point = self.workbench.get_extension_point(PLOT_POINT)
-        log.debug('Found %d extensions for %s', len(point.extensions),
-                  PLOT_POINT)
-        for extension in point.extensions:
-            containers.extend(extension.get_children(BasePlotContainer))
-        load_manifests(containers, self.workbench)
-        log.debug('Found %d plot containers', len(containers))
-        self._containers = containers
+        plugin_info = {
+            BasePlotContainer: 'name',
+            BasePlot: 'name',
+            ViewBox: 'name',
+        }
+        plugins = self.load_multiple_plugins(PLOT_POINT, plugin_info)
+
+        # These represent only those found at the top level of an Enaml
+        # hierarchy (i.e., the level right below the extension). If the ViewBox
+        # already belongs to a container or the BasePlot already belongs to a
+        # ViewBox, we will not see it here. Hence, the reason we use
+        # `find_viewbox` to find the plots we need.
+        self._containers = plugins[BasePlotContainer]
+        self._plots = plugins[BasePlot]
+        self._viewboxes = plugins[ViewBox]
+
+        for plot in self._plots.values():
+            if not plot.viewbox_name:
+                raise ValueError(f'Must specify viewbox to embed {plot} plot in.')
+            plot.set_parent(self.find_viewbox(plot.viewbox_name))
+
+        self.load_manifests(self._containers.values())
         # Have containers update their viewbox layouts
-        for c in self._containers:
-            c._update_container()\
+        for c in self._containers.values():
+            c._update_container()
 
     def _bind_observers(self):
         self.workbench.get_extension_point(SINK_POINT) \
@@ -98,7 +114,7 @@ class DataPlugin(PSIPlugin):
 
     def find_viewbox(self, viewbox_name):
         available_names = []
-        for container in self._containers:
+        for container in self._containers.values():
             for viewbox in container.children:
                 if viewbox.name == viewbox_name:
                     return viewbox
@@ -109,7 +125,7 @@ class DataPlugin(PSIPlugin):
         raise AttributeError(m)
 
     def find_plot(self, plot_name):
-        for container in self._containers:
+        for container in self._containers.values():
             for viewbox in container.children:
                 for plot in viewbox.children:
                     if plot.name == plot_name:

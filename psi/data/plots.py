@@ -312,10 +312,10 @@ class BasePlotContainer(PSIContribution):
 
     def _default_x_transform(self):
         return lambda x: x
-      
+
     def _default_inv_x_transform(self):
         return lambda x: x
-      
+
     def _update_container(self):
         container = self.container
         try:
@@ -667,6 +667,8 @@ class BasePlot(PSIContribution):
     label = d_(Str())
     container = Property()
 
+    viewbox_name = d_(Str())
+
     def _get_container(self):
         return self.parent.parent
 
@@ -684,6 +686,7 @@ class SinglePlot(PenMixin, BasePlot):
 
     label = d_(Str())
     plot = Typed(object)
+    viewbox_name = d_(Str())
 
     def get_plots(self):
         return [self.plot]
@@ -864,9 +867,12 @@ class FFTChannelPlot(ChannelPlot):
 
 class TimepointPlot(SourceMixin, SymbolMixin, SinglePlot):
 
+    #: Edge of Event input source to plot
     edges = d_(Enum('rising', 'falling', 'both'))
     _rising = Typed(list, ())
     _falling = Typed(list, ())
+
+    #: Y position of timepoint
     y = d_(Float(0))
 
     def _default_plot(self):
@@ -988,6 +994,8 @@ class TimeseriesPlot(BaseTimeseriesPlot):
     Plots rectangles indicating the span between a "rising" and "falling"
     event.
     '''
+    #: Name of source input that produces data which is a subclass of
+    #: `psiaudio.pipeline.Events` (e.g., `Edges`).
     source_name = d_(Str())
     source = Typed(object)
 
