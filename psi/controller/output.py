@@ -113,8 +113,9 @@ class HardwareOutput(BaseOutput):
 
 class BaseAnalogOutput(HardwareOutput):
 
-    # Starting offset of sample generation for source. Should be set by
-    # subclasses as needed.
+    # Current offset of sample generation for source. Should be set by
+    # subclasses as needed. When first set, it represents the first sample of
+    # the source but as samples from the source are consumed it is incremented.
     _offset = Int(0)
 
     def _observe_target(self, event):
@@ -139,15 +140,24 @@ class BaseAnalogOutput(HardwareOutput):
         Load new samples
         '''
         if samples == 0:
+            # Not sure if we ever see this, but just in case.
             return
         if (offset + samples) < self._offset:
+            # All samples occur before the output is supposed to start. Do
+            # nothing. 
             return
+        if offset > self._offset:
+            raise ValueError('Missed chance to play signal')
         if offset < self._offset:
+            # The output starts partway through the buffer section that is
+            # requested.
             skip = self._offset - offset
             samples -= skip
             out[skip:] += self.get_next_samples(samples)
+            self._offset += samples
         else:
             out[:] += self.get_next_samples(samples)
+            self._offset += samples
 
     def get_next_samples(self, samples):
         raise NotImplementedError
@@ -168,13 +178,12 @@ class AnalogOutputWithSource(BaseAnalogOutput):
     paused = Bool(False)
 
     def activate(self, offset):
-        log.trace('Activating %s at %d', self.name, offset)
+        log.info('Activating %s at %d', self.name, offset)
         self.active = True
         self.paused = False
         self._offset = offset
 
     def deactivate(self, offset):
-        log.trace('Deactivating %s at %d', self.name, offset)
         self.active = False
         self.source = None
 
@@ -381,11 +390,6 @@ class ContinuousQueuedOutput(ContinuousOutput):
             'decrement': [],
         }
 
-    #def _observe_source(self, event):
-    #    if hasattr(self.source, 'connect'):
-    #        for e in self.notifiers:
-    #            self.source.connect(partial(self.notify, e), e)
-
     def connect(self, callback, event='added'):
         if event not in self.notifiers:
             raise KeyError(f'Event "{event}" not valid')
@@ -418,6 +422,8 @@ class TimedTrigger(HardwareOutput):
     ttl_level = Float(1)
 
     def trigger(self, timestamp, duration):
+        if timestamp is None:
+            timestamp = 0
         self._start = int(round(self.fs * timestamp))
         self._stop = self._start + int(round(self.fs * duration))
 
@@ -430,7 +436,7 @@ class TimedTrigger(HardwareOutput):
             return
         if (offset + samples) < self._start:
             return
-        if (offset + samples) > self._stop:
+        if offset > self._stop:
             return
 
         # Clip bounds to range of samples needed in buffer
