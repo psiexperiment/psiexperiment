@@ -1,9 +1,9 @@
-from .input import (Decimate, Edges, IIRFilter, Threshold)
+from .input import (DecimateTo, Edges, IIRFilter, Threshold)
 
 
 enamldef ADC(IIRFilter): acd:
 
-    alias q: ds.q
+    alias target_fs: ds.target_fs
     alias threshold: th.threshold
     alias debounce: e.debounce
 
@@ -11,9 +11,9 @@ enamldef ADC(IIRFilter): acd:
     ftype = 'butter'
     btype = 'lowpass'
 
-    Decimate: ds:
+    DecimateTo: ds:
+        target_fs = 1000
         name << acd.name + '_analog'
-        q = 1000
         Threshold: th:
             threshold = 2.5
             Edges: e:
