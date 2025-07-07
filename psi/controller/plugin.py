@@ -11,6 +11,7 @@ import numpy as np
 
 from atom.api import Enum, Bool, Typed, Property
 from enaml.application import deferred_call
+from enaml.qt.QtCore import Qt
 from enaml.qt.QtCore import QTimer
 from enaml.workbench.api import Extension
 from enaml.workbench.plugin import Plugin
@@ -650,9 +651,13 @@ class ControllerPlugin(Plugin):
     def get_ts(self):
         return self._master_engine.get_ts()
 
-    def start_timer(self, name, duration, callback):
+    def start_timer(self, name, duration, callback, cancel_existing=True):
+        if cancel_existing:
+            # If the timer does not exist, nothing will happen.
+            self.stop_timer(name)
         try:
             timer = QTimer()
+            timer.setTimerType(Qt.PreciseTimer)
             timer.timeout.connect(callback)
             timer.setSingleShot(True)
             timer.start(int(duration*1e3))
