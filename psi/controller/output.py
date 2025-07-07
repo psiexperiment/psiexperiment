@@ -183,7 +183,7 @@ class AnalogOutputWithSource(BaseAnalogOutput):
         self.paused = False
         self._offset = offset
 
-    def deactivate(self, offset):
+    def deactivate(self, offset=None):
         self.active = False
         self.source = None
 
@@ -211,6 +211,11 @@ class EpochOutput(AnalogOutputWithSource):
     token = d_(Typed(Declarative)).tag(metadata=True)
 
     def set_waveform(self, waveform):
+        # Ensure output is deactivated before new waveform is set, otherwise we
+        # end up with edge conditions where the new waveform is played almost
+        # immediately if the output is left in an active state from a previous
+        # call to `start_waveform`.
+        self.deactivate()
         self.source = FixedWaveform(self.fs, waveform)
 
     def start_waveform(self, ts):
