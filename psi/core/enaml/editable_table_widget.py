@@ -7,7 +7,7 @@ log = logging.getLogger(__name__)
 import pandas as pd
 
 from atom.api import (Typed, set_default, observe, Enum, Event, Property,
-                      Bool, Dict, Str, Atom, List, Value)
+                      Bool, Dict, Int, Str, Atom, List, Value)
 from enaml.core.declarative import d_, d_func
 from enaml.widgets.api import RawWidget
 
@@ -150,6 +150,17 @@ class QEditableTableView(QTableView):
         self.setSelectionBehavior(getattr(self.SelectionBehavior, flag_name))
         self.selectionModel().selectionChanged.connect(self._selection_changed)
         self.setShowGrid(self.model.interface.show_grid)
+
+        if (visible_rows := self.model.interface.visible_rows) > 0:
+            # Get actual default row height
+            row_height = self.verticalHeader().defaultSectionSize()
+            if self.model.interface.show_column_labels:
+                header_height = self.horizontalHeader().height()
+            else:
+                header_height = 0
+            # Calculate the required height
+            total_height = (visible_rows * row_height) + header_height + 2
+            self.setFixedHeight(total_height)
 
     def _selection_changed(self, selected, deselected):
         locations = []
@@ -305,6 +316,9 @@ class EditableTable(RawWidget):
     #: Instance of QEditableTableView
     view = Typed(QEditableTableView)
     event_filter = Typed(EventFilter)
+
+    #: Number of rows to make visible. Set to 0 to let this be automatic.
+    visible_rows = d_(Int(0))
 
     #: Can the user edit the data in the table?
     editable = d_(Bool(False))
@@ -727,8 +741,8 @@ class ListTable(EditableTable):
     data = d_(List())
     column_name = d_(Str())
     selected = d_(List())
-    show_column_labels = True
-    stretch_last_section = True
+    show_column_labels = set_default(True)
+    stretch_last_section = set_default(True)
 
     def get_columns(self):
         return [self.column_name]
