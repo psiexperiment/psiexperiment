@@ -12,7 +12,6 @@ import numpy as np
 from atom.api import Enum, Bool, Typed, Property
 from enaml.application import deferred_call
 from enaml.qt.QtCore import Qt
-from enaml.qt.QtCore import QTimer
 from enaml.workbench.api import Extension
 from enaml.workbench.plugin import Plugin
 
@@ -443,14 +442,11 @@ class ControllerPlugin(Plugin):
         with self._lock:
             if not self.engines_running:
                 raise ValueError('Engines not running')
-            for name, timer in list(self._timers.items()):
-                log.debug('Stopping timer %s', name)
-                timer.timeout.disconnect()
-                timer.stop()
-                del self._timers[name]
+            for name in list(self._timers):
+                self.stop_timer(name)
             for engine in self._engines.values():
                 if engine.get_channels():
-                    log.debug('Stopping engine %r', engine)
+                    log.error('Stopping engine %r', engine)
                     engine.stop()
             self.engines_running = False
             self.invoke_actions('engines_stopped')
@@ -656,19 +652,16 @@ class ControllerPlugin(Plugin):
             # If the timer does not exist, nothing will happen.
             self.stop_timer(name)
         try:
-            timer = QTimer()
-            timer.setTimerType(Qt.PreciseTimer)
-            timer.timeout.connect(callback)
-            timer.setSingleShot(True)
-            timer.start(int(duration*1e3))
-            self._timers[name] = timer
+            self._timers[name] = timer = threading.Timer(duration, callback)
+            timer.start()
         except Exception as e:
             log.error(f'Attempt to start timer {name} with duration {duration} sec failed')
             raise
 
     def stop_timer(self, name):
-        if self._timers.get(name) is not None:
-            self._timers[name].timeout.disconnect()
-            self._timers[name].stop()
-            del self._timers[name]
+        try:
+            timer = self._timers.pop(name)
+            timer.cancel()
             log.debug('Disabled deferred event %s', name)
+        except KeyError:
+            pass
