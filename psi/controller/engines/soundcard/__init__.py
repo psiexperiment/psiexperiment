@@ -277,7 +277,7 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
             self._running = False
         else:
             return
-        log.info('Stopping')
+        log.info('Stopping sound card %s', self.name)
         self._configured = False
         self._stream.stop()
         self.complete()
