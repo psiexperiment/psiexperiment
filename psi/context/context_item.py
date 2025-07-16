@@ -4,7 +4,7 @@ log = logging.getLogger(__name__)
 import numpy as np
 
 from enaml.core.declarative import Declarative, d_
-from atom.api import (set_default, Str, Typed, Value, Enum, List, Event,
+from atom.api import (set_default, Str, Typed, Value, Enum, Int, List, Event,
                       Property, observe, Bool, Dict, Coerced)
 
 from psi.core.enaml.api import PSIContribution
@@ -313,6 +313,65 @@ class EnumParameter(Parameter):
     @observe('selected')
     def _notify_update(self, event):
         if self.is_initialized:
+            self.notify('expression', self.expression)
+
+    def to_expression(self, value):
+        return str(self.choices.get(value, None))
+
+    def coerce_to_type(self, value):
+        return str(value)
+
+
+class MultiSelectParameter(Parameter):
+    '''
+    Builds a list of selected values from a set of choices
+    '''
+    expression = Property().tag(transient=True)
+    selected = d_(List()).tag(preference=True)
+    choices = d_(Dict())
+    default = d_(List())
+
+    #: Number of columns to show for choices before starting a new row.
+    n_cols = d_(Int(3))
+    quote_values = d_(Bool(False))
+    min_selected = d_(Int(1))
+
+    def _default_dtype(self):
+        values = list(self.choices.values())
+        return np.array(values).dtype.str
+
+    def _get_expression(self):
+        # Sort to ensure that expression is always rendered the same regardless
+        # of order of selection.
+        try:
+            choices = sorted([self.choices[s] for s in self.selected])
+        except KeyError:
+            valid_keys = ', '.join(self.choices.keys())
+            raise KeyError('Invalid key. Valid keys are %s.' % valid_keys)
+        if self.quote_values:
+            choices = [f"'{c}'" for c in choices]
+        else:
+            choices = [f"{c}" for c in choices]
+        return f'[{", ".join(choices)}]'
+
+    def _set_expression(self, expression):
+        choices = eval(expression)
+        #choices = [eval(c.strip()) for c in expression.strip('[]').split(', ')]
+        #if self.quote_values:
+            #choices = [c.strip("'") for c in choices]
+        selected = []
+        for k, v in self.choices.items():
+            if v in choices:
+                selected.append(k)
+        self.selected = selected
+
+    def _default_selected(self):
+        return self.default
+
+    @observe('selected')
+    def _notify_update(self, event):
+        if self.is_initialized:
+            log.error(self.selected)
             self.notify('expression', self.expression)
 
     def to_expression(self, value):

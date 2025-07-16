@@ -20,16 +20,21 @@ of dynamic templates.
 import logging
 log = logging.getLogger(__name__)
 
+from math import ceil
+
 from atom.api import Typed
+from enaml.application import deferred_call
 from enaml.core.api import Conditional, DynamicTemplate, Looper
-from enaml.layout.api import align, hbox, spacer
+from enaml.layout.api import align, grid, hbox, spacer
 from enaml.widgets.api import (Container, Field, CheckBox, Label, HGroup,
                                PushButton, PopupView, Form, ObjectCombo, VGroup)
 from enaml.validator import Validator
 
+from psi.core.enaml.editable_table_widget import ListTable
 from .context_item import (Result, Parameter, EnumParameter, FileParameter,
-                           BoolParameter, OrderedContextMeta,
-                           UnorderedContextMeta, ContextRow)
+                           BoolParameter, MultiSelectParameter,
+                           OrderedContextMeta, UnorderedContextMeta,
+                           ContextRow)
 
 from .expression import ExpressionNamespace
 
@@ -225,6 +230,48 @@ template WidgetTemplate(context_item, MemberType: EnumParameter):
         selected := context_item.selected
         enabled << context_item.editable
         tool_tip << context_item.name
+
+
+
+template WidgetTemplate(context_item, MemberType: MultiSelectParameter):
+    '''
+    Default template for MultiSelectParameter providing a list of values that
+    can be selected.
+    '''
+    Container:
+        padding = 0
+
+        layout_constraints => ():
+            widgets = visible_widgets()
+            n_cols = context_item.n_cols
+            n_rows = ceil(len(widgets) / n_cols)
+            reshaped = []
+            for i in range(n_rows):
+                row = widgets[i*n_cols:(i+1)*n_cols]
+                reshaped.append(row)
+            return [
+                grid(*reshaped, column_align='width', row_align='v_center',
+                     column_spacing=0, row_spacing=0),
+                align('width', *widgets)
+            ]
+
+        Looper:
+            iterable = context_item.choices.items()
+            PushButton:
+                text = loop_item[0]
+                checkable = True
+                checked << loop_item[0] in context_item.selected
+                checked ::
+                    selected = context_item.selected[:]
+                    if checked and loop_item[0] not in selected:
+                        selected.append(loop_item[0])
+                    elif loop_item[0] in selected:
+                        selected.remove(loop_item[0])
+
+                    if len(selected) < context_item.min_selected:
+                        self.checked = True
+                    else:
+                        context_item.selected = selected
 
 
 template WidgetTemplate(context_item, MemberType: BoolParameter):
