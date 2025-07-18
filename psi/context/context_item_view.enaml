@@ -252,7 +252,8 @@ template WidgetTemplate(context_item, MemberType: MultiSelectParameter):
             return [
                 grid(*reshaped, column_align='width', row_align='v_center',
                      column_spacing=0, row_spacing=0),
-                align('width', *widgets)
+                align('width', *widgets),
+                widgets[0].width == context_item.button_width,
             ]
 
         Looper:

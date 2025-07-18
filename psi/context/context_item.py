@@ -333,6 +333,7 @@ class MultiSelectParameter(Parameter):
 
     #: Number of columns to show for choices before starting a new row.
     n_cols = d_(Int(3))
+    button_width = d_(Int(20))
     quote_values = d_(Bool(False))
     min_selected = d_(Int(1))
 
