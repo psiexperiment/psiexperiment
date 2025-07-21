@@ -147,7 +147,9 @@ class ExperimentCallback(ExperimentActionBase):
 
 
 class EventLogger(Declarative):
-
+    '''
+    Defines a command that is invoked whenever an event occurs
+    '''
     command = d_(Str())
 
     def _invoke(self, core, kwargs):

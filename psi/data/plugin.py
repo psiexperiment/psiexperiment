@@ -96,6 +96,23 @@ class DataPlugin(PSIPlugin):
             .unobserve('extensions', self._refresh_plots)
 
     def set_base_path(self, base_path, is_temp):
+        '''
+        Set base_path for all sinks
+
+        Parameters
+        ----------
+        base_path : instance of pathlib.Path
+            Base path where data should be saved. Sinks will create files
+            inside this folder.
+        is_temp : bool
+            If True, data will be discarded at end of experiment. Some sinks
+            may alter their behavior based on this (i.e., not save data).
+
+        This is used to notify sinks of where data should be saved once
+        experiment begins. We don't initialize base_path until the user presses
+        the "start" button since the filename may contain the timestamp the
+        experiment was started.
+        '''
         self.base_path = Path(base_path)
         for sink in self._sinks.values():
             sink.set_base_path(base_path, is_temp)
