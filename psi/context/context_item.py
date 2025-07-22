@@ -52,6 +52,22 @@ class OrderedContextMeta(ContextMeta):
     def _default_values(self):
         return self.mandatory_items.copy()
 
+    def _observe_values(self, event):
+        # Make sure that all mandatory items are in the list and forbidden
+        # items not in the list.
+        values = self.values.copy()
+        update = False
+        for item in self.mandatory_items:
+            if item not in self.values:
+                values.append(item)
+                update = True
+        for item in self.forbidden_items:
+            if item in self.values:
+                values.remove(item)
+                update = True
+        if update:
+            self.values = values
+
     def set_choice(self, choice, context_item):
         if context_item in self.forbidden_items:
             return
