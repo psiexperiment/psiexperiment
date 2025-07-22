@@ -146,7 +146,7 @@ template ContextItemTemplate(row, MemberType: ContextRow):
             iterable << row.fmt[:]
             DynamicTemplate:
                 base = WidgetTemplate
-                args = (loop_item, type(loop_item))
+                args = (loop.item, type(loop.item))
 
 
 template ContextItemTemplate(context_item, MemberType: str):
@@ -157,6 +157,7 @@ template ContextItemTemplate(context_item, MemberType: str):
 template ContextItemTemplate(context_item, MemberType: Result):
     Label:
         text << context_item.label
+        tool_tip << context_item.name
 
 
 template ContextItemTemplate(context_item, MemberType: Parameter):
@@ -176,7 +177,7 @@ template ContextItemTemplate(context_item, MemberType: Parameter):
             CheckBox:
                 checked := context_item.rove
 
-        Label:
+        Label: label:
             text << context_item.label
             tool_tip << context_item.name
 
@@ -292,13 +293,26 @@ template WidgetTemplate(context_item, MemberType: BoolParameter):
 ################################################################################
 # The container to tie it all together
 ################################################################################
-enamldef ContextItemView(HGroup): container:
-
+enamldef ContextItemView(Container): container:
+    '''
+    Main view for the standard context item. Delegates to the
+    ContextItemTemplate for rendering the item and adds a pushbutton for the
+    context meta popup at the end.
+    '''
     attr context_item
-    padding = 0
-    spacing = 0
-    align_widths = False
     share_layout = True
+    padding = 0
+
+    layout_constraints => ():
+        widgets = self.visible_widgets()
+        if getattr(widgets[-1], 'pb_meta', False):
+            items = widgets[:-1] + [spacer(0), widgets[-1]]
+        else:
+            items = widgets[:]
+        return [
+            hbox(*items, spacing=0),
+            align('v_center', *items),
+        ]
 
     DynamicTemplate:
         base = ContextItemTemplate
@@ -307,6 +321,7 @@ enamldef ContextItemView(HGroup): container:
     Conditional:
         condition << workbench.get_plugin('psi.context').context_meta_editable
         PushButton: pb:
+            attr pb_meta = True
             constraints = [pb.width == 20]
             text << 'C'
             clicked::

@@ -10,7 +10,7 @@ import numpy as np
 
 from enaml.application import deferred_call
 from enaml.core.api import Looper, Include
-from enaml.layout.api import align, hbox, vbox
+from enaml.layout.api import align, hbox, spacer, vbox
 from enaml.widgets.api import Container, FileDialogEx, HGroup, Label, VGroup
 from enaml.workbench.api import Extension, PluginManifest, ExtensionPoint
 from enaml.workbench.core.api import Command
@@ -224,6 +224,7 @@ enamldef StatusDockItem(PSIDockItem):
                 attr anchor = loop_item.anchor
                 padding = 0
                 spacing = 0
+                trailing_spacer = spacer(0)
                 Include:
                     objects << loop_item.children
 
