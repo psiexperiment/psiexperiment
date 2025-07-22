@@ -43,23 +43,21 @@ class OrderedContextMeta(ContextMeta):
 
     values = d_(List())
 
-    def add_item(self, item):
-        if item not in self.values:
-            values = self.values.copy()
-            values.append(item)
-            self.values = values
+    #: List of context items to be included.
+    mandatory_items = d_(List())
 
-    def remove_item(self, item):
-        if item in self.values:
-            values = self.values.copy()
-            values.remove(item)
-            self.values = values
+    #: List of context items that can never be selected for this.
+    forbidden_items = d_(List())
 
     def _default_values(self):
-        return []
+        return self.mandatory_items.copy()
 
-    # TODO: move most of this stuff to the enaml interface
     def set_choice(self, choice, context_item):
+        if context_item in self.forbidden_items:
+            return
+        if context_item in self.mandatory_items and choice is None:
+            return
+
         values = self.values[:]
         if choice is None:
             values.remove(context_item)
@@ -78,9 +76,17 @@ class OrderedContextMeta(ContextMeta):
 
     def get_choices(self, context_item):
         n = len(self.values)
+        if context_item in self.forbidden_items:
+            return []
         if context_item not in self.values:
             n += 1
-        return [str(i+1) for i in range(n)]
+        if context_item in self.mandatory_items:
+            # Item must be in list somewhere. Don't have an entry that allows
+            # the user to remove the item. But, user can rearrange items in
+            # this list.
+            return [str(i+1) for i in range(n)]
+        else:
+            return [None] + [str(i+1) for i in range(n)]
 
 
 ################################################################################

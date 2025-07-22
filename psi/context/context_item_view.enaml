@@ -72,9 +72,9 @@ class ContextItemValidator(Validator):
 template ContextMetaTemplate(context_meta, context_item,
                              MemberType: OrderedContextMeta):
     ObjectCombo:
-        items = [None] + context_meta.get_choices(context_item)
+        items = context_meta.get_choices(context_item)
         to_string = lambda i: '' if i is None else str(i)
-        selected << context_meta.get_choice(context_item)
+        selected = context_meta.get_choice(context_item)
         selected::
             context_meta.set_choice(selected, context_item)
 
