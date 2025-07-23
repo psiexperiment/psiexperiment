@@ -53,4 +53,4 @@ def test_delay(fs=96e3, output_channel=1, input_channel=13):
 
 
 if __name__ == '__main__':
-    test_delay()
+    test_delay(fs=96e3)
