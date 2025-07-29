@@ -442,10 +442,12 @@ class ControllerPlugin(Plugin):
             timer.timeout.disconnect()
             timer.stop()
             del self._timers[name]
+
         for engine in self._engines.values():
             if engine.get_channels():
-                log.debug('Stopping engine %r', engine)
+                log.info('Stopping engine %r', engine)
                 engine.stop()
+
         self.engines_running = False
         self.invoke_actions('engines_stopped')
 
