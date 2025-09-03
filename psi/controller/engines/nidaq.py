@@ -409,19 +409,19 @@ def hw_input_helper(cb, channels, discard, fs, channel_names, task, task_id,
                     event_type=None, cb_samples=None, cb_data=None,
                     input_type='ai'):
     try:
-        uint32 = ctypes.c_uint32()
-        mx.DAQmxGetReadAvailSampPerChan(task, uint32)
-        available_samples = uint32.value
-        if available_samples == 0:
-            log.info('No samples available')
-            return 0
-
         uint64 = ctypes.c_uint64()
         mx.DAQmxGetReadCurrReadPos(task, uint64)
         read_position = uint64.value
 
-        log.trace('Current read position %d, available samples %d',
-                read_position, available_samples)
+        uint32 = ctypes.c_uint32()
+        mx.DAQmxGetReadAvailSampPerChan(task, uint32)
+        available_samples = uint32.value
+
+
+        if available_samples == 0:
+            log.info('No samples available. Current read position %d.', read_position)
+            raise ValueError('No samples available for read')
+            return 0
 
         data = read_hw_input(task, available_samples, channels, cb_samples,
                              input_type)
