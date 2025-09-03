@@ -54,12 +54,12 @@ class TextStore(BaseStore):
         except KeyError as e:
             raise AttributeError(name)
 
-    def save_dataframe(self, name, dataframe, overwrite=False):
+    def save_dataframe(self, name, dataframe, overwrite=False, index=True):
         path = self.get_filename(name, '.csv')
         log.info(f'Saving {name} to {path}')
         if not overwrite and path.exists():
             raise IOError('{} already exists'.format(path))
-        dataframe.to_csv(path)
+        dataframe.to_csv(path, index=index)
         return path
 
     def save_mapping(self, name, mapping, overwrite=False):
