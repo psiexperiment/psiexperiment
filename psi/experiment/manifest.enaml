@@ -1,9 +1,11 @@
 import logging
 log = logging.getLogger(__name__)
 
+from datetime import datetime, timezone
 import os
 import pickle
 from pathlib import Path
+import socket
 import yaml
 
 import numpy as np
@@ -424,3 +426,12 @@ enamldef ExperimentManifest(PluginManifest): manifest:
         MetadataItem:
             name = 'version.psiaudio'
             value = psiaudio.version.__version__
+
+        MetadataItem:
+            # Save current time as timezone-aware datetime in ISO format
+            name = 'timestamp'
+            value = datetime.now(timezone.utc).astimezone().isoformat()
+
+        MetadataItem:
+            name = 'hostname'
+            value = socket.gethostname()
