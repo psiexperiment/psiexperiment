@@ -232,18 +232,12 @@ class ControllerPlugin(Plugin):
     def _wrapup(self, **kwargs):
         workbench = self.workbench
         point = workbench.get_extension_point(WRAPUP_POINT)
-        extensions = point.extensions
-        if not extensions:
-            msg = "no contributions to the '%s' extension point"
-            raise RuntimeError(msg % WRAPUP_POINT)
-
-        extension = extensions[-1]
-        if extension.factory is None:
-            msg = "extension '%s' does not declare a window factory"
-            raise ValueError(msg % extension.qualified_id)
-
-        cb = extension.factory(workbench)
-        cb(**kwargs)
+        for extension in point.extensions:
+            if extension.factory is None:
+                msg = "extension '%s' does not declare a factory"
+                raise ValueError(msg % extension.qualified_id)
+            cb = extension.factory(workbench)
+            cb(**kwargs)
 
     def _bind_observers(self):
         self.workbench.get_extension_point(IO_POINT) \
