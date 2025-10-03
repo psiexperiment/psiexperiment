@@ -296,14 +296,17 @@ def launch_experiment(args):
         merged_stats.dump_stats(path.parent / 'merged.pstat')
 
 
-def get_default_io():
+def get_default_io(method='hostname'):
     '''
     Attempt to figure out the default IO configuration file
 
-    Right now it just returns the first one found.
+    Parameters
+    ----------
+    method : {'hostname'}
+        If 'hostname', returns the IO config matching the full hostname.
     '''
     mesg = f'''
-    No IO configured for the system.
+    {{}}
 
     Please create an IO config file. This file should go in
     {get_config('IO_ROOT')}. The location of the IO config files can be set via
@@ -311,10 +314,16 @@ def get_default_io():
     '''
     available_io = list_io()
     log.debug('Found the following IO files: %r', available_io)
-    if len(available_io) == 0:
-        raise ValueError(wrap_text(mesg))
-    return available_io[0]
-
+    if method == 'hostname':
+        hostname = get_config('HOSTNAME').lower()
+        for io in available_io:
+            if io.stem.lower() == hostname:
+                return io
+        else:
+            err = f'No IO named {hostname}.enaml found for the system.'
+            raise ValueError(wrap_text(mesg.format(err)))
+    else:
+        raise ValueError('Unsupported method')
 
 def load_io_manifest(io_manifest=None):
     '''

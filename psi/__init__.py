@@ -5,6 +5,7 @@ import logging
 import importlib.util
 import os
 from pathlib import Path
+import socket
 
 # This automatically introduces the TRACE logging level
 import psiaudio
@@ -28,6 +29,7 @@ DEFAULT_CONFIG = {
     'LAYOUT_ROOT': os.path.expanduser('~/Documents/psi/layout'),
     'CFTS_ROOT': os.path.expanduser('~/Documents/psi/cfts'),
     'IO_ROOT': os.path.expanduser('~/Documents/psi/io'),
+    'HOSTNAME': socket.gethostname(),
 }
 
 for k, v in DEFAULT_CONFIG.items():
