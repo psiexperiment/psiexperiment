@@ -92,9 +92,9 @@ class PSIPlugin(Plugin):
 
         # Now, group together the items into their respective plugins.
         for plugin_type, unique_attr in plugin_info.items():
+            plugin_items = items.setdefault(plugin_type, {})
+            plugin_item_source = item_source.setdefault(plugin_type, {})
             for (item, extension) in children:
-                plugin_items = items.setdefault(plugin_type, {})
-                plugin_item_source = item_source.setdefault(plugin_type, {})
                 if isinstance(item, plugin_type):
                     attr = getattr(item, unique_attr)
                     log.debug('... ... found contribution %s', attr)
