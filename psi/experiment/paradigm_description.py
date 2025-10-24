@@ -8,6 +8,10 @@ from psi.application import list_preferences
 from psi.core.enaml.api import load_manifest
 
 
+class ParadigmNotFound(KeyError):
+    pass
+
+
 class ParadigmManager:
     '''
     Core class for managing experiment paradigms available to psiexperiment
@@ -66,7 +70,10 @@ class ParadigmManager:
         if '.' in name:
             module, name = name.rsplit('.', 1)
             module = importlib.import_module(module)
-        return self.paradigms[name]
+        try:
+            return self.paradigms[name]
+        except KeyError:
+            raise ParadigmNotFound(name)
 
 
 class PluginDescription:
