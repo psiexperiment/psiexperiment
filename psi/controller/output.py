@@ -5,7 +5,7 @@ from functools import partial
 import numpy as np
 
 from atom.api import (Str, Dict, Event, Typed, Property, Float, Int,
-                      Bool, List, set_default)
+                      Bool, List, set_default, Callable)
 
 import enaml
 from enaml.core.api import Declarative, d_
@@ -382,6 +382,18 @@ class ContinuousOutput(BaseAnalogOutput):
         if self.paused or not self.active:
             return np.zeros(samples, dtype=self.dtype)
         return self.source.next(samples)
+
+
+class ContinuousCallbackOutput(BaseAnalogOutput):
+
+    active = Bool(False)
+    paused = Bool(False)
+    callback = Callable()
+
+    def get_next_samples(self, samples):
+        if self.paused or not self.active:
+            return np.zeros(samples, dtype=self.dtype)
+        return self.callback(samples, self.name)
 
 
 class ContinuousQueuedOutput(ContinuousOutput):

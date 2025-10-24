@@ -15,7 +15,7 @@ from .input import (
 )
 
 from .output import (
-    ContinuousOutput, ContinuousQueuedOutput, EpochOutput, MUXOutput,
+    ContinuousOutput, ContinuousCallbackOutput, EpochOutput, MUXOutput,
     NullOutput, QueuedEpochOutput, Synchronized, TimedTrigger, Toggle, Trigger
 )
 
