@@ -7,6 +7,7 @@ import importlib
 from functools import partial
 from collections import defaultdict
 import uuid
+from threading import RLock
 
 import numpy as np
 import pandas as pd
@@ -237,28 +238,38 @@ class ChannelDataRange(BaseDataRange):
     current_samples = Typed(defaultdict, (int,))
     current_times = Typed(defaultdict, (float,))
 
+    lock = Value()
+
+    def _default_lock(self):
+        return RLock()
+
     def _observe_current_time(self, event):
         self._update_range()
 
     def _update_range(self):
-        low_value = (self.current_time//self.span)*self.span - self.delay
-        high_value = low_value+self.span
-        self.current_range = low_value, high_value
+        with self.lock:
+            low_value = (self.current_time//self.span)*self.span - self.delay
+            high_value = low_value+self.span
+            self.current_range = low_value, high_value
 
     def add_event_source(self, source):
         cb = partial(self.event_source_added, source=source)
         source.add_callback(cb)
 
     def source_added(self, data, source):
-        self.current_samples[source] += data.shape[-1]
-        self.current_times[source] = self.current_samples[source]/source.fs
-        self.current_time = max(self.current_times.values())
+        # Invoked whenever a source of Channel type recieves data.
+        with self.lock:
+            self.current_samples[source] += data.shape[-1]
+            self.current_times[source] = self.current_samples[source]/source.fs
+            self.current_time = max(self.current_times.values())
 
     def event_source_added(self, data, source):
-        if data.events.empty:
-            return
-        self.current_times[source] = data.events.iloc[-1]['ts']
-        self.current_time = max(self.current_times.values())
+        # Invoked whenever a source of Event type receives data.
+        with self.lock:
+            if data.events.empty:
+                return
+            self.current_times[source] = data.events.iloc[-1]['ts']
+            self.current_time = max(self.current_times.values())
 
 
 ################################################################################
@@ -393,7 +404,10 @@ class PlotContainer(BasePlotContainer):
         # If we want to specify values relative to a psi context variable, we
         # cannot do it when initializing the plots.
         if (self.x_min != 0) or (self.x_max != 0):
-            self.base_viewbox.setXRange(self.x_min, self.x_max, padding=0)
+            deferred_call(self.base_viewbox.setXRange,
+                          self.x_min,
+                          self.x_max,
+                          padding=0)
 
     def update(self, event=None):
         deferred_call(self.format_container)
@@ -410,7 +424,10 @@ class BaseTimeContainer(BasePlotContainer):
     def _update_container(self):
         super()._update_container()
         if self.base_viewbox is not None:
-            self.base_viewbox.setXRange(0, self.span, padding=0)
+            deferred_call(
+                self.base_viewbox.setXRange,
+                0, self.span, padding=0
+            )
 
     def _default_container(self):
         container = super()._default_container()
@@ -555,7 +572,12 @@ class ViewBox(ColorCycleMixin, PSIContribution):
             return
         if self.y_autoscale:
             return
-        self.viewbox.setYRange(self.y_min, self.y_max, padding=0)
+        deferred_call(
+            self.viewbox.setYRange,
+            self.y_min,
+            self.y_max,
+            padding=0
+        )
 
     def _get_data_range(self):
         return self.parent.data_range
