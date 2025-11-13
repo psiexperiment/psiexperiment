@@ -173,7 +173,7 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
     #: These are standard sampling rates in most sound cards. Not all sound
     #: cards may support the highest sampling rates. Calling the result of
     #: `Enum` with a value sets the default.
-    fs = d_(Enum(44100, 48000, 96000, 192000)(96000))
+    fs = d_(Enum(44100, 48000, 64000, 88200, 96000, 192000)(96000))
 
     #: Initial timestamp of the stream when it's first started (apparently the
     #: behavior of the stream start time is undefined, so we just need to
