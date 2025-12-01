@@ -128,6 +128,9 @@ class ContextGroup(PSIContribution):
     visible = d_(Bool())
     hide_when = d_(Enum('empty', 'never', 'always'))
 
+    def _default_label(self):
+        return self.name.capitalize().replace('_', ' ')
+
     def _update_visible(self):
         visible = False
         if self.hide_when == 'never':
