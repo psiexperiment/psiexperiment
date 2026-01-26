@@ -53,4 +53,8 @@ def test_delay(fs=96e3, output_channel=1, input_channel=13):
 
 
 if __name__ == '__main__':
-    test_delay(fs=96e3)
+    import argparse
+    parser = argparse.ArgumentParser('soundcard-measure-delay')
+    parser.add_argument('fs', type=int, choices=[44100, 48000, 64000, 96000])
+    args = parser.parse_args()
+    test_delay(fs=args.fs)
