@@ -2,6 +2,7 @@ import logging
 
 log = logging.getLogger(__name__)
 
+import datetime as dt
 import itertools
 import importlib
 from functools import partial
@@ -275,6 +276,14 @@ class ChannelDataRange(BaseDataRange):
 ################################################################################
 # Containers (defines a shared set of containers across axes)
 ################################################################################
+class TimeAxisItem(pg.AxisItem):
+    '''
+    Create nicely-formatted HH:MM:SS time axis
+    '''
+    def tickStrings(self, values, scale, spacing):
+        return [str(dt.timedelta(seconds=int(v))) for v in values]
+
+
 class BasePlotContainer(PSIContribution):
 
     label = d_(Str())
@@ -435,8 +444,11 @@ class BaseTimeContainer(BasePlotContainer):
         return container
 
     def _default_x_axis(self):
-        x_axis = super()._default_x_axis()
-        x_axis.setLabel('Time', units='s')
+        x_axis = TimeAxisItem(orientation='bottom')
+        x_axis.setGrid(64)
+        if self.base_viewbox is not None:
+            x_axis.linkToView(self.base_viewbox)
+        x_axis.setLabel('Time', units='HH:MM:SS')
         return x_axis
 
     def update(self, event=None):
