@@ -51,6 +51,54 @@ def get_color_cycle(name, n):
 
 
 ################################################################################
+# Custom PyQtGraph subclasses
+################################################################################
+class TimeAxisItem(pg.AxisItem):
+    '''
+    Create nicely-formatted HH:MM:SS time axis
+    '''
+    def tickStrings(self, values, scale, spacing):
+        return [str(dt.timedelta(seconds=int(v))) for v in values]
+
+
+class NormalizedViewBox:
+    """
+    Creates a transparent ViewBox overlay linked to a target ViewBox.
+    Coordinates are normalized (0.0 to 1.0).
+    """
+    def __init__(self, target_viewbox):
+        self.target_vb = target_viewbox
+
+        # 1. Add to the same scene as the target ViewBox
+        # We assume the target is already or will be added to a scene
+        self.target_vb.scene().addItem(self.overlay_vb)
+
+        # 2. Lock the coordinate system to 0-1
+        self.overlay_vb.setXRange(0, 1, padding=0)
+        self.overlay_vb.setYRange(0, 1, padding=0)
+        self.overlay_vb.disableAutoRange()
+
+        # 3. Disable interaction and background
+        self.overlay_vb.setMouseEnabled(x=False, y=False)
+        self.overlay_vb.setMenuEnabled(False)
+
+        # 4. Sync the geometry whenever the target ViewBox changes size
+        self.target_vb.sigResized.connect(self.update_geometry)
+
+        # Ensure it stays visually on top of the target
+        self.overlay_vb.setZValue(100) 
+
+        self.update_geometry()
+
+    def update_geometry(self):
+        # Sync overlay geometry to the target ViewBox geometry
+        self.overlay_vb.setGeometry(self.target_vb.sceneBoundingRect())
+
+    def addItem(self, text):
+        self.overlay_vb.addItem(item)
+
+
+################################################################################
 # Style mixins
 ################################################################################
 class ColorCycleMixin(Declarative):
@@ -277,14 +325,6 @@ class ChannelDataRange(BaseDataRange):
 ################################################################################
 # Containers (defines a shared set of containers across axes)
 ################################################################################
-class TimeAxisItem(pg.AxisItem):
-    '''
-    Create nicely-formatted HH:MM:SS time axis
-    '''
-    def tickStrings(self, values, scale, spacing):
-        return [str(dt.timedelta(seconds=int(v))) for v in values]
-
-
 class BasePlotContainer(PSIContribution):
 
     label = d_(Str())
@@ -348,19 +388,9 @@ class BasePlotContainer(PSIContribution):
         for i, child in enumerate(self.viewboxes):
             container.addItem(child.y_axis, i, 0)
             container.addItem(child.viewbox, i, 1)
-            try:
-                container.addItem(child.y_axis, i, 0)
-                container.addItem(child.viewbox, i, 1)
-                try:
-                    # This raises an "already taken" QGridLayoutEngine error. The
-                    # obvious explanation is because the current viewbox also
-                    # occupies this cell.
-                    container.addItem(child.viewbox_norm, i, 1)
-                except AttributeError:
-                    pass
-                child._configure_viewbox()
-            except:
-                pass
+            container.addItem(child.y_axis, i, 0)
+            container.addItem(child.viewbox, i, 1)
+            child._configure_viewbox()
 
         if self.x_axis is not None:
             container.addItem(self.x_axis, len(self.viewboxes)+1, 1)
@@ -383,6 +413,8 @@ class BasePlotContainer(PSIContribution):
         return legend
 
     def _get_base_viewbox(self):
+        # The base viewbox is used as the reference for the X-axis of all
+        # viewboxes.
         if len(self.viewboxes) == 0:
             return None
         return self.viewboxes[0].viewbox
@@ -565,6 +597,9 @@ class ViewBox(ColorCycleMixin, PSIContribution):
     __slots__ = '__weakref__'
 
     viewbox = Typed(pg.ViewBox)
+
+    #: This is used to place labels over existing plots (e.g.,
+    #: StackedEpochPlot).
     viewbox_norm = Typed(pg.ViewBox)
 
     y_axis = Typed(pg.AxisItem)
@@ -639,10 +674,7 @@ class ViewBox(ColorCycleMixin, PSIContribution):
         return viewbox
 
     def _default_viewbox_norm(self):
-        viewbox = pg.ViewBox(enableMenu=False)
-        viewbox.setMouseEnabled(x=False, y=False)
-        viewbox.disableAutoRange()
-        return viewbox
+        return NormalizedViewBox(self.viewbox)
 
     def update(self, event=None):
         for child in self.children:
@@ -1087,35 +1119,6 @@ class InfiniteLine(SinglePlot):
 ################################################################################
 # Group plots
 ################################################################################
-class FixedTextItem(pg.TextItem):
-
-    def updateTransform(self, force=False):
-        p = self.parentItem()
-        if p is None:
-            pt = pg.QtGui.QTransform()
-        else:
-            pt = p.sceneTransform()
-
-        if not force and pt == self._lastTransform:
-            return
-
-        t = pt.inverted()[0]
-        # reset translation
-        t.setMatrix(1, t.m12(), t.m13(), t.m21(), 1, t.m23(), 0, 0, t.m33())
-
-        # apply rotation
-        angle = -self.angle
-        if self.rotateAxis is not None:
-            d = pt.map(self.rotateAxis) - pt.map(Point(0, 0))
-            a = np.arctan2(d.y(), d.x()) * 180 / np.pi
-            angle += a
-        t.rotate(angle)
-
-        self.setTransform(t)
-        self._lastTransform = pt
-        self.updateTextPos()
-
-
 class GroupMixin(ColorCycleMixin):
 
     source = Typed(object)
