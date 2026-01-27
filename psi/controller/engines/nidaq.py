@@ -417,16 +417,14 @@ def hw_input_helper(cb, channels, discard, fs, channel_names, task, task_id,
         mx.DAQmxGetReadAvailSampPerChan(task, uint32)
         available_samples = uint32.value
 
-
         if available_samples == 0:
             log.info('No samples available. Current read position %d.', read_position)
             raise ValueError('No samples available for read')
-            return 0
 
         data = read_hw_input(task, available_samples, channels, cb_samples,
                              input_type)
         if data is None:
-            return 0
+            raise ValueError(f'No samples read (attempted to read {available_samples} samples)')
 
         if read_position <= discard:
             to_discard = discard - read_position
