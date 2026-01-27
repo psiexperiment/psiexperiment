@@ -8,7 +8,7 @@ import importlib
 from functools import partial
 from collections import defaultdict
 import uuid
-from threading import RLock
+from threading import Lock
 
 import numpy as np
 import pandas as pd
@@ -191,7 +191,7 @@ class BaseDataRange(Atom):
     # Size of display window
     span = Float(1)
 
-    # Delay before clearing window once data has "scrolled off" the window.
+    # Delay before clearing window once data has scrolled off the window.
     delay = Float(0)
 
     # Current visible data range
@@ -205,9 +205,13 @@ class BaseDataRange(Atom):
         return 0, self.span
 
     def _observe_delay(self, event):
+        if event['type'] == 'create':
+            return
         self._update_range()
 
     def _observe_span(self, event):
+        if event['type'] == 'create':
+            return
         self._update_range()
 
     def _update_range(self):
@@ -232,45 +236,42 @@ class EpochDataRange(BaseDataRange):
 
 class ChannelDataRange(BaseDataRange):
 
-    # Automatically updated. Indicates last "seen" time based on all data
-    # sources reporting to this range.
+    # Automatically updated. Indicates last seen time based on all data sources
+    # reporting to this range.
     current_time = Float(0)
-
-    current_samples = Typed(defaultdict, (int,))
-    current_times = Typed(defaultdict, (float,))
 
     lock = Value()
 
     def _default_lock(self):
-        return RLock()
-
-    def _observe_current_time(self, event):
-        self._update_range()
+        return Lock()
 
     def _update_range(self):
         with self.lock:
             low_value = (self.current_time//self.span)*self.span - self.delay
             high_value = low_value+self.span
-            self.current_range = low_value, high_value
+            if self.current_range != (low_value, high_value):
+                self.current_range = low_value, high_value
 
     def add_event_source(self, source):
         cb = partial(self.event_source_added, source=source)
         source.add_callback(cb)
 
     def source_added(self, data, source):
-        # Invoked whenever a source of Channel type recieves data.
-        with self.lock:
-            self.current_samples[source] += data.shape[-1]
-            self.current_times[source] = self.current_samples[source]/source.fs
-            self.current_time = max(self.current_times.values())
+        # Invoked whenever a source of Channel type recieves data. Data is an
+        # instance of PipelineData.
+        self.current_time = max(self.current_time, data.t_end)
+        self.check_range()
 
     def event_source_added(self, data, source):
-        # Invoked whenever a source of Event type receives data.
-        with self.lock:
-            if data.events.empty:
-                return
-            self.current_times[source] = data.events.iloc[-1]['ts']
-            self.current_time = max(self.current_times.values())
+        # Invoked whenever a source of Event type receives data. Data is an
+        # instance of Events.
+        self.current_time = max(self.current_time, data.t_end)
+        self.check_range()
+
+    def check_range(self):
+        lb = (self.current_time // self.span) * self.span - self.delay
+        if self.current_range[0] != lb:
+            self._update_range()
 
 
 ################################################################################
