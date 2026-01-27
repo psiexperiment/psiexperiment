@@ -340,11 +340,13 @@ def read_hw_input(task, available_samples=None, channels=1, block_size=1,
         uint32 = ctypes.c_uint32()
         mx.DAQmxGetReadAvailSampPerChan(task, uint32)
         available_samples = uint32.value
+        blocks = (available_samples//block_size)
+        if blocks == 0:
+            return
+        samples = blocks*block_size
+    else:
+        samples = available_samples
 
-    blocks = (available_samples//block_size)
-    if blocks == 0:
-        return
-    samples = blocks*block_size
     data = np.empty((channels, samples), dtype=np.double)
     int32 = ctypes.c_int32()
     if input_type == 'ai':
