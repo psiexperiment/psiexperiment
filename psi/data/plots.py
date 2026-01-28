@@ -486,6 +486,7 @@ class BaseTimeContainer(BasePlotContainer):
 
     def update(self, event=None):
         low, high = self.data_range.current_range
+        log.error('Updating XRange for base time contaner to %f %f', low, high)
         deferred_call(self.base_viewbox.setXRange, low, high, padding=0)
         super().update()
 
