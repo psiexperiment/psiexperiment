@@ -245,9 +245,17 @@ class BaseDataRange(Atom):
     # Current visible data range
     current_range = Tuple(Float(), Float())
 
+    has_source = Bool(False)
+
     def add_source(self, source):
-        cb = partial(self.source_added, source=source)
-        source.add_callback(cb)
+        # Under the assumption that all sources should generally be in sync, we
+        # only need to listen to one source to maintain the updates. Eventually
+        # we may need to add a parameter that lets us require that the plot
+        # also listen to a particular source for information.
+        if self.has_source:
+            return
+        source.add_callback(self.data_received)
+        self.has_source = True
 
     def _default_current_range(self):
         return 0, self.span
@@ -265,14 +273,16 @@ class BaseDataRange(Atom):
     def _update_range(self):
         raise NotImplementedError
 
+    def data_received(self, data):
+        raise NotImplementedError
+
 
 class EpochDataRange(BaseDataRange):
 
     max_duration = Float()
 
-    def source_added(self, data, source):
-        n = [d.shape[-1] for d in data]
-        max_duration = max(n) / source.fs
+    def data_received(self, data, source):
+        max_duration = max(d.t_end for d in data)
         self.max_duration = max(max_duration, self.max_duration)
 
     def _observe_max_duration(self, event):
@@ -284,8 +294,8 @@ class EpochDataRange(BaseDataRange):
 
 class ChannelDataRange(BaseDataRange):
 
-    # Automatically updated. Indicates last seen time based on all data sources
-    # reporting to this range.
+    # Automatically updated. Indicates last seen time based on the first data
+    # source reporting to this range.
     current_time = Float(0)
 
     lock = Value()
@@ -300,23 +310,11 @@ class ChannelDataRange(BaseDataRange):
             if self.current_range != (low_value, high_value):
                 self.current_range = low_value, high_value
 
-    def add_event_source(self, source):
-        cb = partial(self.event_source_added, source=source)
-        source.add_callback(cb)
-
-    def source_added(self, data, source):
-        # Invoked whenever a source of Channel type recieves data. Data is an
-        # instance of PipelineData.
-        self.current_time = max(self.current_time, data.t_end)
-        self.check_range()
-
-    def event_source_added(self, data, source):
-        # Invoked whenever a source of Event type receives data. Data is an
-        # instance of Events.
-        self.current_time = max(self.current_time, data.t_end)
-        self.check_range()
-
-    def check_range(self):
+    def data_received(self, data):
+        # Invoked whenever a source recieves data (either Events or
+        # PipelineData)
+        log.error('data added in channel data range')
+        self.current_time = data.t_end
         lb = (self.current_time // self.span) * self.span - self.delay
         if self.current_range[0] != lb:
             self._update_range()
@@ -948,7 +946,7 @@ class TimepointPlot(SourceMixin, SymbolMixin, SinglePlot):
 
     def _observe_source(self, event):
         if self.source is not None:
-            self.parent.data_range.add_event_source(self.source)
+            self.parent.data_range.add_source(self.source)
             self.source.add_callback(self._append_data)
 
     def _observe_y(self, event):
@@ -1072,7 +1070,7 @@ class TimeseriesPlot(BaseTimeseriesPlot):
 
     def _observe_source(self, event):
         if self.source is not None:
-            self.parent.data_range.add_event_source(self.source)
+            self.parent.data_range.add_source(self.source)
             # Need to observe the current time to ensure that rectangles that
             # have not recieved a "falling" event continue to "expand" as time
             # advances.
