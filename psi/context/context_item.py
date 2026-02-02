@@ -324,8 +324,9 @@ class EnumParameter(Parameter):
                 break
         else:
             if expression is not None:
-                m = 'Could not map expression {} to choice'.format(expression)
-                raise ValueError(m)
+                valid_choices = ', '.join(self.choices.values())
+                t = 'Could not map expression {} to choice. Valid choices are {}.'
+                raise ValueError(t.format(expression, valid_choices))
 
     def _default_selected(self):
         if self.default not in self.choices:
