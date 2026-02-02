@@ -1,0 +1,18 @@
+import enaml
+from enaml.workbench.api import PluginManifest, Extension
+
+
+with enaml.imports():
+    from psi.controller.engines.soundcard.standard_io import ASIOFirefaceUSBEngine
+
+
+enamldef IOManifest(PluginManifest): manifest:
+    '''
+    Template for configuring IO of system
+    '''
+    Extension:
+        id = 'soundcard'
+        point = 'psi.controller.io'
+
+        ASIOFirefaceUSBEngine: engine:
+            pass
