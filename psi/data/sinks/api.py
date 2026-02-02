@@ -6,8 +6,6 @@ with enaml.imports():
     from .config_store import ConfigStore
     from .table_store import TableStore
     from .text_store import TextStore
-    from .trial_log import TrialLog
-    from .sdt_analysis import SDTAnalysis
     from .queue_status import QueueStatus
     from .zarr_store import ZarrStore
     from .logging import Logger
