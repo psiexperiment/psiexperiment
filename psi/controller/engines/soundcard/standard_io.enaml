@@ -39,7 +39,9 @@ enamldef BaseSoundcardEngine(SoundcardEngine):
             channel = loop_item[0]
             label = loop_item[1]['label']
             name = loop_item[1]['name']
-            dBFS = loop_item[1]['dBFS']
+            dBFS = loop_item[1].get('dBFS', (19, 'dBu'))
+            supported_devices = ['generic_microphone', 'measurement_microphone']
+            gain = 0
 
     Looper:
         iterable << output_map.items()
@@ -48,8 +50,38 @@ enamldef BaseSoundcardEngine(SoundcardEngine):
             channel = loop_item[0]
             label = loop_item[1]['label']
             name = loop_item[1]['name']
+            supported_devices = ['speaker']
 
 
 enamldef ASIOFirefaceUSBEngine(BaseSoundcardEngine):
 
     device_name = 'ASIO Fireface USB'
+
+
+def get_input_config(n_channels):
+    config = {}
+    for c in range(n_channels):
+        config[c] = {
+            'channel': c,
+            'label': f'Input {c}',
+            'name': f'input_{c}',
+        }
+    return config
+
+
+def get_output_config(n_channels):
+    config = {}
+    for c in range(n_channels):
+        config[c] = {
+            'channel': c,
+            'label': f'Output {c}',
+            'name': f'output_{c}',
+        }
+    return config
+
+
+enamldef AutoASIOFirefaceUSBEngine(ASIOFirefaceUSBEngine):
+
+    attr dev_info = sd.query_devices(device_name)
+    attr input_map = get_input_config(dev_info['max_input_channels'])
+    attr output_map = get_output_config(dev_info['max_output_channels'])
