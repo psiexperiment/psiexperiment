@@ -30,7 +30,7 @@ from enaml.core.api import Declarative, d_
 from psiaudio.calibration import FlatCalibration
 
 from psiaudio import pipeline
-from psiaudio.util import db, dbi
+from psiaudio.util import db, dbi, tone_power_conv
 
 from .channel import Channel
 
@@ -365,6 +365,48 @@ class Blocked(ContinuousInput):
         cb = super().configure_callback()
         block_size = round(self.duration * self.fs)
         return pipeline.blocked(block_size, cb).send
+
+
+def extract_power(s, frequency):
+    p = tone_power_conv(s, fs=s.fs, frequency=frequency)[:, np.newaxis]
+    return pipeline.PipelineData(
+        p,
+        s0=s.s0 / s.n_time,
+        fs=s.fs / s.n_time,
+        metadata=s.metadata, channel=s.channel,
+    )
+
+
+class ExtractPower(ContinuousInput):
+    '''
+    Chunk data based on time and then extract a particular frequency.
+    Downsamples to the chunk size.
+    '''
+    #: Duration, in seconds, of each chunk. This is rounded to the nearest
+    #: integer number of samples and each block will always have the exact same
+    #: number of samples.
+    duration = d_(Float()).tag(metadata=True)
+
+    #: Frequency to extract.
+    frequency = d_(Float()).tag(metadata=True)
+
+    def _get_fs(self):
+        samples = self.duration * self.parent.fs
+        return self.parent.fs / samples
+
+    def configure_callback(self):
+        if self.duration <= 0:
+            m = 'Duration for {} must be > 0'.format(self.name)
+            raise ValueError(m)
+        cb = super().configure_callback()
+        samples = round(self.duration * self.parent.fs)
+        return pipeline.blocked(
+            samples,
+            pipeline.transform(
+                lambda s: extract_power(s, self.frequency),
+                cb,
+            ).send,
+        ).send
 
 
 class Accumulate(ContinuousInput):
