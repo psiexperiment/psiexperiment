@@ -328,7 +328,7 @@ class ChannelDataRange(BaseDataRange):
     def data_received(self, data):
         # Invoked whenever a source recieves data (either Events or
         # PipelineData)
-        self.current_time = data.t_end
+        self.current_time = max(self.current_time, data.t_end)
         lb = (self.current_time // self.span) * self.span - self.delay
         if self.current_range[0] != lb:
             self._update_range()
