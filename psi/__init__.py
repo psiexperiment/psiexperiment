@@ -7,9 +7,6 @@ import os
 from pathlib import Path
 import socket
 
-# This automatically introduces the TRACE logging level
-import psiaudio
-
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
 
