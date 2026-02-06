@@ -2,20 +2,22 @@ import logging
 
 log = logging.getLogger(__name__)
 
+from collections import defaultdict
 import datetime as dt
 import itertools
 import importlib
 from functools import partial
-from collections import defaultdict
-import uuid
+import string
 from threading import Lock
+import uuid
 
 import numpy as np
 import pandas as pd
 import pyqtgraph as pg
 
 from atom.api import (Str, Float, Tuple, Int, Typed, Property, Atom,
-                      Bool, Enum, List, Dict, Callable, Value, observe)
+                      Bool, Enum, List, Dict, Callable, Value, observe,
+                      set_default)
 
 from enaml.application import deferred_call, timed_call
 from enaml.core.api import Looper, Declarative, d_, d_func
@@ -53,12 +55,30 @@ def get_color_cycle(name, n):
 ################################################################################
 # Custom PyQtGraph subclasses
 ################################################################################
+def format_time(seconds, fmt='{H:02d}:{M:02d}:{S:02.0f}'):
+    names = [i[1] for i in string.Formatter().parse(fmt)]
+    values = {}
+    if 'H' in names:
+        values['H'] = hours = int(seconds) // (60 * 60)
+        seconds -= (hours * 60 * 60)
+    if 'M' in names:
+        values['M'] = minutes = int(seconds) // 60
+        seconds -= (minutes * 60)
+    if 'S' in names:
+        values['S'] = seconds
+    return fmt.format(**values)
+
+
 class TimeAxisItem(pg.AxisItem):
     '''
-    Create nicely-formatted HH:MM:SS time axis
+    Create nicely-formatted time axis
     '''
+    def __init__(self, fmt, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fmt = fmt
+
     def tickStrings(self, values, scale, spacing):
-        return [str(dt.timedelta(seconds=int(v))) for v in values]
+        return [format_time(v, fmt=self.fmt) for v in values]
 
 
 class NormalizedViewBox:
@@ -86,7 +106,7 @@ class NormalizedViewBox:
         self.target_vb.sigResized.connect(self.update_geometry)
 
         # Ensure it stays visually on top of the target
-        self.overlay_vb.setZValue(100) 
+        self.overlay_vb.setZValue(100)
 
         self.update_geometry()
 
@@ -248,14 +268,7 @@ class BaseDataRange(Atom):
     has_source = Bool(False)
 
     def add_source(self, source):
-        # Under the assumption that all sources should generally be in sync, we
-        # only need to listen to one source to maintain the updates. Eventually
-        # we may need to add a parameter that lets us require that the plot
-        # also listen to a particular source for information.
-        if self.has_source:
-            return
-        source.add_callback(self.data_received)
-        self.has_source = True
+        raise NotImplementedError
 
     def _default_current_range(self):
         return 0, self.span
@@ -279,11 +292,13 @@ class BaseDataRange(Atom):
 
 class EpochDataRange(BaseDataRange):
 
-    max_duration = Float()
+    max_duration = Float(0)
 
-    def data_received(self, data, source):
-        max_duration = max(d.t_end for d in data)
-        self.max_duration = max(max_duration, self.max_duration)
+    def data_received(self, data):
+        self.max_duration = max(data.duration, self.max_duration)
+
+    def add_source(self, source):
+        source.add_callback(self.data_received)
 
     def _observe_max_duration(self, event):
         self._update_range()
@@ -313,11 +328,22 @@ class ChannelDataRange(BaseDataRange):
     def data_received(self, data):
         # Invoked whenever a source recieves data (either Events or
         # PipelineData)
-        log.error('data added in channel data range')
         self.current_time = data.t_end
         lb = (self.current_time // self.span) * self.span - self.delay
         if self.current_range[0] != lb:
             self._update_range()
+
+    def add_source(self, source):
+        # Under the assumption that all sources should generally be in sync, we
+        # only need to listen to one source to maintain the updates. Eventually
+        # we may need to add a parameter that lets us require that the plot
+        # also listen to a particular source for information. This should
+        # significantly optimize plotting when one data range is recieving from
+        # multiple sources.
+        if self.has_source:
+            return
+        source.add_callback(self.data_received)
+        self.has_source = True
 
 
 ################################################################################
@@ -461,6 +487,10 @@ class BaseTimeContainer(BasePlotContainer):
     span = d_(Float(1))
     delay = d_(Float(0.25))
 
+    #: Tick label format
+    tick_fmt = d_(Str('{H:02d}:{M:02d}:{S:02.0f}'))
+    tick_unit = d_(Str('HH:MM:SS'))
+
     def _update_container(self):
         super()._update_container()
         if self.base_viewbox is not None:
@@ -475,16 +505,16 @@ class BaseTimeContainer(BasePlotContainer):
         return container
 
     def _default_x_axis(self):
-        x_axis = TimeAxisItem(orientation='bottom')
+        x_axis = TimeAxisItem(orientation='bottom', fmt=self.tick_fmt)
         x_axis.setGrid(64)
         if self.base_viewbox is not None:
             x_axis.linkToView(self.base_viewbox)
-        x_axis.setLabel('Time', units='HH:MM:SS')
+        x_axis.setLabel('Time', units=self.tick_unit)
+        x_axis.enableAutoSIPrefix(False)
         return x_axis
 
     def update(self, event=None):
         low, high = self.data_range.current_range
-        log.error('Updating XRange for base time contaner to %f %f', low, high)
         deferred_call(self.base_viewbox.setXRange, low, high, padding=0)
         super().update()
 
@@ -503,6 +533,9 @@ class TimeContainer(BaseTimeContainer):
 
 
 class EpochTimeContainer(BaseTimeContainer):
+
+    tick_fmt = set_default('{S}')
+    tick_unit = set_default('Seconds')
 
     def _default_data_range(self):
         return EpochDataRange(container=self, span=self.span, delay=self.delay)
@@ -1018,7 +1051,6 @@ class BaseTimeseriesPlot(SinglePlot):
         try:
             epochs = np.c_[starts, ends]
         except ValueError as e:
-            log.exception(e)
             log.warning('Unable to update %r, starts shape %r, ends shape %r',
                         self, starts, ends)
             return
