@@ -191,7 +191,22 @@ class ContinuousInput(Input):
 
 
 class EventInput(Input):
-    pass
+
+    def _observe_source(self, event):
+        if (obj := event.get('oldvalue')) is not None:
+            obj.unobserve('duration', self._duration_updated)
+        elif (obj := event.get('value')) is not None:
+            obj.observe('duration', self._duration_updated)
+
+    def _duration_updated(self, event):
+        # Ensure that changes to the parent duration get propagated down the
+        # input hierarchy so that downstream nodes can respond accordingly
+        # (e.g., plots can update data limits accordingly).
+        event = event.copy()
+        event['value'] = self.duration
+        self.notify('duration', event)
+        member = self.get_member('duration')
+        member.notify(self, event)
 
 
 class EpochInput(Input):
@@ -689,7 +704,7 @@ class ExtractEpochs(EpochInput):
     #: notify the coroutine that we wish to capture an epoch).
     buffer_size = d_(Float(0)).tag(metadata=True)
 
-    #: Defines the size of the epoch (if NaN, this is automatically drawn from
+    #: Defines the size of the epoch (if 0, this is automatically drawn from
     #: the information provided by the queue).
     epoch_size = d_(Float(0)).tag(metadata=True)
 
@@ -741,8 +756,12 @@ class ExtractEpochs(EpochInput):
     def _observe_epoch_size(self, event):
         self.notify('duration', self.duration)
 
-    # force change notification for poststim time
+    # force change notification for duration
     def _observe_poststim_time(self, event):
+        self.notify('duration', self.duration)
+
+    # force change notification for duration
+    def _observe_prestim_time(self, event):
         self.notify('duration', self.duration)
 
 
