@@ -1,4 +1,4 @@
-# This adds the TRACE logging level
+# This import automatically adds the TRACE logging level
 import psiaudio
 
 import logging
