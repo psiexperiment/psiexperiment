@@ -382,16 +382,6 @@ class Blocked(ContinuousInput):
         return pipeline.blocked(block_size, cb).send
 
 
-def extract_power(s, frequency):
-    p = tone_power_conv(s, fs=s.fs, frequency=frequency)[:, np.newaxis]
-    return pipeline.PipelineData(
-        p,
-        s0=s.s0 / s.n_time,
-        fs=s.fs / s.n_time,
-        metadata=s.metadata, channel=s.channel,
-    )
-
-
 class ExtractPower(ContinuousInput):
     '''
     Chunk data based on time and then extract a particular frequency.
@@ -417,8 +407,9 @@ class ExtractPower(ContinuousInput):
         samples = round(self.duration * self.parent.fs)
         return pipeline.blocked(
             samples,
-            pipeline.transform(
-                lambda s: extract_power(s, self.frequency),
+            pipeline.extract_power(
+                self.frequency,
+                'hamming',
                 cb,
             ).send,
         ).send
@@ -524,9 +515,30 @@ class Discard(ContinuousInput):
 class Threshold(Transform):
 
     threshold = d_(Float(0)).tag(metadata=True)
+    mode = d_(Enum('>', '>=', '<', '<=')).tag(metadata=True)
 
     def _default_function(self):
-        return lambda x, t=self.threshold: x >= t
+        if self.mode == '>':
+            return lambda x, t=self.threshold: x > t
+        elif self.mode == '>=':
+            return lambda x, t=self.threshold: x >= t
+        elif self.mode == '<':
+            return lambda x, t=self.threshold: x < t
+        elif self.mode == '<=':
+            return lambda x, t=self.threshold: x <= t
+
+
+class AutoScale(ContinuousInput):
+
+    #: Upper bound of range to scale data to.
+    scale = d_(Float(1))
+
+    #: Duration, in seconds, to calculate threshold over.
+    baseline = d_(Float(1)).tag(metadata=True)
+
+    def configure_callback(self):
+        cb = super().configure_callback()
+        return pipeline.auto_scale(self.scale, self.baseline, cb).send
 
 
 class AutoThreshold(ContinuousInput):
