@@ -265,8 +265,6 @@ class BaseDataRange(Atom):
     # Current visible data range
     current_range = Tuple(Float(), Float())
 
-    has_source = Bool(False)
-
     def add_source(self, source):
         raise NotImplementedError
 
@@ -312,18 +310,16 @@ class ChannelDataRange(BaseDataRange):
     # Automatically updated. Indicates last seen time based on the first data
     # source reporting to this range.
     current_time = Float(0)
-
-    lock = Value()
+    track_sources = d_(List())
 
     def _default_lock(self):
         return Lock()
 
     def _update_range(self):
-        with self.lock:
-            low_value = (self.current_time//self.span)*self.span - self.delay
-            high_value = low_value+self.span
-            if self.current_range != (low_value, high_value):
-                self.current_range = low_value, high_value
+        low_value = (self.current_time//self.span)*self.span - self.delay
+        high_value = low_value+self.span
+        if self.current_range != (low_value, high_value):
+            self.current_range = low_value, high_value
 
     def data_received(self, data):
         # Invoked whenever a source recieves data (either Events or
@@ -334,16 +330,11 @@ class ChannelDataRange(BaseDataRange):
             self._update_range()
 
     def add_source(self, source):
-        # Under the assumption that all sources should generally be in sync, we
-        # only need to listen to one source to maintain the updates. Eventually
-        # we may need to add a parameter that lets us require that the plot
-        # also listen to a particular source for information. This should
-        # significantly optimize plotting when one data range is recieving from
-        # multiple sources.
-        if self.has_source:
-            return
-        source.add_callback(self.data_received)
-        self.has_source = True
+        if self.track_sources:
+            if source.name in self.track_sources:
+                source.add_callback(self.data_received)
+        else:
+            source.add_callback(self.data_received)
 
 
 ################################################################################
@@ -485,7 +476,7 @@ class BaseTimeContainer(BasePlotContainer):
     '''
     data_range = Typed(BaseDataRange)
     span = d_(Float(1))
-    delay = d_(Float(0.25))
+    delay = d_(Float(0))
 
     #: Tick label format
     tick_fmt = d_(Str('{H:02d}:{M:02d}:{S:02.0f}'))
@@ -521,9 +512,12 @@ class BaseTimeContainer(BasePlotContainer):
 
 class TimeContainer(BaseTimeContainer):
 
+    track_sources = d_(List())
+
     def _default_data_range(self):
         return ChannelDataRange(container=self, span=self.span,
-                                delay=self.delay)
+                                delay=self.delay,
+                                track_sources=self.track_sources)
 
     def update(self, event=None):
         for child in self.children:
