@@ -9,9 +9,10 @@ from psiaudio.calibration import FlatCalibration, PointCalibration
 from psiaudio.stim import ToneFactory, SilenceFactory
 
 
-def tone_power(engines, frequencies, ao_channel_name, ai_channel_names, gains=0,
-               vrms=1, repetitions=2, min_snr=None, max_thd=None, thd_harmonics=3,
-               duration=0.1, trim=0.01, iti=0.01, debug=False):
+def tone_power(engines, frequencies, ao_channel_name, ai_channel_names,
+               gains=0, vrms=1, repetitions=2, min_snr=None, max_thd=None,
+               thd_harmonics=3, duration=0.1, trim=0.01, iti=0.01,
+               debug=False):
     '''
     Given a single output, measure response in multiple input channels.
 
