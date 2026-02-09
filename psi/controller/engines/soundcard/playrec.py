@@ -150,6 +150,10 @@ class PlayRec:
             raise ValueError('No input or output channels specified')
 
         self.stream = stream_class(**stream_kw, finished_callback=self.event.set)
+        if self.stream.samplerate != self.fs:
+            raise ValueError('Could not get desired sample rate')
+        if self.stream.blocksize != self.blocksize:
+            raise ValueError('Could not get desired blocksize')
 
     def start(self):
         self.stream.start()
