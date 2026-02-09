@@ -225,8 +225,8 @@ def _main(args):
                               load_preferences=not args.no_preferences,
                               load_layout=not args.no_layout,
                               preferences_file=args.preferences,
-                              layout_file=args.layout,
-                              calibration_file=args.calibration)
+                              layout_file=args.layout
+                              )
 
 
 def list_preferences(experiment, include_default=False):
@@ -247,25 +247,6 @@ def list_io():
         result.extend(Path(io_path).glob('*.enaml'))
     result.extend(get_config('STANDARD_IO', []))
     return result
-
-
-def get_calibration_path(io_file):
-    io_file = Path(io_file)
-    return io_file.parent / io_file.stem
-
-
-def get_calibration_file(io_file=None, name='default'):
-    if io_file is None:
-        io_file = get_default_io()
-    path = get_calibration_path(io_file)
-    return (path / name).with_suffix('.json')
-
-
-def list_calibrations(io_file=None):
-    if io_file is None:
-        io_file = get_default_io()
-    path = get_calibration_path(io_file)
-    return list(path.glob('*.json'))
 
 
 def launch_experiment(args):
@@ -349,14 +330,6 @@ def load_io_manifest(io_manifest=None):
     else:
         klass = load_manifest(f'{io_manifest}.IOManifest')
     return klass
-
-
-def get_default_calibration(io_file):
-    available_calibrations = list_calibrations(io_file)
-    for calibration in available_calibrations:
-        if calibration.stem == 'default':
-            return calibration
-    raise ValueError('No default calibration configured for system')
 
 
 def load_paradigm_descriptions():

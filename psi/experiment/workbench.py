@@ -107,7 +107,6 @@ class PSIWorkbench(Workbench):
                         load_layout=True,
                         preferences_file=None,
                         layout_file=None,
-                        calibration_file=None, 
                         ):
 
         ui = self.get_plugin('enaml.workbench.ui')
@@ -162,9 +161,6 @@ class PSIWorkbench(Workbench):
             params = {'base_path': tmp_path, 'is_temp': True}
         controller.register_action('experiment_prepare',
                                    'psi.data.set_base_path', params)
-
-        if calibration_file is not None:
-            controller.load_calibration(calibration_file)
 
         plugins = ', '.join(self._plugins.keys())
         log.info('Plugins loaded: %s', plugins)

@@ -3,20 +3,14 @@ log = logging.getLogger(__name__)
 import argparse
 import importlib
 
-from psi.application import (get_default_calibration, get_default_io,
-                             launch_experiment, load_paradigm_descriptions)
+from psi.application import (get_default_io, launch_experiment,
+                             load_paradigm_descriptions)
 
 from psi.experiment.api import paradigm_manager
 
 
 def parse_args(parser):
-    args = parser.parse_args()
-    if args.calibration is None:
-        try:
-            args.calibration = get_default_calibration(args.io)
-        except ValueError as e:
-            log.warn(str(e))
-    return args
+    return parser.parse_args()
 
 
 def add_default_options(parser):
@@ -39,8 +33,6 @@ def add_default_options(parser):
     parser.add_argument('pathname', type=str, help='Filename', nargs='?')
     parser.add_argument('--io', type=str, default=default_io,
                         help='Hardware configuration')
-    parser.add_argument('--calibration', type=str, help='Hardware calibration',
-                        action=CalibrationAction)
     parser.add_argument('--debug', default=True, action='store_true',
                         help='Debug mode?')
     parser.add_argument('--debug-warning', default=False, action='store_true',

@@ -15,7 +15,6 @@ from enaml.qt.QtCore import Qt
 from enaml.workbench.api import Extension
 from enaml.workbench.plugin import Plugin
 
-from .calibration.util import load_calibration
 from .channel import Channel, OutputMixin, InputMixin
 from .engine import Engine
 from .output import BaseOutput, Synchronized
@@ -501,10 +500,6 @@ class ControllerPlugin(Plugin):
             ec = engine.get_channels(mode, direction, timing, active)
             channels.extend(ec)
         return channels
-
-    def load_calibration(self, calibration_file):
-        channels = list(self._channels.values())
-        load_calibration(calibration_file, channels)
 
     def invoke_actions(self, event_name, timestamp=None, delayed=False,
                        cancel_existing=True, kw=None, skip_errors=False):
