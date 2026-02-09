@@ -352,6 +352,7 @@ class BasePlotContainer(PSIContribution):
     current_button = d_(Value())
     allow_auto_select = d_(Bool(True))
     auto_select = d_(Bool(True))
+    x_label = d_(Str())
 
     #: Callable that takes, as the first argument, a tuple defining the group
     #: of plots (e.g., frequency, rate) and returns a nicely-formatted string
@@ -433,9 +434,14 @@ class BasePlotContainer(PSIContribution):
     def _default_x_axis(self):
         x_axis = pg.AxisItem('bottom')
         x_axis.setGrid(64)
+        x_axis.setLabel(self.x_label)
+        x_axis.enableAutoSIPrefix(False)
         if self.base_viewbox is not None:
             x_axis.linkToView(self.base_viewbox)
         return x_axis
+
+    def _observe_x_label(self, event):
+        self.x_axis.setLabel(self.x_label)
 
     def update(self, event=None):
         pass
@@ -655,6 +661,7 @@ class ViewBox(ColorCycleMixin, PSIContribution):
     def _default_y_axis(self):
         y_axis = pg.AxisItem('left')
         y_axis.setLabel(self.y_label)
+        y_axis.enableAutoSIPrefix(False)
         y_axis.setGrid(64)
         return y_axis
 
