@@ -8,7 +8,6 @@ import itertools
 import importlib
 from functools import partial
 import string
-from threading import Lock
 import uuid
 
 import numpy as np
@@ -311,9 +310,6 @@ class ChannelDataRange(BaseDataRange):
     # source reporting to this range.
     current_time = Float(0)
     track_sources = d_(List())
-
-    def _default_lock(self):
-        return Lock()
 
     def _update_range(self):
         low_value = (self.current_time//self.span)*self.span - self.delay
