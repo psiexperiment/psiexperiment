@@ -270,7 +270,7 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
         self._stream.start()
         self._running = True
         self.t0 = self._stream.stream.time
-        log.error('Stream time %f', self.t0)
+        log.info('Stream time %f', self.t0)
 
     def stop(self):
         if self._running:
