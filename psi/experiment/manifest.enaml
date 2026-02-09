@@ -196,6 +196,22 @@ def write_metadata(event):
     experiment = event.workbench.get_plugin('psi.experiment')
     store.save_mapping('metadata', experiment.metadata_to_dict())
 
+from enaml.widgets.api import Container, IPythonConsole, Window
+
+enamldef ConsoleWindow(Window):
+    attr namespace
+    Container:
+        padding = 0
+        IPythonConsole:
+            initial_ns = namespace
+
+def open_shell(event):
+    namespace = {
+        'workbench': event.workbench,
+    }
+    window = ConsoleWindow(namespace=namespace)
+    window.show()
+
 
 enamldef StatusDockItem(PSIDockItem):
 
@@ -316,6 +332,9 @@ enamldef ExperimentManifest(PluginManifest): manifest:
         Command:
             id = 'psi.write_metadata'
             handler = write_metadata
+        Command:
+            id = 'psi.open_shell'
+            handler = open_shell
 
     Extension:
         id = manifest.id + '.actions'
