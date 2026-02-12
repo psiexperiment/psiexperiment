@@ -11,7 +11,7 @@ from atom.api import (Typed, set_default, observe, Enum, Event, Property,
 from enaml.core.declarative import d_, d_func
 from enaml.widgets.api import RawWidget
 
-from enaml.qt.QtCore import QAbstractTableModel, QModelIndex, QRect, Qt
+from enaml.qt.QtCore import QAbstractTableModel, QModelIndex, QRect, QTimer, Qt
 from enaml.qt.QtWidgets import QAbstractItemView, QHeaderView, QStyledItemDelegate, QTableView
 from enaml.qt.QtGui import QBrush, QColor
 
@@ -281,6 +281,10 @@ class QEditableTableView(QTableView):
             except KeyError:
                 pass
 
+    def autoscroll(self):
+        bar = self.verticalScrollBar()
+        return bar.value() >= bar.maximum()
+
 
 class LiveEdit:
 
@@ -323,10 +327,6 @@ class EditableTable(RawWidget):
     #: Can the user edit the data in the table?
     editable = d_(Bool(False))
 
-    #: Each time the table is updated, should it scroll to the bottom (last
-    #: row)?
-    autoscroll = d_(Bool(False))
-
     #: Should column labels be shown?
     show_column_labels = d_(Bool(True))
 
@@ -344,7 +344,6 @@ class EditableTable(RawWidget):
     #: * coerce - Function to coerce text entered in column to correct value.
     #: * initial_width - Initial width to set column to.
     #: * to_string - Function used to generate string representation.
-
     column_info = d_(Dict(Str(), Typed(object), {}))
 
     #: Widths of columns in table
@@ -359,7 +358,9 @@ class EditableTable(RawWidget):
     columns_movable = d_(Bool(True))
 
     #: Table data. Table is updated every time the object changes. Atom cannot
-    #: listen for changes to an object, so you need to be sur ethat
+    #: listen for changes to an object, so you need to be sure that the table
+    #: knows to update (either by assigning a new object to this value, or
+    #: triggering the update event).
     data = d_(Value())
 
     #: Force a redraw of table data. Used if the underlying information has
@@ -601,6 +602,19 @@ class EditableTable(RawWidget):
     def _observe_column_info(self, event):
         self._reset_model()
 
+    def append_row(self, row):
+        start_row = self.model.rowCount()
+        end_row = start_row
+        autoscroll = self.view.autoscroll()
+        self.model.beginInsertRows(QModelIndex(), start_row, end_row)
+        self.data.append(row)
+        self.model.endInsertRows()
+        if start_row == 0:
+            self.model.beginResetModel()
+            self.model.endResetModel()
+        if autoscroll and self.view:
+            QTimer.singleShot(0, self.view.scrollToBottom)
+
     def _observe_update(self, event):
         self._reset_model()
 
@@ -611,8 +625,6 @@ class EditableTable(RawWidget):
             return
         self.model.beginResetModel()
         self.model.endResetModel()
-        if self.autoscroll and self.view:
-            self.view.scrollToBottom()
 
     def _get_column_widths(self):
         return self.view.get_column_widths()
@@ -653,6 +665,7 @@ class EditableTable(RawWidget):
             row_string = '\t'.join(str(d) for d in row_data)
             table_strings.append(row_string)
         return '\n'.join(table_strings)
+
 
 
 class DataFrameTable(EditableTable):
