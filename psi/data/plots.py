@@ -346,6 +346,7 @@ class BasePlotContainer(PSIContribution):
     legend = Typed(pg.LegendItem)
     x_transform = Callable()
     inv_x_transform = Callable()
+    axis_scale = d_(Enum('linear', 'octave', 'octave_linear', 'log10'))
 
     buttons = d_(List())
     max_buttons = d_(Int(8))
@@ -384,7 +385,10 @@ class BasePlotContainer(PSIContribution):
             self.auto_select = False
 
     def _default_x_transform(self):
-        return lambda x: x
+        if self.axis_scale in ('octave', 'log10'):
+            return np.log10
+        else:
+            return lambda x: x
 
     def _default_inv_x_transform(self):
         return lambda x: x
@@ -438,6 +442,9 @@ class BasePlotContainer(PSIContribution):
         x_axis.enableAutoSIPrefix(False)
         if self.base_viewbox is not None:
             x_axis.linkToView(self.base_viewbox)
+        if self.axis_scale in ('octave', 'log10'):
+            x_axis.setLogMode(True)
+            x_axis.logTickStrings = format_log_ticks
         return x_axis
 
     def _observe_x_label(self, event):
@@ -548,7 +555,6 @@ class FFTContainer(BasePlotContainer):
     '''
     freq_lb = d_(Float(500))
     freq_ub = d_(Float(50000))
-    axis_scale = d_(Enum('octave', 'octave_linear', 'log10', 'linear'))
 
     # Define x_lb and x_ub as aliases for freq_lb and freq_ub.
     x_min = Property()
@@ -565,12 +571,6 @@ class FFTContainer(BasePlotContainer):
 
     def _set_x_max(self, value):
         self.freq_ub = value
-
-    def _default_x_transform(self):
-        if self.axis_scale in ('octave', 'log10'):
-            return np.log10
-        else:
-            return lambda x: x
 
     def _set_ticks(self):
         if self.axis_scale in ('octave', 'octave_linear'):
