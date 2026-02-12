@@ -175,6 +175,11 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
     #: `Enum` with a value sets the default.
     fs = d_(Enum(32000, 44100, 48000, 64000, 88200, 96000, 128000, 176400, 192000)(96000))
 
+    #: Blocksize for callback. Ideally this will match what is configured for
+    #: the Fireface settings. TODO! Is there a way to find and set this
+    #: parameter via the API? I don't think so ...
+    blocksize = d_(Int(8192))
+
     #: Initial timestamp of the stream when it's first started (apparently the
     #: behavior of the stream start time is undefined, so we just need to
     #: capture this and then subtract from calls to `get_ts`).
@@ -191,6 +196,7 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
         pr_kw = {
             'fs': self.fs,
             'device': self.device_name,
+            'blocksize': self.blocksize,
         }
         if ai_channels:
             pr_kw['ai_channels'] = [c.channel for c in ai_channels]
