@@ -263,13 +263,9 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
     def _hw_ao_callback(self, offset, samples, buffer):
         if offset != self._total_samples_written:
             raise ValueError(f'Offset alignment issue. Requested data at {offset}. Expected {self._total_samples_written}.')
-
         for i, channel in enumerate(self._hw_ao_channels):
             channel.get_samples(offset, samples, buffer[i])
         self._total_samples_written += samples
-
-    def get_buffer_size(self, name):
-        return 10
 
     def start(self):
         # Preload with data if we have an output task
