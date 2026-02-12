@@ -151,6 +151,10 @@ class QEditableTableView(QTableView):
         self.selectionModel().selectionChanged.connect(self._selection_changed)
         self.setShowGrid(self.model.interface.show_grid)
 
+        # Optimization for large tables to avoid recalculating row height.
+        header = self.verticalHeader()
+        header.setSectionResizeMode(header.Fixed)
+
         if (visible_rows := self.model.interface.visible_rows) > 0:
             # Get actual default row height
             row_height = self.verticalHeader().defaultSectionSize()
@@ -386,8 +390,7 @@ class EditableTable(RawWidget):
     stretch_last_section = d_(Bool(True))
 
     #: How can column headers be resized?
-    header_resize_mode = d_(Enum('interactive', 'fixed', 'stretch',
-                                 'contents'))
+    header_resize_mode = d_(Enum('interactive', 'fixed', 'stretch', 'contents'))
 
     def get_selected_row_coords(self):
         if len(self.selected_coords) == 0:
