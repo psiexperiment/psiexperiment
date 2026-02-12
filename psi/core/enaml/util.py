@@ -2,6 +2,7 @@ import logging
 log = logging.getLogger(__name__)
 
 import importlib.util
+from functools import lru_cache
 from pathlib import Path
 
 from enaml.colors import Color
@@ -42,6 +43,7 @@ def load_manifests(objects, workbench):
             load_manifests(o.children, workbench)
 
 
+@lru_cache
 def make_color(color, alpha=None):
     if isinstance(color, (tuple, list)):
         obj = QColor(*color)
@@ -57,5 +59,3 @@ def make_color(color, alpha=None):
         if not obj.isValid():
             raise ValueError('Cannot create QColor from %r', color)
     return obj
-
-

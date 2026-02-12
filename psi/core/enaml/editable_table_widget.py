@@ -23,22 +23,23 @@ class QDelegate(QStyledItemDelegate):
 
     def __init__(self, model, **kw):
         self.model = model
+        self._empty_brush = QBrush(Qt.NoBrush)
         super().__init__(**kw)
 
     def paint(self, painter, option, index):
-        self.initStyleOption(option, index)
-        painter.save()
-        left_width = int(option.rect.width() * self.model.cellFrac(index))
-        right_width = option.rect.width() - left_width
-        left_rect = QRect(option.rect.left(), option.rect.top(), left_width, option.rect.height())
-        right_rect = QRect(option.rect.left(), option.rect.top(), right_width, option.rect.height())
-
-        left_brush = QBrush(self.model.cellColor(index))
-        painter.fillRect(left_rect, left_brush)
-        painter.fillRect(right_rect, Qt.NoBrush)
-        painter.restore()
-        option.backgroundBrush = QBrush(Qt.NoBrush)
-        super().paint(painter, option, index)
+        frac = self.model.cellFrac(index)
+        if frac > 0:
+            # 2. Draw the background manually
+            painter.save()
+            # Calculate width once
+            fill_width = int(option.rect.width() * frac)
+            # Only create one QRect (the left one)
+            left_rect = option.rect.adjusted(0, 0, -(option.rect.width() - fill_width), 0)
+            # Use the color directly (Qt converts QColor to QBrush internally efficiently)
+            painter.fillRect(left_rect, self.model.cellColor(index))
+            painter.restore()
+        option.backgroundBrush = self._empty_brush
+        return super().paint(painter, option, index)
 
 
 class QEditableTableModel(QAbstractTableModel):
@@ -448,8 +449,6 @@ class EditableTable(RawWidget):
             http://www.december.com/html/spec/colorsvg.html for SVG color
             names.
         '''
-        # Given the row and column
-        # This must return one of the SVG color names (see
         return 'white'
 
     @d_func
