@@ -1,7 +1,6 @@
 import enaml
 
 with enaml.imports():
-    from .event_log import EventLog
     from .epoch_counter import EpochCounter, GroupedEpochCounter, SimpleCounter
     from .config_store import ConfigStore
     from .table_store import TableStore

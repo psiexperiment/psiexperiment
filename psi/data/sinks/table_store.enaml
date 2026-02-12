@@ -20,9 +20,6 @@ from .base_store import BaseStore
 
 class TableStore(BaseStore):
 
-    # Show a widget in the GUI?
-    show_widget = d_(Bool(False))
-
     # Save the data to a file?
     save_data = d_(Bool(True))
 
