@@ -14,6 +14,7 @@ from enaml.application import deferred_call
 from enaml.core.api import Looper, Include
 from enaml.layout.api import align, hbox, spacer, vbox
 from enaml.widgets.api import Container, FileDialogEx, HGroup, Label, VGroup
+from enaml.widgets.api import IPythonConsole, Window
 from enaml.workbench.api import Extension, PluginManifest, ExtensionPoint
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
@@ -196,7 +197,6 @@ def write_metadata(event):
     experiment = event.workbench.get_plugin('psi.experiment')
     store.save_mapping('metadata', experiment.metadata_to_dict())
 
-from enaml.widgets.api import Container, IPythonConsole, Window
 
 enamldef ConsoleWindow(Window):
     attr namespace
