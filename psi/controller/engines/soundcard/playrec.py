@@ -122,9 +122,6 @@ class PlayRec:
             'samplerate': self.fs,
             'blocksize': self.blocksize,
         }
-        log.error('Configuring PortAudio stream with AI %r and AO %r for device %s',
-                  self.ai_channels, self.ao_channels, self.device)
-
         if self.ao_channels is not None and self.ai_channels is not None:
             stream_class = sd.Stream
             stream_kw['device'] = (self.device, self.device)

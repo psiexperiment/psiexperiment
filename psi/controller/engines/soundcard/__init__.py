@@ -272,7 +272,6 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
         self._stream.start()
         self._running = True
         self.t0 = self._stream.stream.time
-        log.info('Stream time %f', self.t0)
 
     def stop(self):
         if self._running:
@@ -286,7 +285,10 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
 
     def get_ts(self):
         try:
-            return self._stream.stream.time - self.t0
+            ts = self._stream.stream.time - self.t0
+            log.error('Timestamp: %.2f, write time %.2f, read time %.2f',
+                      ts, self._total_samples_written / self.fs,
+                      self._total_samples_read / self.fs)
+            return ts
         except Exception as e:
-            log.exception(e)
             return np.nan
