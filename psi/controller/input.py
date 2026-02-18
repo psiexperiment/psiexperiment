@@ -533,12 +533,16 @@ class AutoScale(ContinuousInput):
     #: Upper bound of range to scale data to.
     scale = d_(Float(1))
 
-    #: Duration, in seconds, to calculate threshold over.
+    #: Duration, in seconds, to calculate threshold over. If -1, then apply a
+    #: continuous auto-scale.
     baseline = d_(Float(1)).tag(metadata=True)
 
     def configure_callback(self):
         cb = super().configure_callback()
-        return pipeline.auto_scale(self.scale, self.baseline, cb).send
+        if self.baseline == -1:
+            return pipeline.continuous_auto_scale(self.scale, cb).send
+        else:
+            return pipeline.auto_scale(self.scale, self.baseline, cb).send
 
 
 class AutoThreshold(ContinuousInput):
