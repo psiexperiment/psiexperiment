@@ -139,6 +139,7 @@ def configure_logging(level_console=None, level_file=None, filename=None,
 
     fmt = '{asctime:s} {levelname:10s}: {threadName:11s} - {name:40s}:: {message}'
 
+    formatter = logging.Formatter(fmt, style='{')
     if level_console is not None:
         try:
             level_styles = {
@@ -197,14 +198,15 @@ def _main(args):
         filename = '{} {}'.format(dt_string, args.experiment)
         log_root = Path(get_config('LOG_ROOT'))
         log_root.mkdir(parents=True, exist_ok=True)
+        log_file = os.path.join(log_root, filename)
         configure_logging(args.debug_level_console,
                           args.debug_level_file,
-                          os.path.join(log_root, filename),
+                          log_file,
                           args.debug_exclude)
 
         log.debug('Logging configured')
-        log.info('Logging information captured in {}'.format(filename))
-        log.info('Python executable: {}'.format(sys.executable))
+        log.info('Logging information captured in %s', log_file)
+        log.info('Python executable: %s', sys.executable)
         if args.debug_warning:
             warnings.showwarning = warn_with_traceback
 

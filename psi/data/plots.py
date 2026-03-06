@@ -418,6 +418,32 @@ class BasePlotContainer(PSIContribution):
     def _default_container(self):
         container = pg.GraphicsLayout()
         container.setSpacing(10)
+
+        # Add the x and y axes to the layout, along with the viewbox.
+        for i, child in enumerate(self.children):
+            try:
+                container.addItem(child.y_axis, i, 0)
+                container.addItem(child.viewbox, i, 1)
+                try:
+                    # This raises an "already taken" QGridLayoutEngine error. The
+                    # obvious explanation is because the current viewbox also
+                    # occupies this cell.
+                    container.addItem(child.viewbox_norm, i, 1)
+                except AttributeError:
+                    pass
+                child._configure_viewbox()
+            except:
+                pass
+
+
+        if self.x_axis is not None:
+            container.addItem(self.x_axis, i+1, 1)
+
+        # Link the child viewboxes together
+        children = [c for c in self.children if isinstance(c, ViewBox)]
+        for child in children[1:]:
+            child.viewbox.setXLink(children[0].viewbox)
+
         return container
 
     def add_legend_item(self, plot, label):

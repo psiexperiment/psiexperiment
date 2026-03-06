@@ -205,7 +205,7 @@ class NIDAQHardwareCIAngPosEncoderChannel(NIDAQGeneralMixin,
     clocks and must be provided with an external clock. Another counter on the
     card typically makes a good sample clock.
 
-    FOr the M-series cards, we cannot set reference clock to the PXI chassis.
+    For the M-series cards, we cannot set reference clock to the PXI chassis.
     '''
     #: PFI input connected to channel A of the encoder
     terminal_A = d_(Str()).tag(metadata=True)

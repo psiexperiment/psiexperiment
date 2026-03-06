@@ -188,7 +188,7 @@ def set_dock_style(event):
 
 def update_dock_style(event):
     ui = event.workbench.get_plugin('enaml.workbench.ui')
-    style = 'complete' if event.parameters['stop_reason'] == '' else 'error'
+    style = 'complete' if event.parameters.get('stop_reason', '') == '' else 'error'
     ui.workspace.dock_area.style = style
 
 

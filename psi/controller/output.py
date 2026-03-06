@@ -10,7 +10,7 @@ from atom.api import (Str, Dict, Event, Typed, Property, Float, Int,
 import enaml
 from enaml.core.api import Declarative, d_
 
-from psiaudio.stim import FixedWaveform
+from psiaudio.stim import cos2envelope, FixedWaveform
 from psiaudio.queue import AbstractSignalQueue
 
 from psi.core.enaml.api import PSIContribution
@@ -147,7 +147,9 @@ class BaseAnalogOutput(HardwareOutput):
             # nothing. 
             return
         if offset > self._offset:
-            raise ValueError('Missed chance to play signal')
+            delay = (self._offset - offset) / self.fs * 1e3
+            raise ValueError(f'Missed chance to play signal. '
+                             f'Start at {offset} but currently at {self._offset} ({delay:.0f} msec).')
         if offset < self._offset:
             # The output starts partway through the buffer section that is
             # requested.
@@ -230,6 +232,68 @@ class EpochOutput(AnalogOutputWithSource):
         if self.source is None:
             return np.zeros(samples)
         return self.source.next(samples)
+
+
+class RampedEpochOutput(EpochOutput):
+
+    ramp = Value()
+
+    def set_waveform(self, waveform, ramp_time=25e-3):
+        # Generate an "inverse" ramp that attenuates the existing samples in
+        # the output buffer. Generate it as if 0 means no attenuation
+        # and 1 is full attenuation.
+        if ramp_time is not None:
+            ramp = cos2envelope(
+                fs=self.fs,
+                duration=waveform.shape[-1] / self.fs,
+                rise_time=ramp_time,
+            )
+        else:
+            ramp = np.zeros_like(waveform)
+        self.ramp = FixedWaveform(self.fs, ramp)
+        super().set_waveform(waveform)
+
+    def get_samples(self, offset, samples, out):
+        '''
+        Load new samples
+        '''
+        if samples == 0:
+            # Not sure if we ever see this, but just in case.
+            return
+        if (offset + samples) < self._offset:
+            # All samples occur before the output is supposed to start. Do
+            # nothing. 
+            return
+        if offset > self._offset:
+            delay = (self._offset - offset) / self.fs * 1e3
+            raise ValueError(f'Missed chance to play signal. '
+                             f'Start at {self._offset} but currently at {offset} ({delay:.0f} msec).')
+        if offset < self._offset:
+            # The output starts partway through the buffer section that is
+            # requested.
+            skip = self._offset - offset
+            samples -= skip
+            self.write_next_samples(out[skip:])
+            self._offset += samples
+        else:
+            self.write_next_samples(out)
+            self._offset += samples
+
+    def write_next_samples(self, out):
+        if self.paused or not self.active:
+            return
+
+        samples = len(out)
+        s = self.source.next(samples)
+        # In the ramp, 1 means full attenuation. Calculate the scaling factor
+        # needed to apply the ramp.
+        r = self.ramp.next(samples)
+        sf = 1 - r
+
+        # out is the buffer that will be sent to the DAC . Write *into* the
+        # buffer. Multiply by the attenuation factor (0 = full attentuation, 1
+        # = no attenuation) and then add the stimulus waveform in.
+        out[:] = out * sf + s
 
 
 class MUXOutput(HardwareOutput):
@@ -382,6 +446,9 @@ class ContinuousOutput(BaseAnalogOutput):
         if self.paused or not self.active:
             return np.zeros(samples, dtype=self.dtype)
         return self.source.next(samples)
+
+    def get_duration(self):
+        return np.inf
 
 
 class ContinuousCallbackOutput(BaseAnalogOutput):

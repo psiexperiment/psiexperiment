@@ -226,7 +226,6 @@ class QEditableTableView(QTableView):
         self.model.insertRow(self.model.rowCount())
 
     def get_column_config(self):
-        log.debug('Geting column config')
         try:
             config = {}
             columns = self.model.interface.get_columns()
@@ -555,7 +554,6 @@ class EditableTable(RawWidget):
             formatter = self.column_info.get(column, {}).get('to_string', str)
             return formatter(value)
         except Exception as e:
-            log.warning(e)
             return ''
 
     def _set_data(self, *args):
