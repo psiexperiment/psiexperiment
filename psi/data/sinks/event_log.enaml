@@ -54,7 +54,7 @@ enamldef EventLogManifest(ExperimentManifest): manifest:
                 update,
                 manifest.exclude,
                 store,
-                table if manifest.show_widget else None,
+                manifest.find('event_log_table') if manifest.show_widget else None,
             )
 
     Extension:
@@ -77,7 +77,8 @@ enamldef EventLogManifest(ExperimentManifest): manifest:
                 title << manifest.title
 
                 Container:
-                    ListDictTable: table:
+                    ListDictTable: event_table:
+                        name = 'event_log_table'
                         columns_movable = False
                         columns = ['timestamp', 'event']
                         column_info = {
