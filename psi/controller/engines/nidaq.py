@@ -1345,14 +1345,14 @@ class NIDAQEngine(ChannelSliceCallbackMixin, Engine):
 
     def _get_hw_ao_samples(self, offset, samples):
         channels = self.get_channels('analog', 'output', 'hardware')
-        data = np.empty((len(channels), samples), dtype=np.double)
+        data = np.zeros((len(channels), samples), dtype=np.double)
         for channel, ch_data in zip(channels, data):
             channel.get_samples(offset, samples, out=ch_data)
         return data
 
     def _get_hw_do_samples(self, offset, samples):
         channels = self.get_channels('digital', 'output', 'hardware')
-        data = np.empty((len(channels), samples), dtype=bool)
+        data = np.zeros((len(channels), samples), dtype=float)
         for channel, ch_data in zip(channels, data):
             channel.get_samples(offset, samples, out=ch_data)
         return data

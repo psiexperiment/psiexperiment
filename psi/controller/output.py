@@ -88,19 +88,6 @@ class HardwareOutput(BaseOutput):
     #: Starting time of output
     start_sample = Int()
 
-    def connect(self, cb):
-        # TODO: Do we still use this?
-        self.callbacks.append(cb)
-
-    def notify(self, data):
-        if not self.callbacks:
-            return
-        # Correct for filter delay
-        d = data.copy()
-        d['t0'] += self.filter_delay
-        for cb in self.callbacks:
-            cb(d)
-
     def _get_filter_delay(self):
         return self.target.filter_delay
 
@@ -117,6 +104,15 @@ class BaseAnalogOutput(HardwareOutput):
     # subclasses as needed. When first set, it represents the first sample of
     # the source but as samples from the source are consumed it is incremented.
     _offset = Int(0)
+
+    active = Bool(False)
+    paused = Bool(False)
+
+    def activate(self, offset):
+        log.info('Activating %s at %d', self.name, offset)
+        self.active = True
+        self.paused = False
+        self._offset = offset
 
     def _observe_target(self, event):
         if self.target is not None:
@@ -176,14 +172,6 @@ class AnalogOutputWithSource(BaseAnalogOutput):
     #: This is managed by the manifest
     source = Typed(object).tag(metadata=True)
     source_md = Dict()
-    active = Bool(False)
-    paused = Bool(False)
-
-    def activate(self, offset):
-        log.info('Activating %s at %d', self.name, offset)
-        self.active = True
-        self.paused = False
-        self._offset = offset
 
     def deactivate(self, offset=None):
         self.active = False
@@ -220,11 +208,11 @@ class EpochOutput(AnalogOutputWithSource):
         self.deactivate()
         self.source = FixedWaveform(self.fs, waveform)
 
-    def start_waveform(self, ts):
+    def start_waveform(self, ts, deprecated):
         sample = round(int(self.fs * ts))
         self.activate(sample)
 
-    def stop_waveform(self, ts):
+    def stop_waveform(self, ts, deprecated):
         sample = round(int(self.fs * ts))
         self.deactivate(sample)
 
@@ -236,7 +224,7 @@ class EpochOutput(AnalogOutputWithSource):
 
 class RampedEpochOutput(EpochOutput):
 
-    ramp = Value()
+    ramp = Typed(FixedWaveform)
 
     def set_waveform(self, waveform, ramp_time=25e-3):
         # Generate an "inverse" ramp that attenuates the existing samples in
@@ -333,21 +321,6 @@ class QueuedEpochOutput(EpochOutput):
     auto_decrement = d_(Bool(False)).tag(metadata=True)
 
     complete = d_(Event(), writable=False)
-    removed_callbacks = List()
-
-    def connect(self, cb, event='added'):
-        if event == 'added':
-            self.callbacks.append(cb)
-        elif event == 'removed':
-            self.removed_callbacks.append(cb)
-
-    def notify_removed(self, data):
-        if not self.removed_callbacks:
-            return
-        d = data.copy()
-        d['t0'] += self.filter_delay
-        for cb in self.removed_callbacks:
-            cb(d)
 
     def rebuffer(self, time):
         self.queue.cancel(time)
@@ -373,8 +346,8 @@ class QueuedEpochOutput(EpochOutput):
     def _update_queue(self):
         if self.queue is not None and self.target is not None:
             self.queue.set_fs(self.fs)
-            self.queue.connect(self.notify, 'added')
-            self.queue.connect(self.notify_removed, 'removed')
+            self.queue.connect(self.event_notify, 'added')
+            self.queue.connect(self.event_notify, 'removed')
 
     def get_next_samples(self, samples):
         if self.paused or not self.active:
@@ -434,15 +407,16 @@ class QueuedEpochOutput(EpochOutput):
         return np.inf
 
 
-class ContinuousOutput(BaseAnalogOutput):
+class ContinuousOutput(AnalogOutputWithSource):
 
     # TODO: clean this up. it's sort of hackish. Do we even need to
     # differentiate between this and EpochOutput? 
     token = d_(Typed(Declarative)).tag(metadata=True)
-    active = Bool(False)
-    paused = Bool(False)
 
     def get_next_samples(self, samples):
+        log.error('getting next samples')
+        import sys
+        sys.exit()
         if self.paused or not self.active:
             return np.zeros(samples, dtype=self.dtype)
         return self.source.next(samples)
@@ -450,11 +424,12 @@ class ContinuousOutput(BaseAnalogOutput):
     def get_duration(self):
         return np.inf
 
+    def is_ready(self):
+        return self.token is not None
+
 
 class ContinuousCallbackOutput(BaseAnalogOutput):
 
-    active = Bool(False)
-    paused = Bool(False)
     callback = Callable()
 
     def get_next_samples(self, samples):
@@ -462,12 +437,15 @@ class ContinuousCallbackOutput(BaseAnalogOutput):
             return np.zeros(samples, dtype=self.dtype)
         return self.callback(samples, self.name)
 
+    def is_ready(self):
+        return self.callback is not None
+
 
 class ContinuousQueuedOutput(ContinuousOutput):
 
-    notifiers = Dict()
+    event_notifiers = Dict()
 
-    def _default_notifiers(self):
+    def _default_event_notifiers(self):
         return {
             'added': [],
             'removed': [],
@@ -475,13 +453,13 @@ class ContinuousQueuedOutput(ContinuousOutput):
         }
 
     def connect(self, callback, event='added'):
-        if event not in self.notifiers:
+        if event not in self.event_notifiers:
             raise KeyError(f'Event "{event}" not valid')
-        self.notifiers[event].append(callback)
+        self.event_notifiers[event].append(callback)
 
-    def notify(self, event, info):
-        for notifier in self.notifiers[event]:
-            notifier(info)
+    def event_notify(self, event, info):
+        for event_notifier in self.event_notifiers[event]:
+            event_notifier(info)
 
     def pause(self, time):
         self.source.queue.pause(time)
@@ -494,7 +472,7 @@ class ContinuousQueuedOutput(ContinuousOutput):
 
 class TimedTrigger(HardwareOutput):
 
-    dtype = set_default('bool')
+    dtype = set_default('float')
 
     #: First sample of TTL
     _start = Int(0)

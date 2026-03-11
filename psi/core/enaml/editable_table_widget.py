@@ -154,7 +154,8 @@ class QEditableTableView(QTableView):
 
         # Optimization for large tables to avoid recalculating row height.
         header = self.verticalHeader()
-        header.setSectionResizeMode(header.Fixed)
+        header.setSectionResizeMode(QHeaderView.Fixed)
+
 
         if (visible_rows := self.model.interface.visible_rows) > 0:
             # Get actual default row height

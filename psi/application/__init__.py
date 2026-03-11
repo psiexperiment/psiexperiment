@@ -300,7 +300,7 @@ def get_default_io(method='hostname'):
     if method == 'hostname':
         hostname = get_config('HOSTNAME').lower()
         for io in available_io:
-            if io.stem.lower() == hostname:
+            if hostname in str(io):
                 return io
         else:
             err = f'No IO named {hostname}.enaml found for the system.'
