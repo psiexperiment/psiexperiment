@@ -414,9 +414,6 @@ class ContinuousOutput(AnalogOutputWithSource):
     token = d_(Typed(Declarative)).tag(metadata=True)
 
     def get_next_samples(self, samples):
-        log.error('getting next samples')
-        import sys
-        sys.exit()
         if self.paused or not self.active:
             return np.zeros(samples, dtype=self.dtype)
         return self.source.next(samples)
