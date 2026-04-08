@@ -87,21 +87,20 @@ class NormalizedViewBox:
     """
     def __init__(self, target_viewbox):
         self.target_vb = target_viewbox
+        self.overlay_vb = pg.ViewBox()
 
-        # 1. Add to the same scene as the target ViewBox
-        # We assume the target is already or will be added to a scene
         self.target_vb.scene().addItem(self.overlay_vb)
 
-        # 2. Lock the coordinate system to 0-1
+        # Lock the coordinate system to 0-1
         self.overlay_vb.setXRange(0, 1, padding=0)
         self.overlay_vb.setYRange(0, 1, padding=0)
         self.overlay_vb.disableAutoRange()
 
-        # 3. Disable interaction and background
+        # Disable interaction and background
         self.overlay_vb.setMouseEnabled(x=False, y=False)
         self.overlay_vb.setMenuEnabled(False)
 
-        # 4. Sync the geometry whenever the target ViewBox changes size
+        # Sync the geometry whenever the target ViewBox changes size
         self.target_vb.sigResized.connect(self.update_geometry)
 
         # Ensure it stays visually on top of the target
@@ -111,10 +110,16 @@ class NormalizedViewBox:
 
     def update_geometry(self):
         # Sync overlay geometry to the target ViewBox geometry
-        self.overlay_vb.setGeometry(self.target_vb.sceneBoundingRect())
+        return self.overlay_vb.setGeometry(self.target_vb.sceneBoundingRect())
 
-    def addItem(self, text):
-        self.overlay_vb.addItem(item)
+    def addItem(self, item):
+        return self.overlay_vb.addItem(item)
+
+    def removeItem(self, item):
+        return self.overlay_vb.removeItem(item)
+
+    def mapToView(self, point):
+        return self.overlay_vb.mapToView(point)
 
 
 ################################################################################
@@ -391,6 +396,8 @@ class BasePlotContainer(PSIContribution):
             return lambda x: x
 
     def _default_inv_x_transform(self):
+        if self.axis_scale in ('octave', 'log10'):
+            return lambda x: 10 ** x
         return lambda x: x
 
     def _update_container(self):
@@ -424,13 +431,13 @@ class BasePlotContainer(PSIContribution):
             try:
                 container.addItem(child.y_axis, i, 0)
                 container.addItem(child.viewbox, i, 1)
-                try:
-                    # This raises an "already taken" QGridLayoutEngine error. The
-                    # obvious explanation is because the current viewbox also
-                    # occupies this cell.
-                    container.addItem(child.viewbox_norm, i, 1)
-                except AttributeError:
-                    pass
+                #try:
+                #    # This raises an "already taken" QGridLayoutEngine error. The
+                #    # obvious explanation is because the current viewbox also
+                #    # occupies this cell.
+                #    container.addItem(child.viewbox_norm, i, 1)
+                #except AttributeError:
+                #    pass
                 child._configure_viewbox()
             except:
                 pass
@@ -611,8 +618,6 @@ class FFTContainer(BasePlotContainer):
                 list(zip(minor_ticklocs, minor_ticklabs)),
             ]
             self.x_axis.setTicks(ticks)
-        #else:
-            #self.x_axis.setTicks()
 
     @observe('container', 'freq_lb', 'freq_ub')
     def _update_x_limits(self, event):
@@ -635,7 +640,10 @@ class FFTContainer(BasePlotContainer):
 
     def _default_x_axis(self):
         x_axis = super()._default_x_axis()
-        x_axis.setLabel('Frequency', units='Hz')
+        if self.axis_scale in ('octave', 'octave_linear'):
+            x_axis.setLabel('Frequency', units='kHz')
+        else:
+            x_axis.setLabel('Frequency', units='kHz')
         x_axis.logTickStrings = format_log_ticks
         if self.axis_scale in ('octave', 'log10'):
             x_axis.setLogMode(True)
@@ -654,7 +662,7 @@ class ViewBox(ColorCycleMixin, PSIContribution):
 
     #: This is used to place labels over existing plots (e.g.,
     #: StackedEpochPlot).
-    viewbox_norm = Typed(pg.ViewBox)
+    viewbox_norm = Typed(NormalizedViewBox)
 
     y_axis = Typed(pg.AxisItem)
 
@@ -1152,7 +1160,7 @@ class InfiniteLine(SinglePlot):
     def _default_plot(self):
         angle = 90 if self.direction == 'vertical' else 0
         plot = pg.InfiniteLine(
-            self.position,
+            self.container.x_transform(self.position),
             angle=angle,
             pen=self.pen,
             movable=self.movable,
@@ -1161,13 +1169,14 @@ class InfiniteLine(SinglePlot):
         return plot
 
     def _observe_position(self, event):
-        deferred_call(self.plot.setValue, self.position)
+        deferred_call(self.plot.setValue,
+                      self.container.x_transform(self.position))
 
     def _observe_movable(self, event):
         deferred_call(self.plot.setMovable, self.movable)
 
     def _update_position(self, plot):
-        self.position = plot.value()
+        self.position = self.container.inv_x_transform(plot.value())
 
 
 ################################################################################
@@ -1500,9 +1509,8 @@ class StackedEpochAveragePlot(EpochGroupMixin, BasePlot):
 
         labels = sorted(self.labels.items(), reverse=True)
         for i, (key, label) in enumerate(labels):
-            offset = (i+1) * height / (n+1)
-            point = self.parent.viewbox_norm.mapToView(pg.Point(0, offset))
-            label.setPos(0.8, point.y())
+            offset = (i+1) / (n+1)
+            label.setPos(0.8, offset)
 
     def _cache_x(self, event=None):
         # Set up the new time axis

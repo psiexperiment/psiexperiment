@@ -318,8 +318,10 @@ class ControllerPlugin(Plugin):
         elif target_name in self._outputs:
             target = self._outputs[target_name]
         else:
-            m = "Unknown target {} specified for output {}" \
-                .format(target_name, output_name)
+            valid_targets = list(self._channels) + list(self._outputs)
+            valid_targets = ', '.join(valid_targets)
+            m = "Unknown target {} specified for output {}. Valid targets are {}" \
+                .format(target_name, output_name, valid_targets)
             raise ValueError(m)
 
         if not isinstance(target, Channel) and target.target is None:

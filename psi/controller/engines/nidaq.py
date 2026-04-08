@@ -1201,6 +1201,7 @@ class NIDAQEngine(ChannelSliceCallbackMixin, Engine):
         self._tasks['hw_ci_clk'] = clk_task
         self._tasks['hw_ci'] = task
         self.ci_fs = task._properties['sample clock rate']
+        self._channel_names['hw_ci'] = task._properties['names']
 
     def configure_hw_ao(self, channels):
         '''

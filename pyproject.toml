@@ -15,12 +15,12 @@ maintainers = [
     {name = "Buran Consulting, LLC", email="info@bradburan.com"}
 ]
 dependencies = [
-    "psidata >= 0.1.7",
-    "psiaudio >= 0.2.4",
-    "enaml[qt6-pyside] >=0.13.0",
+    "psidata >= 0.1.12",
+    "psiaudio >= 0.4.4",
+    "enaml[qt6-pyside] >=0.19.0",
     "numpy",
     "palettable",
-    "pyqtgraph >=0.11.0",
+    "pyqtgraph >=0.14.0",
     "scipy",
     "pandas",
     "pyyaml",
@@ -31,7 +31,7 @@ dynamic = ["version"]
 
 [project.optional-dependencies]
 ni = ["pydaqmx"]
-tdt = ["tdtpy >=0.10.2"]
+tdt = ["tdtpy >=0.10.4"]
 soundcard = ["sounddevice", "rtmixer"]
 docs = ["sphinx", "sphinx_rtd_theme", "pygments-enaml"]
 test = ["pytest", "pytest-console-scripts", "matplotlib"] # Matplotlib is used in some of the validation scripts.

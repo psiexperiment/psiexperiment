@@ -119,7 +119,7 @@ class DataPlugin(PSIPlugin):
 
     def find_plot_container(self, plot_container_name):
         available_names = []
-        for container in self._containers:
+        for container in self._containers.values():
             if container.name == plot_container_name:
                 return container
             available_names.append(container.name)

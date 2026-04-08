@@ -242,7 +242,7 @@ enamldef StatusDockItem(PSIDockItem):
                 attr anchor = loop_item.anchor
                 padding = 0
                 spacing = 0
-                trailing_spacer = spacer(0)
+                trailing_spacer = spacer(0) if loop_item.trailing_spacer else None
                 Include:
                     objects << loop_item.children
 

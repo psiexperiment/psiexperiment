@@ -322,6 +322,20 @@ class QueuedEpochOutput(EpochOutput):
 
     complete = d_(Event(), writable=False)
 
+    event_notifiers = Dict()
+
+    def _default_event_notifiers(self):
+        return {
+            'added': [],
+            'removed': [],
+            'decrement': [],
+        }
+
+    def connect(self, callback, event='added'):
+        if event not in self.event_notifiers:
+            raise KeyError(f'Event "{event}" not valid')
+        self.event_notifiers[event].append(callback)
+
     def rebuffer(self, time):
         self.queue.cancel(time)
         self.queue.rewind_samples(time)
@@ -346,8 +360,12 @@ class QueuedEpochOutput(EpochOutput):
     def _update_queue(self):
         if self.queue is not None and self.target is not None:
             self.queue.set_fs(self.fs)
-            self.queue.connect(self.event_notify, 'added')
-            self.queue.connect(self.event_notify, 'removed')
+            self.queue.connect(lambda x: self.event_notify('added', x), 'added')
+            self.queue.connect(lambda x: self.event_notify('removed', x), 'removed')
+
+    def event_notify(self, event, info):
+        for event_notifier in self.event_notifiers[event]:
+            event_notifier(info)
 
     def get_next_samples(self, samples):
         if self.paused or not self.active:
