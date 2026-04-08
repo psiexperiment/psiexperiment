@@ -422,6 +422,7 @@ class ControllerPlugin(Plugin):
         with self._lock:
             if self.engines_running:
                 raise ValueError('Engines already running')
+            log.debug('Starting engines')
             for engine in self._engines.values():
                 # Check to see if engine is being used
                 if engine.get_channels():
