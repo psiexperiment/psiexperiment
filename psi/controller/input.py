@@ -30,7 +30,7 @@ from enaml.core.api import Declarative, d_
 from psiaudio.calibration import FlatCalibration
 
 from psiaudio import pipeline
-from psiaudio.util import db, dbi
+from psiaudio.util import db, dbi, tone_power_conv
 
 from .channel import Channel
 
@@ -91,6 +91,25 @@ class Input(PSIContribution):
     inputs = List().tag(metadata=True)
 
     configured = Bool(False)
+
+    def _observe_source(self, event):
+        if (obj := event.get('oldvalue')) is not None:
+            obj.unobserve('fs', self._fs_updated)
+        elif (obj := event.get('value')) is not None:
+            obj.observe('fs', self._fs_updated)
+
+    def _fs_updated(self, event):
+        # Ensure that changes to the parent sampling rate get propagated down
+        # the input hierarchy so that downstream nodes can respond accordingly
+        # (e.g., plots can update their buffer sizes to accomodate data at the
+        # correct sampling rate). Enaml has static and dynamic observers, so we
+        # need to trigger both (this is an implementation quirk that is usually
+        # invisible to most end-users).
+        event = event.copy()
+        event['value'] = self.fs
+        self.notify('fs', event)
+        member = self.get_member('fs')
+        member.notify(self, event)
 
     def _default_name(self):
         if self.source is not None:
@@ -172,7 +191,22 @@ class ContinuousInput(Input):
 
 
 class EventInput(Input):
-    pass
+
+    def _observe_source(self, event):
+        if (obj := event.get('oldvalue')) is not None:
+            obj.unobserve('duration', self._duration_updated)
+        elif (obj := event.get('value')) is not None:
+            obj.observe('duration', self._duration_updated)
+
+    def _duration_updated(self, event):
+        # Ensure that changes to the parent duration get propagated down the
+        # input hierarchy so that downstream nodes can respond accordingly
+        # (e.g., plots can update data limits accordingly).
+        event = event.copy()
+        event['value'] = self.duration
+        self.notify('duration', event)
+        member = self.get_member('duration')
+        member.notify(self, event)
 
 
 class EpochInput(Input):
@@ -348,6 +382,39 @@ class Blocked(ContinuousInput):
         return pipeline.blocked(block_size, cb).send
 
 
+class ExtractPower(ContinuousInput):
+    '''
+    Chunk data based on time and then extract a particular frequency.
+    Downsamples to the chunk size.
+    '''
+    #: Duration, in seconds, of each chunk. This is rounded to the nearest
+    #: integer number of samples and each block will always have the exact same
+    #: number of samples.
+    duration = d_(Float()).tag(metadata=True)
+
+    #: Frequency to extract.
+    frequency = d_(Float()).tag(metadata=True)
+
+    def _get_fs(self):
+        samples = self.duration * self.parent.fs
+        return self.parent.fs / samples
+
+    def configure_callback(self):
+        if self.duration <= 0:
+            m = 'Duration for {} must be > 0'.format(self.name)
+            raise ValueError(m)
+        cb = super().configure_callback()
+        samples = round(self.duration * self.parent.fs)
+        return pipeline.blocked(
+            samples,
+            pipeline.extract_power(
+                self.frequency,
+                'hamming',
+                cb,
+            ).send,
+        ).send
+
+
 class Accumulate(ContinuousInput):
     '''
     Chunk data based on number of calls
@@ -448,9 +515,34 @@ class Discard(ContinuousInput):
 class Threshold(Transform):
 
     threshold = d_(Float(0)).tag(metadata=True)
+    mode = d_(Enum('>', '>=', '<', '<=')).tag(metadata=True)
 
     def _default_function(self):
-        return lambda x, t=self.threshold: x >= t
+        if self.mode == '>':
+            return lambda x, t=self.threshold: x > t
+        elif self.mode == '>=':
+            return lambda x, t=self.threshold: x >= t
+        elif self.mode == '<':
+            return lambda x, t=self.threshold: x < t
+        elif self.mode == '<=':
+            return lambda x, t=self.threshold: x <= t
+
+
+class AutoScale(ContinuousInput):
+
+    #: Upper bound of range to scale data to.
+    scale = d_(Float(1))
+
+    #: Duration, in seconds, to calculate threshold over. If -1, then apply a
+    #: continuous auto-scale.
+    baseline = d_(Float(1)).tag(metadata=True)
+
+    def configure_callback(self):
+        cb = super().configure_callback()
+        if self.baseline == -1:
+            return pipeline.continuous_auto_scale(self.scale, cb).send
+        else:
+            return pipeline.auto_scale(self.scale, self.baseline, cb).send
 
 
 class AutoThreshold(ContinuousInput):
@@ -555,11 +647,18 @@ class Edges(EventInput):
     #: Edges to detect.
     detect = d_(Enum('rising', 'falling', 'both')).tag(metadata=True)
 
+    #: If 0, pipleine is updated continuously even if no events are detected.
+    #: This can be important in the case of downstream code that compute the
+    #: rate of an event over time. For performance reasons, it's better to
+    #: change from the default of 0 unless otherwise needed.
+    min_events = d_(Int(0)).tag(metadata=True)
+
     def configure_callback(self):
         cb = super().configure_callback()
         return pipeline.edges(min_samples=self.debounce,
                               initial_state=self.initial_state, target=cb,
-                              fs=self.fs, detect=self.detect).send
+                              fs=self.fs, detect=self.detect,
+                              min_events=self.min_events).send
 
 
 class EventsToInfo(EventInput):
@@ -621,7 +720,7 @@ class ExtractEpochs(EpochInput):
     #: notify the coroutine that we wish to capture an epoch).
     buffer_size = d_(Float(0)).tag(metadata=True)
 
-    #: Defines the size of the epoch (if NaN, this is automatically drawn from
+    #: Defines the size of the epoch (if 0, this is automatically drawn from
     #: the information provided by the queue).
     epoch_size = d_(Float(0)).tag(metadata=True)
 
@@ -673,8 +772,12 @@ class ExtractEpochs(EpochInput):
     def _observe_epoch_size(self, event):
         self.notify('duration', self.duration)
 
-    # force change notification for poststim time
+    # force change notification for duration
     def _observe_poststim_time(self, event):
+        self.notify('duration', self.duration)
+
+    # force change notification for duration
+    def _observe_prestim_time(self, event):
         self.notify('duration', self.duration)
 
 

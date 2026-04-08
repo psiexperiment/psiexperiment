@@ -177,13 +177,16 @@ enamldef SequenceSelectorContainer(Container): container:
         ObjectCombo: order:
             items = list(selector.get_member('order').items)
             selected := selector.order
+            enabled << bool(selector.context_items)
         PushButton: add:
             text = 'Add'
+            enabled << bool(selector.context_items)
             clicked ::
                 selector.add_setting()
                 selector.updated = True
         PushButton: sort:
             text = 'Sort'
+            enabled << bool(selector.context_items)
             clicked ::
                 selector.sort_settings()
                 selector.updated = True

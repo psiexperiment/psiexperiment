@@ -11,11 +11,10 @@ import numpy as np
 
 from atom.api import Enum, Bool, Typed, Property
 from enaml.application import deferred_call
-from enaml.qt.QtCore import QTimer
+from enaml.qt.QtCore import Qt
 from enaml.workbench.api import Extension
 from enaml.workbench.plugin import Plugin
 
-from .calibration.util import load_calibration
 from .channel import Channel, OutputMixin, InputMixin
 from .engine import Engine
 from .output import BaseOutput, Synchronized
@@ -149,6 +148,7 @@ def invoke_action(core, action, event_name, timestamp, kw, skip_errors=False):
             f'event, the following error was received:\n\n{e}.'
         log.error(m)
         if not skip_errors:
+            log.error('Reraising error')
             raise RuntimeError(m) from e
 
 
@@ -167,6 +167,8 @@ class ControllerPlugin(Plugin):
     core = Typed(Plugin)
     context = Typed(Plugin)
     data = Typed(Plugin)
+
+    _lock = Typed(threading.Lock)
 
     # We should not respond to changes during the course of a trial. These
     # flags indicate changes or requests from the user are pending and should
@@ -208,6 +210,9 @@ class ControllerPlugin(Plugin):
     _registered_actions = Typed(list, {})
     _actions = Property()
 
+    def _default__lock(self):
+        return threading.Lock()
+
     def _get__actions(self):
         return self._registered_actions + self._plugin_actions
 
@@ -226,18 +231,12 @@ class ControllerPlugin(Plugin):
     def _wrapup(self, **kwargs):
         workbench = self.workbench
         point = workbench.get_extension_point(WRAPUP_POINT)
-        extensions = point.extensions
-        if not extensions:
-            msg = "no contributions to the '%s' extension point"
-            raise RuntimeError(msg % WRAPUP_POINT)
-
-        extension = extensions[-1]
-        if extension.factory is None:
-            msg = "extension '%s' does not declare a window factory"
-            raise ValueError(msg % extension.qualified_id)
-
-        cb = extension.factory(workbench)
-        cb(**kwargs)
+        for extension in point.extensions:
+            if extension.factory is None:
+                msg = "extension '%s' does not declare a factory"
+                raise ValueError(msg % extension.qualified_id)
+            cb = extension.factory(workbench)
+            cb(**kwargs)
 
     def _bind_observers(self):
         self.workbench.get_extension_point(IO_POINT) \
@@ -338,7 +337,7 @@ class ControllerPlugin(Plugin):
         elif source_name in self._channels:
             source = self._channels[source_name]
         else:
-            m = "Unknown source {}".format(source_name)
+            m = "Unknown source {}. Cannot configure {}.".format(source_name, input_name)
             raise ValueError(m)
 
         i = self._inputs[input_name]
@@ -410,50 +409,46 @@ class ControllerPlugin(Plugin):
         self.invoke_actions('io_configured')
 
     def configure_engines(self):
-        log.debug('Configuring engines')
-        for engine in self._engines.values():
-            # Check to see if engine is being used
-            if engine.get_channels():
-                engine.configure()
-                cb = partial(self.invoke_actions, '{}_end'.format(engine.name))
-                engine.register_done_callback(cb)
-        self.invoke_actions('engines_configured')
+        with self._lock:
+            for engine in self._engines.values():
+                # Check to see if engine is being used
+                if engine.get_channels():
+                    engine.configure()
+                    cb = partial(self.invoke_actions, '{}_end'.format(engine.name))
+                    engine.register_done_callback(cb)
+            self.invoke_actions('engines_configured')
 
     def start_engines(self):
-        if self.engines_running:
-            raise ValueError('Engines already running')
-
-        log.debug('Starting engines')
-        for engine in self._engines.values():
-            # Check to see if engine is being used
-            if engine.get_channels():
-                if engine is not self._master_engine:
-                    engine.start()
-        self._master_engine.start()
-        self.engines_running = True
-        self.invoke_actions('engines_started')
+        with self._lock:
+            if self.engines_running:
+                raise ValueError('Engines already running')
+            log.debug('Starting engines')
+            for engine in self._engines.values():
+                # Check to see if engine is being used
+                if engine.get_channels():
+                    if engine is not self._master_engine:
+                        engine.start()
+            self._master_engine.start()
+            self.engines_running = True
+            self.invoke_actions('engines_started')
 
     def stop_engines(self):
-        if not self.engines_running:
-            raise ValueError('Engines not running')
-
-        for name, timer in list(self._timers.items()):
-            log.debug('Stopping timer %s', name)
-            timer.timeout.disconnect()
-            timer.stop()
-            del self._timers[name]
-
-        for engine in self._engines.values():
-            if engine.get_channels():
-                log.info('Stopping engine %r', engine)
-                engine.stop()
-
-        self.engines_running = False
-        self.invoke_actions('engines_stopped')
+        with self._lock:
+            if not self.engines_running:
+                raise ValueError('Engines not running')
+            for name in list(self._timers):
+                self.stop_timer(name)
+            for engine in self._engines.values():
+                if engine.get_channels():
+                    log.error('Stopping engine %r', engine)
+                    engine.stop()
+            self.engines_running = False
+            self.invoke_actions('engines_stopped')
 
     def reset_engines(self):
-        for engine in self._engines.values():
-            engine.reset()
+        with self._lock:
+            for engine in self._engines.values():
+                engine.reset()
 
     def get_output(self, output_name):
         try:
@@ -507,13 +502,8 @@ class ControllerPlugin(Plugin):
             channels.extend(ec)
         return channels
 
-    def load_calibration(self, calibration_file):
-        channels = list(self._channels.values())
-        load_calibration(calibration_file, channels)
-
     def invoke_actions(self, event_name, timestamp=None, delayed=False,
                        cancel_existing=True, kw=None, skip_errors=False):
-        log.debug('Invoking actions for %s', event_name)
         if cancel_existing:
             deferred_call(self.stop_timer, event_name)
         if delayed:
@@ -560,7 +550,7 @@ class ControllerPlugin(Plugin):
             logger._invoke(self.core, data)
 
     def _invoke_actions(self, event_name, timestamp=None, kw=None, skip_errors=False):
-        log.debug('Triggering event {}'.format(event_name))
+        log.debug('Invoking actions for {}'.format(event_name))
         deferred_call(self._log_event, event_name, timestamp, kw)
 
         # If this is a stateful event, update the associated state.
@@ -586,6 +576,7 @@ class ControllerPlugin(Plugin):
             (self.experiment_state == 'initialized')
         results = []
         for action in self._actions:
+            log.trace(f'... checking {action}')
             if action.match(context, ignore_missing):
                 result = invoke_action(self.core, action, event_name,
                                        timestamp, kw, skip_errors)
@@ -632,33 +623,35 @@ class ControllerPlugin(Plugin):
             raise
 
     def stop_experiment(self, skip_errors=False, kw=None):
-        deferred_call(lambda: setattr(self, 'experiment_state', 'stopped'))
-        if self.experiment_state == 'stopped':
-            log.debug('Nothing to do since experiment is already stopped.')
+        if self.experiment_state not in ('running', 'paused'):
+            log.debug('Nothing to do since experiment is not running. Returning.')
             return []
+        # Set this flag before invoking actions since some of the actions may
+        # trigger a circular loop that results in `stop_experiment` getting
+        # called again.
+        self.experiment_state = 'stopped'
         if kw is None:
             kw = {}
-        log.debug('Invoking actions for experiment end.')
-        return self.invoke_actions('experiment_end', self.get_ts(),
-                                   skip_errors=skip_errors, kw=kw)
+        return self.invoke_actions('experiment_end', self.get_ts(), skip_errors=skip_errors, kw=kw)
 
     def get_ts(self):
         return self._master_engine.get_ts()
 
-    def start_timer(self, name, duration, callback):
+    def start_timer(self, name, duration, callback, cancel_existing=True):
+        if cancel_existing:
+            # If the timer does not exist, nothing will happen.
+            self.stop_timer(name)
         try:
-            timer = QTimer()
-            timer.timeout.connect(callback)
-            timer.setSingleShot(True)
-            timer.start(int(duration*1e3))
-            self._timers[name] = timer
+            self._timers[name] = timer = threading.Timer(duration, callback)
+            timer.start()
         except Exception as e:
             log.error(f'Attempt to start timer {name} with duration {duration} sec failed')
             raise
 
     def stop_timer(self, name):
-        if self._timers.get(name) is not None:
-            self._timers[name].timeout.disconnect()
-            self._timers[name].stop()
-            del self._timers[name]
+        try:
+            timer = self._timers.pop(name)
+            timer.cancel()
             log.debug('Disabled deferred event %s', name)
+        except KeyError:
+            pass

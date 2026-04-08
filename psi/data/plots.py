@@ -2,10 +2,12 @@ import logging
 
 log = logging.getLogger(__name__)
 
+from collections import defaultdict
+import datetime as dt
 import itertools
 import importlib
 from functools import partial
-from collections import defaultdict
+import string
 import uuid
 
 import numpy as np
@@ -13,18 +15,17 @@ import pandas as pd
 import pyqtgraph as pg
 
 from atom.api import (Str, Float, Tuple, Int, Typed, Property, Atom,
-                      Bool, Enum, List, Dict, Callable, Value, observe)
+                      Bool, Enum, List, Dict, Callable, Value, observe,
+                      set_default)
 
 from enaml.application import deferred_call, timed_call
-from enaml.colors import parse_color
 from enaml.core.api import Looper, Declarative, d_, d_func
-from enaml.qt.QtGui import QColor
 
 from psiaudio import util
 from psiaudio.pipeline import concat, PipelineData
 
 from psi.util import SignalBuffer, ConfigurationException
-from psi.core.enaml.api import PSIContribution
+from psi.core.enaml.api import make_color, PSIContribution
 from psi.context.context_item import ContextMeta
 
 
@@ -50,20 +51,70 @@ def get_color_cycle(name, n):
         yield tuple(int(v * 255) for v in cmap(i))
 
 
-def make_color(color, alpha=None):
-    if isinstance(color, (tuple, list)):
-        obj = QColor(*color)
-    elif isinstance(color, str):
-        obj = QColor()
-        print(color)
-        obj.setNamedColor(color)
-    else:
-        raise ValueError('Unknown color %r', color)
-    if alpha is not None:
-        obj.setAlphaF(alpha)
-        if not obj.isValid():
-            raise ValueError('Cannot create QColor from %r', color)
-    return obj
+################################################################################
+# Custom PyQtGraph subclasses
+################################################################################
+def format_time(seconds, fmt='{H:02d}:{M:02d}:{S:02.0f}'):
+    names = [i[1] for i in string.Formatter().parse(fmt)]
+    values = {}
+    if 'H' in names:
+        values['H'] = hours = int(seconds) // (60 * 60)
+        seconds -= (hours * 60 * 60)
+    if 'M' in names:
+        values['M'] = minutes = int(seconds) // 60
+        seconds -= (minutes * 60)
+    if 'S' in names:
+        values['S'] = seconds
+    return fmt.format(**values)
+
+
+class TimeAxisItem(pg.AxisItem):
+    '''
+    Create nicely-formatted time axis
+    '''
+    def __init__(self, fmt, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fmt = fmt
+
+    def tickStrings(self, values, scale, spacing):
+        return [format_time(v, fmt=self.fmt) for v in values]
+
+
+class NormalizedViewBox:
+    """
+    Creates a transparent ViewBox overlay linked to a target ViewBox.
+    Coordinates are normalized (0.0 to 1.0).
+    """
+    def __init__(self, target_viewbox):
+        self.target_vb = target_viewbox
+
+        # 1. Add to the same scene as the target ViewBox
+        # We assume the target is already or will be added to a scene
+        self.target_vb.scene().addItem(self.overlay_vb)
+
+        # 2. Lock the coordinate system to 0-1
+        self.overlay_vb.setXRange(0, 1, padding=0)
+        self.overlay_vb.setYRange(0, 1, padding=0)
+        self.overlay_vb.disableAutoRange()
+
+        # 3. Disable interaction and background
+        self.overlay_vb.setMouseEnabled(x=False, y=False)
+        self.overlay_vb.setMenuEnabled(False)
+
+        # 4. Sync the geometry whenever the target ViewBox changes size
+        self.target_vb.sigResized.connect(self.update_geometry)
+
+        # Ensure it stays visually on top of the target
+        self.overlay_vb.setZValue(100)
+
+        self.update_geometry()
+
+    def update_geometry(self):
+        # Sync overlay geometry to the target ViewBox geometry
+        self.overlay_vb.setGeometry(self.target_vb.sceneBoundingRect())
+
+    def addItem(self, text):
+        self.overlay_vb.addItem(item)
 
 
 ################################################################################
@@ -207,37 +258,44 @@ class BaseDataRange(Atom):
     # Size of display window
     span = Float(1)
 
-    # Delay before clearing window once data has "scrolled off" the window.
+    # Delay before clearing window once data has scrolled off the window.
     delay = Float(0)
 
     # Current visible data range
     current_range = Tuple(Float(), Float())
 
     def add_source(self, source):
-        cb = partial(self.source_added, source=source)
-        source.add_callback(cb)
+        raise NotImplementedError
 
     def _default_current_range(self):
         return 0, self.span
 
     def _observe_delay(self, event):
+        if event['type'] == 'create':
+            return
         self._update_range()
 
     def _observe_span(self, event):
+        if event['type'] == 'create':
+            return
         self._update_range()
 
     def _update_range(self):
         raise NotImplementedError
 
+    def data_received(self, data):
+        raise NotImplementedError
+
 
 class EpochDataRange(BaseDataRange):
 
-    max_duration = Float()
+    max_duration = Float(0)
 
-    def source_added(self, data, source):
-        n = [d.shape[-1] for d in data]
-        max_duration = max(n) / source.fs
-        self.max_duration = max(max_duration, self.max_duration)
+    def data_received(self, data):
+        self.max_duration = max(data.duration, self.max_duration)
+
+    def add_source(self, source):
+        source.add_callback(self.data_received)
 
     def _observe_max_duration(self, event):
         self._update_range()
@@ -248,35 +306,31 @@ class EpochDataRange(BaseDataRange):
 
 class ChannelDataRange(BaseDataRange):
 
-    # Automatically updated. Indicates last "seen" time based on all data
-    # sources reporting to this range.
+    # Automatically updated. Indicates last seen time based on the first data
+    # source reporting to this range.
     current_time = Float(0)
-
-    current_samples = Typed(defaultdict, (int,))
-    current_times = Typed(defaultdict, (float,))
-
-    def _observe_current_time(self, event):
-        self._update_range()
+    track_sources = d_(List())
 
     def _update_range(self):
         low_value = (self.current_time//self.span)*self.span - self.delay
         high_value = low_value+self.span
-        self.current_range = low_value, high_value
+        if self.current_range != (low_value, high_value):
+            self.current_range = low_value, high_value
 
-    def add_event_source(self, source):
-        cb = partial(self.event_source_added, source=source)
-        source.add_callback(cb)
+    def data_received(self, data):
+        # Invoked whenever a source recieves data (either Events or
+        # PipelineData)
+        self.current_time = max(self.current_time, data.t_end)
+        lb = (self.current_time // self.span) * self.span - self.delay
+        if self.current_range[0] != lb:
+            self._update_range()
 
-    def source_added(self, data, source):
-        self.current_samples[source] += data.shape[-1]
-        self.current_times[source] = self.current_samples[source]/source.fs
-        self.current_time = max(self.current_times.values())
-
-    def event_source_added(self, data, source):
-        if data.events.empty:
-            return
-        self.current_times[source] = data.events.iloc[-1]['ts']
-        self.current_time = max(self.current_times.values())
+    def add_source(self, source):
+        if self.track_sources:
+            if source.name in self.track_sources:
+                source.add_callback(self.data_received)
+        else:
+            source.add_callback(self.data_received)
 
 
 ################################################################################
@@ -292,12 +346,14 @@ class BasePlotContainer(PSIContribution):
     legend = Typed(pg.LegendItem)
     x_transform = Callable()
     inv_x_transform = Callable()
+    axis_scale = d_(Enum('linear', 'octave', 'octave_linear', 'log10'))
 
     buttons = d_(List())
     max_buttons = d_(Int(8))
     current_button = d_(Value())
     allow_auto_select = d_(Bool(True))
     auto_select = d_(Bool(True))
+    x_label = d_(Str())
 
     #: Callable that takes, as the first argument, a tuple defining the group
     #: of plots (e.g., frequency, rate) and returns a nicely-formatted string
@@ -329,11 +385,14 @@ class BasePlotContainer(PSIContribution):
             self.auto_select = False
 
     def _default_x_transform(self):
-        return lambda x: x
-      
+        if self.axis_scale in ('octave', 'log10'):
+            return np.log10
+        else:
+            return lambda x: x
+
     def _default_inv_x_transform(self):
         return lambda x: x
-      
+
     def _update_container(self):
         container = self.container
         try:
@@ -345,6 +404,23 @@ class BasePlotContainer(PSIContribution):
         for i, child in enumerate(self.viewboxes):
             container.addItem(child.y_axis, i, 0)
             container.addItem(child.viewbox, i, 1)
+            container.addItem(child.y_axis, i, 0)
+            container.addItem(child.viewbox, i, 1)
+            child._configure_viewbox()
+
+        if self.x_axis is not None:
+            container.addItem(self.x_axis, len(self.viewboxes)+1, 1)
+
+        # Link the child viewboxes together
+        for child in self.viewboxes[1:]:
+            child.viewbox.setXLink(self.base_viewbox)
+
+    def _default_container(self):
+        container = pg.GraphicsLayout()
+        container.setSpacing(10)
+
+        # Add the x and y axes to the layout, along with the viewbox.
+        for i, child in enumerate(self.children):
             try:
                 container.addItem(child.y_axis, i, 0)
                 container.addItem(child.viewbox, i, 1)
@@ -359,16 +435,15 @@ class BasePlotContainer(PSIContribution):
             except:
                 pass
 
+
         if self.x_axis is not None:
-            container.addItem(self.x_axis, len(self.viewboxes)+1, 1)
+            container.addItem(self.x_axis, i+1, 1)
 
         # Link the child viewboxes together
-        for child in self.viewboxes[1:]:
-            child.viewbox.setXLink(self.base_viewbox)
+        children = [c for c in self.children if isinstance(c, ViewBox)]
+        for child in children[1:]:
+            child.viewbox.setXLink(children[0].viewbox)
 
-    def _default_container(self):
-        container = pg.GraphicsLayout()
-        container.setSpacing(10)
         return container
 
     def add_legend_item(self, plot, label):
@@ -380,6 +455,8 @@ class BasePlotContainer(PSIContribution):
         return legend
 
     def _get_base_viewbox(self):
+        # The base viewbox is used as the reference for the X-axis of all
+        # viewboxes.
         if len(self.viewboxes) == 0:
             return None
         return self.viewboxes[0].viewbox
@@ -387,9 +464,17 @@ class BasePlotContainer(PSIContribution):
     def _default_x_axis(self):
         x_axis = pg.AxisItem('bottom')
         x_axis.setGrid(64)
+        x_axis.setLabel(self.x_label)
+        x_axis.enableAutoSIPrefix(False)
         if self.base_viewbox is not None:
             x_axis.linkToView(self.base_viewbox)
+        if self.axis_scale in ('octave', 'log10'):
+            x_axis.setLogMode(True)
+            x_axis.logTickStrings = format_log_ticks
         return x_axis
+
+    def _observe_x_label(self, event):
+        self.x_axis.setLabel(self.x_label)
 
     def update(self, event=None):
         pass
@@ -411,7 +496,10 @@ class PlotContainer(BasePlotContainer):
         # If we want to specify values relative to a psi context variable, we
         # cannot do it when initializing the plots.
         if (self.x_min != 0) or (self.x_max != 0):
-            self.base_viewbox.setXRange(self.x_min, self.x_max, padding=0)
+            deferred_call(self.base_viewbox.setXRange,
+                          self.x_min,
+                          self.x_max,
+                          padding=0)
 
     def update(self, event=None):
         deferred_call(self.format_container)
@@ -423,12 +511,19 @@ class BaseTimeContainer(BasePlotContainer):
     '''
     data_range = Typed(BaseDataRange)
     span = d_(Float(1))
-    delay = d_(Float(0.25))
+    delay = d_(Float(0))
+
+    #: Tick label format
+    tick_fmt = d_(Str('{H:02d}:{M:02d}:{S:02.0f}'))
+    tick_unit = d_(Str('HH:MM:SS'))
 
     def _update_container(self):
         super()._update_container()
         if self.base_viewbox is not None:
-            self.base_viewbox.setXRange(0, self.span, padding=0)
+            deferred_call(
+                self.base_viewbox.setXRange,
+                0, self.span, padding=0
+            )
 
     def _default_container(self):
         container = super()._default_container()
@@ -436,8 +531,12 @@ class BaseTimeContainer(BasePlotContainer):
         return container
 
     def _default_x_axis(self):
-        x_axis = super()._default_x_axis()
-        x_axis.setLabel('Time', units='s')
+        x_axis = TimeAxisItem(orientation='bottom', fmt=self.tick_fmt)
+        x_axis.setGrid(64)
+        if self.base_viewbox is not None:
+            x_axis.linkToView(self.base_viewbox)
+        x_axis.setLabel('Time', units=self.tick_unit)
+        x_axis.enableAutoSIPrefix(False)
         return x_axis
 
     def update(self, event=None):
@@ -448,9 +547,12 @@ class BaseTimeContainer(BasePlotContainer):
 
 class TimeContainer(BaseTimeContainer):
 
+    track_sources = d_(List())
+
     def _default_data_range(self):
         return ChannelDataRange(container=self, span=self.span,
-                                delay=self.delay)
+                                delay=self.delay,
+                                track_sources=self.track_sources)
 
     def update(self, event=None):
         for child in self.children:
@@ -461,12 +563,15 @@ class TimeContainer(BaseTimeContainer):
 
 class EpochTimeContainer(BaseTimeContainer):
 
+    tick_fmt = set_default('{S}')
+    tick_unit = set_default('Seconds')
+
     def _default_data_range(self):
         return EpochDataRange(container=self, span=self.span, delay=self.delay)
 
 
 def format_log_ticks(values, scale, spacing):
-    values = 10**np.array(values).astype(np.float)
+    values = 10**np.array(values).astype(float)
     return ['{:.1f}'.format(v * 1e-3) for v in values]
 
 
@@ -476,7 +581,6 @@ class FFTContainer(BasePlotContainer):
     '''
     freq_lb = d_(Float(500))
     freq_ub = d_(Float(50000))
-    axis_scale = d_(Enum('octave', 'octave_linear', 'log10', 'linear'))
 
     # Define x_lb and x_ub as aliases for freq_lb and freq_ub.
     x_min = Property()
@@ -493,12 +597,6 @@ class FFTContainer(BasePlotContainer):
 
     def _set_x_max(self, value):
         self.freq_ub = value
-
-    def _default_x_transform(self):
-        if self.axis_scale in ('octave', 'log10'):
-            return np.log10
-        else:
-            return lambda x: x
 
     def _set_ticks(self):
         if self.axis_scale in ('octave', 'octave_linear'):
@@ -553,6 +651,9 @@ class ViewBox(ColorCycleMixin, PSIContribution):
     __slots__ = '__weakref__'
 
     viewbox = Typed(pg.ViewBox)
+
+    #: This is used to place labels over existing plots (e.g.,
+    #: StackedEpochPlot).
     viewbox_norm = Typed(pg.ViewBox)
 
     y_axis = Typed(pg.AxisItem)
@@ -573,7 +674,12 @@ class ViewBox(ColorCycleMixin, PSIContribution):
             return
         if self.y_autoscale:
             return
-        self.viewbox.setYRange(self.y_min, self.y_max, padding=0)
+        deferred_call(
+            self.viewbox.setYRange,
+            self.y_min,
+            self.y_max,
+            padding=0
+        )
 
     def _get_data_range(self):
         return self.parent.data_range
@@ -581,6 +687,7 @@ class ViewBox(ColorCycleMixin, PSIContribution):
     def _default_y_axis(self):
         y_axis = pg.AxisItem('left')
         y_axis.setLabel(self.y_label)
+        y_axis.enableAutoSIPrefix(False)
         y_axis.setGrid(64)
         return y_axis
 
@@ -622,10 +729,7 @@ class ViewBox(ColorCycleMixin, PSIContribution):
         return viewbox
 
     def _default_viewbox_norm(self):
-        viewbox = pg.ViewBox(enableMenu=False)
-        viewbox.setMouseEnabled(x=False, y=False)
-        viewbox.disableAutoRange()
-        return viewbox
+        return NormalizedViewBox(self.viewbox)
 
     def update(self, event=None):
         for child in self.children:
@@ -685,6 +789,8 @@ class BasePlot(PSIContribution):
     label = d_(Str())
     container = Property()
 
+    viewbox_name = d_(Str())
+
     def _get_container(self):
         return self.parent.parent
 
@@ -702,6 +808,7 @@ class SinglePlot(PenMixin, BasePlot):
 
     label = d_(Str())
     plot = Typed(object)
+    viewbox_name = d_(Str())
 
     def get_plots(self):
         return [self.plot]
@@ -729,6 +836,7 @@ class ChannelPlot(SourceMixin, SinglePlot):
         if self.source is not None:
             self.parent.data_range.add_source(self.source)
             self.parent.data_range.observe('span', self._update_time)
+            self.source.observe('fs', self._update_time)
             self.source.add_callback(self._append_data)
             self.parent.viewbox.sigResized.connect(self._update_decimation)
             self._update_time(None)
@@ -844,12 +952,14 @@ class FFTChannelPlot(ChannelPlot):
         if self.source is not None:
             self.source.add_callback(self._append_data)
             self.source.observe('fs', self._cache_x)
-            self._update_buffer()
+            self.source.observe('fs', self._update_buffer)
             self._cache_x()
+            self._update_buffer()
 
     def _update_buffer(self, event=None):
-        self._buffer = SignalBuffer(self.source.fs, self.time_span,
-                                    n_channels=self.source.n_channels)
+        if self.source.fs:
+            self._buffer = SignalBuffer(self.source.fs, self.time_span,
+                                        n_channels=self.source.n_channels)
 
     def _append_data(self, data):
         self._buffer.append_data(data)
@@ -879,9 +989,12 @@ class FFTChannelPlot(ChannelPlot):
 
 class TimepointPlot(SourceMixin, SymbolMixin, SinglePlot):
 
+    #: Edge of Event input source to plot
     edges = d_(Enum('rising', 'falling', 'both'))
     _rising = Typed(list, ())
     _falling = Typed(list, ())
+
+    #: Y position of timepoint
     y = d_(Float(0))
 
     def _default_plot(self):
@@ -889,7 +1002,7 @@ class TimepointPlot(SourceMixin, SymbolMixin, SinglePlot):
 
     def _observe_source(self, event):
         if self.source is not None:
-            self.parent.data_range.add_event_source(self.source)
+            self.parent.data_range.add_source(self.source)
             self.source.add_callback(self._append_data)
 
     def _observe_y(self, event):
@@ -961,7 +1074,6 @@ class BaseTimeseriesPlot(SinglePlot):
         try:
             epochs = np.c_[starts, ends]
         except ValueError as e:
-            log.exception(e)
             log.warning('Unable to update %r, starts shape %r, ends shape %r',
                         self, starts, ends)
             return
@@ -1003,6 +1115,8 @@ class TimeseriesPlot(BaseTimeseriesPlot):
     Plots rectangles indicating the span between a "rising" and "falling"
     event.
     '''
+    #: Name of source input that produces data which is a subclass of
+    #: `psiaudio.pipeline.Events` (e.g., `Edges`).
     source_name = d_(Str())
     source = Typed(object)
 
@@ -1011,7 +1125,7 @@ class TimeseriesPlot(BaseTimeseriesPlot):
 
     def _observe_source(self, event):
         if self.source is not None:
-            self.parent.data_range.add_event_source(self.source)
+            self.parent.data_range.add_source(self.source)
             # Need to observe the current time to ensure that rectangles that
             # have not recieved a "falling" event continue to "expand" as time
             # advances.
@@ -1059,35 +1173,6 @@ class InfiniteLine(SinglePlot):
 ################################################################################
 # Group plots
 ################################################################################
-class FixedTextItem(pg.TextItem):
-
-    def updateTransform(self, force=False):
-        p = self.parentItem()
-        if p is None:
-            pt = pg.QtGui.QTransform()
-        else:
-            pt = p.sceneTransform()
-
-        if not force and pt == self._lastTransform:
-            return
-
-        t = pt.inverted()[0]
-        # reset translation
-        t.setMatrix(1, t.m12(), t.m13(), t.m21(), 1, t.m23(), 0, 0, t.m33())
-
-        # apply rotation
-        angle = -self.angle
-        if self.rotateAxis is not None:
-            d = pt.map(self.rotateAxis) - pt.map(Point(0, 0))
-            a = np.arctan2(d.y(), d.x()) * 180 / np.pi
-            angle += a
-        t.rotate(angle)
-
-        self.setTransform(t)
-        self._lastTransform = pt
-        self.updateTextPos()
-
-
 class GroupMixin(ColorCycleMixin):
 
     source = Typed(object)
@@ -1180,7 +1265,7 @@ class GroupMixin(ColorCycleMixin):
         if self.last_seen_key[0] != self.selected_tab:
             # This should be deferred to the main thread since this causes some
             # updates in the user interface (to highlight the button that
-            # represents the current tab) 
+            # represents the current tab)
             deferred_call(setattr, self, 'selected_tab', self.last_seen_key[0])
 
     def _reset_plots(self):

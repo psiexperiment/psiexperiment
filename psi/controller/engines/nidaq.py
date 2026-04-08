@@ -43,6 +43,7 @@ import PyDAQmx as mx
 
 from psiaudio.pipeline import PipelineData
 from psiaudio.util import dbi
+from .callback import ChannelSliceCallbackMixin
 from ..engine import Engine, EngineStoppedException
 from ..channel import (HardwareCIChannel, HardwareCOChannel,
                        HardwareAIChannel, HardwareAOChannel, HardwareDIChannel,
@@ -204,7 +205,7 @@ class NIDAQHardwareCIAngPosEncoderChannel(NIDAQGeneralMixin,
     clocks and must be provided with an external clock. Another counter on the
     card typically makes a good sample clock.
 
-    FOr the M-series cards, we cannot set reference clock to the PXI chassis.
+    For the M-series cards, we cannot set reference clock to the PXI chassis.
     '''
     #: PFI input connected to channel A of the encoder
     terminal_A = d_(Str()).tag(metadata=True)
@@ -339,11 +340,13 @@ def read_hw_input(task, available_samples=None, channels=1, block_size=1,
         uint32 = ctypes.c_uint32()
         mx.DAQmxGetReadAvailSampPerChan(task, uint32)
         available_samples = uint32.value
+        blocks = (available_samples//block_size)
+        if blocks == 0:
+            return
+        samples = blocks*block_size
+    else:
+        samples = available_samples
 
-    blocks = (available_samples//block_size)
-    if blocks == 0:
-        return
-    samples = blocks*block_size
     data = np.empty((channels, samples), dtype=np.double)
     int32 = ctypes.c_int32()
     if input_type == 'ai':
@@ -408,24 +411,22 @@ def hw_input_helper(cb, channels, discard, fs, channel_names, task, task_id,
                     event_type=None, cb_samples=None, cb_data=None,
                     input_type='ai'):
     try:
-        uint32 = ctypes.c_uint32()
-        mx.DAQmxGetReadAvailSampPerChan(task, uint32)
-        available_samples = uint32.value
-        if available_samples == 0:
-            log.info('No samples available')
-            return 0
-
         uint64 = ctypes.c_uint64()
         mx.DAQmxGetReadCurrReadPos(task, uint64)
         read_position = uint64.value
 
-        log.trace('Current read position %d, available samples %d',
-                read_position, available_samples)
+        uint32 = ctypes.c_uint32()
+        mx.DAQmxGetReadAvailSampPerChan(task, uint32)
+        available_samples = uint32.value
+
+        if available_samples == 0:
+            log.info('No samples available. Current read position %d.', read_position)
+            raise ValueError('No samples available for read')
 
         data = read_hw_input(task, available_samples, channels, cb_samples,
                              input_type)
         if data is None:
-            return 0
+            raise ValueError(f'No samples read (attempted to read {available_samples} samples)')
 
         if read_position <= discard:
             to_discard = discard - read_position
@@ -435,6 +436,7 @@ def hw_input_helper(cb, channels, discard, fs, channel_names, task, task_id,
             s0 = max(0, read_position - discard)
             data = PipelineData(data, fs=fs, s0=s0, channel=channel_names)
             cb(task, data)
+
     except mx.InvalidTaskError:
         log.info('NIDAQmx task ID %r exiting because engine halted', task)
     except EngineStoppedException:
@@ -1003,7 +1005,7 @@ def with_lock(f):
 ################################################################################
 # Engine
 ################################################################################
-class NIDAQEngine(Engine):
+class NIDAQEngine(ChannelSliceCallbackMixin, Engine):
     '''
     Hardware interface
 
@@ -1245,6 +1247,7 @@ class NIDAQEngine(Engine):
                            '{}_hw_ai'.format(self.name))
         self._tasks['hw_ai'] = task
         self.ai_fs = task._properties['sample clock rate']
+        self._channel_names['hw_ai'] = task._properties['names']
 
     def configure_sw_ao(self, lines, expected_range, names=None,
                         initial_state=None):
@@ -1278,57 +1281,6 @@ class NIDAQEngine(Engine):
         self._tasks['sw_do'] = task
         initial_state = np.zeros(len(channels), dtype=np.uint8)
         self.write_sw_do(initial_state)
-
-    def _get_channel_slice(self, task_name, channel_name):
-        if channel_name is None:
-            return Ellipsis
-        # We want the channel slice to preserve dimensiality (i.e, we don't
-        # want to drop the channel dimension from the PipelineData object).
-        i = self._tasks[task_name]._properties['names'].index(channel_name)
-        return [i]
-
-    def register_done_callback(self, callback):
-        self._callbacks.setdefault('done', []).append(callback)
-
-    def register_ao_callback(self, callback, channel_name=None):
-        s = self._get_channel_slice('hw_ao', channel_name)
-        self._callbacks.setdefault('ao', []).append((channel_name, s, callback))
-
-    def register_ai_callback(self, callback, channel_name=None):
-        s = self._get_channel_slice('hw_ai', channel_name)
-        self._callbacks.setdefault('ai', []).append((channel_name, s, callback))
-
-    def register_ci_callback(self, callback, channel_name=None):
-        s = self._get_channel_slice('hw_ci', channel_name)
-        self._callbacks.setdefault('ci', []).append((channel_name, s, callback))
-
-    def register_di_callback(self, callback, channel_name=None):
-        s = self._get_channel_slice('hw_di', channel_name)
-        self._callbacks.setdefault('di', []).append((channel_name, s, callback))
-
-    def unregister_done_callback(self, callback):
-        try:
-            self._callbacks['done'].remove(callback)
-        except KeyError:
-            log.warning('Callback no longer exists.')
-
-    def unregister_ao_callback(self, callback, channel_name):
-        try:
-            s = self._get_channel_slice('hw_ao', channel_name)
-            self._callbacks['ao'].remove((channel_name, s, callback))
-        except (KeyError, AttributeError):
-            log.warning('Callback no longer exists.')
-
-    def unregister_ai_callback(self, callback, channel_name):
-        try:
-            s = self._get_channel_slice('hw_ai', channel_name)
-            self._callbacks['ai'].remove((channel_name, s, callback))
-        except (KeyError, AttributeError):
-            log.warning('Callback no longer exists.')
-
-    def unregister_di_callback(self, callback, channel_name):
-        s = self._get_channel_slice('hw_di', channel_name)
-        self._callbacks['di'].remove((channel_name, s, callback))
 
     def write_sw_ao(self, state):
         task = self._tasks['sw_ao']
@@ -1393,14 +1345,14 @@ class NIDAQEngine(Engine):
 
     def _get_hw_ao_samples(self, offset, samples):
         channels = self.get_channels('analog', 'output', 'hardware')
-        data = np.empty((len(channels), samples), dtype=np.double)
+        data = np.zeros((len(channels), samples), dtype=np.double)
         for channel, ch_data in zip(channels, data):
             channel.get_samples(offset, samples, out=ch_data)
         return data
 
     def _get_hw_do_samples(self, offset, samples):
         channels = self.get_channels('digital', 'output', 'hardware')
-        data = np.empty((len(channels), samples), dtype=bool)
+        data = np.zeros((len(channels), samples), dtype=float)
         for channel, ch_data in zip(channels, data):
             channel.get_samples(offset, samples, out=ch_data)
         return data
@@ -1484,7 +1436,7 @@ class NIDAQEngine(Engine):
             # Let's only log this information on an Exception.
             maxval = np.abs(data).max(axis=-1)
             log.info('Failed to write %r samples starting at %r', data.shape, offset)
-            log.info(' * Offset is %d samples relative to current write position %d', 
+            log.info(' * Offset is %d samples relative to current write position %d',
                      relative_offset, self.total_ao_samples_written)
             log.info(' * Current read position is %d', self.ao_sample_clock())
             log.info(' * Maximum value attempted to write is %r', maxval)

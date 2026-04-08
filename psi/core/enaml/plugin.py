@@ -84,25 +84,26 @@ class PSIPlugin(Plugin):
         children = []
         for extension in point.extensions:
             log.debug('... Found extension %s', extension.id)
-            children.extend(extension.children)
+            for child in extension.children:
+                children.append((child, extension))
             if extension.factory is not None:
-                children.extend(extension.factory(**factory_kw))
+                for child in extension.factory(**factory_kw):
+                    children.append((child, extension))
 
         # Now, group together the items into their respective plugins.
         for plugin_type, unique_attr in plugin_info.items():
-            for item in children:
-                plugin_items = items.setdefault(plugin_type, {})
-                plugin_item_source = item_source.setdefault(plugin_type, {})
+            plugin_items = items.setdefault(plugin_type, {})
+            plugin_item_source = item_source.setdefault(plugin_type, {})
+            for (item, extension) in children:
                 if isinstance(item, plugin_type):
                     attr = getattr(item, unique_attr)
                     log.debug('... ... found contribution %s', attr)
-
                     if attr in plugin_items:
-                        self.raise_duplicate_error(item,
-                                                   unique_attr,
-                                                   extension,
-                                                   plugin_item_source[attr])
-
+                        for k, v in plugin_item_source.items():
+                            log.error(f'{k}: {v.id}')
+                        self.raise_duplicate_error(
+                            item, unique_attr, extension, plugin_item_source[attr]
+                        )
                     plugin_items[attr] = item
                     plugin_item_source[attr] = extension
 

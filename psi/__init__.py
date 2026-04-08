@@ -1,13 +1,11 @@
-# This adds the TRACE logging level
+# This import automatically adds the TRACE logging level
 import psiaudio
 
 import logging
 import importlib.util
 import os
 from pathlib import Path
-
-# This automatically introduces the TRACE logging level
-import psiaudio
+import socket
 
 log = logging.getLogger(__name__)
 log.addHandler(logging.NullHandler())
@@ -17,6 +15,9 @@ log.addHandler(logging.NullHandler())
 CONFIG_LOADED = False
 
 
+# Create default paths and then override using environment variables. All
+# environment variables must be prefixed with `PSI_` to minimize the chance of
+# collision with existing environment variables.
 DEFAULT_CONFIG = {
     'LOG_ROOT': os.path.expanduser('~/Documents/psi/logs'),
     'DATA_ROOT': os.path.expanduser('~/Documents/psi/data'),
@@ -25,8 +26,11 @@ DEFAULT_CONFIG = {
     'LAYOUT_ROOT': os.path.expanduser('~/Documents/psi/layout'),
     'CFTS_ROOT': os.path.expanduser('~/Documents/psi/cfts'),
     'IO_ROOT': os.path.expanduser('~/Documents/psi/io'),
+    'HOSTNAME': socket.gethostname(),
 }
 
+for k, v in DEFAULT_CONFIG.items():
+    DEFAULT_CONFIG[k] = os.environ.get(f'PSI_{k}', v)
 
 # Container for configuration variables
 _config = {}

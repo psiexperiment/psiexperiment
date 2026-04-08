@@ -343,7 +343,6 @@ def start_output(event, output):
 
     try:
         output.engine.lock.acquire()
-        buffered_ub = output._buffer.get_samples_ub()
         # Important to lock the engine when activating the output to prevent
         # race conditions
         log.debug('Starting output %s at %d', output.name, offset)
@@ -370,9 +369,6 @@ def start_output(event, output):
         # reset the generator and deactivate the output. The invoking code can
         # then decide what to do about the problem.
         output.deactivate(offset)
-        zeros = np.zeros(buffered_ub-offset)
-        output._buffer.append_data(zeros)
-
         output.engine.lock.release()
         log.exception(e)
         log.debug('Invalidated buffer at %d', offset)

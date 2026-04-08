@@ -5,15 +5,14 @@ from functools import partial
 import numpy as np
 
 from atom.api import (Str, Dict, Event, Typed, Property, Float, Int,
-                      Bool, List, set_default)
+                      Bool, List, set_default, Callable)
 
 import enaml
 from enaml.core.api import Declarative, d_
 
-from psiaudio.stim import FixedWaveform
+from psiaudio.stim import cos2envelope, FixedWaveform
 from psiaudio.queue import AbstractSignalQueue
 
-from psi.util import SignalBuffer
 from psi.core.enaml.api import PSIContribution
 
 
@@ -80,21 +79,14 @@ class HardwareOutput(BaseOutput):
     # Can the user configure properties (such as the token) via the GUI?
     configurable = d_(Bool(True))
 
+    #: Datatype of output (double is usually good for analog outputs and bool
+    #: is good for digital outputs)
+    dtype = Str('double').tag(metadata=True)
+
     callbacks = List()
 
-    def connect(self, cb):
-        # TODO: Do we still use this?
-        self.callbacks.append(cb)
-
-    def notify(self, data):
-        # TODO: Do we still use this?
-        if not self.callbacks:
-            return
-        # Correct for filter delay
-        d = data.copy()
-        d['t0'] += self.filter_delay
-        for cb in self.callbacks:
-            cb(d)
+    #: Starting time of output
+    start_sample = Int()
 
     def _get_filter_delay(self):
         return self.target.filter_delay
@@ -105,114 +97,91 @@ class HardwareOutput(BaseOutput):
     def _get_calibration(self):
         return self.channel.calibration
 
-    def get_next_samples(self, samples):
-        for child in self.children:
-            if isinstance(child, BaseOutput):
-                log.error(child)
-        return
 
+class BaseAnalogOutput(HardwareOutput):
 
-class BufferedOutput(HardwareOutput):
-
-    #: Datatype of buffer (double is usually good for analog outputs and bool
-    #: is good for digital outputs)
-    dtype = Str('double').tag(metadata=True)
-
-    #: Number of seconds of the waveform to buffer.
-    buffer_size = Property().tag(metadata=True)
-
-    _buffer = Typed(SignalBuffer)
-
-    # Starting offset of sample generation for source. Should be set by
-    # subclasses as needed.
+    # Current offset of sample generation for source. Should be set by
+    # subclasses as needed. When first set, it represents the first sample of
+    # the source but as samples from the source are consumed it is incremented.
     _offset = Int(0)
 
-    def _get_buffer_size(self):
-        # TODO ????
-        return self.channel.buffer_size
+    active = Bool(False)
+    paused = Bool(False)
 
-    def _default__buffer(self):
-        return SignalBuffer(self.fs, self.buffer_size, 0, self.dtype)
+    def activate(self, offset):
+        log.info('Activating %s at %d', self.name, offset)
+        self.active = True
+        self.paused = False
+        self._offset = offset
+
+    def _observe_target(self, event):
+        if self.target is not None:
+            self.target.observe('fs', self._fs_updated)
+
+    def _fs_updated(self, event):
+        # Ensure that changes to the parent sampling rate get propagated down
+        # the output hierarchy so that downstream nodes can respond accordingly
+        # (e.g., plots can update their buffer sizes to accomodate data at the
+        # correct sampling rate). Enaml has static and dynamic observers, so we
+        # need to trigger both (this is an implementation quirk that is usually
+        # invisible to most end-users).
+        event = event.copy()
+        event['value'] = self.fs
+        self.notify('fs', event)
+        member = self.get_member('fs')
+        member.notify(self, event)
 
     def get_samples(self, offset, samples, out):
         '''
-        Load samples for specified range
-
-        If samples are already buffered, load from the buffer first. If
-        additional samples are needed, generate samples.
+        Load new samples
         '''
-        lb = offset
-        ub = offset + samples
-        buffered_lb = self._buffer.get_samples_lb()
-        buffered_ub = self._buffer.get_samples_ub()
-        if lb > buffered_ub:
-            # This breaks an implicit software contract.
-            m = 'Mismatch between offsets. ' \
-                f'Requested {lb} but only buffered up to {buffered_lb}'
-            raise SystemError(m)
-        elif lb == buffered_ub:
-            pass
-        elif lb >= buffered_lb and ub <= buffered_ub:
-            out[:] = self._buffer.get_range_samples(lb, ub)
-            samples = 0
-            offset = ub
-        elif lb >= buffered_lb and ub > buffered_ub:
-            b = self._buffer.get_range_samples(lb)
-            s = b.shape[-1]
-            out[:s] = b
-            samples -= s
-            offset += s
-
-        # Don't generate new samples if occuring before activation.
-        if (samples > 0) and (offset < self._offset):
-            s = min(self._offset-offset, samples)
-            data = np.zeros(s)
-            self._buffer.append_data(data)
-            if (samples == s):
-                out[-samples:] = data
-            else:
-                out[-samples:-samples+s] = data
-            samples -= s
-            offset += s
-
-        # Generate new samples
-        if samples > 0:
-            data = self.get_next_samples(samples)
-            self._buffer.append_data(data)
-            out[-samples:] = data
+        if samples == 0:
+            # Not sure if we ever see this, but just in case.
+            return
+        if (offset + samples) < self._offset:
+            # All samples occur before the output is supposed to start. Do
+            # nothing. 
+            return
+        if offset > self._offset:
+            delay = (self._offset - offset) / self.fs * 1e3
+            raise ValueError(f'Missed chance to play signal. '
+                             f'Start at {offset} but currently at {self._offset} ({delay:.0f} msec).')
+        if offset < self._offset:
+            # The output starts partway through the buffer section that is
+            # requested.
+            skip = self._offset - offset
+            samples -= skip
+            out[skip:] += self.get_next_samples(samples)
+            self._offset += samples
+        else:
+            out[:] += self.get_next_samples(samples)
+            self._offset += samples
 
     def get_next_samples(self, samples):
         raise NotImplementedError
 
 
-class BaseAnalogOutput(BufferedOutput):
+class NullOutput(BaseAnalogOutput):
+
+    def get_next_samples(self, samples):
+        return np.zeros(samples, dtype=self.dtype)
+
+
+class AnalogOutputWithSource(BaseAnalogOutput):
 
     #: This is managed by the manifest
     source = Typed(object).tag(metadata=True)
     source_md = Dict()
-    active = Bool(False).tag(metadata=True)
-    paused = Bool(False)
 
-    def activate(self, offset):
-        log.trace('Activating %s at %d', self.name, offset)
-        self.active = True
-        self.paused = False
-        self._offset = offset
-        self._buffer.invalidate_samples(offset)
-
-    def deactivate(self, offset):
-        log.trace('Deactivating %s at %d', self.name, offset)
+    def deactivate(self, offset=None):
         self.active = False
         self.source = None
-        self._buffer.invalidate_samples(offset)
 
     def pause(self, time):
         self.paused = True
-        self.rebuffer(time)
 
     def resume(self, time):
         self.paused = False
-        self.rebuffer(time)
 
     def get_duration(self):
         return self.source.get_duration()
@@ -220,10 +189,99 @@ class BaseAnalogOutput(BufferedOutput):
     def is_ready(self):
         return self.source is not None
 
-    def rebuffer(self, time):
-        offset = round(time * self.fs)
-        self._buffer.invalidate_samples(offset)
-        self.engine.update_hw_ao(self.channel.name, offset)
+    def get_samples(self, offset, samples, out):
+        if not self.active or self.paused:
+            return
+        super().get_samples(offset, samples, out)
+
+
+class EpochOutput(AnalogOutputWithSource):
+
+    # TODO: clean this up. it's sort of hackish.
+    token = d_(Typed(Declarative)).tag(metadata=True)
+
+    def set_waveform(self, waveform):
+        # Ensure output is deactivated before new waveform is set, otherwise we
+        # end up with edge conditions where the new waveform is played almost
+        # immediately if the output is left in an active state from a previous
+        # call to `start_waveform`.
+        self.deactivate()
+        self.source = FixedWaveform(self.fs, waveform)
+
+    def start_waveform(self, ts, deprecated):
+        sample = round(int(self.fs * ts))
+        self.activate(sample)
+
+    def stop_waveform(self, ts, deprecated):
+        sample = round(int(self.fs * ts))
+        self.deactivate(sample)
+
+    def get_next_samples(self, samples):
+        if self.source is None:
+            return np.zeros(samples)
+        return self.source.next(samples)
+
+
+class RampedEpochOutput(EpochOutput):
+
+    ramp = Typed(FixedWaveform)
+
+    def set_waveform(self, waveform, ramp_time=25e-3):
+        # Generate an "inverse" ramp that attenuates the existing samples in
+        # the output buffer. Generate it as if 0 means no attenuation
+        # and 1 is full attenuation.
+        if ramp_time is not None:
+            ramp = cos2envelope(
+                fs=self.fs,
+                duration=waveform.shape[-1] / self.fs,
+                rise_time=ramp_time,
+            )
+        else:
+            ramp = np.zeros_like(waveform)
+        self.ramp = FixedWaveform(self.fs, ramp)
+        super().set_waveform(waveform)
+
+    def get_samples(self, offset, samples, out):
+        '''
+        Load new samples
+        '''
+        if samples == 0:
+            # Not sure if we ever see this, but just in case.
+            return
+        if (offset + samples) < self._offset:
+            # All samples occur before the output is supposed to start. Do
+            # nothing. 
+            return
+        if offset > self._offset:
+            delay = (self._offset - offset) / self.fs * 1e3
+            raise ValueError(f'Missed chance to play signal. '
+                             f'Start at {self._offset} but currently at {offset} ({delay:.0f} msec).')
+        if offset < self._offset:
+            # The output starts partway through the buffer section that is
+            # requested.
+            skip = self._offset - offset
+            samples -= skip
+            self.write_next_samples(out[skip:])
+            self._offset += samples
+        else:
+            self.write_next_samples(out)
+            self._offset += samples
+
+    def write_next_samples(self, out):
+        if self.paused or not self.active:
+            return
+
+        samples = len(out)
+        s = self.source.next(samples)
+        # In the ramp, 1 means full attenuation. Calculate the scaling factor
+        # needed to apply the ramp.
+        r = self.ramp.next(samples)
+        sf = 1 - r
+
+        # out is the buffer that will be sent to the DAC . Write *into* the
+        # buffer. Multiply by the attenuation factor (0 = full attentuation, 1
+        # = no attenuation) and then add the stimulus waveform in.
+        out[:] = out * sf + s
 
 
 class MUXOutput(HardwareOutput):
@@ -243,70 +301,14 @@ class MUXOutput(HardwareOutput):
         o.target = None
 
     def get_samples(self, offset, samples, out):
-        out.fill(0)
         for output in self.outputs:
-            o = np.empty_like(out)
-            output.get_samples(offset, samples, o)
-            out += o
+            output.get_samples(offset, samples, out)
 
     def get_next_samples(self, samples):
-        buffer = np.zeros(samples, dtype=self.dtype)
+        s = np.zeros(samples, dtype=self.dtype)
         for output in self.outputs:
-            buffer += output.get_next_samples(samples)
-        return buffer
-
-
-class SimpleOutput(BufferedOutput):
-
-    def get_next_samples(self, samples):
-        return np.zeros(samples, dtype=self.dtype)
-
-
-class EpochOutput(BaseAnalogOutput):
-
-    # TODO: clean this up. it's sort of hackish.
-    token = d_(Typed(Declarative)).tag(metadata=True)
-
-    def set_waveform(self, waveform):
-        self.source = FixedWaveform(self.fs, waveform)
-
-    def start_waveform(self, ts, update_engine=True):
-        sample = round(int(self.fs * ts))
-        self.activate(sample)
-        if update_engine:
-            self.engine.update_hw_ao(self.channel.name, sample)
-
-    def play_waveform(self, waveform, ts, update_engine=True):
-        self.set_waveform(waveform)
-        self.start_waveform(ts, update_engine)
-
-    def stop_waveform(self, ts, update_engine=True):
-        sample = round(int(self.fs * ts))
-        self.deactivate(sample)
-        if update_engine:
-            self.engine.update_hw_ao(self.channel.name, sample)
-
-    def get_next_samples(self, samples):
-        if self.paused or not self.active:
-            return np.zeros(samples, dtype=self.dtype)
-
-        buffered_ub = self._buffer.get_samples_ub()
-
-        # Pad with zero
-        zero_padding = max(self._offset-buffered_ub, 0)
-        zero_padding = min(zero_padding, samples)
-        waveform_samples = samples - zero_padding
-
-        waveforms = []
-        if zero_padding:
-            w = np.zeros(zero_padding, dtype=self.dtype)
-            waveforms.append(w)
-        if waveform_samples:
-            w = self.source.next(waveform_samples)
-            waveforms.append(w)
-        if self.source.is_complete():
-            self.deactivate(self._buffer.get_samples_ub())
-        return np.concatenate(waveforms, axis=-1)
+            s += output.get_next_samples(samples)
+        return s
 
 
 class QueuedEpochOutput(EpochOutput):
@@ -319,21 +321,6 @@ class QueuedEpochOutput(EpochOutput):
     auto_decrement = d_(Bool(False)).tag(metadata=True)
 
     complete = d_(Event(), writable=False)
-    removed_callbacks = List()
-
-    def connect(self, cb, event='added'):
-        if event == 'added':
-            self.callbacks.append(cb)
-        elif event == 'removed':
-            self.removed_callbacks.append(cb)
-
-    def notify_removed(self, data):
-        if not self.removed_callbacks:
-            return
-        d = data.copy()
-        d['t0'] += self.filter_delay
-        for cb in self.removed_callbacks:
-            cb(d)
 
     def rebuffer(self, time):
         self.queue.cancel(time)
@@ -353,13 +340,14 @@ class QueuedEpochOutput(EpochOutput):
         self._update_queue()
 
     def _observe_target(self, event):
+        super()._observe_target(event)
         self._update_queue()
 
     def _update_queue(self):
         if self.queue is not None and self.target is not None:
             self.queue.set_fs(self.fs)
-            self.queue.connect(self.notify, 'added')
-            self.queue.connect(self.notify_removed, 'removed')
+            self.queue.connect(self.event_notify, 'added')
+            self.queue.connect(self.event_notify, 'removed')
 
     def get_next_samples(self, samples):
         if self.paused or not self.active:
@@ -419,9 +407,10 @@ class QueuedEpochOutput(EpochOutput):
         return np.inf
 
 
-class ContinuousOutput(BaseAnalogOutput):
+class ContinuousOutput(AnalogOutputWithSource):
 
-    # TODO: clean this up. it's sort of hackish.
+    # TODO: clean this up. it's sort of hackish. Do we even need to
+    # differentiate between this and EpochOutput? 
     token = d_(Typed(Declarative)).tag(metadata=True)
 
     def get_next_samples(self, samples):
@@ -429,31 +418,45 @@ class ContinuousOutput(BaseAnalogOutput):
             return np.zeros(samples, dtype=self.dtype)
         return self.source.next(samples)
 
+    def get_duration(self):
+        return np.inf
+
+    def is_ready(self):
+        return self.token is not None
+
+
+class ContinuousCallbackOutput(BaseAnalogOutput):
+
+    callback = Callable()
+
+    def get_next_samples(self, samples):
+        if self.paused or not self.active:
+            return np.zeros(samples, dtype=self.dtype)
+        return self.callback(samples, self.name)
+
+    def is_ready(self):
+        return self.callback is not None
+
 
 class ContinuousQueuedOutput(ContinuousOutput):
 
-    notifiers = Dict()
+    event_notifiers = Dict()
 
-    def _default_notifiers(self):
+    def _default_event_notifiers(self):
         return {
             'added': [],
             'removed': [],
             'decrement': [],
         }
 
-    def _observe_source(self, event):
-        if hasattr(self.source, 'connect'):
-            for e in self.notifiers:
-                self.source.connect(partial(self.notify, e), e)
-
     def connect(self, callback, event='added'):
-        if event not in self.notifiers:
+        if event not in self.event_notifiers:
             raise KeyError(f'Event "{event}" not valid')
-        self.notifiers[event].append(callback)
+        self.event_notifiers[event].append(callback)
 
-    def notify(self, event, info):
-        for notifier in self.notifiers[event]:
-            notifier(info)
+    def event_notify(self, event, info):
+        for event_notifier in self.event_notifiers[event]:
+            event_notifier(info)
 
     def pause(self, time):
         self.source.queue.pause(time)
@@ -464,30 +467,41 @@ class ContinuousQueuedOutput(ContinuousOutput):
         super().resume(time)
 
 
-class TimedTrigger(BufferedOutput):
+class TimedTrigger(HardwareOutput):
 
-    dtype = set_default('bool')
+    dtype = set_default('float')
+
+    #: First sample of TTL
     _start = Int(0)
+
+    #: Last sample of TTL
     _stop = Int(0)
 
+    #: Desired level of TTL on output.
+    ttl_level = Float(1)
+
     def trigger(self, timestamp, duration):
-        log.error(f'Triggering at {timestamp} for {duration}')
+        if timestamp is None:
+            timestamp = 0
         self._start = int(round(self.fs * timestamp))
         self._stop = self._start + int(round(self.fs * duration))
-        self.rebuffer(timestamp)
 
-    def get_next_samples(self, samples):
-        ttl = np.zeros(samples, dtype=self.dtype)
-        buffered_ub = self._buffer.get_samples_ub()
-        lb = int(np.clip(self._start - buffered_ub, 0, None))
-        ub = int(np.clip(self._stop - buffered_ub, 0, None))
-        ttl[..., lb:ub] = True
-        return ttl
+    def get_samples(self, offset, samples, out):
+        '''
+        Load TTL into buffer
+        '''
+        # Check to see if we need to do anythying.
+        if samples == 0:
+            return
+        if (offset + samples) < self._start:
+            return
+        if offset > self._stop:
+            return
 
-    def rebuffer(self, time):
-        offset = int(round(time * self.fs))
-        self._buffer.invalidate_samples(offset)
-        self.engine.update_hw_do(self.channel.name, offset)
+        # Clip bounds to range of samples needed in buffer
+        lb = max(0, self._start - offset)
+        ub = min(samples, self._stop - offset)
+        out[lb:ub] += self.ttl_level
 
 
 class Trigger(BaseOutput):

@@ -1,0 +1,87 @@
+import os
+os.environ['SD_ENABLE_ASIO'] = '1'
+
+
+import sounddevice as sd
+
+from atom.api import set_default
+from enaml.core.api import Looper
+from enaml.widgets.api import Label
+
+from . import (
+    SoundcardEngine,
+    SoundcardHardwareAIChannel,
+    SoundcardHardwareAOChannel
+)
+
+
+def get_channels(device_name, direction):
+    result = sd.query_devices(device_name)
+    return result[f'max_{direction}_channels']
+
+
+enamldef BaseSoundcardEngine(SoundcardEngine):
+    '''
+    Automatically creates input and output channels for the number of input and
+    output channels that are available to a particular device.
+    '''
+    name = 'ASIO'
+
+    # Convenience approach for quickly assembling list of inputs/outputs. Can
+    # be declared the typical way as well.
+    attr input_map = {}
+    attr output_map = {}
+
+    Looper:
+        iterable << input_map.items()
+
+        SoundcardHardwareAIChannel:
+            channel = loop_item[0]
+            label = loop_item[1]['label']
+            name = loop_item[1]['name']
+            dBFS = loop_item[1].get('dBFS', (19, 'dBu'))
+            supported_devices = ['generic_microphone', 'measurement_microphone']
+            gain = 0
+
+    Looper:
+        iterable << output_map.items()
+
+        SoundcardHardwareAOChannel:
+            channel = loop_item[0]
+            label = loop_item[1]['label']
+            name = loop_item[1]['name']
+            supported_devices = ['speaker']
+
+
+enamldef ASIOFirefaceUSBEngine(BaseSoundcardEngine):
+
+    device_name = 'ASIO Fireface USB'
+
+
+def get_input_config(n_channels):
+    config = {}
+    for c in range(n_channels):
+        config[c] = {
+            'channel': c,
+            'label': f'Input {c}',
+            'name': f'input_{c}',
+        }
+    return config
+
+
+def get_output_config(n_channels):
+    config = {}
+    for c in range(n_channels):
+        config[c] = {
+            'channel': c,
+            'label': f'Output {c}',
+            'name': f'output_{c}',
+        }
+    return config
+
+
+enamldef AutoASIOFirefaceUSBEngine(ASIOFirefaceUSBEngine):
+
+    attr dev_info = sd.query_devices(device_name)
+    attr input_map = get_input_config(dev_info['max_input_channels'])
+    attr output_map = get_output_config(dev_info['max_output_channels'])

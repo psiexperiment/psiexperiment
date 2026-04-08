@@ -5,8 +5,8 @@ import threading
 
 import numpy as np
 
-from atom.api import (Str, Float, Bool, observe, Property, Int, Typed,
-                      Value)
+from atom.api import (observe, Str, Float, Bool, observe, Property, Int, List,
+                      Typed, Value)
 from enaml.core.api import Declarative, d_
 
 from psi.core.enaml.api import PSIContribution
@@ -76,11 +76,28 @@ class Engine(PSIContribution):
     #: run out of samples. This poll period is a suggestion, not a contract.
     hw_ao_monitor_period = d_(Float(1)).tag(metadata=True)
 
+    channels = List(Typed(Channel))
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # This is needed to give Conditional and Looper blocks a chance to
+        # properly set up.
+        self.initialize()
+
+    def initialized(self):
+        self.channels = [c for c in self.children if isinstance(c, Channel)]
+        for c in self.channels:
+            c.engine = self
+
     def _default_lock(self):
         return threading.RLock()
 
     def _default_stopped(self):
         return threading.Event()
+
+    def add_channel(self, channel):
+        self.channels.append(channel)
+        channel.engine = self
 
     def get_channels(self, mode=None, direction=None, timing=None,
                      active=True):
@@ -100,7 +117,7 @@ class Engine(PSIContribution):
             If True, return only channels that have configured inputs or
             outputs.
         '''
-        channels = [c for c in self.children if isinstance(c, Channel)]
+        channels = self.channels[:]
 
         if active:
             channels = [c for c in channels if c.active]
@@ -135,7 +152,7 @@ class Engine(PSIContribution):
 
     def get_channel(self, channel_name):
         # Channel names are sometimes prefixed with the channel type (e.g.,
-        # hw_ao) and will appear as "hw_ao::speaker_1" instead of "speaker_1". 
+        # hw_ao) and will appear as "hw_ao::speaker_1" instead of "speaker_1".
         if '::' in channel_name:
             _, channel_name = channel_name.split('::')
         channels = self.get_channels(active=False)
@@ -147,7 +164,8 @@ class Engine(PSIContribution):
                              f'Valid channels are {valid}.')
 
     def remove_channel(self, channel):
-        channel.set_parent(None)
+        channel.engine = None
+        self.channels.remove(channel)
 
     def configure(self):
         for channel in self.get_channels():
@@ -221,18 +239,25 @@ class Engine(PSIContribution):
     def get_buffer_size(self, channel_name):
         raise NotImplementedError
 
-    def update_hw_ao_multiple(self, offsets, channel_names):
+    def update_hw_ao_multiple(self, channel_names, offsets):
         raise NotImplementedError
 
-    def update_hw_ao(self, offsets, channel_name, method):
+    def update_hw_ao(self, channel_name, offset, method=None):
+        pass
+        #raise NotImplementedError
+
+    def update_hw_do(self, channel_name, offset, method=None):
         raise NotImplementedError
 
     def clone(self, channel_names=None):
         '''
         Return a copy of this engine with specified channels included
         This is intended as a utility function to assist various routines that
-        may need to do a quick operation before starting the experiment. For
-        example, calibration may only need to run a subset of the channels.
+        may need to do a quick operation before starting the experiment.
+
+        The reason why this is necessary is to avoid interactions between
+        configuring the channels for calibration and configuring the channels
+        for the experiment.
 
         Parameters
         ----------
@@ -241,13 +266,17 @@ class Engine(PSIContribution):
             will be cloned.
         '''
         new = copy_declarative(self)
-        for channel in new.children[:]:
-            channel.set_parent(None)
+        for channel in new.channels:
+            print(f'removing {channel}')
+            new.remove_channel(channel)
+
         if channel_names is None:
             channel_names = [c.name for c in self.get_channels(active=False)]
+
         if channel_names is not None:
             for channel_name in channel_names:
                 channel = self.get_channel(channel_name)
                 new_channel = copy_declarative(channel, parent=new,
                                                exclude=['inputs', 'outputs'])
+                new.add_channel(new_channel)
         return new

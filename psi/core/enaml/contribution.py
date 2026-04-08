@@ -29,6 +29,7 @@ def load_manifest(manifest_path):
     try:
         return getattr(module, manifest_name)
     except AttributeError as e:
+        err = f'{manifest_path} not found.'
         raise ManifestNotFoundError() from e
 
 

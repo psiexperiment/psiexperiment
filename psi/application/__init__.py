@@ -9,8 +9,6 @@ from pathlib import Path
 import pdb
 import re
 import sys
-import tempfile
-import textwrap
 import traceback
 import warnings
 
@@ -20,9 +18,8 @@ with enaml.imports():
     from enaml.stdlib.message_box import critical
 
 from psi import get_config, set_config
+from psi.util import wrap_text
 from psi.core.enaml.api import load_manifest, load_manifest_from_file
-
-DEFAULT_LOG_ROOT = Path(tempfile.gettempdir()) / 'psi'
 
 
 def disable_quick_edit():
@@ -72,6 +69,7 @@ class ExceptionHandler:
     def __init__(self):
         self.workbench = None
         self.logfile = None
+        self.stopping = False
 
     def __enter__(self):
         sys.excepthook = sys.__excepthook__
@@ -93,7 +91,7 @@ class ExceptionHandler:
         mesg = mesg_template.format(args[1], log_mesg)
         mesg = re.sub(r'(?<!\n)\n(?!\n)', ' ', mesg)
         mesg = re.sub(r' +', ' ', mesg)
-        return textwrap.fill(mesg, replace_whitespace=False)
+        return wrap_text(mesg)
 
     def __call__(self, *args):
         with self:
@@ -104,13 +102,16 @@ class ExceptionHandler:
                 core = self.workbench.get_plugin('enaml.workbench.core')
                 parameters = {'stop_reason': 'error', 'skip_errors': True,
                               'error_message': mesg}
-                try:
-                    core.invoke_command('psi.set_dock_style', {'style_name': 'error'})
-                    #core.invoke_command('psi.controller.stop', parameters)
-                except Exception as e:
-                    log.exception(e)
-                    window = self.workbench.get_plugin('enaml.workbench.ui').window
-                    deferred_call(critical, window, 'Oops :(', mesg)
+                if not self.stopping:
+                    try:
+                        self.stopping = True
+                        log.info('Invoking stop command')
+                        core.invoke_command('psi.set_dock_style', {'style_name': 'error'})
+                        core.invoke_command('psi.controller.stop', parameters)
+                    except Exception as e:
+                        log.exception(e)
+                        window = self.workbench.get_plugin('enaml.workbench.ui').window
+                        deferred_call(critical, window, 'Oops :(', mesg)
             sys.excepthook(*args)
 
 
@@ -138,6 +139,7 @@ def configure_logging(level_console=None, level_file=None, filename=None,
 
     fmt = '{asctime:s} {levelname:10s}: {threadName:11s} - {name:40s}:: {message}'
 
+    formatter = logging.Formatter(fmt, style='{')
     if level_console is not None:
         try:
             level_styles = {
@@ -194,16 +196,17 @@ def _main(args):
         # warnings.
         dt_string = dt.datetime.now().strftime('%Y-%m-%d %H%M')
         filename = '{} {}'.format(dt_string, args.experiment)
-        log_root = get_config('LOG_ROOT', DEFAULT_LOG_ROOT)
+        log_root = Path(get_config('LOG_ROOT'))
         log_root.mkdir(parents=True, exist_ok=True)
+        log_file = os.path.join(log_root, filename)
         configure_logging(args.debug_level_console,
                           args.debug_level_file,
-                          os.path.join(log_root, filename),
+                          log_file,
                           args.debug_exclude)
 
         log.debug('Logging configured')
-        log.info('Logging information captured in {}'.format(filename))
-        log.info('Python executable: {}'.format(sys.executable))
+        log.info('Logging information captured in %s', log_file)
+        log.info('Python executable: %s', sys.executable)
         if args.debug_warning:
             warnings.showwarning = warn_with_traceback
 
@@ -224,8 +227,8 @@ def _main(args):
                               load_preferences=not args.no_preferences,
                               load_layout=not args.no_layout,
                               preferences_file=args.preferences,
-                              layout_file=args.layout,
-                              calibration_file=args.calibration)
+                              layout_file=args.layout
+                              )
 
 
 def list_preferences(experiment, include_default=False):
@@ -246,25 +249,6 @@ def list_io():
         result.extend(Path(io_path).glob('*.enaml'))
     result.extend(get_config('STANDARD_IO', []))
     return result
-
-
-def get_calibration_path(io_file):
-    io_file = Path(io_file)
-    return io_file.parent / io_file.stem
-
-
-def get_calibration_file(io_file=None, name='default'):
-    if io_file is None:
-        io_file = get_default_io()
-    path = get_calibration_path(io_file)
-    return (path / name).with_suffix('.json')
-
-
-def list_calibrations(io_file=None):
-    if io_file is None:
-        io_file = get_default_io()
-    path = get_calibration_path(io_file)
-    return list(path.glob('*.json'))
 
 
 def launch_experiment(args):
@@ -295,18 +279,34 @@ def launch_experiment(args):
         merged_stats.dump_stats(path.parent / 'merged.pstat')
 
 
-def get_default_io():
+def get_default_io(method='hostname'):
     '''
     Attempt to figure out the default IO configuration file
 
-    Right now it just returns the first one found.
+    Parameters
+    ----------
+    method : {'hostname'}
+        If 'hostname', returns the IO config matching the full hostname.
+    '''
+    mesg = f'''
+    {{}}
+
+    Please create an IO config file. This file should go in
+    {get_config('IO_ROOT')}. The location of the IO config files can be set via
+    the `PSI_IO_ROOT` environment variable.
     '''
     available_io = list_io()
     log.debug('Found the following IO files: %r', available_io)
-    if len(available_io) == 0:
-        raise ValueError('No IO configured for system')
-    return available_io[0]
-
+    if method == 'hostname':
+        hostname = get_config('HOSTNAME').lower()
+        for io in available_io:
+            if hostname in str(io):
+                return io
+        else:
+            err = f'No IO named {hostname}.enaml found for the system.'
+            raise ValueError(wrap_text(mesg.format(err)))
+    else:
+        raise ValueError('Unsupported method')
 
 def load_io_manifest(io_manifest=None):
     '''
@@ -334,14 +334,6 @@ def load_io_manifest(io_manifest=None):
     return klass
 
 
-def get_default_calibration(io_file):
-    available_calibrations = list_calibrations(io_file)
-    for calibration in available_calibrations:
-        if calibration.stem == 'default':
-            return calibration
-    raise ValueError('No default calibration configured for system')
-
-
 def load_paradigm_descriptions():
     '''
     Loads paradigm descriptions
@@ -352,63 +344,6 @@ def load_paradigm_descriptions():
     descriptions = get_config('PARADIGM_DESCRIPTIONS', default)
     for description in descriptions:
         importlib.import_module(description)
-
-
-def add_default_options(parser):
-    import argparse
-
-    class CalibrationAction(argparse.Action):
-        def __call__(self, parser, namespace, value, option_string=None):
-            path = Path(value)
-            if not path.exists():
-                path = namespace.io / path
-                path = path.with_suffix('.json')
-                if not path.exists():
-                    raise ValueError('%s does not exist'.format(value))
-            setattr(namespace, self.dest, value)
-
-    try:
-        default_io = get_default_io()
-    except ValueError:
-        default_io = None
-    parser.add_argument('pathname', type=str, help='Filename', nargs='?')
-    parser.add_argument('--io', type=str, default=default_io,
-                        help='Hardware configuration')
-    parser.add_argument('--calibration', type=str, help='Hardware calibration',
-                        action=CalibrationAction)
-    parser.add_argument('--debug', default=True, action='store_true',
-                        help='Debug mode?')
-    parser.add_argument('--debug-warning', default=False, action='store_true',
-                        help='Show warnings?')
-    parser.add_argument('--debug-level-console', type=str, default='INFO',
-                        help='Logging level for console')
-    parser.add_argument('--debug-level-file', type=str, default='INFO',
-                        help='Logging level for file')
-    parser.add_argument('--debug-exclude', type=str, nargs='*',
-                        help='Names to exclude from debugging')
-    parser.add_argument('--pdb', default=False, action='store_true',
-                        help='Autolaunch PDB?')
-    parser.add_argument('--no-preferences', default=False, action='store_true',
-                        help="Don't load existing preference files")
-    parser.add_argument('--no-layout', default=False, action='store_true',
-                        help="Don't load existing layout files")
-    parser.add_argument('-c', '--commands', nargs='+', default=[],
-                        help='Commands to invoke')
-    parser.add_argument('-p', '--preferences', type=str, nargs='?',
-                        help='Preferences file')
-    parser.add_argument('-l', '--layout', type=str, nargs='?',
-                        help='Layout file')
-    parser.add_argument('--profile', action='store_true', help='Profile app')
-
-
-def parse_args(parser):
-    args = parser.parse_args()
-    if args.calibration is None:
-        try:
-            args.calibration = get_default_calibration(args.io)
-        except ValueError as e:
-            log.warn(str(e))
-    return args
 
 
 def list_io_templates():

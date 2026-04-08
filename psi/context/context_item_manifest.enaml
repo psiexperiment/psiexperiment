@@ -33,15 +33,24 @@ enamldef ContextDockItem(PSIDockItem):
             # subwidget is typically a container of some kind and the first
             # widget will almost certainly be a Label or CheckBox. If not, well
             # ... it's out of luck.
-            subwidgets = []
+            anchors = []
             for w in widgets:
-                for w in w.traverse():
-                    if isinstance(w, Label):
-                        subwidgets.append(w)
+                for o in w.traverse():
+                    if isinstance(o, Label):
+                        anchors.append(o)
                         break
 
-            constraints.append(align('right', *subwidgets))
-            constraints.append(align('left', *subwidgets))
+            pb_meta = []
+            for w in widgets:
+                for o in w.traverse():
+                    if getattr(o, 'pb_meta', False):
+                        pb_meta.append(o)
+                        break
+
+            constraints.append(align('right', *anchors))
+            constraints.append(align('left', *anchors))
+            #constraints.append(align('right', *pb_meta))
+            constraints.append(align('left', *pb_meta))
             return constraints
 
         Looper: looper:

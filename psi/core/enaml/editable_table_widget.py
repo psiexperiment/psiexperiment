@@ -7,37 +7,39 @@ log = logging.getLogger(__name__)
 import pandas as pd
 
 from atom.api import (Typed, set_default, observe, Enum, Event, Property,
-                      Bool, Dict, Str, Atom, List, Value)
+                      Bool, Dict, Int, Str, Atom, List, Value)
 from enaml.core.declarative import d_, d_func
 from enaml.widgets.api import RawWidget
 
-from enaml.qt.QtCore import QAbstractTableModel, QModelIndex, QRect, Qt
+from enaml.qt.QtCore import QAbstractTableModel, QModelIndex, QRect, QTimer, Qt
 from enaml.qt.QtWidgets import QAbstractItemView, QHeaderView, QStyledItemDelegate, QTableView
 from enaml.qt.QtGui import QBrush, QColor
 
 from .event_filter import EventFilter
+from .util import make_color
 
 
 class QDelegate(QStyledItemDelegate):
 
     def __init__(self, model, **kw):
         self.model = model
+        self._empty_brush = QBrush(Qt.NoBrush)
         super().__init__(**kw)
 
     def paint(self, painter, option, index):
-        self.initStyleOption(option, index)
-        painter.save()
-        left_width = int(option.rect.width() * self.model.cellFrac(index))
-        right_width = option.rect.width() - left_width
-        left_rect = QRect(option.rect.left(), option.rect.top(), left_width, option.rect.height())
-        right_rect = QRect(option.rect.left(), option.rect.top(), right_width, option.rect.height())
-
-        left_brush = QBrush(self.model.cellColor(index))
-        painter.fillRect(left_rect, left_brush)
-        painter.fillRect(right_rect, Qt.NoBrush)
-        painter.restore()
-        option.backgroundBrush = QBrush(Qt.NoBrush)
-        super().paint(painter, option, index)
+        frac = self.model.cellFrac(index)
+        if frac > 0:
+            # 2. Draw the background manually
+            painter.save()
+            # Calculate width once
+            fill_width = int(option.rect.width() * frac)
+            # Only create one QRect (the left one)
+            left_rect = option.rect.adjusted(0, 0, -(option.rect.width() - fill_width), 0)
+            # Use the color directly (Qt converts QColor to QBrush internally efficiently)
+            painter.fillRect(left_rect, self.model.cellColor(index))
+            painter.restore()
+        option.backgroundBrush = self._empty_brush
+        return super().paint(painter, option, index)
 
 
 class QEditableTableModel(QAbstractTableModel):
@@ -67,9 +69,7 @@ class QEditableTableModel(QAbstractTableModel):
         r = index.row()
         c = index.column()
         color_name = self.interface.get_cell_color(r, c)
-        color = QColor()
-        color.setNamedColor(color_name)
-        return color
+        return make_color(color_name)
 
     def cellFrac(self, index):
         r = index.row()
@@ -152,6 +152,22 @@ class QEditableTableView(QTableView):
         self.selectionModel().selectionChanged.connect(self._selection_changed)
         self.setShowGrid(self.model.interface.show_grid)
 
+        # Optimization for large tables to avoid recalculating row height.
+        header = self.verticalHeader()
+        header.setSectionResizeMode(QHeaderView.Fixed)
+
+
+        if (visible_rows := self.model.interface.visible_rows) > 0:
+            # Get actual default row height
+            row_height = self.verticalHeader().defaultSectionSize()
+            if self.model.interface.show_column_labels:
+                header_height = self.horizontalHeader().height()
+            else:
+                header_height = 0
+            # Calculate the required height
+            total_height = (visible_rows * row_height) + header_height + 2
+            self.setFixedHeight(total_height)
+
     def _selection_changed(self, selected, deselected):
         locations = []
         selection_model = self.selectionModel()
@@ -211,7 +227,6 @@ class QEditableTableView(QTableView):
         self.model.insertRow(self.model.rowCount())
 
     def get_column_config(self):
-        log.debug('Geting column config')
         try:
             config = {}
             columns = self.model.interface.get_columns()
@@ -271,6 +286,10 @@ class QEditableTableView(QTableView):
             except KeyError:
                 pass
 
+    def autoscroll(self):
+        bar = self.verticalScrollBar()
+        return bar.value() >= bar.maximum()
+
 
 class LiveEdit:
 
@@ -307,12 +326,11 @@ class EditableTable(RawWidget):
     view = Typed(QEditableTableView)
     event_filter = Typed(EventFilter)
 
+    #: Number of rows to make visible. Set to 0 to let this be automatic.
+    visible_rows = d_(Int(0))
+
     #: Can the user edit the data in the table?
     editable = d_(Bool(False))
-
-    #: Each time the table is updated, should it scroll to the bottom (last
-    #: row)?
-    autoscroll = d_(Bool(False))
 
     #: Should column labels be shown?
     show_column_labels = d_(Bool(True))
@@ -331,7 +349,6 @@ class EditableTable(RawWidget):
     #: * coerce - Function to coerce text entered in column to correct value.
     #: * initial_width - Initial width to set column to.
     #: * to_string - Function used to generate string representation.
-
     column_info = d_(Dict(Str(), Typed(object), {}))
 
     #: Widths of columns in table
@@ -346,7 +363,9 @@ class EditableTable(RawWidget):
     columns_movable = d_(Bool(True))
 
     #: Table data. Table is updated every time the object changes. Atom cannot
-    #: listen for changes to an object, so you need to be sur ethat
+    #: listen for changes to an object, so you need to be sure that the table
+    #: knows to update (either by assigning a new object to this value, or
+    #: triggering the update event).
     data = d_(Value())
 
     #: Force a redraw of table data. Used if the underlying information has
@@ -372,8 +391,7 @@ class EditableTable(RawWidget):
     stretch_last_section = d_(Bool(True))
 
     #: How can column headers be resized?
-    header_resize_mode = d_(Enum('interactive', 'fixed', 'stretch',
-                                 'contents'))
+    header_resize_mode = d_(Enum('interactive', 'fixed', 'stretch', 'contents'))
 
     def get_selected_row_coords(self):
         if len(self.selected_coords) == 0:
@@ -431,8 +449,6 @@ class EditableTable(RawWidget):
             http://www.december.com/html/spec/colorsvg.html for SVG color
             names.
         '''
-        # Given the row and column
-        # This must return one of the SVG color names (see
         return 'white'
 
     @d_func
@@ -533,11 +549,12 @@ class EditableTable(RawWidget):
     def _get_data(self, row_index, column_index):
         try:
             value = self.get_data(row_index, column_index)
+            if value is None:
+                return
             column = self.get_columns()[column_index]
             formatter = self.column_info.get(column, {}).get('to_string', str)
             return formatter(value)
         except Exception as e:
-            log.warning(e)
             return ''
 
     def _set_data(self, *args):
@@ -586,6 +603,19 @@ class EditableTable(RawWidget):
     def _observe_column_info(self, event):
         self._reset_model()
 
+    def append_row(self, row):
+        start_row = self.model.rowCount()
+        end_row = start_row
+        autoscroll = self.view.autoscroll()
+        self.model.beginInsertRows(QModelIndex(), start_row, end_row)
+        self.data.append(row)
+        self.model.endInsertRows()
+        if start_row == 0:
+            self.model.beginResetModel()
+            self.model.endResetModel()
+        if autoscroll and self.view:
+            QTimer.singleShot(0, self.view.scrollToBottom)
+
     def _observe_update(self, event):
         self._reset_model()
 
@@ -596,8 +626,6 @@ class EditableTable(RawWidget):
             return
         self.model.beginResetModel()
         self.model.endResetModel()
-        if self.autoscroll and self.view:
-            self.view.scrollToBottom()
 
     def _get_column_widths(self):
         return self.view.get_column_widths()
@@ -638,6 +666,7 @@ class EditableTable(RawWidget):
             row_string = '\t'.join(str(d) for d in row_data)
             table_strings.append(row_string)
         return '\n'.join(table_strings)
+
 
 
 class DataFrameTable(EditableTable):
@@ -726,8 +755,8 @@ class ListTable(EditableTable):
     data = d_(List())
     column_name = d_(Str())
     selected = d_(List())
-    show_column_labels = True
-    stretch_last_section = True
+    show_column_labels = set_default(True)
+    stretch_last_section = set_default(True)
 
     def get_columns(self):
         return [self.column_name]

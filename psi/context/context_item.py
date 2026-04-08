@@ -4,8 +4,8 @@ log = logging.getLogger(__name__)
 import numpy as np
 
 from enaml.core.declarative import Declarative, d_
-from atom.api import (Str, Typed, Value, Enum, List, Event, Property,
-                      observe, Bool, Dict, Coerced)
+from atom.api import (set_default, Str, Typed, Value, Enum, Int, List, Event,
+                      Property, observe, Bool, Dict, Coerced)
 
 from psi.core.enaml.api import PSIContribution
 from ..util import get_tagged_members, get_tagged_values
@@ -43,23 +43,37 @@ class OrderedContextMeta(ContextMeta):
 
     values = d_(List())
 
-    def add_item(self, item):
-        if item not in self.values:
-            values = self.values.copy()
-            values.append(item)
-            self.values = values
+    #: List of context items to be included.
+    mandatory_items = d_(List())
 
-    def remove_item(self, item):
-        if item in self.values:
-            values = self.values.copy()
-            values.remove(item)
-            self.values = values
+    #: List of context items that can never be selected for this.
+    forbidden_items = d_(List())
 
     def _default_values(self):
-        return []
+        return self.mandatory_items.copy()
 
-    # TODO: move most of this stuff to the enaml interface
+    def _observe_values(self, event):
+        # Make sure that all mandatory items are in the list and forbidden
+        # items not in the list.
+        values = self.values.copy()
+        update = False
+        for item in self.mandatory_items:
+            if item not in self.values:
+                values.append(item)
+                update = True
+        for item in self.forbidden_items:
+            if item in self.values:
+                values.remove(item)
+                update = True
+        if update:
+            self.values = values
+
     def set_choice(self, choice, context_item):
+        if context_item in self.forbidden_items:
+            return
+        if context_item in self.mandatory_items and choice is None:
+            return
+
         values = self.values[:]
         if choice is None:
             values.remove(context_item)
@@ -78,9 +92,17 @@ class OrderedContextMeta(ContextMeta):
 
     def get_choices(self, context_item):
         n = len(self.values)
+        if context_item in self.forbidden_items:
+            return []
         if context_item not in self.values:
             n += 1
-        return [str(i+1) for i in range(n)]
+        if context_item in self.mandatory_items:
+            # Item must be in list somewhere. Don't have an entry that allows
+            # the user to remove the item. But, user can rearrange items in
+            # this list.
+            return [str(i+1) for i in range(n)]
+        else:
+            return [None] + [str(i+1) for i in range(n)]
 
 
 ################################################################################
@@ -105,6 +127,9 @@ class ContextGroup(PSIContribution):
     #: Are the parameters in this group visible?
     visible = d_(Bool())
     hide_when = d_(Enum('empty', 'never', 'always'))
+
+    def _default_label(self):
+        return self.name.capitalize().replace('_', ' ')
 
     def _update_visible(self):
         visible = False
@@ -302,8 +327,9 @@ class EnumParameter(Parameter):
                 break
         else:
             if expression is not None:
-                m = 'Could not map expression {} to choice'.format(expression)
-                raise ValueError(m)
+                valid_choices = ', '.join(self.choices.values())
+                t = 'Could not map expression {} to choice. Valid choices are {}.'
+                raise ValueError(t.format(expression, valid_choices))
 
     def _default_selected(self):
         if self.default not in self.choices:
@@ -322,6 +348,66 @@ class EnumParameter(Parameter):
         return str(value)
 
 
+class MultiSelectParameter(Parameter):
+    '''
+    Builds a list of selected values from a set of choices
+    '''
+    expression = Property().tag(transient=True)
+    selected = d_(List()).tag(preference=True)
+    choices = d_(Dict())
+    default = d_(List())
+
+    #: Number of columns to show for choices before starting a new row.
+    n_cols = d_(Int(3))
+    button_width = d_(Int(40))
+    quote_values = d_(Bool(False))
+    min_selected = d_(Int(1))
+
+    def _default_dtype(self):
+        values = list(self.choices.values())
+        return np.array(values).dtype.str
+
+    def _get_expression(self):
+        # Sort to ensure that expression is always rendered the same regardless
+        # of order of selection.
+        try:
+            choices = sorted([self.choices[s] for s in self.selected])
+        except KeyError:
+            valid_keys = ', '.join(self.choices.keys())
+            raise KeyError('Invalid key. Valid keys are %s.' % valid_keys)
+        if self.quote_values:
+            choices = [f"'{c}'" for c in choices]
+        else:
+            choices = [f"{c}" for c in choices]
+        return f'[{", ".join(choices)}]'
+
+    def _set_expression(self, expression):
+        choices = eval(expression)
+        #choices = [eval(c.strip()) for c in expression.strip('[]').split(', ')]
+        #if self.quote_values:
+            #choices = [c.strip("'") for c in choices]
+        selected = []
+        for k, v in self.choices.items():
+            if v in choices:
+                selected.append(k)
+        self.selected = selected
+
+    def _default_selected(self):
+        return self.default
+
+    @observe('selected')
+    def _notify_update(self, event):
+        if self.is_initialized:
+            log.error(self.selected)
+            self.notify('expression', self.expression)
+
+    def to_expression(self, value):
+        return str(self.choices.get(value, None))
+
+    def coerce_to_type(self, value):
+        return str(value)
+
+
 class FileParameter(Parameter):
 
     expression = Property().tag(transient=True)
@@ -329,6 +415,7 @@ class FileParameter(Parameter):
     file_mode = d_(Enum('any_file', 'existing_file', 'directory'))
     current_path = d_(Str())
     name_filters = d_(List(Str()))
+    dtype = set_default('U')
 
     def _get_expression(self):
         return '"{}"'.format(self.path)

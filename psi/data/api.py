@@ -1,9 +1,9 @@
 import enaml
 
 from .plots import (
-    ChannelPlot, EpochTimeContainer, FFTChannelPlot, FFTContainer,
-    GroupedEpochAveragePlot, GroupedEpochFFTPlot, TimeContainer, PlotContainer,
-    ResultPlot, ViewBox
+    ChannelPlot, DataFramePlot, EpochTimeContainer, FFTChannelPlot,
+    FFTContainer, GroupedEpochAveragePlot, GroupedEpochFFTPlot, TimeContainer,
+    PlotContainer, ResultPlot, ViewBox
 )
 
 with enaml.imports():

@@ -20,16 +20,21 @@ of dynamic templates.
 import logging
 log = logging.getLogger(__name__)
 
+from math import ceil
+
 from atom.api import Typed
+from enaml.application import deferred_call
 from enaml.core.api import Conditional, DynamicTemplate, Looper
-from enaml.layout.api import align, hbox, spacer
+from enaml.layout.api import align, grid, hbox, spacer
 from enaml.widgets.api import (Container, Field, CheckBox, Label, HGroup,
                                PushButton, PopupView, Form, ObjectCombo, VGroup)
 from enaml.validator import Validator
 
+from psi.core.enaml.editable_table_widget import ListTable
 from .context_item import (Result, Parameter, EnumParameter, FileParameter,
-                           BoolParameter, OrderedContextMeta,
-                           UnorderedContextMeta, ContextRow)
+                           BoolParameter, MultiSelectParameter,
+                           OrderedContextMeta, UnorderedContextMeta,
+                           ContextRow)
 
 from .expression import ExpressionNamespace
 
@@ -67,9 +72,9 @@ class ContextItemValidator(Validator):
 template ContextMetaTemplate(context_meta, context_item,
                              MemberType: OrderedContextMeta):
     ObjectCombo:
-        items = [None] + context_meta.get_choices(context_item)
+        items = context_meta.get_choices(context_item)
         to_string = lambda i: '' if i is None else str(i)
-        selected << context_meta.get_choice(context_item)
+        selected = context_meta.get_choice(context_item)
         selected::
             context_meta.set_choice(selected, context_item)
 
@@ -141,7 +146,7 @@ template ContextItemTemplate(row, MemberType: ContextRow):
             iterable << row.fmt[:]
             DynamicTemplate:
                 base = WidgetTemplate
-                args = (loop_item, type(loop_item))
+                args = (loop.item, type(loop.item))
 
 
 template ContextItemTemplate(context_item, MemberType: str):
@@ -152,6 +157,7 @@ template ContextItemTemplate(context_item, MemberType: str):
 template ContextItemTemplate(context_item, MemberType: Result):
     Label:
         text << context_item.label
+        tool_tip << context_item.name
 
 
 template ContextItemTemplate(context_item, MemberType: Parameter):
@@ -171,7 +177,7 @@ template ContextItemTemplate(context_item, MemberType: Parameter):
             CheckBox:
                 checked := context_item.rove
 
-        Label:
+        Label: label:
             text << context_item.label
             tool_tip << context_item.name
 
@@ -227,6 +233,49 @@ template WidgetTemplate(context_item, MemberType: EnumParameter):
         tool_tip << context_item.name
 
 
+
+template WidgetTemplate(context_item, MemberType: MultiSelectParameter):
+    '''
+    Default template for MultiSelectParameter providing a list of values that
+    can be selected.
+    '''
+    Container:
+        padding = 0
+
+        layout_constraints => ():
+            widgets = visible_widgets()
+            n_cols = context_item.n_cols
+            n_rows = ceil(len(widgets) / n_cols)
+            reshaped = []
+            for i in range(n_rows):
+                row = widgets[i*n_cols:(i+1)*n_cols]
+                reshaped.append(row)
+            return [
+                grid(*reshaped, column_align='width', row_align='v_center',
+                     column_spacing=0, row_spacing=0),
+                align('width', *widgets),
+                widgets[0].width == context_item.button_width,
+            ]
+
+        Looper:
+            iterable = context_item.choices.items()
+            PushButton:
+                text = loop_item[0]
+                checkable = True
+                checked << loop_item[0] in context_item.selected
+                checked ::
+                    selected = context_item.selected[:]
+                    if checked and loop_item[0] not in selected:
+                        selected.append(loop_item[0])
+                    elif loop_item[0] in selected:
+                        selected.remove(loop_item[0])
+
+                    if len(selected) < context_item.min_selected:
+                        self.checked = True
+                    else:
+                        context_item.selected = selected
+
+
 template WidgetTemplate(context_item, MemberType: BoolParameter):
     '''
     Default template for BoolParameter providing a checkbox that toggles the
@@ -244,12 +293,26 @@ template WidgetTemplate(context_item, MemberType: BoolParameter):
 ################################################################################
 # The container to tie it all together
 ################################################################################
-enamldef ContextItemView(HGroup): container:
+enamldef ContextItemView(Container): container:
+    '''
+    Main view for the standard context item. Delegates to the
+    ContextItemTemplate for rendering the item and adds a pushbutton for the
+    context meta popup at the end.
+    '''
     attr context_item
-    padding = 0
-    spacing = 0
-    align_widths = False
     share_layout = True
+    padding = 0
+
+    layout_constraints => ():
+        widgets = self.visible_widgets()
+        if getattr(widgets[-1], 'pb_meta', False):
+            items = widgets[:-1] + [spacer(0), widgets[-1]]
+        else:
+            items = widgets[:]
+        return [
+            hbox(*items, spacing=0),
+            align('v_center', *items),
+        ]
 
     DynamicTemplate:
         base = ContextItemTemplate
@@ -258,6 +321,7 @@ enamldef ContextItemView(HGroup): container:
     Conditional:
         condition << workbench.get_plugin('psi.context').context_meta_editable
         PushButton: pb:
+            attr pb_meta = True
             constraints = [pb.width == 20]
             text << 'C'
             clicked::

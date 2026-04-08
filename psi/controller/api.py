@@ -7,17 +7,17 @@ from .channel import (
 from .engine import Engine, EngineStoppedException
 
 from .input import (
-    Accumulate, AutoThreshold, Average, Bitmask, Blocked, CalibratedInput,
-    Callback, Capture, ContinuousInput, Coroutine, Decimate, DecimateTo, Delay,
-    Derivative, Detrend, Discard, Downsample, Edges, EpochInput, EventInput,
-    EventRate, EventsToInfo, ExtractEpochs, IIRFilter,Input, MCReference,
-    MCSelect , RejectEpochs, RMS, SPL, Threshold, Transform
+    Accumulate, AutoScale, AutoThreshold, Average, Bitmask, Blocked,
+    CalibratedInput, Callback, Capture, ContinuousInput, Coroutine, Decimate,
+    DecimateTo, Delay, Derivative, Detrend, Discard, Downsample, Edges,
+    EpochInput, EventInput, EventRate, EventsToInfo, ExtractEpochs,
+    ExtractPower, IIRFilter,Input, MCReference, MCSelect , RejectEpochs, RMS,
+    SPL, Threshold, Transform
 )
 
 from .output import (
-    ContinuousOutput, ContinuousQueuedOutput, EpochOutput, MUXOutput,
-    QueuedEpochOutput, SimpleOutput, Synchronized, TimedTrigger, Toggle,
-    Trigger
+    ContinuousOutput, ContinuousCallbackOutput, ContinuousQueuedOutput, EpochOutput, MUXOutput,
+    NullOutput, RampedEpochOutput, QueuedEpochOutput, Synchronized, TimedTrigger, Toggle, Trigger
 )
 
 from .experiment_action import (

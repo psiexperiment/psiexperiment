@@ -1,5 +1,6 @@
 from .metadata_item import MetadataItem
-from .paradigm_description import ParadigmDescription, paradigm_manager
+from .paradigm_description import (ParadigmDescription, paradigm_manager,
+                                   ParadigmNotFound)
 from .preferences import (Preferences, ItemPreferences, PluginPreferences)
 from .status_item import StatusItem
 from .util import main_icon

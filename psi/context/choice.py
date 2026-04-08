@@ -191,6 +191,10 @@ def shuffled_set(sequence, c=np.inf, key=None, seed=None):
     the sequence.  Once the sequence is exhausted, repopulate list with the
     original sequence.
 
+    This presents an equal number of stim in a single block. When you want to
+    present an equal number of stim over multiple blocks, use
+    `counterbalanced`.
+
     Parameters
     ----------
     {common_docstring}
@@ -215,6 +219,8 @@ def counterbalanced(sequence, n, c=np.inf, key=None):
     over `n` trials.  At the end of the set, will regenerate a new list.  If you
     do not draw from this sequence a number of times that is a multiple of `n`,
     then the sequence will not be counterbalanced properly.
+
+    When `n == 1`, this reduces to `shuffled_set`.
 
     Parameters
     ----------

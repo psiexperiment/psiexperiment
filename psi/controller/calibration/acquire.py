@@ -43,7 +43,7 @@ class AcquireResult(UserDict):
 def _reindex(x):
     # Add a "repeat" column indicating the repetition number of the stimulus.
     x['repeat'] = np.arange(len(x))
-    return x
+    return x.set_index(['repeat', 't0'])
 
 
 def acquire(engines, ao_channel_name, ai_channel_names, setup_queue_cb,
@@ -120,7 +120,7 @@ def acquire(engines, ao_channel_name, ai_channel_names, setup_queue_cb,
         keys = pd.DataFrame(epochs.metadata)
         grouping = keys.columns.tolist()
         grouping.remove('t0')
-        keys = keys.groupby(grouping, group_keys=False).apply(_reindex)
+        keys = keys.groupby(grouping, group_keys=True).apply(_reindex)
         keys.index.name = 'epoch'
         if trim != 0:
             trim_samples = round(ai_channel.fs * trim)

@@ -168,6 +168,7 @@ class BaseSelector(PSIContribution):
     #: in the selector.
     can_manage = d_(Typed(list, []))
 
+    # List of context items managed by the selector.
     context_items = List()
 
     #: Programatically-set details (e.g., transforms, spacing, etc.) that are
@@ -504,12 +505,32 @@ class SequenceSelector(BaseSelector):
         self.updated = True
 
     @warn_empty
-    def get_iterator(self, cycles=np.inf):
+    def get_iterator(self, cycles=np.inf, allow_empty=True):
+        '''
+        Return an iterator that repeats the settings up to the desired number of cycles
+
+        Paramters
+        ---------
+        cycles : {int, np.inf}
+            Number of times to repeat the settings. StopIteration is raised
+            once all values have been repeated the desired number of times. Set
+            to `np.inf` to repeat infinitely.
+        allow_empty : bool
+            If no context items or settings are specified, then allow the to
+            return an empty dictionary. This means the values set in the main
+            context define the values in the experiment.
+        '''
         # Some selectors need to sort the settings. To make sure that the
         # selector sorts the parameters in the order the columns are specified,
         # we need to convert to a list of tuples.
-        settings = [{i: s[i.name] for i in self.context_items} \
-                    for s in self.settings]
+        if len(self.settings) == 0 and allow_empty:
+            #fn = lambda: (x for x in [{}])
+            if cycles == np.inf:
+                return itertools.cycle([{}])
+            else:
+                return itertools.repeat({}, cycles)
+
+        settings = [{i: s[i.name] for i in self.context_items} for s in self.settings]
         selector = choice.options[self.order]
         return selector(settings, cycles, key=lambda x: self.get_key(x, 'item'))
 

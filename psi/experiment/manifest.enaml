@@ -1,17 +1,20 @@
 import logging
 log = logging.getLogger(__name__)
 
+from datetime import datetime, timezone
 import os
 import pickle
 from pathlib import Path
+import socket
 import yaml
 
 import numpy as np
 
 from enaml.application import deferred_call
 from enaml.core.api import Looper, Include
-from enaml.layout.api import align, hbox, vbox
+from enaml.layout.api import align, hbox, spacer, vbox
 from enaml.widgets.api import Container, FileDialogEx, HGroup, Label, VGroup
+from enaml.widgets.api import IPythonConsole, Window
 from enaml.workbench.api import Extension, PluginManifest, ExtensionPoint
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
@@ -185,7 +188,7 @@ def set_dock_style(event):
 
 def update_dock_style(event):
     ui = event.workbench.get_plugin('enaml.workbench.ui')
-    style = 'complete' if event.parameters['stop_reason'] == '' else 'error'
+    style = 'complete' if event.parameters.get('stop_reason', '') == '' else 'error'
     ui.workspace.dock_area.style = style
 
 
@@ -193,6 +196,21 @@ def write_metadata(event):
     store = event.workbench.get_plugin('psi.data').find_sink('metadata')
     experiment = event.workbench.get_plugin('psi.experiment')
     store.save_mapping('metadata', experiment.metadata_to_dict())
+
+
+enamldef ConsoleWindow(Window):
+    attr namespace
+    Container:
+        padding = 0
+        IPythonConsole:
+            initial_ns = namespace
+
+def open_shell(event):
+    namespace = {
+        'workbench': event.workbench,
+    }
+    window = ConsoleWindow(namespace=namespace)
+    window.show()
 
 
 enamldef StatusDockItem(PSIDockItem):
@@ -224,6 +242,7 @@ enamldef StatusDockItem(PSIDockItem):
                 attr anchor = loop_item.anchor
                 padding = 0
                 spacing = 0
+                trailing_spacer = spacer(0)
                 Include:
                     objects << loop_item.children
 
@@ -313,6 +332,9 @@ enamldef ExperimentManifest(PluginManifest): manifest:
         Command:
             id = 'psi.write_metadata'
             handler = write_metadata
+        Command:
+            id = 'psi.open_shell'
+            handler = open_shell
 
     Extension:
         id = manifest.id + '.actions'
@@ -423,3 +445,12 @@ enamldef ExperimentManifest(PluginManifest): manifest:
         MetadataItem:
             name = 'version.psiaudio'
             value = psiaudio.version.__version__
+
+        MetadataItem:
+            # Save current time as timezone-aware datetime in ISO format
+            name = 'timestamp'
+            value = datetime.now(timezone.utc).astimezone().isoformat()
+
+        MetadataItem:
+            name = 'hostname'
+            value = socket.gethostname()
