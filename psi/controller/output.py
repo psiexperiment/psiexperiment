@@ -208,11 +208,17 @@ class EpochOutput(AnalogOutputWithSource):
         self.deactivate()
         self.source = FixedWaveform(self.fs, waveform)
 
-    def start_waveform(self, ts, deprecated):
+    def start_waveform(self, ts):
+        '''
+        Parameters
+        ----------
+        ts : float
+            Time in seconds relative to experiment start to play waveform.
+        '''
         sample = round(int(self.fs * ts))
         self.activate(sample)
 
-    def stop_waveform(self, ts, deprecated):
+    def stop_waveform(self, ts):
         sample = round(int(self.fs * ts))
         self.deactivate(sample)
 
