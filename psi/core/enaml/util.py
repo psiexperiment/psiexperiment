@@ -43,9 +43,10 @@ def load_manifests(objects, workbench):
             load_manifests(o.children, workbench)
 
 
-@lru_cache
 def make_color(color, alpha=None):
-    if isinstance(color, (tuple, list)):
+    if isinstance(color, QColor):
+        obj = color
+    elif isinstance(color, (tuple, list)):
         obj = QColor(*color)
     elif isinstance(color, str):
         obj = QColor()

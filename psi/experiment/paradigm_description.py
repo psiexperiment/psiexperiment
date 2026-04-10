@@ -3,6 +3,7 @@ log = logging.getLogger(__name__)
 
 import importlib
 import inspect
+from functools import cached_property
 
 from psi.application import list_preferences
 from psi.core.enaml.api import load_manifest
@@ -107,7 +108,8 @@ class PluginDescription:
             attrs = {}
         if info is None:
             info = {}
-        self.manifest = load_manifest(manifest)(**attrs)
+        self._manifest = manifest
+        self._attrs = attrs
         self.selected = selected
         self.info = info
 
@@ -116,6 +118,10 @@ class PluginDescription:
         self.setdefault('required', required)
         self.setdefault('id', id)
         self.setdefault('title', title)
+
+    @cached_property
+    def manifest(self):
+        return load_manifest(self._manifest)(**self._attrs)
 
     def setdefault(self, attr, value):
         if value is not None:

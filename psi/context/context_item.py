@@ -342,7 +342,10 @@ class EnumParameter(Parameter):
             self.notify('expression', self.expression)
 
     def to_expression(self, value):
-        return str(self.choices.get(value, None))
+        if value in self.choices.keys():
+            self.choices[value]
+        else:
+            return f'"{value}"'
 
     def coerce_to_type(self, value):
         return str(value)
