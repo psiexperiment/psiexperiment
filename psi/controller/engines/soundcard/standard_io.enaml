@@ -85,3 +85,10 @@ enamldef AutoASIOFirefaceUSBEngine(ASIOFirefaceUSBEngine):
     attr dev_info = sd.query_devices(device_name)
     attr input_map = get_input_config(dev_info['max_input_channels'])
     attr output_map = get_output_config(dev_info['max_output_channels'])
+
+
+enamldef AutoSoundCardEngine(BaseSoundcardEngine):
+
+    attr dev_info = sd.query_devices(device_name)
+    attr input_map = get_input_config(dev_info['max_input_channels'])
+    attr output_map = get_output_config(dev_info['max_output_channels'])

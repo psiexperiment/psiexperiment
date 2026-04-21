@@ -38,24 +38,32 @@ class BaseCallbackContext:
 
 class RecordCallbackContext(BaseCallbackContext):
 
-    def __init__(self, ai_cb):
+    def __init__(self, ai_cb, ai_channels=None):
         super().__init__()
         self.ai_cb = ai_cb
+        self.ai_channels = ai_channels
 
     def __call__(self, indata, samples, time, status):
         # Read the next segment to the input buffer
-        self.process_ai(indata, samples)
+        if self.ai_channels is not None:
+            self.process_ai(indata[:, self.ai_channels], samples)
+        else:
+            self.process_ai(indata, samples)
 
 
 class PlayCallbackContext(BaseCallbackContext):
 
-    def __init__(self, ao_cb):
+    def __init__(self, ao_cb, ao_channels=None):
         super().__init__()
         self.ao_cb = ao_cb
+        self.ao_channels = ao_channels
 
     def __call__(self, outdata, samples, time, status):
         # Write the next segment to the output buffer
-        self.process_ao(outdata, samples)
+        if self.ao_channels is not None:
+            self.process_ao(outdata[:, self.ao_channels], samples)
+        else:
+            self.process_ao(outdata, samples)
 
 
 class PlayRecordCallbackContext(BaseCallbackContext):
@@ -63,11 +71,19 @@ class PlayRecordCallbackContext(BaseCallbackContext):
     def __init__(self, ai_cb, ao_cb):
         super().__init__()
         self.ai_cb = ai_cb
+        self.ai_channels = ai_channels
         self.ao_cb = ao_cb
+        self.ao_channels = ao_channels
 
     def __call__(self, indata, outdata, samples, time, status):
-        self.process_ao(outdata, samples)
-        self.process_ai(indata, samples)
+        if self.ai_channels is not None:
+            self.process_ai(indata[:, self.ai_channels], samples)
+        else:
+            self.process_ai(indata, samples)
+        if self.ao_channels is not None:
+            self.process_ao(outdata[:, self.ao_channels], samples)
+        else:
+            self.process_ao(outdata, samples)
 
 
 class PlayRec:
@@ -111,6 +127,7 @@ class PlayRec:
         self.blocksize = blocksize
 
         self.device_info = sd.query_devices(self.device)
+        self.hostapi_info = sd.query_hostapis(self.device_info['hostapi'])
         self.event = threading.Event()
         self.configure()
 
@@ -127,25 +144,32 @@ class PlayRec:
             stream_kw['device'] = (self.device, self.device)
             stream_kw['channels'] = (len(self.ai_channels), len(self.ao_channels))
             stream_kw['callback'] = PlayRecordCallbackContext(self.ai_cb, self.ao_cb)
-            stream_kw['extra_settings'] = (
-                sd.AsioSettings(self.ai_channels),
-                sd.AsioSettings(self.ao_channels),
-            )
+            if self.hostapi_info['name'] == 'ASIO':
+                stream_kw['extra_settings'] = (
+                    sd.AsioSettings(self.ai_channels),
+                    sd.AsioSettings(self.ao_channels),
+                )
         elif self.ao_channels is not None:
             stream_class = sd.OutputStream
             stream_kw['device'] = self.device
             stream_kw['channels'] = len(self.ao_channels)
             stream_kw['callback'] = PlayCallbackContext(self.ao_cb)
-            stream_kw['extra_settings'] = sd.AsioSettings(self.ao_channels)
+            if self.hostapi_info['name'] == 'ASIO':
+                stream_kw['extra_settings'] = sd.AsioSettings(self.ao_channels)
         elif self.ai_channels is not None:
             stream_class = sd.InputStream
-            stream_kw['device'] = self.device
-            stream_kw['channels'] = len(self.ai_channels)
-            stream_kw['callback'] = RecordCallbackContext(self.ai_cb)
-            stream_kw['extra_settings'] = sd.AsioSettings(self.ai_channels)
+            stream_kw['device'] = self.device_info['name']
+            if self.hostapi_info['name'] == 'ASIO':
+                stream_kw['channels'] = len(self.ai_channels)
+                stream_kw['extra_settings'] = sd.AsioSettings(self.ai_channels)
+                stream_kw['callback'] = RecordCallbackContext(self.ai_cb)
+            elif self.hostapi_info['name'] == 'Windows WDM-KS':
+                stream_kw['channels'] = self.device_info['max_input_channels']
+                stream_kw['callback'] = RecordCallbackContext(self.ai_cb, self.ai_channels)
         else:
             raise ValueError('No input or output channels specified')
 
+        print(stream_kw)
         self.stream = stream_class(**stream_kw, finished_callback=self.event.set)
         if self.stream.samplerate != self.fs:
             raise ValueError('Could not get desired sample rate')
@@ -158,3 +182,19 @@ class PlayRec:
     def stop(self):
         self.stream.stop()
         self.stream.close()
+
+
+if __name__ == '__main__':
+    import argparse
+    import time
+    def printer(*args, **kwargs):
+        print(args, kwargs)
+
+    parser = argparse.ArgumentParser('playrec')
+    parser.add_argument('fs', type=int)
+    parser.add_argument('device')
+    args = parser.parse_args()
+    player = PlayRec(args.fs, args.device, ai_channels=[0], ai_cb=printer)
+    player.start()
+    time.sleep(1)
+    player.stop()

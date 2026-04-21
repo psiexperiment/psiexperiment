@@ -9,7 +9,7 @@ import threading
 
 import numpy as np
 
-from atom.api import Enum, Bool, Typed, Property
+from atom.api import Enum, Bool, Typed, Value, Property
 from enaml.application import deferred_call
 from enaml.qt.QtCore import Qt
 from enaml.workbench.api import Extension
@@ -168,7 +168,7 @@ class ControllerPlugin(Plugin):
     context = Typed(Plugin)
     data = Typed(Plugin)
 
-    _lock = Typed(threading.Lock)
+    _lock = Value()
 
     # We should not respond to changes during the course of a trial. These
     # flags indicate changes or requests from the user are pending and should
