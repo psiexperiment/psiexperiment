@@ -67,6 +67,7 @@ Development
    architecture
    plugin_reference
    development
+   example_experiment
    paradigm_overview
    creating_experiment
    data_processing
@@ -92,6 +93,10 @@ A comprehensive guide to all core plugins and their extension points.
 :doc:`development`
 ------------------
 How to set up a development environment for contributing to psiexperiment.
+
+:doc:`example_experiment`
+-------------------------
+A step-by-step walkthrough of creating a simple Tone-in-Noise experiment.
 
 :doc:`paradigm_overview`
 ------------------------
