@@ -2,191 +2,116 @@
 Designing a new experiment
 ==========================
 
-Getting started
----------------
-
-For a broad overview of the components involved in defining an experiment, see `paradigms_overview`.
+Designing a new experiment in psiexperiment is the process of defining how different core plugins and your custom logic interact through hooks. This page will guide you through the process of building a new *paradigm* (experiment definition) from scratch.
 
 Core plugins
 ------------
-Psiexperiment ships with five core plugins that are always loaded when an experiment is started:
+Every experiment relies on five core plugins that are always loaded:
 
-* **Context** - 
-* **Data** - Manages saving, analysis and plotting of data.
-* **Controller** - Manages experiment.
-* **Token** - Manages generation of both epoch (i.e., finite in duration) and continuous (i.e., infinite in duration) waveforms.
-* **Calibration** - Manages calibrations of inputs and outputs. Right now only acoustic inputs and outputs (e.g., microphones and speakers) are supported. Offers chirp, golay and tone-based calibration algorithms.
+* **Context** (``psi.context``): Manages parameters, trial selectors, and mathematical expressions.
+* **Controller** (``psi.controller``): The central state machine. It manages hardware I/O and links events to actions.
+* **Data** (``psi.data``): Handles real-time data flow, visualization (plots), and persistent storage (sinks).
+* **Experiment** (``psi.experiment``): Manages the main workspace layout, toolbars, and global metadata.
+* **Token** (``psi.token``): Provides signal primitives (e.g., tone pips, noise) for generating waveforms.
 
+Step 1: Defining the Experiment Manifest
+-----------------------------------------
 
-Getting started
----------------
-
-Psiexperiment is a plugin-based system where the plugins determine the experiment workflow. At a minimum, an experiment must provide the following:
-
-* A list of parameters and/or results
-* The inputs and outputs that will be used
-* The stimuli (i.e., tokens) that will be generated
-* Actions to take when certain events occur.
- 
-Your experiment configuration file will define `EXPERIMENT`, which is the name of the experiment and will typically contain the following extensions:
+Your experiment starts with an Enaml manifest that subclasses ``ExperimentManifest``. This manifest will declare extensions to the core plugins to customize their behavior for your experiment.
 
 .. code-block:: enaml
 
-    enamldef ControllerManifest(BaseManifest): manifest:
+    from enaml.workbench.api import Extension
+    from psi.core.enaml.api import ExperimentManifest
+    from psi.controller.api import ExperimentAction
+    from psi.context.api import Parameter, Result
 
-        Extension:
-            id = EXPERIMENT + '.sinks'
-            point = 'psi.data.sinks'
-            ...
+    enamldef MyExperimentManifest(ExperimentManifest): manifest:
+        id = 'my_experiment'
 
+        # Contribute actions to the controller
         Extension:
-            id = EXPERIMENT + '.tokens'
-            point = 'psi.token.tokens'
-            ...
-
-        Extension:
-            id = EXPERIMENT + '.io'
-            point = 'psi.controller.io'
-            ...
-
-        Extension:
-            id = EXPERIMENT + '.selectors'
-            point = 'psi.context.selectors'
-            ...
-
-        Extension:
-            id = EXPERIMENT + '.context'
-            point = 'psi.context.items'
-            ...
-
-        Extension:
-            id = EXPERIMENT + '.actions'
+            id = manifest.id + '.actions'
             point = 'psi.controller.actions'
-            ...
 
-Let's take a closer look at each of the extensions.
+            # Initialize the context when the "Start" button is clicked
+            ExperimentAction:
+                event = 'experiment_initialize'
+                command = 'psi.context.initialize'
+                kwargs = {'selector': 'default', 'cycles': 1}
 
-Actions
-.......
+            # Define custom actions for experimental events
+            ExperimentAction:
+                event = 'trial_start'
+                command = 'my_experiment.prepare_stimulus'
 
-At a minimum, you will typically define the following two actions (customized for your needs):
+        # Contribute parameters to the context
+        Extension:
+            id = manifest.id + '.parameters'
+            point = 'psi.context.items'
 
-.. code-block:: enaml
+            Parameter:
+                name = 'stimulus_frequency'
+                label = 'Stimulus Frequency (Hz)'
+                default = 1000.0
+                group_name = 'stimulus'
 
-    Extension:
-        id = EXPERIMENT + '.actions'
-        point = 'psi.controller.actions'
+            Result:
+                name = 'reaction_time'
+                label = 'Reaction Time (s)'
 
-        ExperimentAction:
-            event = 'experiment_initialize'
-            command = 'psi.context.initialize'
-            kwargs = {'selector': 'default', 'cycles': 1}
+        # Contribute plots to the data plugin
+        Extension:
+            id = manifest.id + '.plots'
+            point = 'psi.data.plots'
+            # (Add Plot definitions here)
 
-        ExperimentAction:
-            event = 'engines_configured'
-            command = 'dpoae.start'
-            kwargs = {'delay': 0.5}
+Experimental Lifecycle and Actions
+----------------------------------
 
-When you press the `start` button on the toolbar, this fires a sequence of three events, `experiment_initialize`, `experiment_prepare` and `experiment_start`.  While `experiment_initialize` and `experiment_prepare` are very similar, certain actions may require that the context has been initialized. To simplify this, we have added `experiment_initialize`. The `psi.context.initialize` command should *always* be bound to this event (if it's bound to `experiment_prepare`, you may get errors if commands bound to `experiment_prepare` need to get the current value of a variable).
+Psiexperiment uses an event-driven system to manage the flow of an experiment. You connect **Events** (e.g., ``trial_start``) to **Commands** (e.g., ``psi.context.initialize``) using an ``ExperimentAction``.
 
-Under the hood, the controller will configure the engines during the `experiment_prepare` phase. If you want to configure one of the outputs (in this case, `dpoae`) during this phase, be sure to bind it to the `engine_configured` event to ensure it gets executed after the engine is configured (the engine must be configured before it can properly receive waveform samples from the outputs).
+Common Lifecycle Events:
+.......................
+* `plugins_started`: Fires once all plugin manifests are loaded. Use this for global logging or one-time discovery.
+* `experiment_initialize`: The first event when the "Start" button is pressed. This is where you should always call ``psi.context.initialize``.
+* `context_initialized`: Fires after the context plugin is ready. This is where hardware I/O is finalized (via ``psi.controller.finalize_io``).
+* `experiment_prepare`: This is the stage where hardware engines are configured. Use this for setup that requires the context values to be available.
+* `engines_configured`: Hardware is ready to acquire/generate data.
+* `experiment_start`: The final event before the hardware acquisition loop begins.
+* `experiment_end`: Triggered when the experiment stops (either via a button click or a programmatic completion event).
 
-
-Sequence of events during an experiment
-.......................................
-* `plugins_started` - All plugins have finished loading. Now, you can perform actions that may require access to another plugin; however, do not assume that the plugins have finished initializing. A number of logging actions are tied to this step.
-
-* `experiment_initialize` - All plugins should have been initialized. This is where you will typically initialize the context (and nothing else).
-
-* `context_initialized` - This only follows `experiment_initialize` if `psi.context.initialize` has properly been bound to `experiment_initialize`. The `psi.context.finalize_io` method is called during this event. During this step, all "orphan" inputs and outputs (i.e., ones where the target or source is specified by name rather than as part of the hierarchy) are connected.
-
-* `experiment_prepare` - The majority of actions required prior to starting an experiment should be tied to this event since the context will now be available for queries.
-
-* `engines_configured` - TODO
-
-* `experiment_start` - Starts the data acquisition engines.
-
-* `experiment_end` - Stops the data acquisition engines.
-
-
-The power of actions
+The Power of Actions
 ....................
-Actions allow you to insert your own code or invoke commands at any point in the experiment process. A few examples:
+Actions allow you to insert your own code or invoke existing commands at any point. By defining custom events (e.g., ``subject_licked``) in your hardware I/O manifest, you can trigger complex responses (e.g., ``deliver_reward``) without hardcoding the connection between the lick spout and the reward dispenser.
 
-* The `abr_base.enaml` file calls a custom function when the `experiment_prepare` event is called. This function reviews the settings specified by the user to determine the sequence of the tone pips (e.g., conventional vs. interleaved, alternating polarity, etc.) and sets up the queue accordingly. While it's theoretically possible to set this using plugins offered by psiexperiment (e.g., alternating polarity could be specified as a "roving" context item), this custom function makes the user interface much simpler and more fool-proof.
+Input and Output (I/O)
+----------------------
 
-* The `pistonphone_calibration.enaml` file calls a custom function, `calculate_sens` once the experiment is complete to calculate the sensitivity of the microphone. Note that the callback for the custom function is defined inside the extension to the `psi.controller.io` point.
-
-
-Input/Output
-............
-
-Example of an input-output plugin:
+Hardware is defined in a separate :doc:`IO manifest <io_manifest>`. In your experiment manifest, you then connect these hardware channels to processing blocks (e.g., ``ContinuousOutput`` or ``ExtractEpochs``).
 
 .. code-block:: enaml
 
     Extension:
-        id = EXPERIMENT + '.io'
+        id = manifest.id + '.io'
         point = 'psi.controller.io'
 
-        Blocked: hw_ai:
-            duration = 0.1
-            name = 'hw_ai'
-            source_name = C.input_channel
-            source ::
-                # Once the channel is linked
-                channel.start_trigger = ''
-                channel.samples = round(C.sample_duration * channel.fs)
-                channel.input_gain = C.input_gain
+        ContinuousOutput: ao:
+            name = 'stimulus_output'
+            # Use a parameter defined in the context via 'C'
+            source = 'tone_pip'
+            target_name = C.output_channel
 
-``C`` is a controller manifest-level variable that allows for lookup of values defined via the context.
+The ``C`` object is a manifest-level variable that provides a shorthand for looking up values from the context plugin (e.g., ``C.output_channel``).
 
+Creating Custom Plugins
+-----------------------
 
-Creating your own custom plugins
-................................
+When building large experiments, we recommend breaking functionality into small, reusable plugins (subclasses of ``ExperimentManifest``). This allows you to mix and match features (like different reward types or stimulus paradigms) easily.
 
-When defining your own subclasses of ``PSIManifest``, we recommend the following naming convetions to minimize name collisions:
-
-.. code-block:: enaml
-
-    Extension:
-        id = manifest.id + '.commands'
-        point = 'enaml.workbench.core.commands'
-
-        Command:
-            id = contribution.name + '.do_action'
-            ...
-
-All subclasses of ``PSIManifest`` have access to the attached ``contribution`` (an instance of ``PSIContribution``) as an attribute.
-
-Common gotchas
+Common Gotchas
 --------------
-* Outputs and inputs are configured *only if they are deemed active*. If the output of a particular processing chain (e.g., microphone to IIR filter to extract epochs) is not saved to a data store or plotted, then it's assumed it is not used. The controller will then omit this particular processing chain from the configuration to alleviate system load. This allows us to design intensive processing chains but allow the user to disable them easily by not plotting the result. However, this can be a bit tricky when defining your own custom sinks For example, there's no target for ``AnalyzeDPOAE`` in ``dpoae_base.enaml`` (TODO finish).
-* When adding new attributes to subclasses of ``Declarative``, be sure to use ``d_`` as appropriate otherwise you will get a ``TypeError`` when attempting to assign to the attribute in an Enaml file.
-* Use ``set_default`` when setting default values for classes derived from ``Atom`` where the original attribute was defined in a superclass (hint, ``Declarative`` is a subclass of ``Atom``):
-
-.. code-block:: python
-
-    class Channel(Declarative):
-        name = Str('input_A')
-
-    class ChannelB(Channel)
-        name = set_default('input_B')
-
-
-* Even if you define a ``ContinuousOutput``, you still need to configure it to start using an ``ExperimentAction``. Assuming your continuous output is named "masker", then it's as simple as adding the following action:
-
-.. code-block:: enaml
-
-    ExperimentAction:
-        event = 'engines_configured'
-        command = 'masker.start'
-
-* You must always call ``psi.context.initialize``. This is not automatically done for you for a variety of reasons. Usually it's sufficient to insert the following action:
-
-.. code-block:: enaml
-
-    ExperimentAction:
-        event = 'experiment_initialize'
-        command = 'psi.context.initialize'
-        kwargs = {'selector': None}
+* **Initialization**: You must always call ``psi.context.initialize`` during the ``experiment_initialize`` event. This is not automatic because some experiments may need to perform custom initialization steps before the context is ready.
+* **Active Channels**: Outputs and inputs are only configured by the hardware engine if they are "active". A channel is active if it is connected to a plot, a data sink, or an explicit action.
+* **Coordinate Naming**: Always use globally unique names for parameters and I/O channels to avoid collisions when multiple plugins are loaded simultaneously.
+* **Asynchronous Calls**: If your plugin needs to update the GUI from a background thread (e.g., a hardware callback), you must use ``deferred_call`` to schedule the update on the main UI thread.

@@ -2,25 +2,87 @@
 Context
 =======
 
-Every experiment has a set of variables that define the behavior. These variables range from the stimulus frequency and level to the intertrial interval duration. Sometimes these variables need to be expressed as functions of other variables, or the value of the variable needs to vary in a random fashion.
+The **Context** plugin (``psi.context``) is one of the most powerful features of psiexperiment. It manages every variable that defines experimental behavior—from stimulus frequency and level to intertrial interval durations and randomization rules.
 
-A *context item* provides information about a value that is managed by the context plugin. When defining a context item in one of your plugin manifests, you will provide basic information about the item (e.g., a GUI label, compact GUI label and numpy dtype). This information will be used by plugins that interact with the context plugin (for example, the name and dtype of the context item will be used by the TextStore plugin to set up the table that stores acquired trial data).
+By using the Context system, you ensure that your experimental parameters are:
+1.  **Observable**: The GUI and other plugins can react when a value changes.
+2.  **Persistent**: Settings are automatically saved and loaded between sessions.
+3.  **Traceable**: The value of every parameter is recorded alongside your experimental data.
 
-There are currently three specific types of context items. A *result* is a value provided by a plugin. It cannot be defined by the user. Common use cases may include the values computed after a trial is acquired (e.g., one can compute the `reaction_time` and provide it as a result).
+---------------------
+Types of Context Items
+---------------------
 
-A *parameter* is a value that can be configured by the user before and during an experiment. While the value of the parameter can be modified by the user during the experiment, it cannot be roved. There are some parameters that do not make sense as roving parameters. For example, if we define a `go_probability` parameter that determines the probability that the next trial is a GO trial instead of a NOGO, it does not make sense to rove this value from trial-to-trial. It, however, may make sense to change this during the couse of an experiemnt (e.g., during training).
+A *context item* is a single variable managed by the system. There are three primary types:
 
-A *roving parameter* is like a parameter, except that it can be roved from trial to trial. When selected for roving, the next value of the parameter is provided by a selector.  A *selector* maintains a sequence of expressions for one or more roving parameters. In some experiments, you'll only have a single selector. In other experiments, you may want multiple selectors (e.g., one for go trials, one for remind trials and one for nogo trials). Right now, the only difference between different types of selectors will be the GUI that's presented to the user for configuring the sequence of values. Internally, all of them maintain a list of values that should be presented on successive trials.  
+Parameters
+----------
+A **Parameter** is a value that can be configured by the user via the GUI. 
+*   **Static Parameters**: These maintain a constant value throughout the experiment (though the user can change them manually).
+*   **Editable**: Parameters can be updated while the experiment is running.
 
-You can define a list of parameters required by the experiment as well as a set of selectors that allow you to specify a sequence of values to test. Once you have defined these parameters, you can iterate through them:
+Roving Parameters
+-----------------
+A **Roving Parameter** is like a standard parameter, but it can be controlled by a **Selector** to change from trial to trial. 
+*   **Sequences**: When a parameter is "roved," its next value is drawn from a sequence (e.g., a list of frequencies or randomized levels).
+*   **Selectors**: A selector manages the sequence for one or more roving parameters. You might have one selector for "Target" trials and another for "Distractor" trials.
+
+Results
+-------
+A **Result** is a value provided by a plugin *after* an event occurs (e.g., a calculated reaction time or a peak amplitude). 
+*   **Read-Only**: Results cannot be edited by the user in the GUI.
+*   **Data Storage**: Like parameters, results are automatically captured by data sinks.
+
+--------------------------
+Expressions and Math
+--------------------------
+
+One of the unique features of the context system is that parameter values can be expressed as **mathematical formulas**.
+
+*   **Variables**: You can define one parameter in terms of another. For example, if you have ``f1_level``, you can set ``f2_level = f1_level + 10``.
+*   **Functions**: You can use built-in functions like ``db()`` or standard NumPy/SciPy functions (e.g., ``np.random.choice([30, 40, 50])``).
+*   **Dynamic**: Formulas are re-evaluated whenever the dependent variables change.
+
+--------------------------
+Defining Context Items
+--------------------------
+
+Context items are defined in your manifest by contributing to the ``psi.context.items`` extension point.
+
+.. code-block:: enaml
+
+    from psi.context.api import Parameter, Result
+
+    Extension:
+        id = manifest.id + '.context_items'
+        point = 'psi.context.items'
+
+        Parameter:
+            name = 'intertrial_interval'
+            label = 'ITI (s)'
+            default = 2.0
+            group_name = 'timing'
+
+        Result:
+            name = 'trial_score'
+            label = 'Score'
+
+----------------------------
+Iterating through Settings
+----------------------------
+
+In your experiment controller, you interact with the context plugin to move to the next set of values in a sequence.
 
 .. code-block:: python
 
+    # Get the context plugin
     context = workbench.get_plugin('psi.context')
-    context.next_setting(selector='go')
-    values = context.get_values()
 
-    context.next_setting(selector='nogo')
-    values = context.get_values()
+    # Advance the 'default' selector to the next trial setting
+    context.next_setting(selector='default')
 
-This strategy is used in the appetitive go-nogo experiment.
+    # Retrieve all current parameter values as a dictionary
+    values = context.get_values()
+    print(f"Current frequency: {values['frequency']}")
+
+By advancing the selector, the context plugin updates all roving parameters to their next values and notifies the rest of the system (including hardware engines and the GUI).

@@ -2,54 +2,86 @@
 Input-output manifest
 =====================
 
-Examples
---------
+The Input-Output (IO) manifest is the bridge between your experimental logic and your specific hardware setup. It defines the devices (e.g., National Instruments DAQ, LabJack), engines, and channels that psiexperiment will use to generate stimuli and acquire data.
 
-Noise exposure
-..............
+By decoupling hardware configuration into its own file, the same experimental paradigm can be run in different labs by simply swapping the IO manifest.
 
-Basic configuration of a system with one output (connected to a speaker) and two inputs (from microphones) driven by a National Instruments DAQ card. This configuration is about as simple as it gets.
+-----------------------
+Structure of an IO File
+-----------------------
 
-.. literalinclude:: ../../psi/templates/io/_noise_exposure.enaml
-    :language: enaml
+An IO manifest is written in Enaml and defines an ``IOManifest`` class. It typically contains one or more **Engines** and their associated **Channels**.
 
-Appetitive go-nogo behavior
+.. code-block:: enaml
+
+    from psi.controller.api import (IOManifest, NIEngine, AnalogInput, 
+                                    AnalogOutput, DigitalOutput)
+
+    enamldef MyLabIOManifest(IOManifest): manifest:
+        id = 'my_lab_hardware'
+
+        NIEngine: engine:
+            name = 'NI-DAQmx'
+            # Identifier of the DAQ device in NI Max
+            dev_name = 'Dev1'
+            master_clock = True
+
+            AnalogOutput: speaker:
+                name = 'speaker'
+                channel = 'ao0'
+                fs = 100000.0
+                terminal_mode = 'differential'
+
+            AnalogInput: microphone:
+                name = 'microphone'
+                channel = 'ai0'
+                fs = 100000.0
+                terminal_mode = 'differential'
+
+            DigitalOutput: water_valve:
+                name = 'water_valve'
+                channel = 'port0/line0'
+
+----------------------
+Engines and Syncing
+----------------------
+
+The **Engine** is responsible for the hardware timing and control loop. You can have multiple engines in a single experiment (e.g., an NI DAQ for high-speed audio and an Arduino for simple digital triggers). 
+
+*   **Master Clock**: One engine must be designated as the ``master_clock``. This engine provides the reference timing for the entire experimental loop.
+*   **Hardware Timed**: High-speed channels (like ``AnalogInput``) are usually hardware-timed by the engine's clock.
+*   **Software Timed**: Low-speed channels (like digital toggles) can be software-timed.
+
+-----------------------
+Examples from Templates
+-----------------------
+
+Psiexperiment ships with a set of templates in ``psi/templates/io/`` that demonstrate common hardware configurations.
+
+Simple NI-DAQ Configuration
 ...........................
 
-Example configuration of a system designed for appetitive go-nogo behavior where the subject must nose-poke to start a trial and retrieve their reward from a food hopper. Both the nose-poke and food hopper have an infrared beam (photoemitter to photosensor) that generate an analog signal indicating the intensity of light falling on the photosensor. If the path between the photoemitter and photosensor is blocked (e.g., by the subject's nose), then the analog readout will reflect the change in light intensity. The analog readout of the photosensors are connected to the ``nose_poke`` and ``reward_contact`` channels.
+A basic configuration for a system with one analog output (connected to a speaker) and one analog input (from a microphone) driven by a National Instruments DAQ card.
 
-For a go-nogo behavioral task, we need to convert this analog readout to a binary signal indicating whether the subject broke the infrared beam or not. In the following example we create a new processing chain, ``AnalogToDigitalFilter`` that performs this conversion and apply it to both the nose-poke and food hopper inputs.
+.. literalinclude:: ../../psi/templates/io/_ni-bare-bones.enaml
+    :language: enaml
+
+Behavioral Setup with Digital Logic
+...................................
+
+For behavioral experiments, you may need to convert analog signals (e.g., from an infrared beam) into binary events. You can define custom processing chains within the IO manifest to handle this.
 
 .. literalinclude:: ../../psi/templates/io/_gonogo_behavior.enaml
     :language: enaml
 
-In the example code above, you'll note that we defined a ``Toggle`` output named ``room_light_toggle``. If you look at the experiment manifest for appetitive experiments, you'll see that we've defined two actions that control this output:
+---------------------------
+How to use an IO Manifest
+---------------------------
 
-.. code-block:: enaml
+When launching an experiment, you specify the IO manifest via the ``--io`` command-line argument:
 
-    ExperimentAction:
-        event = 'to_start'
-        command = 'room_light_toggle.off'
+.. code-block:: bash
 
-    ExperimentAction:
-        event = 'to_end'
-        command = 'room_light_toggle.on'
+    psi my_experiment --io my_lab_hardware
 
-The ``to_start`` and ``to_end`` events are generated by the appetitive controller when a timeout begins and ends. The rules above result in turning off the room light when a timeout beings and turning it back on when the timeout ends. By creating a rules-based action system, it simplifies the process of ensuring that a sequence of actions occur 
-
-In theory, we could configure the room light such that it was controlled by an Arduino if we had an Arduino backend implemented:
-
-.. code-block:: enaml
-
-    ArduinoEngine:
-        DigitalOutput:
-            name = 'room_light'
-            channel = 'Pin1'
-
-The engine is responsible for:
-
-* Configuring the input and output channels.
-* Responding to requests (e.g., uploading waveforms to analog output channels and toggling the state of digital output channels).
-* Continuously pollign inptu channels and passing this through the input processing pipeline. All data acquisition is continuous (if you want epoch-based acquisition, you would add a special input, ``ExtractEpochs``, to your input hierarchy).
-
-You can have multiple engines in a single experiment.
+Psiexperiment will automatically look for the file in your configured ``IO_ROOT`` folder. For more information on setting up your environment, see :doc:`installing`.

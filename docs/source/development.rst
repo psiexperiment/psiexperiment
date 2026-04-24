@@ -5,67 +5,105 @@ Development Workflow
 Helpful resources
 .................
 
-Psiexperiment leverages `Enaml`_ both for building the user-interface as well as implementing a plugin-based system. Extending psiexperiment requires familiarity with the `Enaml Workbench plugin framework`_.
+Psiexperiment leverages `Enaml`_ both for building the user-interface and for implementing a plugin-based system. Extending psiexperiment requires familiarity with the `Enaml Workbench plugin framework`_.
 
 Setting up your environment
 ...........................
 
-The following instructions assume that you use a conda-based distribution (e.g., Anaconda or Miniconda). This enables you to manage multiple versions of psiexperiment (e.g., a "production" version and a "development" version). 
+The recommended way to develop psiexperiment is to use an editable install within a dedicated virtual environment. 
 
-First, create an environment containing the dependencies required by psiexperiment. Substitute your preferred environment name (e.g., `psi-dev`) for `ENV`.
+1. Clone the repository
+-----------------------
 
-.. code-block:: doscon
+.. code-block:: bash
 
-    conda create -n ENV -c psiexperiment psiexperiment --only-deps
-
-Now, install the psiexperiment source code. The `pip install` command explicitly installs dependencies for building documentation (e.g., `sphinx`) and testing (e.g., `pytest`):
-
-.. code-block:: doscon
-
-    mkdir %USERPROFILE%\projects\psi-dev\src
-    cd %USERPROFILE\projects\psi-dev\src
     git clone https://github.com/bburan/psiexperiment
-    pip install -e ./psiexperiment[docs,test]
+    cd psiexperiment
 
-Create environment-specific environment variables and folders for your source code as needed. You can customize to your preferred workflow, but I find this particular workflow works well:
+2. Create a virtual environment
+-------------------------------
 
-.. code-block:: doscon
+Using ``venv``:
 
-    mkdir %USERPROFILE%\projects\psi-dev
-    conda env config vars set -n psi-dev PSI_CONFIG=%USERPROFILE%/projects/psi-dev/conf
+.. code-block:: bash
 
-Follow the instructions in the command prompt to reactivate your environment and load the environment variable you just set, i.e.,:
+    python -m venv venv
+    source venv/bin/activate  # On Windows: venv\Scripts\activate
 
-.. code-block:: doscon
+Using ``conda``:
 
+.. code-block:: bash
+
+    conda create -n psi-dev python=3.10
     conda activate psi-dev
 
-Make sure it worked properly:
+3. Install in editable mode
+---------------------------
 
-.. code-block:: doscon
+Install psiexperiment along with its development, documentation, and testing dependencies:
 
-    psi-config show
+.. code-block:: bash
 
-Now create your config as described in the :doc:`install instructions<installing>`.
+    pip install -e .[dev,docs,test]
 
-Building documentation
+4. Configure your environment
+-----------------------------
+
+Set the ``PSI_CONFIG`` environment variable to point to a local configuration file for development. This prevents your development work from interfering with any production installs.
+
+.. code-block:: bash
+
+    # On Windows (PowerShell)
+    $env:PSI_CONFIG = "C:/path/to/your/dev/config.py"
+
+    # On Linux/macOS
+    export PSI_CONFIG="/path/to/your/dev/config.py"
+
+Then, initialize your development folders:
+
+.. code-block:: bash
+
+    psi-config create --base-directory ./dev_root
+    psi-config create-folders
+
+Running Tests
+.............
+
+Tests are written using ``pytest``. To run the full test suite:
+
+.. code-block:: bash
+
+    pytest tests
+
+Building Documentation
 ......................
 
-Documentation is built using Sphinx.
+Documentation is built using Sphinx. To generate the HTML version:
 
-.. code-block:: doscon
+.. code-block:: bash
 
-    cd %USERPROFILE%\projects\psi-dev\src\psiexperiment\docs
+    cd docs
     make html
 
-To update the API documentation:
+The output will be located in ``docs/build/html``.
 
-.. code-block:: doscon
+Updating API Documentation
+--------------------------
 
-    cd %USERPROFILE%\projects\psi-dev\src\psiexperiment\docs
+To regenerate the API reference files from the source code:
+
+.. code-block:: bash
+
+    cd docs
     sphinx-apidoc ../psi -o source/api
 
-It also automatically gets built on ReadTheDocs whenever new commits are pushed to the main branch on Github.
+Contributing
+............
+
+1. **Branching**: Create a new feature branch for your changes.
+2. **Coding Standards**: Follow PEP 8 and ensure all new Enaml code follows the declarative patterns established in the core plugins.
+3. **Tests**: Include new tests for any features or bug fixes.
+4. **Pull Requests**: Submit a PR to the main repository for review.
 
 .. _Enaml: http://enaml.readthedocs.io/en/latest/
 .. _Enaml Workbench Plugin Framework: https://enaml.readthedocs.io/en/latest/dev_guides/workbenches.html
