@@ -2,6 +2,7 @@ import logging
 log = logging.getLogger(__name__)
 
 from functools import partial
+
 import numpy as np
 
 from atom.api import (Str, Dict, Event, Typed, Property, Float, Int,
@@ -96,6 +97,119 @@ class HardwareOutput(BaseOutput):
 
     def _get_calibration(self):
         return self.channel.calibration
+
+
+class EpochWaveform:
+
+    def __init__(self, fs, waveform, ramp, requested_ts=None,
+                 allow_belated=False):
+        self.waveform = waveform
+        self.ramp = ramp
+        self.actual_ts = None
+        self.complete = False
+        self._offset = None
+        self.fs = fs
+        if requested_ts is not None:
+            self.start(requested_ts, allow_belated)
+
+    def start(self, requested_ts, allow_belated=False):
+        self.requested_ts = requested_ts
+        self._offset = int(round(requested_ts * self.fs))
+        self._allow_belated = allow_belated
+        log.error('Starting waveform at %d', self._offset)
+
+    def get_samples(self, offset, samples, out):
+        log.error('Getting samples: %d %r', offset, self._offset)
+        if self._offset is None:
+            pass
+        elif (offset + samples) < self._offset:
+            pass
+        elif (offset > self._offset) and not self._allow_belated:
+            delay = (self._offset - offset) / self.fs * 1e3
+            raise ValueError(f'Missed chance to play signal. '
+                             f'Start at {self._offset} '
+                             f'but currently at {offset} ({delay:.0f} msec).')
+        elif (offset > self._offset):
+            self._offset = offset
+            self.write_next_samples(out)
+            self._offset += samples
+            self.actual_ts = offset / self.fs
+        elif offset < self._offset:
+            # The output starts partway through the buffer section that is
+            # requested.
+            skip = self._offset - offset
+            samples -= skip
+            self.write_next_samples(out[skip:])
+            self._offset += samples
+            self.actual_ts = self.requested_ts
+        else:
+            self.write_next_samples(out)
+            self._offset += samples
+            self.actual_ts = self.requested_ts
+
+        return self.waveform.is_complete()
+
+    def write_next_samples(self, out):
+        samples = len(out)
+        s = self.waveform.next(samples)
+        # In the ramp, 1 means full attenuation. Calculate the scaling factor
+        # needed to apply the ramp.
+        r = self.ramp.next(samples)
+        sf = 1 - r
+
+        # out is the buffer that will be sent to the DAC . Write *into* the
+        # buffer. Multiply by the attenuation factor (0 = full attentuation, 1
+        # = no attenuation) and then add the stimulus waveform in.
+        out[:] = out * sf + s
+
+
+class WaveformOutput(HardwareOutput):
+
+    _queue = List()
+
+    def add_waveform(self, waveform, ramp_time=None, requested_ts=None,
+                     allow_belated=False):
+        if ramp_time is not None:
+            ramp = cos2envelope(
+                fs=self.fs,
+                duration=waveform.shape[-1] / self.fs,
+                rise_time=ramp_time,
+            )
+        else:
+            ramp = np.zeros_like(waveform)
+
+        result = EpochWaveform(
+                fs=self.fs,
+                waveform=FixedWaveform(self.fs, waveform),
+                ramp=FixedWaveform(self.fs, ramp),
+                requested_ts=requested_ts,
+                allow_belated=allow_belated,
+        )
+        self._queue.append(result)
+        return result
+
+    def get_samples(self, offset, samples, out):
+        for waveform in self._queue[:]:
+            if waveform.get_samples(offset, samples, out):
+                log.error('Waveform done. Removing.')
+                self._queue.remove(waveform)
+
+    def _observe_target(self, event):
+        if self.target is not None:
+            self.target.observe('fs', self._fs_updated)
+
+    def _fs_updated(self, event):
+        # Ensure that changes to the parent sampling rate get propagated down
+        # the output hierarchy so that downstream nodes can respond accordingly
+        # (e.g., plots can update their buffer sizes to accomodate data at the
+        # correct sampling rate). Enaml has static and dynamic observers, so we
+        # need to trigger both (this is an implementation quirk that is usually
+        # invisible to most end-users).
+        event = event.copy()
+        event['value'] = self.fs
+        self.notify('fs', event)
+        member = self.get_member('fs')
+        member.notify(self, event)
 
 
 class BaseAnalogOutput(HardwareOutput):
@@ -272,6 +386,7 @@ class RampedEpochOutput(EpochOutput):
         else:
             self.write_next_samples(out)
             self._offset += samples
+        return self.waveform.is_complete()
 
     def write_next_samples(self, out):
         if self.paused or not self.active:
