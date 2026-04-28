@@ -37,6 +37,8 @@ CONTEXT_MAP = {}
 
 
 def get_parameters(output, block):
+    if block is None:
+       return []
     parameters = list(CONTEXT_MAP[output, block].keys())
     for b in block.blocks:
         parameters.extend(get_parameters(output, b))
@@ -131,8 +133,10 @@ def prepare_output(event, output):
     context['fs'] = output.fs
     context['calibration'] = output.calibration
 
-    factory = initialize_factory(output, output.token, context)
-    output.source = factory
+    if output.token is not None:
+        factory = initialize_factory(output, output.token, context)
+        output.source = factory
+
     output.source_md = md
     return md
 
