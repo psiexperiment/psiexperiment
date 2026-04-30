@@ -120,7 +120,7 @@ def acquire(engines, ao_channel_name, ai_channel_names, setup_queue_cb,
         keys = pd.DataFrame(epochs.metadata)
         grouping = keys.columns.tolist()
         grouping.remove('t0')
-        keys = keys.groupby(grouping, group_keys=True).apply(_reindex)
+        keys = keys.groupby(grouping, sort=False, group_keys=True).apply(_reindex)
         keys.index.name = 'epoch'
         if trim != 0:
             trim_samples = round(ai_channel.fs * trim)
