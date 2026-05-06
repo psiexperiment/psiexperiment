@@ -149,6 +149,7 @@ enamldef RejectEpochsManifest(InputManifest): manifest:
         StatusItem:
             label = 'Epoch reject'
             anchor = label_all
+            trailing_spacer = False
             Container:
                 share_layout = True
                 padding = 0

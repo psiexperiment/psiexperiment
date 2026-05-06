@@ -39,9 +39,7 @@ class UnorderedContextMeta(ContextMeta):
             self.values = values
 
 
-class OrderedContextMeta(ContextMeta):
-
-    values = d_(List())
+class OrderedContextMeta(UnorderedContextMeta):
 
     #: List of context items to be included.
     mandatory_items = d_(List())

@@ -55,7 +55,7 @@ class GroupedEpochCounter(EpochCounter):
     get_key = Typed(object)
 
     def _default_get_key(self):
-        groups = self.groups.values + self.extra_groups
+        groups = list(self.groups.values) + list(self.extra_groups)
         if len(groups):
             group_names = [v.name for v in groups]
             return operator.itemgetter(*group_names)

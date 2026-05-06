@@ -431,13 +431,6 @@ class BasePlotContainer(PSIContribution):
             try:
                 container.addItem(child.y_axis, i, 0)
                 container.addItem(child.viewbox, i, 1)
-                #try:
-                #    # This raises an "already taken" QGridLayoutEngine error. The
-                #    # obvious explanation is because the current viewbox also
-                #    # occupies this cell.
-                #    container.addItem(child.viewbox_norm, i, 1)
-                #except AttributeError:
-                #    pass
                 child._configure_viewbox()
             except:
                 pass
@@ -1509,7 +1502,14 @@ class StackedEpochAveragePlot(EpochGroupMixin, BasePlot):
 
         labels = sorted(self.labels.items(), reverse=True)
         for i, (key, label) in enumerate(labels):
-            offset = (i+1) / (n+1)
+            # Invert the Y-coordinate for the labels to align with the plots.
+            # PyQtGraph's standard viewbox uses pixel coordinates where Y=0 is
+            # at the top of the widget and increases downwards. Conversely,
+            # NormalizedViewBox uses normalized data coordinates where Y=0 is
+            # at the bottom and increases upwards to 1.0. Subtracting the
+            # fractional offset from 1.0 maps the top-to-bottom pixel sequence
+            # to the corresponding top-to-bottom data sequence.
+            offset = 1.0 - ((i+1) / (n+1))
             label.setPos(0.8, offset)
 
     def _cache_x(self, event=None):
