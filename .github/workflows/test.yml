@@ -1,0 +1,32 @@
+name: Run tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    name: Tests (${{ matrix.os }}, Python ${{ matrix.python-version }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.11"]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install package + test extras
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -e ".[test,zarr]"
+      - name: Run tests (Linux, under xvfb)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a pytest --cov --cov-report=term-missing
+      - name: Run tests (Windows)
+        if: runner.os == 'Windows'
+        run: pytest --cov --cov-report=term-missing

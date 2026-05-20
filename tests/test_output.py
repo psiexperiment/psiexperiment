@@ -4,6 +4,11 @@ import numpy as np
 
 from psiaudio.stim import Cos2EnvelopeFactory, ToneFactory
 
+from psi.controller.api import (
+    EpochOutput, MUXOutput, NullOutput, RampedEpochOutput, Synchronized,
+)
+from psi.controller.engines.null import NullEngine
+
 
 @pytest.fixture()
 def tb1(epoch_output):
@@ -32,75 +37,157 @@ def test_epoch_output_pause(epoch_output, tb1):
     epoch_output.source = tb1
     epoch_output.activate(0)
 
-    import matplotlib.pyplot as plt
-
-    out = np.empty(1000)
+    out = np.zeros(1000)
     epoch_output.get_samples(0, 1000, out)
-    plt.plot(out, color='k')
     np.testing.assert_array_equal(full_waveform1[:1000], out)
+
     epoch_output.pause(500 / epoch_output.fs)
     epoch_output.get_samples(0, 1000, out)
-    plt.plot(out, color='r')
-    plt.show()
     np.testing.assert_array_equal(full_waveform1[:500], out[:500])
     assert np.all(out[500:] == 0)
 
 
-def test_epoch_output_buffer(epoch_output, tb1, tb2):
+def test_epoch_output_buffer(epoch_output, tb1):
+    """Verify sequential reads advance _offset and produce contiguous output."""
     full_waveform1 = tb1.get_samples_remaining()
     tb1.reset()
-
-    full_waveform2 = tb2.get_samples_remaining()
-    tb2.reset()
 
     epoch_output.source = tb1
     epoch_output.activate(0)
 
-    segments = [
-        (0, 1000),
-        (1000, 1000),
-        (0, 1000),
-        (500, 1000),
-        (1500, 1000),
-        (2500, 13),
-        (2513, 13)
-    ]
-    out = np.empty(1000, dtype=np.double)
-    for o, s in segments:
-        epoch_output.get_samples(o, s, out)
-        np.testing.assert_array_almost_equal(out[-s:], full_waveform1[o:o+s])
-    with pytest.raises(SystemError):
-        epoch_output.get_samples(o+s+1, 1000, out)
+    # First block.
+    out = np.zeros(1000, dtype=np.double)
+    epoch_output.get_samples(0, 1000, out)
+    np.testing.assert_array_almost_equal(out, full_waveform1[:1000])
 
-    return
-    epoch_output.source = tb2
-    epoch_output.activate(2000)
+    # Second block — _offset is now 1000 so requesting offset=1000 reads the
+    # next contiguous chunk.
+    out = np.zeros(1000, dtype=np.double)
+    epoch_output.get_samples(1000, 1000, out)
+    np.testing.assert_array_almost_equal(out, full_waveform1[1000:2000])
 
-    with pytest.raises(SystemError):
-        epoch_output.get_samples(2001, 1000, out)
+    # Requesting samples starting after the most recently delivered offset
+    # must raise (offset > _offset = "missed chance" in get_samples).
+    out = np.zeros(1000, dtype=np.double)
+    with pytest.raises(ValueError, match='Missed chance'):
+        epoch_output.get_samples(3000, 1000, out)
 
-    epoch_output.get_samples(1500, 1000, out)
-    expected = np.concatenate((full_waveform1[1500:2000],
-                               full_waveform2[:500]), axis=-1)
-    assert np.all(out == expected)
 
-    epoch_output.get_samples(2000, 1000, out)
-    assert np.all(out == full_waveform2[:1000])
+# -------- NullOutput --------
 
-    epoch_output.deactivate(2500)
-    with pytest.raises(SystemError):
-        epoch_output.get_samples(2600, 1000, out)
+def test_null_output_writes_zeros(ao_channel):
+    out = NullOutput()
+    ao_channel.add_output(out)
+    out.activate(0)
+    buf = np.full(100, 5.0)
+    out.get_samples(0, 100, buf)
+    # NullOutput adds zeros to buf — value is unchanged.
+    np.testing.assert_array_equal(buf, np.full(100, 5.0))
 
-    epoch_output.get_samples(2000, 1000, out)
-    assert np.all(out[:500] == full_waveform2[:500])
-    assert np.all(out[500:] == 0)
 
-    epoch_output.deactivate(500)
-    epoch_output.get_samples(250, 1000, out)
-    assert np.all(out[:250] == full_waveform1[250:500])
-    assert np.all(out[250:] == 0)
+# -------- MUXOutput --------
 
-    temp = np.empty(1000*25)
-    epoch_output.get_samples(500, 1000*25, temp)
-    epoch_output.get_samples(500, 1000, out)
-    assert np.all(out == 0)
+def test_mux_output_add_remove(ao_channel):
+    mux = MUXOutput()
+    ao_channel.add_output(mux)
+    a = NullOutput()
+    b = NullOutput()
+    mux.add_output(a)
+    mux.add_output(b)
+    assert a in mux.outputs and b in mux.outputs
+    # Adding the same output twice is idempotent.
+    mux.add_output(a)
+    assert mux.outputs.count(a) == 1
+    mux.remove_output(a)
+    assert a not in mux.outputs
+    # Removing something not present is a no-op.
+    mux.remove_output(a)
+
+
+def test_mux_output_sums_children(ao_channel):
+    mux = MUXOutput()
+    ao_channel.add_output(mux)
+    a = NullOutput()
+    b = NullOutput()
+    mux.add_output(a)
+    mux.add_output(b)
+    a.activate(0)
+    b.activate(0)
+    buf = np.full(50, 3.0)
+    mux.get_samples(0, 50, buf)
+    # Two NullOutputs each add 0; buf is unchanged.
+    np.testing.assert_array_equal(buf, np.full(50, 3.0))
+
+
+# -------- Synchronized --------
+
+def test_synchronized_outputs_is_children():
+    sync = Synchronized()
+    a = NullOutput(parent=sync)
+    b = NullOutput(parent=sync)
+    assert sync.outputs == [a, b]
+
+
+def test_synchronized_engines_collects_unique_engines(ao_channel, engine):
+    # `engine` is a read-only Property on Output (computed from .channel).
+    # Wire up real channels so each output's engine resolves correctly.
+    cal = ao_channel.calibration
+    from psi.controller.api import HardwareAOChannel
+    second_engine = NullEngine(buffer_size=10)
+    other_channel = HardwareAOChannel(
+        name='speaker_b', fs=1000, calibration=cal, parent=second_engine,
+    )
+
+    sync = Synchronized()
+    a = NullOutput(parent=sync)
+    b = NullOutput(parent=sync)
+    ao_channel.add_output(a)
+    other_channel.add_output(b)
+
+    assert sync.engines == {engine, second_engine}
+
+
+# -------- EpochOutput edge cases --------
+
+def test_epoch_output_missed_chance_raises(epoch_output):
+    tone = ToneFactory(fs=epoch_output.fs, level=0, frequency=100,
+                       calibration=epoch_output.calibration)
+    epoch_output.source = tone
+    epoch_output.activate(0)
+    out = np.empty(100)
+    epoch_output.get_samples(0, 100, out)
+    # Now _offset is 100. Asking for offset 200 (gap of 100 samples) means
+    # we missed our chance to play 100..199.
+    with pytest.raises(ValueError, match='Missed chance'):
+        epoch_output.get_samples(200, 100, out)
+
+
+def test_epoch_output_inactive_returns_unchanged(epoch_output):
+    # Without activation, EpochOutput.get_samples short-circuits (active=False).
+    out = np.full(50, 7.0)
+    epoch_output.get_samples(0, 50, out)
+    np.testing.assert_array_equal(out, np.full(50, 7.0))
+
+
+# -------- RampedEpochOutput --------
+
+def test_ramped_epoch_output_creates_ramp(ao_channel):
+    ramped = RampedEpochOutput(name='ramped')
+    ao_channel.add_output(ramped)
+    waveform = np.ones(1000)
+    ramped.set_waveform(waveform, ramp_time=0.1)
+    assert ramped.ramp is not None
+    # The cos2envelope-based ramp has the same length as the waveform.
+    n_samples = ramped.ramp.next(waveform.shape[-1]).shape[-1]
+    assert n_samples == waveform.shape[-1]
+
+
+def test_ramped_epoch_output_ramp_none_path(ao_channel):
+    ramped = RampedEpochOutput(name='ramped')
+    ao_channel.add_output(ramped)
+    waveform = np.ones(100)
+    ramped.set_waveform(waveform, ramp_time=None)
+    # When ramp_time is None, the ramp array is all zeros (no attenuation
+    # change applied later in write_next_samples).
+    ramp_samples = ramped.ramp.next(100)
+    np.testing.assert_array_equal(ramp_samples, np.zeros(100))

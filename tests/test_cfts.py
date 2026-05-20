@@ -1,10 +1,17 @@
 import logging
 log = logging.getLogger(__name__)
 
+import pytest
 import enaml
 
+# The cfts paradigm lives in a separate package in some deployments; skip
+# cleanly if it cannot be imported here.
 with enaml.imports():
-    from psi.paradigms.cfts.cfts_mixins import FreqLevelSelector
+    try:
+        from psi.paradigms.cfts.cfts_mixins import FreqLevelSelector
+    except ImportError:
+        pytest.skip("psi.paradigms.cfts not available",
+                    allow_module_level=True)
     from psi.context.api import Parameter
 
 

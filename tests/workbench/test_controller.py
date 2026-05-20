@@ -67,3 +67,32 @@ def test_filter_delay(controller):
     assert channel.filter_delay == 0
     channel = controller.get_channel('hw_ao::speaker_2')
     assert channel.filter_delay == 1e-3
+
+
+def test_get_input_missing_raises(controller):
+    with pytest.raises(KeyError, match='valid inputs are'):
+        controller.get_input('nope')
+
+
+def test_get_channel_missing_raises(controller):
+    with pytest.raises(ValueError, match='No such channel'):
+        controller.get_channel('hw_ai::not_a_real_channel')
+
+
+def test_get_output_missing_raises(controller):
+    with pytest.raises(ValueError, match='No such output'):
+        controller.get_output('not_a_real_output')
+
+
+def test_event_used_detects_bound_events(controller):
+    # 'dispense' is bound via ExperimentAction in helper_manifest.
+    assert controller.event_used('dispense') is True
+    # 'not_an_event' is not bound to any action.
+    assert controller.event_used('not_an_event') is False
+
+
+def test_invoke_actions_updates_state(controller):
+    controller.invoke_actions('trial_start')
+    assert controller._action_context['trial_active'] is True
+    controller.invoke_actions('trial_end')
+    assert controller._action_context['trial_active'] is False

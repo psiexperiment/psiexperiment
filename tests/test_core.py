@@ -34,7 +34,6 @@ def test_find_manifest():
 
     contribution = PSITestContribution1()
     assert contribution.find_manifest_class() == PSIManifest
-    assert False
 
     # Verify can find manifest in sidecar enaml file
     contribution = PSITestContribution2()
@@ -43,5 +42,3 @@ def test_find_manifest():
     # Verify that manifest can be found in same enaml file as contribution
     contribution = PSITestContribution3()
     assert contribution.find_manifest_class() == PSITestContribution3Manifest
-
-    assert False

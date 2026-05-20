@@ -1,10 +1,14 @@
 import pytest
 
 from psiaudio.queue import InterleavedFIFOSignalQueue
-
 from psiaudio.calibration import FlatCalibration
-from psi.controller.api import (EpochOutput, HardwareAOChannel,
-                                QueuedEpochOutput)
+
+# Eagerly import psi.controller.api at module load — this walks the full
+# enaml manifest chain (controller -> experiment -> data.sinks -> ...) which
+# pre-resolves the circular imports between those packages. Several data and
+# sink tests rely on this priming. Qt-free environments are not supported.
+from psi.controller.api import (EpochOutput, HardwareAIChannel,
+                                HardwareAOChannel, QueuedEpochOutput)
 from psi.controller.engines.null import NullEngine
 
 
@@ -15,9 +19,21 @@ def engine():
 
 @pytest.fixture()
 def ao_channel(engine):
-    channel = HardwareAOChannel(
-        fs=1000, calibration=FlatCalibration.as_attenuation(), parent=engine)
-    return channel
+    return HardwareAOChannel(
+        fs=1000,
+        calibration=FlatCalibration.as_attenuation(),
+        parent=engine,
+    )
+
+
+@pytest.fixture()
+def ai_channel(engine):
+    return HardwareAIChannel(
+        name='ai',
+        fs=100e3,
+        calibration=FlatCalibration.as_attenuation(),
+        parent=engine,
+    )
 
 
 @pytest.fixture()

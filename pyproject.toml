@@ -34,7 +34,7 @@ ni = ["pydaqmx"]
 tdt = ["tdtpy >=0.10.4"]
 soundcard = ["sounddevice", "rtmixer"]
 docs = ["sphinx", "sphinx_rtd_theme", "pygments-enaml"]
-test = ["pytest", "pytest-console-scripts", "matplotlib"] # Matplotlib is used in some of the validation scripts.
+test = ["pytest", "pytest-console-scripts", "pytest-cov", "matplotlib"] # Matplotlib is used in some of the validation scripts.
 zarr = ["zarr"]
 dev = ["coloredlogs"]
 
@@ -48,3 +48,27 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
 write_to = "psi/version.py"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "slow: test is slow and may be excluded from a fast run",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning:enaml.*",
+]
+
+[tool.coverage.run]
+source = ["psi"]
+omit = [
+    "psi/version.py",
+    "psi/_version.py",
+    "*/__enamlcache__/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]

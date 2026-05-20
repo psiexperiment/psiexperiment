@@ -9,7 +9,7 @@ from psidata.api import Recording
 @pytest.fixture
 def store(tmpdir):
     store = ZarrStore()
-    store.set_base_path(tmpdir)
+    store.set_base_path(tmpdir, is_temp=False)
     return store
 
 

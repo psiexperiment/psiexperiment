@@ -5,8 +5,9 @@ import random
 from psi.data.sinks.api import TableStore
 
 
-def test_table_create_append():
+def test_table_create_append(tmpdir):
     store = TableStore(name='event_log')
+    store.set_base_path(tmpdir, is_temp=False)
     store.prepare()
     rows = [
         {
