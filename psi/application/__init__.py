@@ -308,6 +308,7 @@ def get_default_io(method='hostname'):
     else:
         raise ValueError('Unsupported method')
 
+
 def load_io_manifest(io_manifest=None):
     '''
     Load the IOManifest from the specified file or module
@@ -328,9 +329,10 @@ def load_io_manifest(io_manifest=None):
     if io_manifest is None:
         io_manifest = get_default_io()
     if str(io_manifest).endswith('.enaml'):
-        klass = load_manifest_from_file(io_manifest, 'IOManifest')
+        io_path, io_class = io_manifest.split('::')
+        klass = load_manifest_from_file(io_manifest, io_class)
     else:
-        klass = load_manifest(f'{io_manifest}.IOManifest')
+        klass = load_manifest(io_manifest)
     return klass
 
 
