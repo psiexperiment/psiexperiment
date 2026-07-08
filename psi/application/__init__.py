@@ -329,7 +329,11 @@ def load_io_manifest(io_manifest=None):
     if io_manifest is None:
         io_manifest = get_default_io()
     if str(io_manifest).endswith('.enaml'):
-        io_path, io_class = io_manifest.split('::')
+        io_manifest = str(io_manifest)
+        if '::' in io_manifest:
+            io_path, io_class = io_manifest.split('::')
+        else:
+            io_path, io_class = io_manifest, 'IOManifest'
         klass = load_manifest_from_file(io_manifest, io_class)
     else:
         klass = load_manifest(io_manifest)
