@@ -108,6 +108,7 @@ class EpochWaveform:
         self.actual_ts = None
         self.complete = False
         self._offset = None
+        self._cancel_requested = False
         self.fs = fs
         if requested_ts is not None:
             self.start(requested_ts, allow_belated)
@@ -116,11 +117,18 @@ class EpochWaveform:
         self.requested_ts = requested_ts
         self._offset = int(round(requested_ts * self.fs))
         self._allow_belated = allow_belated
-        log.error('Starting waveform at %d', self._offset)
+        log.info('Starting waveform at %d', self._offset)
+
+    def cancel(self):
+        self._cancel_requested = True
 
     def get_samples(self, offset, samples, out):
         log.error('Getting samples: %d %r', offset, self._offset)
-        if self._offset is None:
+        if self._cancel_requested:
+            # Do nothing and return True indicating waveform is complete (i.e.,
+            # it should be discarded).
+            return True
+        elif self._offset is None:
             pass
         elif (offset + samples) < self._offset:
             pass
@@ -147,7 +155,8 @@ class EpochWaveform:
             self._offset += samples
             self.actual_ts = self.requested_ts
 
-        return self.waveform.is_complete()
+        self.complete = self.waveform.is_complete()
+        return self.complete
 
     def write_next_samples(self, out):
         samples = len(out)
