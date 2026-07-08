@@ -1674,7 +1674,10 @@ class DataFramePlot(ColorCycleMixin, PSIContribution):
                 if np.isnan(y).all():
                     plot.setData([], [])
                 else:
-                    plot.setData(x, y)
+                    try:
+                        plot.setData(x, y)
+                    except:
+                        plot.setData([], [])
         deferred_call(update)
 
     def _make_plot(self, group, label=None):
