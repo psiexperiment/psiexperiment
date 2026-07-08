@@ -489,17 +489,19 @@ class PlotContainer(BasePlotContainer):
     x_max = d_(Float(0))
 
     def initialized(self, event=None):
-        deferred_call(self.format_container)
+        deferred_call(self._update_limits)
 
     @observe('x_min', 'x_max')
-    def format_container(self, event=None):
-        # If we want to specify values relative to a psi context variable, we
-        # cannot do it when initializing the plots.
+    def _update_limits(self, event=None):
+        if event is not None and event['type'] == 'create':
+            return
         if (self.x_min != 0) or (self.x_max != 0):
-            deferred_call(self.base_viewbox.setXRange,
-                          self.x_min,
-                          self.x_max,
-                          padding=0)
+            deferred_call(
+                self.base_viewbox.setXRange,
+                self.x_min,
+                self.x_max,
+                padding=0
+            )
 
     def update(self, event=None):
         deferred_call(self.format_container)
