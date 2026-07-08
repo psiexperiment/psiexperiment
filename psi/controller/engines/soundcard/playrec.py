@@ -68,7 +68,7 @@ class PlayCallbackContext(BaseCallbackContext):
 
 class PlayRecordCallbackContext(BaseCallbackContext):
 
-    def __init__(self, ai_cb, ao_cb):
+    def __init__(self, ai_cb, ao_cb, ai_channels=None, ao_channels=None):
         super().__init__()
         self.ai_cb = ai_cb
         self.ai_channels = ai_channels
