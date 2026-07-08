@@ -41,6 +41,8 @@ class UnorderedContextMeta(ContextMeta):
 
 class OrderedContextMeta(UnorderedContextMeta):
 
+    values = d_(Coerced(list))
+
     #: List of context items to be included.
     mandatory_items = d_(List())
 
