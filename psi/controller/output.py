@@ -123,7 +123,6 @@ class EpochWaveform:
         self._cancel_requested = True
 
     def get_samples(self, offset, samples, out):
-        log.error('Getting samples: %d %r', offset, self._offset)
         if self._cancel_requested:
             # Do nothing and return True indicating waveform is complete (i.e.,
             # it should be discarded).
@@ -200,7 +199,7 @@ class WaveformOutput(HardwareOutput):
     def get_samples(self, offset, samples, out):
         for waveform in self._queue[:]:
             if waveform.get_samples(offset, samples, out):
-                log.error('Waveform done. Removing.')
+                log.info('Waveform done. Removing.')
                 self._queue.remove(waveform)
 
     def _observe_target(self, event):
