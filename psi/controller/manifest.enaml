@@ -18,7 +18,7 @@ from .controller_commands import (
     log_commands, log_events, log_io, start_experiment, stop_experiment,
 )
 from .plugin import ControllerPlugin
-from .experiment_action import (ExperimentState, ExperimentEvent,
+from psi.core.api import (ExperimentState, ExperimentEvent,
                                 ExperimentAction)
 
 from psi.core.enaml.api import ExperimentManifest

@@ -2,7 +2,7 @@
 import pytest
 from atom.api import Atom, Int, Str
 
-from psi.experiment.preferences import (
+from psi.core.preferences import (
     ItemPreferences, PluginPreferences, Preferences,
 )
 

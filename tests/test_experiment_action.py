@@ -1,7 +1,7 @@
 import pytest
 
 
-from psi.controller.experiment_action import (
+from psi.core.experiment_action import (
     EventLogger, ExperimentAction, ExperimentCallback, ExperimentEvent,
     ExperimentState, eval_match, simple_match,
 )
@@ -124,7 +124,7 @@ def test_invoke_delay_uses_timed_call(monkeypatch):
         calls.append((delay_ms, fn, args, kwargs))
 
     monkeypatch.setattr(
-        'psi.controller.experiment_action.timed_call',
+        'psi.core.experiment_action.timed_call',
         fake_timed_call,
     )
 

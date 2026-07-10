@@ -9,7 +9,6 @@ from enaml.workbench.core.api import Command
 
 from psi.controller.api import ExperimentAction
 from psi.core.enaml.api import PSIManifest
-from psi.experiment.experiment_commands import _save_preferences
 from psi.util import declarative_to_dict
 from .base_store import BaseStore
 
@@ -43,7 +42,11 @@ def save_config(store, event):
     if preferences_filename is not None:
         preferences_filename = store.base_path / preferences_filename
         log.debug('Saving preferences to %s', str(preferences_filename))
-        _save_preferences(event, preferences_filename)
+        # Invoke via the command bus rather than importing the experiment
+        # plugin's handler directly.
+        core = event.workbench.get_plugin('enaml.workbench.core')
+        core.invoke_command('psi.save_preferences',
+                            {'filename': str(preferences_filename)})
 
 
 enamldef ConfigStoreManifest(PSIManifest): manifest:

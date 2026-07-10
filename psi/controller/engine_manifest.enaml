@@ -1,7 +1,7 @@
 from enaml.workbench.api import Extension
 
 from psi.core.enaml.api import PSIManifest
-from .experiment_action import ExperimentState
+from psi.core.api import ExperimentState
 
 
 enamldef EngineManifest(PSIManifest): manifest:

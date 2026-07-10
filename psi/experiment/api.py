@@ -1,7 +1,6 @@
-from .metadata_item import MetadataItem
+from psi.core.api import MetadataItem
 from .paradigm_description import (ParadigmDescription, paradigm_manager,
                                    ParadigmNotFound)
-from .preferences import (Preferences, ItemPreferences, PluginPreferences)
-from .status_item import StatusItem
+from psi.core.api import ItemPreferences, PluginPreferences, Preferences
+from psi.core.api import StatusItem
 from .util import main_icon
-from .workbench import PSIWorkbench

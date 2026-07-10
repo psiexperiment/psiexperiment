@@ -4,7 +4,7 @@ log = logging.getLogger(__name__)
 from enaml.workbench.api import PluginManifest, Extension, ExtensionPoint
 from enaml.workbench.core.api import Command
 
-from psi.controller.experiment_action import ExperimentAction
+from psi.core.api import ExperimentAction
 from psi.data.sinks.api import TextStore
 from psi.util import log_with_header
 

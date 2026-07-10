@@ -10,9 +10,9 @@ from enaml.widgets.api import DockItem, ToolBar
 from enaml.widgets.toolkit_object import ToolkitObject
 
 from psi.core.enaml.api import PSIPlugin
-from .metadata_item import MetadataItem
-from .preferences import Preferences
-from .status_item import StatusItem
+from psi.core.api import MetadataItem
+from psi.core.api import Preferences
+from psi.core.api import StatusItem
 
 
 TOOLBAR_POINT = 'psi.experiment.toolbar'

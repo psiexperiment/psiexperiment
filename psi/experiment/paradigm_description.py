@@ -5,8 +5,9 @@ import importlib
 import inspect
 from functools import cached_property
 
-from psi.application import list_preferences
 from psi.core.enaml.api import load_manifest
+
+from .util import list_preferences
 
 
 class ParadigmNotFound(KeyError):

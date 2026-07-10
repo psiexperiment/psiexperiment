@@ -6,7 +6,7 @@ from enaml.qt.qt_application import QtApplication
 
 
 with enaml.imports():
-    from psi.experiment.api import PSIWorkbench
+    from psi.application.workbench import PSIWorkbench
     from . import helper_manifest as manifests
 
 

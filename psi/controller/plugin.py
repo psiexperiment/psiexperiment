@@ -15,7 +15,7 @@ from .engine import Engine
 from .output import BaseOutput, Synchronized
 from .input import Input
 
-from .experiment_action import (EventLogger, ExperimentAction,
+from psi.core.experiment_action import (EventLogger, ExperimentAction,
                                 ExperimentActionBase, ExperimentCallback,
                                 ExperimentEvent, ExperimentState)
 

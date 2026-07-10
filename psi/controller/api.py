@@ -20,7 +20,7 @@ from .output import (
     NullOutput, RampedEpochOutput, QueuedEpochOutput, Synchronized, TimedTrigger, Toggle, Trigger, WaveformOutput,
 )
 
-from .experiment_action import (
+from psi.core.experiment_action import (
     EventLogger, ExperimentAction, ExperimentCallback, ExperimentEvent,
     ExperimentState
 )

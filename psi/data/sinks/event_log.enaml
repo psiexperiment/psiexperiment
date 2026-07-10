@@ -13,7 +13,7 @@ from enaml.workbench.core.api import Command
 
 from psi.controller.api import EventLogger
 from psi.core.enaml.api import ExperimentManifest, ListDictTable
-from psi.experiment.api import ItemPreferences
+from psi.core.api import ItemPreferences
 from psi.util import PSIJsonEncoder
 from .table_store import TableStore
 

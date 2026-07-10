@@ -170,6 +170,9 @@ def configure_logging(level_console=None, level_file=None, filename=None,
         file_handler.setLevel(level_file)
         log.addHandler(file_handler)
         exception_handler.logfile = filename
+        # Publish the logfile location so lower-level plugins (e.g., the
+        # Logger sink) can find it without importing psi.application.
+        set_config('LOG_FILENAME', filename)
 
     if debug_exclude is not None:
         for name in debug_exclude:
@@ -210,7 +213,7 @@ def _main(args):
         if args.debug_warning:
             warnings.showwarning = warn_with_traceback
 
-    from psi.experiment.workbench import PSIWorkbench
+    from psi.application.workbench import PSIWorkbench
 
     workbench = PSIWorkbench()
     plugins = [p.manifest for p in args.controller.plugins \
@@ -231,16 +234,9 @@ def _main(args):
                               )
 
 
-def list_preferences(experiment, include_default=False):
-    from psi.experiment.util import PREFERENCES_WILDCARD
-    if not isinstance(experiment, str):
-        experiment = experiment.name
-    p_root = Path(get_config('PREFERENCES_ROOT')) / experiment
-    p_glob = PREFERENCES_WILDCARD[:-1].split('(')[1]
-    matches = p_root.glob(p_glob)
-    if not include_default:
-        matches = [p for p in matches if not p.stem == 'default']
-    return sorted(Path(p) for p in matches)
+# Re-exported for backwards compatibility; the implementation lives in
+# psi.experiment.util to respect the package layering.
+from psi.experiment.util import list_preferences  # noqa: E402,F401
 
 
 def list_io():

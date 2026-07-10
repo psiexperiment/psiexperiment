@@ -6,9 +6,9 @@ import numpy as np
 from enaml.workbench.api import Extension, ExtensionPoint
 from enaml.workbench.core.api import Command
 
-from psi.controller.api import ExperimentEvent
+from psi.core.api import ExperimentEvent
 from psi.core.enaml.api import ExperimentManifest
-from psi.experiment.api import Preferences
+from psi.core.api import Preferences
 
 from .plugin import ContextPlugin
 from .symbol import ImportedSymbol, Function

@@ -10,7 +10,7 @@ import pandas as pd
 
 from psi.context.context_item import OrderedContextMeta
 from psi.core.enaml.api import DataframeTable, PSIDockItem, PSIManifest
-from psi.experiment.api import ItemPreferences
+from psi.core.api import ItemPreferences
 from ..sink import Sink
 
 

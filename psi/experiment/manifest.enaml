@@ -17,11 +17,11 @@ import psi.version
 import psiaudio.version
 import psidata.version
 
-from psi.controller.experiment_action import ExperimentAction, ExperimentEvent
+from psi.core.api import ExperimentAction, ExperimentEvent
 from psi.core.enaml.api import PSIDockItem
 from psi.data.sinks.text_store import TextStore
 
-from .metadata_item import MetadataItem
+from psi.core.api import MetadataItem
 from .workspace import ExperimentWorkspace
 from .workbench_window import ExperimentWorkbenchWindow
 from .plugin import ExperimentPlugin

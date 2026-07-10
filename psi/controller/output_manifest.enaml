@@ -10,10 +10,10 @@ from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, MenuItem, ItemGroup
 
 from psi.context.api import ContextGroup
-from psi.experiment.api import ItemPreferences
+from psi.core.api import ItemPreferences
 
 from psi.core.enaml.api import PSIManifest
-from .experiment_action import ExperimentState, ExperimentEvent, ExperimentAction
+from psi.core.api import ExperimentState, ExperimentEvent, ExperimentAction
 from .output_commands import (
     clear_output, clear_synchronized, decrement_key, get_pause_text,
     get_tokens, output_pause, output_resume, prepare_output,

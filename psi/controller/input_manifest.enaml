@@ -9,12 +9,12 @@ from enaml.workbench.api import Extension
 from enaml.workbench.core.api import Command
 from enaml.widgets.api import Container, Label, ProgressBar
 
-from .experiment_action import (ExperimentEvent, ExperimentState,
+from psi.core.api import (ExperimentEvent, ExperimentState,
                                 ExperimentAction)
 
 from psi.core.enaml.api import PSIManifest
 from psi.util import declarative_to_dict
-from psi.experiment.api import StatusItem
+from psi.core.api import StatusItem
 
 
 def get_metadata(contribution):

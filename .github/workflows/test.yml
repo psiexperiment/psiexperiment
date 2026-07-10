@@ -14,10 +14,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - name: Install ruff
-        run: python -m pip install ruff
+      - name: Install lint tools
+        run: python -m pip install ruff import-linter
       - name: Run ruff
-        run: ruff check psi tests
+        run: ruff check psi tests tools
+      - name: Check package layering (.py)
+        run: lint-imports
+      - name: Check package layering (.enaml)
+        run: python tools/check_enaml_layering.py
 
   test:
     name: Tests (${{ matrix.os }}, Python ${{ matrix.python-version }})

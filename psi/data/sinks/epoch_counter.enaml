@@ -16,7 +16,7 @@ from ..sink import Sink, SinkManifest, SinkWithSource, SinkWithSourceManifest
 
 from psi.context.context_item import ContextMeta
 from psi.controller.api import ExperimentAction
-from psi.experiment.api import StatusItem
+from psi.core.api import StatusItem
 
 
 class SimpleCounter(Sink):

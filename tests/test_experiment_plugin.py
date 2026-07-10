@@ -4,7 +4,7 @@ These run against ExperimentPlugin directly without a workbench. We bypass
 the lifecycle by setting private dicts manually.
 """
 
-from psi.experiment.metadata_item import MetadataItem
+from psi.core.metadata_item import MetadataItem
 from psi.experiment.plugin import (
     ExperimentPlugin, fix_legacy_toolbar_layout,
 )

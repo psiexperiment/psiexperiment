@@ -75,6 +75,25 @@ ignore = [
 # method signatures being overridden.
 "psi/core/enaml/editable_table_widget.py" = ["B008"]
 
+[tool.importlinter]
+root_package = "psi"
+
+# NOTE: import-linter only analyzes .py modules. Imports inside .enaml files
+# are checked separately by tools/check_enaml_layering.py (run in CI).
+[[tool.importlinter.contracts]]
+name = "Layered architecture"
+type = "layers"
+layers = [
+    "psi.application",
+    "psi.experiment",
+    "psi.data",
+    "psi.controller",
+    "psi.token",
+    "psi.context",
+    "psi.core",
+    "psi.util",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 markers = [

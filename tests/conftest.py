@@ -3,10 +3,10 @@ import pytest
 from psiaudio.queue import InterleavedFIFOSignalQueue
 from psiaudio.calibration import FlatCalibration
 
-# Eagerly import psi.controller.api at module load — this walks the full
-# enaml manifest chain (controller -> experiment -> data.sinks -> ...) which
-# pre-resolves the circular imports between those packages. Several data and
-# sink tests rely on this priming. Qt-free environments are not supported.
+# Note: the package layering is enforced by import-linter and
+# tools/check_enaml_layering.py, so import order no longer matters here.
+# (Historically this import doubled as a priming step to pre-resolve
+# circular imports between the plugin packages.)
 from psi.controller.api import (EpochOutput, HardwareAIChannel,
                                 HardwareAOChannel, QueuedEpochOutput)
 from psi.controller.engines.null import NullEngine

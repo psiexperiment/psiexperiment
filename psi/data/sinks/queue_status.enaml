@@ -20,7 +20,7 @@ from psiaudio.queue import AbstractSignalQueue
 
 from psi.core.enaml.api import PSIManifest
 from psi.controller.api import ExperimentAction
-from psi.experiment.api import StatusItem
+from psi.core.api import StatusItem
 
 
 class QueueStatus(Sink):

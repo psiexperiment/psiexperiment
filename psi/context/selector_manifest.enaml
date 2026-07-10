@@ -16,7 +16,7 @@ from enaml.widgets.api import (PushButton, Container, Field, Feature, VGroup,
                                Label, ObjectCombo)
 from enaml.validator import Validator
 
-from psi.controller.api import ExperimentAction
+from psi.core.api import ExperimentAction
 from psi.core.enaml.editable_table_widget import EditableTable, ListTable
 from psi.core.enaml.api import PSIDockItem, PSIManifest
 
