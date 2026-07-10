@@ -9,7 +9,7 @@ from enaml.workbench.core.api import Command
 
 from psi.controller.api import ExperimentAction
 from psi.core.enaml.api import PSIManifest
-from psi.experiment.manifest import _save_preferences
+from psi.experiment.experiment_commands import _save_preferences
 from psi.util import declarative_to_dict
 from .base_store import BaseStore
 

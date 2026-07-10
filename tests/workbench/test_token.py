@@ -2,16 +2,11 @@ import pytest
 
 import numpy as np
 
-import enaml
-
 from psiaudio.calibration import FlatCalibration
 from psiaudio.queue import InterleavedFIFOSignalQueue
 
-
-with enaml.imports():
-    from psi.controller.output_manifest import initialize_factory, load_items
-
 from psi.controller.api import EpochOutput
+from psi.controller.token_context import initialize_factory, load_items
 
 
 @pytest.fixture
@@ -21,10 +16,8 @@ def tone_token(workbench):
 
 @pytest.fixture
 def tone_factory_builder(tone_token):
-    # Factory construction moved from Block.initialize_factory to
-    # psi.controller.output_manifest.initialize_factory, which resolves
-    # context names (e.g. target_tone_frequency) through the CONTEXT_MAP
-    # populated by load_items for a given output/token pair.
+    # initialize_factory resolves context names (e.g. target_tone_frequency)
+    # through the per-output block map populated by load_items.
     output = EpochOutput(name='target')
     load_items(output, tone_token)
     return lambda context: initialize_factory(output, tone_token, context)

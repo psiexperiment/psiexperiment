@@ -25,15 +25,15 @@ from .experiment_action import (
     ExperimentState
 )
 
+from .controller_commands import get_hw_ai_choices, get_hw_ao_choices
+from .token_context import generate_waveform
+
 import enaml
 with enaml.imports():
     # Not where ControllerPlugin is defined, but helps simplify imports.
-    from .manifest import (
-        ControllerManifest, ControllerPlugin, get_hw_ai_choices,
-        get_hw_ao_choices
-    )
+    from .manifest import ControllerManifest, ControllerPlugin
     from .output_manifest import (
-        EpochOutputManifest, generate_waveform, QueuedEpochOutputManifest
+        EpochOutputManifest, QueuedEpochOutputManifest
     )
     from .input_manifest import InputManifest
     from .input_primitives import ADC

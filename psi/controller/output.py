@@ -7,13 +7,14 @@ import numpy as np
 from atom.api import (Str, Dict, Event, Typed, Property, Float, Int,
                       Bool, List, set_default, Callable)
 
-import enaml
 from enaml.core.api import Declarative, d_
 
 from psiaudio.stim import cos2envelope, FixedWaveform
 from psiaudio.queue import AbstractSignalQueue
 
 from psi.core.enaml.api import PSIContribution
+
+from .token_context import initialize_factory
 
 
 class Synchronized(PSIContribution):
@@ -43,6 +44,12 @@ class BaseOutput(PSIContribution):
 
     #: The engine controlling the channel this target eventually feeds into.
     engine = Property().tag(metadata=True)
+
+    #: Maps each token block to a dict mapping the context item name (as
+    #: registered with the context plugin) to the block's own parameter name.
+    #: Populated by psi.controller.token_context.load_items when a token is
+    #: assigned to this output.
+    _block_context_map = Typed(dict, ())
 
     def _get_engine(self):
         if self.channel is None:
@@ -513,15 +520,9 @@ class QueuedEpochOutput(EpochOutput):
         elif iti_duration is None and total_duration is None:
             raise ValueError('must specify either iti_duration or total_duration')
 
-        with enaml.imports():
-            # TODO: HACK ALERT!
-            from .output_manifest import initialize_factory
-
         # Make a copy to ensure that we don't accidentally modify in-place
         context = setting.copy()
 
-        # I'm not in love with this since it requires hooking into the
-        # manifest system.
         factory = initialize_factory(self, self.token, context)
 
         sf = factory.max_amplitude() * 1.01
