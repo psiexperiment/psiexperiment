@@ -3,7 +3,6 @@ log = logging.getLogger(__name__)
 
 import datetime as dt
 from pathlib import Path
-import threading
 import time
 
 from atom.api import Dict, Float, Str
@@ -21,13 +20,6 @@ class NullEngine(Engine):
     t_ai = Float()
 
     def configure(self, active=True):
-        counter_channels = self.get_channels('counter', active=active)
-        sw_do_channels = self.get_channels('digital', 'output', 'software',
-                                           active=active)
-        hw_ai_channels = self.get_channels('analog', 'input', 'hardware',
-                                           active=active)
-        hw_di_channels = self.get_channels('digital', 'input', 'hardware',
-                                           active=active)
         hw_ao_channels = self.get_channels('analog', 'output', 'hardware',
                                            active=active)
 
@@ -83,8 +75,10 @@ class NullEngine(Engine):
         return self.buffer_size
 
     def update_hw_ao_multiple(self, offsets, channel_names, method):
-        for (o, c_name) in zip((offsets, channel_names)):
-            self.update_hw_ao(o, c, method)
+        # Regression note: this used to zip a single tuple and reference an
+        # undefined name, so it crashed as soon as it was called.
+        for o, c_name in zip(offsets, channel_names):
+            self.update_hw_ao(o, c_name, method)
 
     def update_hw_ao(self, offset, channel_name=None, method='space_available'):
         return

@@ -14,11 +14,9 @@ import logging
 log = logging.getLogger(__name__)
 
 from collections import deque
-from functools import partial
 import threading
 
 import numpy as np
-from scipy import signal
 
 from atom.api import (
     Bool, Callable, Dict, Enum, Float, Int, List, Property, set_default, Str,
@@ -30,7 +28,7 @@ from enaml.core.api import Declarative, d_
 from psiaudio.calibration import FlatCalibration
 
 from psiaudio import pipeline
-from psiaudio.util import db, dbi, tone_power_conv
+from psiaudio.util import db, dbi, diff_matrix
 
 from .channel import Channel
 
@@ -93,10 +91,12 @@ class Input(PSIContribution):
     configured = Bool(False)
 
     def _observe_source(self, event):
-        if (obj := event.get('oldvalue')) is not None:
-            obj.unobserve('fs', self._fs_updated)
-        elif (obj := event.get('value')) is not None:
-            obj.observe('fs', self._fs_updated)
+        # Both branches must run when one source is swapped for another;
+        # otherwise the new source's fs changes are never observed.
+        if (old := event.get('oldvalue')) is not None:
+            old.unobserve('fs', self._fs_updated)
+        if (new := event.get('value')) is not None:
+            new.observe('fs', self._fs_updated)
 
     def _fs_updated(self, event):
         # Ensure that changes to the parent sampling rate get propagated down
@@ -277,7 +277,7 @@ class MCReference(ContinuousInput):
 
     def configure_callback(self):
         cb = super().configure_callback()
-        m = create_diff_matrix(self.n_channels, self.reference,
+        m = diff_matrix(self.n_channels, self.reference,
                                self.channel_labels)
         return pipeline.mc_reference(m, cb).send
 

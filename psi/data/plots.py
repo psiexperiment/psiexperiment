@@ -3,12 +3,9 @@ import logging
 log = logging.getLogger(__name__)
 
 from collections import defaultdict
-import datetime as dt
 import itertools
 import importlib
-from functools import partial
 import string
-import uuid
 
 import numpy as np
 import pandas as pd
@@ -18,15 +15,14 @@ from atom.api import (Str, Float, Tuple, Int, Typed, Property, Atom,
                       Bool, Enum, List, Dict, Callable, Value, observe,
                       set_default)
 
-from enaml.application import deferred_call, timed_call
-from enaml.core.api import Looper, Declarative, d_, d_func
+from enaml.application import deferred_call
+from enaml.core.api import Declarative, d_, d_func
 
 from psiaudio import util
 from psiaudio.pipeline import concat, PipelineData
 
 from psi.util import SignalBuffer, ConfigurationException
 from psi.core.enaml.api import make_color, PSIContribution
-from psi.context.context_item import ContextMeta
 
 
 ################################################################################
@@ -143,7 +139,7 @@ class ColorCycleMixin(Declarative):
         if isinstance(self.pen_color_cycle, str):
             try:
                 n = len(self.plot_keys)
-            except:
+            except Exception:
                 n = 8
             iterable = get_color_cycle(self.pen_color_cycle, n)
         else:
@@ -404,7 +400,7 @@ class BasePlotContainer(PSIContribution):
         container = self.container
         try:
             container.clear()
-        except:
+        except Exception:
             pass
 
         # Add the x and y axes to the layout, along with the viewbox.
@@ -432,7 +428,7 @@ class BasePlotContainer(PSIContribution):
                 container.addItem(child.y_axis, i, 0)
                 container.addItem(child.viewbox, i, 1)
                 child._configure_viewbox()
-            except:
+            except Exception:
                 pass
 
 
@@ -863,7 +859,7 @@ class ChannelPlot(SourceMixin, SinglePlot):
             width, _ = self.parent.viewbox.viewPixelSize()
             dt = self.source.fs**-1
             self.downsample = round(width/dt)
-        except Exception as e:
+        except Exception:
             pass
 
     def _append_data(self, data):
@@ -910,7 +906,6 @@ def _reshape_for_decimate(data, downsample):
     # downsampling factor of 5 means that we perform the operation in chunks of
     # 5 samples.  If we have only 13 samples of data, then we cannot decimate
     # the last 3 samples and will simply discard them.
-    last_dim = data.ndim
     offset = data.shape[-1] % downsample
     if offset > 0:
         data = data[..., :-offset]
@@ -1076,7 +1071,7 @@ class BaseTimeseriesPlot(SinglePlot):
 
         try:
             epochs = np.c_[starts, ends]
-        except ValueError as e:
+        except ValueError:
             log.warning('Unable to update %r, starts shape %r, ends shape %r',
                         self, starts, ends)
             return
@@ -1497,13 +1492,13 @@ class StackedEpochAveragePlot(EpochGroupMixin, BasePlot):
         n = len(self.plots)
 
         plot_items = sorted(self.plots.items(), reverse=True)
-        for i, (key, plot) in enumerate(plot_items):
+        for i, (_key, plot) in enumerate(plot_items):
             offset = (i+1) * height / (n+1)
             point = self.parent.viewbox.mapToView(pg.Point(0, offset))
             plot.setPos(0, point.y())
 
         labels = sorted(self.labels.items(), reverse=True)
-        for i, (key, label) in enumerate(labels):
+        for i, (_key, label) in enumerate(labels):
             # Invert the Y-coordinate for the labels to align with the plots.
             # PyQtGraph's standard viewbox uses pixel coordinates where Y=0 is
             # at the top of the widget and increases downwards. Conversely,
@@ -1676,7 +1671,7 @@ class DataFramePlot(ColorCycleMixin, PSIContribution):
                 else:
                     try:
                         plot.setData(x, y)
-                    except:
+                    except Exception:
                         plot.setData([], [])
         deferred_call(update)
 

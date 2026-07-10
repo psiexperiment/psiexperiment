@@ -2,6 +2,7 @@ import logging
 log = logging.getLogger(__name__)
 import argparse
 import importlib
+from pathlib import Path
 
 from psi.application import (get_default_io, launch_experiment,
                              load_paradigm_descriptions)
@@ -23,7 +24,7 @@ def add_default_options(parser):
                 path = namespace.io / path
                 path = path.with_suffix('.json')
                 if not path.exists():
-                    raise ValueError('%s does not exist'.format(value))
+                    raise ValueError('%s does not exist')
             setattr(namespace, self.dest, value)
 
     try:
@@ -71,8 +72,8 @@ def main():
 
             paradigm = paradigm_manager.get_paradigm(value)
             paradigm.disable_all_plugins()
-            setattr(namespace, 'experiment', paradigm.name)
-            setattr(namespace, 'controller', paradigm)
+            namespace.experiment = paradigm.name
+            namespace.controller = paradigm
 
     class PluginAction(argparse.Action):
         def __call__(self, parser, namespace, value, option_string=None):

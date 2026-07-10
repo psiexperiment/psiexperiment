@@ -6,12 +6,7 @@ from enaml.qt.qt_application import QtApplication
 
 
 with enaml.imports():
-    from enaml.workbench.core.core_manifest import CoreManifest
-    from psi.context.manifest import ContextManifest
-    from psi.data.manifest import DataManifest
-    from psi.token.manifest import TokenManifest
     from psi.experiment.api import PSIWorkbench
-    from psi.experiment.manifest import ExperimentManifest
     from . import helper_manifest as manifests
 
 

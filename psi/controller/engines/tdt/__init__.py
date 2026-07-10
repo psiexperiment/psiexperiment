@@ -221,7 +221,6 @@ class TDTEngine(Engine):
         A single acquisition thread will be created for all buffers
         '''
         buffers = {}
-        sf = {}
         for c in channels:
             b = self._circuit.get_buffer(c.tag, 'r', dec_factor=c.decimation)
             b._sf = dbi(c.gain)

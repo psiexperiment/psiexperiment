@@ -48,7 +48,8 @@ class PSIPlugin(Plugin):
         result = self.load_multiple_plugins(point_id, plugin_info, **factory_kw)
         return result.get(plugin_type, {})
 
-    def load_multiple_plugins(self, point_id, plugin_info, **factory_kw):
+    def load_multiple_plugins(self, point_id, plugin_info, return_sources=False,
+                              **factory_kw):
         '''
         Load multiple plugins for extension point
 
@@ -60,6 +61,9 @@ class PSIPlugin(Plugin):
             Dictionary mapping Plugin class to the unique attribute on the
             class (e.g., context item name) that is used to track the instance
             of the plugin in psiexperiment.
+        return_sources : bool
+            If True, also return a dictionary mapping each loaded item to the
+            extension that contributed it.
 
         Remaining keyword arguments are passed to any factories found on the
         contributions to the extension point.
@@ -70,6 +74,9 @@ class PSIPlugin(Plugin):
             Returns a dictionary mapping Plugin class to a dictionary mapping
             item name to the item instance for each instance of that Plugin
             class.
+        sources : dict
+            Only returned if `return_sources` is True. Maps item instance to
+            the contributing extension.
         '''
         log.debug('Loading plugins for extension point %s', point_id)
         point = self.workbench.get_extension_point(point_id)
@@ -91,6 +98,7 @@ class PSIPlugin(Plugin):
                     children.append((child, extension))
 
         # Now, group together the items into their respective plugins.
+        sources = {}
         for plugin_type, unique_attr in plugin_info.items():
             plugin_items = items.setdefault(plugin_type, {})
             plugin_item_source = item_source.setdefault(plugin_type, {})
@@ -100,13 +108,16 @@ class PSIPlugin(Plugin):
                     log.debug('... ... found contribution %s', attr)
                     if attr in plugin_items:
                         for k, v in plugin_item_source.items():
-                            log.error(f'{k}: {v.id}')
+                            log.debug('%s: %s', k, v.id)
                         self.raise_duplicate_error(
                             item, unique_attr, extension, plugin_item_source[attr]
                         )
                     plugin_items[attr] = item
                     plugin_item_source[attr] = extension
+                    sources[item] = extension
 
+        if return_sources:
+            return items, sources
         return items
 
     def load_manifests(self, items):

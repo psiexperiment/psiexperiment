@@ -3,14 +3,13 @@ log = logging.getLogger(__name__)
 
 import threading
 
-import numpy as np
 
-from atom.api import (observe, Str, Float, Bool, observe, Property, Int, List,
+from atom.api import (Str, Float, Bool, Int, List,
                       Typed, Value)
-from enaml.core.api import Declarative, d_
+from enaml.core.api import d_
 
 from psi.core.enaml.api import PSIContribution
-from psi.util import copy_declarative, get_tagged_values
+from psi.util import copy_declarative
 from .channel import (Channel, AnalogMixin, DigitalMixin, HardwareMixin,
                       SoftwareMixin, OutputMixin, InputMixin, CounterMixin)
 
@@ -231,9 +230,6 @@ class Engine(PSIContribution):
         raise NotImplementedError
 
     def reset(self):
-        raise NotImplementedError
-
-    def get_ts(self):
         raise NotImplementedError
 
     def get_buffer_size(self, channel_name):

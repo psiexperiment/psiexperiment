@@ -7,12 +7,11 @@ from atom.api import (
     Bool, Float, ForwardTyped, Int, List, observe, Property, Tuple, Typed,
     set_default, Str
 )
-from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
 
 from psiaudio.calibration import BaseCalibration, FlatCalibration
 from psiaudio import util
-from .output import QueuedEpochOutput, ContinuousOutput, EpochOutput
+from .output import QueuedEpochOutput
 from ..core.enaml.api import PSIContribution
 
 
@@ -135,7 +134,6 @@ class HardwareMixin(Declarative):
         '''
         Generate samples starting at offset
         '''
-        n_outputs = len(self.outputs)
         for output in self.outputs:
             output.get_samples(offset, samples, out=out)
 

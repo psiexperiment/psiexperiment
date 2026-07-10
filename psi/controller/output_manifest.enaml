@@ -23,7 +23,7 @@ from .experiment_action import ExperimentState, ExperimentEvent, ExperimentActio
 
 def set_token(event, output, output_type):
     if not event.parameters['token']:
-        log.warn('No token provided for %s.', output.name)
+        log.warning('No token provided for %s.', output.name)
         return
 
     output.token = event.parameters['token']

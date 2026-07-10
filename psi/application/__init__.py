@@ -43,7 +43,7 @@ def disable_quick_edit():
 if os.name == 'nt':
     try:
         disable_quick_edit()
-    except:
+    except Exception:
         pass
 
 mesg_template = '''
@@ -155,7 +155,7 @@ def configure_logging(level_console=None, level_file=None, filename=None,
             humanfriendly.terminal.enable_ansi_support()
             formatter = coloredlogs.ColoredFormatter(fmt, style='{',
                                                      level_styles=level_styles)
-        except ImportError as e:
+        except ImportError:
             formatter = logging.Formatter(fmt, style='{')
 
         stream_handler = logging.StreamHandler()
@@ -218,7 +218,7 @@ def _main(args):
     workbench.register_core_plugins(args.io, plugins)
 
     if args.pathname is None:
-        log.warn('All data will be destroyed at end of experiment')
+        log.warning('All data will be destroyed at end of experiment')
 
     exception_handler.workbench = workbench
     workbench.start_workspace(args.experiment,
@@ -328,13 +328,14 @@ def load_io_manifest(io_manifest=None):
     '''
     if io_manifest is None:
         io_manifest = get_default_io()
-    if str(io_manifest).endswith('.enaml'):
-        io_manifest = str(io_manifest)
+    # Coerce Path (or any path-like) to str for the checks below.
+    io_manifest = str(io_manifest)
+    if io_manifest.endswith('.enaml'):
         if '::' in io_manifest:
             io_path, io_class = io_manifest.split('::')
         else:
             io_path, io_class = io_manifest, 'IOManifest'
-        klass = load_manifest_from_file(io_manifest, io_class)
+        klass = load_manifest_from_file(io_path, io_class)
     else:
         klass = load_manifest(io_manifest)
     return klass
@@ -386,7 +387,6 @@ def config():
     # template for a skeleton that's copied to the IO_ROOT folder.
     io_template_paths = list_io_templates()
     io_skeleton_choices = [p.stem.strip('_') for p in io_template_paths]
-    io_choices = [p.stem for p in io_template_paths if not p.stem.startswith('_')]
 
     paradigms = list_paradigm_descriptions()
     paradigm_choices = {p.rsplit('.', 1)[1]: p for p in paradigms}

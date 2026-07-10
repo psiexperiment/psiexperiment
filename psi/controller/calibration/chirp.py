@@ -1,11 +1,10 @@
 import logging
 log = logging.getLogger(__name__)
 
-import numpy as np
 import pandas as pd
 
 from psiaudio.stim import ChirpFactory, SilenceFactory
-from psiaudio.calibration import FlatCalibration, InterpCalibration
+from psiaudio.calibration import FlatCalibration
 from psiaudio import util
 
 

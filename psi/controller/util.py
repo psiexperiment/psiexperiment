@@ -23,9 +23,7 @@ def acquire(engine, waveform, ao_channel_name, ai_channel_names, gain=0,
         raise ValueError('Can only specify one output channel')
 
     from psi.controller.api import ExtractEpochs, FIFOSignalQueue
-    from psi.controller.calibration.api import FlatCalibration
 
-    calibration = FlatCalibration.as_attenuation(vrms=vrms)
 
     # Create a copy of the engine containing only the channels required for
     # calibration.
@@ -35,7 +33,6 @@ def acquire(engine, waveform, ao_channel_name, ai_channel_names, gain=0,
     ai_channels = [cal_engine.get_channel(name) for name in ai_channel_names]
 
     ao_fs = ao_channel.fs
-    ai_fs = ai_channels[0].fs
 
     # Ensure that input channels are synced to the output channel 
     ao_channel.start_trigger = ''

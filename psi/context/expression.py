@@ -17,7 +17,7 @@ class Expr:
         self._dependencies = get_dependencies(expression)
 
     def evaluate(self, context):
-        return eval(self._expression, context)
+        return eval(self._code, context)
 
     def __str__(self):
         return f'{self._expression}'

@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 
 from psiaudio import util
-from psiaudio.calibration import FlatCalibration, PointCalibration
+from psiaudio.calibration import FlatCalibration
 from psiaudio.stim import ClickFactory, SilenceFactory
 
 

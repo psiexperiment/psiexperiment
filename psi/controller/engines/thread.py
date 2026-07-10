@@ -28,7 +28,7 @@ class DAQThread(Thread):
         # instance (or workspace).
         try:
             self._run()
-        except:
+        except Exception:
             log.info('Caught exception')
             deferred_call(sys.excepthook, *sys.exc_info())
 

@@ -3,7 +3,6 @@ import uuid
 from pathlib import Path
 
 import numpy as np
-import pytest
 from atom.api import Atom, Float, Int, Str, Value
 
 from psi.util import (

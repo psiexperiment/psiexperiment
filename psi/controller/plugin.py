@@ -1,17 +1,12 @@
 import logging
 log = logging.getLogger(__name__)
 
-import collections
 from functools import partial
-import json
-import operator as op
 import threading
 
-import numpy as np
 
 from atom.api import Enum, Bool, Typed, Value, Property
 from enaml.application import deferred_call
-from enaml.qt.QtCore import Qt
 from enaml.workbench.api import Extension
 from enaml.workbench.plugin import Plugin
 
@@ -66,8 +61,7 @@ def find_engines(point):
     engines = ErrorDict('engine')
     for extension in point.extensions:
         for e in extension.get_children(Engine):
-            if e.name in engines:
-                raise ValueError(engine_error.strip().format(e.name))
+            # ErrorDict raises a descriptive error on duplicate names.
             engines[e.name] = e
             if e.master_clock:
                 if master_engine is not None:
@@ -98,11 +92,10 @@ def find_outputs(channels, point):
     # Find all the outputs already connected to a channel
     for c in channels.values():
         if isinstance(c, OutputMixin):
-            # Channel is an output. Now check the children.
+            # Channel is an output. Now check the children. ErrorDict raises
+            # a descriptive error on duplicate names.
             for o in c.children:
                 for oi in get_obj(o, BaseOutput):
-                    if oi.name in outputs:
-                        raise ValueError(output_error.format(oi.name))
                     outputs[oi.name] = oi
 
     # Find unconnected outputs and inputs (these are allowed so that we can
@@ -290,7 +283,7 @@ class ControllerPlugin(Plugin):
                     o.parent.add_output(o)
                     to_init.remove(o)
                 elif o.target is None:
-                    log.warn('Unconnected output %s', o.name)
+                    log.warning('Unconnected output %s', o.name)
                     to_init.remove(o)
                 else:
                     to_init.remove(o)
@@ -309,7 +302,7 @@ class ControllerPlugin(Plugin):
             elif i.source is None and not isinstance(i.parent, Extension):
                 i.parent.add_input(i)
             elif i.source is None:
-                log.warn('Unconnected input %s', i.name)
+                log.warning('Unconnected input %s', i.name)
 
     def connect_output(self, output_name, target_name):
         # Link up outputs with channels if needed.
@@ -442,7 +435,7 @@ class ControllerPlugin(Plugin):
                 self.stop_timer(name)
             for engine in self._engines.values():
                 if engine.get_channels():
-                    log.error('Stopping engine %r', engine)
+                    log.info('Stopping engine %r', engine)
                     engine.stop()
             self.engines_running = False
             self.invoke_actions('engines_stopped')
@@ -464,9 +457,9 @@ class ControllerPlugin(Plugin):
     def get_input(self, input_name):
         try:
             return self._inputs[input_name]
-        except KeyError:
+        except KeyError as e:
             valid_inputs = ', '.join(self._inputs)
-            raise KeyError(f'{input_name}: valid inputs are {valid_inputs}')
+            raise KeyError(f'{input_name}: valid inputs are {valid_inputs}') from e
 
     def set_input_attr(self, input_name, attr_name, value):
         setattr(self._inputs[input_name], attr_name, value)
@@ -619,7 +612,7 @@ class ControllerPlugin(Plugin):
             self.invoke_actions('experiment_prepare')
             self.invoke_actions('experiment_start')
             self.experiment_state = 'running'
-        except Exception as e:
+        except Exception:
             log.error('An error occured when attempting to start experiment. Stopping.')
             self.stop_experiment(True)
             raise
@@ -646,7 +639,7 @@ class ControllerPlugin(Plugin):
         try:
             self._timers[name] = timer = threading.Timer(duration, callback)
             timer.start()
-        except Exception as e:
+        except Exception:
             log.error(f'Attempt to start timer {name} with duration {duration} sec failed')
             raise
 

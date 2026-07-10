@@ -4,7 +4,7 @@ log = logging.getLogger(__name__)
 import numpy as np
 
 from enaml.core.declarative import Declarative, d_
-from atom.api import (set_default, Str, Typed, Value, Enum, Int, List, Event,
+from atom.api import (set_default, Str, Value, Enum, Int, List, Event,
                       Property, observe, Bool, Dict, Coerced)
 
 from psi.core.enaml.api import PSIContribution
@@ -375,9 +375,9 @@ class MultiSelectParameter(Parameter):
         # of order of selection.
         try:
             choices = sorted([self.choices[s] for s in self.selected])
-        except KeyError:
+        except KeyError as e:
             valid_keys = ', '.join(self.choices.keys())
-            raise KeyError('Invalid key. Valid keys are %s.' % valid_keys)
+            raise KeyError('Invalid key. Valid keys are %s.' % valid_keys) from e
         if self.quote_values:
             choices = [f"'{c}'" for c in choices]
         else:

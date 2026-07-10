@@ -31,12 +31,12 @@ log = logging.getLogger(__name__)
 
 import ctypes
 from functools import partial
-from threading import Event, Timer
+from threading import Timer
 import operator as op
 import sys
 
 from atom.api import (Float, Typed, Str, Int, Bool, Callable, Enum,
-                      Property, set_default, Value)
+                      Property, set_default)
 from enaml.core.api import Declarative, d_
 import numpy as np
 import PyDAQmx as mx
@@ -541,7 +541,6 @@ def create_task(name=None):
 
 def setup_hw_co(channels, task_name='hw_co'):
     lines = get_channel_property(channels, 'channel', True)
-    names = get_channel_property(channels, 'name', True)
     log.debug('Configuring lines {}'.format(lines))
 
     source_terminal = get_channel_property(channels, 'source_terminal')
@@ -641,7 +640,7 @@ def setup_hw_ao(channels, buffer_duration, callback_interval, callback,
     merged_lines = ','.join(lines)
 
     for line, name, (vmin, vmax) in zip(lines, names, expected_ranges):
-        log.debug(f'Configuring line %s (%s) with voltage range %f-%f', line, name, vmin, vmax)
+        log.debug('Configuring line %s (%s) with voltage range %f-%f', line, name, vmin, vmax)
         mx.DAQmxCreateAOVoltageChan(task, line, name, vmin, vmax, mx.DAQmx_Val_Volts, '')
 
     try:
@@ -649,7 +648,7 @@ def setup_hw_ao(channels, buffer_duration, callback_interval, callback,
         for line in lines:
             mx.DAQmxGetAOGain(task, line, result)
             task._properties[f'{line} gain'] = result.value
-    except:
+    except Exception:
         for line in lines:
             # This means that the gain is not settable
             task._properties[f'{line} gain'] = 0
@@ -662,7 +661,7 @@ def setup_hw_ao(channels, buffer_duration, callback_interval, callback,
         # OnBrdMemNotFull
         mx.DAQmxSetAODataXferReqCond(task, merged_lines,
                                      mx.DAQmx_Val_OnBrdMemHalfFullOrLess)
-    except Exception as e:
+    except Exception:
         log.warning('Could not set AO data transfer request condition for %s',
                     merged_lines)
 
@@ -694,7 +693,7 @@ def setup_hw_do(channels, buffer_duration, callback_interval, callback,
 
     task = create_task(task_name)
     for channel in channels:
-        log.debug(f'Configuring line %s (%s)', channel.channel, channel.name)
+        log.debug('Configuring line %s (%s)', channel.channel, channel.name)
         mx.DAQmxCreateDOChan(task, channel.channel, channel.name,
                              mx.DAQmx_Val_ChanPerLine)
     setup_output_timing(task, channels, buffer_duration, callback_interval,
@@ -708,6 +707,8 @@ def setup_output_timing(task, channels, buffer_duration, callback_interval,
     Configure output timing properties for AO and DO channels as well as the
     callback to update with new samples.
     '''
+    names = get_channel_property(channels, 'name', True)
+
     # Configure general sample clock properties that are common to any
     # hardware-timed task (both output and input).
     setup_timing(task, channels)
@@ -748,7 +749,6 @@ def setup_output_timing(task, channels, buffer_duration, callback_interval,
         task._cb_ptr, None)
 
     mx.DAQmxTaskControl(task, mx.DAQmx_Val_Task_Reserve)
-    names = get_channel_property(channels, 'name', True)
     task._properties['names'] = verify_channel_names(task, names)
     task._properties['devices']= device_list(task)
     log.info('%s properties: %r', task._name, task._properties)
@@ -770,26 +770,26 @@ def get_timing_config(task):
     try:
         mx.DAQmxGetSampClkMaxRate(task, info)
         properties['sample clock maximum rate'] = info.value
-    except:
+    except Exception:
         # This is not supported on at least M-series digital outputs
         pass
 
     try:
         mx.DAQmxGetSampClkTimebaseRate(task, info)
         properties['sample clock timebase rate'] = info.value
-    except:
+    except Exception:
         # This is not supported on at least M-series digital outputs
         pass
     try:
         mx.DAQmxGetMasterTimebaseRate(task, info)
         properties['master timebase rate'] = info.value
-    except:
+    except Exception:
         # This is not supported on at least M-series digital outputs
         pass
     try:
         mx.DAQmxGetRefClkRate(task, info)
         properties['reference clock rate'] = info.value
-    except:
+    except Exception:
         # This is not supported on at least M-series digital outputs
         pass
 
@@ -799,29 +799,29 @@ def get_timing_config(task):
     try:
         mx.DAQmxGetSampClkTimebaseSrc(task, info, len(info))
         properties['sample clock timebase source'] = str(info.value)
-    except:
+    except Exception:
         pass
     try:
         mx.DAQmxGetSampClkTerm(task, info, len(info))
         properties['sample clock terminal'] = str(info.value)
-    except:
+    except Exception:
         pass
     try:
         mx.DAQmxGetMasterTimebaseSrc(task, info, len(info))
         properties['master timebase source'] = str(info.value)
-    except:
+    except Exception:
         pass
     try:
         mx.DAQmxGetRefClkSrc(task, info, len(info))
         properties['reference clock source'] = str(info.value)
-    except:
+    except Exception:
         pass
 
     info = ctypes.c_int32()
     try:
         mx.DAQmxGetSampClkOverrunBehavior(task, info)
         properties['sample clock overrun behavior'] = info.value
-    except:
+    except Exception:
         pass
     mx.DAQmxGetSampClkActiveEdge(task, info)
     properties['sample clock active edge'] = info.value
@@ -830,7 +830,7 @@ def get_timing_config(task):
     try:
         mx.DAQmxGetSampClkTimebaseDiv(task, info)
         properties['sample clock timebase divisor'] = info.value
-    except:
+    except Exception:
         pass
 
     return properties
@@ -908,47 +908,17 @@ def setup_hw_di(fs, lines, callback, callback_samples, start_trigger=None,
     Therefore, we have to create one (e.g., using a counter or by using the
     analog input or output sample clock.
     '''
-    task = create_task(task_name)
-    mx.DAQmxCreateDIChan(task, lines, '', mx.DAQmx_Val_ChanForAllLines)
-
-    # Get the current state of the lines so that we know what happened during
-    # the first change detection event. Do this before configuring the timing
-    # of the lines (otherwise we have to start the master clock as well)!
-    mx.DAQmxStartTask(task)
-    initial_state = read_digital_lines(task, 1)
-    mx.DAQmxStopTask(task)
-
-    # M-series acquisition boards don't have a dedicated engine for digital
-    # acquisition. Use a clock to configure the acquisition.
-    if clock is not None:
-        clock_task = create_task('{}_clock'.format(task_name))
-        mx.DAQmxCreateCOPulseChanFreq(clock_task, clock, '', mx.DAQmx_Val_Hz,
-                                      mx.DAQmx_Val_Low, 0, fs, 0.5)
-        mx.DAQmxCfgImplicitTiming(clock_task, mx.DAQmx_Val_ContSamps, int(fs))
-        clock += 'InternalOutput'
-        if start_trigger:
-            mx.DAQmxCfgDigEdgeStartTrig(clock_task, start_trigger,
-                                        mx.DAQmx_Val_Rising)
-        setup_timing(task, clock, -1, None)
-    else:
-        setup_timing(task, fs, -1, start_trigger)
-
-    cb_helper = DigitalSamplesAcquiredCallbackHelper(callback)
-    cb_ptr = mx.DAQmxEveryNSamplesEventCallbackPtr(cb_helper)
-    mx.DAQmxRegisterEveryNSamplesEvent(task, mx.DAQmx_Val_Acquired_Into_Buffer,
-                                       int(callback_samples), 0, cb_ptr, None)
-
-    task._cb_ptr = cb_ptr
-    task._cb_helper = cb_helper
-    task._initial_state = initial_state
-
-    rate = ctypes.c_double()
-    mx.DAQmxGetSampClkRate(task, rate)
-
-    mx.DAQmxTaskControl(task, mx.DAQmx_Val_Task_Reserve)
-    mx.DAQmxTaskControl(clock_task, mx.DAQmx_Val_Task_Reserve)
-
-    return [task, clock_task]
+    # This code path has bit-rotted: it referenced a callback helper class
+    # that no longer exists and called setup_timing with an outdated
+    # signature, so it has been failing with a NameError/TypeError for some
+    # time. It needs to be rewritten against the current callback
+    # architecture (see hw_input_helper) and verified on hardware. The old
+    # implementation is preserved in git history.
+    raise NotImplementedError(
+        'Hardware-timed digital input is currently not supported by the '
+        'NIDAQ engine. Use a hardware-timed analog input channel or a '
+        'software-timed digital channel instead.'
+    )
 
 
 def setup_sw_ao(lines, expected_range, task_name='sw_ao'):
@@ -980,12 +950,12 @@ def halt_on_error(f):
     def wrapper(self, *args, **kwargs):
         try:
             f(self, *args, **kwargs)
-        except Exception as e:
+        except Exception:
             try:
                 self.stop()
                 for cb in self._callbacks.get('done', []):
                     cb()
-            except:
+            except Exception:
                 pass
             # Be sure to raise the exception so it can be recaptured by our
             # custom excepthook handler
@@ -1145,8 +1115,10 @@ class NIDAQEngine(ChannelSliceCallbackMixin, Engine):
         # when there are errors but it does not seem to happen.
         self._task_done = {}
         for name, task in self._tasks.items():
-            def cb(task, s, cb_data):
-                nonlocal name
+            # Bind `name` via a default argument. `nonlocal` rebinds to the
+            # loop variable, so every callback would see the *final* task
+            # name rather than its own.
+            def cb(task, s, cb_data, name=name):
                 self.task_complete(name)
                 return 0
             cb_ptr = mx.DAQmxDoneEventCallbackPtr(cb)
@@ -1327,7 +1299,7 @@ class NIDAQEngine(ChannelSliceCallbackMixin, Engine):
     @halt_on_error
     def _hw_input_callback(self, ctype, task, samples):
         samples /= task._properties['sf']
-        for channel_name, s, cb in self._callbacks.get(ctype, []):
+        for _channel_name, s, cb in self._callbacks.get(ctype, []):
             cb(samples[s])
 
     def _hw_di_callback(self, samples):
@@ -1427,12 +1399,12 @@ class NIDAQEngine(ChannelSliceCallbackMixin, Engine):
             self.total_ao_samples_written += (relative_offset + data.shape[-1])
             log.trace('Writing hw ao %r at %d', data.shape, offset)
 
-        except mx.InvalidTaskError:
+        except mx.InvalidTaskError as e:
             if self.stopped.is_set():
-                raise EngineStoppedException(f'{self.name} has been stopped')
+                raise EngineStoppedException(f'{self.name} has been stopped') from e
             else:
                 raise
-        except Exception as e:
+        except Exception:
             # If we log on every call, the logfile will get quite verbose.
             # Let's only log this information on an Exception.
             maxval = np.abs(data).max(axis=-1)
@@ -1529,7 +1501,7 @@ class NIDAQEngine(ChannelSliceCallbackMixin, Engine):
             result = ctypes.c_uint64()
             mx.DAQmxGetWriteTotalSampPerChanGenerated(task, result)
             return result.value
-        except:
+        except Exception:
             return 0
 
     def ao_sample_time(self):

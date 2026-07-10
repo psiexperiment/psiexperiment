@@ -19,21 +19,27 @@ def engine():
 
 @pytest.fixture()
 def ao_channel(engine):
-    return HardwareAOChannel(
+    channel = HardwareAOChannel(
         fs=1000,
         calibration=FlatCalibration.as_attenuation(),
         parent=engine,
     )
+    # Engine.initialized() only wires `channel.engine` for children present at
+    # construction time; channels attached afterwards must be registered.
+    engine.add_channel(channel)
+    return channel
 
 
 @pytest.fixture()
 def ai_channel(engine):
-    return HardwareAIChannel(
+    channel = HardwareAIChannel(
         name='ai',
         fs=100e3,
         calibration=FlatCalibration.as_attenuation(),
         parent=engine,
     )
+    engine.add_channel(channel)
+    return channel
 
 
 @pytest.fixture()

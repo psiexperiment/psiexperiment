@@ -290,7 +290,7 @@ def format_docstrings():
     for f in options.values():
         try:
             f.__doc__ = f.__doc__.format(**fmt)
-        except:
+        except Exception:
             pass
 
 

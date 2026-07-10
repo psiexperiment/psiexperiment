@@ -55,10 +55,10 @@ class SDAIThread(Thread):
                     data = np.concatenate(data, axis=-1)
                     s0 = s0_all[0]
                     data = PipelineData(data / self.sf[..., np.newaxis], fs=self.fs, s0=s0)
-                    for channel_name, s, cb in self.callbacks.get('ai', []):
+                    for _channel_name, s, cb in self.callbacks.get('ai', []):
                         cb(data[s])
                 time.sleep(self.poll_interval)
-        except:
+        except Exception:
             deferred_call(sys.excepthook, *sys.exc_info())
 
 
@@ -66,7 +66,7 @@ def halt_on_error(f):
     def wrapper(self, *args, **kwargs):
         try:
             f(self, *args, **kwargs)
-        except Exception as e:
+        except Exception:
             self._stream.stop()
             # Be sure to raise the exception so it can be recaptured by our
             # custom excepthook handler
@@ -290,5 +290,5 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
                       ts, self._total_samples_written / self.fs,
                       self._total_samples_read / self.fs)
             return ts
-        except Exception as e:
+        except Exception:
             return np.nan

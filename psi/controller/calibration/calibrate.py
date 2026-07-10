@@ -1,7 +1,7 @@
 import logging
 log = logging.getLogger(__name__)
 
-from atom.api import Bool, Dict, Float, Int, List, Str, Value
+from atom.api import Bool, Dict, Float, Int, Str, Value
 from enaml.application import deferred_call
 from enaml.core.api import d_, d_func
 import pandas as pd
@@ -14,7 +14,9 @@ from .click import click_sens
 from .tone import tone_sens
 
 
-def merge_results(results, names=['ao_channel']):
+def merge_results(results, names=None):
+    if names is None:
+        names = ['ao_channel']
     to_merge = {}
     for master_key, result in results.items():
         to_merge.setdefault('calibration', {})[master_key] = result
@@ -23,7 +25,7 @@ def merge_results(results, names=['ao_channel']):
 
     merged = {}
     for key, value in to_merge.items():
-        log.error(value)
+        log.debug('Merging %r', value)
         v0 = next(iter(value.values()))
         if isinstance(v0, pd.DataFrame):
             new_values = {}

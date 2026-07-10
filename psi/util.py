@@ -37,7 +37,6 @@ def rpc(plugin_name, method_name):
 
 
 def get_tagged_members(obj, tag_name, tag_value=True, exclude_properties=False):
-    result = {}
     if exclude_properties:
         match = lambda m: m.metadata and m.metadata.get(tag_name) == tag_value \
             and not isinstance(m, Property)
@@ -138,7 +137,7 @@ def dict_to_declarative(obj, info, skip_errors=False):
         else:
             try:
                 setattr(obj, k, v)
-            except Exception as e:
+            except Exception:
                 if not skip_errors:
                     raise
 

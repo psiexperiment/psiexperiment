@@ -194,7 +194,10 @@ def get_config(setting=None, default_value=NoDefault):
     '''
     if setting is not None:
         try:
-            if default_value != NoDefault:
+            # Identity check: the sentinel must never be compared with `!=`
+            # since default values (e.g., numpy arrays) may not support
+            # unambiguous equality comparison.
+            if default_value is not NoDefault:
                 return _config.get(setting, default_value)
             else:
                 return _config[setting]

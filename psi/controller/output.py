@@ -1,7 +1,6 @@
 import logging
 log = logging.getLogger(__name__)
 
-from functools import partial
 
 import numpy as np
 
@@ -65,7 +64,7 @@ class BaseOutput(PSIContribution):
         raise NotImplementedError
 
     def add_output(self, output):
-        raise ValueError(f'Output {name} does not accept downstream outputs')
+        raise ValueError(f'Output {self.name} does not accept downstream outputs')
 
 
 class HardwareOutput(BaseOutput):

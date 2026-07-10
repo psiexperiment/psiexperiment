@@ -4,8 +4,8 @@ log = logging.getLogger(__name__)
 import numpy as np
 import pandas as pd
 
-from psiaudio.util import db, process_tone, tone_power_conv, tone_phase_conv
-from psiaudio.calibration import FlatCalibration, PointCalibration
+from psiaudio.util import db, process_tone
+from psiaudio.calibration import FlatCalibration
 from psiaudio.stim import ToneFactory, SilenceFactory
 
 

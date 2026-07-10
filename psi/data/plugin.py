@@ -3,20 +3,14 @@ log = logging.getLogger(__name__)
 
 from pathlib import Path
 
-from atom.api import ContainerList, Typed, Str
-from enaml.application import deferred_call
-from enaml.workbench.api import Plugin
+from atom.api import Typed
 
-import numpy as np
-import pandas as pd
 
-from psi import get_config
 from psi.core.enaml.api import load_manifests, PSIPlugin
 
 from .sink import Sink
 from .plots import BasePlot, BasePlotContainer, ViewBox
 
-import textwrap
 
 
 SINK_POINT = 'psi.data.sinks'
@@ -46,13 +40,9 @@ class DataPlugin(PSIPlugin):
 
     def _refresh_sinks(self, event=None):
         log.debug('Refreshing sinks')
-        sinks = {}
-        point = self.workbench.get_extension_point(SINK_POINT)
-        for extension in point.extensions:
-            for sink in extension.get_children(Sink):
-                if sink.name in sinks:
-                    self.raise_duplicate_error(sink, 'name', extension)
-                sinks[sink.name] = sink
+        # load_plugins handles duplicate-name detection with a descriptive
+        # error naming both contributing extensions.
+        sinks = self.load_plugins(SINK_POINT, Sink, 'name')
         load_manifests(sinks.values(), self.workbench)
         self._sinks = sinks
 
@@ -153,14 +143,17 @@ class DataPlugin(PSIPlugin):
     def find_sink(self, sink_name):
         try:
             return self._sinks[sink_name]
-        except KeyError:
-            raise AttributeError(f'Sink "{sink_name}" not available')
+        except KeyError as e:
+            raise AttributeError(f'Sink "{sink_name}" not available') from e
 
     def find_source(self, source_name):
+        # Sinks raise AttributeError when they don't provide the requested
+        # source and NotImplementedError when they don't support sources at
+        # all. Any other exception is a real error and should propagate.
         for sink in self._sinks.values():
             if hasattr(sink, 'get_source'):
                 try:
                     return sink.get_source(source_name)
-                except:
+                except (AttributeError, NotImplementedError):
                     continue
         raise AttributeError(f'Could not find source "{source_name}"')

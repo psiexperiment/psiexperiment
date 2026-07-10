@@ -29,8 +29,7 @@ def load_manifest(manifest_path):
     try:
         return getattr(module, manifest_name)
     except AttributeError as e:
-        err = f'{manifest_path} not found.'
-        raise ManifestNotFoundError() from e
+        raise ManifestNotFoundError(f'{manifest_path} not found.') from e
 
 
 def find_manifest_class(obj):
@@ -46,7 +45,7 @@ def find_manifest_class(obj):
         search.append(f'{c.__module__}.{c.__name__}Manifest')
         search.append(f'{c.__module__}_manifest.{c.__name__}Manifest')
     search.append('psi.core.enaml.manifest.PSIManifest')
-    log.debug(f'Attempting to locate manifest for %s from candidates %s',
+    log.debug('Attempting to locate manifest for %s from candidates %s',
                 cls.__name__, '\n ... '.join([''] + search))
     for location in search:
         if location in SEARCH_CACHE:
@@ -60,7 +59,7 @@ def find_manifest_class(obj):
             SEARCH_CACHE[location] = manifest
             log.debug('... Found manifest at %s', location)
             return manifest
-        except ManifestNotFoundError as e:
+        except ManifestNotFoundError:
             SEARCH_CACHE[location] = None
 
     # I'm not sure this can actually happen anymore since it should return
@@ -116,7 +115,7 @@ class PSIContribution(Declarative):
             log.debug(m, self.name, manifest_class.__name__, manifest.id)
         except ManifestNotFoundError:
             m = 'No manifest defined for contribution %s'
-            log.warn(m, self.name)
+            log.warning(m, self.name)
         except ValueError as e:
             m = f'Manifest "{manifest.id}" for plugin "{self.name}" already registered.'
             raise ImportError(m) from e

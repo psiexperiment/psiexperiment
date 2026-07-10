@@ -160,12 +160,6 @@ def test_ordered_meta_respects_mandatory_and_forbidden():
     assert 'freq' in meta.values
 
 
-# OrderedContextMeta.set_choice slices and inserts into self.values, but
-# `values` is inherited as Coerced(set) from UnorderedContextMeta and a set
-# isn't subscriptable. The other OrderedContextMeta tests don't hit this
-# path because mandatory/forbidden short-circuit before the slice.
-@pytest.mark.xfail(reason='OrderedContextMeta.set_choice operates on a set: psi/context/context_item.py:75',
-                   raises=TypeError, strict=True)
 def test_ordered_meta_set_and_get_choice():
     meta = OrderedContextMeta(name='ordered')
     meta.set_choice('1', 'a')

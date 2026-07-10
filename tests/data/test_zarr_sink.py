@@ -41,34 +41,22 @@ def test_epochs(store, data_generator):
     for epochs in data_generator.iter_epochs(isi):
         store.process_ai_epochs('epochs', epochs)
 
-    # Test grouping by epoch number (stim)
-    source = store.get_source('epochs')
-    groups = source.get_epoch_groups('stim')
-    assert len(groups) == data_generator.n_iter
-    for i in range(data_generator.n_iter):
-        np.testing.assert_array_equal(
-            groups[i],
-            data_generator.generated[i][np.newaxis]
-        )
-
-    # Test grouping by frequency
-    groups = source.get_epoch_groups('frequency')
-    assert len(groups) == 1
-    np.testing.assert_array_equal(
-        groups[1e3].mean(axis=0),
-        np.mean(data_generator.generated, axis=0)
-    )
-
+    # Epochs are stored concatenated along the time axis.
     generated = np.concatenate(data_generator.generated, axis=-1)
+    np.testing.assert_array_equal(
+        np.asarray(store._stores['epochs'].data), generated)
 
-    # Ensure metadata is written out to file
-    assert source.dirty
-    source.flush()
-    assert not source.dirty
+    # Ensure metadata is written out to file on flush.
+    assert store._stores['epochs'].dirty
+    store.flush()
+    assert not store._stores['epochs'].dirty
 
     recording = Recording(store.base_path)
     assert hasattr(recording, 'epochs')
     assert hasattr(recording, 'epochs_metadata')
+
+    assert recording.epochs.fs == data_generator.fs
+    np.testing.assert_array_equal(recording.epochs[:], generated)
 
     assert recording.epochs_metadata.shape == (10, 4)
     np.testing.assert_array_equal(

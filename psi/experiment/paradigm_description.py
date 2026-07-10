@@ -73,8 +73,8 @@ class ParadigmManager:
             module = importlib.import_module(module)
         try:
             return self.paradigms[name]
-        except KeyError:
-            raise ParadigmNotFound(name)
+        except KeyError as e:
+            raise ParadigmNotFound(name) from e
 
 
 class PluginDescription:

@@ -4,14 +4,10 @@ log = logging.getLogger(__name__)
 from copy import deepcopy
 from functools import partial
 import itertools
-import pickle as pickle
 
 import numpy as np
 
-from atom.api import Typed, Bool, Str, observe, Property
-from enaml.application import deferred_call
-from enaml.layout.api import InsertItem, InsertTab
-from enaml.workbench.plugin import Plugin
+from atom.api import Typed, Bool, observe, Property
 
 from psi.core.enaml.api import load_manifests
 from .context_item import (
@@ -95,6 +91,14 @@ class ContextPlugin(PSIPlugin):
     _iterators = Typed(dict, ())
     _namespace = Typed(ExpressionNamespace, ())
 
+    # Maps extension ID to the list of orphan items (ContextItem/ContextSet
+    # contributed with only a `group_name`) that were adopted into their
+    # group. Adoption reparents the item under the group, removing it from
+    # the extension's children, so this registry is the only record of which
+    # extension owns each adopted item. Used to detach items when their
+    # extension is unregistered.
+    _adopted_items = Typed(dict, ())
+
     # Subset of context_items that are parameters
     parameters = Property()
 
@@ -150,14 +154,26 @@ class ContextPlugin(PSIPlugin):
             ContextMeta: 'name',
             Expression: 'parameter'
         }
-        items = self.load_multiple_plugins(ITEMS_POINT, plugin_info)
-        log.error(items)
+        items, sources = self.load_multiple_plugins(ITEMS_POINT, plugin_info,
+                                                    return_sources=True)
+        log.debug('Found context items: %r', items)
 
         context_groups = items[ContextGroup]
         context_sets = items[ContextSet]
         context_items = items[ContextItem]
         context_meta = items[ContextMeta]
         context_expressions = items[Expression]
+
+        # Detach previously-adopted items whose contributing extension has
+        # been unregistered; otherwise they linger as children of their group
+        # and get re-collected below. Note that `qualified_id` must be used
+        # since plain extension IDs are not unique across manifests.
+        point = self.workbench.get_extension_point(ITEMS_POINT)
+        current_ids = {extension.qualified_id for extension in point.extensions}
+        for extension_id in list(self._adopted_items):
+            if extension_id not in current_ids:
+                for item in self._adopted_items.pop(extension_id):
+                    item.set_parent(None)
 
         # At this point, `context_items` is only the "orphan" context items
         # where the group has not yet been assigned.
@@ -168,6 +184,12 @@ class ContextPlugin(PSIPlugin):
                 raise ValueError(m)
             group = context_groups[item.group_name]
             item.set_parent(group)
+            # Record the adoption so the item can be detached if its
+            # extension is unregistered (see above).
+            source_id = sources[item].qualified_id
+            adopted = self._adopted_items.setdefault(source_id, [])
+            if item not in adopted:
+                adopted.append(item)
 
         # Now, loop through the groups and find all ContextItems defined under
         # the group. If the group has already been defined in another
@@ -204,7 +226,7 @@ class ContextPlugin(PSIPlugin):
             try:
                 item = context_items.pop(expression.parameter)
                 item.visible = False
-            except KeyError as e:
+            except KeyError:
                 # It's best to make this an error. Previously I just logged a
                 # warning, but this makes debugging more difficult sometimes if
                 # you write an expression referencing a parameter that does not

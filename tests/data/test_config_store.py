@@ -1,6 +1,5 @@
 """Tests for the `_save_io` helper in psi.data.sinks.config_store."""
 import json
-from types import SimpleNamespace
 
 import enaml
 

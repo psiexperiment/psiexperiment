@@ -10,7 +10,6 @@ from enaml.application import deferred_call
 from enaml.workbench.api import Workbench
 
 with enaml.imports():
-    from enaml.stdlib.message_box import critical
     from enaml.workbench.core.core_manifest import CoreManifest
     from enaml.workbench.ui.ui_manifest import UIManifest
 
@@ -20,11 +19,9 @@ with enaml.imports():
     from psi.token.manifest import TokenManifest
     from psi.controller.calibration.manifest import CalibrationManifest
 
-    from . import dock_area_styles
 
-from psi import set_config
 from psi.application import load_io_manifest
-from psi.core.enaml import manifest
+from psi.core.enaml.api import load_manifest
 
 
 class PSIWorkbench(Workbench):

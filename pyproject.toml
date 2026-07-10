@@ -2,7 +2,7 @@
 name = "psiexperiment"
 description = "Framework for running trial-based experiments"
 readme = "readme.md"
-requires-python = ">=3.7"
+requires-python = ">=3.10"
 license = {file = "LICENSE.txt"}
 authors = [
     {name = "Brad Buran", email="bburan@alum.mit.edu"},
@@ -35,6 +35,7 @@ tdt = ["tdtpy >=0.10.4"]
 soundcard = ["sounddevice", "rtmixer"]
 docs = ["sphinx", "sphinx_rtd_theme", "pygments-enaml"]
 test = ["pytest", "pytest-console-scripts", "pytest-cov", "matplotlib"] # Matplotlib is used in some of the validation scripts.
+lint = ["ruff"]
 zarr = ["zarr"]
 dev = ["coloredlogs"]
 
@@ -48,6 +49,31 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
 write_to = "psi/version.py"
+
+[tool.ruff]
+# .enaml files are not Python and cannot be parsed by ruff. _version.py is a
+# generated legacy versioneer file.
+extend-exclude = ["psi/templates", "docs", "psi/_version.py"]
+
+[tool.ruff.lint]
+# F: pyflakes (undefined names, unused imports — would have caught several
+#    latent NameErrors in error paths), E722: no bare except,
+# B: bugbear (mutable defaults, f-string gotchas, etc.)
+select = ["F", "E722", "B"]
+ignore = [
+    # zip(strict=...) — flipping existing zips to strict without auditing
+    # each call site risks introducing new crashes where silent truncation
+    # was tolerated. Revisit deliberately in a later cleanup phase.
+    "B905",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# Wildcard re-exports are the established public API pattern for psi.
+"psi/**/api.py" = ["F401", "F403"]
+"psi/**/__init__.py" = ["F401"]
+# Qt requires default arguments like parent=QModelIndex() to match the C++
+# method signatures being overridden.
+"psi/core/enaml/editable_table_widget.py" = ["B008"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -1,6 +1,4 @@
-import numpy as np
 import pandas as pd
-import random
 
 from psi.data.sinks.api import TableStore
 

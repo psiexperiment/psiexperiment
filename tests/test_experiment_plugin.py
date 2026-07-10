@@ -3,7 +3,6 @@
 These run against ExperimentPlugin directly without a workbench. We bypass
 the lifecycle by setting private dicts manually.
 """
-import pytest
 
 from psi.experiment.metadata_item import MetadataItem
 from psi.experiment.plugin import (

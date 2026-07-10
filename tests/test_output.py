@@ -5,7 +5,7 @@ import numpy as np
 from psiaudio.stim import Cos2EnvelopeFactory, ToneFactory
 
 from psi.controller.api import (
-    EpochOutput, MUXOutput, NullOutput, RampedEpochOutput, Synchronized,
+    MUXOutput, NullOutput, RampedEpochOutput, Synchronized,
 )
 from psi.controller.engines.null import NullEngine
 
@@ -41,10 +41,19 @@ def test_epoch_output_pause(epoch_output, tb1):
     epoch_output.get_samples(0, 1000, out)
     np.testing.assert_array_equal(full_waveform1[:1000], out)
 
-    epoch_output.pause(500 / epoch_output.fs)
-    epoch_output.get_samples(0, 1000, out)
-    np.testing.assert_array_equal(full_waveform1[:500], out[:500])
-    assert np.all(out[500:] == 0)
+    # Pause on EpochOutput is an immediate boolean gate (the timestamp is
+    # ignored): while paused, get_samples leaves the buffer untouched and does
+    # not advance the playback position.
+    epoch_output.pause(1000 / epoch_output.fs)
+    out = np.zeros(1000)
+    epoch_output.get_samples(1000, 1000, out)
+    assert np.all(out == 0)
+
+    # After resume, playback continues from where it left off.
+    epoch_output.resume(2000 / epoch_output.fs)
+    out = np.zeros(1000)
+    epoch_output.get_samples(1000, 1000, out)
+    np.testing.assert_array_equal(full_waveform1[1000:2000], out)
 
 
 def test_epoch_output_buffer(epoch_output, tb1):
@@ -134,9 +143,9 @@ def test_synchronized_engines_collects_unique_engines(ao_channel, engine):
     cal = ao_channel.calibration
     from psi.controller.api import HardwareAOChannel
     second_engine = NullEngine(buffer_size=10)
-    other_channel = HardwareAOChannel(
-        name='speaker_b', fs=1000, calibration=cal, parent=second_engine,
-    )
+    other_channel = HardwareAOChannel(name='speaker_b', fs=1000,
+                                      calibration=cal)
+    second_engine.add_channel(other_channel)
 
     sync = Synchronized()
     a = NullOutput(parent=sync)
@@ -167,6 +176,13 @@ def test_epoch_output_inactive_returns_unchanged(epoch_output):
     out = np.full(50, 7.0)
     epoch_output.get_samples(0, 50, out)
     np.testing.assert_array_equal(out, np.full(50, 7.0))
+
+
+def test_epoch_output_rejects_downstream_outputs(epoch_output):
+    # Regression: this error message used to reference an undefined variable,
+    # raising NameError instead of ValueError naming the output.
+    with pytest.raises(ValueError, match='Output test does not accept'):
+        epoch_output.add_output(NullOutput())
 
 
 # -------- RampedEpochOutput --------

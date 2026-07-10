@@ -43,7 +43,7 @@ def test_delay(fs=96e3, output_channel=1, input_channel=13):
         input_delay = np.flatnonzero(data[0] > 0.001)[0]
         print(f'Actual AO to AI delay: {input_delay / fs * 1e3:2f} ms')
         print(f'Actual delay in samples: {input_delay}')
-    except:
+    except IndexError:
         print('Error determining delay. Maybe not connected correctly?')
 
     plt.plot(signal[0], label='signal')

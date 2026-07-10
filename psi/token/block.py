@@ -1,4 +1,3 @@
-import copy
 
 from atom.api import Callable, Dict, List, Property, Typed, Str
 
@@ -35,7 +34,7 @@ class Block(Declarative):
                 raise AttributeError(f'Cannot hide {h}. Parameter not in {self.name}.')
         for v in self.values.keys():
             if v not in names:
-                raise AttributeError('Cannot set value for {v}. Parameter not in {self.name}.')
+                raise AttributeError(f'Cannot set value for {v}. Parameter not in {self.name}.')
 
     def get_children(self, child_type):
         return [c for c in self.children if isinstance(c, child_type)]

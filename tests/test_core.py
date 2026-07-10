@@ -1,4 +1,3 @@
-import pytest
 
 import enaml
 with enaml.imports():
@@ -9,7 +8,6 @@ with enaml.imports():
 
 
 from psi.core.enaml.api import (
-    ManifestNotFoundError,
     PSIContribution,
     PSIManifest
 )

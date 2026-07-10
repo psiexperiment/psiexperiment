@@ -224,7 +224,7 @@ enamldef StatusDockItem(PSIDockItem):
             widgets = self.visible_widgets()
             labels = widgets[::2]
             groups = widgets[1::2]
-            log.warn([g.anchor for g in groups])
+            log.debug('Status widget anchors: %r', [g.anchor for g in groups])
             return [
                 vbox(*[hbox(l, g) for l, g in zip(labels, groups)]),
                 *[align('v_center', l, g.anchor) for l, g in zip(labels, groups)],

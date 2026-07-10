@@ -299,3 +299,32 @@ def test_derivative_initial_value(ai_channel):
     ai_channel.add_input(d)
     assert d.initial_value == 2.5
     assert d.fs == ai_channel.fs
+
+
+# -------- Input._observe_source (fs propagation on source swap) --------
+
+def test_input_source_swap_keeps_fs_propagation(engine):
+    """Regression: swapping one source for another used to unobserve the old
+    source but never observe the new one (if/elif bug), so downstream fs
+    changes silently stopped propagating."""
+    from psi.controller.api import HardwareAIChannel
+    from psi.controller.input import Input
+
+    cal = FlatCalibration.as_attenuation()
+    ch1 = HardwareAIChannel(name='ai1', fs=1000, calibration=cal)
+    ch2 = HardwareAIChannel(name='ai2', fs=2000, calibration=cal)
+
+    inp = Input()
+    ch1.add_input(inp)
+    ch2.add_input(inp)  # swaps inp.source from ch1 to ch2
+
+    seen = []
+    inp.observe('fs', lambda event: seen.append(event))
+
+    # The old source must be unobserved...
+    ch1.fs = 3000
+    assert len(seen) == 0
+
+    # ...and the new source must be observed.
+    ch2.fs = 4000
+    assert len(seen) == 1

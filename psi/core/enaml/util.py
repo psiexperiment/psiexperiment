@@ -2,7 +2,6 @@ import logging
 log = logging.getLogger(__name__)
 
 import importlib.util
-from functools import lru_cache
 from pathlib import Path
 
 from enaml.colors import Color

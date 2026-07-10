@@ -66,7 +66,6 @@ def acquire(engines, ao_channel_name, ai_channel_names, setup_queue_cb,
     ao_channel = channel_map[ao_channel_name]
     ai_channels = [channel_map[n] for n in ai_channel_names]
     ao_fs = ao_channel.fs
-    ai_fs = ai_channels[0].fs
 
     # Ensure that input channels are synced to the output channel
     for channel in ai_channels:

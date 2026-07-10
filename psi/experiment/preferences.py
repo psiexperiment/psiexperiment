@@ -36,7 +36,7 @@ class _AutoPreferences(Preferences):
             try:
                 setattr(obj, m, v)
             except AttributeError as e:
-                log.warn(e)
+                log.warning(e)
                 pass
 
     @d_func

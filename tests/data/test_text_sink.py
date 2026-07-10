@@ -25,18 +25,22 @@ def test_epochs(store, data_generator):
     metadata = {
         'input_channel': 'ai1',
     }
-    epochs = store.create_ai_epochs('epochs', 100e3, 'd', metadata)
+    store.create_ai_epochs('epochs', 100e3, 'd', metadata)
     for epochs in data_generator.iter_epochs(isi):
         store.process_ai_epochs('epochs', epochs)
 
-    source = store.get_source('epochs')
+    # TextStore only saves epoch metadata, not the signal itself.
     with pytest.raises(TypeError):
-        groups = source.get_epoch_groups('stim')
+        store._stores['epochs'].get_epoch_groups('stim')
 
-    # Ensure metadata is written out to file
-    assert source.dirty
-    source.flush()
-    assert not source.dirty
+    # get_source returns the accumulated metadata as a DataFrame.
+    source = store.get_source('epochs')
+    assert source.shape == (data_generator.n_iter, 4)
+
+    # Ensure metadata is written out to file on flush.
+    assert store._stores['epochs'].dirty
+    store.flush()
+    assert not store._stores['epochs'].dirty
 
     recording = Recording(store.base_path)
     assert not hasattr(recording, 'epochs')

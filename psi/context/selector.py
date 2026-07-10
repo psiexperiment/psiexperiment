@@ -107,7 +107,6 @@ import numpy as np
 
 import functools
 import itertools
-import operator
 
 from atom.api import (
     Atom, Bool, Callable, Dict, Enum, Event, Float, List, Property,
@@ -367,7 +366,7 @@ class SingleSetting(BaseSelector):
         if cycles is None:
             return itertools.cycle([setting])
         else:
-            return [setting]*cycle
+            return [setting]*cycles
 
     def get_value(self, item):
         '''
@@ -605,7 +604,7 @@ class FriendlyCartesianProductRange(FriendlyCartesianProductItem):
     def _get_values(self):
         try:
             return self.range_fn(self.start, self.end, self.step)
-        except:
+        except Exception:
             return []
 
 

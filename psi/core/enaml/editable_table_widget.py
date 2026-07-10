@@ -6,14 +6,14 @@ log = logging.getLogger(__name__)
 
 import pandas as pd
 
-from atom.api import (Typed, set_default, observe, Enum, Event, Property,
-                      Bool, Dict, Int, Str, Atom, List, Value)
+from atom.api import (Typed, set_default, Enum, Event, Property,
+                      Bool, Dict, Int, Str, List, Value)
 from enaml.core.declarative import d_, d_func
 from enaml.widgets.api import RawWidget
 
-from enaml.qt.QtCore import QAbstractTableModel, QModelIndex, QRect, QTimer, Qt
+from enaml.qt.QtCore import QAbstractTableModel, QModelIndex, QTimer, Qt
 from enaml.qt.QtWidgets import QAbstractItemView, QHeaderView, QStyledItemDelegate, QTableView
-from enaml.qt.QtGui import QBrush, QColor
+from enaml.qt.QtGui import QBrush
 
 from .event_filter import EventFilter
 from .util import make_color
@@ -88,11 +88,7 @@ class QEditableTableModel(QAbstractTableModel):
         with self.interface.live_edit:
             r = index.row()
             c = index.column()
-            try:
-                self.interface._set_data(r, c, value)
-            except:
-                raise
-                pass
+            self.interface._set_data(r, c, value)
             self.dataChanged.emit(index, index)
             return True
 
@@ -246,7 +242,7 @@ class QEditableTableView(QTableView):
                 width = config[c]['width']
                 self.setColumnWidth(i, width)
                 log.debug('Set column width for %s to %d', c, width)
-            except KeyError as e:
+            except KeyError:
                 log.debug('Unable to set column width for %s', c)
 
         if self.model.interface.columns_movable:
@@ -256,7 +252,7 @@ class QEditableTableView(QTableView):
                 try:
                     vi = config[c]['visual_index']
                     visual_indices.append((vi, i, c))
-                except KeyError as e:
+                except KeyError:
                     log.debug('Unable to find visual index for %s', c)
 
             # Since the current visual index of each column will change as we
@@ -554,7 +550,7 @@ class EditableTable(RawWidget):
             column = self.get_columns()[column_index]
             formatter = self.column_info.get(column, {}).get('to_string', str)
             return formatter(value)
-        except Exception as e:
+        except Exception:
             return ''
 
     def _set_data(self, *args):

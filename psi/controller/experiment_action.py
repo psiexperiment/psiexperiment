@@ -3,7 +3,7 @@ log = logging.getLogger(__name__)
 
 from functools import partial
 
-from atom.api import Str, Int, Dict, Float, Bool, Typed, Callable, List
+from atom.api import Str, Int, Dict, Float, Typed, Callable, List
 from enaml.application import timed_call
 from enaml.core.api import Declarative, d_
 
@@ -54,7 +54,7 @@ def simple_match(key, context, ignore_missing=False):
 def eval_match(code, context, ignore_missing=False):
     try:
         return eval(code, context)
-    except Exception as e:
+    except Exception:
         if ignore_missing:
             return
         raise

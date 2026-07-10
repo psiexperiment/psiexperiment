@@ -1,14 +1,12 @@
 import logging
 log = logging.getLogger(__name__)
 
-import textwrap
 
 from atom.api import Typed
 from enaml.application import deferred_call
 from enaml.layout.api import InsertItem
 from enaml.layout.dock_layout import DockLayoutValidator
-from enaml.workbench.plugin import Plugin
-from enaml.widgets.api import Action, DockItem, ToolBar
+from enaml.widgets.api import DockItem, ToolBar
 from enaml.widgets.toolkit_object import ToolkitObject
 
 from psi.core.enaml.api import PSIPlugin
@@ -50,7 +48,6 @@ class PSIDockLayoutValidator(DockLayoutValidator):
         return
 
     def result(self, node):
-        layout_items = '\t\n'.join(self._available)
         log.info('Saved layout references the following items: %s', ', '.join(self._seen_items))
         log.info('DockArea references the following items: %s', ', '.join(self._available))
         log.warning('Saved layout has the following extra items: %s', ', '.join(self._seen_items - self._available))
@@ -103,7 +100,8 @@ class ExperimentPlugin(PSIPlugin):
 
     def _refresh_toolbars(self, event=None):
         log.debug('Refreshing toolbars')
-        ui = self.workbench.get_plugin('enaml.workbench.ui')
+        # Ensure the UI plugin is started before toolbars are created.
+        self.workbench.get_plugin('enaml.workbench.ui')
         toolbars = {}
         point = self.workbench.get_extension_point(TOOLBAR_POINT)
         for extension in point.extensions:
@@ -229,7 +227,7 @@ class ExperimentPlugin(PSIPlugin):
         for name, preference in self._preferences.items():
             log.debug('Setting preferences for %s', name)
             if name not in state:
-                log.warn('Preference %s missing', name)
+                log.warning('Preference %s missing', name)
             else:
                 preference.set_preferences(self.workbench, state[name])
 
@@ -241,5 +239,5 @@ class ExperimentPlugin(PSIPlugin):
             available_names.append(item.name)
 
         available_names = ', '.join(available_names)
-        m = f'Status item {viewbox_name} not available. Valid choices are {available_names}.'
+        m = f'Status item {status_item_name} not available. Valid choices are {available_names}.'
         raise AttributeError(m)
