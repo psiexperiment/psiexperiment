@@ -11,10 +11,12 @@ from enaml.workbench.api import Extension
 from enaml.workbench.plugin import Plugin
 
 from .channel import Channel, OutputMixin, InputMixin
+from .dispatcher import ControlDispatcher
 from .engine import Engine
 from .output import BaseOutput, Synchronized
 from .input import Input
 
+from psi.core.exceptions import ActionError
 from psi.core.experiment_action import (EventLogger, ExperimentAction,
                                 ExperimentActionBase, ExperimentCallback,
                                 ExperimentEvent, ExperimentState)
@@ -137,12 +139,11 @@ def invoke_action(core, action, event_name, timestamp, kw, skip_errors=False):
         log.debug('Invoking action %s', action)
         return action.invoke(core, timestamp=timestamp, event=event_name, **kw)
     except Exception as e:
-        m = f'When invoking invoking {action} in response to the {event_name} ' \
+        m = f'When invoking {action} in response to the {event_name} ' \
             f'event, the following error was received:\n\n{e}.'
         log.error(m)
         if not skip_errors:
-            log.error('Reraising error')
-            raise RuntimeError(m) from e
+            raise ActionError(m, action=action, event=event_name) from e
 
 
 class ControllerPlugin(Plugin):
@@ -191,9 +192,16 @@ class ControllerPlugin(Plugin):
     # List of events and actions that can be associated with the event
     _events = Typed(dict, {})
     _states = Typed(dict, {})
-    _action_context = Typed(dict, {})
     _event_loggers = Typed(list, [])
-    _timers = Typed(dict, {})
+
+    # Owned exclusively by the control dispatcher thread. Never read or
+    # mutate from other threads; route through invoke_actions instead.
+    _action_context = Typed(dict, {})
+
+    # Single-owner thread for the experiment control plane. All action
+    # matching/invocation and delayed events execute here, serialized. See
+    # docs/threading.md.
+    _dispatcher = Typed(ControlDispatcher, ())
 
     # Plugin actions are automatically registered when the manifests are
     # loaded. In contrast, registered actions are registered by setup code
@@ -220,6 +228,7 @@ class ControllerPlugin(Plugin):
 
     def stop(self):
         self._unbind_observers()
+        self._dispatcher.stop()
 
     def _wrapup(self, **kwargs):
         workbench = self.workbench
@@ -403,6 +412,10 @@ class ControllerPlugin(Plugin):
         self._connect_inputs()
         self.invoke_actions('io_configured')
 
+    # Note: actions are always invoked *after* releasing self._lock. Actions
+    # may invoke commands (e.g., reset_engines) that acquire the lock again;
+    # invoking them while holding it would deadlock. See docs/threading.md.
+
     def configure_engines(self):
         with self._lock:
             for engine in self._engines.values():
@@ -411,7 +424,7 @@ class ControllerPlugin(Plugin):
                     engine.configure()
                     cb = partial(self.invoke_actions, '{}_end'.format(engine.name))
                     engine.register_done_callback(cb)
-            self.invoke_actions('engines_configured')
+        self.invoke_actions('engines_configured')
 
     def start_engines(self):
         with self._lock:
@@ -425,20 +438,19 @@ class ControllerPlugin(Plugin):
                         engine.start()
             self._master_engine.start()
             self.engines_running = True
-            self.invoke_actions('engines_started')
+        self.invoke_actions('engines_started')
 
     def stop_engines(self):
         with self._lock:
             if not self.engines_running:
                 raise ValueError('Engines not running')
-            for name in list(self._timers):
-                self.stop_timer(name)
+            self.stop_all_timers()
             for engine in self._engines.values():
                 if engine.get_channels():
                     log.info('Stopping engine %r', engine)
                     engine.stop()
             self.engines_running = False
-            self.invoke_actions('engines_stopped')
+        self.invoke_actions('engines_stopped')
 
     def reset_engines(self):
         with self._lock:
@@ -498,17 +510,38 @@ class ControllerPlugin(Plugin):
         return channels
 
     def invoke_actions(self, event_name, timestamp=None, delayed=False,
-                       cancel_existing=True, kw=None, skip_errors=False):
+                       cancel_existing=True, kw=None, skip_errors=False,
+                       wait=True):
+        '''
+        Invoke all actions bound to `event_name`.
+
+        The actions execute on the control dispatcher thread, serialized
+        with all other control-plane work. May be called from any thread.
+
+        Parameters
+        ----------
+        wait : bool
+            If True (default), block until the actions complete and return
+            their results (exceptions propagate to the caller). If False,
+            enqueue and return immediately (exceptions are logged). Use
+            False from data-plane callbacks that must not block on control
+            work.
+        '''
         if cancel_existing:
-            deferred_call(self.stop_timer, event_name)
+            self._dispatcher.cancel(event_name)
         if delayed:
             delay = timestamp-self.get_ts()
             if delay > 0:
-                cb = lambda: self._invoke_actions(event_name, timestamp, kw,
-                                                  skip_errors)
-                deferred_call(self.start_timer, event_name, delay, cb)
+                self._dispatcher.call_later(
+                    event_name, delay, self._invoke_actions, event_name,
+                    timestamp, kw, skip_errors)
                 return
-        return self._invoke_actions(event_name, timestamp, kw, skip_errors)
+        if not wait:
+            self._dispatcher.submit(self._invoke_actions, event_name,
+                                    timestamp, kw, skip_errors)
+            return
+        return self._dispatcher.submit_sync(self._invoke_actions, event_name,
+                                            timestamp, kw, skip_errors)
 
     def event_used(self, event_name):
         '''
@@ -633,20 +666,12 @@ class ControllerPlugin(Plugin):
         return self._master_engine.get_ts()
 
     def start_timer(self, name, duration, callback, cancel_existing=True):
-        if cancel_existing:
-            # If the timer does not exist, nothing will happen.
-            self.stop_timer(name)
-        try:
-            self._timers[name] = timer = threading.Timer(duration, callback)
-            timer.start()
-        except Exception:
-            log.error(f'Attempt to start timer {name} with duration {duration} sec failed')
-            raise
+        # The callback runs on the control dispatcher thread.
+        self._dispatcher.call_later(name, duration, callback,
+                                    cancel_existing=cancel_existing)
 
     def stop_timer(self, name):
-        try:
-            timer = self._timers.pop(name)
-            timer.cancel()
-            log.debug('Disabled deferred event %s', name)
-        except KeyError:
-            pass
+        self._dispatcher.cancel(name)
+
+    def stop_all_timers(self):
+        self._dispatcher.cancel_all()

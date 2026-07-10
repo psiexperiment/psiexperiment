@@ -28,14 +28,11 @@ def prepare_event_callback(input, event):
     event_name = input.name + '_acquired'
     if controller.event_used(event_name):
         def cb(data):
-            nonlocal controller
-            nonlocal event_name
-            kw = {'data': data}
-            try:
-                controller.invoke_actions(event_name, kw=kw)
-            except Exception as e:
-                log.warning('Error with callback for %s', event_name)
-                log.exception(e)
+            # This runs on the acquisition (data-plane) thread at a high
+            # rate; do not block on the control plane. Errors are logged by
+            # the dispatcher.
+            controller.invoke_actions(event_name, kw={'data': data},
+                                      wait=False)
         input.add_callback(cb)
 
 
@@ -44,9 +41,8 @@ def configure_epoch_input(input, event):
     context = event.workbench.get_plugin('psi.context')
     controller.invoke_actions(input.name + '_queue_start')
     def empty_queue_cb(event):
-        nonlocal controller
-        nonlocal input
-        controller.invoke_actions(input.name + '_queue_end')
+        # Fires from the data-plane thread when the epoch queue empties.
+        controller.invoke_actions(input.name + '_queue_end', wait=False)
     input.observe('complete', empty_queue_cb)
 
 

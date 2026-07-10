@@ -123,6 +123,37 @@ applies to them. However:
 3. If the package has CI, add `pip install "psiexperiment @ <new rev>"` to
    its matrix before merging.
 
+## Phase 4 changes (concurrency contract)
+
+Commit: see "Introduce control-plane dispatcher". Full contract in
+`docs/threading.md`.
+
+- **Action failures raise `psi.core.exceptions.ActionError`** (a
+  `PSIException`) instead of `RuntimeError`. Code catching `RuntimeError`
+  around `invoke_actions`/`invoke_command` chains must catch `ActionError`
+  (or `PSIException`). The original exception remains available as
+  `__cause__`.
+- **Actions now run on a dedicated control-dispatcher thread**, not the
+  caller's thread. `invoke_actions(wait=True)` (the default) still blocks
+  until completion, returns results, and propagates exceptions — call sites
+  usually need no change. But actions that assumed they run on the GUI
+  thread must marshal GUI work through `deferred_call` (which was already
+  the convention).
+- **New rule: never call `invoke_actions` while holding an engine lock or
+  the controller lock.** Downstream command handlers that do
+  `with output.engine.lock: ... invoke_actions(...)` must move the
+  invocation outside the `with` block, or they can deadlock against the
+  dispatcher.
+- **Data-plane callbacks should pass `wait=False`** to `invoke_actions`
+  (fire-and-forget; errors logged) so acquisition threads never block on
+  control work.
+- `ControllerPlugin.start_timer/stop_timer` still exist but are now backed
+  by the dispatcher: timer callbacks execute on the dispatcher thread
+  (previously a raw `threading.Timer` thread). `stop_all_timers()` is new.
+  The `_timers` dict attribute is gone.
+- Downstream tests that monkeypatch `threading.Timer` in the controller
+  should target `psi.controller.dispatcher` instead.
+
 ## Known-unchanged surfaces (no action needed)
 
 - `psi.controller.api`, `psi.context.api`, `psi.data.api`,

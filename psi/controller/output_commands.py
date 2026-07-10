@@ -13,7 +13,6 @@ from collections import ChainMap, Counter
 
 import numpy as np
 
-from enaml.application import deferred_call
 
 from .token_context import get_parameters, initialize_factory
 
@@ -64,12 +63,11 @@ def prepare_output_queue(event, output):
     context = event.workbench.get_plugin('psi.context')
     action_name = output.name + '_end'
 
-    # Link a callback that's invoked in the main thread (to avoid race
-    # conditions)
+    # This fires from the audio-generation (data-plane) thread when the
+    # queue empties; hand off to the control dispatcher without blocking.
     def cb(event):
-        log.info('Output queue complete. Invoking %s in MainThread',
-                 action_name)
-        deferred_call(controller.invoke_actions, action_name)
+        log.info('Output queue complete. Invoking %s', action_name)
+        controller.invoke_actions(action_name, wait=False)
     output.observe('complete', cb)
 
     for setting in context.iter_settings(selector_name, 1):
@@ -335,7 +333,9 @@ def output_pause(event, output):
         time = output.engine.get_ts() + delay
         log.debug('Pausing output %s at %f', output.name, time)
         output.pause(time)
-        controller.invoke_actions(output.name + '_paused', time)
+    # Never invoke actions while holding an engine lock (see
+    # docs/threading.md): actions may themselves acquire engine locks.
+    controller.invoke_actions(output.name + '_paused', time)
 
 
 def output_resume(event, output):
@@ -345,7 +345,7 @@ def output_resume(event, output):
         time = output.engine.get_ts() + delay
         log.debug('Resuming output %s at %f', output.name, time)
         output.resume(time)
-        controller.invoke_actions(output.name + '_resumed', time)
+    controller.invoke_actions(output.name + '_resumed', time)
 
 
 def get_tokens(workbench, ttype):
