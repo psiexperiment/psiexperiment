@@ -38,13 +38,17 @@ def disable_quick_edit():
             ~ENABLE_QUICK_EDIT_MODE)
 
 
-# This ensures that running scripts from the command line does not accidentally
-# pause the script.
-if os.name == 'nt':
-    try:
-        disable_quick_edit()
-    except Exception:
-        pass
+def setup_windows_console():
+    '''
+    Disable Windows quick-edit mode so that clicking in the console does not
+    accidentally pause the application. Called from the CLI entry points;
+    importing this module has no side effects.
+    '''
+    if os.name == 'nt':
+        try:
+            disable_quick_edit()
+        except Exception:
+            pass
 
 mesg_template = '''
 A critical exception has occurred. While we do our best to prevent these
@@ -116,7 +120,20 @@ class ExceptionHandler:
 
 
 exception_handler = ExceptionHandler()
-sys.excepthook = exception_handler
+
+
+def install_exception_handler():
+    '''
+    Install psiexperiment's exception handler as sys.excepthook so that
+    uncaught exceptions attempt a graceful experiment shutdown (saving
+    acquired data) before the process dies.
+
+    Called automatically by launch_experiment and the CLI entry points.
+    Programs that embed psiexperiment without going through those paths and
+    want this behavior must call it explicitly; importing psi.application
+    no longer installs the hook as a side effect.
+    '''
+    sys.excepthook = exception_handler
 
 
 def configure_logging(level_console=None, level_file=None, filename=None,
@@ -181,7 +198,7 @@ def configure_logging(level_console=None, level_file=None, filename=None,
     tdt_logger.setLevel('INFO')
     websockets_logger = logging.getLogger('websockets')
     websockets_logger.setLevel('INFO')
-    sys.excepthook = exception_handler
+    install_exception_handler()
 
 
 def warn_with_traceback(message, category, filename, lineno, file=None,
@@ -248,6 +265,8 @@ def list_io():
 
 
 def launch_experiment(args):
+    install_exception_handler()
+    setup_windows_console()
     set_config('ARGS', args)
     set_config('PROFILE', args.profile)
     if args.profile:
@@ -376,6 +395,8 @@ def list_paradigm_descriptions():
 def config():
     import argparse
     import psi
+
+    setup_windows_console()
 
     # Identify all the possible hardware configurations. Thoe prefixed by an
     # underscore are not available for running directly as they need to be

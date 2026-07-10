@@ -15,25 +15,35 @@ log.addHandler(logging.NullHandler())
 CONFIG_LOADED = False
 
 
-# Create default paths and then override using environment variables. All
-# environment variables must be prefixed with `PSI_` to minimize the chance of
-# collision with existing environment variables.
-DEFAULT_CONFIG = {
-    'LOG_ROOT': os.path.expanduser('~/Documents/psi/logs'),
-    'DATA_ROOT': os.path.expanduser('~/Documents/psi/data'),
-    'PROCESSED_ROOT': os.path.expanduser('~/Documents/psi/processed'),
-    'PREFERENCES_ROOT': os.path.expanduser('~/Documents/psi/preferences'),
-    'LAYOUT_ROOT': os.path.expanduser('~/Documents/psi/layout'),
-    'CFTS_ROOT': os.path.expanduser('~/Documents/psi/cfts'),
-    'IO_ROOT': os.path.expanduser('~/Documents/psi/io'),
-    'HOSTNAME': socket.gethostname(),
-}
+def _default_config():
+    '''
+    Create default paths and then override using environment variables. All
+    environment variables must be prefixed with `PSI_` to minimize the
+    chance of collision with existing environment variables.
 
-for k, v in DEFAULT_CONFIG.items():
-    DEFAULT_CONFIG[k] = os.environ.get(f'PSI_{k}', v)
+    Evaluated lazily (on first config access) so that `import psi` has no
+    side effects (no environment reads, no hostname lookup).
+    '''
+    config = {
+        'LOG_ROOT': os.path.expanduser('~/Documents/psi/logs'),
+        'DATA_ROOT': os.path.expanduser('~/Documents/psi/data'),
+        'PROCESSED_ROOT': os.path.expanduser('~/Documents/psi/processed'),
+        'PREFERENCES_ROOT': os.path.expanduser('~/Documents/psi/preferences'),
+        'LAYOUT_ROOT': os.path.expanduser('~/Documents/psi/layout'),
+        'CFTS_ROOT': os.path.expanduser('~/Documents/psi/cfts'),
+        'IO_ROOT': os.path.expanduser('~/Documents/psi/io'),
+        'HOSTNAME': socket.gethostname(),
+    }
+    for k, v in config.items():
+        config[k] = os.environ.get(f'PSI_{k}', v)
+    return config
 
-# Container for configuration variables
-_config = {}
+
+# Container for configuration variables. None until first accessed via
+# get_config/set_config (or explicitly via reload_config). Loading executes
+# the user's config.py, so it must never happen merely because psi was
+# imported.
+_config = None
 
 
 def get_config_folder():
@@ -147,7 +157,7 @@ def load_config():
     # Load the default settings
     global CONFIG_LOADED
 
-    config = DEFAULT_CONFIG.copy()
+    config = _default_config()
     config_path = get_config_file()
     if config_path.exists():
         spec = importlib.util.spec_from_file_location('settings', config_path)
@@ -160,6 +170,12 @@ def load_config():
     return config
 
 
+def _ensure_config():
+    global _config
+    if _config is None:
+        _config = load_config()
+
+
 def reload_config():
     global _config
     _config = load_config()
@@ -169,13 +185,16 @@ def set_config(setting, value):
     '''
     Set value of setting
     '''
+    _ensure_config()
     _config[setting] = value
 
 
-CFG_ERR_MESG = f'''
-Could not find setting "{{}}" in the configuration file. This may be because
+# Formatted lazily inside get_config; get_config_file() reads environment
+# variables and must not run at import time.
+CFG_ERR_MESG = '''
+Could not find setting "{}" in the configuration file. This may be because
 the configuration file is missing. The configuration file was expected to be
-found at {get_config_file()}.
+found at {}.
 
 You can either create this file manually or run `psi-config` to create it. A
 different location for the file can be specified by setting the environment
@@ -192,6 +211,7 @@ def get_config(setting=None, default_value=NoDefault):
     '''
     Get value of setting
     '''
+    _ensure_config()
     if setting is not None:
         try:
             # Identity check: the sentinel must never be compared with `!=`
@@ -204,12 +224,10 @@ def get_config(setting=None, default_value=NoDefault):
         except KeyError as e:
             if CONFIG_LOADED:
                 raise
-            mesg = CFG_ERR_MESG.strip().format(setting)
+            mesg = CFG_ERR_MESG.strip().format(setting, get_config_file())
             raise SystemError(mesg) from e
     else:
         return _config.copy()
 
-
-reload_config()
 
 from .version import __version__

@@ -154,6 +154,23 @@ Commit: see "Introduce control-plane dispatcher". Full contract in
 - Downstream tests that monkeypatch `threading.Timer` in the controller
   should target `psi.controller.dispatcher` instead.
 
+## Phase 5 changes (no side effects at import time)
+
+- **`import psi` no longer loads the configuration.** The config (including
+  execution of the user's `config.py`) loads lazily on the first
+  `get_config`/`set_config` call. Code that relied on `psi._config` being
+  populated immediately after import must call `psi.get_config()` (or
+  `psi.reload_config()`) first. `psi.DEFAULT_CONFIG` (a module-level dict)
+  no longer exists; defaults are computed inside `load_config`.
+- **`import psi.application` no longer installs `sys.excepthook`** and no
+  longer flips the Windows console quick-edit mode. `launch_experiment` and
+  the `psi` / `psi-config` CLI entry points do both automatically, so
+  normal launches are unaffected. Custom launchers that bypass
+  `launch_experiment` and want the graceful-shutdown hook must call
+  `psi.application.install_exception_handler()` (and optionally
+  `psi.application.setup_windows_console()`) themselves.
+- `configure_logging` still installs the exception handler as before.
+
 ## Known-unchanged surfaces (no action needed)
 
 - `psi.controller.api`, `psi.context.api`, `psi.data.api`,
