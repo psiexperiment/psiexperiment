@@ -2,7 +2,7 @@ import logging
 log = logging.getLogger(__name__)
 
 import importlib
-import inspect
+import sys
 from functools import cached_property
 
 from psi.core.enaml.api import load_manifest
@@ -104,7 +104,7 @@ class PluginDescription:
             Additional details that may be needed for customizing details such
             as the launcher.
         '''
-        log.info('Initializing PluginDescription %s with id %r', manifest, id)
+        log.debug('Defining PluginDescription %s with id %r', manifest, id)
         if attrs is None:
             attrs = {}
         if info is None:
@@ -114,21 +114,49 @@ class PluginDescription:
         self.selected = selected
         self.info = info
 
-        # Default values are loaded directly from the PluginManifest if the
-        # provided value is None.
-        self.setdefault('required', required)
-        self.setdefault('id', id)
-        self.setdefault('title', title)
+        # Default values are loaded directly from the PluginManifest, but
+        # only if and when actually requested (see the `required`, `id`, and
+        # `title` properties below). Building a manifest requires importing
+        # its module and instantiating it, which can be costly, and doing so
+        # for every plugin of every paradigm at import time (before the user
+        # has picked one) is wasteful.
+        self._required = required
+        self._id = id
+        self._title = title
 
     @cached_property
     def manifest(self):
         return load_manifest(self._manifest)(**self._attrs)
 
-    def setdefault(self, attr, value):
-        if value is not None:
-            setattr(self, attr, value)
-        else:
-            setattr(self, attr, getattr(self.manifest, attr))
+    @property
+    def required(self):
+        if self._required is None:
+            self._required = self.manifest.required
+        return self._required
+
+    @required.setter
+    def required(self, value):
+        self._required = value
+
+    @property
+    def id(self):
+        if self._id is None:
+            self._id = self.manifest.id
+        return self._id
+
+    @id.setter
+    def id(self, value):
+        self._id = value
+
+    @property
+    def title(self):
+        if self._title is None:
+            self._title = self.manifest.title
+        return self._title
+
+    @title.setter
+    def title(self, value):
+        self._title = value
 
 
 class ParadigmDescription:
@@ -160,8 +188,7 @@ class ParadigmDescription:
         self.title = title
         self.experiment_type = experiment_type
 
-        frame = inspect.stack()[1]
-        self.module = inspect.getmodule(frame[0]).__name__
+        self.module = sys._getframe(1).f_globals['__name__']
         self.full_name = f'{self.module}.{self.name}'
 
         if info is None:
