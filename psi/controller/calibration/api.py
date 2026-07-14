@@ -4,7 +4,7 @@ from .calibrate import (
 )
 from .chirp import chirp_sens
 from .plugin import CalibrationPlugin
-from .tone import process_tone, tone_power_conv, tone_sens
+from .tone import process_tone, tone_sens
 
 import enaml
 with enaml.imports():
