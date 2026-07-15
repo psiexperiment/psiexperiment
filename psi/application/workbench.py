@@ -19,6 +19,12 @@ with enaml.imports():
     from psi.token.manifest import TokenManifest
     from psi.controller.calibration.manifest import CalibrationManifest
 
+    # Imported for its side effect: registers psiexperiment's custom dock
+    # styles ('complete', 'error', 'nosave') with Enaml. Nothing references
+    # it by name, so the noqa keeps ruff --fix from stripping it (which has
+    # now happened twice).
+    from psi.experiment import dock_area_styles  # noqa: F401
+
 
 from psi.application import load_io_manifest
 from psi.core.enaml.api import load_manifest

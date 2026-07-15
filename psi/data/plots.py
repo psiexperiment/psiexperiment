@@ -4,15 +4,12 @@ log = logging.getLogger(__name__)
 
 from collections import defaultdict
 import itertools
-import importlib
-import string
 
 import numpy as np
 import pandas as pd
 import pyqtgraph as pg
 
-from atom.api import (Str, Float, Tuple, Int, Typed, Property, Atom,
-                      Bool, Enum, List, Dict, Callable, Value, observe,
+from atom.api import (Str, Float, Int, Typed, Property, Bool, Enum, List, Dict, Callable, Value, observe,
                       set_default)
 
 from enaml.application import deferred_call
@@ -24,44 +21,14 @@ from psiaudio.pipeline import concat, PipelineData
 from psi.util import SignalBuffer, ConfigurationException
 from psi.core.enaml.api import make_color, PSIContribution
 
-
-################################################################################
-# Utility functions
-################################################################################
-def get_freq(fs, duration):
-    n_time = int(round(fs * duration))
-    return np.fft.rfftfreq(n_time, fs**-1)
-
-
-def get_color_cycle(name, n):
-    module_name, cmap_name = name.rsplit('.', 1)
-    module = importlib.import_module(module_name)
-
-    # This generates a LinearSegmetnedColormap instance that interpolates to
-    # the requested number of colors. We can then extract these colors by
-    # calling the colormap with a mapping of 0 ... 1 where the number of values
-    # in the array is the number of colors we need (spaced equally along 0 ...
-    # 1).
-    cmap = getattr(module, cmap_name).mpl_colormap.resampled(n)
-    for i in np.linspace(0, 1, n):
-        yield tuple(int(v * 255) for v in cmap(i))
-
-
-################################################################################
-# Custom PyQtGraph subclasses
-################################################################################
-def format_time(seconds, fmt='{H:02d}:{M:02d}:{S:02.0f}'):
-    names = [i[1] for i in string.Formatter().parse(fmt)]
-    values = {}
-    if 'H' in names:
-        values['H'] = hours = int(seconds) // (60 * 60)
-        seconds -= (hours * 60 * 60)
-    if 'M' in names:
-        values['M'] = minutes = int(seconds) // 60
-        seconds -= (minutes * 60)
-    if 'S' in names:
-        values['S'] = seconds
-    return fmt.format(**values)
+# Pure-Python pieces of the plotting subsystem live in their own modules so
+# they can be tested without Qt. They are re-imported here so existing code
+# importing them from psi.data.plots keeps working.
+from .plot_ranges import BaseDataRange, ChannelDataRange, EpochDataRange
+from .plot_util import (
+    decimate_extremes, decimate_mean, format_log_ticks, format_time,
+    get_color_cycle, get_freq,
+)
 
 
 class TimeAxisItem(pg.AxisItem):
@@ -252,88 +219,6 @@ class SourceMixin(Declarative):
 ################################################################################
 # Supporting classes
 ################################################################################
-class BaseDataRange(Atom):
-
-    container = Typed(object)
-
-    # Size of display window
-    span = Float(1)
-
-    # Delay before clearing window once data has scrolled off the window.
-    delay = Float(0)
-
-    # Current visible data range
-    current_range = Tuple(Float(), Float())
-
-    def add_source(self, source):
-        raise NotImplementedError
-
-    def _default_current_range(self):
-        return 0, self.span
-
-    def _observe_delay(self, event):
-        if event['type'] == 'create':
-            return
-        self._update_range()
-
-    def _observe_span(self, event):
-        if event['type'] == 'create':
-            return
-        self._update_range()
-
-    def _update_range(self):
-        raise NotImplementedError
-
-    def data_received(self, data):
-        raise NotImplementedError
-
-
-class EpochDataRange(BaseDataRange):
-
-    max_duration = Float(0)
-
-    def data_received(self, data):
-        self.max_duration = max(data.duration, self.max_duration)
-
-    def add_source(self, source):
-        source.add_callback(self.data_received)
-
-    def _observe_max_duration(self, event):
-        self._update_range()
-
-    def _update_range(self):
-        self.current_range = 0, self.max_duration
-
-
-class ChannelDataRange(BaseDataRange):
-
-    # Automatically updated. Indicates last seen time based on the first data
-    # source reporting to this range.
-    current_time = Float(0)
-    track_sources = d_(List())
-
-    def _update_range(self):
-        low_value = (self.current_time//self.span)*self.span - self.delay
-        high_value = low_value+self.span
-        if self.current_range != (low_value, high_value):
-            self.current_range = low_value, high_value
-
-    def data_received(self, data):
-        # Invoked whenever a source recieves data (either Events or
-        # PipelineData)
-        self.current_time = max(self.current_time, data.t_end)
-        lb = (self.current_time // self.span) * self.span - self.delay
-        if self.current_range[0] != lb:
-            self._update_range()
-
-    def add_source(self, source):
-        if self.track_sources:
-            if source.name in self.track_sources:
-                source.add_callback(self.data_received)
-        else:
-            source.add_callback(self.data_received)
-
-
 ################################################################################
 # Containers (defines a shared set of containers across axes)
 ################################################################################
@@ -566,11 +451,6 @@ class EpochTimeContainer(BaseTimeContainer):
 
     def _default_data_range(self):
         return EpochDataRange(container=self, span=self.span, delay=self.delay)
-
-
-def format_log_ticks(values, scale, spacing):
-    values = 10**np.array(values).astype(float)
-    return ['{:.1f}'.format(v * 1e-3) for v in values]
 
 
 class FFTContainer(BasePlotContainer):
@@ -899,38 +779,6 @@ class ChannelPlot(SourceMixin, SinglePlot):
                 deferred_call(self.plot.setData, [], [])
             elif t.shape == d.shape:
                 deferred_call(self.plot.setData, t, d)
-
-
-def _reshape_for_decimate(data, downsample):
-    # Determine the "fragment" size that we are unable to decimate.  A
-    # downsampling factor of 5 means that we perform the operation in chunks of
-    # 5 samples.  If we have only 13 samples of data, then we cannot decimate
-    # the last 3 samples and will simply discard them.
-    offset = data.shape[-1] % downsample
-    if offset > 0:
-        data = data[..., :-offset]
-    shape = (len(data), -1, downsample) if data.ndim == 2 else (-1, downsample)
-    return data.reshape(shape)
-
-
-def decimate_mean(data, downsample):
-    # If data is empty, return imediately
-    if data.size == 0:
-        return np.array([]), np.array([])
-    data = _reshape_for_decimate(data, downsample).copy()
-    return data.mean(axis=-1)
-
-
-def decimate_extremes(data, downsample):
-    # If data is empty, return imediately
-    if data.size == 0:
-        return np.array([]), np.array([])
-
-    # Force a copy to be made, which speeds up min()/max().  Apparently min/max
-    # make a copy of a reshaped array before performing the operation, so we
-    # force it now so the copy only occurs once.
-    data = _reshape_for_decimate(data, downsample).copy()
-    return data.min(axis=-1), data.max(axis=-1)
 
 
 class FFTChannelPlot(ChannelPlot):
