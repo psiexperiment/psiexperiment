@@ -19,6 +19,7 @@ with enaml.imports():
     from psi.token.manifest import TokenManifest
     from psi.controller.calibration.manifest import CalibrationManifest
 
+    from psi.experiment import dock_area_styles
 
 from psi.application import load_io_manifest
 from psi.core.enaml.api import load_manifest
