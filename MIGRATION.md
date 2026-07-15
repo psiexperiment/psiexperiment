@@ -191,6 +191,28 @@ refuse to start** — this is intentional; fix the typo the error names.
   the expression namespace at runtime via `ExpressionNamespace.set_value`,
   register those names as context items or symbols instead.
 
+## Grouped epoch plots: incremental averaging (post-0.7.0)
+
+Grouped epoch plots (`GroupedEpochAveragePlot`, `GroupedEpochFFTPlot`,
+`GroupedEpochPhasePlot`, `StackedEpochAveragePlot`) now fold each epoch
+into a per-group running mean as it arrives instead of re-averaging the
+full epoch stack on every redraw. Redraw cost no longer grows with the
+number of epochs acquired, and raw epochs are no longer retained by the
+plot (memory is per-group, not per-epoch).
+
+- **The `_y(epoch_stack)` override hook is gone.** Subclasses that
+  customized it must override `_fold(epoch)` (per-epoch transform applied
+  before averaging) and/or `_render_mean(mean)` (running mean -> plotted y
+  values) instead. A stale `_y` override raises `TypeError` at source
+  wiring rather than being silently ignored. Linear post-processing (e.g.,
+  a referencing/diff matrix) belongs in `_render_mean`; nonlinear
+  per-epoch math (e.g., dB-PSD) belongs in `_fold`.
+- Parameters used inside `_fold` (fs, channel count, waveform averages)
+  must not change once epochs have been folded; call `_reset_plots()` if
+  they do.
+- Plots that need the raw epochs for other purposes must retain them
+  themselves (see `BiosemiEpochPlot.epochs` for the pattern).
+
 ## Known-unchanged surfaces (no action needed)
 
 - `psi.controller.api`, `psi.context.api`, `psi.data.api`,

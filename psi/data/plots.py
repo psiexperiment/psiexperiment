@@ -16,7 +16,7 @@ from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_, d_func
 
 from psiaudio import util
-from psiaudio.pipeline import concat, PipelineData
+from psiaudio.pipeline import PipelineData
 
 from psi.util import SignalBuffer, ConfigurationException
 from psi.core.enaml.api import make_color, PSIContribution
@@ -1139,17 +1139,28 @@ class EpochGroupMixin(SourceMixin, GroupMixin):
     duration = Float()
     channel = d_(Int(0))
 
-    #: Epoch bookkeeping (grouping, n_update batching). Owned by this mixin;
-    #: see psi.data.plot_groups.
+    #: Epoch bookkeeping (grouping, incremental averaging, n_update
+    #: batching). Owned by this mixin; see psi.data.plot_groups.
     _groups = Typed(EpochGroupAccumulator)
 
     def _default__groups(self):
-        return EpochGroupAccumulator(self.n_update)
+        return EpochGroupAccumulator(self.n_update, transform=self._fold)
 
-    def _y(self, epoch):
-        if len(epoch) == 0:
-            return np.full_like(self._x, np.nan)
-        return epoch.mean(axis='epoch')[self.channel]
+    def _fold(self, epoch):
+        '''
+        Transform applied to each epoch before it is folded into the
+        group's running mean. Override to average in a transformed space
+        (e.g., dB-PSD); any parameters used here (fs, waveform averages,
+        ...) must not change once epochs have been folded.
+        '''
+        return np.asarray(epoch)
+
+    def _render_mean(self, mean):
+        '''
+        Given the group's running mean (in the space produced by `_fold`),
+        return the y-values to plot.
+        '''
+        return mean[self.channel]
 
     def initialized(self, event=None):
         container = self.parent.parent
@@ -1184,6 +1195,16 @@ class EpochGroupMixin(SourceMixin, GroupMixin):
 
     def _observe_source(self, event):
         if self.source is not None:
+            # Grouped-epoch plots now average incrementally; the old _y
+            # hook (which received the stack of raw epochs) no longer
+            # exists. Fail loudly so a stale override does not silently
+            # fall back to the default rendering.
+            if hasattr(type(self), '_y'):
+                raise TypeError(
+                    f'{type(self).__name__} overrides _y, which grouped '
+                    f'epoch plots no longer call. Override _fold (per-epoch '
+                    f'transform) and/or _render_mean (running mean -> y '
+                    f'values) instead. See MIGRATION.md.')
             self.source.add_callback(self._epochs_acquired)
             self.source.observe('duration', self._update_duration)
             self.source.observe('fs', self._cache_x)
@@ -1202,11 +1223,11 @@ class EpochGroupMixin(SourceMixin, GroupMixin):
             plot = self.get_plot(pk)
             key = (self.selected_tab, pk)
             if tab_changed or self._groups.needs_update(key):
-                data = self._groups.get(key)
+                mean = self._groups.get_mean(key)
                 self._groups.mark_updated(key)
-                if data:
+                if mean is not None:
                     x = self._x
-                    y = self._y(concat(data, axis='epoch'))
+                    y = self._render_mean(mean)
                     if np.isnan(y).all():
                         todo.append((plot.setData, ([], [])))
                     elif x.shape == y.shape:
@@ -1255,18 +1276,29 @@ class GroupedEpochFFTPlot(EpochGroupMixin, BasePlot):
             self._freq = get_freq(self.source.fs, self.duration / self.waveform_averages)
             self._x = self.container.x_transform(self._freq)
 
-    def _y(self, epoch):
-        epoch = np.asarray(epoch)[:, self.channel]
-        y = epoch if len(epoch) else np.full_like(self._x, np.nan)
-        if self.average_mode == 'time':
-            y = y.mean(axis=0)
-        psd = util.psd(y, self.source.fs, waveform_averages=self.waveform_averages)
-        if self.apply_calibration:
-            result = self.source.calibration.get_db(self._freq, psd)
-        else:
-            result = util.db(psd)
+    def _fold(self, epoch):
+        y = np.asarray(epoch)[self.channel]
         if self.average_mode == 'FFT':
-            result = result.mean(axis=0)
+            # Average in dB-PSD space: fold each epoch's spectrum so the
+            # running mean equals db(psd(each epoch)).mean(axis=0).
+            psd = util.psd(y, self.source.fs,
+                           waveform_averages=self.waveform_averages)
+            return util.db(psd)
+        # 'time' mode averages the waveforms; the spectrum is computed from
+        # the mean waveform at render time.
+        return y
+
+    def _render_mean(self, mean):
+        if self.average_mode == 'FFT':
+            result = mean
+        else:
+            psd = util.psd(mean, self.source.fs,
+                           waveform_averages=self.waveform_averages)
+            result = util.db(psd)
+        if self.apply_calibration:
+            # Calibration is additive in dB: get_db(f, x) == db(x) +
+            # get_db(f, 1), so it can be applied to the dB mean.
+            result = result + self.source.calibration.get_db(self._freq, 1)
         return result
 
 
@@ -1285,8 +1317,8 @@ class GroupedEpochPhasePlot(EpochGroupMixin, BasePlot):
             self._freq = get_freq(self.source.fs, self.duration)
             self._x = self.container.x_transform(self._freq)
 
-    def _y(self, epoch):
-        y = super()._y(epoch)
+    def _render_mean(self, mean):
+        y = super()._render_mean(mean)
         return util.phase(y, self.source.fs, unwrap=self.unwrap)
 
 

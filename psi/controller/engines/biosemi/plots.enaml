@@ -60,9 +60,11 @@ class BiosemiEpochPlot(BiosemiMixin, GroupedEpochAveragePlot):
         self._reset_plots()
         super()._epochs_acquired(self.epochs)
 
-    def _y(self, epoch):
-        result = np.mean(epoch, axis=0) if len(epoch) \
-            else np.full_like(self._x, np.nan)
+    def _render_mean(self, mean):
+        # The accumulator provides the running mean over epochs (channels x
+        # time). The diff matrix is linear, so applying it to the mean is
+        # equivalent to applying it per epoch.
+        result = mean
         if self.diff_matrix is not None:
             result = self.diff_matrix @ result
         return result[self.selected_channel]
