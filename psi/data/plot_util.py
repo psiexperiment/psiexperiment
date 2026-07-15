@@ -71,6 +71,60 @@ def decimate_mean(data, downsample):
     return data.mean(axis=-1)
 
 
+def prepare_decimated_curve(data, t, downsample, mode):
+    '''
+    Prepare (x, y, plot_kw) arrays for rendering a channel trace.
+
+    Parameters
+    ----------
+    data : 1D array
+        Signal for the visible range (NaN-filled where no data exists yet).
+    t : 1D array
+        Time axis matching `data`.
+    downsample : int
+        Decimation factor (pixels per sample); applied when > 1 and mode is
+        not 'none'.
+    mode : {'extremes', 'mean', 'none'}
+        Decimation strategy.
+
+    Returns
+    -------
+    (x, y, plot_kw) with empty arrays when the visible range contains no
+    data (i.e., the plot should be cleared), or None when x and y are
+    inconsistent (the caller should skip this update entirely — this can
+    happen transiently while buffers resize).
+    '''
+    empty = np.array([]), np.array([]), {}
+    if mode != 'none' and downsample > 1:
+        t = t[::downsample]
+        if mode == 'extremes':
+            d_min, d_max = decimate_extremes(data, downsample)
+            t = t[:len(d_min)]
+            x = np.c_[t, t].ravel()
+            y = np.c_[d_min, d_max].ravel()
+            if y.size and np.isnan(y).all():
+                return empty
+            if x.shape != y.shape:
+                return None
+            return x, y, {'connect': 'pairs'}
+        elif mode == 'mean':
+            d = decimate_mean(data, downsample)
+            t = t[:len(d)]
+            if d.size and np.isnan(d).all():
+                return empty
+            if t.shape != d.shape:
+                return None
+            return t, d, {}
+        raise ValueError(f'Unsupported decimation mode "{mode}"')
+    t = t[:len(data)]
+    d = data[:len(t)]
+    if d.size and np.isnan(d).all():
+        return empty
+    if t.shape != d.shape:
+        return None
+    return t, d, {}
+
+
 def decimate_extremes(data, downsample):
     # If data is empty, return immediately
     if data.size == 0:

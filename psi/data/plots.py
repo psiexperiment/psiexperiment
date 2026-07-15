@@ -24,10 +24,11 @@ from psi.core.enaml.api import make_color, PSIContribution
 # Pure-Python pieces of the plotting subsystem live in their own modules so
 # they can be tested without Qt. They are re-imported here so existing code
 # importing them from psi.data.plots keeps working.
+from .plot_groups import EpochGroupAccumulator
 from .plot_ranges import BaseDataRange, ChannelDataRange, EpochDataRange
-from .plot_util import (
+from .plot_util import (  # noqa: F401 -- re-exported for compatibility
     decimate_extremes, decimate_mean, format_log_ticks, format_time,
-    get_color_cycle, get_freq,
+    get_color_cycle, get_freq, prepare_decimated_curve,
 )
 
 
@@ -754,31 +755,11 @@ class ChannelPlot(SourceMixin, SinglePlot):
         data = self._buffer.get_range_filled(low, high, np.nan)
         t = self._cached_time[:data.shape[-1]] + low
         data = self._y(data)
-        if self.decimate_mode != 'none' and self.downsample > 1:
-            t = t[::self.downsample]
-            if self.decimate_mode == 'extremes':
-                d_min, d_max = decimate_extremes(data, self.downsample)
-                t = t[:len(d_min)]
-                x = np.c_[t, t].ravel()
-                y = np.c_[d_min, d_max].ravel()
-                if np.isnan(y).all():
-                    deferred_call(self.plot.setData, [], [])
-                elif x.shape == y.shape:
-                    deferred_call(self.plot.setData, x, y, connect='pairs')
-            elif self.decimate_mode == 'mean':
-                d = decimate_mean(data, self.downsample)
-                t = t[:len(d)]
-                if np.isnan(d).all():
-                    deferred_call(self.plot.setData, [], [])
-                elif t.shape == d.shape:
-                    deferred_call(self.plot.setData, t, d)
-        else:
-            t = t[:len(data)]
-            d = data[:len(t)]
-            if np.isnan(d).all():
-                deferred_call(self.plot.setData, [], [])
-            elif t.shape == d.shape:
-                deferred_call(self.plot.setData, t, d)
+        result = prepare_decimated_curve(data, t, self.downsample,
+                                         self.decimate_mode)
+        if result is not None:
+            x, y, plot_kw = result
+            deferred_call(self.plot.setData, x, y, **plot_kw)
 
 
 class FFTChannelPlot(ChannelPlot):
@@ -1030,10 +1011,9 @@ class GroupMixin(ColorCycleMixin):
     plots = Dict()
     labels = Dict()
 
+    #: Used by ResultPlot to accumulate x/y points per group. The
+    #: grouped-epoch plots use `_groups` (see EpochGroupMixin) instead.
     _data_cache = Dict()
-    _data_count = Dict()
-    _data_updated = Dict()
-    _data_n_samples = Dict()
 
     _plot_colors = Typed(object)
     _x = Typed(np.ndarray)
@@ -1116,16 +1096,15 @@ class GroupMixin(ColorCycleMixin):
             deferred_call(setattr, self, 'selected_tab', self.last_seen_key[0])
 
     def _reset_plots(self):
-        # Clear any existing plots and reset color cycle
-        for plot in self.plots.items():
+        # Clear any existing plots and reset color cycle. Regression note:
+        # this used to iterate .items(), passing (key, plot) tuples to
+        # removeItem.
+        for plot in self.plots.values():
             self.parent.viewbox.removeItem(plot)
-        for label in self.labels.items():
+        for label in self.labels.values():
             self.parent.viewbox_norm.removeItem(label)
         self.plots = {}
         self._data_cache = {}
-        self._data_count = {}
-        self._data_updated = {}
-        self._data_n_samples = {}
 
     def get_plots(self):
         return []
@@ -1160,6 +1139,13 @@ class EpochGroupMixin(SourceMixin, GroupMixin):
     duration = Float()
     channel = d_(Int(0))
 
+    #: Epoch bookkeeping (grouping, n_update batching). Owned by this mixin;
+    #: see psi.data.plot_groups.
+    _groups = Typed(EpochGroupAccumulator)
+
+    def _default__groups(self):
+        return EpochGroupAccumulator(self.n_update)
+
     def _y(self, epoch):
         if len(epoch) == 0:
             return np.full_like(self._x, np.nan)
@@ -1177,34 +1163,24 @@ class EpochGroupMixin(SourceMixin, GroupMixin):
         self.duration = self.source.duration
 
     def _epochs_acquired(self, epochs):
-        for d in epochs:
-            key = self.group_key(d.metadata)
-            if key is not None:
-                self._data_cache.setdefault(key, []).append(d)
-                self._data_count[key] = self._data_count.get(key, 0) + 1
-
-                # Track number of samples
-                n = max(self._data_n_samples.get(key, 0), d.shape[-1])
-                self._data_n_samples[key] = n
-
+        # Regression note: `key` used to be the bare loop variable, which was
+        # undefined (NameError) if `epochs` was empty while n_epochs claimed
+        # otherwise.
+        key = self._groups.add_epochs(epochs, self.group_key)
         if epochs.n_epochs is not None and epochs.n_epochs > 0:
             self.last_seen_key = key
 
         # Does at least one epoch need to be updated?
         self._check_selected_tab_count()
 
-    def _get_selected_tab_keys(self):
-        return [k for k in self._data_count if k[0] == self.selected_tab]
-
     def _check_selected_tab_count(self):
-        for key in self._get_selected_tab_keys():
-            current_n = self._data_count[key]
-            last_n = self._data_updated.get(key, 0)
-            if current_n >= (last_n + self.n_update):
-                n = max(self._data_n_samples.values())
-                self.duration = n / self.source.fs
-                self.update()
-                break
+        if self._groups.tab_needs_update(self.selected_tab):
+            self.duration = self._groups.max_samples / self.source.fs
+            self.update()
+
+    def _reset_plots(self):
+        super()._reset_plots()
+        self._groups.reset()
 
     def _observe_source(self, event):
         if self.source is not None:
@@ -1225,12 +1201,9 @@ class EpochGroupMixin(SourceMixin, GroupMixin):
         for pk in self.plot_keys:
             plot = self.get_plot(pk)
             key = (self.selected_tab, pk)
-            last_n = self._data_updated.get(key, 0)
-            current_n = self._data_count.get(key, 0)
-            needs_update = current_n >= (last_n + self.n_update)
-            if tab_changed or needs_update:
-                data = self._data_cache.get(key, [])
-                self._data_updated[key] = len(data)
+            if tab_changed or self._groups.needs_update(key):
+                data = self._groups.get(key)
+                self._groups.mark_updated(key)
                 if data:
                     x = self._x
                     y = self._y(concat(data, axis='epoch'))
@@ -1242,7 +1215,6 @@ class EpochGroupMixin(SourceMixin, GroupMixin):
                     todo.append((plot.setData, ([], [])))
 
         def update():
-            nonlocal todo
             for setter, args in todo:
                 setter(*args)
 

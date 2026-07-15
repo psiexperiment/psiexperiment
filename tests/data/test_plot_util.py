@@ -77,3 +77,52 @@ def test_decimate_preserves_input():
     decimate_mean(data, 2)
     decimate_extremes(data, 2)
     np.testing.assert_array_equal(data, original)
+
+
+def test_prepare_curve_raw():
+    from psi.data.plot_util import prepare_decimated_curve
+    t = np.arange(4) / 4
+    data = np.array([1.0, 2.0, 3.0, 4.0])
+    x, y, kw = prepare_decimated_curve(data, t, downsample=1, mode='extremes')
+    np.testing.assert_array_equal(x, t)
+    np.testing.assert_array_equal(y, data)
+    assert kw == {}
+
+
+def test_prepare_curve_extremes():
+    from psi.data.plot_util import prepare_decimated_curve
+    t = np.arange(4.0)
+    data = np.array([1.0, 3.0, 4.0, 2.0])
+    x, y, kw = prepare_decimated_curve(data, t, downsample=2, mode='extremes')
+    # Each decimation bin produces a (min, max) vertical segment.
+    np.testing.assert_array_equal(x, [0, 0, 2, 2])
+    np.testing.assert_array_equal(y, [1, 3, 2, 4])
+    assert kw == {'connect': 'pairs'}
+
+
+def test_prepare_curve_mean():
+    from psi.data.plot_util import prepare_decimated_curve
+    t = np.arange(4.0)
+    data = np.array([1.0, 3.0, 4.0, 2.0])
+    x, y, kw = prepare_decimated_curve(data, t, downsample=2, mode='mean')
+    np.testing.assert_array_equal(x, [0, 2])
+    np.testing.assert_array_equal(y, [2, 3])
+    assert kw == {}
+
+
+def test_prepare_curve_all_nan_clears_plot():
+    from psi.data.plot_util import prepare_decimated_curve
+    t = np.arange(4.0)
+    data = np.full(4, np.nan)
+    for mode, ds in [('extremes', 2), ('mean', 2), ('none', 1)]:
+        x, y, kw = prepare_decimated_curve(data, t, downsample=ds, mode=mode)
+        assert x.size == 0 and y.size == 0
+
+
+def test_prepare_curve_mismatched_shapes_returns_none():
+    from psi.data.plot_util import prepare_decimated_curve
+    # Time axis shorter than the decimated data: transient buffer-resize
+    # state; the caller must skip the update.
+    t = np.arange(1.0)
+    data = np.arange(8.0)
+    assert prepare_decimated_curve(data, t, downsample=2, mode='mean') is None
