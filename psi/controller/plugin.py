@@ -1,6 +1,8 @@
 import logging
 log = logging.getLogger(__name__)
 
+import builtins
+import difflib
 from functools import partial
 import threading
 
@@ -406,6 +408,39 @@ class ControllerPlugin(Plugin):
                                         kwargs=kwargs)
         self._registered_actions.append(action)
 
+    def validate_action_dependencies(self):
+        '''
+        Verify that every action's event expression references only known
+        events and state flags.
+
+        Because action-event matching is expression-based, a typo (e.g.,
+        `target_ended` instead of `target_end`) does not raise; the action
+        simply never fires. This check converts that silent failure into a
+        hard error at experiment start, before any data is acquired. Actions
+        bound to events that are generated dynamically at runtime can opt
+        out with `allow_unregistered = True`.
+        '''
+        # The action-evaluation context contains every registered event name
+        # plus the <state>_active flags, which is exactly the universe of
+        # names an event expression may reference. Builtins are permitted
+        # since expressions are evaluated with eval.
+        known = set(self._action_context)
+        allowed = known | set(dir(builtins))
+        errors = []
+        for action in self._actions:
+            if getattr(action, 'allow_unregistered', False):
+                continue
+            for name in sorted(set(action.dependencies) - allowed):
+                close = difflib.get_close_matches(name, sorted(known), n=3)
+                hint = ' Did you mean: {}?'.format(', '.join(close)) \
+                    if close else ''
+                errors.append(f'{action} references unknown event or state '
+                              f'"{name}".{hint}')
+        if errors:
+            mesg = 'Invalid experiment actions:\n' + \
+                '\n'.join(f' - {e}' for e in errors)
+            raise ActionError(mesg)
+
     def finalize_io(self):
         log.info('Finalizing IO')
         self._connect_outputs()
@@ -641,6 +676,7 @@ class ControllerPlugin(Plugin):
 
     def _start_experiment(self):
         try:
+            self.validate_action_dependencies()
             self.invoke_actions('experiment_initialize')
             self.invoke_actions('experiment_prepare')
             self.invoke_actions('experiment_start')

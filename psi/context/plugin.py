@@ -1,7 +1,9 @@
 import logging
 log = logging.getLogger(__name__)
 
+import builtins
 from copy import deepcopy
+import difflib
 from functools import partial
 import itertools
 
@@ -10,6 +12,7 @@ import numpy as np
 from atom.api import Typed, Bool, observe, Property
 
 from psi.core.enaml.api import load_manifests
+from psi.util import get_dependencies
 from .context_item import (
     ContextItem, ContextGroup, ContextSet, Expression, Parameter, ContextMeta
 )
@@ -464,8 +467,50 @@ class ContextPlugin(PSIPlugin):
         if self.changes_pending:
             log.debug('Selectors do not match. Changes pending.')
 
+    def validate_expressions(self):
+        '''
+        Verify that every context expression parses and references only
+        known names (other context items, symbols, or Python builtins).
+
+        Expressions are evaluated per-trial, so without this check a typo
+        surfaces as an exception partway through a running experiment. It is
+        run by apply_changes so problems are reported when the user clicks
+        Apply (or when the experiment initializes), before data collection.
+        '''
+        known = set(self.context_items) | set(self.context_expressions) \
+            | set(self.symbols)
+        allowed = known | set(dir(builtins))
+
+        expressions = dict(self.all_expressions)
+        expressions.update(
+            {n: i.expression for n, i in self.context_expressions.items()})
+
+        errors = []
+        for name, expression in expressions.items():
+            # EnumParameter expressions may be non-string values (e.g., the
+            # integer mapped to a choice); the namespace str()s them before
+            # evaluation, so do the same here.
+            expression = str(expression)
+            try:
+                dependencies = get_dependencies(expression)
+            except SyntaxError as e:
+                errors.append(f'"{name}": expression {expression!r} is not '
+                              f'valid Python ({e.msg}).')
+                continue
+            for dep in sorted(set(dependencies) - allowed):
+                close = difflib.get_close_matches(dep, sorted(known), n=3)
+                hint = ' Did you mean: {}?'.format(', '.join(close)) \
+                    if close else ''
+                errors.append(f'"{name}": expression {expression!r} '
+                              f'references unknown name "{dep}".{hint}')
+        if errors:
+            mesg = 'Cannot apply the current context settings:\n' + \
+                '\n'.join(f' - {e}' for e in errors)
+            raise ValueError(mesg)
+
     def apply_changes(self, cycles=np.inf):
         log.debug('Applying changes')
+        self.validate_expressions()
         self._apply_parameter_state()
         self._apply_selector_state()
         self._namespace.update_expressions(self.expressions)

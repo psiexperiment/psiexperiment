@@ -181,6 +181,48 @@ def test_unique_values_string_returns_set_of_scalars(workbench):
     assert all(not isinstance(v, tuple) for v in s)
 
 
+# -------- expression validation at apply time --------
+
+def test_apply_changes_rejects_unknown_name(workbench):
+    context = workbench.get_plugin('psi.context')
+    context.context_items['fc'].expression = 'levl * 2'
+    with pytest.raises(ValueError) as excinfo:
+        context.apply_changes()
+    mesg = str(excinfo.value)
+    assert 'unknown name "levl"' in mesg
+    # The suggestion names the correctly-spelled parameter.
+    assert 'Did you mean' in mesg
+    assert 'level' in mesg
+
+
+def test_apply_changes_rejects_syntax_error(workbench):
+    context = workbench.get_plugin('psi.context')
+    context.context_items['fc'].expression = '32e3 /'
+    with pytest.raises(ValueError, match='not valid Python'):
+        context.apply_changes()
+
+
+def test_apply_changes_allows_builtins_and_cross_references(workbench):
+    context = workbench.get_plugin('psi.context')
+    context.context_items['fc'].expression = 'max(level, 10) * 2'
+    context.apply_changes()
+    context.next_setting('default')
+    assert context.get_value('fc') == 120
+
+
+def test_apply_changes_valid_after_fixing_error(workbench):
+    # An error must not corrupt state: fixing the expression and re-applying
+    # succeeds.
+    context = workbench.get_plugin('psi.context')
+    context.context_items['fc'].expression = 'levl * 2'
+    with pytest.raises(ValueError):
+        context.apply_changes()
+    context.context_items['fc'].expression = 'level * 2'
+    context.apply_changes()
+    context.next_setting('default')
+    assert context.get_value('fc') == 120
+
+
 def test_revert_changes_restores_state(workbench):
     context = workbench.get_plugin('psi.context')
     context.apply_changes()

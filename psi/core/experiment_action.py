@@ -3,7 +3,7 @@ log = logging.getLogger(__name__)
 
 from functools import partial
 
-from atom.api import Str, Int, Dict, Float, Typed, Callable, List
+from atom.api import Bool, Str, Int, Dict, Float, Typed, Callable, List
 from enaml.application import timed_call
 from enaml.core.api import Declarative, d_
 
@@ -80,6 +80,11 @@ class ExperimentActionBase(Declarative):
     #: Should action be delayed? If nonzero, this may cause some timing issues.
     #: Use with caution.
     delay = d_(Float(0))
+
+    #: If True, the controller's startup validation will not require the
+    #: names referenced by `event` to be registered events or state flags.
+    #: Only set this for events that are generated dynamically at runtime.
+    allow_unregistered = d_(Bool(False))
 
     #: Number of times the command was invoked 
     invocations = Int(0)

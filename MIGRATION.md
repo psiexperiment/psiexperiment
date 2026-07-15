@@ -171,6 +171,26 @@ Commit: see "Introduce control-plane dispatcher". Full contract in
   `psi.application.setup_windows_console()`) themselves.
 - `configure_logging` still installs the exception handler as before.
 
+## Fail-fast validation (post-0.7.0)
+
+Two validation passes now convert previously-silent misconfigurations into
+hard errors with descriptive messages. **Paradigms with latent typos that
+"worked" before (because the broken piece silently never fired) will now
+refuse to start** — this is intentional; fix the typo the error names.
+
+- **Experiment actions**: at experiment start, every `ExperimentAction`'s
+  event expression is checked against the registered events and state
+  flags. Unknown names raise `ActionError` with close-match suggestions.
+  Actions bound to events generated dynamically at runtime must set
+  `allow_unregistered = True` on the action.
+- **Context expressions**: `apply_changes` (run when the user clicks Apply
+  and at experiment initialization) now verifies that every context-item
+  expression parses and references only known context items, symbols, or
+  builtins. Errors raise `ValueError` naming the parameter, the unknown
+  name, and suggestions. If a paradigm injects non-context-item names into
+  the expression namespace at runtime via `ExpressionNamespace.set_value`,
+  register those names as context items or symbols instead.
+
 ## Known-unchanged surfaces (no action needed)
 
 - `psi.controller.api`, `psi.context.api`, `psi.data.api`,
