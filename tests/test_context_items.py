@@ -95,16 +95,37 @@ def test_file_parameter_expression_roundtrip():
 
 
 def test_enum_parameter_invalid_expression_raises():
-    # NOTE: the error-formatting code in EnumParameter._set_expression does
-    # `', '.join(self.choices.values())`, so it only works when choice values
-    # are strings. With int values, an unknown expression hits a TypeError
-    # before the intended ValueError can be raised — see psi/context/context_item.py.
     item = EnumParameter(
         name='mode',
         choices={'fast': 'F', 'slow': 'S'},
     )
     with pytest.raises(ValueError, match='Could not map expression'):
         item.expression = 'NOT_A_CHOICE'
+
+
+def test_enum_parameter_invalid_expression_nonstring_choices():
+    # Regression: the error formatting joined choice values directly, so
+    # non-string values (the common case) raised TypeError instead of the
+    # intended ValueError.
+    item = EnumParameter(
+        name='polarity',
+        choices={'positive': 1, 'negative': -1},
+    )
+    with pytest.raises(ValueError, match='Valid choices are 1, -1'):
+        item.expression = 'NOT_A_CHOICE'
+
+
+def test_enum_parameter_set_value_valid_key():
+    # Regression: to_expression was missing a return for valid keys, so
+    # set_value with a legal choice silently did nothing.
+    item = EnumParameter(
+        name='polarity',
+        choices={'positive': 1, 'negative': -1},
+    )
+    assert item.to_expression('negative') == -1
+    item.set_value('negative')
+    assert item.selected == 'negative'
+    assert item.expression == -1
 
 
 def test_enum_parameter_default_selected_falls_back_to_first():

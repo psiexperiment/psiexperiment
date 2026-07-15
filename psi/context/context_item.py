@@ -327,7 +327,8 @@ class EnumParameter(Parameter):
                 break
         else:
             if expression is not None:
-                valid_choices = ', '.join(self.choices.values())
+                # Choice values are not necessarily strings.
+                valid_choices = ', '.join(str(v) for v in self.choices.values())
                 t = 'Could not map expression {} to choice. Valid choices are {}.'
                 raise ValueError(t.format(expression, valid_choices))
 
@@ -343,7 +344,9 @@ class EnumParameter(Parameter):
 
     def to_expression(self, value):
         if value in self.choices.keys():
-            self.choices[value]
+            # Regression note: the return was missing here, so set_value with
+            # a valid choice key assigned expression = None (a silent no-op).
+            return self.choices[value]
         else:
             return f'"{value}"'
 
