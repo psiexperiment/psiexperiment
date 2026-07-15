@@ -14,6 +14,8 @@ O(groups x samples) instead of O(total epochs).
 
 Pure Python — no Qt — so the bookkeeping is testable without a GUI.
 '''
+import threading
+
 import numpy as np
 
 
@@ -24,9 +26,13 @@ class RunningMean:
     Arrays may grow along the last axis (ragged epochs): shorter arrays are
     treated as missing data (NaN) for the trailing samples, so the mean at
     each sample position reflects only the epochs that covered it.
+
+    Thread-safe: epochs are typically folded from an acquisition thread
+    while the GUI thread reads the mean for rendering.
     '''
 
     def __init__(self):
+        self._lock = threading.Lock()
         self._sum = None
         self._count = None
 
@@ -38,19 +44,20 @@ class RunningMean:
         present = ~np.isnan(arr)
         values = np.where(present, arr, 0)
 
-        if self._sum is None:
-            self._sum = values.astype(np.double)
-            self._count = present.astype(np.intp)
-            return
+        with self._lock:
+            if self._sum is None:
+                self._sum = values.astype(np.double)
+                self._count = present.astype(np.intp)
+                return
 
-        n_old = self._sum.shape[-1]
-        n_new = arr.shape[-1]
-        if n_new > n_old:
-            pad = [(0, 0)] * (self._sum.ndim - 1) + [(0, n_new - n_old)]
-            self._sum = np.pad(self._sum, pad)
-            self._count = np.pad(self._count, pad)
-        self._sum[..., :n_new] += values
-        self._count[..., :n_new] += present
+            n_old = self._sum.shape[-1]
+            n_new = arr.shape[-1]
+            if n_new > n_old:
+                pad = [(0, 0)] * (self._sum.ndim - 1) + [(0, n_new - n_old)]
+                self._sum = np.pad(self._sum, pad)
+                self._count = np.pad(self._count, pad)
+            self._sum[..., :n_new] += values
+            self._count[..., :n_new] += present
 
     @property
     def mean(self):
@@ -58,10 +65,12 @@ class RunningMean:
         Current mean, or None if nothing has been added. Positions never
         covered by any epoch are NaN.
         '''
-        if self._sum is None:
-            return None
-        with np.errstate(invalid='ignore', divide='ignore'):
-            return np.where(self._count > 0, self._sum / self._count, np.nan)
+        with self._lock:
+            if self._sum is None:
+                return None
+            with np.errstate(invalid='ignore', divide='ignore'):
+                return np.where(self._count > 0, self._sum / self._count,
+                                np.nan)
 
 
 class EpochGroupAccumulator:

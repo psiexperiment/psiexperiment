@@ -213,6 +213,22 @@ plot (memory is per-group, not per-epoch).
 - Plots that need the raw epochs for other purposes must retain them
   themselves (see `BiosemiEpochPlot.epochs` for the pattern).
 
+## Plot thread ownership (post-0.7.0)
+
+Plot redraws now always execute on the GUI thread. Data-plane callbacks
+(and `data_range` observers) trigger redraws via the new
+`BasePlot.request_update()`, which marshals to the GUI thread and coalesces
+bursts of data into one redraw per event-loop pass.
+
+- Custom plot classes with callbacks that receive acquired data must call
+  `self.request_update()` from the callback instead of `self.update()`.
+  Calling `update()` from an acquisition thread creates/mutates Qt objects
+  off the GUI thread (previously undefined behavior that mostly worked).
+- Observers wired as `data_range.observe('current_time', self.update)`
+  should target `self.request_update` instead.
+- Redraw coalescing also means high-rate sources no longer redraw once per
+  chunk; expect lower GUI CPU with identical visuals.
+
 ## Known-unchanged surfaces (no action needed)
 
 - `psi.controller.api`, `psi.context.api`, `psi.data.api`,

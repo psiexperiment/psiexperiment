@@ -56,6 +56,25 @@ Experiment-level decisions: action matching and invocation
   `deferred_call` is fine; waiting for the GUI is not), since the GUI may
   itself be blocked waiting for the dispatcher.
 
+### The plot layer
+
+Plots straddle the data and GUI planes, so they follow explicit ownership
+rules:
+
+- **Qt plot items are owned by the GUI thread.** `update()` — which creates
+  plot items on demand (`_make_new_plot`) and computes what to render — runs
+  only on the GUI thread.
+- **Data-plane callbacks only enqueue.** A callback receiving data appends
+  to its buffer (`SignalBuffer` is internally locked) or folds into its
+  accumulator (`RunningMean` is internally locked), then calls
+  `plot.request_update()` — never `update()` directly. `request_update`
+  marshals the redraw to the GUI thread and coalesces bursts: any number of
+  callbacks between event-loop passes produce a single redraw.
+- The `data_range` observer chain (`current_range`/`current_time` changes)
+  fires on whichever thread received the data; observers wired from that
+  chain to plots must target `request_update`, and container-level handlers
+  must defer any direct pg calls (e.g., `setXRange`).
+
 ### 3. GUI thread (Qt event loop)
 
 Widget updates, dock layout, toolbar state. Reached exclusively via

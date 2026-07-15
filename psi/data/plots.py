@@ -612,10 +612,12 @@ class ViewBox(ColorCycleMixin, PSIContribution):
         return NormalizedViewBox(self.viewbox)
 
     def update(self, event=None):
+        # May be reached from the acquisition thread via the data_range
+        # observer chain; let each plot marshal its redraw to the GUI thread.
         for child in self.children:
             if not isinstance(child, BasePlot):
                 continue
-            child.update()
+            child.request_update()
 
     def add_plot(self, plot, label=None):
         self.viewbox.addItem(plot)
@@ -671,8 +673,31 @@ class BasePlot(PSIContribution):
 
     viewbox_name = d_(Str())
 
+    #: True if a redraw has been scheduled on the GUI thread but has not run
+    #: yet. Managed by request_update/_deferred_update.
+    _update_pending = Bool(False)
+
     def _get_container(self):
         return self.parent.parent
+
+    def request_update(self, event=None):
+        '''
+        Schedule `update` to run on the GUI thread.
+
+        This is the only way data-plane callbacks may trigger a redraw (see
+        docs/threading.md): `update` creates and mutates Qt plot items, which
+        must only happen on the GUI thread. Requests are coalesced — a burst
+        of data callbacks produces a single redraw per event-loop pass.
+        '''
+        if not self._update_pending:
+            self._update_pending = True
+            deferred_call(self._deferred_update)
+
+    def _deferred_update(self):
+        # Clear the flag before updating so data arriving while we redraw
+        # schedules the next redraw.
+        self._update_pending = False
+        self.update()
 
     def update(self, event=None):
         pass
@@ -744,8 +769,10 @@ class ChannelPlot(SourceMixin, SinglePlot):
             pass
 
     def _append_data(self, data):
+        # Runs on the acquisition thread; the redraw is marshaled to the GUI
+        # thread (see BasePlot.request_update).
         self._buffer.append_data(data)
-        self.update()
+        self.request_update()
 
     def _y(self, data):
         return data[self.channel]
@@ -790,7 +817,7 @@ class FFTChannelPlot(ChannelPlot):
 
     def _append_data(self, data):
         self._buffer.append_data(data)
-        self.update()
+        self.request_update()
 
     def _cache_x(self, event=None):
         if self.source.fs:
@@ -843,7 +870,7 @@ class TimepointPlot(SourceMixin, SymbolMixin, SinglePlot):
                 self._rising.append(row['ts'])
             if row['event'] == 'falling':
                 self._falling.append(row['ts'])
-        self.update()
+        self.request_update()
 
     def update(self, event=None):
         # Discard unnecessary samples. Pad lower and upper range since
@@ -924,7 +951,7 @@ class EventPlot(BaseTimeseriesPlot):
 
     def _observe_event(self, event):
         if self.event is not None:
-            self.parent.data_range.observe('current_time', self.update)
+            self.parent.data_range.observe('current_time', self.request_update)
 
     def _default_name(self):
         return self.event + '_timeseries'
@@ -934,7 +961,7 @@ class EventPlot(BaseTimeseriesPlot):
             self._rising.append(timestamp)
         elif bound == 'end':
             self._falling.append(timestamp)
-        self.update()
+        self.request_update()
 
 
 class TimeseriesPlot(BaseTimeseriesPlot):
@@ -956,7 +983,7 @@ class TimeseriesPlot(BaseTimeseriesPlot):
             # Need to observe the current time to ensure that rectangles that
             # have not recieved a "falling" event continue to "expand" as time
             # advances.
-            self.parent.data_range.observe('current_time', self.update)
+            self.parent.data_range.observe('current_time', self.request_update)
             self.source.add_callback(self._append_data)
 
     def _append_data(self, data):
@@ -1187,7 +1214,7 @@ class EpochGroupMixin(SourceMixin, GroupMixin):
     def _check_selected_tab_count(self):
         if self._groups.tab_needs_update(self.selected_tab):
             self.duration = self._groups.max_samples / self.source.fs
-            self.update()
+            self.request_update()
 
     def _reset_plots(self):
         super()._reset_plots()
@@ -1403,6 +1430,9 @@ class ResultPlot(SourceMixin, SymbolMixin, GroupMixin, SinglePlot):
             self.source.add_callback(self._data_acquired)
 
     def _data_acquired(self, data):
+        # Runs on the acquisition thread. Note that `key` is initialized so
+        # an empty container does not raise NameError below.
+        key = None
         for d in data:
             if isinstance(d, PipelineData):
                 d = d.metadata
@@ -1411,8 +1441,9 @@ class ResultPlot(SourceMixin, SymbolMixin, GroupMixin, SinglePlot):
                 cache = self._data_cache.setdefault(key, {'x': [], 'y': []})
                 cache['x'].append(d[self.x_column])
                 cache['y'].append(d[self.y_column])
-        self.last_seen_key = key
-        self.update()
+        if key is not None:
+            self.last_seen_key = key
+        self.request_update()
 
     def update(self, event=None, tab_changed=False):
         default = {'x': [], 'y': []}

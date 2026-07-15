@@ -87,6 +87,80 @@ def test_fft_plot_incremental_matches_batch(average_mode):
     assert result[0] < -250 and expected[0] < -250
 
 
+def test_request_update_coalesces(monkeypatch):
+    """request_update marshals redraws to the GUI thread via deferred_call
+    and coalesces bursts into a single update per event-loop pass."""
+    from psi.data import plots
+
+    deferred = []
+    monkeypatch.setattr(plots, 'deferred_call', lambda cb, *a: deferred.append(cb))
+
+    updates = []
+
+    class _Plot(plots.BasePlot):
+        def update(self, event=None):
+            updates.append(1)
+
+    plot = _Plot()
+
+    # A burst of data callbacks posts exactly one deferred redraw.
+    plot.request_update()
+    plot.request_update()
+    plot.request_update()
+    assert len(deferred) == 1
+    assert updates == []
+
+    # The GUI thread runs the deferred callback: one redraw.
+    deferred.pop()()
+    assert updates == [1]
+
+    # New data after the redraw schedules the next one.
+    plot.request_update()
+    assert len(deferred) == 1
+    deferred.pop()()
+    assert updates == [1, 1]
+
+
+def test_running_mean_concurrent_add_and_read():
+    """The GUI thread reads the mean while the acquisition thread folds
+    epochs (including array growth); this must never raise."""
+    import threading
+
+    from psi.data.plot_groups import RunningMean
+
+    rm = RunningMean()
+    rm.add(np.zeros(10))
+    errors = []
+    stop = threading.Event()
+
+    def writer():
+        try:
+            n = 10
+            while not stop.is_set():
+                rm.add(np.random.uniform(size=n))
+                n += 1  # force periodic growth/reallocation
+        except Exception as e:
+            errors.append(e)
+
+    def reader():
+        try:
+            while not stop.is_set():
+                mean = rm.mean
+                assert mean is not None
+        except Exception as e:
+            errors.append(e)
+
+    threads = [threading.Thread(target=writer), threading.Thread(target=reader)]
+    for t in threads:
+        t.start()
+    import time
+    time.sleep(0.2)
+    stop.set()
+    for t in threads:
+        t.join(5)
+    assert errors == []
+
+
 def test_average_plot_render_mean_selects_channel():
     class _Plot(GroupedEpochAveragePlot):
         def _observe_source(self, event):
