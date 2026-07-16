@@ -46,12 +46,14 @@ Experiment-level decisions: action matching and invocation
 **Rules:**
 - `_action_context` and the delayed-event registry are owned by the
   dispatcher. Never touch them from another thread.
-- **Never invoke actions while holding a lock** (engine lock or the
-  controller's `_lock`). Actions may acquire those locks themselves;
-  invoking under a lock is a deadlock. Compute what you need under the
-  lock, release, then invoke. (`configure/start/stop_engines`,
-  `output_pause`/`output_resume`, `start_output`, `clear_output`, and the
-  synchronized-output commands all follow this pattern.)
+- **Never invoke actions while holding a lock** (engine lock or the IO
+  manager's `_lock`). Actions may acquire those locks themselves; invoking
+  under a lock is a deadlock. Compute what you need under the lock,
+  release, then invoke. This is now structural for the engine lifecycle:
+  `IOManager` methods hold the lock but know nothing about actions, and
+  the `ControllerPlugin` wrappers fire the actions after they return.
+  (`output_pause`/`output_resume`, `start_output`, `clear_output`, and the
+  synchronized-output commands follow the same pattern manually.)
 - Actions must not *block* on the GUI thread (fire-and-forget
   `deferred_call` is fine; waiting for the GUI is not), since the GUI may
   itself be blocked waiting for the dispatcher.

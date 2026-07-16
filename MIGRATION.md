@@ -229,6 +229,45 @@ bursts of data into one redraw per event-loop pass.
 - Redraw coalescing also means high-rate sources no longer redraw once per
   chunk; expect lower GUI CPU with identical visuals.
 
+## Controller IO manager and subclass contract (post-0.7.0)
+
+The hardware-configuration half of `ControllerPlugin` (engine/channel/
+output/input registries, wiring, engine lifecycle) now lives in
+`psi.controller.io_manager.IOManager`, available as `controller.io`. The
+plugin's **public method surface is unchanged** — `get_channel`,
+`get_output`, `get_input`, `get_channels`, `get_ts`, `connect_output`,
+`connect_input`, `configure/start/stop/reset_engines`, `finalize_io` all
+still exist on the plugin and delegate — so most downstream code needs no
+changes. Code that touched the private attributes must update:
+
+| Old (on `controller`) | New |
+|---|---|
+| `controller._engines` | `controller.io.engines` |
+| `controller._channels` | `controller.io.channels` |
+| `controller._outputs` | `controller.io.outputs` |
+| `controller._inputs` | `controller.io.inputs` |
+| `controller._supporting` | `controller.io.supporting` |
+| `controller._master_engine` | `controller.io.master_engine` |
+| `controller.engines_running` | `controller.io.engines_running` |
+| `controller._lock` | `controller.io._lock` |
+| `psi.controller.plugin.find_engines` (etc.) | `psi.controller.io_manager.find_engines` |
+
+Reassigning the master engine during setup (as the NIDAQ start-trigger
+helpers do) is supported: set `controller.io.master_engine`.
+
+The controller subclass contract is now explicit:
+
+- `end_trial` is declared on the base class (it backs the
+  `psi.controller.next_trial` command) and raises a descriptive
+  `NotImplementedError` instead of the previous `AttributeError` from deep
+  in the rpc plumbing. Controllers exposing next-trial UI must override it.
+- `apply_changes` / `pause_experiment` / `resume_experiment` share a
+  documented protocol: return True if handled immediately, falsy to defer
+  (the corresponding `request_*` latches `_apply_requested` /
+  `_pause_requested` / `_resume_requested` for the subclass to consume —
+  act on, then clear — between trials). This is what existing controllers
+  already did; it is now written down in the method docstrings.
+
 ## Known-unchanged surfaces (no action needed)
 
 - `psi.controller.api`, `psi.context.api`, `psi.data.api`,

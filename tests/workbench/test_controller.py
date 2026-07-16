@@ -96,3 +96,44 @@ def test_invoke_actions_updates_state(controller):
     assert controller._action_context['trial_active'] is True
     controller.invoke_actions('trial_end')
     assert controller._action_context['trial_active'] is False
+
+
+def test_template_methods_raise_actionable_errors():
+    # The base controller has no trial/pause concept; the template methods
+    # must fail with errors that tell a subclass author what to implement.
+    from psi.controller.plugin import ControllerPlugin
+    plugin = ControllerPlugin()
+    with pytest.raises(NotImplementedError, match='next_trial'):
+        plugin.end_trial()
+    with pytest.raises(NotImplementedError, match='pause_experiment'):
+        plugin.pause_experiment()
+    with pytest.raises(NotImplementedError, match='resume_experiment'):
+        plugin.resume_experiment()
+
+
+def test_request_latches_flag_when_deferred(monkeypatch):
+    # A falsy return from the template method means "not safe right now";
+    # request_* must latch the corresponding flag for the subclass to
+    # consume between trials. A truthy return must not latch.
+    from psi.controller import plugin as plugin_module
+    monkeypatch.setattr(plugin_module, 'deferred_call', lambda cb, *a: cb(*a))
+
+    class PausableController(plugin_module.ControllerPlugin):
+
+        def pause_experiment(self):
+            return False
+
+        def resume_experiment(self):
+            return True
+
+        def apply_changes(self):
+            return False
+
+    controller = PausableController()
+    controller.request_pause()
+    assert controller._pause_requested is True
+    controller.request_apply()
+    assert controller._apply_requested is True
+    # Handled immediately: nothing to latch.
+    controller.request_resume()
+    assert controller._resume_requested is False

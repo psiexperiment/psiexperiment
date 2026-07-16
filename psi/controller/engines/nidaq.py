@@ -93,7 +93,7 @@ def connect_trigger(event):
     ao_channels = []
     ci_channels = []
     co_channels = []
-    for engine in list(controller._engines.values())[::-1]:
+    for engine in list(controller.io.engines.values())[::-1]:
         hw_ai = engine.get_channels(mode='analog', direction='in', timing='hw', active=True)
         hw_ao = engine.get_channels(mode='analog', direction='out', timing='hw', active=True)
         hw_ci = engine.get_channels(mode='counter', direction='in', timing='hw', active=True)
@@ -116,7 +116,7 @@ def connect_trigger(event):
     if len(channels) == 1:
         log.info('Only one channel active. Disabling start trigger.')
         channels[0].start_trigger = ''
-        controller._master_engine = channels[0].engine
+        controller.io.master_engine = channels[0].engine
         return
 
     # At least with the NI hardware I'm familiar with, counter channels require
@@ -148,7 +148,7 @@ def connect_trigger(event):
     # Now, make sure the master engine is set to the one that controls the
     # start trigger.
     log.info('Setting master engine to %s', master_engine.name)
-    controller._master_engine = master_engine
+    controller.io.master_engine = master_engine
 
 
 ################################################################################
