@@ -6,7 +6,7 @@ import difflib
 from functools import partial
 
 from atom.api import Enum, Bool, Typed, Property
-from enaml.application import deferred_call
+from enaml.application import Application, deferred_call
 from enaml.workbench.plugin import Plugin
 
 from .dispatcher import ControlDispatcher
@@ -21,6 +21,27 @@ from psi.core.experiment_action import (EventLogger, ExperimentAction,
 IO_POINT = 'psi.controller.io'
 ACTION_POINT = 'psi.controller.actions'
 WRAPUP_POINT = 'psi.controller.wrapup'
+
+
+def _gui_pump():
+    '''
+    Process pending Qt events, excluding user input, without blocking.
+
+    Passed as ``ControlDispatcher.submit_sync``'s ``pump`` callback when a
+    GUI-thread caller waits on dispatched control-plane work. Some Windows
+    audio backends (observed opening an ASIO stream via
+    ``psi.controller.engines.soundcard``) require certain PortAudio calls
+    to run on the thread pumping the application's Windows message loop;
+    those calls get marshaled here via ``enaml.application.deferred_call``
+    from the dispatcher thread. Excluding user input keeps this from
+    servicing e.g. a Stop button click while control-plane work is still
+    in flight.
+    '''
+    app = Application.instance()
+    qapp = getattr(app, '_qapp', None)
+    if qapp is not None:
+        from enaml.qt.QtCore import QEventLoop
+        qapp.processEvents(QEventLoop.ExcludeUserInputEvents)
 
 
 def invoke_action(core, action, event_name, timestamp, kw, skip_errors=False):
@@ -305,8 +326,11 @@ class ControllerPlugin(Plugin):
             self._dispatcher.submit(self._invoke_actions, event_name,
                                     timestamp, kw, skip_errors)
             return
+        app = Application.instance()
+        pump = _gui_pump if (app is not None and app.is_main_thread()) else None
         return self._dispatcher.submit_sync(self._invoke_actions, event_name,
-                                            timestamp, kw, skip_errors)
+                                            timestamp, kw, skip_errors,
+                                            pump=pump)
 
     def event_used(self, event_name):
         '''

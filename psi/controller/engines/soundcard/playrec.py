@@ -9,6 +9,47 @@ import threading
 import numpy as np
 import sounddevice as sd
 
+from enaml.application import Application, deferred_call
+
+
+def _on_main_thread(fn):
+    '''
+    Call `fn` (a zero-argument callable) on the main/GUI thread and block
+    the calling thread until it completes, re-raising any exception it
+    raised.
+
+    PlayRec normally runs on psi's control-dispatcher thread (see
+    ``psi.controller.dispatcher``), not the GUI thread. Some Windows audio
+    backends require PortAudio stream lifecycle calls (open/start/stop) to
+    run on the thread that owns the application's Windows message loop --
+    observed with an ASIO device, where PortAudio's WASAPI device-list
+    refresh (triggered internally as a side effect of stream operations,
+    regardless of host API) hangs indefinitely if invoked from a thread
+    that isn't pumping messages. If there's no GUI application running
+    (e.g. the standalone script at the bottom of this module, or a test)
+    or we're already on the main thread, just call `fn` directly.
+    '''
+    app = Application.instance()
+    if app is None or app.is_main_thread():
+        return fn()
+
+    result = {}
+    done = threading.Event()
+
+    def _call():
+        try:
+            result['value'] = fn()
+        except Exception as e:
+            result['error'] = e
+        finally:
+            done.set()
+
+    deferred_call(_call)
+    done.wait()
+    if 'error' in result:
+        raise result['error']
+    return result['value']
+
 
 class BaseCallbackContext:
 
@@ -177,18 +218,20 @@ class PlayRec:
             raise ValueError('No input or output channels specified')
 
         log.warning('Opening stream with: %r', stream_kw)
-        self.stream = stream_class(**stream_kw, finished_callback=self.event.set)
+        self.stream = _on_main_thread(
+            lambda: stream_class(**stream_kw, finished_callback=self.event.set)
+        )
         if self.stream.samplerate != self.fs:
             raise ValueError('Could not get desired sample rate')
         if self.stream.blocksize != self.blocksize:
             raise ValueError('Could not get desired blocksize')
 
     def start(self):
-        self.stream.start()
+        _on_main_thread(self.stream.start)
 
     def stop(self):
-        self.stream.stop()
-        self.stream.close()
+        _on_main_thread(self.stream.stop)
+        _on_main_thread(self.stream.close)
 
 
 if __name__ == '__main__':

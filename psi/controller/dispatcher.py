@@ -18,13 +18,32 @@ Design notes
   high-rate acquisition callbacks). Exceptions are logged.
 - ``call_later`` schedules a named callable. The timer thread only enqueues:
   user code always runs on the dispatcher thread.
+- On Windows, the dispatcher thread is COM-initialized (STA) for its
+  entire lifetime, since some COM-based audio APIs raise/hang if a thread
+  touches them without this (see
+  https://github.com/PortAudio/portaudio/issues/250).
+- ``submit_sync`` accepts an optional ``pump`` callback for GUI-thread
+  callers. Some Windows audio backends require certain PortAudio calls
+  (observed with ASIO devices opened via ``psi.controller.engines.
+  soundcard``) to run on the thread that owns the application's Windows
+  message loop, not on this dispatcher thread. Those calls are marshaled
+  to the GUI thread via ``enaml.application.deferred_call`` from
+  *within* dispatched control-plane work -- but the GUI thread can only
+  service that if it keeps pumping its event loop while it waits here,
+  instead of blocking outright. See ``ControllerPlugin.invoke_actions``.
 '''
 import logging
 log = logging.getLogger(__name__)
 
 import queue
+import sys
 import threading
-from concurrent.futures import Future
+from concurrent.futures import Future, TimeoutError as FutureTimeoutError
+
+if sys.platform == 'win32':
+    import pythoncom
+else:
+    pythoncom = None
 
 
 class ControlDispatcher:
@@ -52,23 +71,29 @@ class ControlDispatcher:
                     self._thread.start()
 
     def _run(self):
-        while True:
-            item = self._queue.get()
-            if item is None:
-                break
-            fn, args, kwargs, future = item
-            if future is None:
-                try:
-                    fn(*args, **kwargs)
-                except Exception:
-                    log.exception('Error in dispatched control-plane call %r', fn)
-            else:
-                if not future.set_running_or_notify_cancel():
-                    continue
-                try:
-                    future.set_result(fn(*args, **kwargs))
-                except BaseException as e:
-                    future.set_exception(e)
+        if pythoncom is not None:
+            pythoncom.CoInitialize()
+        try:
+            while True:
+                item = self._queue.get()
+                if item is None:
+                    break
+                fn, args, kwargs, future = item
+                if future is None:
+                    try:
+                        fn(*args, **kwargs)
+                    except Exception:
+                        log.exception('Error in dispatched control-plane call %r', fn)
+                else:
+                    if not future.set_running_or_notify_cancel():
+                        continue
+                    try:
+                        future.set_result(fn(*args, **kwargs))
+                    except BaseException as e:
+                        future.set_exception(e)
+        finally:
+            if pythoncom is not None:
+                pythoncom.CoUninitialize()
 
     def is_dispatcher_thread(self):
         return threading.current_thread() is self._thread
@@ -76,13 +101,23 @@ class ControlDispatcher:
     ############################################################################
     # Submitting work
     ############################################################################
-    def submit_sync(self, fn, *args, **kwargs):
+    def submit_sync(self, fn, *args, pump=None, **kwargs):
         '''
         Run `fn` on the dispatcher thread and block until it completes.
 
         Returns `fn`'s return value; exceptions propagate to the caller. If
         already on the dispatcher thread, runs inline (allowing actions to
         recursively invoke actions).
+
+        Parameters
+        ----------
+        pump : callable, optional
+            If given, called repeatedly instead of blocking indefinitely
+            while waiting for the result. Needed when the calling thread
+            must keep servicing its own event loop for the dispatched work
+            to complete (e.g., the GUI thread pumping Qt events so a
+            deferred_call issued from the dispatcher thread mid-flight can
+            run) -- otherwise the two threads wait on each other forever.
         '''
         if self._stopped:
             raise RuntimeError('ControlDispatcher has been stopped')
@@ -91,7 +126,13 @@ class ControlDispatcher:
             return fn(*args, **kwargs)
         future = Future()
         self._queue.put((fn, args, kwargs, future))
-        return future.result()
+        if pump is None:
+            return future.result()
+        while True:
+            try:
+                return future.result(timeout=0.02)
+            except FutureTimeoutError:
+                pump()
 
     def submit(self, fn, *args, **kwargs):
         '''
