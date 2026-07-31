@@ -126,8 +126,15 @@ class PlayRec:
         self.ao_cb = ao_cb
         self.blocksize = blocksize
 
+        log.warning('Requested device: %r', self.device)
+        matches = [d for d in sd.query_devices() if d['name'] == self.device]
+        log.warning('Devices matching that name: %r', matches)
+
         self.device_info = sd.query_devices(self.device)
         self.hostapi_info = sd.query_hostapis(self.device_info['hostapi'])
+        log.warning('Resolved device: %r', self.device_info)
+        log.warning('Resolved host API: %r', self.hostapi_info)
+
         self.event = threading.Event()
         self.configure()
 
@@ -169,7 +176,7 @@ class PlayRec:
         else:
             raise ValueError('No input or output channels specified')
 
-        print(stream_kw)
+        log.warning('Opening stream with: %r', stream_kw)
         self.stream = stream_class(**stream_kw, finished_callback=self.event.set)
         if self.stream.samplerate != self.fs:
             raise ValueError('Could not get desired sample rate')
