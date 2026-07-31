@@ -65,7 +65,7 @@ class ZarrStore(BaseStore):
             time_chunksize = (2 ** 20) / np.dtype(dtype).itemsize / channels
             shape = (channels, 0)
             time_chunksize = int(round(time_chunksize))
-            chunkshape = (None, time_chunksize)
+            chunkshape = (channels, time_chunksize)
         zarray = zarr.create(shape, store=str(filename), dtype=dtype,
                              chunks=chunkshape)
         zarray.attrs['fs'] = fs

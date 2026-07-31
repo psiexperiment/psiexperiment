@@ -32,6 +32,21 @@ def test_continuous(store, data_generator):
     assert recording.signal.array.attrs['input_channel'] == 'ai1'
 
 
+def test_continuous_multichannel_chunk_shape(store):
+    # Regression test: creating a multi-channel continuous array used to
+    # pass a bare `None` inside the `chunks` tuple to mean "one chunk
+    # spanning the whole channel axis". That's a zarr-version-sensitive
+    # convention (unsupported by some zarr array-creation code paths, where
+    # it surfaces as a confusing "'NoneType' object is not iterable" deep
+    # inside zarr internals), so the channel axis chunk size should be
+    # passed explicitly instead.
+    metadata = {'input_channel': 'ai1', 'n_channels': 4}
+    store.create_ai_continuous('signal', fs=100e3, dtype='d', metadata=metadata)
+    zarray = store._stores['signal']
+    assert zarray.shape == (4, 0)
+    assert zarray.chunks[0] == 4
+
+
 def test_epochs(store, data_generator):
     isi = 5
     metadata = {
