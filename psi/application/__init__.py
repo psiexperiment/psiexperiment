@@ -345,12 +345,14 @@ def load_io_manifest(io_manifest=None):
         io_manifest = get_default_io()
     # Coerce Path (or any path-like) to str for the checks below.
     io_manifest = str(io_manifest)
-    if io_manifest.endswith('.enaml'):
-        if '::' in io_manifest:
-            io_path, io_class = io_manifest.split('::')
-        else:
-            io_path, io_class = io_manifest, 'IOManifest'
-        klass = load_manifest_from_file(io_path, io_class)
+    # Split off an optional '::ClassName' suffix *before* checking for
+    # '.enaml' -- the suffix is what makes this a file-based reference in
+    # the first place, so checking the un-split string would never match
+    # once a class name is appended (e.g. 'foo.enaml::IOManifest' does not
+    # itself end in '.enaml').
+    io_path, sep, io_class = io_manifest.partition('::')
+    if io_path.endswith('.enaml'):
+        klass = load_manifest_from_file(io_path, io_class or 'IOManifest')
     else:
         klass = load_manifest(io_manifest)
     return klass
