@@ -5,6 +5,7 @@ from functools import partial
 import re
 import textwrap
 from atom.api import Typed
+from enaml.application import deferred_call
 from enaml.core.api import Conditional, d_, DynamicTemplate, Include, Looper
 from enaml.drag_drop import DragData, DropAction
 from enaml.layout.api import vbox, hbox, spacer, align
@@ -438,6 +439,16 @@ enamldef FriendlyCartesianProductContainer(Container): container:
 
 
 def friendly_cartesian_product_update_context(selector, event):
+    # This is invoked as a controller action, which always runs on the
+    # control-plane dispatcher thread (see docs/threading.md). The work
+    # below mutates context items that are live-bound to GUI widgets (e.g.,
+    # `selector.context_items` feeds the dock item's Looper), so it must be
+    # marshaled to the GUI thread rather than applied inline here.
+    context = event.workbench.get_plugin('psi.context')
+    deferred_call(_friendly_cartesian_product_update_context, selector, context)
+
+
+def _friendly_cartesian_product_update_context(selector, context):
     # Updates context items to mark those that cannot be managed by the
     # selector (because the information has not been provided in
     # `context_detail`). These items cannot be roved, and the scope will be set
@@ -446,7 +457,6 @@ def friendly_cartesian_product_update_context(selector, event):
     # The "arbitrary" scope is typically reserved for values that are not tied
     # to specific trials, but can be modified during an experiment (e.g.,
     # thresholding input data).
-    context = event.workbench.get_plugin('psi.context')
     for name, param in context.parameters.items():
         if name not in selector.can_manage and param.scope == 'trial':
             param.rove = False

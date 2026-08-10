@@ -116,10 +116,25 @@ class PSIWorkbench(Workbench):
         core = self.get_plugin('enaml.workbench.core')
         controller = self.get_plugin('psi.controller')
 
+        # Preferences must be queued for restoration before the workspace is
+        # started. Starting the workspace queues the 'plugins_started'
+        # action as a deferred call, and some paradigm-level logic (e.g., a
+        # selector forcing its managed items to always be roved) depends on
+        # running after preferences are applied so it has the final say,
+        # rather than a stale saved preference value silently overriding it
+        # once 'plugins_started' fires. Deferred calls run in the order they
+        # are queued, so queuing this one first (but not invoking it
+        # synchronously, which hangs the UI before the workspace exists)
+        # guarantees it completes before 'plugins_started' does.
+        if load_preferences and preferences_file is not None:
+            deferred_call(core.invoke_command, 'psi.load_preferences', {'filename': preferences_file})
+        elif load_preferences and preferences_file is None:
+            deferred_call(core.invoke_command, 'psi.get_default_preferences')
+
         ui.select_workspace(workspace)
         ui.show_window()
 
-        # These calls to the API are necessary since they must happen prior to
+        # This call to the API is necessary since it must happen prior to
         # starting the application. If we call start_application first, we will
         # get a "flash" as the window appears then disappears.
         if 'psi.hide_window' in commands:
@@ -129,24 +144,9 @@ class PSIWorkbench(Workbench):
             ui.window.proxy.widget.showMinimized()
             commands.remove('psi.minimize_window')
 
-        if load_layout and layout_file is not None:
-            core.invoke_command('psi.load_layout', {'filename': layout_file})
-        elif load_layout and layout_file is None:
-            core.invoke_command('psi.get_default_layout')
-        if load_preferences and preferences_file is not None:
-            core.invoke_command('psi.load_preferences', {'filename': preferences_file})
-        elif load_preferences and preferences_file is None:
-            core.invoke_command('psi.get_default_preferences')
-
         commands = [] if commands is None else [(c,) for c in commands]
 
-        # Load preferences
-        if load_preferences and preferences_file is not None:
-            commands.append(('psi.load_preferences', {'filename': preferences_file}))
-        elif load_preferences and preferences_file is None:
-            commands.append(('psi.get_default_preferences',))
-
-        # Load layout
+        # Load layout (requires the workspace/dock area to already exist)
         if load_layout and layout_file is not None:
             commands.append(('psi.load_layout', {'filename': layout_file}))
         elif load_layout and layout_file is None:

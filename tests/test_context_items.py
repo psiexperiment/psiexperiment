@@ -163,6 +163,22 @@ def test_unordered_meta_add_remove_item():
     assert meta.values == {'level'}
 
 
+def test_ordered_meta_add_remove_item():
+    # Regression test: OrderedContextMeta.values is a list (unlike its
+    # UnorderedContextMeta parent, whose values is a set), so add_item must
+    # append rather than rely on the inherited set-based implementation.
+    meta = OrderedContextMeta(name='ordered')
+    meta.add_item('freq')
+    meta.add_item('level')
+    assert meta.values == ['freq', 'level']
+    meta.add_item('freq')  # idempotent
+    assert meta.values == ['freq', 'level']
+    meta.remove_item('freq')
+    assert meta.values == ['level']
+    meta.remove_item('not_there')  # silent no-op
+    assert meta.values == ['level']
+
+
 def test_ordered_meta_respects_mandatory_and_forbidden():
     meta = OrderedContextMeta(
         name='ordered',

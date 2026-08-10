@@ -52,6 +52,12 @@ class OrderedContextMeta(UnorderedContextMeta):
     def _default_values(self):
         return self.mandatory_items.copy()
 
+    def add_item(self, item):
+        if item not in self.values:
+            values = self.values.copy()
+            values.append(item)
+            self.values = values
+
     def _observe_values(self, event):
         # Make sure that all mandatory items are in the list and forbidden
         # items not in the list.
