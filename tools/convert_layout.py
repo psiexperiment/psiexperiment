@@ -8,12 +8,12 @@ to pickle when it detects one), so running this script is optional -- it
 just gets existing files onto the new, diffable, non-binary format.
 
 Usage:
-    python tools/convert_layout.py PATH [PATH ...] [--suffix .bak] [--dry-run]
+    python tools/convert_layout.py PATH [PATH ...] [--recursive] [--suffix .bak] [--dry-run]
 
-PATH may be a .layout file or a directory (searched non-recursively for
-*.layout files). Each converted file is overwritten in place; the original
-pickled bytes are preserved alongside it with --suffix appended (default
-".bak") unless --dry-run is given.
+PATH may be a .layout file or a directory (searched for *.layout files;
+add --recursive to also search subfolders). Each converted file is
+overwritten in place; the original pickled bytes are preserved alongside
+it with --suffix appended (default ".bak") unless --dry-run is given.
 '''
 import argparse
 import pickle
@@ -56,11 +56,12 @@ def convert_file(path, backup_suffix, dry_run):
     return True
 
 
-def iter_layout_files(paths):
+def iter_layout_files(paths, recursive):
     for raw in paths:
         path = Path(raw)
         if path.is_dir():
-            yield from sorted(path.glob('*.layout'))
+            glob = path.rglob if recursive else path.glob
+            yield from sorted(glob('*.layout'))
         else:
             yield path
 
@@ -69,6 +70,9 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
     parser.add_argument('paths', nargs='+',
                          help='.layout files or directories to convert')
+    parser.add_argument('--recursive', action='store_true',
+                         help='also search subfolders of any directory '
+                              'given in PATH')
     parser.add_argument('--suffix', default='.bak',
                          help='suffix appended to back up the original '
                               'pickled file (default: .bak)')
@@ -78,7 +82,7 @@ def main(argv=None):
     args = parser.parse_args(argv)
 
     converted = 0
-    for path in iter_layout_files(args.paths):
+    for path in iter_layout_files(args.paths, args.recursive):
         if not path.is_file():
             print(f'skip (not a file): {path}')
             continue
