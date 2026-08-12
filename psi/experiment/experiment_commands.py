@@ -19,7 +19,15 @@ from enaml.application import deferred_call
 from enaml.widgets.api import FileDialogEx
 
 from .. import get_config
+from .dock_layout_serializer import (
+    workspace_layout_from_dict, workspace_layout_to_dict,
+)
 from .util import LAYOUT_WILDCARD, PREFERENCES_WILDCARD
+
+# Legacy .layout files were pickled; pickle's default protocol (>= 2)
+# always starts a stream with this opcode byte, so it reliably
+# distinguishes an old binary file from the new YAML format below.
+_PICKLE_MAGIC = b'\x80'
 
 
 def get_default_path(which):
@@ -50,8 +58,8 @@ def _save_layout(event, filename):
         filename += '.layout'
     plugin = event.workbench.get_plugin('psi.experiment')
     layout = plugin.get_layout()
-    with open(filename, 'wb') as fh:
-        pickle.dump(layout, fh)
+    with open(filename, 'w') as fh:
+        yaml.dump(workspace_layout_to_dict(layout), fh, default_flow_style=False)
 
 
 def load_layout(event):
@@ -68,8 +76,15 @@ def load_layout(event):
 def _load_layout(event, filename):
     plugin = event.workbench.get_plugin('psi.experiment')
     with open(filename, 'rb') as fh:
-        layout = pickle.load(fh)
-        plugin.set_layout(layout)
+        is_legacy_pickle = fh.read(len(_PICKLE_MAGIC)) == _PICKLE_MAGIC
+        fh.seek(0)
+        if is_legacy_pickle:
+            # Old binary .layout file, kept loadable for back-compat. Use
+            # tools/convert_layout.py to migrate it to the new format.
+            layout = pickle.load(fh)
+        else:
+            layout = workspace_layout_from_dict(yaml.load(fh, Loader=yaml.Loader))
+    plugin.set_layout(layout)
 
 
 def set_default_layout(event):
