@@ -42,6 +42,15 @@ dev = ["coloredlogs"]
 [project.scripts]
 psi = "psi.application.psi_launcher:main"
 psi-config = "psi.application:config"
+# Same target as `psi`, under a name frozen consumers (cftscal's
+# _run_cal) can invoke unconditionally: PyInstaller can't freeze a
+# script named psi.py (it would collide with the `psi` package itself
+# during Analysis), and Windows' CreateProcess searches the calling
+# exe's own directory before PATH, so a bare 'psi-main' resolves a
+# sibling psi-main.exe in a frozen app the same way it resolves this
+# console-script entry point in a normal install -- no path/extension
+# handling needed on the caller's side either way.
+psi-main = "psi.application.psi_launcher:main"
 
 [build-system]
 requires = ["setuptools>=61.2", "wheel", "setuptools_scm[toml]>=3.4.3"]
