@@ -3,6 +3,7 @@ log = logging.getLogger(__name__)
 
 from functools import partial
 from pathlib import Path
+import time
 
 from atom.api import Bool, Dict, set_default, Typed
 import numpy as np
@@ -15,6 +16,27 @@ from psidata.zarr_tools import ZarrSignal
 from .base_store import BaseEpochData, BaseStore
 
 
+def _retry_write(fn, *args, attempts=5, initial_delay=0.05, **kwargs):
+    # zarr's LocalStore commits each chunk by writing a `.partial` file and
+    # renaming it onto the final chunk path (os.replace). On Windows this
+    # rename needs an exclusive handle to the destination, so if another
+    # process (Defender real-time scanning, search indexer, etc.) has the
+    # just-written chunk file open at that instant, the rename fails with
+    # PermissionError (WinError 5). The lock is transient, so retrying with
+    # backoff clears it without losing data.
+    delay = initial_delay
+    for attempt in range(attempts):
+        try:
+            return fn(*args, **kwargs)
+        except PermissionError:
+            if attempt == attempts - 1:
+                raise
+            log.warning('Transient PermissionError writing zarr chunk; '
+                        'retrying (%d/%d)', attempt + 1, attempts)
+            time.sleep(delay)
+            delay *= 2
+
+
 class ZarrEpochData(BaseEpochData):
 
     metadata_filename = Typed(Path)
@@ -23,7 +45,7 @@ class ZarrEpochData(BaseEpochData):
     def append(self, data):
         epochs, metadata = self._split_epochs_metadata(data)
         epochs = np.concatenate(epochs, axis=-1)
-        self.data.append(epochs, axis=epochs.ndim-1)
+        _retry_write(self.data.append, epochs, axis=epochs.ndim-1)
         self.metadata.extend(metadata)
         self.dirty = True
 
@@ -47,7 +69,8 @@ class ZarrStore(BaseStore):
             raise AttributeError(name)
 
     def process_ai_continuous(self, name, data):
-        self._stores[name].append(np.asarray(data), axis=data.ndim-1)
+        _retry_write(self._stores[name].append, np.asarray(data),
+                     axis=data.ndim-1)
 
     def process_ai_epochs(self, name, data):
         self._stores[name].append(data)
