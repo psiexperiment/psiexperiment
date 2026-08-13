@@ -52,6 +52,12 @@ psi-config = "psi.application:config"
 # handling needed on the caller's side either way.
 psi-main = "psi.application.psi_launcher:main"
 
+[project.entry-points.pyinstaller40]
+# Lets PyInstaller auto-discover psi/__pyinstaller's hooks (currently just
+# the window icon data file) in any app that freezes psi as a dependency,
+# with no per-consumer PyInstaller config needed.
+hook-dirs = "psi.__pyinstaller:get_hook_dirs"
+
 [build-system]
 requires = ["setuptools>=61.2", "wheel", "setuptools_scm[toml]>=3.4.3"]
 build-backend = "setuptools.build_meta"

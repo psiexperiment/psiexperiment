@@ -1,9 +1,14 @@
+import logging
+from importlib import resources
 from pathlib import Path
 
 from enaml.icon import Icon, IconImage
 from enaml.image import Image
 
 from psi import get_config
+
+
+log = logging.getLogger(__name__)
 
 
 PREFERENCES_WILDCARD = 'Preferences (*.preferences)'
@@ -22,8 +27,20 @@ def list_preferences(experiment, include_default=False):
 
 
 def load_icon():
-    path = Path(__file__).parent / 'psi-logo.png'
-    image = Image(data=path.read_bytes())
+    # Use importlib.resources rather than a `__file__`-relative path so this
+    # keeps working if psi is ever installed/accessed via a loader that
+    # doesn't expose package contents as plain files on disk (e.g., a zipped
+    # install). This does *not* by itself guarantee the file is bundled in a
+    # frozen (PyInstaller) build -- that's handled by psi/__pyinstaller's
+    # hook, which declares this data file to PyInstaller's static analysis.
+    # If, despite that, the icon is missing at runtime, fail soft: a missing
+    # window icon is cosmetic and shouldn't prevent the app from starting.
+    try:
+        data = resources.files('psi.experiment').joinpath('psi-logo.png').read_bytes()
+    except (FileNotFoundError, ModuleNotFoundError):
+        log.warning('Unable to load window icon psi-logo.png', exc_info=True)
+        return Icon(images=[])
+    image = Image(data=data)
     icon_image = IconImage(image=image)
     return Icon(images=[icon_image])
 
