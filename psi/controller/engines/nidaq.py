@@ -1390,13 +1390,24 @@ class NIDAQEngine(ChannelSliceCallbackMixin, Engine):
             task = self._tasks['hw_ao']
             relative_offset = offset - self.total_ao_samples_written
             mx.DAQmxSetWriteOffset(task, relative_offset)
-            mx.DAQmxWriteAnalogF64(task, data.shape[-1], False, timeout,
+            requested = data.shape[-1]
+            mx.DAQmxWriteAnalogF64(task, requested, False, timeout,
                                    mx.DAQmx_Val_GroupByChannel,
                                    data.astype(np.float64), result, None)
             mx.DAQmxSetWriteOffset(task, 0)
 
+            # A short write desyncs AO from AI by the missing samples (a sudden
+            # output-vs-input step). Fail loudly rather than silently drift.
+            written = result.value
+            if written != requested:
+                raise IOError(
+                    f'hw_ao short write at offset {offset}: requested '
+                    f'{requested} samples, hardware accepted {written} '
+                    f'(short by {requested - written}, '
+                    f'~{(requested - written) / self.ao_fs * 1e3:.1f} ms).')
+
             # Calculate total samples written
-            self.total_ao_samples_written += (relative_offset + data.shape[-1])
+            self.total_ao_samples_written += (relative_offset + requested)
             log.trace('Writing hw ao %r at %d', data.shape, offset)
 
         except mx.InvalidTaskError as e:
