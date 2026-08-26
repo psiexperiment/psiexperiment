@@ -136,8 +136,12 @@ class PlayRec:
     ----------
     fs : float
         Sampling rate to set device to.
-    device : string
-        Name of device as seen by portaudio.
+    device : int or string
+        Device to open. Either a PortAudio device index, a device name, or --
+        preferred, to avoid ambiguity when several drivers expose the same
+        name -- a fully-qualified ``"<name>, <host API>"`` query string, which
+        sounddevice matches exactly (see ``_get_device_id``). cftscal passes
+        the fully-qualified form via ``PSI_SOUND_DEVICE_NAME``.
     ai_channels : {None, list of int}
         List of channels to record from. If None, do not record.
     ao_channels : {None, list of int}
@@ -206,7 +210,12 @@ class PlayRec:
                 stream_kw['extra_settings'] = sd.AsioSettings(self.ao_channels)
         elif self.ai_channels is not None:
             stream_class = sd.InputStream
-            stream_kw['device'] = self.device_info['name']
+            # Use the original selector (self.device), which may be a
+            # fully-qualified "<name>, <host API>" string, rather than
+            # device_info['name'] (the bare name) -- the bare name re-opens the
+            # door to sounddevice's ambiguous substring matching that the
+            # fully-qualified selector exists to avoid.
+            stream_kw['device'] = self.device
             if self.hostapi_info['name'] == 'ASIO':
                 stream_kw['channels'] = len(self.ai_channels)
                 stream_kw['extra_settings'] = sd.AsioSettings(self.ai_channels)
