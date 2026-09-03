@@ -5,8 +5,9 @@ import enaml
 from enaml.application import deferred_call
 from enaml.core.api import Conditional
 from enaml.layout.api import spacer
-from enaml.widgets.api import (Action, Container, HGroup, Label, PopupView,
-                               PushButton, ToolBar)
+from enaml.qt.QtWidgets import QApplication
+from enaml.widgets.api import (Action, Container, HGroup, Label,
+                               MultilineField, PopupView, PushButton, ToolBar)
 from enaml.workbench.api import Extension, ExtensionPoint, PluginManifest
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, Branding, MenuItem
@@ -30,6 +31,8 @@ enamldef ResultPopup(PopupView): popup:
 
     attr error_message = ''
     attr message = ''
+    attr traceback = ''
+    attr _traceback_shown = False
 
     Container:
         Conditional:
@@ -40,6 +43,30 @@ enamldef ResultPopup(PopupView): popup:
             condition = bool(message)
             Label:
                 text = message
+        Conditional:
+            condition = bool(traceback)
+            Container:
+                padding = 0
+                HGroup:
+                    padding = 0
+                    spacing = 5
+                    PushButton: toggle_button:
+                        text << ('▾ Hide traceback' if popup._traceback_shown
+                                  else '▸ Show traceback')
+                        clicked ::
+                            popup._traceback_shown = not popup._traceback_shown
+                    PushButton:
+                        text = '\U0001f4cb Copy traceback'
+                        tool_tip = 'Copy the full traceback to the clipboard'
+                        clicked ::
+                            QApplication.clipboard().setText(popup.traceback)
+                Conditional:
+                    condition << popup._traceback_shown
+                    MultilineField: tb_field:
+                        text = popup.traceback
+                        read_only = True
+                        font = '9pt "Consolas"'
+                        constraints = [height == 250, width == 550]
         HGroup:
             leading_spacer = spacer(0)
             padding = 0
@@ -50,11 +77,12 @@ enamldef ResultPopup(PopupView): popup:
                     popup.close()
 
 
-def show_results(message, stop_reason, error_message):
+def show_results(message, stop_reason, error_message, traceback=''):
     if message or error_message:
         if message == 'Saved data to disk':
             return
-        view = ResultPopup(message=message, error_message=error_message)
+        view = ResultPopup(message=message, error_message=error_message,
+                           traceback=traceback)
         # There is no guarantee show_results will be invoked in the main
         # process, so anything GUI related needs to be scheduled on the main
         # process via deferred_call.

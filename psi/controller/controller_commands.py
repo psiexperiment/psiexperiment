@@ -88,6 +88,7 @@ def stop_experiment(event):
     # Todo: this does not capture *everything* possible (e.g., stopping
     # experiment leads to a cascade of actions).
     error_message = event.parameters.get('error_message', '')
+    traceback = event.parameters.get('traceback', '')
     stop_reason = event.parameters.get('stop_reason', '')
     skip_errors = event.parameters.get('skip_errors', True)
     controller = event.workbench.get_plugin('psi.controller')
@@ -104,7 +105,7 @@ def stop_experiment(event):
         messages = {r.strip() for r in results if isinstance(r, str)}
         mesg = '\n'.join(sorted(messages))
         controller._wrapup(message=mesg, stop_reason=stop_reason,
-                           error_message=error_message)
+                           error_message=error_message, traceback=traceback)
 
 
 def invoke_actions(event):

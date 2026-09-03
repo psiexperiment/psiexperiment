@@ -101,11 +101,12 @@ class ExceptionHandler:
         with self:
             log.exception("Uncaught exception", exc_info=args)
             mesg = self.format_exception(args)
+            tb_text = ''.join(traceback.format_exception(*args))
 
             if self.workbench is not None:
                 core = self.workbench.get_plugin('enaml.workbench.core')
                 parameters = {'stop_reason': 'error', 'skip_errors': True,
-                              'error_message': mesg}
+                              'error_message': mesg, 'traceback': tb_text}
                 if not self.stopping:
                     try:
                         self.stopping = True
