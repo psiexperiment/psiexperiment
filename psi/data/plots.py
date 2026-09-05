@@ -12,7 +12,7 @@ import pyqtgraph as pg
 from atom.api import (Str, Float, Int, Typed, Property, Bool, Enum, List, Dict, Callable, Value, observe,
                       set_default)
 
-from enaml.application import deferred_call
+from enaml.application import Application, deferred_call
 from enaml.core.api import Declarative, d_, d_func
 
 from psiaudio import util
@@ -375,8 +375,6 @@ class PlotContainer(BasePlotContainer):
 
     @observe('x_min', 'x_max')
     def _update_limits(self, event=None):
-        if event is not None and event['type'] == 'create':
-            return
         if (self.x_min != 0) or (self.x_max != 0):
             deferred_call(
                 self.base_viewbox.setXRange,
@@ -489,22 +487,29 @@ class FFTContainer(BasePlotContainer):
                 list(zip(major_ticklocs, major_ticklabs)),
                 list(zip(minor_ticklocs, minor_ticklabs)),
             ]
-            self.x_axis.setTicks(ticks)
+            deferred_call(self.x_axis.setTicks, ticks)
 
     @observe('container', 'freq_lb', 'freq_ub')
     def _update_x_limits(self, event):
-        if not self.is_initialized:
+        if Application.instance() is None:
             # This addresses a segfault that occurs when attempting to load
             # experiment manifests that use FFTContainer. If the Experiment
             # manifest attempts to set freq_lb or freq_ub, then it will attempt
             # to initialize everything else before the GUI is created, leading
             # to a segfault (creating an AxisItem leads to attempting to call
             # QGraphicsLabel.setHtml, which will segfault if there is no
-            # instance of QtApplcation). By ensuring we don't continue if the
-            # object is not initialized yet, we can properly load experiment
+            # instance of QtApplcation). By ensuring we don't continue if no
+            # QApplication exists yet, we can properly load experiment
             # manifests (e.g., so that `psi` can properly list the available
-            # paradigms).
+            # paradigms). Note: `is_initialized` used to gate this instead,
+            # but these containers are contributed via an Enaml Extension's
+            # children and never go through Declarative.initialize(), so
+            # that flag is always False -- it silently blocked this update
+            # forever, not just before the GUI existed.
             return
+        deferred_call(self._apply_x_limits)
+
+    def _apply_x_limits(self):
         self.base_viewbox.setXRange(self.x_transform(self.freq_lb),
                                     self.x_transform(self.freq_ub),
                                     padding=0)
@@ -550,8 +555,6 @@ class ViewBox(ColorCycleMixin, PSIContribution):
 
     @observe('y_min', 'y_max')
     def _update_limits(self, event=None):
-        if event['type'] == 'create':
-            return
         if self.y_autoscale:
             return
         deferred_call(
@@ -560,6 +563,31 @@ class ViewBox(ColorCycleMixin, PSIContribution):
             self.y_max,
             padding=0
         )
+
+    def expand_y_range(self, y_min, y_max):
+        '''
+        Grow the y-range so it includes the given bounds.
+
+        Unlike setting `y_min`/`y_max` directly, this is safe to call from
+        any thread. Setting them directly requires reading the current
+        value first (``vb.y_min = min(vb.y_min, new_low)``), and that read
+        can race with the GUI thread changing `y_min`/`y_max` at the same
+        time (e.g. a mouse-drag pan). Here, the read and the write happen
+        together on the GUI thread.
+
+        Parameters
+        ----------
+        y_min : float
+            Candidate lower bound. The viewbox's `y_min` is only lowered to
+            this value, never raised.
+        y_max : float
+            Candidate upper bound. The viewbox's `y_max` is only raised to
+            this value, never lowered.
+        '''
+        def _apply():
+            self.y_min = min(self.y_min, y_min)
+            self.y_max = max(self.y_max, y_max)
+        deferred_call(_apply)
 
     def _get_data_range(self):
         return self.parent.data_range

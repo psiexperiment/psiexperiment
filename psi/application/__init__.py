@@ -137,6 +137,41 @@ def install_exception_handler():
     sys.excepthook = exception_handler
 
 
+def install_qt_message_handler():
+    '''
+    Install a Qt message handler that treats Qt-level warnings/errors (e.g.
+    "QObject::setParent: Cannot set parent, new parent is in a different
+    thread") as hard failures, with a full Python stack trace attached.
+
+    Qt's own warnings are emitted from C++ with no Python context, so by
+    default they just print to stderr and execution continues -- easy to
+    scroll past even though many of them (cross-thread widget/graphics-item
+    access chief among them) indicate a real, silently-corrupting bug rather
+    than something safe to ignore. This is what caught the DPOAE IO
+    black-canvas-on-resize bug (a missing `deferred_call`). `QtDebugMsg`/
+    `QtInfoMsg` are logged only; `QtWarningMsg` and above are additionally
+    routed through psiexperiment's own exception handler (see
+    install_exception_handler) so they get the same graceful-shutdown
+    treatment as any other uncaught exception.
+
+    Called automatically by launch_experiment.
+    '''
+    import traceback
+    from enaml.qt.QtCore import QtMsgType, qInstallMessageHandler
+
+    def _handler(msg_type, context, message):
+        stack = ''.join(traceback.format_stack(limit=20))
+        log.error('[QT MESSAGE] %s\n%s', message, stack)
+        if msg_type in (QtMsgType.QtDebugMsg, QtMsgType.QtInfoMsg):
+            return
+        try:
+            raise RuntimeError(f'Qt error: {message}')
+        except RuntimeError:
+            sys.excepthook(*sys.exc_info())
+
+    qInstallMessageHandler(_handler)
+
+
 def configure_logging(level_console=None, level_file=None, filename=None,
                       debug_exclude=None):
 
@@ -267,6 +302,7 @@ def list_io():
 
 def launch_experiment(args):
     install_exception_handler()
+    install_qt_message_handler()
     setup_windows_console()
     set_config('ARGS', args)
     set_config('PROFILE', args.profile)
