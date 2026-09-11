@@ -555,8 +555,8 @@ class ViewBox(ColorCycleMixin, PSIContribution):
 
     @observe('y_min', 'y_max')
     def _update_limits(self, event=None):
-        if not self.initialized():
-            return
+        #if not self.initialized():
+            #return
         if self.y_autoscale:
             return
         deferred_call(
@@ -565,31 +565,6 @@ class ViewBox(ColorCycleMixin, PSIContribution):
             self.y_max,
             padding=0
         )
-
-    def expand_y_range(self, y_min, y_max):
-        '''
-        Grow the y-range so it includes the given bounds.
-
-        Unlike setting `y_min`/`y_max` directly, this is safe to call from
-        any thread. Setting them directly requires reading the current
-        value first (``vb.y_min = min(vb.y_min, new_low)``), and that read
-        can race with the GUI thread changing `y_min`/`y_max` at the same
-        time (e.g. a mouse-drag pan). Here, the read and the write happen
-        together on the GUI thread.
-
-        Parameters
-        ----------
-        y_min : float
-            Candidate lower bound. The viewbox's `y_min` is only lowered to
-            this value, never raised.
-        y_max : float
-            Candidate upper bound. The viewbox's `y_max` is only raised to
-            this value, never lowered.
-        '''
-        def _apply():
-            self.y_min = min(self.y_min, y_min)
-            self.y_max = max(self.y_max, y_max)
-        deferred_call(_apply)
 
     def _get_data_range(self):
         return self.parent.data_range
