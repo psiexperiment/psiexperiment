@@ -69,6 +69,7 @@ class ZarrStore(BaseStore):
             raise AttributeError(name)
 
     def process_ai_continuous(self, name, data):
+        self._check_continuity(name, data, self._stores[name].shape[-1])
         _retry_write(self._stores[name].append, np.asarray(data),
                      axis=data.ndim-1)
 

@@ -73,6 +73,43 @@ class BaseStore(Sink):
     def create_ai_epochs(self, name, fs, dtype, metadata):
         raise NotImplementedError
 
+    def _check_continuity(self, name, data, current_length):
+        '''
+        Log a loud warning if `data.s0` (the sample offset the engine
+        computed for this chunk, typically anchored to a hardware sample
+        counter) does not match `current_length` (the number of samples
+        already written for this continuous input).
+
+        Nothing upstream of a sink currently verifies that the stream being
+        appended to disk is actually contiguous -- a chunk with a gap (or
+        overlap) relative to what's already been written is otherwise
+        absorbed silently, permanently shifting the on-disk time base for
+        every sample recorded after it. Subclasses implementing
+        `process_ai_continuous` should call this before appending.
+
+        Parameters
+        ----------
+        name : str
+            Name of the continuous input being written.
+        data : PipelineData
+            Chunk about to be appended. Must carry `.s0` and `.fs`.
+        current_length : int
+            Number of samples already present in the on-disk/in-memory
+            store for this input (i.e. what `data.s0` is expected to equal).
+        '''
+        s0 = getattr(data, 's0', None)
+        if s0 is None or s0 == current_length:
+            return
+        fs = getattr(data, 'fs', None)
+        gap = s0 - current_length
+        gap_sec = gap / fs if fs else float('nan')
+        log.warning(
+            'NIDAQ_DATA_GAP store=%s input=%s expected_s0=%d got_s0=%d '
+            'gap_samples=%d gap_sec=%.6f -- data recorded from this point '
+            'onward will be shifted in time relative to nominal sample '
+            'count',
+            self.name, name, current_length, s0, gap, gap_sec)
+
     def flush(self):
         for store in self._stores.values():
             if hasattr(store, 'flush'):
