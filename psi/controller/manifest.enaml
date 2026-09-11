@@ -6,8 +6,8 @@ from enaml.application import deferred_call
 from enaml.core.api import Conditional
 from enaml.layout.api import spacer
 from enaml.qt.QtWidgets import QApplication
-from enaml.widgets.api import (Action, Container, HGroup, Label,
-                               MultilineField, PopupView, PushButton, ToolBar)
+from enaml.widgets.api import (Action, Container, Dialog, HGroup, Label,
+                               MultilineField, PushButton, ToolBar)
 from enaml.workbench.api import Extension, ExtensionPoint, PluginManifest
 from enaml.workbench.core.api import Command
 from enaml.workbench.ui.api import ActionItem, Branding, MenuItem
@@ -25,36 +25,78 @@ from psi.core.api import (ExperimentState, ExperimentEvent,
 from psi.core.enaml.api import ExperimentManifest
 
 
-enamldef ResultPopup(PopupView): popup:
+def fit_wrapped_label(label, width):
+    '''
+    Wrap a label's text to `width` and size the label to the result.
 
-    # A 'popup' is a Qt::Popup, which Qt dismisses as soon as the user
-    # clicks anywhere outside it -- losing an error message, and the
-    # traceback with it, to a stray click. A 'window' stays put, and with
-    # close_on_click False a click inside doesn't close it either, so the
-    # OK button is the only way out.
-    window_type = 'window'
-    close_on_click = False
+    Enaml's `Label` has no word-wrap member, so word wrapping has to be
+    switched on directly on the Qt widget. Once it is, the layout also
+    needs to be told how tall the label ended up: enaml sizes widgets from
+    `sizeHint`, which does not account for the width the label is being
+    constrained to, and the label is otherwise given considerably more
+    vertical space than the wrapped text needs.
+    '''
+    widget = label.proxy.widget
+    widget.setWordWrap(True)
+    label.constraints = [label.width == width,
+                         label.height == widget.heightForWidth(width)]
 
-    # Center the popup on the screen. `parent_anchor` (0.5, 0.5) is the
-    # center of the screen when the popup has no parent, but the default
-    # view anchor is the *top* edge (0.5, 0), which leaves the window
-    # sitting half its own height below center.
-    anchor = (0.5, 0.5)
+
+def center_on_screen(window):
+    '''
+    Center a window on the primary screen.
+
+    Call once the window has been laid out (e.g. via `deferred_call` after
+    showing it), since it needs the window's final size.
+    '''
+    widget = window.proxy.widget
+    if widget is None:
+        return
+    geometry = widget.frameGeometry()
+    geometry.moveCenter(QApplication.primaryScreen().availableGeometry().center())
+    widget.move(geometry.topLeft())
+
+
+enamldef ResultPopup(Dialog): popup:
+    '''
+    Reports how an experiment ended -- normally, or with an error and its
+    traceback.
+
+    A `Dialog` rather than a `PopupView`: a popup is a Qt::Popup, which Qt
+    dismisses as soon as the user clicks anywhere outside it, taking the
+    error message and traceback with it. This stays up until it is
+    dismissed, is modal so it cannot be lost behind the experiment window,
+    and can be moved and left open while its traceback is read.
+    '''
+    title << 'Experiment error' if popup.error_message else 'Experiment results'
+    modality = 'application_modal'
+    always_on_top = True
 
     attr error_message = ''
     attr message = ''
     attr traceback = ''
     attr _traceback_shown = False
 
+    #: Width, in pixels, of the text. The messages wrap to it and the
+    #: traceback view matches, so the dialog is the same width whether or
+    #: not the traceback is showing.
+    attr text_width = 550
+
     Container:
         Conditional:
             condition = bool(error_message)
-            Label:
+            Label: error_label:
                 text = error_message
+                # The message arrives as one line per paragraph (see
+                # ExceptionHandler.format_exception) precisely so it can
+                # flow to the width of this dialog rather than staying
+                # wrapped at whatever width it was formatted for.
+                activated :: fit_wrapped_label(error_label, popup.text_width)
         Conditional:
             condition = bool(message)
-            Label:
+            Label: message_label:
                 text = message
+                activated :: fit_wrapped_label(message_label, popup.text_width)
         Conditional:
             condition = bool(traceback)
             Container:
@@ -67,6 +109,9 @@ enamldef ResultPopup(PopupView): popup:
                                   else '▸ Show traceback')
                         clicked ::
                             popup._traceback_shown = not popup._traceback_shown
+                            # Showing the traceback makes the dialog much
+                            # taller; re-center it once it has resized.
+                            deferred_call(center_on_screen, popup)
                     PushButton:
                         text = '\U0001f4cb Copy traceback'
                         tool_tip = 'Copy the full traceback to the clipboard'
@@ -78,7 +123,8 @@ enamldef ResultPopup(PopupView): popup:
                         text = popup.traceback
                         read_only = True
                         font = '9pt "Consolas"'
-                        constraints = [height == 250, width == 550]
+                        constraints = [height == 250,
+                                       width == popup.text_width]
         HGroup:
             leading_spacer = spacer(0)
             padding = 0
@@ -95,10 +141,17 @@ def show_results(message, stop_reason, error_message, traceback=''):
             return
         view = ResultPopup(message=message, error_message=error_message,
                            traceback=traceback)
+
+        def show_centered():
+            view.show()
+            # Centering needs the dialog's final size, which is only known
+            # once it has been laid out.
+            deferred_call(center_on_screen, view)
+
         # There is no guarantee show_results will be invoked in the main
         # process, so anything GUI related needs to be scheduled on the main
         # process via deferred_call.
-        deferred_call(view.show)
+        deferred_call(show_centered)
 
 
 class ControllerManifestBase(ExperimentManifest):

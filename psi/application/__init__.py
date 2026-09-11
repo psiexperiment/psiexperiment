@@ -92,10 +92,16 @@ class ExceptionHandler:
             err_mesg = f'{err_mesg}\n\nThe above error was caused by ' \
                         f'the following error:\n{args[1].__cause__}'
 
+        # Collapse each paragraph onto a single line (keeping the blank
+        # lines that separate them) and leave it at that. This message is
+        # only ever shown in the GUI, which wraps it to the width of the
+        # window it is displayed in; hard-wrapping it here as well (via
+        # wrap_text, which is meant for console output) would make it wrap
+        # at 70 columns no matter how wide that window is.
         mesg = mesg_template.format(args[1], log_mesg)
         mesg = re.sub(r'(?<!\n)\n(?!\n)', ' ', mesg)
         mesg = re.sub(r' +', ' ', mesg)
-        return wrap_text(mesg)
+        return mesg.strip()
 
     def __call__(self, *args):
         with self:
