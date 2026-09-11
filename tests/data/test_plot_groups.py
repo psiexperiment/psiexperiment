@@ -179,4 +179,12 @@ def test_db_psd_calibration_is_additive():
     batch = cal.get_db(freq, util.psd(epochs, fs)).mean(axis=0)
     incremental = np.mean([util.db(util.psd(e, fs)) for e in epochs], axis=0)
     incremental = incremental + cal.get_db(freq, 1)
-    np.testing.assert_allclose(incremental, batch, rtol=1e-10)
+
+    # Skip DC. `util.csd` detrends (`detrend='linear'`), so bin 0 holds
+    # nothing but rounding noise -- and we think in terms of AC-coupled
+    # signals anyway. Its dB value is therefore meaningless and unstable:
+    # psd(epochs) and psd(epoch) round that bin differently (one can land
+    # on exactly 0.0, whose dB is -inf and poisons the mean), so
+    # comparing it tests numpy's FFT rather than the additivity of a
+    # calibration in dB.
+    np.testing.assert_allclose(incremental[1:], batch[1:], rtol=1e-10)
