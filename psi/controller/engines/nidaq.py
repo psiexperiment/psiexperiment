@@ -31,12 +31,14 @@ log = logging.getLogger(__name__)
 
 import ctypes
 from functools import partial
-from threading import Timer
+from threading import Timer, RLock
 import operator as op
 import sys
+import time
 
 from atom.api import (Float, Typed, Str, Int, Bool, Callable, Enum,
-                      Property, set_default)
+                      Property, Value, set_default)
+from enaml.application import deferred_call
 from enaml.core.api import Declarative, d_
 import numpy as np
 import PyDAQmx as mx
@@ -407,9 +409,31 @@ def hw_ao_helper(cb, task, event_type, cb_samples, cb_data):
     return 0
 
 
-def hw_input_helper(cb, channels, discard, fs, channel_names, task, task_id,
-                    event_type=None, cb_samples=None, cb_data=None,
+def hw_input_helper(cb, channels, discard, fs, channel_names, task, lock,
+                    task_id, event_type=None, cb_samples=None, cb_data=None,
                     input_type='ai'):
+    # DAQmx documents that it is possible (rare, but real) for it to invoke
+    # this callback again for the same task before a slow previous
+    # invocation has finished (e.g. because a downstream sink is blocked on
+    # a slow disk write). The NI-DAQmx C API is not safe to call
+    # concurrently from multiple threads for the same task, and the
+    # "task complete" drain call (see task_complete()) also routes through
+    # this same function for the same task. `lock` (the owning engine's
+    # `_hw_input_lock`, dedicated to the AI/CI input tasks and deliberately
+    # kept separate from the AO/DO `self.lock` -- see NIDAQEngine -- so a
+    # slow input read can never stall an output buffer refill) serializes
+    # all of these against each other so we never have two threads touching
+    # `task` at once.
+    if not lock.acquire(blocking=False):
+        log.warning(
+            'NIDAQ task %r: hw_input_helper invoked again while a previous '
+            'invocation is still running (processing is taking longer than '
+            'the poll interval). Blocking until the task lock is released '
+            'to avoid concurrent DAQmx access on the same task.', task_id)
+        lock.acquire()
+
+    read_position = None
+    available_samples = None
     try:
         uint64 = ctypes.c_uint64()
         mx.DAQmxGetReadCurrReadPos(task, uint64)
@@ -443,8 +467,26 @@ def hw_input_helper(cb, channels, discard, fs, channel_names, task, task_id,
         log.info('NIDAQmx task ID %r exiting because engine halted', task)
         mx.DAQmxStopTask(task)
     except Exception as e:
+        # Give this its own loud, greppable, context-rich log line (with the
+        # read position/available samples at the point of failure) before
+        # handing off to the app's exception handler -- the exception's own
+        # message alone (e.g. a bare DAQmx overflow error) does not tell you
+        # where in the sample stream it happened.
+        log.error(
+            'NIDAQ_READ_ERROR task=%r task_id=%r input_type=%s '
+            'read_position=%s available_samples=%s discard=%d: %s',
+            task, task_id, input_type, read_position, available_samples,
+            discard, e, exc_info=True)
+        # This callback runs on a DAQmx-internal thread, not the GUI thread
+        # or psi's control dispatcher thread. sys.excepthook's handler
+        # attempts to invoke psi.controller.stop via the workbench, which --
+        # per this codebase's own hard-won ASIO/GUI-thread lessons (see
+        # CLAUDE.md) -- should not be called from an arbitrary background
+        # thread. Marshal it onto the GUI thread instead.
         exc_info = type(e), e, e.__traceback__
-        sys.excepthook(*exc_info)
+        deferred_call(sys.excepthook, *exc_info)
+    finally:
+        lock.release()
 
     return 0
 
@@ -557,7 +599,7 @@ def setup_hw_co(channels, task_name='hw_co'):
     return task
 
 
-def setup_hw_ci(channel, callback_duration, callback, task_name='hw_ci'):
+def setup_hw_ci(channel, callback_duration, callback, lock, task_name='hw_ci'):
     '''
     Set up a hardware-timed counter input channel
 
@@ -600,12 +642,12 @@ def setup_hw_ci(channel, callback_duration, callback, task_name='hw_ci'):
     task._properties.update(get_timing_config(task))
     log.info('%s timing properties: %r', task._name, task._properties)
     configure_hw_input_cb(task, callback_duration, callback, 1, 0,
-                          [channel.name], input_type='ci')
+                          [channel.name], lock, input_type='ci')
     return task, task_clk
 
 
 def configure_hw_input_cb(task, callback_duration, callback, n_channels,
-                          filter_delay, names, input_type='ai'):
+                          filter_delay, names, lock, input_type='ai'):
     # Configure buffers so that we do not overwrite unread samples and also
     # ensure that the buffer is big enough to store a large amount of data.
     fs = task._properties['sample clock rate']
@@ -619,9 +661,12 @@ def configure_hw_input_cb(task, callback_duration, callback, n_channels,
 
     # Now, create the callback which will be triggered at the interval
     # specified by `callback_duration`. Save it as an attribute of task to
-    # ensure it does not get garbage-collected.
+    # ensure it does not get garbage-collected. `lock` is the engine's
+    # dedicated input-side lock (see NIDAQEngine._hw_input_lock), used by
+    # hw_input_helper to serialize access to `task` against
+    # concurrent/re-entrant DAQmx callback invocations.
     task._cb = partial(hw_input_helper, callback, n_channels, filter_delay, fs,
-                       names, task, input_type=input_type)
+                       names, task, lock, input_type=input_type)
     task._cb_ptr = mx.DAQmxEveryNSamplesEventCallbackPtr(task._cb)
     mx.DAQmxRegisterEveryNSamplesEvent(
         task, mx.DAQmx_Val_Acquired_Into_Buffer, int(callback_samples), 0,
@@ -836,7 +881,7 @@ def get_timing_config(task):
     return properties
 
 
-def setup_hw_ai(channels, callback_duration, callback, task_name='hw_ao'):
+def setup_hw_ai(channels, callback_duration, callback, lock, task_name='hw_ao'):
     log.debug('Configuring HW AI channels')
 
     # These properties can vary on a per-channel basis
@@ -890,7 +935,7 @@ def setup_hw_ai(channels, callback_duration, callback, task_name='hw_ao'):
         filter_delay = 0
 
     configure_hw_input_cb(task, callback_duration, callback, n_channels,
-                          filter_delay, names)
+                          filter_delay, names, lock)
 
     mx.DAQmxTaskControl(task, mx.DAQmx_Val_Task_Reserve)
     task._properties['names'] = verify_channel_names(task, names)
@@ -1019,6 +1064,18 @@ class NIDAQEngine(ChannelSliceCallbackMixin, Engine):
     #: Total samples written to the analog output buffer.
     total_ao_samples_written = Int(0)
 
+    #: Minimum interval (in seconds) between periodic AI/AO hardware
+    #: sample-clock heartbeat log lines emitted while acquisition is
+    #: running. These lines are tagged "NIDAQ_SAMPLE_CLOCK" so they can be
+    #: grepped out of the log to reconstruct, after the fact, exactly when
+    #: (and by how much) the AI and AO hardware sample clocks diverged --
+    #: even in a run where nothing ever raised an exception. Set to 0 to
+    #: disable.
+    sample_clock_heartbeat_period = d_(Float(5.0)).tag(metadata=True)
+
+    #: Timestamp (from time.monotonic()) of the last heartbeat log line.
+    _last_heartbeat = Float(0.0)
+
     #: Total samples written to the digital output buffer.
     total_do_samples_written = Int(0)
 
@@ -1041,6 +1098,16 @@ class NIDAQEngine(ChannelSliceCallbackMixin, Engine):
     _callbacks = Typed(dict)
     _timers = Typed(dict)
 
+    #: Lock protecting concurrent/re-entrant DAQmx access to the
+    #: hardware-timed input tasks (hw_ai, hw_ci). Deliberately kept separate
+    #: from `self.lock` (which serializes hw_ao/hw_do access): AI/CI reads
+    #: can occasionally take a while (e.g. a downstream sink blocked on a
+    #: slow disk write -- see zarr_store's `_retry_write`), and sharing a
+    #: lock with the output side would let a slow input read stall AO
+    #: buffer refills, risking an AO underrun -- exactly the kind of glitch
+    #: this locking exists to prevent, not cause.
+    _hw_input_lock = Value()
+
     ao_fs = Typed(float).tag(metadata=True)
     do_fs = Typed(float).tag(metadata=True)
     ai_fs = Typed(float).tag(metadata=True)
@@ -1055,6 +1122,7 @@ class NIDAQEngine(ChannelSliceCallbackMixin, Engine):
         self._callbacks = {}
         self._timers = {}
         self._configured = False
+        self._hw_input_lock = RLock()
 
     def configure(self, active=True):
         log.debug('Configuring {} engine'.format(self.name))
@@ -1167,6 +1235,7 @@ class NIDAQEngine(ChannelSliceCallbackMixin, Engine):
         task, clk_task = setup_hw_ci(
             channels, self.hw_ai_monitor_period,
             partial(self._hw_input_callback, 'ci'),
+            self._hw_input_lock,
             '{}_hw_ci'.format(self.name)
         )
         task._properties['sf'] = 1
@@ -1217,6 +1286,7 @@ class NIDAQEngine(ChannelSliceCallbackMixin, Engine):
         task = setup_hw_ai(channels,
                            self.hw_ai_monitor_period,
                            partial(self._hw_input_callback, 'ai'),
+                           self._hw_input_lock,
                            '{}_hw_ai'.format(self.name))
         self._tasks['hw_ai'] = task
         self.ai_fs = task._properties['sample clock rate']
@@ -1301,6 +1371,72 @@ class NIDAQEngine(ChannelSliceCallbackMixin, Engine):
         samples /= task._properties['sf']
         for _channel_name, s, cb in self._callbacks.get(ctype, []):
             cb(samples[s])
+        self._log_sample_clock_heartbeat()
+
+    def _log_sample_clock_heartbeat(self):
+        '''
+        Periodically log this engine's *hardware* sample clocks (as reported
+        directly by the DAQmx driver, not psi's own bookkeeping). Grep for
+        "NIDAQ_SAMPLE_CLOCK" to isolate these lines -- they provide a
+        continuous trail for spotting exactly when/how much the clocks
+        diverge, which a one-off exception won't catch.
+
+        An engine may have hardware-timed input, output, or both, so
+        whichever tasks this engine actually has are the ones reported (and
+        the divergence between them only when there are two to compare).
+        Every line is tagged with the engine name, since an experiment can
+        run several engines at once. Called from both the input and the
+        output callback so an engine with only one of the two still gets a
+        heartbeat; the period is enforced across both.
+        '''
+        period = self.sample_clock_heartbeat_period
+        if period <= 0:
+            return
+        now = time.monotonic()
+        if (now - self._last_heartbeat) < period:
+            return
+        self._last_heartbeat = now
+
+        ai_t = ao_t = None
+        fields = []
+
+        if 'hw_ai' in self._tasks:
+            # Reading the AI clock touches the AI task from whichever
+            # thread we are on -- the output callback's thread, when the
+            # heartbeat is driven from the output side -- so take the same
+            # lock hw_input_helper uses. Never wait for it: a heartbeat is
+            # diagnostic, and blocking here would let a slow input read
+            # stall an AO buffer refill, which is the very coupling
+            # _hw_input_lock exists to avoid. (Called from the input
+            # callback this always succeeds -- same thread, and the lock is
+            # reentrant.)
+            if self._hw_input_lock.acquire(blocking=False):
+                try:
+                    ai_samples = self.ai_sample_clock()
+                finally:
+                    self._hw_input_lock.release()
+                ai_t = ai_samples / self.ai_fs if self.ai_fs else float('nan')
+                fields.append(f'ai_samples={ai_samples} ai_t={ai_t:.6f}')
+            else:
+                fields.append('ai_samples=busy')
+
+        if 'hw_ao' in self._tasks:
+            ao_samples = self.ao_sample_clock()
+            ao_t = ao_samples / self.ao_fs if self.ao_fs else float('nan')
+            fields.append(f'ao_samples={ao_samples} '
+                          f'ao_written={self.total_ao_samples_written} '
+                          f'ao_t={ao_t:.6f}')
+
+        if ai_t is not None and ao_t is not None:
+            fields.append(f'ai_minus_ao_t={ai_t - ao_t:+.6f}')
+
+        if not fields:
+            # Nothing hardware-timed to report (e.g. an engine configured
+            # with software-timed channels only).
+            return
+
+        log.info('NIDAQ_SAMPLE_CLOCK engine=%s %s', self.name,
+                 ' '.join(fields))
 
     def _hw_di_callback(self, samples):
         for i, cb in self._callbacks.get('di', []):
@@ -1335,6 +1471,9 @@ class NIDAQEngine(ChannelSliceCallbackMixin, Engine):
         samples = min(self._get_hw_ao_space_available(), samples)
         data = self._get_hw_ao_samples(self.total_ao_samples_written, samples)
         self.write_hw_ao(data, self.total_ao_samples_written, timeout=0)
+        # An output-only engine has no input callback to drive the
+        # heartbeat, so drive it from here as well.
+        self._log_sample_clock_heartbeat()
 
     @with_lock
     def hw_do_callback(self, samples):
