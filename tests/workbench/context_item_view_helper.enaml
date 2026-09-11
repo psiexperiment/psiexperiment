@@ -1,0 +1,19 @@
+'''
+Minimal host for a ContextItemView.
+
+The view looks up `workbench` dynamically (for the item's scope and the
+experiment state), which in the running application comes from the dock
+item holding it. This provides the same thing for a test.
+'''
+from enaml.widgets.api import Container
+
+from psi.context.context_item_view import ContextItemView
+
+
+enamldef ContextItemViewHarness(Container): harness:
+
+    attr workbench
+    attr context_item
+
+    ContextItemView:
+        context_item << harness.context_item

@@ -166,7 +166,16 @@ template ContextItemTemplate(context_item, MemberType: Parameter):
         padding = 0
         share_layout = True
         align_widths = False
-        enabled << can_edit(
+
+        #: Whether the user can change the value right now. Applied to
+        #: the widgets that change it, but deliberately *not* to the
+        #: whole row: disabling the row grays out the label too, leaving
+        #: an item that cannot be edited (e.g., one whose value was set
+        #: from the environment) hard to read for no reason. A ContextRow
+        #: already renders this way -- the text between its widgets stays
+        #: black while the widgets themselves gray out -- so a standalone
+        #: item now matches a row.
+        attr can_edit_value << can_edit(
             get_scope(context_item.scope, workbench),
             workbench.get_plugin('psi.controller').experiment_state,
             context_item
@@ -176,14 +185,22 @@ template ContextItemTemplate(context_item, MemberType: Parameter):
             condition << get_scope(context_item.scope, workbench) == 'trial'
             CheckBox:
                 checked := context_item.rove
+                enabled << group.can_edit_value
 
         Label: label:
             text << context_item.label
             tool_tip << context_item.name
 
-        DynamicTemplate:
-            base = WidgetTemplate
-            args = (context_item, type(context_item))
+        HGroup:
+            spacing = 0
+            padding = 0
+            share_layout = True
+            align_widths = False
+            enabled << group.can_edit_value
+
+            DynamicTemplate:
+                base = WidgetTemplate
+                args = (context_item, type(context_item))
 
 
 def can_edit(scope, experiment_state, item):
