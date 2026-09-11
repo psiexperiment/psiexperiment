@@ -555,8 +555,6 @@ class ViewBox(ColorCycleMixin, PSIContribution):
 
     @observe('y_min', 'y_max')
     def _update_limits(self, event=None):
-        #if not self.initialized():
-            #return
         if self.y_autoscale:
             return
         deferred_call(
