@@ -1,10 +1,16 @@
 import logging
 log = logging.getLogger(__name__)
 
+from pathlib import Path
+import subprocess
+import sys
+
 import enaml
 from enaml.application import deferred_call
 from enaml.core.api import Conditional
 from enaml.layout.api import spacer
+from enaml.qt.QtCore import QUrl
+from enaml.qt.QtGui import QDesktopServices
 from enaml.qt.QtWidgets import QApplication
 from enaml.widgets.api import (Action, Container, Dialog, HGroup, Label,
                                MultilineField, PushButton, ToolBar)
@@ -21,6 +27,8 @@ from .controller_commands import (
 from .plugin import ControllerPlugin
 from psi.core.api import (ExperimentState, ExperimentEvent,
                                 ExperimentAction)
+
+from psi import get_config
 
 from psi.core.enaml.api import ExperimentManifest
 
@@ -40,6 +48,34 @@ def fit_wrapped_label(label, width):
     widget.setWordWrap(True)
     label.constraints = [label.width == width,
                          label.height == widget.heightForWidth(width)]
+
+
+def open_in_editor(path):
+    '''
+    Open a file with whatever the desktop uses to view it.
+
+    Falls back to Notepad on Windows, where .log files often have no
+    application registered for them at all and `openUrl` then quietly
+    does nothing.
+    '''
+    path = Path(path)
+    if QDesktopServices.openUrl(QUrl.fromLocalFile(str(path))):
+        return
+    if sys.platform == 'win32':
+        log.info('No handler registered for %s. Falling back to Notepad.',
+                 path.suffix)
+        subprocess.Popen(['notepad.exe', str(path)])
+    else:
+        log.warning('Could not open %s', path)
+
+
+def open_folder(path):
+    '''
+    Open the folder containing `path` in the desktop's file browser.
+    '''
+    folder = Path(path).parent
+    if not QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder))):
+        log.warning('Could not open %s', folder)
 
 
 def center_on_screen(window):
@@ -76,6 +112,12 @@ enamldef ResultPopup(Dialog): popup:
     attr message = ''
     attr traceback = ''
     attr _traceback_shown = False
+
+    #: Log file for this run, which the buttons below offer to open. psi
+    #: publishes it as a config value when it configures logging (see
+    #: configure_logging), so it does not have to be threaded through the
+    #: wrapup callbacks to get here.
+    attr logfile = get_config('LOG_FILENAME', '')
 
     #: Width, in pixels, of the text. The messages wrap to it and the
     #: traceback view matches, so the dialog is the same width whether or
@@ -128,7 +170,19 @@ enamldef ResultPopup(Dialog): popup:
         HGroup:
             leading_spacer = spacer(0)
             padding = 0
-            spacing = 0
+            spacing = 5
+            Conditional:
+                condition = bool(popup.logfile)
+                PushButton:
+                    text = 'Open log'
+                    tool_tip << f'Open {popup.logfile} in a text editor'
+                    clicked ::
+                        open_in_editor(popup.logfile)
+                PushButton:
+                    text = 'Open log folder'
+                    tool_tip << f'Open the folder containing {popup.logfile}'
+                    clicked ::
+                        open_folder(popup.logfile)
             PushButton:
                 text = 'OK'
                 clicked ::
