@@ -47,6 +47,11 @@ def logfile(tmp_path):
     set_config('LOG_FILENAME', original)
 
 
+#: The log buttons sit in the same row as the traceback controls, so
+#: they are only built when there is a traceback to show.
+TRACEBACK = 'Traceback (most recent call last):\n  ...\n'
+
+
 def build(app, **kwargs):
     view = ResultPopup(**kwargs)
     view.initialize()
@@ -61,14 +66,16 @@ def buttons(view):
 class TestLogFileButtons:
 
     def test_offers_to_open_the_log(self, app, logfile, opened):
-        view = build(app, error_message='Something went wrong.')
+        view = build(app, error_message='Something went wrong.',
+                     traceback=TRACEBACK)
         assert view.logfile == str(logfile)
 
         buttons(view)['Open log'].click()
         assert opened == [str(logfile).replace('\\', '/')]
 
     def test_offers_to_open_the_folder(self, app, logfile, opened):
-        view = build(app, error_message='Something went wrong.')
+        view = build(app, error_message='Something went wrong.',
+                     traceback=TRACEBACK)
 
         buttons(view)['Open log folder'].click()
         assert opened == [str(logfile.parent).replace('\\', '/')]
@@ -78,8 +85,10 @@ class TestLogFileButtons:
         original = get_config('LOG_FILENAME', '')
         set_config('LOG_FILENAME', '')
         try:
-            view = build(app, error_message='Something went wrong.')
-            assert set(buttons(view)) == {'OK'}
+            view = build(app, error_message='Something went wrong.',
+                         traceback=TRACEBACK)
+            assert 'Open log' not in buttons(view)
+            assert 'Open log folder' not in buttons(view)
         finally:
             set_config('LOG_FILENAME', original)
 
