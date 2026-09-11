@@ -2,7 +2,6 @@ import pytest
 
 import enaml
 #from enaml.workbench.api import Workbench
-from enaml.qt.qt_application import QtApplication
 
 
 with enaml.imports():
@@ -13,11 +12,6 @@ with enaml.imports():
 @pytest.fixture
 def helpers():
     return manifests
-
-
-@pytest.fixture(scope='session')
-def app():
-    return QtApplication()
 
 
 @pytest.fixture

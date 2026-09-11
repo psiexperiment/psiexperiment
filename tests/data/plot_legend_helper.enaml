@@ -1,0 +1,38 @@
+'''
+A plot container with several labelled plots in one viewbox, mirroring
+how the DPOAE IO paradigm lays its plots out (cfts' dpoae_io.enaml).
+'''
+from psi.data.plots import PlotContainer, ResultPlot, ViewBox
+
+
+enamldef LegendContainer(PlotContainer): pc:
+
+    name = 'legend_container'
+    label = 'Legend'
+
+    ViewBox:
+        name = 'legend_viewbox'
+
+        ResultPlot:
+            source_name = 'analyze'
+            x_column = 'level'
+            label = 'F2'
+            y_column = 'f2_level'
+
+        ResultPlot:
+            source_name = 'analyze'
+            x_column = 'level'
+            label = 'F1'
+            y_column = 'f1_level'
+
+        ResultPlot:
+            source_name = 'analyze'
+            x_column = 'level'
+            label = 'Noise Floor'
+            y_column = 'noise_floor'
+
+        ResultPlot:
+            source_name = 'analyze'
+            x_column = 'level'
+            label = 'DPOAE'
+            y_column = 'dpoae_level'

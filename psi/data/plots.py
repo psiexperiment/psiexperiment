@@ -293,8 +293,6 @@ class BasePlotContainer(PSIContribution):
         for i, child in enumerate(self.viewboxes):
             container.addItem(child.y_axis, i, 0)
             container.addItem(child.viewbox, i, 1)
-            container.addItem(child.y_axis, i, 0)
-            container.addItem(child.viewbox, i, 1)
             child._configure_viewbox()
 
         if self.x_axis is not None:
@@ -553,6 +551,13 @@ class ViewBox(ColorCycleMixin, PSIContribution):
     data_range = Property()
     save_limits = d_(Bool(True))
 
+    #: Plots this viewbox has added, and whose labels are therefore in the
+    #: container's legend. Tracked here rather than asked of the viewbox
+    #: (pg.ViewBox.addedItems is an undocumented implementation detail, and
+    #: holds items added by other means too, e.g. ViewBox.plot and
+    #: post-processing plugins).
+    _added_plots = Typed(set, ())
+
     @observe('y_min', 'y_max')
     def _update_limits(self, event=None):
         if self.y_autoscale:
@@ -623,11 +628,25 @@ class ViewBox(ColorCycleMixin, PSIContribution):
             child.request_update()
 
     def add_plot(self, plot, label=None):
+        # Adding a plot twice has to be a no-op. `_configure_viewbox` adds
+        # every child plot, and it runs again each time the
+        # `psi.data.plots` extension point changes (DataPlugin.
+        # _refresh_plots calls _update_container for every container, and
+        # is bound to that point's extensions), so a plot is offered up
+        # once per plot-contributing manifest that registers. Neither
+        # pg.ViewBox.addItem nor pg.LegendItem.addItem ignores an item it
+        # is already holding: the legend would show a full set of entries
+        # per pass, and the viewbox would redraw each curve that many
+        # times.
+        if plot in self._added_plots:
+            return
+        self._added_plots.add(plot)
         self.viewbox.addItem(plot)
         if label:
             self.parent.legend.addItem(plot, label)
 
     def remove_plot(self, plot):
+        self._added_plots.discard(plot)
         self.viewbox.removeItem(plot)
         self.parent.legend.removeItem(plot)
 
@@ -657,10 +676,7 @@ class ViewBox(ColorCycleMixin, PSIContribution):
         elif kind == 'scatter':
             item = pg.ScatterPlotItem(pen=pg.mkPen(color))
         item.setData(x, y)
-        self.add_plot(item)
-
-        if label is not None:
-            self.parent.legend.addItem(item, label)
+        self.add_plot(item, label)
 
 
 ################################################################################
@@ -1130,7 +1146,10 @@ class GroupMixin(ColorCycleMixin):
         # this used to iterate .items(), passing (key, plot) tuples to
         # removeItem.
         for plot in self.plots.values():
-            self.parent.viewbox.removeItem(plot)
+            # Not viewbox.removeItem: that leaves the entry `label_plot`
+            # put in the container legend behind, so the legend grows by a
+            # full set of entries every time the plots are reset.
+            self.parent.remove_plot(plot)
         for label in self.labels.values():
             self.parent.viewbox_norm.removeItem(label)
         self.plots = {}
@@ -1579,7 +1598,9 @@ class DataFramePlot(ColorCycleMixin, PSIContribution):
 
     def _reset_plots(self):
         for plot in self._plot_cache.values():
-            deferred_call(self.parent.viewbox.removeItem, plot)
+            # See GroupMixin._reset_plots: these were added through
+            # add_plot with a label, so they have to go out the same way.
+            deferred_call(self.parent.remove_plot, plot)
         self._plot_cache = {}
 
     def get_plots(self):

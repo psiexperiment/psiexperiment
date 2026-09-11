@@ -12,6 +12,20 @@ from psi.controller.api import (EpochOutput, HardwareAIChannel,
 from psi.controller.engines.null import NullEngine
 
 
+@pytest.fixture(scope='session')
+def app():
+    """
+    The enaml application.
+
+    Enaml allows only one instance per process, so every test that needs
+    one shares this. Qt is imported lazily so a run that does not touch
+    the GUI does not pull it in.
+    """
+    from enaml.application import Application
+    from enaml.qt.qt_application import QtApplication
+    return Application.instance() or QtApplication()
+
+
 @pytest.fixture()
 def engine():
     return NullEngine(buffer_size=10)
