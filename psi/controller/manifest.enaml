@@ -159,18 +159,6 @@ enamldef ResultPopup(Dialog): popup:
                         tool_tip = 'Copy the full traceback to the clipboard'
                         clicked ::
                             QApplication.clipboard().setText(popup.traceback)
-                    Conditional:
-                        condition = bool(popup.logfile)
-                        PushButton:
-                            text = 'Open log'
-                            tool_tip << f'Open {popup.logfile} in a text editor'
-                            clicked ::
-                                open_in_editor(popup.logfile)
-                        PushButton:
-                            text = 'Open log folder'
-                            tool_tip << f'Open the folder containing {popup.logfile}'
-                            clicked ::
-                                open_folder(popup.logfile)
                 Conditional:
                     condition << popup._traceback_shown
                     MultilineField: tb_field:
@@ -179,6 +167,24 @@ enamldef ResultPopup(Dialog): popup:
                         font = '9pt "Consolas"'
                         constraints = [height == 250,
                                        width == popup.text_width]
+        Conditional:
+            # Its own row, rather than sitting with the traceback
+            # controls: a run that ends without an error has no traceback
+            # to show, but still has a log worth opening.
+            condition = bool(popup.logfile)
+            HGroup:
+                padding = 0
+                spacing = 5
+                PushButton:
+                    text = 'Open log'
+                    tool_tip << f'Open {popup.logfile} in a text editor'
+                    clicked ::
+                        open_in_editor(popup.logfile)
+                PushButton:
+                    text = 'Open log folder'
+                    tool_tip << f'Open the folder containing {popup.logfile}'
+                    clicked ::
+                        open_folder(popup.logfile)
         HGroup:
             leading_spacer = spacer(0)
             padding = 0
