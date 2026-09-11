@@ -193,7 +193,7 @@ class ContextItem(Declarative):
     label = d_(Str())
 
     # Datatype of the value. Required for properly initializing some data
-    # plugins (e.g., those that save data to a HDF5 file).
+    # plugins (e.g., those that save data to a binary store).
     dtype = d_(Str())
 
     #: Name of the group to display the item under. This should never be

@@ -126,7 +126,7 @@ Used to add data storage backends.
 - **Contribution Types**:
     - **Sink**: Base class for storage backends.
         - ``name`` (str): Unique identifier.
-        - **Subclasses**: ``ZarrStore``, ``TextStore``, ``CSVStore``, ``HDF5Store``, ``EventLog``.
+        - **Subclasses**: ``ZarrStore``, ``TextStore``, ``TableStore``, ``ConfigStore``.
 
 **Extension Point: psi.data.plots**
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

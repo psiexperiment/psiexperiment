@@ -48,7 +48,7 @@ psi.data (Storage and Visualization)
 ------------------------------------
 Handles the flow of acquired data to storage and real-time displays.
 
-*   **Hook: sinks**: Used to add data storage backends (e.g., HDF5, CSV, Zarr).
+*   **Hook: sinks**: Used to add data storage backends (e.g., Zarr, CSV, plain text).
 *   **Hook: plots**: Used to contribute real-time visualizations such as FFTs, time-series plots, or histograms.
 
 psi.experiment (UI and Metadata)

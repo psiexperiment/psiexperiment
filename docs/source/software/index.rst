@@ -49,5 +49,5 @@ Data Storage
 
 By default, psiexperiment prompts you for a folder to save data when the experiment starts. 
 
-*   **Data Format**: Data is typically saved in formats like HDF5, Zarr, or CSV, depending on which "sinks" are configured in the paradigm.
+*   **Data Format**: Data is typically saved in formats like Zarr or CSV, depending on which "sinks" are configured in the paradigm.
 *   **Auto-Naming**: If configured, psiexperiment can automatically generate folder names based on the current date, subject ID, and experiment type.

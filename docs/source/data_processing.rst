@@ -44,7 +44,7 @@ Data Sinks and Storage
 
 Data is saved by contributing a **Sink** to the ``psi.data.sinks`` extension point.
 
-*   **Continuous Sinks**: Save every sample acquired (e.g., to a Zarr or HDF5 file).
+*   **Continuous Sinks**: Save every sample acquired (e.g., to a Zarr file).
 *   **Event Sinks**: Save discrete experimental events and their associated context values (e.g., to a CSV or SQLite database).
 *   **Trial Sinks**: Automatically extract epochs around specific triggers and save them as independent trials.
 
