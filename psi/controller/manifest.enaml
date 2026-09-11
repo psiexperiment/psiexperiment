@@ -27,7 +27,19 @@ from psi.core.enaml.api import ExperimentManifest
 
 enamldef ResultPopup(PopupView): popup:
 
+    # A 'popup' is a Qt::Popup, which Qt dismisses as soon as the user
+    # clicks anywhere outside it -- losing an error message, and the
+    # traceback with it, to a stray click. A 'window' stays put, and with
+    # close_on_click False a click inside doesn't close it either, so the
+    # OK button is the only way out.
+    window_type = 'window'
     close_on_click = False
+
+    # Center the popup on the screen. `parent_anchor` (0.5, 0.5) is the
+    # center of the screen when the popup has no parent, but the default
+    # view anchor is the *top* edge (0.5, 0), which leaves the window
+    # sitting half its own height below center.
+    anchor = (0.5, 0.5)
 
     attr error_message = ''
     attr message = ''
