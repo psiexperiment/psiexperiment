@@ -46,7 +46,12 @@ class TimeAxisItem(pg.AxisItem):
         self.fmt = fmt
 
     def tickStrings(self, values, scale, spacing):
-        return [format_time(v, fmt=self.fmt) for v in values]
+        # Tick values are multiples of the spacing, so they carry floating
+        # point error (3 * 0.05 = 0.15000000000000002) that a format like
+        # '{S}' prints in full. Round to the precision the spacing implies, as
+        # pg.AxisItem.tickStrings does.
+        places = max(0, int(np.ceil(-np.log10(spacing * scale))))
+        return [format_time(round(v, places), fmt=self.fmt) for v in values]
 
 
 class NormalizedViewBox:

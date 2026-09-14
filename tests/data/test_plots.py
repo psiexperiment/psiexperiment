@@ -175,3 +175,12 @@ def test_average_plot_render_mean_selects_channel():
     result = plot._render_mean(acc.get_mean(((), (60,))))
     # Equivalent to the historical concat(...).mean(axis='epoch')[channel].
     np.testing.assert_allclose(result, epochs.mean(axis=0)[1], rtol=1e-12)
+
+
+def test_time_axis_labels_hide_floating_point_error(app):
+    from psi.data.plots import TimeAxisItem
+    axis = TimeAxisItem(fmt='{S}', orientation='bottom')
+    values = np.arange(4) * 0.05
+    assert axis.tickStrings(values, 1, 0.05)[3] == '0.15'
+    axis = TimeAxisItem(fmt='{S}', orientation='bottom')
+    assert axis.tickStrings(np.arange(4) * 0.001, 1, 0.001)[3] == '0.003'
