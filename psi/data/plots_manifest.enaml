@@ -45,6 +45,10 @@ enamldef PlotGroupSelectButtons(Container):
 
     attr contribution
 
+    # No bottom padding; the plot layout's own top margin separates the
+    # buttons from the plot below.
+    padding = (10, 10, 0, 10)
+
     HGroup:
         spacing = 0
         padding = 0
@@ -94,6 +98,7 @@ enamldef BasePlotContainerManifest(PSIManifest): manifest:
             # really don't know of a better way to do this, but am happy with
             # the result now.
             VGroup:
+                spacing = 0
                 Conditional:
                     condition << len(manifest.contribution.buttons) > 0
                     PlotGroupSelectButtons:
