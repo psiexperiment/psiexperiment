@@ -8,6 +8,8 @@ import itertools
 import numpy as np
 import pandas as pd
 import pyqtgraph as pg
+from pyqtgraph.Qt.QtCore import Qt
+from pyqtgraph.Qt.QtWidgets import QSizePolicy
 
 from atom.api import (Str, Float, Int, Typed, Property, Bool, Enum, List, Dict, Callable, Value, observe,
                       set_default)
@@ -30,6 +32,9 @@ from .plot_util import (  # noqa: F401 -- re-exported for compatibility
     decimate_extremes, decimate_mean, format_log_ticks, format_time,
     get_color_cycle, get_freq, prepare_decimated_curve,
 )
+
+#: Qt's default maximum widget size.
+QWIDGETSIZE_MAX = (1 << 24) - 1
 
 
 class TimeAxisItem(pg.AxisItem):
@@ -220,6 +225,62 @@ class SourceMixin(Declarative):
 ################################################################################
 # Supporting classes
 ################################################################################
+class ContainerLegend(pg.LegendItem):
+    '''
+    Legend that sits in the container layout (rather than floating over the
+    plot), with entries in rows of up to `max_columns`.
+    '''
+    def __init__(self, max_columns=4):
+        super().__init__()
+        self.max_columns = max_columns
+        # Keep the natural size so the layout centers the legend rather
+        # than spreading its columns across the full width of the plot.
+        self.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        self.layout.setContentsMargins(0, 0, 0, 0)
+        self._update_layout()
+
+    # Entries may also be added directly (e.g., by post-processing plugins),
+    # so the layout is updated here rather than in add_legend_item.
+    def addItem(self, item, name):
+        if isinstance(item, pg.PlotDataItem) and item.opts['symbol'] is not None:
+            # The legend sample draws the marker from `item.scatter`, which
+            # only receives symbolPen/symbolBrush/symbolSize once data is
+            # set, so until then it shows pyqtgraph's default marker.
+            opts = item.opts
+            item.scatter.setSymbol(opts['symbol'])
+            item.scatter.setSize(opts['symbolSize'])
+            item.scatter.setPen(opts['symbolPen'])
+            item.scatter.setBrush(opts['symbolBrush'])
+        super().addItem(item, name)
+        self._update_layout()
+
+    def removeItem(self, item):
+        super().removeItem(item)
+        self._update_layout()
+
+    def _update_layout(self):
+        n = len(self.items)
+        # setColumnCount only re-flows entries when the count changes, and
+        # removing an entry otherwise leaves a hole in the grid.
+        self.columnCount = 0
+        self.setColumnCount(max(1, min(n, self.max_columns)))
+        # Each entry is a sample column and a label column; widen the gap
+        # after each label so adjacent entries don't run together.
+        for col in range(1, 2 * self.columnCount - 1, 2):
+            self.layout.setColumnSpacing(col, 15)
+        self.updateSize()
+        # An empty legend still claims a layout row unless it's collapsed.
+        self.setVisible(n > 0)
+        self.setMaximumHeight(QWIDGETSIZE_MAX if n else 0)
+
+    # The layout positions the legend, so don't let it be dragged.
+    def hoverEvent(self, ev):
+        pass
+
+    def mouseDragEvent(self, ev):
+        ev.ignore()
+
+
 ################################################################################
 # Containers (defines a shared set of containers across axes)
 ################################################################################
@@ -288,51 +349,33 @@ class BasePlotContainer(PSIContribution):
             container.clear()
         except Exception:
             pass
-
-        # Add the x and y axes to the layout, along with the viewbox.
-        for i, child in enumerate(self.viewboxes):
-            container.addItem(child.y_axis, i, 0)
-            container.addItem(child.viewbox, i, 1)
-            child._configure_viewbox()
-
-        if self.x_axis is not None:
-            container.addItem(self.x_axis, len(self.viewboxes)+1, 1)
-
-        # Link the child viewboxes together
-        for child in self.viewboxes[1:]:
-            child.viewbox.setXLink(self.base_viewbox)
+        self._layout_items(container)
 
     def _default_container(self):
         container = pg.GraphicsLayout()
         container.setSpacing(10)
-
-        # Add the x and y axes to the layout, along with the viewbox.
-        for i, child in enumerate(self.children):
-            try:
-                container.addItem(child.y_axis, i, 0)
-                container.addItem(child.viewbox, i, 1)
-                child._configure_viewbox()
-            except Exception:
-                pass
-
-
-        if self.x_axis is not None:
-            container.addItem(self.x_axis, i+1, 1)
-
-        # Link the child viewboxes together
-        children = [c for c in self.children if isinstance(c, ViewBox)]
-        for child in children[1:]:
-            child.viewbox.setXLink(children[0].viewbox)
-
+        self._layout_items(container)
         return container
+
+    def _layout_items(self, container):
+        # Legend above the plot column (not the y-axis column), then one row
+        # per viewbox, then the shared x-axis.
+        container.addItem(self.legend, 0, 1)
+        container.layout.setAlignment(self.legend, Qt.AlignHCenter)
+        container.layout.setRowSpacing(0, 0)
+        for i, child in enumerate(self.viewboxes, 1):
+            container.addItem(child.y_axis, i, 0)
+            container.addItem(child.viewbox, i, 1)
+        if self.x_axis is not None:
+            container.addItem(self.x_axis, len(self.viewboxes) + 1, 1)
+        for child in self.viewboxes[1:]:
+            child.viewbox.setXLink(self.base_viewbox)
 
     def add_legend_item(self, plot, label):
         self.legend.addItem(plot, label)
 
     def _default_legend(self):
-        legend = pg.LegendItem()
-        legend.setParentItem(self.container)
-        return legend
+        return ContainerLegend()
 
     def _get_base_viewbox(self):
         # The base viewbox is used as the reference for the X-axis of all
@@ -499,11 +542,7 @@ class FFTContainer(BasePlotContainer):
             # instance of QtApplcation). By ensuring we don't continue if no
             # QApplication exists yet, we can properly load experiment
             # manifests (e.g., so that `psi` can properly list the available
-            # paradigms). Note: `is_initialized` used to gate this instead,
-            # but these containers are contributed via an Enaml Extension's
-            # children and never go through Declarative.initialize(), so
-            # that flag is always False -- it silently blocked this update
-            # forever, not just before the GUI existed.
+            # paradigms).
             return
         deferred_call(self._apply_x_limits)
 
@@ -551,15 +590,27 @@ class ViewBox(ColorCycleMixin, PSIContribution):
     data_range = Property()
     save_limits = d_(Bool(True))
 
-    #: Plots this viewbox has added, and whose labels are therefore in the
-    #: container's legend. Tracked here rather than asked of the viewbox
-    #: (pg.ViewBox.addedItems is an undocumented implementation detail, and
-    #: holds items added by other means too, e.g. ViewBox.plot and
-    #: post-processing plugins).
+    #: Plots added via `add_plot`. Tracked here rather than relying on
+    #: pg.ViewBox.addedItems, which is undocumented and also holds items
+    #: added by other means (e.g., `plot`).
     _added_plots = Typed(set, ())
 
     @observe('y_min', 'y_max')
     def _update_limits(self, event=None):
+        if Application.instance() is None:
+            # Creating Qt objects before the application exists segfaults
+            # (e.g., when manifests are loaded to list paradigms). Limits set
+            # this early are applied by `_default_viewbox`. Don't guard on
+            # `self.initialized()` instead: it's an Event, so calling it
+            # fires it and returns None.
+            return
+        if event is not None and event['type'] == 'create':
+            # Atom reports a member's first read as a 'create' change, and
+            # `_default_viewbox` makes that first read. Accessing
+            # `self.viewbox` here would then re-enter `_default_viewbox`,
+            # creating extra viewboxes and leaving the y-axis linked to a
+            # discarded one (so axis zoom/pan stops working).
+            return
         if self.y_autoscale:
             return
         deferred_call(
@@ -589,32 +640,17 @@ class ViewBox(ColorCycleMixin, PSIContribution):
             self.y_max = float(box[1][1])
 
     def _default_viewbox(self):
-        return pg.ViewBox(enableMenu=True)
-
-    def _configure_viewbox(self):
-        viewbox = self.viewbox
-        viewbox.setMouseEnabled(
+        vb = pg.ViewBox(enableMenu=True)
+        vb.setMouseEnabled(
             x=self.x_mode == 'mouse',
             y=self.y_mode == 'mouse'
         )
-        viewbox.disableAutoRange()
-        viewbox.setBackgroundColor('w')
-        self.y_axis.linkToView(viewbox)
-        viewbox.setYRange(self.y_min, self.y_max, padding=0)
-
-        for child in self.children:
-            if not isinstance(child, BasePlot):
-                continue
-            plots = child.get_plots()
-            if isinstance(plots, dict):
-                for label, plot in plots.items():
-                    deferred_call(self.add_plot, plot, label)
-            else:
-                for plot in plots:
-                    deferred_call(self.add_plot, plot)
-
-        viewbox.sigRangeChanged.connect(self._sync_limits)
-        return viewbox
+        vb.disableAutoRange()
+        vb.setBackgroundColor('w')
+        self.y_axis.linkToView(vb)
+        vb.setYRange(self.y_min, self.y_max, padding=0)
+        vb.sigRangeChanged.connect(self._sync_limits)
+        return vb
 
     def _default_viewbox_norm(self):
         return NormalizedViewBox(self.viewbox)
@@ -628,22 +664,15 @@ class ViewBox(ColorCycleMixin, PSIContribution):
             child.request_update()
 
     def add_plot(self, plot, label=None):
-        # Adding a plot twice has to be a no-op. `_configure_viewbox` adds
-        # every child plot, and it runs again each time the
-        # `psi.data.plots` extension point changes (DataPlugin.
-        # _refresh_plots calls _update_container for every container, and
-        # is bound to that point's extensions), so a plot is offered up
-        # once per plot-contributing manifest that registers. Neither
-        # pg.ViewBox.addItem nor pg.LegendItem.addItem ignores an item it
-        # is already holding: the legend would show a full set of entries
-        # per pass, and the viewbox would redraw each curve that many
-        # times.
+        # pg.ViewBox.addItem and pg.LegendItem.addItem don't check for
+        # duplicates, so adding a plot twice would draw it twice and list it
+        # twice in the legend.
         if plot in self._added_plots:
             return
         self._added_plots.add(plot)
         self.viewbox.addItem(plot)
         if label:
-            self.parent.legend.addItem(plot, label)
+            self.parent.add_legend_item(plot, label)
 
     def remove_plot(self, plot):
         self._added_plots.discard(plot)
@@ -734,8 +763,17 @@ class SinglePlot(PenMixin, BasePlot):
     plot = Typed(object)
     viewbox_name = d_(Str())
 
-    def get_plots(self):
-        return [self.plot]
+    #: Add `label` to the container legend. Off by default to match earlier
+    #: behavior, where only ResultPlot appeared in the legend.
+    show_in_legend = False
+
+    def initialized(self, event=None):
+        super().initialized()
+        # Plots register themselves with the viewbox rather than the viewbox
+        # collecting its children, since grouped plots create their curves
+        # only as data arrives.
+        label = self.label if self.show_in_legend else None
+        deferred_call(self.parent.add_plot, self.plot, label)
 
     def _default_name(self):
         return self.source_name + '_plot'
@@ -1146,17 +1184,13 @@ class GroupMixin(ColorCycleMixin):
         # this used to iterate .items(), passing (key, plot) tuples to
         # removeItem.
         for plot in self.plots.values():
-            # Not viewbox.removeItem: that leaves the entry `label_plot`
-            # put in the container legend behind, so the legend grows by a
-            # full set of entries every time the plots are reset.
+            # Plots are added via viewbox.addItem and label_plot, but must be
+            # removed via remove_plot so their legend entries go too.
             self.parent.remove_plot(plot)
         for label in self.labels.values():
             self.parent.viewbox_norm.removeItem(label)
         self.plots = {}
         self._data_cache = {}
-
-    def get_plots(self):
-        return []
 
     def _make_new_plot(self, key):
         try:
@@ -1212,6 +1246,7 @@ class EpochGroupMixin(SourceMixin, GroupMixin):
         return mean[self.channel]
 
     def initialized(self, event=None):
+        super().initialized()
         container = self.parent.parent
         self.observe('tab_keys', lambda e: setattr(container, 'buttons', e['value']))
         self.observe('selected_tab', lambda e: setattr(container, 'current_button', e['value']))
@@ -1439,8 +1474,7 @@ class ResultPlot(SourceMixin, SymbolMixin, GroupMixin, SinglePlot):
     y_column = d_(Str())
     average = d_(Bool())
 
-    def get_plots(self):
-        return {self.label: self.plot}
+    show_in_legend = True
 
     def _default_name(self):
         return '.'.join((self.parent.name, self.source_name, 'result_plot',
@@ -1598,10 +1632,6 @@ class DataFramePlot(ColorCycleMixin, PSIContribution):
 
     def _reset_plots(self):
         for plot in self._plot_cache.values():
-            # See GroupMixin._reset_plots: these were added through
-            # add_plot with a label, so they have to go out the same way.
             deferred_call(self.parent.remove_plot, plot)
         self._plot_cache = {}
 
-    def get_plots(self):
-        return list(self._plot_cache.values())

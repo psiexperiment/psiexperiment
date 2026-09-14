@@ -1,6 +1,5 @@
 '''
-A plot container with several labelled plots in one viewbox, mirroring
-how the DPOAE IO paradigm lays its plots out (cfts' dpoae_io.enaml).
+A plot container with several labelled plots in one viewbox.
 '''
 from psi.data.plots import PlotContainer, ResultPlot, ViewBox
 
