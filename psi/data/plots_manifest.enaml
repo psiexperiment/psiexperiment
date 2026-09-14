@@ -73,6 +73,10 @@ enamldef PlotGroupSelectButtons(Container):
                     clicked ::
                         contribution.auto_select = False
                         contribution.current_button = loop_item
+                        # Clicking the current button toggles it off in Qt,
+                        # and `checked <<` won't restore it since
+                        # current_button hasn't changed.
+                        pb.checked = True
 
         Conditional:
             condition << len(contribution.buttons) > contribution.max_buttons
