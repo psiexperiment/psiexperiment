@@ -12,7 +12,7 @@ from psi.controller.engines.nidaq import (NIDAQEngine,
                                           NIDAQHardwareAIChannel,
                                           NIDAQHardwareAOChannel)
 from psi.controller.input import Transform
-from psi.controller.calibration.api import FlatCalibration
+from psiaudio.calibration import FlatCalibration
 
 
 def mv_to_C(mv):
