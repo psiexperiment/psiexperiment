@@ -73,6 +73,13 @@ TERMINAL_COUPLING_MAP = {
 }
 
 
+EXCITATION_SOURCE_MAP = {
+    None: mx.DAQmx_Val_None,
+    'internal': mx.DAQmx_Val_Internal,
+    'external': mx.DAQmx_Val_External,
+}
+
+
 ################################################################################
 # Utility functions for IOManifest
 ################################################################################
@@ -288,6 +295,52 @@ class NIDAQHardwareAIChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
     terminal_coupling = d_(Enum(None, 'AC', 'DC', 'ground')).tag(metadata=True)
 
     expected_range = set_default((-10, 10))
+
+
+class NIDAQHardwareAIChannelIEPE(NIDAQHardwareAIChannel):
+    '''
+    Analog input channel that provides IEPE excitation
+
+    IEPE sensors (also marketed as CCLD, CCP, DeltaTron, Isotron, TEDS-style
+    microphones, etc.), such as prepolarized (electret) microphones with a
+    built-in preamplifier, do not have a separate power connection. Instead,
+    they are powered by a constant current that the acquisition device sources
+    on the same line the signal is measured on. Devices such as the PXI-4461
+    and NI-9234 can generate this excitation current internally.
+
+    The excitation current appears on the signal line as a large DC bias
+    (typically 8-12 V), so the channel must be AC-coupled to recover the
+    signal. On NI devices, excitation is also only supported in
+    pseudodifferential terminal mode. Both are the defaults for this channel
+    type and generally should not be changed.
+
+    Not all devices support the same excitation currents (e.g., 4 or 10 mA for
+    the PXI-4461 vs. 2.1 mA for the NI-9234). If the requested current is not
+    supported, NI-DAQmx coerces it to the nearest supported value. The coerced
+    value is logged (as a warning if it differs from the requested value) and
+    stored in the task properties as `<line> excitation current`.
+
+    Microphone sensitivity is handled by the channel calibration (as it is for
+    all other psiexperiment channels), not by the NI-DAQmx microphone
+    sensitivity property, so the acquired data are still in volts.
+    '''
+    #: Excitation is not supported in differential mode on NI hardware.
+    terminal_mode = set_default('pseudodifferential')
+
+    #: The excitation current shows up as a DC bias on the signal line and
+    #: must be removed before digitizing.
+    terminal_coupling = set_default('AC')
+
+    #: Where the excitation current comes from. Use `'internal'` to have the
+    #: device generate the current (the typical use-case). Use `'external'` if
+    #: the sensor is powered by an external signal conditioner (e.g., a
+    #: standalone IEPE supply) that is wired to the device input, and `None` to
+    #: disable excitation entirely (e.g., for devices that always have their
+    #: excitation on and only require the input to be AC-coupled).
+    excitation_source = d_(Enum('internal', 'external', None)).tag(metadata=True)
+
+    #: Excitation current, in amps. Ignored if `excitation_source` is `None`.
+    excitation_current = d_(Float(4e-3)).tag(metadata=True)
 
 
 class NIDAQHardwareDIChannel(NIDAQGeneralMixin, NIDAQTimingMixin,
@@ -881,6 +934,58 @@ def get_timing_config(task):
     return properties
 
 
+def setup_ai_excitation(task, channels):
+    '''
+    Configure excitation (e.g., IEPE) for the channels that request it
+
+    Excitation is configured on a per-channel basis, so IEPE channels can be
+    combined with ordinary analog input channels in the same task.
+    '''
+    for channel in channels:
+        if not hasattr(channel, 'excitation_source'):
+            # Channel type does not support excitation at all (i.e., it's not
+            # an IEPE channel), so leave the device defaults alone.
+            continue
+
+        source = channel.excitation_source
+        line = channel.channel
+        if source is not None and channel.terminal_coupling != 'AC':
+            raise ValueError(
+                f'Channel {channel} requires AC coupling. Excitation current '
+                'appears as a DC bias on the signal line and NI-DAQmx will '
+                'not enable excitation on a DC-coupled channel.'
+            )
+
+        log.debug('Setting excitation source for %s to %r', line, source)
+        mx.DAQmxSetAIExcitSrc(task, line, EXCITATION_SOURCE_MAP[source])
+        if source is None:
+            continue
+
+        try:
+            mx.DAQmxSetAIExcitVoltageOrCurrent(task, line,
+                                               mx.DAQmx_Val_Current)
+        except mx.DAQError:
+            # Devices whose excitation is current-only (e.g., PXI-4461) do not
+            # allow this property to be set.
+            log.debug('Could not set excitation type for %s', line)
+
+        log.debug('Setting excitation current for %s to %f A', line,
+                  channel.excitation_current)
+        mx.DAQmxSetAIExcitVal(task, line, channel.excitation_current)
+
+        # The device coerces the requested current to the nearest value it
+        # supports (e.g., 4 or 10 mA on the PXI-4461), so report what we
+        # actually ended up with.
+        result = ctypes.c_double()
+        mx.DAQmxGetAIExcitVal(task, line, result)
+        task._properties[f'{line} excitation current'] = result.value
+        if result.value != channel.excitation_current:
+            log.warning('Excitation current for %s coerced from %f to %f A',
+                        line, channel.excitation_current, result.value)
+        else:
+            log.info('Excitation current for %s is %f A', line, result.value)
+
+
 def setup_hw_ai(channels, callback_duration, callback, lock, task_name='hw_ao'):
     log.debug('Configuring HW AI channels')
 
@@ -888,28 +993,35 @@ def setup_hw_ai(channels, callback_duration, callback, lock, task_name='hw_ao'):
     lines = get_channel_property(channels, 'channel', True)
     names = get_channel_property(channels, 'name', True)
     gains = get_channel_property(channels, 'gain', True)
+    terminal_couplings = get_channel_property(channels, 'terminal_coupling',
+                                              True)
 
     # These properties must be the same across all channels
     expected_range = get_channel_property(channels, 'expected_range')
     samples = get_channel_property(channels, 'samples')
     terminal_mode = get_channel_property(channels, 'terminal_mode')
-    terminal_coupling = get_channel_property(channels, 'terminal_coupling')
 
     # Convert to representation required by NI functions
-    lines = ','.join(lines)
-    log.debug('Configuring lines {}'.format(lines))
+    merged_lines = ','.join(lines)
+    log.debug('Configuring lines {}'.format(merged_lines))
 
     terminal_mode = TERMINAL_MODE_MAP[terminal_mode]
-    terminal_coupling = TERMINAL_COUPLING_MAP[terminal_coupling]
 
     task = create_task(task_name)
-    mx.DAQmxCreateAIVoltageChan(task, lines, '', terminal_mode,
+    mx.DAQmxCreateAIVoltageChan(task, merged_lines, '', terminal_mode,
                                 expected_range[0], expected_range[1],
                                 mx.DAQmx_Val_Volts, '')
 
-    if terminal_coupling is not None:
-        mx.DAQmxSetAICoupling(task, lines, terminal_coupling)
+    # Coupling is set on a per-channel basis since IEPE channels require AC
+    # coupling but may be combined with DC-coupled channels in the same task.
+    for line, terminal_coupling in zip(lines, terminal_couplings):
+        if terminal_coupling is None:
+            continue
+        log.debug('Setting coupling for %s to %s', line, terminal_coupling)
+        mx.DAQmxSetAICoupling(task, line,
+                              TERMINAL_COUPLING_MAP[terminal_coupling])
 
+    setup_ai_excitation(task, channels)
     setup_timing(task, channels)
 
     result = ctypes.c_uint32()
@@ -918,10 +1030,10 @@ def setup_hw_ai(channels, callback_duration, callback, lock, task_name='hw_ao'):
 
     try:
         info = ctypes.c_int32()
-        mx.DAQmxSetAIFilterDelayUnits(task, lines,
+        mx.DAQmxSetAIFilterDelayUnits(task, merged_lines,
                                       mx.DAQmx_Val_SampleClkPeriods)
         info = ctypes.c_double()
-        mx.DAQmxGetAIFilterDelay(task, lines, info)
+        mx.DAQmxGetAIFilterDelay(task, merged_lines, info)
         log.debug('AI filter delay {} samples'.format(info.value))
         filter_delay = int(info.value)
 
