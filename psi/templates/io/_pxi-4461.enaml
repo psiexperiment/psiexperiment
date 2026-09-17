@@ -7,6 +7,7 @@ from psi import get_config
 
 from psi.controller.engines.nidaq import (NIDAQEngine,
                                           NIDAQHardwareAIChannel,
+                                          NIDAQHardwareAIChannelIEPE,
                                           NIDAQHardwareAOChannel)
 from psi.controller.input import Transform
 from psiaudio.calibration import FlatCalibration
@@ -148,3 +149,43 @@ enamldef IOManifest(PluginManifest): manifest:
                 #: The nominal max range in the spec sheet is higher, but we clip it to a
                 #: reasonable range to avoid damaging connected equipment.
                 max_range = (-1.0, 1.0)
+
+            #: If your calibration microphone is a prepolarized (IEPE/ICP)
+            #: microphone rather than one driven by an external preamp, use
+            #: NIDAQHardwareAIChannelIEPE in place of the channel above. The
+            #: 4461 generates the excitation current the microphone needs, so
+            #: no separate signal conditioner is required.
+            #:
+            #: The defaults (internal excitation at 4 mA, AC coupling,
+            #: pseudodifferential terminal mode) are what NI hardware requires
+            #: when excitation is enabled and suit most IEPE microphones, so
+            #: they are spelled out below only for illustration. The 4461
+            #: supports 4 and 10 mA; other values are coerced to the nearest
+            #: supported value (the value actually used is written to the log).
+            #:
+            #: Two settings deserve attention. First, `gain` is 0 because the
+            #: preamp is built into the microphone; sensitivity belongs in the
+            #: calibration instead (e.g., 45 mV/Pa nominal for a PCB 130D20 --
+            #: use the value from the calibration sheet for your microphone).
+            #: Second, `expected_range` has to match every other analog input
+            #: channel in this engine because NI-DAQmx sets the input range for
+            #: the task as a whole. A microphone at 45 mV/Pa reaches only ~1.1
+            #: V RMS at its 122 dB SPL limit, so a narrower range such as
+            #: (-3.16, 3.16) makes better use of the ADC when the other
+            #: channels allow it.
+            #NIDAQHardwareAIChannelIEPE:
+            #    label = 'Calibration microphone'
+            #    name = 'reference_microphone_channel'
+            #    channel = 'PXI1Slot8/ai1'
+            #    start_trigger = '/PXI1Slot8/ao/StartTrigger'
+            #    fs = 100e3
+            #    reference_clock = 'PXI_Clk10'
+            #    expected_range = (-10, 10)
+            #    dtype = 'float64'
+            #    terminal_mode = 'pseudodifferential'
+            #    terminal_coupling = 'AC'
+            #    excitation_source = 'internal'
+            #    excitation_current = 4e-3
+            #    gain = 0
+            #    calibration = FlatCalibration.from_mv_pa(45)
+            #    calibration_user_editable = True
