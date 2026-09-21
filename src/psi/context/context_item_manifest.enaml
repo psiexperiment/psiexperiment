@@ -49,7 +49,6 @@ enamldef ContextDockItem(PSIDockItem):
 
             constraints.append(align('right', *anchors))
             constraints.append(align('left', *anchors))
-            #constraints.append(align('right', *pb_meta))
             constraints.append(align('left', *pb_meta))
             return constraints
 
