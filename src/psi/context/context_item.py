@@ -202,6 +202,9 @@ class ContextItem(Declarative):
     # plugins (e.g., those that save data to a binary store).
     dtype = d_(Str())
 
+    #: Information about the item to display in the UI (via tool_tip)
+    info = d_(Str())
+
     #: Name of the group to display the item under. This should never be
     #: overwitten even if we remove the item from the group (e.g., when
     #: loading/unloading plugin tokens).
