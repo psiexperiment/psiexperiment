@@ -265,14 +265,13 @@ template WidgetTemplate(context_item, MemberType: MultiSelectParameter):
                 checked << loop_item[0] in context_item.selected
                 checked ::
                     selected = context_item.selected[:]
-                    if checked and loop_item[0] not in selected:
+                    if checked and (loop_item[0] not in selected):
                         selected.append(loop_item[0])
-                    elif loop_item[0] in selected:
+                    elif (not checked) and (loop_item[0] in selected):
                         selected.remove(loop_item[0])
-
                     if len(selected) < context_item.min_selected:
                         self.checked = True
-                    else:
+                    if set(context_item.selected) != set(selected):
                         context_item.selected = selected
 
 
