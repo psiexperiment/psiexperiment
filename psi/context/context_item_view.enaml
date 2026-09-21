@@ -39,6 +39,13 @@ from .context_item import (Result, Parameter, EnumParameter, FileParameter,
 from .expression import ExpressionNamespace
 
 
+def get_tool_tip(name, info=None):
+    if info is None:
+        return f'Variable: {name}'
+    else:
+        return f'Variable: {name}, info: {info}'
+
+
 class ContextItemValidator(Validator):
     '''
     Validates expression typed into a ContextItem field
@@ -157,7 +164,7 @@ template ContextItemTemplate(context_item, MemberType: str):
 template ContextItemTemplate(context_item, MemberType: Result):
     Label:
         text << context_item.label
-        tool_tip << context_item.name
+        tool_tip << get_tool_tip(context_item.name, context_item.info)
 
 
 template ContextItemTemplate(context_item, MemberType: Parameter):
@@ -179,7 +186,7 @@ template ContextItemTemplate(context_item, MemberType: Parameter):
 
         Label: label:
             text << context_item.label
-            tool_tip << context_item.name
+            tool_tip << get_tool_tip(context_item.name, context_item.info)
 
         DynamicTemplate:
             base = WidgetTemplate
@@ -202,7 +209,7 @@ template WidgetTemplate(context_item, MemberType):
     '''
     Field:
         text := context_item.expression
-        tool_tip << context_item.name
+        tool_tip << get_tool_tip(context_item.name, context_item.info)
         validator << ContextItemValidator(
             plugin=workbench.get_plugin('psi.context'),
             item=context_item
@@ -230,7 +237,7 @@ template WidgetTemplate(context_item, MemberType: EnumParameter):
         items << sorted(context_item.choices.keys())
         selected := context_item.selected
         enabled << context_item.editable
-        tool_tip << context_item.name
+        tool_tip << get_tool_tip(context_item.name, context_item.info)
 
 
 
@@ -284,7 +291,7 @@ template WidgetTemplate(context_item, MemberType: BoolParameter):
         text = ''
         checked << eval(context_item.expression)
         enabled << context_item.editable
-        tool_tip << context_item.name
+        tool_tip << get_tool_tip(context_item.name, context_item.info)
         toggled ::
             context_item.expression = 'True' if checked else 'False'
 
