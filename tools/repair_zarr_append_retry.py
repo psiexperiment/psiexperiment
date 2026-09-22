@@ -11,13 +11,15 @@ Each occurrence can be located from experiment_log.txt. From the next append
 onward, every block logs a NIDAQ_DATA_GAP line, and gap_samples jumps by the
 length of the bad block, d. On the first such line, expected_s0 is the file
 length L just after the bad append. That append wrote its data to [L - d, L),
-so the fill block is [L - 2d, L - d). This script removes those ranges and
-writes a repaired copy of the recording zip. The input is never modified.
+so the fill block is [L - 2d, L - d). This script removes those ranges.
+
+By default the script only reports the ranges and checks. With --apply, the
+original is renamed to "<name> (original).zip" and the repaired recording is
+written as "<name>.zip". The original's contents are never modified.
 
 Each range is verified before anything is written. Every sample in it must be
 either the fill value or an exact copy of the matching sample in the retried
-block that follows it. If any range fails, no output is written. Without
---output, the script only reports the ranges and checks.
+block that follows it. If any range fails, nothing is written or renamed.
 '''
 import argparse
 import datetime as dt
@@ -168,22 +170,30 @@ def main(argv=None):
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('recording', type=Path,
                         help='Recording zip containing experiment_log.txt')
-    parser.add_argument('-o', '--output', type=Path,
-                        help='Where to write the repaired zip. If omitted, '
-                        'only report what would be removed.')
+    parser.add_argument('--apply', action='store_true',
+                        help='Keep the original as "<name> (original).zip" '
+                        'and write the repaired recording as "<name>.zip". '
+                        'Without this, only report what would be removed.')
     parser.add_argument('--batch-chunks', type=int, default=32,
                         help='Chunks to copy per write (default: %(default)s)')
     args = parser.parse_args(argv)
 
-    if args.output is not None:
-        if args.output.resolve() == args.recording.resolve():
-            parser.error('--output must differ from the input recording')
-        if args.output.exists():
-            parser.error(f'{args.output} already exists')
+    recording = args.recording
+    original = recording.with_name(f'{recording.stem} (original){recording.suffix}')
+    partial = recording.with_name(f'{recording.stem}.repairing{recording.suffix}')
+    if args.apply:
+        for path in (original, partial):
+            if path.exists():
+                parser.error(f'{path} already exists')
 
-    with zipfile.ZipFile(args.recording) as zin:
+    with zipfile.ZipFile(recording) as zin:
         log_text = zin.read('experiment_log.txt').decode('utf-8', 'replace')
         entry_names = {i.filename for i in zin.infolist()}
+    if 'repair_log.json' in entry_names:
+        # The log still describes the original shifts, so repairing again
+        # would remove good data.
+        print(f'{recording} has already been repaired; nothing to do.')
+        return
     blocks, retries = find_fill_blocks(log_text)
 
     if not blocks:
@@ -196,9 +206,9 @@ def main(argv=None):
         print(f'WARNING: log has {retries} retries but only {n_shifts} '
               f'detected shifts. The others cannot be repaired from the log.')
 
-    src_store = ZipStore(args.recording, mode='r')
+    src_store = ZipStore(recording, mode='r')
     report = {
-        'source': str(args.recording),
+        'source': original.name,
         'repaired_at': dt.datetime.now().isoformat(timespec='seconds'),
         'script': Path(__file__).name,
         'arrays': {},
@@ -238,16 +248,38 @@ def main(argv=None):
         print('NOTE: repaired arrays have different lengths. That is expected '
               'only if they come from different engines or sample rates.')
 
-    if args.output is None:
-        print('Dry run only; pass --output to write a repaired copy.')
+    if not args.apply:
+        src_store.close()
+        print('Dry run only; pass --apply to repair.')
         return
     if failed:
-        raise SystemExit('Refusing to write a repaired copy.')
+        src_store.close()
+        raise SystemExit('Refusing to repair.')
 
-    args.output.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(dir=args.output.parent) as tmp, \
-            zipfile.ZipFile(args.recording) as zin, \
-            zipfile.ZipFile(args.output, 'x', allowZip64=True) as zout:
+    # Build the repaired zip under a temporary name so the recording is only
+    # swapped out once the new copy is complete.
+    try:
+        write_repaired(recording, partial, sources, blocks, report,
+                       args.batch_chunks)
+    except BaseException:
+        partial.unlink(missing_ok=True)
+        raise
+    finally:
+        src_store.close()
+    recording.rename(original)
+    try:
+        partial.rename(recording)
+    except BaseException:
+        original.rename(recording)
+        raise
+    print(f'Original kept as {original}')
+    print(f'Repaired recording written to {recording}')
+
+
+def write_repaired(recording, output, sources, blocks, report, batch_chunks):
+    with tempfile.TemporaryDirectory(dir=output.parent) as tmp, \
+            zipfile.ZipFile(recording) as zin, \
+            zipfile.ZipFile(output, 'x', allowZip64=True) as zout:
         tmp = Path(tmp)
         repaired_prefixes = tuple(f'{name}.zarr/' for name in blocks)
         compress_type = zipfile.ZIP_DEFLATED
@@ -267,14 +299,12 @@ def main(argv=None):
                 dtype=src.dtype, fill_value=src.fill_value,
                 serializer=src.serializer, compressors=src.compressors,
                 filters=src.filters, attributes=src.attrs.asdict())
-            copy_without(src, dst, remove, src.chunks[-1] * args.batch_chunks)
+            copy_without(src, dst, remove, src.chunks[-1] * batch_chunks)
             zip_add_tree(zout, tmp / f'{name}.zarr', f'{name}.zarr/', compress_type)
 
         info = zipfile.ZipInfo('repair_log.json', dt.datetime.now().timetuple()[:6])
         info.compress_type = zipfile.ZIP_DEFLATED
         zout.writestr(info, json.dumps(report, indent=2))
-    src_store.close()
-    print(f'Wrote {args.output}')
 
 
 if __name__ == '__main__':
