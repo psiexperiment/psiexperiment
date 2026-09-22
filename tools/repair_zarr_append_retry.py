@@ -14,9 +14,10 @@ length L just after the bad append. That append wrote its data to [L - d, L),
 so the fill block is [L - 2d, L - d). This script removes those ranges and
 writes a repaired copy of the recording zip. The input is never modified.
 
-Without --output, the script only reports what it would remove, along with
-checks on each range. A correct range should be mostly zeros (the fill value),
-and removing it should join the signal without a jump.
+Each range is verified before anything is written. Every sample in it must be
+either the fill value or an exact copy of the matching sample in the retried
+block that follows it. If any range fails, no output is written. Without
+--output, the script only reports the ranges and checks.
 '''
 import argparse
 import datetime as dt
@@ -76,7 +77,13 @@ def find_fill_blocks(log_text):
 
 def check_range(src, start, stop):
     fill = src[..., start:stop]
-    zero_fraction = float(np.mean(fill == src.fill_value))
+    is_fill = fill == src.fill_value
+    zero_fraction = float(np.mean(is_fill))
+    # If part of the failed write reached disk (the block spanned two chunks
+    # and only one failed), those samples are real, and they equal the
+    # retry's copy of the same block, which directly follows the range.
+    retry = src[..., stop:stop + (stop - start)]
+    verified = retry.shape == fill.shape and bool(np.all(is_fill | (fill == retry)))
     before = src[..., start - 1]
     after = src[..., stop:stop + JUMP_CONTEXT]
     typical_step = np.median(np.abs(np.diff(after, axis=-1)), axis=-1)
@@ -87,6 +94,7 @@ def check_range(src, start, stop):
         'stop': stop,
         'n_samples': stop - start,
         'zero_fraction': zero_fraction,
+        'verified': verified,
         'join_jump_vs_typical_step': jump_ratio,
     }
 
@@ -212,9 +220,18 @@ def main(argv=None):
         }
         print(f'{name}.zarr: {src.shape[-1]} -> {src.shape[-1] - n_removed} samples')
         for c in checks:
+            status = 'ok' if c['verified'] else 'FAILED'
             print(f'  remove [{c["start"]}, {c["stop"]}) ({c["n_samples"]} samples): '
-                  f'{c["zero_fraction"]:.1%} fill values, join jump = '
+                  f'{status}, {c["zero_fraction"]:.1%} fill values, join jump = '
                   f'{c["join_jump_vs_typical_step"]:.1f}x typical step')
+
+    failed = [(name, c['start'], c['stop'])
+              for name, info in report['arrays'].items()
+              for c in info['removed'] if not c['verified']]
+    for name, start, stop in failed:
+        print(f'ERROR: {name}.zarr [{start}, {stop}) is not all fill values '
+              f'or copies of the retried block, so it may not be the '
+              f'damaged range.')
 
     lengths = {r['repaired_length'] for r in report['arrays'].values()}
     if len(lengths) > 1:
@@ -224,6 +241,8 @@ def main(argv=None):
     if args.output is None:
         print('Dry run only; pass --output to write a repaired copy.')
         return
+    if failed:
+        raise SystemExit('Refusing to write a repaired copy.')
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(dir=args.output.parent) as tmp, \
