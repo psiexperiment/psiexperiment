@@ -78,3 +78,28 @@ def test_epochs(store, data_generator):
         recording.epochs_metadata['t0'],
         np.arange(0, data_generator.n_iter * isi, isi)
     )
+
+
+def test_continuous_chunk_write_retry(store, data_generator, monkeypatch):
+    # Regression test: a transient PermissionError on a chunk write used to
+    # retry `zarr.Array.append` as a whole. The resize from the failed attempt
+    # was already committed, so the retry grew the array again, shifting all
+    # later data by one block.
+    from zarr.storage import LocalStore
+    set_chunk = LocalStore.set
+    failures = {'remaining': 1}
+
+    async def flaky_set(self, key, value):
+        if '/c/' in f'/{key}' and failures['remaining']:
+            failures['remaining'] -= 1
+            raise PermissionError(5, 'Access is denied')
+        return await set_chunk(self, key, value)
+
+    monkeypatch.setattr(LocalStore, 'set', flaky_set)
+    store.create_ai_continuous('signal', data_generator.fs, 'd', {})
+    for samples in data_generator.iter_continuous():
+        store.process_ai_continuous('signal', samples)
+
+    assert failures['remaining'] == 0
+    generated = np.concatenate(data_generator.generated, axis=-1)
+    np.testing.assert_array_equal(generated, store._stores['signal'][:])

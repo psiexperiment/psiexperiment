@@ -37,6 +37,21 @@ def _retry_write(fn, *args, attempts=5, initial_delay=0.05, **kwargs):
             delay *= 2
 
 
+def _append(array, data, axis):
+    # Never retry `zarr.Array.append` as a whole: it commits the resize before
+    # writing chunks, so retrying after a failed chunk write grows the array a
+    # second time, leaving a block of fill values and shifting every later
+    # sample. Resizing to an absolute shape and writing to an explicit slice
+    # are each idempotent, so they can be retried independently.
+    old_size = array.shape[axis]
+    new_shape = list(array.shape)
+    new_shape[axis] = old_size + data.shape[axis]
+    _retry_write(array.resize, tuple(new_shape))
+    selection = [slice(None)] * array.ndim
+    selection[axis] = slice(old_size, new_shape[axis])
+    _retry_write(array.__setitem__, tuple(selection), data)
+
+
 class ZarrEpochData(BaseEpochData):
 
     metadata_filename = Typed(Path)
@@ -45,7 +60,7 @@ class ZarrEpochData(BaseEpochData):
     def append(self, data):
         epochs, metadata = self._split_epochs_metadata(data)
         epochs = np.concatenate(epochs, axis=-1)
-        _retry_write(self.data.append, epochs, axis=epochs.ndim-1)
+        _append(self.data, epochs, axis=epochs.ndim-1)
         self.metadata.extend(metadata)
         self.dirty = True
 
@@ -70,8 +85,7 @@ class ZarrStore(BaseStore):
 
     def process_ai_continuous(self, name, data):
         self._check_continuity(name, data, self._stores[name].shape[-1])
-        _retry_write(self._stores[name].append, np.asarray(data),
-                     axis=data.ndim-1)
+        _append(self._stores[name], np.asarray(data), axis=data.ndim-1)
 
     def process_ai_epochs(self, name, data):
         self._stores[name].append(data)
