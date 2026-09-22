@@ -13,6 +13,10 @@ length of the bad block, d. On the first such line, expected_s0 is the file
 length L just after the bad append. That append wrote its data to [L - d, L),
 so the fill block is [L - 2d, L - d). This script removes those ranges.
 
+Recordings made before that logging existed can be repaired with --scan, which
+finds the same ranges by looking for the fill block in the data itself (see
+tools/scan_zarr_fill_gaps.py).
+
 By default the script only reports the ranges and checks. With --apply, the
 original is renamed to "<name> (original).zip" and the repaired recording is
 written as "<name>.zip". The original's contents are never modified.
@@ -35,6 +39,8 @@ import numpy as np
 import zarr
 from zarr.storage import ZipStore
 
+
+DEFAULT_MIN_SAMPLES = 500
 
 GAP_RE = re.compile(r'NIDAQ_DATA_GAP store=\S+ input=(\S+) expected_s0=(\d+) '
                     r'got_s0=(\d+) gap_samples=(-?\d+)')
@@ -75,6 +81,25 @@ def find_fill_blocks(log_text):
         blocks.setdefault(name, []).append((expected - 2 * d, expected - d))
         last_gap[name] = gap
     return blocks, retries
+
+
+def scan_fill_blocks(recording):
+    '''
+    Return {input name: [(start, stop), ...]} found by scanning the data,
+    for recordings whose log predates NIDAQ_DATA_GAP.
+    '''
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent))
+    from scan_zarr_fill_gaps import scan_recording
+
+    report = scan_recording(recording, min_samples=DEFAULT_MIN_SAMPLES,
+                            block=4_000_000, quick=False)
+    blocks = {}
+    for name, info in report['arrays'].items():
+        ranges = [(r['damaged_start'], r['stop']) for r in info['fill_runs']]
+        if ranges:
+            blocks[name] = ranges
+    return blocks
 
 
 def check_range(src, start, stop):
@@ -174,6 +199,14 @@ def main(argv=None):
                         help='Keep the original as "<name> (original).zip" '
                         'and write the repaired recording as "<name>.zip". '
                         'Without this, only report what would be removed.')
+    parser.add_argument('--scan', action='store_true',
+                        help='Find the ranges by scanning the data for fill '
+                        'blocks instead of reading them from the log. Needed '
+                        'for recordings made before NIDAQ_DATA_GAP logging.')
+    parser.add_argument('--temp-dir', type=Path,
+                        help='Where to stage the repaired arrays (default: '
+                        'the system temp directory; needs room for the '
+                        'recording)')
     parser.add_argument('--batch-chunks', type=int, default=32,
                         help='Chunks to copy per write (default: %(default)s)')
     args = parser.parse_args(argv)
@@ -187,35 +220,50 @@ def main(argv=None):
                 parser.error(f'{path} already exists')
 
     with zipfile.ZipFile(recording) as zin:
-        log_text = zin.read('experiment_log.txt').decode('utf-8', 'replace')
         entry_names = {i.filename for i in zin.infolist()}
+        log_text = ''
+        if not args.scan:
+            if 'experiment_log.txt' not in entry_names:
+                parser.error(f'{recording} has no experiment_log.txt; use '
+                             f'--scan to find the ranges in the data')
+            log_text = zin.read('experiment_log.txt').decode('utf-8', 'replace')
     if 'repair_log.json' in entry_names:
         # The log still describes the original shifts, so repairing again
         # would remove good data.
         print(f'{recording} has already been repaired; nothing to do.')
         return
-    blocks, retries = find_fill_blocks(log_text)
+
+    if args.scan:
+        print(f'Scanning {recording} for fill blocks')
+        blocks = scan_fill_blocks(recording)
+        source = 'data scan'
+    else:
+        blocks, retries = find_fill_blocks(log_text)
+        source = 'log'
+        n_shifts = sum(len(r) for r in blocks.values())
+        if n_shifts != retries:
+            # e.g. a retry on an epoch store, which has no continuity check,
+            # or on the final block, so there is no later append to log a gap.
+            print(f'WARNING: log has {retries} retries but only {n_shifts} '
+                  f'detected shifts. The others cannot be repaired from the '
+                  f'log; --scan finds them in the data.')
 
     if not blocks:
-        print('No append-retry shifts found in the log; nothing to repair.')
+        print(f'No append-retry shifts found in the {source}; '
+              f'nothing to repair.')
         return
-    n_shifts = sum(len(r) for r in blocks.values())
-    if n_shifts != retries:
-        # e.g. a retry on an epoch store, which has no continuity check, or
-        # on the final block, so there is no later append to log a gap.
-        print(f'WARNING: log has {retries} retries but only {n_shifts} '
-              f'detected shifts. The others cannot be repaired from the log.')
 
     src_store = ZipStore(recording, mode='r')
     report = {
         'source': original.name,
         'repaired_at': dt.datetime.now().isoformat(timespec='seconds'),
         'script': Path(__file__).name,
+        'ranges_from': source,
         'arrays': {},
     }
     sources = {}
     for name, remove in blocks.items():
-        if f'{name}.zarr/zarr.json' not in entry_names:
+        if not any(n.startswith(f'{name}.zarr/') for n in entry_names):
             raise ValueError(f'Log mentions {name}, but {name}.zarr is not '
                              f'in the recording')
         src = zarr.open_array(src_store, path=f'{name}.zarr', mode='r')
@@ -260,7 +308,7 @@ def main(argv=None):
     # swapped out once the new copy is complete.
     try:
         write_repaired(recording, partial, sources, blocks, report,
-                       args.batch_chunks)
+                       args.batch_chunks, args.temp_dir)
     except BaseException:
         partial.unlink(missing_ok=True)
         raise
@@ -276,8 +324,12 @@ def main(argv=None):
     print(f'Repaired recording written to {recording}')
 
 
-def write_repaired(recording, output, sources, blocks, report, batch_chunks):
-    with tempfile.TemporaryDirectory(dir=output.parent) as tmp, \
+def write_repaired(recording, output, sources, blocks, report, batch_chunks,
+                   temp_dir=None):
+    # The repaired arrays are staged on local disk by default: staging them
+    # beside a recording on a network share doubles the traffic, and cleanup
+    # there is unreliable enough to leave directories behind.
+    with tempfile.TemporaryDirectory(dir=temp_dir, ignore_cleanup_errors=True) as tmp, \
             zipfile.ZipFile(recording) as zin, \
             zipfile.ZipFile(output, 'x', allowZip64=True) as zout:
         tmp = Path(tmp)
