@@ -46,3 +46,34 @@ def load_icon():
 
 
 main_icon = load_icon()
+
+
+def set_application_icon(icon=None):
+    '''
+    Make an icon the default for every window of the running application.
+
+    Setting the icon on the main window alone is not enough. A dialog built
+    without a parent -- such as the popup reporting how an experiment ended,
+    or the error shown when an experiment fails to start -- is a top-level
+    window with a taskbar button of its own, and without an application-wide
+    default it shows Qt's generic window icon. On Windows the taskbar can
+    then show that generic icon for the whole group of psi windows.
+
+    Parameters
+    ----------
+    icon : enaml Icon, optional
+        The icon to use. Defaults to `main_icon`, psi's own icon.
+
+    Notes
+    -----
+    Call once the Qt application exists (in psi, as soon as the enaml UI
+    plugin has started). Does nothing if there is no application yet.
+    Windows that set their own icon keep it.
+    '''
+    from enaml.qt.QtWidgets import QApplication
+    from enaml.qt.q_resource_helpers import get_cached_qicon
+
+    app = QApplication.instance()
+    if app is None:
+        return
+    app.setWindowIcon(get_cached_qicon(main_icon if icon is None else icon))

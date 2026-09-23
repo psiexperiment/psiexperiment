@@ -117,3 +117,35 @@ class TestDialogBehavior:
         assert label.wordWrap()
         assert label.width() == view.text_width
         assert label.height() >= label.heightForWidth(view.text_width)
+
+
+@pytest.fixture
+def no_app_icon(app):
+    '''
+    Start from an application with no default window icon.
+
+    The Qt application is shared by the whole test session, so without this
+    an icon set by an earlier test would hide a workbench that never sets
+    one. Must be requested before `workbench`, which sets it.
+    '''
+    from enaml.qt.QtGui import QIcon
+    from enaml.qt.QtWidgets import QApplication
+    qapp = QApplication.instance()
+    original = qapp.windowIcon()
+    qapp.setWindowIcon(QIcon())
+    yield
+    qapp.setWindowIcon(original)
+
+
+class TestIcon:
+
+    def test_parentless_dialog_gets_psi_icon(self, app, no_app_icon, workbench,
+                                             logfile):
+        # The dialog has no parent, so it is a top-level window with its own
+        # taskbar button. Without an application-wide icon it showed Qt's
+        # generic one, which Windows then used for the whole psi.psi taskbar
+        # group -- the psi icon appeared in the main window's title bar but
+        # not on the taskbar.
+        view = build(app, error_message='Something went wrong.')
+        assert view.parent is None
+        assert not view.proxy.widget.windowIcon().isNull()

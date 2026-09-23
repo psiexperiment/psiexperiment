@@ -28,6 +28,7 @@ with enaml.imports():
 
 from psi.application import load_io_manifest
 from psi.core.enaml.api import load_manifest
+from psi.experiment.util import set_application_icon
 
 
 class PSIWorkbench(Workbench):
@@ -50,6 +51,12 @@ class PSIWorkbench(Workbench):
 
         self.get_plugin('enaml.workbench.ui')
         self.get_plugin('enaml.workbench.core')
+
+        # Starting the UI plugin created the Qt application. Give it psi's
+        # icon now, before any window exists, so that dialogs built without
+        # a parent (e.g., the popup reporting how an experiment ended) don't
+        # fall back to Qt's generic icon.
+        set_application_icon()
 
         if io_manifest is not None:
             io_manifest = load_io_manifest(io_manifest)()
