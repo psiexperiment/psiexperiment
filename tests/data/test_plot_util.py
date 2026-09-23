@@ -94,10 +94,11 @@ def test_prepare_curve_extremes():
     t = np.arange(4.0)
     data = np.array([1.0, 3.0, 4.0, 2.0])
     x, y, kw = prepare_decimated_curve(data, t, downsample=2, mode='extremes')
-    # Each decimation bin produces a (min, max) vertical segment.
+    # Each decimation bin produces (min, max) points, all joined into one
+    # continuous line so that no pixel column is left empty.
     np.testing.assert_array_equal(x, [0, 0, 2, 2])
     np.testing.assert_array_equal(y, [1, 3, 2, 4])
-    assert kw == {'connect': 'pairs'}
+    assert kw == {'connect': 'finite'}
 
 
 def test_prepare_curve_mean():

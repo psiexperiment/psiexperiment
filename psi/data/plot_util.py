@@ -106,7 +106,12 @@ def prepare_decimated_curve(data, t, downsample, mode):
                 return empty
             if x.shape != y.shape:
                 return None
-            return x, y, {'connect': 'pairs'}
+            # Connect max of each bin to min of the next (as pyqtgraph's own
+            # "peak" downsampling does). With connect='pairs', bins are
+            # drawn as isolated segments and, since downsample is rounded,
+            # they periodically skip a pixel column, leaving thin gaps.
+            # 'finite' still breaks the line across NaN padding.
+            return x, y, {'connect': 'finite'}
         elif mode == 'mean':
             d = decimate_mean(data, downsample)
             t = t[:len(d)]
