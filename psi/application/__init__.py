@@ -1,9 +1,11 @@
 import logging.config
 log = logging.getLogger(__name__)
 
+from contextlib import contextmanager
 import datetime as dt
 from glob import glob
 import importlib
+import os
 import os.path
 from pathlib import Path
 import pdb
@@ -409,6 +411,284 @@ def get_default_io(method='hostname'):
         raise ValueError('Unsupported method')
 
 
+class IOManifestError(ValueError):
+    '''
+    Raised when the hardware IO configuration cannot be loaded.
+
+    Subclasses `ValueError` rather than `Exception` on purpose. The errors it
+    replaces are overwhelmingly `ValueError` (that is what `sounddevice`
+    raises for an unknown device), and callers already probe for absent
+    hardware by catching `ValueError` around a manifest load -- see cftscal's
+    `list_inputs`/`list_outputs`/`list_connections`, whose `raise_error=False`
+    path lets its plugin manifest decide which plugins a machine can offer.
+    Narrowing the base class would turn those graceful degradations into
+    crashes.
+
+    The IO manifest is the only part of the startup sequence that is specific
+    to an individual rig, so a failure here is nearly always a configuration
+    problem (hardware that is no longer connected, a device that has been
+    renamed, a typo in the manifest) rather than a bug. The exception raised by
+    the underlying library is usually useless on its own for tracking that down
+    -- `sounddevice`, for example, raises a bare ``ValueError: No input/output
+    device matching 'FrontMic'`` that never mentions which file named
+    `FrontMic` -- so the message built by `format_io_manifest_error` names the
+    manifest that was loaded, how it was selected, and what else is available.
+    '''
+
+
+def _exception_involves(exc, module_name, _seen=None):
+    '''
+    True if any frame in `exc`'s traceback (or that of a chained exception)
+    belongs to the top-level package `module_name`.
+    '''
+    if _seen is None:
+        _seen = set()
+    if exc is None or id(exc) in _seen:
+        return False
+    _seen.add(id(exc))
+    tb = exc.__traceback__
+    while tb is not None:
+        name = tb.tb_frame.f_globals.get('__name__', '')
+        if name.split('.')[0] == module_name:
+            return True
+        tb = tb.tb_next
+    return _exception_involves(exc.__cause__, module_name, _seen) \
+        or _exception_involves(exc.__context__, module_name, _seen)
+
+
+def list_sound_devices():
+    '''
+    Describe the sound devices PortAudio can currently see.
+
+    Only inspects `sounddevice` if it has already been imported, so that
+    generating an error message never has the side effect of initializing
+    PortAudio (which is slow and, on some systems, noisy).
+
+    Returns
+    -------
+    devices : list of string
+        One human-readable entry per device. Empty if `sounddevice` is not
+        loaded or the query fails.
+    '''
+    sd = sys.modules.get('sounddevice')
+    if sd is None:
+        return []
+    try:
+        hostapis = sd.query_hostapis()
+        return [
+            '{!r} ({}, {} in, {} out)'.format(
+                d['name'],
+                hostapis[d['hostapi']]['name'],
+                d['max_input_channels'],
+                d['max_output_channels'],
+            ) for d in sd.query_devices()
+        ]
+    except Exception as e:
+        log.debug('Could not query sound devices: %r', e)
+        return []
+
+
+def _resolve_io_manifest_reference(io_manifest):
+    '''
+    Split an IO manifest reference into the pieces worth reporting.
+
+    Returns
+    -------
+    source : string
+        The file or module that declares the manifest.
+    klass : string
+        Name of the manifest class within it.
+    is_file : bool
+        True for a `.enaml` file the user maintains, False for a manifest
+        provided by an installed package. The distinction matters for the
+        advice we give: "edit this file" is only correct for the former.
+    '''
+    io_path, _, io_class = str(io_manifest).partition('::')
+    if io_path.endswith('.enaml'):
+        return io_path, io_class or 'IOManifest', True
+    module, _, klass = io_path.rpartition('.')
+    # Report the module's file when it has already been imported -- the dotted
+    # path alone is not something most users can turn into a location on disk,
+    # and we can't ask importlib without paying for the import.
+    mod = sys.modules.get(module)
+    source = getattr(mod, '__file__', None) or module
+    return source, klass, False
+
+
+def _describe_sound_device_env():
+    '''
+    Describe the `PSI_SOUND_DEVICE_*` overrides, when they are in play.
+
+    `AutoSoundCardEngine` takes its device and sampling rate from these
+    environment variables rather than from anything written in an IO manifest,
+    so when they are set they -- not the manifest -- are what has to change.
+    They are set by the launching application (cftscal, and the tools built on
+    it such as noise-exp, set them from their saved sound card selection), so
+    a user looking at the manifest alone has no way to discover them.
+
+    Returns
+    -------
+    sections : list of string
+        Empty if the variables are not set.
+    '''
+    env = {k: os.environ[k] for k
+           in ('PSI_SOUND_DEVICE_NAME', 'PSI_SOUND_DEVICE_FS')
+           if k in os.environ}
+    if not env:
+        return []
+
+    width = max(len(k) for k in env) + 1
+    listing = '\n'.join(f'    {k + ":":<{width}} {v!r}' for k, v in env.items())
+    sections = [
+        wrap_text('''
+            The sound device is being set by environment variables rather than
+            by the IO configuration itself. These take priority, so this is
+            the device that has to be connected:
+            ''') + '\n\n' + listing
+    ]
+
+    advice = '''
+        These are set by the application that launched this one. If that was
+        cftscal (or a tool built on it, such as noise-exp), the value comes
+        from the sound card selected in its hardware settings -- change the
+        selection there to a device that is currently connected.
+        '''
+    try:
+        from psi import get_config_folder
+        workspace = get_config_folder() / 'cfts' / 'workspace.json'
+        if workspace.exists():
+            advice = advice.rstrip() + (
+                f' The saved selection is in {workspace}.')
+    except Exception as e:
+        log.debug('Could not locate cftscal workspace settings: %r', e)
+    sections.append(wrap_text(advice))
+    return sections
+
+
+def format_io_manifest_error(io_manifest, exc):
+    '''
+    Build the message for `IOManifestError`.
+
+    Parameters
+    ----------
+    io_manifest : {str, Path}
+        IO manifest reference that was being loaded, i.e., the value handed to
+        `load_io_manifest` *after* the default has been resolved (so that the
+        message names an actual file rather than `None`).
+    exc : Exception
+        Exception raised while loading or instantiating the manifest.
+
+    Returns
+    -------
+    message : string
+    '''
+    source, klass, is_file = _resolve_io_manifest_reference(io_manifest)
+    io_root = get_config('IO_ROOT', None)
+    if io_root is not None:
+        # get_config returns IO_ROOT as it was written to the config file,
+        # which on Windows routinely mixes separators (the expanduser'd home
+        # uses backslashes, the rest forward slashes). Normalize it so the
+        # path we tell the user to look in is one they can paste.
+        io_root = Path(io_root)
+    hostname = get_config('HOSTNAME', None)
+
+    sections = [wrap_text('''
+        Unable to load the hardware IO configuration. The IO configuration
+        (also known as the IO manifest) describes the hardware attached to
+        this particular system, so this is usually a configuration problem
+        (e.g., hardware that is no longer connected or that has been renamed)
+        rather than a problem with the experiment itself.
+        ''')]
+
+    detail = [
+        ('IO configuration', source),
+        ('Manifest class', klass),
+        ('Error', f'{type(exc).__name__}: {exc}'),
+    ]
+    width = max(len(label) for label, _ in detail) + 1
+    sections.append('\n'.join(f'    {label + ":":<{width}} {value}'
+                              for label, value in detail))
+
+    if is_file:
+        sections.append(wrap_text('''
+            Open the IO configuration listed above and check the hardware it
+            declares (device names, channel numbers, sampling rates). Either
+            connect the hardware it expects or edit the file so it matches the
+            hardware that is currently attached to this system.
+            '''))
+        sections.append(wrap_text(f'''
+            If that is not the IO configuration you expected, it is either the
+            one passed via the `--io` command-line option or the one
+            auto-detected by matching this computer's hostname ({hostname!r})
+            against the IO configurations in {io_root}. Set the `PSI_IO_ROOT`
+            environment variable to search a different folder.
+            '''))
+        try:
+            available = [str(p) for p in list_io()]
+        except Exception as e:
+            log.debug('Could not list IO configurations: %r', e)
+            available = []
+        if available:
+            sections.append('IO configurations available on this system:\n'
+                            + '\n'.join(f'    {p}' for p in available))
+    else:
+        sections.append(wrap_text('''
+            This IO configuration is provided by an installed package rather
+            than by a file you maintain, so it is not the thing to edit. It
+            was chosen by whatever launched this program -- either the `--io`
+            command-line option or the hardware settings of the application
+            that started it.
+            '''))
+
+    sections.extend(_describe_sound_device_env())
+
+    if _exception_involves(exc, 'sounddevice'):
+        devices = list_sound_devices()
+        if devices:
+            sections.append(
+                wrap_text('''
+                    The error came from the sound card driver. The device the
+                    IO configuration asks for must exactly match one of the
+                    sound devices currently visible to this computer:
+                    ''')
+                + '\n' + '\n'.join(f'    {d}' for d in devices)
+            )
+        else:
+            sections.append(wrap_text('''
+                The error came from the sound card driver, and no sound
+                devices are currently visible to this computer. Check that the
+                sound card is connected and powered on. To list the devices
+                yourself, run `python -m sounddevice`.
+                '''))
+
+    return '\n\n'.join(sections)
+
+
+@contextmanager
+def io_manifest_errors(io_manifest):
+    '''
+    Re-raise anything that goes wrong as an `IOManifestError`
+
+    Wraps the whole of loading *and* registering the IO manifest, not just the
+    import: the manifest is Enaml, so the expressions that actually touch the
+    hardware (`sd.query_devices(device_name)` and friends) are evaluated when
+    the manifest is instantiated and its extensions are resolved, not when the
+    file is imported.
+
+    Parameters
+    ----------
+    io_manifest : {str, Path}
+        IO manifest reference being loaded, with the default already resolved.
+    '''
+    try:
+        yield
+    except IOManifestError:
+        raise
+    except Exception as exc:
+        raise IOManifestError(format_io_manifest_error(io_manifest, exc)) \
+            from exc
+
+
 def load_io_manifest(io_manifest=None):
     '''
     Load the IOManifest from the specified file or module
@@ -425,6 +705,14 @@ def load_io_manifest(io_manifest=None):
     -------
     io_manifest : IOManifest
         IOManifest class.
+
+    Raises
+    ------
+    IOManifestError
+        If the manifest cannot be imported. Note that the manifest is not
+        instantiated here, so hardware that the manifest declares is not
+        touched until the returned class is called -- wrap that call in
+        `io_manifest_errors` so those failures are reported the same way.
     '''
     if io_manifest is None:
         io_manifest = get_default_io()
@@ -436,11 +724,47 @@ def load_io_manifest(io_manifest=None):
     # once a class name is appended (e.g. 'foo.enaml::IOManifest' does not
     # itself end in '.enaml').
     io_path, sep, io_class = io_manifest.partition('::')
-    if io_path.endswith('.enaml'):
-        klass = load_manifest_from_file(io_path, io_class or 'IOManifest')
-    else:
-        klass = load_manifest(io_manifest)
+    with io_manifest_errors(io_manifest):
+        if io_path.endswith('.enaml'):
+            klass = load_manifest_from_file(io_path, io_class or 'IOManifest')
+        else:
+            klass = load_manifest(io_manifest)
     return klass
+
+
+def initialize_io_manifest(io_manifest=None):
+    '''
+    Load *and* instantiate the IOManifest
+
+    Prefer this over `load_io_manifest(...)()`. The IO manifest is Enaml, so
+    the expressions that actually reach for the hardware (e.g., the
+    `sd.query_devices(device_name)` behind `AutoSoundCardEngine`) run when the
+    manifest is instantiated, not when it is imported. Splitting the two leaves
+    the interesting failure outside `load_io_manifest`, where it surfaces as
+    whatever the driver raised (e.g., a bare "No input/output device matching
+    'ASIO Fireface USB, ASIO'") with no indication of which configuration
+    named that device.
+
+    Parameters
+    ----------
+    io_manifest : {str, Path, None}
+        See `load_io_manifest`.
+
+    Returns
+    -------
+    io_manifest : IOManifest
+        IOManifest instance.
+
+    Raises
+    ------
+    IOManifestError
+        If the manifest cannot be imported or instantiated.
+    '''
+    if io_manifest is None:
+        # Resolve up front so the error message can name a real file.
+        io_manifest = get_default_io()
+    with io_manifest_errors(io_manifest):
+        return load_io_manifest(io_manifest)()
 
 
 def load_paradigm_descriptions():

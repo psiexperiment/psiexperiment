@@ -26,7 +26,7 @@ with enaml.imports():
     from psi.experiment import dock_area_styles  # noqa: F401
 
 
-from psi.application import load_io_manifest
+from psi.application import initialize_io_manifest
 from psi.core.enaml.api import load_manifest
 from psi.experiment.util import set_application_icon
 
@@ -59,7 +59,11 @@ class PSIWorkbench(Workbench):
         set_application_icon()
 
         if io_manifest is not None:
-            io_manifest = load_io_manifest(io_manifest)()
+            # initialize_io_manifest (rather than load_io_manifest(...)())
+            # so that a rig whose hardware is missing or renamed reports
+            # which IO configuration asked for it, instead of just the
+            # driver's own error.
+            io_manifest = initialize_io_manifest(io_manifest)
             log.info('Registering %r', io_manifest)
             self.register(io_manifest)
             manifests = [io_manifest]
