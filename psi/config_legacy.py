@@ -27,15 +27,6 @@ RENAMED = {
     'PARADIGM_DESCRIPTIONS': 'PSI_PARADIGM_DESCRIPTIONS',
     'WEBSOCKETS_URI': 'PSI_WEBSOCKETS_URI',
 
-    # psiexperiment IO templates.
-    'NI_EEG_CHANNEL': 'PSI_NI_EEG_CHANNEL',
-    'NI_CALIBRATION_CHANNEL': 'PSI_NI_CALIBRATION_CHANNEL',
-    'NI_STARSHIP_CHANNEL': 'PSI_NI_STARSHIP_CHANNEL',
-    'NI_START_TRIGGER': 'PSI_NI_START_TRIGGER',
-    # The key was misspelled in PXIe-1062.enaml, so a rig that worked
-    # around it by spelling the key wrong too must also be fixed.
-    'NI_START_TRIGER': 'PSI_NI_START_TRIGGER',
-
     # Ownership move: where calibration files are stored belongs to
     # cftscal, which already read CFTSCAL_ROOT from the environment. The
     # CAL_ROOT key that `psi-config` used to emit was read by nothing.

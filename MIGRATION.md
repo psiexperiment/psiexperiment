@@ -314,7 +314,6 @@ is under one administrator's control. Audit a machine *before* upgrading it.
 | Old | New |
 | --- | --- |
 | `LOG_ROOT`, `DATA_ROOT`, `PROCESSED_ROOT`, `PREFERENCES_ROOT`, `LAYOUT_ROOT`, `IO_ROOT`, `HOSTNAME`, `STANDARD_IO`, `PARADIGM_DESCRIPTIONS`, `WEBSOCKETS_URI` | the same with a `PSI_` prefix |
-| `NI_EEG_CHANNEL`, `NI_CALIBRATION_CHANNEL`, `NI_STARSHIP_CHANNEL`, `NI_START_TRIGER` *(sic)* | `PSI_NI_*`, with the typo corrected to `PSI_NI_START_TRIGGER` |
 | `CAL_ROOT` | `CFTSCAL_ROOT` — ownership moved to cftscal, which already read that variable. The `CAL_ROOT` key `psi-config` used to emit was read by nothing. |
 | `RAW_DATA_DIR`, `PROC_DATA_DIR` | `PSIDATA_RAW_DIR`, `PSIDATA_PROC_DIR` |
 | every `CFTS_*` handoff variable except `CFTS_ROOT` | `CFTSCAL_*` |

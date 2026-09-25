@@ -66,12 +66,6 @@ DEFAULTS = {
     #: configures nothing still offers the built-in experiments.
     'PSI_PARADIGM_DESCRIPTIONS': lambda: _shipped_paradigm_descriptions(),
 
-    #: NI PXIe-1062 channel assignments, read by the shipped IO template.
-    'PSI_NI_EEG_CHANNEL': lambda: 'PXI1Slot8/ai0',
-    'PSI_NI_CALIBRATION_CHANNEL': lambda: 'PXI1Slot7/ai0',
-    'PSI_NI_STARSHIP_CHANNEL': lambda: 'PXI1Slot7/ai1',
-    'PSI_NI_START_TRIGGER': lambda: '/PXI1Slot7/ao/StartTrigger',
-
     #: Websocket endpoint for the websocket paradigm mixins.
     'PSI_WEBSOCKETS_URI': lambda: '',
 }

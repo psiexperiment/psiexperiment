@@ -134,8 +134,8 @@ Experiment discovery
      - this machine's hostname
      - Used to select a hostname-specific IO manifest.
 
-Hardware
---------
+Other
+-----
 
 .. list-table::
    :header-rows: 1
@@ -144,21 +144,13 @@ Hardware
    * - Setting
      - Default
      - Contents
-   * - ``PSI_NI_EEG_CHANNEL``
-     - ``PXI1Slot8/ai0``
-     - Read by the shipped PXIe-1062 IO template.
-   * - ``PSI_NI_CALIBRATION_CHANNEL``
-     - ``PXI1Slot7/ai0``
-     - As above.
-   * - ``PSI_NI_STARSHIP_CHANNEL``
-     - ``PXI1Slot7/ai1``
-     - As above.
-   * - ``PSI_NI_START_TRIGGER``
-     - ``/PXI1Slot7/ao/StartTrigger``
-     - As above.
    * - ``PSI_WEBSOCKETS_URI``
      - ``''``
      - Endpoint for the websocket paradigm mixins.
+
+Hardware channels are not settings. They are described in the IO manifest,
+which is the rig-specific part of the configuration -- see
+:doc:`io_manifest`.
 
 Settings owned by other packages
 --------------------------------

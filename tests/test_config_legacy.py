@@ -68,10 +68,12 @@ def test_renamed_targets_are_prefixed():
         assert new.startswith(prefixes), f'{old} -> {new} has no prefix'
 
 
-def test_typo_and_correct_spelling_both_migrate():
+def test_no_pxie_1062_settings_remain():
     '''
-    The key was misspelled as NI_START_TRIGER in PXIe-1062.enaml, so a
-    rig may have either spelling in its config file.
+    The PXIe-1062 template's NI_* channel settings were never used by any
+    rig, so they are simply gone -- not renamed, and not worth a migration
+    note that would only invite someone to look for them.
     '''
-    assert config_legacy.RENAMED['NI_START_TRIGER'] == 'PSI_NI_START_TRIGGER'
-    assert config_legacy.RENAMED['NI_START_TRIGGER'] == 'PSI_NI_START_TRIGGER'
+    leftovers = [n for n in {**config_legacy.RENAMED, **config_legacy.REMOVED}
+                 if n.startswith('NI_')]
+    assert leftovers == []

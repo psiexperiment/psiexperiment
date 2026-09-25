@@ -74,13 +74,14 @@ Psiexperiment ships with several standard hardware templates. You can use these 
 
 * **Biosemi32** / **Biosemi64**: Biosemi EEG systems.
 * **Medusa4ZTDT** / **RA4PATDT**: TDT RZ6 configurations.
-* **PXIe-1062**: National Instruments PXIe chassis with PXI-4461 cards.
+* **soundcard**: the system's audio interface.
+* **ni-bare-bones** / **pxi-4461**: starting points for National Instruments hardware.
 
 You can create a skeleton IO manifest based on one of these templates:
 
 .. code-block:: bash
 
-    psi-config create-io PXIe-1062
+    psi-config create-io Biosemi32
 
 This will create an ``.enaml`` file in your ``PSI_IO_ROOT`` that you can then customize.
 
