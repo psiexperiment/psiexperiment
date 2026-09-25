@@ -1,7 +1,7 @@
 import atexit
 import shutil
 
-from psi import get_config
+from psi import get_runtime
 from psi.data.api import Sink
 
 
@@ -12,7 +12,7 @@ class Logger(Sink):
         # to the experiment folder. The logfile location is published to the
         # config by configure_logging; if logging to file was never
         # configured, there is nothing to copy.
-        src_log_file = get_config('LOG_FILENAME', None)
+        src_log_file = get_runtime('LOG_FILENAME', None)
         if src_log_file is None:
             return
         dest_log_file = base_path / 'experiment_log.txt'

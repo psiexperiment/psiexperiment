@@ -49,15 +49,15 @@ Install psiexperiment along with its development, documentation, and testing dep
 4. Configure your environment
 -----------------------------
 
-Set the ``PSI_CONFIG`` environment variable to point to a local configuration file for development. This prevents your development work from interfering with any production installs.
+Set the ``PSI_CONFIG_FILE`` environment variable to point to a local configuration file for development. This prevents your development work from interfering with any production installs, and it is also how each conda environment gets its own configuration: point the variable at a different file before launching.
 
 .. code-block:: bash
 
     # On Windows (PowerShell)
-    $env:PSI_CONFIG = "C:/path/to/your/dev/config.py"
+    $env:PSI_CONFIG_FILE = "C:/path/to/your/dev/config.toml"
 
     # On Linux/macOS
-    export PSI_CONFIG="/path/to/your/dev/config.py"
+    export PSI_CONFIG_FILE="/path/to/your/dev/config.toml"
 
 Then, initialize your development folders:
 

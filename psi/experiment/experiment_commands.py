@@ -18,7 +18,7 @@ import yaml
 from enaml.application import deferred_call
 from enaml.widgets.api import FileDialogEx
 
-from .. import get_config
+from ..runtime import get_runtime
 from .dock_layout_serializer import (
     workspace_layout_from_dict, workspace_layout_to_dict,
 )
@@ -32,7 +32,7 @@ _PICKLE_MAGIC = b'\x80'
 
 def get_default_path(which):
     root = get_config('{}_ROOT'.format(which.upper()))
-    experiment = get_config('EXPERIMENT')
+    experiment = get_runtime('EXPERIMENT')
     default_path = os.path.join(root, experiment)
     if not os.path.exists(default_path):
         os.makedirs(default_path)

@@ -18,6 +18,7 @@ import websockets
 from websockets.asyncio.server import serve
 from websockets.asyncio.client import connect
 
+from psi import get_config
 from psi.controller.api import EventLogger, ExperimentAction, ExperimentEvent
 from psi.core.enaml.api import ExperimentManifest
 
@@ -331,5 +332,5 @@ enamldef WebsocketClientManifest(BaseWebsocketManifest): manifest:
     factory = lambda: WebsocketClientPlugin(**kwargs)
     attr kwargs = {
         'recv_cb': partial(core_command_cb, workbench),
-        'uri': os.environ['WEBSOCKETS_URI'],
+        'uri': get_config('PSI_WEBSOCKETS_URI'),
     }

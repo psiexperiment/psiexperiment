@@ -24,12 +24,12 @@ def mv_to_C(mv):
     return c
 
 
-NI_EEG_CHANNEL = get_config('NI_EEG_CHANNEL', 'PXI1Slot8/ai0')
+NI_EEG_CHANNEL = get_config('PSI_NI_EEG_CHANNEL')
 NI_SPEAKER_1_CHANNEL = get_config('NI_SPEAKER_1_CHANNEL', 'PXI1Slot7/ao0')
 NI_SPEAKER_2_CHANNEL = get_config('NI_SPEAKER_2_CHANNEL', 'PXI1Slot7/ao1')
-NI_CALIBRATION_CHANNEL = get_config('NI_CALIBRATION_CHANNEL', 'PXI1Slot7/ai0')
-NI_STARSHIP_CHANNEL = get_config('NI_STARSHIP_CHANNEL', 'PXI1Slot7/ai1')
-NI_START_TRIGGER = get_config('NI_START_TRIGER', '/PXI1Slot7/ao/StartTrigger')
+NI_CALIBRATION_CHANNEL = get_config('PSI_NI_CALIBRATION_CHANNEL')
+NI_STARSHIP_CHANNEL = get_config('PSI_NI_STARSHIP_CHANNEL')
+NI_START_TRIGGER = get_config('PSI_NI_START_TRIGGER')
 
 enamldef IOManifest(PluginManifest): manifest:
 

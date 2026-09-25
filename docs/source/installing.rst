@@ -82,7 +82,7 @@ You can create a skeleton IO manifest based on one of these templates:
 
     psi-config create-io PXIe-1062
 
-This will create an ``.enaml`` file in your ``IO_ROOT`` that you can then customize.
+This will create an ``.enaml`` file in your ``PSI_IO_ROOT`` that you can then customize.
 
 3. Finalizing Folders
 .....................
@@ -96,10 +96,22 @@ Once your configuration is created, ensure all required subdirectories exist:
 4. Verifying the Configuration
 ..............................
 
-To see the current location of your configuration file and its settings:
+To see the configuration file location, every setting, its resolved value and
+which layer supplied it:
 
 .. code-block:: bash
 
     psi-config show
 
-You can open the generated ``config.py`` file in any text editor to fine-tune the paths for ``LOG_ROOT``, ``DATA_ROOT``, ``CAL_ROOT``, etc.
+You can open the generated ``config.toml`` in any text editor to fine-tune
+individual paths such as ``PSI_DATA_ROOT``, or set one from the command line::
+
+    psi-config set PSI_DATA_ROOT D:/bulk-storage
+
+A setting has one name, used identically in code, in the configuration file and
+as an environment variable, and values resolve in this order, last one winning:
+the built-in default, then ``config.toml``, then the environment. Most paths
+derive from ``PSI_BASE_DIRECTORY``, so setting that one moves the rest with it.
+
+See :doc:`configuration` for the full list of settings, for per-environment
+configuration, and for converting a ``config.py`` from an earlier version.

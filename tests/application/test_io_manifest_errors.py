@@ -17,12 +17,19 @@ from psi.application import IOManifestError, io_manifest_errors
 @pytest.fixture
 def io_root(tmp_path, monkeypatch):
     '''
-    Point IO_ROOT at a folder containing a single, plausible IO config.
+    Point PSI_IO_ROOT at a folder containing a single, plausible IO config.
     '''
     root = tmp_path / 'io'
     root.mkdir()
     (root / 'rig1.enaml').write_text('')
-    config = {'IO_ROOT': str(root), 'HOSTNAME': 'rig1'}
+    # Every setting the code under test reads has to be present: these
+    # settings now have registered defaults, so nothing passes a fallback
+    # to get_config any more and a missing key would resolve to None.
+    config = {
+        'PSI_IO_ROOT': root,
+        'PSI_HOSTNAME': 'rig1',
+        'PSI_STANDARD_IO': [],
+    }
     monkeypatch.setattr(application, 'get_config',
                         lambda key, *args: config.get(key, *args))
     return root

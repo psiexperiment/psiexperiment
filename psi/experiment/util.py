@@ -18,7 +18,7 @@ LAYOUT_WILDCARD = 'Workspace layout (*.layout)'
 def list_preferences(experiment, include_default=False):
     if not isinstance(experiment, str):
         experiment = experiment.name
-    p_root = Path(get_config('PREFERENCES_ROOT')) / experiment
+    p_root = Path(get_config('PSI_PREFERENCES_ROOT')) / experiment
     p_glob = PREFERENCES_WILDCARD[:-1].split('(')[1]
     matches = p_root.glob(p_glob)
     if not include_default:

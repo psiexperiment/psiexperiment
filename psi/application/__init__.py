@@ -19,7 +19,7 @@ from enaml.application import deferred_call
 with enaml.imports():
     from enaml.stdlib.message_box import critical
 
-from psi import get_config, set_config
+from psi import get_config, set_runtime
 from psi.util import wrap_text
 from psi.core.enaml.api import load_manifest, load_manifest_from_file
 
@@ -274,7 +274,7 @@ def configure_logging(level_console=None, level_file=None, filename=None,
         exception_handler.logfile = filename
         # Publish the logfile location so lower-level plugins (e.g., the
         # Logger sink) can find it without importing psi.application.
-        set_config('LOG_FILENAME', filename)
+        set_runtime('LOG_FILENAME', filename)
 
     if debug_exclude is not None:
         for name in debug_exclude:
@@ -294,14 +294,14 @@ def warn_with_traceback(message, category, filename, lineno, file=None,
 
 
 def _main(args):
-    set_config('EXPERIMENT', args.experiment)
+    set_runtime('EXPERIMENT', args.experiment)
 
     if args.debug:
         # Show debugging information. This includes full tracebacks for
         # warnings.
         dt_string = dt.datetime.now().strftime('%Y-%m-%d %H%M')
         filename = '{} {}'.format(dt_string, args.experiment)
-        log_root = Path(get_config('LOG_ROOT'))
+        log_root = Path(get_config('PSI_LOG_ROOT'))
         log_root.mkdir(parents=True, exist_ok=True)
         log_file = os.path.join(log_root, filename)
         configure_logging(args.debug_level_console,
@@ -343,9 +343,8 @@ from psi.experiment.util import list_preferences  # noqa: E402,F401
 
 def list_io():
     result = []
-    if (io_path := get_config('IO_ROOT', None)) is not None:
-        result.extend(Path(io_path).glob('*.enaml'))
-    result.extend(get_config('STANDARD_IO', []))
+    result.extend(Path(get_config('PSI_IO_ROOT')).glob('*.enaml'))
+    result.extend(get_config('PSI_STANDARD_IO'))
     return result
 
 
@@ -354,8 +353,8 @@ def launch_experiment(args):
     install_qt_message_handler()
     setup_windows_console()
     set_app_id('psi.psi')
-    set_config('ARGS', args)
-    set_config('PROFILE', args.profile)
+    set_runtime('ARGS', args)
+    set_runtime('PROFILE', args.profile)
     if args.profile:
         import cProfile, pstats
         pr = cProfile.Profile()
@@ -374,7 +373,7 @@ def launch_experiment(args):
 
     if args.profile:
         pr.disable()
-        path = get_config('LOG_ROOT') / 'main_thread.pstat'
+        path = get_config('PSI_LOG_ROOT') / 'main_thread.pstat'
         pr.dump_stats(path)
         stat_files = [str(p) for p in path.parent.glob('*.pstat')]
         merged_stats = pstats.Stats(*stat_files)
@@ -394,13 +393,13 @@ def get_default_io(method='hostname'):
     {{}}
 
     Please create an IO config file. This file should go in
-    {get_config('IO_ROOT')}. The location of the IO config files can be set via
+    {get_config('PSI_IO_ROOT')}. The location of the IO config files can be set via
     the `PSI_IO_ROOT` environment variable.
     '''
     available_io = list_io()
     log.debug('Found the following IO files: %r', available_io)
     if method == 'hostname':
-        hostname = get_config('HOSTNAME').lower()
+        hostname = get_config('PSI_HOSTNAME').lower()
         for io in available_io:
             if hostname in str(io):
                 return io
@@ -554,13 +553,14 @@ def _describe_sound_device_env():
         selection there to a device that is currently connected.
         '''
     try:
-        from psi import get_config_folder
-        workspace = get_config_folder() / 'cfts' / 'workspace.json'
-        if workspace.exists():
+        from psi import get_config_file
+        config_file = get_config_file()
+        if config_file.exists():
             advice = advice.rstrip() + (
-                f' The saved selection is in {workspace}.')
+                f' The saved selection is in {config_file}, under'
+                ' CFTSCAL_DEVICE_NAME.')
     except Exception as e:
-        log.debug('Could not locate cftscal workspace settings: %r', e)
+        log.debug('Could not locate the configuration file: %r', e)
     sections.append(wrap_text(advice))
     return sections
 
@@ -583,14 +583,12 @@ def format_io_manifest_error(io_manifest, exc):
     message : string
     '''
     source, klass, is_file = _resolve_io_manifest_reference(io_manifest)
-    io_root = get_config('IO_ROOT', None)
-    if io_root is not None:
-        # get_config returns IO_ROOT as it was written to the config file,
-        # which on Windows routinely mixes separators (the expanduser'd home
-        # uses backslashes, the rest forward slashes). Normalize it so the
-        # path we tell the user to look in is one they can paste.
-        io_root = Path(io_root)
-    hostname = get_config('HOSTNAME', None)
+    # get_config coerces a path setting to Path regardless of whether the
+    # value came from the config file, the environment or the default, so
+    # the mixed separators Windows routinely produces are already
+    # normalized into something the user can paste.
+    io_root = get_config('PSI_IO_ROOT')
+    hostname = get_config('PSI_HOSTNAME')
 
     sections = [wrap_text('''
         Unable to load the hardware IO configuration. The IO configuration
@@ -774,7 +772,7 @@ def load_paradigm_descriptions():
     from psi.experiment.api import ParadigmDescription
 
     default = list_paradigm_descriptions()
-    descriptions = get_config('PARADIGM_DESCRIPTIONS', default)
+    descriptions = get_config('PSI_PARADIGM_DESCRIPTIONS')
     for description in descriptions:
         importlib.import_module(description)
 
@@ -820,12 +818,54 @@ def config():
     paradigm_choices = {p.rsplit('.', 1)[1]: p for p in paradigms}
 
     def show_config(args):
-        print(psi.get_config_file())
+        config_file = psi.get_config_file()
+        exists = 'exists' if config_file.exists() else 'does not exist'
+        print(f'Configuration file: {config_file} ({exists})')
+        print()
+
+        settings = psi.get_all_config()
+        if not settings:
+            print('No settings are known.')
+            return
+
+        def render(value):
+            # A path is shown as the path, not as WindowsPath('...'):
+            # this listing is what a user reads to check a location, and
+            # it should be something they can paste.
+            if isinstance(value, Path):
+                return str(value)
+            return repr(value)
+
+        width = max(len(name) for name in settings)
+        for name, value in settings.items():
+            # The source is the whole point of this listing: "why is this
+            # not what I put in the file?" is the question it answers.
+            source = psi.config_source(name)
+            print(f'  {name:<{width}}  {render(value)}  [{source}]')
+
+    def set_config_value(args):
+        psi.save_config({args.setting: args.value})
+        source = psi.config_source(args.setting)
+        value = psi.get_config(args.setting)
+        if isinstance(value, Path):
+            value = str(value)
+        print(f'{args.setting} = {value}')
+        if source == 'environment':
+            # Writing succeeded but changed nothing the application will
+            # see. Saying so here avoids a long hunt later.
+            print(f'WARNING: {args.setting} is also set in the environment, '
+                  'which takes precedence. The value written to the '
+                  'configuration file will not take effect until the '
+                  'environment variable is cleared.')
+
+    def migrate_config(args):
+        from psi.config_migrate import migrate
+        migrate(args.source, dry_run=args.dry_run)
 
     def create_config(args):
         base_directory = args.base_directory.rstrip('\\')
         if args.paradigm_description is None:
-            paradigms = []
+            paradigms = None
         else:
             paradigms = [paradigm_choices.get(p, p) \
                          for p in args.paradigm_description]
@@ -855,9 +895,35 @@ def config():
 
     show = subparsers.add_parser(
         'show',
-        description='Show location of config file.',
+        description='Show the config file location, every setting, its '
+                    'resolved value and which layer supplied it.',
     )
     show.set_defaults(func=show_config)
+
+    set_parser = subparsers.add_parser(
+        'set',
+        description='Write a setting to the configuration file.',
+    )
+    set_parser.set_defaults(func=set_config_value)
+    set_parser.add_argument('setting', type=str, help='Name of the setting.')
+    set_parser.add_argument('value', type=str, help='Value to write.')
+
+    migrate = subparsers.add_parser(
+        'migrate',
+        description='Convert a pre-rework config.py (and any cftscal '
+                    'workspace.json beside it) into config.toml.',
+    )
+    migrate.set_defaults(func=migrate_config)
+    migrate.add_argument(
+        'source',
+        type=Path,
+        help='Path to the legacy config.py to convert.',
+    )
+    migrate.add_argument(
+        '--dry-run',
+        action='store_true',
+        help='Print what would be written without writing it.',
+    )
 
     create = subparsers.add_parser('create')
     create.set_defaults(func=create_config)

@@ -268,12 +268,141 @@ The controller subclass contract is now explicit:
   act on, then clear — between trials). This is what existing controllers
   already did; it is now written down in the method docstrings.
 
+## Configuration rework (2026-09)
+
+**Breaking, with no compatibility shim.** A legacy setting name is not read,
+and nothing warns you — deliberate, on the basis that every affected machine
+is under one administrator's control. Audit a machine *before* upgrading it.
+
+### What changed
+
+1. **A setting has one spelling.** The name in code is the name in the
+   configuration file and the name of the environment variable, package
+   prefix included: `get_config('PSI_DATA_ROOT')`, `PSI_DATA_ROOT = "..."`,
+   `set PSI_DATA_ROOT=...`. Previously `DATA_ROOT` and `PSI_DATA_ROOT` were
+   one setting under two names.
+
+2. **The environment now overrides the configuration file.** It used to be
+   the reverse: `PSI_*` variables were applied to the *defaults* and then
+   `config.py` was loaded on top, so on a machine that had a configuration
+   file, setting `PSI_DATA_ROOT` did nothing at all, silently.
+
+3. **`config.py` became `config.toml`.** The old file was executable Python;
+   the new one is data, because the GUI writes settings too and machine-
+   writing a source file is a bad trade. Needs Python 3.11 (`tomllib`) and
+   adds a `tomlkit` dependency.
+
+4. **`get_config_folder()` and `PSI_CONFIG` are gone.** `PSI_CONFIG_FILE`
+   names the file outright and is the only bootstrap variable. No directory
+   is inferred from the configuration file's location — every directory is
+   its own named setting (`PSI_BASE_DIRECTORY`, `PSI_DATA_ROOT`, `CFTS_ROOT`,
+   `CFTSCAL_ROOT`, …). Most derive from `PSI_BASE_DIRECTORY`, so a
+   configuration file usually sets only that one.
+
+5. **`set_config` is gone.** The four values it carried — `EXPERIMENT`,
+   `LOG_FILENAME`, `ARGS`, `PROFILE` — are written by the launcher at runtime
+   and were never settings. They moved to `psi.runtime` (`get_runtime` /
+   `set_runtime`), which has no environment or file path at all. Reading one
+   through `get_config` no longer works.
+
+6. **Defaults live in code**, one `config_defaults.py` table per package,
+   registered through `psi.config.register_defaults`. Every setting has a
+   default, so an installation with no configuration file still runs.
+
+### Renames
+
+| Old | New |
+| --- | --- |
+| `LOG_ROOT`, `DATA_ROOT`, `PROCESSED_ROOT`, `PREFERENCES_ROOT`, `LAYOUT_ROOT`, `IO_ROOT`, `HOSTNAME`, `STANDARD_IO`, `PARADIGM_DESCRIPTIONS`, `WEBSOCKETS_URI` | the same with a `PSI_` prefix |
+| `NI_EEG_CHANNEL`, `NI_CALIBRATION_CHANNEL`, `NI_STARSHIP_CHANNEL`, `NI_START_TRIGER` *(sic)* | `PSI_NI_*`, with the typo corrected to `PSI_NI_START_TRIGGER` |
+| `CAL_ROOT` | `CFTSCAL_ROOT` — ownership moved to cftscal, which already read that variable. The `CAL_ROOT` key `psi-config` used to emit was read by nothing. |
+| `RAW_DATA_DIR`, `PROC_DATA_DIR` | `PSIDATA_RAW_DIR`, `PSIDATA_PROC_DIR` |
+| every `CFTS_*` handoff variable except `CFTS_ROOT` | `CFTSCAL_*` |
+
+`CFTS_ROOT` is unchanged: it is a cfts setting (where the launcher keeps its
+saved presets), not a cftscal handoff variable.
+
+psidata and cftsdata sit *below* psiexperiment in the dependency graph and
+cannot import `psi`. They took the rename but still read `os.environ`
+directly, so those two settings have no configuration-file spelling.
+
+### Upgrading a machine
+
+1. **Audit first**, before installing anything:
+
+   ```bash
+   python tools/audit_legacy_config.py
+   ```
+
+   Stand-alone: standard library only, no `psi` import, and it parses
+   configuration files without executing them, so it runs on a machine that
+   is not yet — or only half — upgraded. It exits non-zero when it finds
+   anything, so it can gate a deployment script. `--format json` for scripted
+   use.
+
+2. **Upgrade psiexperiment and every dependent package together.** There is
+   no half-migrated state that runs: these are separate repositories, so
+   upgrading psiexperiment without the matching cftscal / cfts / noise-exp
+   will fail at import.
+
+3. **Convert the configuration:**
+
+   ```bash
+   psi-config migrate path/to/config.py
+   ```
+
+   Executes the old file once to capture computed values (`BASE_DIRECTORY /
+   'data'` and the like), maps the names, and folds in cftscal's
+   `workspace.json` and its per-plugin `cfts/calibration/*.json` files when
+   present. `--dry-run` shows what it would write; `PSI_CONFIG_FILE` controls
+   where the result goes.
+
+4. **Verify:**
+
+   ```bash
+   psi-config show
+   ```
+
+   Every setting, its resolved value, and the layer that supplied it. Check
+   the paths are what the rig actually uses, and that nothing you expected
+   from the file is being shadowed by a stale environment variable.
+
+5. **Delete the leftovers** once the rig runs: the old `config.py`,
+   `cfts/workspace.json`, `cfts/calibration/*.json`, and any
+   `noise-exp/default.json`. Nothing reads them, but leaving them invites
+   confusion later about which file is live.
+
+### Finding affected code
+
+Restrict these to source files — a stale `__pycache__` or `__enamlcache__`
+still contains the old strings and will match everything otherwise.
+
+```bash
+SRC='--include=*.py --include=*.enaml'
+
+# Legacy setting names
+grep -rnE $SRC "get_config\(['\"](LOG|DATA|PROCESSED|PREFERENCES|LAYOUT|IO|CAL)_ROOT" .
+
+# Removed API
+grep -rn $SRC "get_config_folder\|psi.set_config\|PSI_CONFIG\b" .
+grep -rn $SRC "from psi import.*set_config" .
+
+# Handoff variables. CFTS_ROOT is a cfts setting and CFTS_PATH is a module
+# path constant; neither is one of these.
+grep -rn $SRC "CFTS_[A-Z]" . | grep -v "CFTSCAL_\|CFTS_ROOT\|CFTS_PATH"
+```
+
+Note that `CalibrationSettings.get_config()` / `set_config()` in cftscal are
+unrelated methods that serialize Atom members — they are not psi's
+configuration API and did not change.
+
 ## Known-unchanged surfaces (no action needed)
 
 - `psi.controller.api`, `psi.context.api`, `psi.data.api`,
   `psi.data.sinks.api`, `psi.token.api`, `psi.core.enaml.api` exports.
-- `ExperimentManifest`, `ParadigmDescription`/`paradigm_manager`,
-  `psi.get_config`/`set_config`.
+- `ExperimentManifest`, `ParadigmDescription`/`paradigm_manager`.
+  (`psi.get_config` still exists but its setting names changed, and
+  `psi.set_config` is gone — see the configuration rework above.)
 - IO manifest format and engine classes (`NIDAQEngine`, TDT, Biosemi,
   soundcard), except the NIDAQ hardware-timed DI path noted above.
 - All workbench command IDs and extension point IDs.

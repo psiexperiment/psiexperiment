@@ -42,12 +42,17 @@ Getting started
    :hidden:
 
    installing
+   configuration
    io_manifest
    software/index.rst
 
 :doc:`installing`
 -----------------
 Instructions on installing psiexperiment and configuring your system.
+
+:doc:`configuration`
+--------------------
+Every setting, how a value is resolved, and how to migrate an older ``config.py``.
 
 :doc:`io_manifest`
 ------------------
