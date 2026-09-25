@@ -1,4 +1,4 @@
-'''
+﻿'''
 Configuration for psiexperiment and the packages built on it.
 
 A setting has exactly one spelling. The name used in code is the name in
@@ -122,8 +122,12 @@ def load_config():
     if not path.exists():
         log.debug('No configuration file at %s', path)
         return {}
-    with path.open('rb') as fh:
-        config = tomllib.load(fh)
+    # Read as text with utf-8-sig rather than handing tomllib a binary
+    # handle: a configuration file saved by Notepad, by PowerShell's
+    # Out-File, or by VS Code with "UTF-8 with BOM" starts with a byte
+    # order mark, and tomllib rejects it as "Invalid statement (at line 1,
+    # column 1)" -- naming neither the BOM nor the file.
+    config = tomllib.loads(path.read_text(encoding='utf-8-sig'))
     log.debug('Loaded configuration from %s', path)
     return config
 
@@ -291,7 +295,7 @@ def save_config(updates):
     path.parent.mkdir(parents=True, exist_ok=True)
 
     if path.exists():
-        document = tomlkit.parse(path.read_text(encoding='utf-8'))
+        document = tomlkit.parse(path.read_text(encoding='utf-8-sig'))
     else:
         document = tomlkit.document()
 

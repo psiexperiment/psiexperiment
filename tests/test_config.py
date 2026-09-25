@@ -259,3 +259,29 @@ def test_no_call_site_shadows_a_registered_default():
                     first.value in psi_config._defaults:
                 offenders.append(f'{path}:{node.lineno} {first.value}')
     assert offenders == []
+
+
+def test_config_file_with_bom(config_file):
+    '''
+    A configuration file saved with a byte order mark still loads.
+
+    Notepad, PowerShell's Out-File and VS Code's "UTF-8 with BOM" all
+    produce one, and handing tomllib a binary handle made it reject the
+    file as "Invalid statement (at line 1, column 1)" -- naming neither
+    the BOM nor the file. Anything catching that exception then fell back
+    to defaults, which looks exactly like a machine nobody configured.
+    '''
+    config_file.write_text('PSI_DATA_ROOT = "C:/from_file"\n',
+                           encoding='utf-8-sig')
+    psi_config.reload_config()
+    assert get_config('PSI_DATA_ROOT') == Path('C:/from_file')
+
+
+def test_save_config_preserves_content_of_a_bom_file(config_file):
+    config_file.write_text('# a comment\nPSI_DATA_ROOT = "C:/a"\n',
+                           encoding='utf-8-sig')
+    psi_config.reload_config()
+    psi_config.save_config({'PSI_LOG_ROOT': Path('C:/logs')})
+    assert get_config('PSI_DATA_ROOT') == Path('C:/a')
+    assert get_config('PSI_LOG_ROOT') == Path('C:/logs')
+    assert '# a comment' in config_file.read_text(encoding='utf-8-sig')
