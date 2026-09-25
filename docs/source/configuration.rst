@@ -30,9 +30,17 @@ To see where a value actually came from::
 
     psi-config show
 
-which prints every setting, its resolved value, and the layer that
-supplied it. That listing is the first thing to check when a setting is
-not what you expect.
+which prints every setting, grouped by package, with its resolved value
+and the layer that supplied it -- ``file`` or ``env``, or blank for the
+package default. That listing is the first thing to check when a setting
+is not what you expect.
+
+Values that are tables or lists are summarized by their keys, so that one
+large entry does not push everything else off the screen; ``psi-config
+show --verbose`` prints them in full. Any key found in the configuration
+file that no package registered is listed separately, under a heading
+saying nothing reads it -- which is how a typo, or a setting left behind
+by an older version, shows up.
 
 Where the configuration file lives
 ==================================

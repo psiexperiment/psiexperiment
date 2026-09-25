@@ -801,6 +801,59 @@ def list_paradigm_descriptions():
     return result
 
 
+def _render_setting(value, verbose=False):
+    '''
+    One line for a setting's value.
+
+    Paths print as the path rather than as WindowsPath('...'), and
+    strings without quotes: this listing is read to check a location
+    or a device name, and those should be pasteable. Containers are
+    summarized, because a nested table (cftscal's per-plugin state
+    runs to dozens of keys) otherwise buries every other setting on
+    the screen. `verbose` prints them in full.
+    '''
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, str):
+        return value if value else '(empty)'
+    if isinstance(value, bool) or not isinstance(value, (list, tuple, dict)):
+        return str(value)
+
+    if verbose:
+        return repr(value)
+    if not value:
+        return '(none)'
+    if isinstance(value, dict):
+        keys = ', '.join(sorted(value))
+        n = len(value)
+        return f'({n} {"entry" if n == 1 else "entries"}: {keys})'
+    if all(isinstance(v, (str, int, float, Path)) for v in value):
+        return ', '.join(str(v) for v in value)
+    n = len(value)
+    return f'({n} {"item" if n == 1 else "items"})'
+
+
+def _group_label(names):
+    '''
+    The prefix a group of settings shares.
+
+    Taken from the names rather than from a hard-coded list of
+    packages, since any package can register its own. Segments are
+    only consumed while every name agrees and never down to a
+    name's last segment, so NOISE_EXP_* is labelled NOISE_EXP
+    while a lone CFTS_ROOT is labelled CFTS rather than
+    CFTS_ROOT.
+    '''
+    parts = [n.split('_') for n in names]
+    common = []
+    for i in range(min(len(p) - 1 for p in parts)):
+        segment = {p[i] for p in parts}
+        if len(segment) != 1:
+            break
+        common.append(segment.pop())
+    return '_'.join(common) or names[0].split('_')[0]
+
+
 def config():
     import argparse
     import psi
@@ -821,27 +874,51 @@ def config():
         config_file = psi.get_config_file()
         exists = 'exists' if config_file.exists() else 'does not exist'
         print(f'Configuration file: {config_file} ({exists})')
-        print()
 
         settings = psi.get_all_config()
         if not settings:
-            print('No settings are known.')
+            print('\nNo settings are known.')
             return
 
-        def render(value):
-            # A path is shown as the path, not as WindowsPath('...'):
-            # this listing is what a user reads to check a location, and
-            # it should be something they can paste.
-            if isinstance(value, Path):
-                return str(value)
-            return repr(value)
+        # A key in the file that no package registered is read by nothing.
+        # Listing it beside the real settings implies it does something.
+        known = {n: v for n, v in settings.items() if n in psi.config._defaults}
+        unknown = {n: v for n, v in settings.items() if n not in known}
 
-        width = max(len(name) for name in settings)
-        for name, value in settings.items():
-            # The source is the whole point of this listing: "why is this
-            # not what I put in the file?" is the question it answers.
-            source = psi.config_source(name)
-            print(f'  {name:<{width}}  {render(value)}  [{source}]')
+        # The source is the whole point of this listing -- "why is this not
+        # what I put in the file?" -- but most settings are defaults, and
+        # labelling every one of them just crowds out the few that matter.
+        labels = {'config file': 'file', 'environment': 'env', 'default': ''}
+        width = max(len(n) for n in settings)
+
+        groups = {}
+        for name, value in known.items():
+            groups.setdefault(name.split('_', 1)[0], []).append((name, value))
+
+        rendered = {n: _render_setting(v, args.verbose)
+                    for n, v in known.items()}
+        # Wide enough for most values, but not so wide that one long entry
+        # pushes the source column off the screen for everything else.
+        vwidth = min(max((len(v) for v in rendered.values()), default=0), 44)
+
+        for key in sorted(groups):
+            entries = sorted(groups[key])
+            print(f'\n{_group_label([n for n, _ in entries])}')
+            for name, _ in entries:
+                source = labels[psi.config_source(name)]
+                print(f'  {name:<{width}}  {rendered[name]:<{vwidth}}  '
+                      f'{source}'.rstrip())
+
+        if unknown:
+            print('\nIn the configuration file but not a known setting '
+                  '(nothing reads these)')
+            for name, value in sorted(unknown.items()):
+                print(f'  {name:<{width}}  '
+                      f'{_render_setting(value, args.verbose)}')
+
+        print('\nA blank source means the package default.')
+        if not args.verbose:
+            print('Run with --verbose to print container values in full.')
 
     def set_config_value(args):
         psi.save_config({args.setting: args.value})
@@ -899,6 +976,11 @@ def config():
                     'resolved value and which layer supplied it.',
     )
     show.set_defaults(func=show_config)
+    show.add_argument(
+        '--verbose', '-v',
+        action='store_true',
+        help='Print container values in full instead of summarizing them.',
+    )
 
     set_parser = subparsers.add_parser(
         'set',
