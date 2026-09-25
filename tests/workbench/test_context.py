@@ -1,3 +1,4 @@
+import numpy as np
 import pytest
 
 
@@ -208,6 +209,33 @@ def test_apply_changes_allows_builtins_and_cross_references(workbench):
     context.apply_changes()
     context.next_setting('default')
     assert context.get_value('fc') == 120
+
+
+def test_default_symbols_loaded(workbench):
+    context = workbench.get_plugin('psi.context')
+    assert context.symbols['np'] is np
+
+
+@pytest.mark.parametrize('expression, expected', [
+    ('np.log10(level)', np.log10(60)),
+    ('np.pi * level', np.pi * 60),
+    ('db(level)', 20 * np.log10(60)),
+])
+def test_apply_changes_allows_symbols(workbench, expression, expected):
+    # get_dependencies reports attribute access as dotted names (e.g.,
+    # "np.log10"), which must still resolve to the "np" symbol.
+    context = workbench.get_plugin('psi.context')
+    context.context_items['fc'].expression = expression
+    context.apply_changes()
+    context.next_setting('default')
+    assert context.get_value('fc') == pytest.approx(expected)
+
+
+def test_apply_changes_rejects_unknown_attribute_base(workbench):
+    context = workbench.get_plugin('psi.context')
+    context.context_items['fc'].expression = 'nump.log10(level)'
+    with pytest.raises(ValueError, match='unknown name "nump"'):
+        context.apply_changes()
 
 
 def test_apply_changes_valid_after_fixing_error(workbench):

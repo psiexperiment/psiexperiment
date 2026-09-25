@@ -497,7 +497,10 @@ class ContextPlugin(PSIPlugin):
                 errors.append(f'"{name}": expression {expression!r} is not '
                               f'valid Python ({e.msg}).')
                 continue
-            for dep in sorted(set(dependencies) - allowed):
+            # Attribute access is reported as a dotted name (e.g.,
+            # "np.log10"); only the base name needs to be in the namespace.
+            dependencies = {d.split('.')[0] for d in dependencies}
+            for dep in sorted(dependencies - allowed):
                 close = difflib.get_close_matches(dep, sorted(known), n=3)
                 hint = ' Did you mean: {}?'.format(', '.join(close)) \
                     if close else ''
