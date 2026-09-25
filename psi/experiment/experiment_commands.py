@@ -1,4 +1,4 @@
-'''
+﻿'''
 Command handlers for the experiment manifest.
 
 These functions implement layout and preference persistence plus assorted
@@ -18,6 +18,7 @@ import yaml
 from enaml.application import deferred_call
 from enaml.widgets.api import FileDialogEx
 
+from ..config import get_config
 from ..runtime import get_runtime
 from .dock_layout_serializer import (
     workspace_layout_from_dict, workspace_layout_to_dict,
@@ -31,7 +32,11 @@ _PICKLE_MAGIC = b'\x80'
 
 
 def get_default_path(which):
-    root = get_config('{}_ROOT'.format(which.upper()))
+    # The setting name is built rather than written out, so renaming
+    # PSI_LAYOUT_ROOT or PSI_PREFERENCES_ROOT is invisible to a search for
+    # either of them. test_experiment_commands resolves both for real so
+    # that drift fails loudly rather than only on the next launch.
+    root = get_config('PSI_{}_ROOT'.format(which.upper()))
     experiment = get_runtime('EXPERIMENT')
     default_path = os.path.join(root, experiment)
     if not os.path.exists(default_path):

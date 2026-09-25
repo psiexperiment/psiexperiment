@@ -1,6 +1,9 @@
 """Tests for layout persistence in psi.experiment.experiment_commands."""
 import pickle
+from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 from enaml.layout.dock_layout import AreaLayout, DockLayout, ItemLayout
 from enaml.layout.geometry import Rect
@@ -83,3 +86,57 @@ def test_load_layout_falls_back_to_legacy_pickle(tmp_path):
     assert loaded['geometry'] == layout['geometry']
     assert dock_layout_node_to_dict(loaded['dock_layout']) == \
         dock_layout_node_to_dict(layout['dock_layout'])
+
+
+class TestDefaultPath:
+    '''
+    `get_default_path` builds its setting name at run time, as
+    `PSI_<WHICH>_ROOT`. That spelling appears nowhere as a literal, so
+    renaming either setting is invisible to a search for it and would
+    only surface on the next experiment launch, where the default layout
+    and preferences are loaded (see `PSIWorkbench.start_workspace`).
+    Resolving both against the real configuration is what makes that
+    drift fail here instead.
+    '''
+
+    def _configure(self, tmp_path, monkeypatch):
+        from psi import config as psi_config
+        from psi import runtime as psi_runtime
+
+        monkeypatch.setenv('PSI_CONFIG_FILE', str(tmp_path / 'config.toml'))
+        monkeypatch.setenv('PSI_BASE_DIRECTORY', str(tmp_path / 'base'))
+        psi_config.reload_config()
+        psi_runtime.set_runtime('EXPERIMENT', 'demo_experiment')
+
+    @pytest.mark.parametrize('which', ['layout', 'preferences'])
+    def test_resolves_against_real_settings(self, which, tmp_path,
+                                            monkeypatch):
+        from psi.experiment.experiment_commands import get_default_path
+
+        self._configure(tmp_path, monkeypatch)
+        try:
+            path = Path(get_default_path(which))
+        finally:
+            from psi import runtime as psi_runtime
+            psi_runtime.clear_runtime()
+
+        assert path.parent.name == which
+        assert path.name == 'demo_experiment'
+        assert path.is_dir()
+
+    @pytest.mark.parametrize('which', ['layout', 'preferences'])
+    def test_filename_sits_under_that_path(self, which, tmp_path,
+                                           monkeypatch):
+        from psi.experiment.experiment_commands import (
+            get_default_filename, get_default_path
+        )
+
+        self._configure(tmp_path, monkeypatch)
+        try:
+            filename = Path(get_default_filename(which))
+            expected = Path(get_default_path(which)) / f'default.{which}'
+        finally:
+            from psi import runtime as psi_runtime
+            psi_runtime.clear_runtime()
+
+        assert filename == expected
