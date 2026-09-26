@@ -833,6 +833,42 @@ def _render_setting(value, verbose=False):
     return f'({n} {"item" if n == 1 else "items"})'
 
 
+def _register_downstream_settings():
+    '''
+    Import the packages that register settings of their own.
+
+    Registration is an import side effect, and `psi-config` imports only
+    psi. Without this, every CFTSCAL_ or NOISE_EXP_ key in the
+    configuration file is reported as belonging to no setting at all --
+    exactly backwards, since those are the settings a user is most likely
+    to be checking.
+
+    PSI_PARADIGM_DESCRIPTIONS already names the modules this installation
+    uses, and importing one imports its package, so there is no separate
+    registry to keep in step. A package installed but named nowhere in
+    the configuration is still invisible; declaring an entry point would
+    fix that, at the cost of reinstalling every package.
+
+    Failures are logged rather than raised: `psi-config show` is what
+    somebody runs when something is already broken, so it has to survive
+    a package that will not import.
+    '''
+    loaded = []
+    try:
+        descriptions = get_config('PSI_PARADIGM_DESCRIPTIONS')
+    except Exception as e:
+        log.warning('Could not read PSI_PARADIGM_DESCRIPTIONS: %s', e)
+        return loaded
+    for description in descriptions:
+        try:
+            importlib.import_module(description)
+            loaded.append(description)
+        except Exception as e:
+            log.warning('Could not import %s, so any settings it registers '
+                        'will be reported as unknown: %s', description, e)
+    return loaded
+
+
 def _group_label(names):
     '''
     The prefix a group of settings shares.
@@ -871,9 +907,12 @@ def config():
     paradigm_choices = {p.rsplit('.', 1)[1]: p for p in paradigms}
 
     def show_config(args):
+        loaded = _register_downstream_settings()
         config_file = psi.get_config_file()
         exists = 'exists' if config_file.exists() else 'does not exist'
         print(f'Configuration file: {config_file} ({exists})')
+        if loaded:
+            print(f'Also loaded: {", ".join(sorted(loaded))}')
 
         settings = psi.get_all_config()
         if not settings:
@@ -910,17 +949,26 @@ def config():
                       f'{source}'.rstrip())
 
         if unknown:
-            print('\nIn the configuration file but not a known setting '
-                  '(nothing reads these)')
+            print('\nIn the configuration file but not registered by any '
+                  'package loaded here')
             for name, value in sorted(unknown.items()):
                 print(f'  {name:<{width}}  '
                       f'{_render_setting(value, args.verbose)}')
+            print('  (left over from an older version, misspelled, or owned '
+                  'by a package this')
+            print('   installation does not load -- see '
+                  'PSI_PARADIGM_DESCRIPTIONS)')
 
         print('\nA blank source means the package default.')
         if not args.verbose:
             print('Run with --verbose to print container values in full.')
 
     def set_config_value(args):
+        # Same reason as show: without the owning package loaded, a
+        # downstream setting has no registered default, so the value would
+        # not be coerced to its type and config_source could not report
+        # that the environment is shadowing the write.
+        _register_downstream_settings()
         psi.save_config({args.setting: args.value})
         source = psi.config_source(args.setting)
         value = psi.get_config(args.setting)
