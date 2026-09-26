@@ -19,7 +19,7 @@ from enaml.application import deferred_call
 with enaml.imports():
     from enaml.stdlib.message_box import critical
 
-from psi import get_config, set_runtime
+from psi import get_config, register_defaults, set_runtime
 from psi.util import wrap_text
 from psi.core.enaml.api import load_manifest, load_manifest_from_file
 
@@ -835,37 +835,38 @@ def _render_setting(value, verbose=False):
 
 def _register_downstream_settings():
     '''
-    Import the packages that register settings of their own.
+    Register the settings of every installed package that declares some.
 
-    Registration is an import side effect, and `psi-config` imports only
-    psi. Without this, every CFTSCAL_ or NOISE_EXP_ key in the
-    configuration file is reported as belonging to no setting at all --
-    exactly backwards, since those are the settings a user is most likely
-    to be checking.
+    A package registers its settings when it is imported, and a tool like
+    `psi-config` imports only psi. Without this, every CFTSCAL_ or
+    NOISE_EXP_ key in the configuration file is reported as belonging to
+    no setting at all -- which is exactly backwards, since those are the
+    settings somebody running `psi-config` is most likely to be checking.
 
-    PSI_PARADIGM_DESCRIPTIONS already names the modules this installation
-    uses, and importing one imports its package, so there is no separate
-    registry to keep in step. A package installed but named nowhere in
-    the configuration is still invisible; declaring an entry point would
-    fix that, at the cost of reinstalling every package.
+    Discovery is by entry point, so it depends only on what is installed::
 
-    Failures are logged rather than raised: `psi-config show` is what
-    somebody runs when something is already broken, so it has to survive
-    a package that will not import.
+        [project.entry-points."psi.settings"]
+        cftscal = "cftscal.config_defaults:DEFAULTS"
+
+    Nothing here consults the configuration file. Keying this off
+    PSI_PARADIGM_DESCRIPTIONS would not work: cftscal and cfts name their
+    paradigms by fully-qualified path and register them when their own
+    GUI starts, so neither appears in that setting.
+
+    Failures are logged rather than raised. `psi-config show` is what
+    somebody runs when something is already broken, so one package that
+    will not import must not take the listing down with it.
     '''
+    from importlib.metadata import entry_points
+
     loaded = []
-    try:
-        descriptions = get_config('PSI_PARADIGM_DESCRIPTIONS')
-    except Exception as e:
-        log.warning('Could not read PSI_PARADIGM_DESCRIPTIONS: %s', e)
-        return loaded
-    for description in descriptions:
+    for entry in entry_points(group='psi.settings'):
         try:
-            importlib.import_module(description)
-            loaded.append(description)
+            register_defaults(entry.load())
+            loaded.append(entry.name)
         except Exception as e:
-            log.warning('Could not import %s, so any settings it registers '
-                        'will be reported as unknown: %s', description, e)
+            log.warning('Could not register the settings declared by %s, so '
+                        'they will be reported as unknown: %s', entry.name, e)
     return loaded
 
 
@@ -955,9 +956,8 @@ def config():
                 print(f'  {name:<{width}}  '
                       f'{_render_setting(value, args.verbose)}')
             print('  (left over from an older version, misspelled, or owned '
-                  'by a package this')
-            print('   installation does not load -- see '
-                  'PSI_PARADIGM_DESCRIPTIONS)')
+                  'by a package that is')
+            print('   not installed here)')
 
         print('\nA blank source means the package default.')
         if not args.verbose:

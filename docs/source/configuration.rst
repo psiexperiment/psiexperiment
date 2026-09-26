@@ -201,7 +201,21 @@ Adding a setting
 
 Settings are declared in one table per package — ``psi/config_defaults.py``
 and its equivalents — and registered with
-:func:`psi.config.register_defaults`. Two rules matter:
+:func:`psi.config.register_defaults`.
+
+A package that owns settings should also declare them as an entry point, so
+that tools which do not import the package can still see them::
+
+    [project.entry-points."psi.settings"]
+    cftscal = "cftscal.config_defaults:DEFAULTS"
+
+Registration is otherwise a side effect of importing the package, and
+``psi-config`` imports only psi. Without the entry point, every one of that
+package's settings is reported as unrecognized — which is what a user checking
+``CFTSCAL_ROOT`` would see. The declaration only takes effect once the package
+is reinstalled, since entry points are recorded in the installed metadata.
+
+Two rules matter for the table itself:
 
 * **Every setting needs a usable default**, because a missing
   configuration file is a supported state.

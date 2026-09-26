@@ -90,3 +90,74 @@ class TestGroupLabel:
     def test_longer_prefix_wins_when_all_agree(self):
         assert _group_label(['CFTSCAL_DEVICE_NAME',
                              'CFTSCAL_DEVICE_HOSTAPI']) == 'CFTSCAL_DEVICE'
+
+
+class TestRegisterDownstreamSettings:
+    '''
+    A package registers its settings when imported, and psi-config
+    imports only psi -- so without discovery, every CFTSCAL_ key in the
+    configuration file is reported as belonging to no setting at all.
+
+    Discovery is by entry point rather than from the configuration file:
+    cftscal and cfts name their paradigms by fully-qualified path and
+    register them when their own GUI starts, so neither ever appears in
+    PSI_PARADIGM_DESCRIPTIONS.
+    '''
+
+    def _entry(self, name, value):
+        from types import SimpleNamespace
+        return SimpleNamespace(name=name, load=lambda: value)
+
+    def _call(self, monkeypatch, entries):
+        '''
+        Run the helper with `entry_points` replaced.
+
+        It imports entry_points inside the function, so the patch has to
+        land on importlib.metadata itself.
+        '''
+        import importlib.metadata
+
+        from psi import application
+
+        monkeypatch.setattr(importlib.metadata, 'entry_points',
+                            lambda group=None: entries)
+        return application._register_downstream_settings()
+
+    def test_registers_what_the_entry_point_returns(self, monkeypatch):
+        from psi import config as psi_config
+
+        table = {'FAKEPKG_SETTING': lambda: 'value'}
+        try:
+            loaded = self._call(monkeypatch, [self._entry('fakepkg', table)])
+            assert loaded == ['fakepkg']
+            assert psi_config.get_config('FAKEPKG_SETTING') == 'value'
+        finally:
+            psi_config._defaults.pop('FAKEPKG_SETTING', None)
+
+    def test_one_bad_package_does_not_stop_the_rest(self, monkeypatch):
+        '''
+        psi-config show is what somebody runs when something is already
+        broken, so a package that will not import must not take the whole
+        listing down with it.
+        '''
+        from types import SimpleNamespace
+
+        from psi import config as psi_config
+
+        def boom():
+            raise ImportError('no such module')
+
+        good = {'FAKEPKG_SETTING': lambda: 'value'}
+        entries = [
+            SimpleNamespace(name='broken', load=boom),
+            self._entry('fakepkg', good),
+        ]
+        try:
+            loaded = self._call(monkeypatch, entries)
+            assert loaded == ['fakepkg']
+            assert psi_config.get_config('FAKEPKG_SETTING') == 'value'
+        finally:
+            psi_config._defaults.pop('FAKEPKG_SETTING', None)
+
+    def test_no_entry_points_is_not_an_error(self, monkeypatch):
+        assert self._call(monkeypatch, []) == []
