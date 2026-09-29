@@ -10,7 +10,7 @@ import enaml
 import pytest
 from enaml.qt.QtWidgets import QLabel, QPushButton
 
-from psi import get_config, set_config
+from psi import get_runtime, set_runtime
 
 with enaml.imports():
     from psi.controller import manifest as controller_manifest
@@ -41,10 +41,10 @@ def logfile(tmp_path):
     '''
     path = tmp_path / 'experiment.log'
     path.write_text('log contents')
-    original = get_config('LOG_FILENAME', '')
-    set_config('LOG_FILENAME', str(path))
+    original = get_runtime('LOG_FILENAME', '')
+    set_runtime('LOG_FILENAME', str(path))
     yield path
-    set_config('LOG_FILENAME', original)
+    set_runtime('LOG_FILENAME', original)
 
 
 def build(app, **kwargs):
@@ -81,14 +81,14 @@ class TestLogFileButtons:
 
     def test_hidden_when_there_is_no_log_file(self, app):
         # Logging to the console only.
-        original = get_config('LOG_FILENAME', '')
-        set_config('LOG_FILENAME', '')
+        original = get_runtime('LOG_FILENAME', '')
+        set_runtime('LOG_FILENAME', '')
         try:
             view = build(app, error_message='Something went wrong.')
             assert 'Open log' not in buttons(view)
             assert 'Open log folder' not in buttons(view)
         finally:
-            set_config('LOG_FILENAME', original)
+            set_runtime('LOG_FILENAME', original)
 
 
 class TestDialogBehavior:

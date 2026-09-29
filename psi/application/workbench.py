@@ -3,7 +3,7 @@ log = logging.getLogger(__name__)
 
 import tempfile
 
-from atom.api import Value
+from atom.api import Str, Value
 
 import enaml
 from enaml.application import deferred_call
@@ -32,6 +32,13 @@ from psi.experiment.util import set_application_icon
 
 
 class PSIWorkbench(Workbench):
+
+    #: Paradigm this process was launched to run, as named on the command
+    #: line. Handlers reach it through `event.workbench`; it decides where
+    #: the default layout and preferences for this paradigm live. It used
+    #: to be a process-global in psi.runtime, even though start_workspace
+    #: was already given it and threw it away.
+    experiment_name = Str()
 
     context_plugin = Value()
     controller_plugin = Value()
@@ -122,6 +129,8 @@ class PSIWorkbench(Workbench):
                         preferences_file=None,
                         layout_file=None,
                         ):
+
+        self.experiment_name = experiment_name
 
         ui = self.get_plugin('enaml.workbench.ui')
         core = self.get_plugin('enaml.workbench.core')

@@ -6,7 +6,7 @@ from threading import Thread
 
 from enaml.application import deferred_call
 
-from psi import get_config
+from psi import get_config, get_runtime
 
 
 class DAQThread(Thread):
@@ -33,7 +33,7 @@ class DAQThread(Thread):
             deferred_call(sys.excepthook, *sys.exc_info())
 
     def _run(self):
-        profile = get_config('PROFILE', False)
+        profile = get_runtime('PROFILE', False)
         if profile:
             import cProfile
             pr = cProfile.Profile()
@@ -47,7 +47,7 @@ class DAQThread(Thread):
 
         if profile:
             pr.disable()
-            path = get_config('LOG_ROOT') / f'{self.name}_thread.pstat'
+            path = get_config('PSI_LOG_ROOT') / f'{self.name}_thread.pstat'
             pr.dump_stats(path)
 
         log.debug('Exiting acquistion thread')

@@ -19,7 +19,7 @@ from enaml.application import deferred_call
 with enaml.imports():
     from enaml.stdlib.message_box import critical
 
-from psi import get_config, set_config
+from psi import get_config, register_defaults, set_runtime
 from psi.util import wrap_text
 from psi.core.enaml.api import load_manifest, load_manifest_from_file
 
@@ -274,7 +274,7 @@ def configure_logging(level_console=None, level_file=None, filename=None,
         exception_handler.logfile = filename
         # Publish the logfile location so lower-level plugins (e.g., the
         # Logger sink) can find it without importing psi.application.
-        set_config('LOG_FILENAME', filename)
+        set_runtime('LOG_FILENAME', filename)
 
     if debug_exclude is not None:
         for name in debug_exclude:
@@ -294,14 +294,12 @@ def warn_with_traceback(message, category, filename, lineno, file=None,
 
 
 def _main(args):
-    set_config('EXPERIMENT', args.experiment)
-
     if args.debug:
         # Show debugging information. This includes full tracebacks for
         # warnings.
         dt_string = dt.datetime.now().strftime('%Y-%m-%d %H%M')
         filename = '{} {}'.format(dt_string, args.experiment)
-        log_root = Path(get_config('LOG_ROOT'))
+        log_root = Path(get_config('PSI_LOG_ROOT'))
         log_root.mkdir(parents=True, exist_ok=True)
         log_file = os.path.join(log_root, filename)
         configure_logging(args.debug_level_console,
@@ -342,11 +340,7 @@ from psi.experiment.util import list_preferences  # noqa: E402,F401
 
 
 def list_io():
-    result = []
-    if (io_path := get_config('IO_ROOT', None)) is not None:
-        result.extend(Path(io_path).glob('*.enaml'))
-    result.extend(get_config('STANDARD_IO', []))
-    return result
+    return list(Path(get_config('PSI_IO_ROOT')).glob('*.enaml'))
 
 
 def launch_experiment(args):
@@ -354,8 +348,7 @@ def launch_experiment(args):
     install_qt_message_handler()
     setup_windows_console()
     set_app_id('psi.psi')
-    set_config('ARGS', args)
-    set_config('PROFILE', args.profile)
+    set_runtime('PROFILE', args.profile)
     if args.profile:
         import cProfile, pstats
         pr = cProfile.Profile()
@@ -374,7 +367,7 @@ def launch_experiment(args):
 
     if args.profile:
         pr.disable()
-        path = get_config('LOG_ROOT') / 'main_thread.pstat'
+        path = get_config('PSI_LOG_ROOT') / 'main_thread.pstat'
         pr.dump_stats(path)
         stat_files = [str(p) for p in path.parent.glob('*.pstat')]
         merged_stats = pstats.Stats(*stat_files)
@@ -394,13 +387,13 @@ def get_default_io(method='hostname'):
     {{}}
 
     Please create an IO config file. This file should go in
-    {get_config('IO_ROOT')}. The location of the IO config files can be set via
+    {get_config('PSI_IO_ROOT')}. The location of the IO config files can be set via
     the `PSI_IO_ROOT` environment variable.
     '''
     available_io = list_io()
     log.debug('Found the following IO files: %r', available_io)
     if method == 'hostname':
-        hostname = get_config('HOSTNAME').lower()
+        hostname = get_config('PSI_HOSTNAME').lower()
         for io in available_io:
             if hostname in str(io):
                 return io
@@ -554,13 +547,14 @@ def _describe_sound_device_env():
         selection there to a device that is currently connected.
         '''
     try:
-        from psi import get_config_folder
-        workspace = get_config_folder() / 'cfts' / 'workspace.json'
-        if workspace.exists():
+        from psi import get_config_file
+        config_file = get_config_file()
+        if config_file.exists():
             advice = advice.rstrip() + (
-                f' The saved selection is in {workspace}.')
+                f' The saved selection is in {config_file}, under'
+                ' CFTSCAL_DEVICE_NAME.')
     except Exception as e:
-        log.debug('Could not locate cftscal workspace settings: %r', e)
+        log.debug('Could not locate the configuration file: %r', e)
     sections.append(wrap_text(advice))
     return sections
 
@@ -583,14 +577,12 @@ def format_io_manifest_error(io_manifest, exc):
     message : string
     '''
     source, klass, is_file = _resolve_io_manifest_reference(io_manifest)
-    io_root = get_config('IO_ROOT', None)
-    if io_root is not None:
-        # get_config returns IO_ROOT as it was written to the config file,
-        # which on Windows routinely mixes separators (the expanduser'd home
-        # uses backslashes, the rest forward slashes). Normalize it so the
-        # path we tell the user to look in is one they can paste.
-        io_root = Path(io_root)
-    hostname = get_config('HOSTNAME', None)
+    # get_config coerces a path setting to Path regardless of whether the
+    # value came from the config file, the environment or the default, so
+    # the mixed separators Windows routinely produces are already
+    # normalized into something the user can paste.
+    io_root = get_config('PSI_IO_ROOT')
+    hostname = get_config('PSI_HOSTNAME')
 
     sections = [wrap_text('''
         Unable to load the hardware IO configuration. The IO configuration
@@ -767,40 +759,98 @@ def initialize_io_manifest(io_manifest=None):
         return load_io_manifest(io_manifest)()
 
 
-def load_paradigm_descriptions():
-    '''
-    Loads paradigm descriptions
-    '''
-    from psi.experiment.api import ParadigmDescription
-
-    default = list_paradigm_descriptions()
-    descriptions = get_config('PARADIGM_DESCRIPTIONS', default)
-    for description in descriptions:
-        importlib.import_module(description)
-
-
 def list_io_templates():
     io_template_path = Path(__file__).parent.parent / 'templates' / 'io'
     return list(io_template_path.glob('*.enaml'))
 
 
-def list_paradigm_descriptions():
+def _render_setting(value, verbose=False):
     '''
-    List default paradigms descriptions provided by psiexperiment
+    One line for a setting's value.
 
-    Returns
-    -------
-    modules : list of strings
-        List of strings identifying the module path for the description
+    Paths print as the path rather than as WindowsPath('...'), and
+    strings without quotes: this listing is read to check a location
+    or a device name, and those should be pasteable. Containers are
+    summarized, because a nested table (cftscal's per-plugin state
+    runs to dozens of keys) otherwise buries every other setting on
+    the screen. `verbose` prints them in full.
     '''
-    paradigm_path = Path(__file__).parent.parent / 'paradigms' / 'descriptions'
-    result = []
-    for filename in paradigm_path.glob('*.py'):
-        s = str(filename.with_suffix(''))
-        i = s.rfind('psi')
-        module = s[i:].replace('/', '.').replace('\\', '.')
-        result.append(module)
-    return result
+    if isinstance(value, Path):
+        return str(value)
+    if isinstance(value, str):
+        return value if value else '(empty)'
+    if isinstance(value, bool) or not isinstance(value, (list, tuple, dict)):
+        return str(value)
+
+    if verbose:
+        return repr(value)
+    if not value:
+        return '(none)'
+    if isinstance(value, dict):
+        keys = ', '.join(sorted(value))
+        n = len(value)
+        return f'({n} {"entry" if n == 1 else "entries"}: {keys})'
+    if all(isinstance(v, (str, int, float, Path)) for v in value):
+        return ', '.join(str(v) for v in value)
+    n = len(value)
+    return f'({n} {"item" if n == 1 else "items"})'
+
+
+def _register_downstream_settings():
+    '''
+    Register the settings of every installed package that declares some.
+
+    A package registers its settings when it is imported, and a tool like
+    `psi-config` imports only psi. Without this, every CFTSCAL_ or
+    NOISE_EXP_ key in the configuration file is reported as belonging to
+    no setting at all -- which is exactly backwards, since those are the
+    settings somebody running `psi-config` is most likely to be checking.
+
+    Discovery is by entry point, so it depends only on what is installed::
+
+        [project.entry-points."psi.settings"]
+        cftscal = "cftscal.config_defaults:DEFAULTS"
+
+    Nothing here consults the configuration file, which is the point: a
+    package declares its settings by being installed, not by being named
+    somewhere.
+
+    Failures are logged rather than raised. `psi-config show` is what
+    somebody runs when something is already broken, so one package that
+    will not import must not take the listing down with it.
+    '''
+    from importlib.metadata import entry_points
+
+    loaded = []
+    for entry in entry_points(group='psi.settings'):
+        try:
+            register_defaults(entry.load())
+            loaded.append(entry.name)
+        except Exception as e:
+            log.warning('Could not register the settings declared by %s, so '
+                        'they will be reported as unknown: %s', entry.name, e)
+    return loaded
+
+
+def _group_label(names):
+    '''
+    The prefix a group of settings shares.
+
+    Taken from the names rather than from a hard-coded list of
+    packages, since any package can register its own. Segments are
+    only consumed while every name agrees and never down to a
+    name's last segment, so NOISE_EXP_* is labelled NOISE_EXP
+    while a lone CFTS_ROOT is labelled CFTS rather than
+    CFTS_ROOT.
+    '''
+    parts = [n.split('_') for n in names]
+    common = []
+    for i in range(min(len(p) - 1 for p in parts)):
+        segment = {p[i] for p in parts}
+        if len(segment) != 1:
+            break
+        common.append(segment.pop())
+    return '_'.join(common) or names[0].split('_')[0]
 
 
 def config():
@@ -816,26 +866,129 @@ def config():
     io_template_paths = list_io_templates()
     io_skeleton_choices = [p.stem.strip('_') for p in io_template_paths]
 
-    paradigms = list_paradigm_descriptions()
-    paradigm_choices = {p.rsplit('.', 1)[1]: p for p in paradigms}
-
     def show_config(args):
-        print(psi.get_config_file())
+        loaded = _register_downstream_settings()
+        config_file = psi.get_config_file()
+        exists = 'exists' if config_file.exists() else 'does not exist'
+        print(f'Configuration file: {config_file} ({exists})')
+        if loaded:
+            print(f'Also loaded: {", ".join(sorted(loaded))}')
+
+        settings = psi.get_all_config()
+        if not settings:
+            print('\nNo settings are known.')
+            return
+
+        # A key in the file that no package registered is read by nothing.
+        # Listing it beside the real settings implies it does something.
+        known = {n: v for n, v in settings.items() if n in psi.config._defaults}
+        unknown = {n: v for n, v in settings.items() if n not in known}
+
+        # The source is the whole point of this listing -- "why is this not
+        # what I put in the file?" -- but most settings are defaults, and
+        # labelling every one of them just crowds out the few that matter.
+        labels = {'config file': 'file', 'environment': 'env', 'default': ''}
+        width = max(len(n) for n in settings)
+
+        groups = {}
+        for name, value in known.items():
+            groups.setdefault(name.split('_', 1)[0], []).append((name, value))
+
+        rendered = {n: _render_setting(v, args.verbose)
+                    for n, v in known.items()}
+        # Wide enough for most values, but not so wide that one long entry
+        # pushes the source column off the screen for everything else.
+        vwidth = min(max((len(v) for v in rendered.values()), default=0), 44)
+
+        for key in sorted(groups):
+            entries = sorted(groups[key])
+            print(f'\n{_group_label([n for n, _ in entries])}')
+            for name, _ in entries:
+                source = labels[psi.config_source(name)]
+                print(f'  {name:<{width}}  {rendered[name]:<{vwidth}}  '
+                      f'{source}'.rstrip())
+
+        if unknown:
+            print('\nIn the configuration file but not registered by any '
+                  'package loaded here')
+            for name, value in sorted(unknown.items()):
+                print(f'  {name:<{width}}  '
+                      f'{_render_setting(value, args.verbose)}')
+            print('  (left over from an older version, misspelled, or owned '
+                  'by a package that is')
+            print('   not installed here)')
+
+        print('\nA blank source means the package default.')
+        if not args.verbose:
+            print('Run with --verbose to print container values in full.')
+
+    def set_config_value(args):
+        # Same reason as show: without the owning package loaded, a
+        # downstream setting has no registered default, so the value would
+        # not be coerced to its type and config_source could not report
+        # that the environment is shadowing the write.
+        _register_downstream_settings()
+
+        # A command-line value is a string, and save_config replaces the
+        # key outright. For a setting that holds a table -- cftscal keeps
+        # every plugin's saved state in one -- that silently destroys it,
+        # and the next launch fails reading a str where a dict belongs.
+        default = psi.config._resolve_default(args.setting, None)
+        if isinstance(default, dict):
+            raise SystemExit(
+                f'{args.setting} holds a table of values, which cannot be '
+                'set from the command line -- doing so would replace the '
+                'whole table. Edit the configuration file directly, or let '
+                'the application that owns this setting write it.')
+
+        value = args.value
+        if isinstance(default, (list, tuple)):
+            # Write a real TOML array rather than a bare string that only
+            # happens to read back correctly because _coerce splits it.
+            value = [v.strip() for v in value.split(',') if v.strip()]
+
+        # Validate before writing, not after. Writing first and reading
+        # back second left a rejected value in the file -- and for a path
+        # setting every later read then raises, so the rig will not start
+        # and the only way out is hand-editing TOML.
+        if default is not None and isinstance(value, str):
+            try:
+                psi.config._coerce(value, default)
+            except ValueError as e:
+                raise SystemExit(f'{args.setting}: {e}')
+
+        psi.save_config({args.setting: value})
+        source = psi.config_source(args.setting)
+        value = psi.get_config(args.setting)
+        if isinstance(value, Path):
+            value = str(value)
+        print(f'{args.setting} = {value}')
+        if source == 'environment':
+            # Writing succeeded but changed nothing the application will
+            # see. Saying so here avoids a long hunt later.
+            print(f'WARNING: {args.setting} is also set in the environment, '
+                  'which takes precedence. The value written to the '
+                  'configuration file will not take effect until the '
+                  'environment variable is cleared.')
+
+    def migrate_config(args):
+        from psi.config_migrate import migrate
+        migrate(args.source, dry_run=args.dry_run)
 
     def create_config(args):
+        # create_config_dirs walks the registered settings, so without the
+        # downstream packages loaded it makes only psi's own directories,
+        # silently skips CFTSCAL_ROOT and every other root a package
+        # declares -- on the one command whose whole job is laying out
+        # the tree for a new rig.
+        _register_downstream_settings()
         base_directory = args.base_directory.rstrip('\\')
-        if args.paradigm_description is None:
-            paradigms = []
-        else:
-            paradigms = [paradigm_choices.get(p, p) \
-                         for p in args.paradigm_description]
-
-        psi.create_config(base_directory=base_directory, standard_io=args.io,
-                          paradigm_descriptions=paradigms)
+        psi.create_config(base_directory=base_directory)
         if args.base_directory:
             psi.create_config_dirs()
 
     def create_folders(args):
+        _register_downstream_settings()
         psi.create_config_dirs()
 
     def create_io(args):
@@ -855,9 +1008,40 @@ def config():
 
     show = subparsers.add_parser(
         'show',
-        description='Show location of config file.',
+        description='Show the config file location, every setting, its '
+                    'resolved value and which layer supplied it.',
     )
     show.set_defaults(func=show_config)
+    show.add_argument(
+        '--verbose', '-v',
+        action='store_true',
+        help='Print container values in full instead of summarizing them.',
+    )
+
+    set_parser = subparsers.add_parser(
+        'set',
+        description='Write a setting to the configuration file.',
+    )
+    set_parser.set_defaults(func=set_config_value)
+    set_parser.add_argument('setting', type=str, help='Name of the setting.')
+    set_parser.add_argument('value', type=str, help='Value to write.')
+
+    migrate = subparsers.add_parser(
+        'migrate',
+        description='Convert a pre-rework config.py (and any cftscal '
+                    'workspace.json beside it) into config.toml.',
+    )
+    migrate.set_defaults(func=migrate_config)
+    migrate.add_argument(
+        'source',
+        type=Path,
+        help='Path to the legacy config.py to convert.',
+    )
+    migrate.add_argument(
+        '--dry-run',
+        action='store_true',
+        help='Print what would be written without writing it.',
+    )
 
     create = subparsers.add_parser('create')
     create.set_defaults(func=create_config)
@@ -865,22 +1049,6 @@ def config():
         '--base-directory',
         type=str,
         help='Root directory to store data and settings for psiexperiment.'
-    )
-    create.add_argument(
-        '--io',
-        nargs='*',
-        type=str,
-        help='Default hardware configurations.',
-    )
-    create.add_argument(
-        '--paradigm-description',
-        nargs='*',
-        type=str,
-        help=f'''Default paradigm descriptions. Can either specify a
-        fully-qualified module path (e.g., psilbhb.paradigms.lbhb) or the names
-        of one of the built-in paradigms. Available built-in paradigms include
-        {', '.join(paradigm_choices.keys())}.'
-        '''
     )
 
     make = subparsers.add_parser(

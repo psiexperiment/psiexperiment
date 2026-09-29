@@ -12,6 +12,28 @@ from psi.controller.api import (EpochOutput, HardwareAIChannel,
 from psi.controller.engines.null import NullEngine
 
 
+@pytest.fixture(autouse=True)
+def isolated_config(tmp_path, monkeypatch):
+    '''
+    Give every test its own empty configuration file.
+
+    Settings resolve as default, then config.toml, then the environment,
+    and the file is whatever PSI_CONFIG_FILE points at -- on a developer
+    machine or a rig, the real one. Without this a test asserting a
+    built-in default passes or fails depending on what the person running
+    it has configured, and anything that saves a setting writes into
+    their live file. The tests that exercise the configuration system
+    itself set PSI_CONFIG_FILE again for their own purposes, which
+    overrides this.
+    '''
+    from psi import config as psi_config
+
+    monkeypatch.setenv('PSI_CONFIG_FILE', str(tmp_path / 'config.toml'))
+    psi_config.reload_config()
+    yield
+    psi_config.reload_config()
+
+
 @pytest.fixture(scope='session')
 def app():
     """

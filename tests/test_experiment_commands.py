@@ -1,6 +1,9 @@
 """Tests for layout persistence in psi.experiment.experiment_commands."""
 import pickle
+from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 from enaml.layout.dock_layout import AreaLayout, DockLayout, ItemLayout
 from enaml.layout.geometry import Rect
@@ -83,3 +86,63 @@ def test_load_layout_falls_back_to_legacy_pickle(tmp_path):
     assert loaded['geometry'] == layout['geometry']
     assert dock_layout_node_to_dict(loaded['dock_layout']) == \
         dock_layout_node_to_dict(layout['dock_layout'])
+
+
+class TestDefaultPath:
+    '''
+    `get_default_path` resolves PSI_SETTINGS_ROOT at run time and appends
+    the paradigm, so a rename of the setting is invisible to a search for
+    it and would only surface on the next experiment launch, where the
+    default layout and preferences are loaded (see
+    `PSIWorkbench.start_workspace`). Resolving against the real
+    configuration is what makes that drift fail here instead.
+
+    The paradigm comes from the workbench rather than from a process
+    global, so a stub carrying the one attribute is a faithful caller --
+    `tests/workbench/test_experiment_name.py` checks that the real
+    PSIWorkbench provides it.
+    '''
+
+    def _workbench(self, tmp_path, monkeypatch, name='demo_experiment'):
+        monkeypatch.setenv('PSI_BASE_DIRECTORY', str(tmp_path / 'base'))
+        from psi import config as psi_config
+        psi_config.reload_config()
+        return SimpleNamespace(experiment_name=name)
+
+    @pytest.mark.parametrize('which', ['layout', 'preferences'])
+    def test_resolves_against_real_settings(self, which, tmp_path,
+                                            monkeypatch):
+        from psi.experiment.experiment_commands import get_default_path
+
+        workbench = self._workbench(tmp_path, monkeypatch)
+        path = Path(get_default_path(workbench, which))
+
+        assert path.parent.name == which
+        assert path.name == 'demo_experiment'
+        assert path.is_dir()
+
+    @pytest.mark.parametrize('which', ['layout', 'preferences'])
+    def test_filename_sits_under_that_path(self, which, tmp_path,
+                                           monkeypatch):
+        from psi.experiment.experiment_commands import (
+            get_default_filename, get_default_path
+        )
+
+        workbench = self._workbench(tmp_path, monkeypatch)
+        filename = Path(get_default_filename(workbench, which))
+        expected = Path(get_default_path(workbench, which)) / f'default.{which}'
+
+        assert filename == expected
+
+    def test_no_experiment_name_is_reported(self, tmp_path, monkeypatch):
+        '''
+        Without a name this used to build <root>/<which>/ and create it,
+        so the default preferences for every paradigm would have landed
+        in one directory. It is a startup step that did not run, so say
+        so rather than carrying on.
+        '''
+        from psi.experiment.experiment_commands import get_default_path
+
+        workbench = self._workbench(tmp_path, monkeypatch, name='')
+        with pytest.raises(ValueError, match='experiment name'):
+            get_default_path(workbench, 'layout')

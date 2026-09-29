@@ -1,4 +1,4 @@
-import logging
+﻿import logging
 log = logging.getLogger(__name__)
 
 import asyncio
@@ -18,6 +18,7 @@ import websockets
 from websockets.asyncio.server import serve
 from websockets.asyncio.client import connect
 
+from psi import get_config
 from psi.controller.api import EventLogger, ExperimentAction, ExperimentEvent
 from psi.core.enaml.api import ExperimentManifest
 
@@ -162,7 +163,17 @@ class WebsocketClient:
 
     def __init__(self, plugin):
         self.plugin = plugin
-        self.ws = plugin.loop.run_until_complete(connect(plugin.uri))
+        try:
+            self.ws = plugin.loop.run_until_complete(connect(plugin.uri))
+        except Exception as e:
+            # Hand the failure back to start_thread, which is waiting for
+            # it. Without this it dies here, in a daemon thread, and the
+            # experiment runs on with no connection to the launcher that
+            # started it -- reporting nothing and answering nothing.
+            plugin.error = e
+            plugin.attempted.set()
+            return
+        plugin.attempted.set()
         self.comm = ClientMessageHandler(self.ws, plugin.send_queue,
                                          plugin.recv_cb, plugin.stop)
         plugin.connected()
@@ -201,12 +212,19 @@ class BaseWebsocketPlugin(Plugin):
         self._send_message(json.dumps(message))
 
     def _send_message(self, message):
+        if self.thread is None:
+            # Nothing is running the loop, so a queued message would
+            # never be sent and the queue would grow for the length of
+            # the experiment.
+            return
         self.loop.call_soon_threadsafe(self.send_queue.put_nowait, message)
 
     def disconnect(self):
         deferred_call(self._disconnect)
 
     def _disconnect(self):
+        if self.thread is None:
+            return
         log.info('Stop request recieved')
         self.loop.call_soon_threadsafe(self.stop.set)
         self.thread.join()
@@ -255,9 +273,42 @@ class WebsocketClientPlugin(BaseWebsocketPlugin):
     '''
     Sets up a client
     '''
+    #: Set once the connection attempt has finished, successfully or not,
+    #: so that start_thread can report the outcome on the thread that
+    #: asked for it.
+    attempted = Value()
+
+    #: Whatever the connection attempt raised, or None.
+    error = Value()
+
+    def _default_attempted(self):
+        return threading.Event()
+
     def start_thread(self):
-        self.thread = threading.Thread(target=WebsocketClient, args=(self,), daemon=True)
+        if not self.uri:
+            # No launcher supplied an address. That is a normal way to run
+            # -- `psi cfts.paradigms.abr_io` by hand, say -- so the
+            # experiment goes ahead without a connection rather than
+            # failing or spewing a traceback from a daemon thread.
+            log.warning('No websocket server address was supplied, so this '
+                        'experiment will not report to a launcher.')
+            return
+
+        self.thread = threading.Thread(target=WebsocketClient, args=(self,),
+                                       daemon=True)
         self.thread.start()
+
+        # An address *was* supplied, so the experiment is meant to have a
+        # channel back to whoever started it. Wait for the attempt and
+        # re-raise here, where it stops the experiment, rather than
+        # letting it disappear into the thread.
+        self.attempted.wait()
+        if self.error is not None:
+            self.thread = None
+            raise RuntimeError(
+                f'Could not reach the websocket server at {self.uri}. The '
+                'experiment was started by a launcher that expects to hear '
+                'back from it.') from self.error
 
 
 enamldef BaseWebsocketManifest(ExperimentManifest): manifest:
@@ -331,5 +382,8 @@ enamldef WebsocketClientManifest(BaseWebsocketManifest): manifest:
     factory = lambda: WebsocketClientPlugin(**kwargs)
     attr kwargs = {
         'recv_cb': partial(core_command_cb, workbench),
-        'uri': os.environ['WEBSOCKETS_URI'],
+        # `or ''` because the setting is None when no launcher supplied an
+        # address, and the plugin's `uri` is an Atom Str, which cannot
+        # hold None. Both spellings mean the same thing to start_thread.
+        'uri': get_config('PSI_WEBSOCKETS_URI') or '',
     }

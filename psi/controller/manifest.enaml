@@ -28,7 +28,7 @@ from .plugin import ControllerPlugin
 from psi.core.api import (ExperimentState, ExperimentEvent,
                                 ExperimentAction)
 
-from psi import get_config
+from psi import get_runtime
 
 from psi.core.enaml.api import ExperimentManifest
 
@@ -117,7 +117,7 @@ enamldef ResultPopup(Dialog): popup:
     #: publishes it as a config value when it configures logging (see
     #: configure_logging), so it does not have to be threaded through the
     #: wrapup callbacks to get here.
-    attr logfile = get_config('LOG_FILENAME', '')
+    attr logfile = get_runtime('LOG_FILENAME', '')
 
     #: Width, in pixels, of the text. The messages wrap to it and the
     #: traceback view matches, so the dialog is the same width whether or

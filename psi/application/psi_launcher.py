@@ -4,8 +4,7 @@ import argparse
 import importlib
 from pathlib import Path
 
-from psi.application import (get_default_io, launch_experiment,
-                             load_paradigm_descriptions)
+from psi.application import get_default_io, launch_experiment
 
 from psi.experiment.api import paradigm_manager
 
@@ -80,7 +79,6 @@ def main():
             for plugin_name in value:
                 namespace.controller.enable_plugin(plugin_name)
 
-    load_paradigm_descriptions()
     parser = argparse.ArgumentParser(description='Run experiment')
     # TODO: Add extended help that explains how to locate paradigm descriptions
     # if needed using the :: syntax.

@@ -18,9 +18,9 @@ def _run(code):
 def test_import_psi_does_not_load_config():
     result = _run(
         'import psi\n'
-        'assert psi._config is None, "config loaded at import"\n'
-        'assert psi.get_config("HOSTNAME")\n'
-        'assert psi._config is not None\n'
+        'assert psi.config._config is None, "config loaded at import"\n'
+        'assert psi.get_config("PSI_HOSTNAME")\n'
+        'assert psi.config._config is not None\n'
         'print("ok")\n'
     )
     assert result.returncode == 0, result.stderr

@@ -1,4 +1,4 @@
-'''
+﻿'''
 Command handlers for the experiment manifest.
 
 These functions implement layout and preference persistence plus assorted
@@ -18,7 +18,7 @@ import yaml
 from enaml.application import deferred_call
 from enaml.widgets.api import FileDialogEx
 
-from .. import get_config
+from ..config import get_config
 from .dock_layout_serializer import (
     workspace_layout_from_dict, workspace_layout_to_dict,
 )
@@ -30,24 +30,40 @@ from .util import LAYOUT_WILDCARD, PREFERENCES_WILDCARD
 _PICKLE_MAGIC = b'\x80'
 
 
-def get_default_path(which):
-    root = get_config('{}_ROOT'.format(which.upper()))
-    experiment = get_config('EXPERIMENT')
+def get_default_path(workbench, which):
+    '''
+    Directory holding this paradigm's default layout or preferences.
+
+    `which` is 'layout' or 'preferences', which are subdirectories of one
+    setting rather than settings of their own: same lifecycle, same
+    <root>/<which>/<paradigm> structure, same readers.
+
+    The paradigm comes from the workbench, which is handed it at startup.
+    Every caller is a command handler and so already has one.
+    '''
+    experiment = workbench.experiment_name
+    if not experiment:
+        raise ValueError(
+            'The workbench has no experiment name, so there is nowhere '
+            'to keep the default layout and preferences for this '
+            'paradigm. It is set by PSIWorkbench.start_workspace from '
+            'the paradigm named on the command line.')
+    root = Path(get_config('PSI_SETTINGS_ROOT')) / which
     default_path = os.path.join(root, experiment)
     if not os.path.exists(default_path):
         os.makedirs(default_path)
     return default_path
 
 
-def get_default_filename(which):
-    default_path = get_default_path(which)
+def get_default_filename(workbench, which):
+    default_path = get_default_path(workbench, which)
     return os.path.join(default_path, 'default.{}'.format(which))
 
 
 def save_layout(event):
     filename = FileDialogEx.get_save_file_name(
         name_filters=[LAYOUT_WILDCARD],
-        current_path=get_default_path('layout')
+        current_path=get_default_path(event.workbench, 'layout')
     )
     if filename:
         _save_layout(event, filename)
@@ -67,7 +83,7 @@ def load_layout(event):
     if filename is None:
         filename = FileDialogEx.get_open_file_name(
             name_filters=[LAYOUT_WILDCARD],
-            current_path=get_default_path('layout')
+            current_path=get_default_path(event.workbench, 'layout')
         )
     if filename:
         _load_layout(event, filename)
@@ -88,13 +104,13 @@ def _load_layout(event, filename):
 
 
 def set_default_layout(event):
-    filename = get_default_filename('layout')
+    filename = get_default_filename(event.workbench, 'layout')
     _save_layout(event, filename)
 
 
 def get_default_layout(event):
     try:
-        filename = get_default_filename('layout')
+        filename = get_default_filename(event.workbench, 'layout')
         _load_layout(event, filename)
     except IOError:
         pass
@@ -105,7 +121,7 @@ def save_preferences(event):
     if filename is None:
         filename = FileDialogEx.get_save_file_name(
             name_filters=[PREFERENCES_WILDCARD],
-            current_path=get_default_path('preferences')
+            current_path=get_default_path(event.workbench, 'preferences')
         )
     if filename:
         _save_preferences(event, filename)
@@ -124,7 +140,7 @@ def load_preferences(event):
     if filename is None:
         filename = FileDialogEx.get_open_file_name(
             name_filters=[PREFERENCES_WILDCARD],
-            current_path=get_default_path('preferences')
+            current_path=get_default_path(event.workbench, 'preferences')
         )
     if filename:
         _load_preferences(event, filename)
@@ -139,13 +155,13 @@ def _load_preferences(event, filename):
 
 
 def set_default_preferences(event):
-    filename = get_default_filename('preferences')
+    filename = get_default_filename(event.workbench, 'preferences')
     _save_preferences(event, filename)
 
 
 def get_default_preferences(event):
     try:
-        filename = get_default_filename('preferences')
+        filename = get_default_filename(event.workbench, 'preferences')
         _load_preferences(event, filename)
     except IOError:
         pass

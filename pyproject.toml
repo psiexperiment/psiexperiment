@@ -2,7 +2,7 @@
 name = "psiexperiment"
 description = "Framework for running trial-based experiments"
 readme = "readme.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 license = {file = "LICENSE.txt"}
 authors = [
     {name = "Brad Buran", email="bburan@alum.mit.edu"},
@@ -24,6 +24,7 @@ dependencies = [
     "scipy",
     "pandas",
     "pyyaml",
+    "tomlkit",
     "pywin32; os_name=='nt'",
     "websockets",
 ]

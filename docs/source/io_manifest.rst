@@ -84,4 +84,4 @@ When launching an experiment, you specify the IO manifest via the ``--io`` comma
 
     psi my_experiment --io my_lab_hardware
 
-Psiexperiment will automatically look for the file in your configured ``IO_ROOT`` folder. For more information on setting up your environment, see :doc:`installing`.
+Psiexperiment will automatically look for the file in your configured ``PSI_IO_ROOT`` folder. For more information on setting up your environment, see :doc:`installing`.
