@@ -257,7 +257,7 @@ def test_no_call_site_shadows_a_registered_default():
     '''
     import ast
 
-    root = Path(__file__).parent.parent / 'psi'
+    root = Path(__file__).parent.parent / 'src' / 'psi'
     offenders = []
     for path in root.rglob('*.py'):
         try:

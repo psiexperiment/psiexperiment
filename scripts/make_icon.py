@@ -1,4 +1,4 @@
-# Generates psi/experiment/psi-logo.png, the window icon loaded by
+# Generates src/psi/experiment/psi-logo.png, the window icon loaded by
 # psi.experiment.util.load_icon. Run from anywhere:
 #   python scripts/make_icon.py
 #
@@ -16,7 +16,7 @@ from matplotlib.patches import Circle
 from psi.launcher.icons import FILL, FOREGROUND, TRACE_WIDTH, make_icon
 
 
-OUTPUT = Path(__file__).parents[1] / 'psi' / 'experiment' / 'psi-logo.png'
+OUTPUT = Path(__file__).parents[1] / 'src' / 'psi' / 'experiment' / 'psi-logo.png'
 
 #: Radius of the pads at the end of each trace, in data units (same as the
 #: original logo).

@@ -17,9 +17,11 @@ jobs:
       - name: Install lint tools
         run: python -m pip install ruff import-linter
       - name: Run ruff
-        run: ruff check psi tests tools
+        run: ruff check src tests tools
       - name: Check package layering (.py)
-        run: lint-imports
+        # import-linter imports the package it checks, and this job does
+        # not install it.
+        run: PYTHONPATH=src lint-imports
       - name: Check package layering (.enaml)
         run: python tools/check_enaml_layering.py
 

@@ -63,7 +63,8 @@ def source_layer(path):
 
 
 def main():
-    root = Path(__file__).parent.parent
+    # Paths are reported relative to src/, i.e. starting at psi/.
+    root = Path(__file__).parent.parent / 'src'
     errors = []
     for path in sorted((root / 'psi').rglob('*.enaml')):
         rel = path.relative_to(root)

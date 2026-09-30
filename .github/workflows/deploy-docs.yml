@@ -34,7 +34,7 @@ jobs:
 
       - name: Generate API documentation
         run: |
-          sphinx-apidoc -f -o docs/source/api psi
+          sphinx-apidoc -f -o docs/source/api src/psi
 
       - name: Build with Sphinx
         run: |

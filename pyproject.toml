@@ -57,7 +57,7 @@ psi-config = "psi.application:config"
 psi-main = "psi.application.psi_launcher:main"
 
 [project.entry-points.pyinstaller40]
-# Lets PyInstaller auto-discover psi/__pyinstaller's hooks (currently just
+# Lets PyInstaller auto-discover psi.__pyinstaller's hooks (currently just
 # the window icon data file) in any app that freezes psi as a dependency,
 # with no per-consumer PyInstaller config needed.
 hook-dirs = "psi.__pyinstaller:get_hook_dirs"
@@ -67,12 +67,12 @@ requires = ["setuptools>=61.2", "wheel", "setuptools_scm[toml]>=3.4.3"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools_scm]
-write_to = "psi/version.py"
+write_to = "src/psi/version.py"
 
 [tool.ruff]
 # .enaml files are not Python and cannot be parsed by ruff. _version.py is a
 # generated legacy versioneer file.
-extend-exclude = ["psi/templates", "docs", "psi/_version.py"]
+extend-exclude = ["src/psi/templates", "docs", "src/psi/_version.py"]
 
 [tool.ruff.lint]
 # F: pyflakes (undefined names, unused imports — would have caught several
@@ -88,11 +88,11 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 # Wildcard re-exports are the established public API pattern for psi.
-"psi/**/api.py" = ["F401", "F403"]
-"psi/**/__init__.py" = ["F401"]
+"src/psi/**/api.py" = ["F401", "F403"]
+"src/psi/**/__init__.py" = ["F401"]
 # Qt requires default arguments like parent=QModelIndex() to match the C++
 # method signatures being overridden.
-"psi/core/enaml/editable_table_widget.py" = ["B008"]
+"src/psi/core/enaml/editable_table_widget.py" = ["B008"]
 
 [tool.importlinter]
 root_package = "psi"
@@ -126,8 +126,8 @@ filterwarnings = [
 [tool.coverage.run]
 source = ["psi"]
 omit = [
-    "psi/version.py",
-    "psi/_version.py",
+    "*/psi/version.py",
+    "*/psi/_version.py",
     "*/__enamlcache__/*",
 ]
 

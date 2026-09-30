@@ -22,7 +22,7 @@ from psi.launcher import process_manager
 from psi.launcher.process_manager import ProcessManager, RELAYED_EVENTS
 
 
-PSI_ROOT = Path(__file__).parents[2] / 'psi'
+PSI_ROOT = Path(__file__).parents[2] / 'src' / 'psi'
 
 
 class FakeProcess:
