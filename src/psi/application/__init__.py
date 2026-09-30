@@ -916,7 +916,9 @@ def config():
             try:
                 psi.config._coerce(value, default)
             except ValueError as e:
-                raise SystemExit(f'{args.setting}: {e}')
+                # The message says everything; the ValueError's traceback
+                # would only bury it.
+                raise SystemExit(f'{args.setting}: {e}') from None
 
         psi.save_config({args.setting: value})
         source = psi.config_source(args.setting)

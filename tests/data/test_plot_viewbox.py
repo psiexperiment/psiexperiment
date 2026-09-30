@@ -12,7 +12,8 @@ def build(**viewbox_attrs):
     for name, value in viewbox_attrs.items():
         setattr(viewbox, name, value)
     pc.initialize()
-    pc.container
+    # Read for its side effect: the container is built on first access.
+    _ = pc.container
     for _ in range(10):
         QApplication.processEvents()
     return pc, viewbox

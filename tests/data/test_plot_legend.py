@@ -16,7 +16,8 @@ def container(app):
     pc = LegendContainer()
     # As done by manifest registration and then view creation.
     pc.initialize()
-    pc.container
+    # Read for its side effect: the container is built on first access.
+    _ = pc.container
     pump()
     return pc
 

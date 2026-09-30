@@ -30,11 +30,12 @@ def load_icon():
     # Use importlib.resources rather than a `__file__`-relative path so this
     # keeps working if psi is ever installed/accessed via a loader that
     # doesn't expose package contents as plain files on disk (e.g., a zipped
-    # install). This does *not* by itself guarantee the file is bundled in a
-    # frozen (PyInstaller) build -- that's handled by psi/__pyinstaller's
-    # hook, which declares this data file to PyInstaller's static analysis.
-    # If, despite that, the icon is missing at runtime, fail soft: a missing
-    # window icon is cosmetic and shouldn't prevent the app from starting.
+    # install). This does *not* by itself get the file bundled in a frozen
+    # (PyInstaller) build: PyInstaller cannot see this read, so whatever
+    # freezes psi has to collect psi's data files itself (the installers
+    # repo's hook-psi.py does). If the icon is missing at runtime anyway,
+    # fail soft: a missing window icon is cosmetic and shouldn't prevent the
+    # app from starting.
     try:
         data = resources.files('psi.experiment').joinpath('psi-logo.png').read_bytes()
     except (FileNotFoundError, ModuleNotFoundError):
