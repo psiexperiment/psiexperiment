@@ -80,6 +80,23 @@ take effect until the variable is cleared. Applications with a settings
 GUI do the equivalent: cftscal disables a control whose setting the
 environment is overriding, and names the variable responsible.
 
+Reading a setting from a script
+===============================
+
+``psi-config get`` prints a setting's resolved value — environment, then
+configuration file, then default, exactly as psi sees it — and nothing
+else, so a script can capture it. In a Windows batch file::
+
+    for /f "usebackq delims=" %%i in (`psi-config get PSI_DATA_ROOT`) do set "DATA_ROOT=%%i"
+
+``delims=`` keeps a path with spaces in one piece. Values are printed the
+way the setting accepts them back: paths as plain paths, ``true``/``false``
+for switches, lists joined with commas, and an empty line for a setting
+that has no value. A setting that is unknown, or that holds a table (such
+as ``CFTSCAL_PLUGIN``), prints nothing on standard output and exits with a
+non-zero status, so ``if errorlevel 1`` catches it; the reason goes to
+standard error.
+
 Settings
 ========
 

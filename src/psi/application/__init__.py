@@ -814,6 +814,40 @@ def _group_label(names):
     return '_'.join(common) or names[0].split('_')[0]
 
 
+def _format_for_shell(name, value):
+    '''
+    Render a setting's value as the one line `psi-config get` prints.
+
+    The output is meant to be captured by a script (a Windows batch file's
+    ``for /f``, a shell's ``$(...)``), so it is the bare value in the same
+    spelling the setting accepts back from the environment or from
+    `psi-config set`: paths as plain paths, true/false for switches, lists
+    joined with commas, nothing at all for an unset value.
+
+    Raises
+    ------
+    ValueError
+        For a table (or a list holding one), which has no one-line form a
+        script could use.
+    '''
+    if value is None:
+        return ''
+    # bool before anything numeric: bool is a subclass of int.
+    if isinstance(value, bool):
+        return 'true' if value else 'false'
+    if isinstance(value, dict):
+        raise ValueError(
+            f'{name} holds a table of values, which has no one-line form. '
+            'Run `psi-config show --verbose` to see it.')
+    if isinstance(value, (list, tuple)):
+        if any(isinstance(v, (dict, list, tuple)) for v in value):
+            raise ValueError(
+                f'{name} holds nested values, which have no one-line form. '
+                'Run `psi-config show --verbose` to see it.')
+        return ','.join(_format_for_shell(name, v) for v in value)
+    return str(value)
+
+
 def config():
     import argparse
     import psi
@@ -882,6 +916,26 @@ def config():
         print('\nA blank source means the package default.')
         if not args.verbose:
             print('Run with --verbose to print container values in full.')
+
+    def get_config_value(args):
+        # Registered first for the same reason as show and set: without
+        # the owning package's defaults, a CFTSCAL_ or NOISE_EXP_ setting
+        # that is not in the file is unknown, and one that is comes back
+        # uncoerced (a path as a plain string, a number as text).
+        _register_downstream_settings()
+        try:
+            value = psi.get_config(args.setting)
+        except KeyError:
+            # The message goes to stderr and the exit status is non-zero, so
+            # a script that captures stdout gets nothing rather than an
+            # error message it would take for the value.
+            raise SystemExit(
+                f'{args.setting} is not a known setting and is not in the '
+                f'configuration file ({psi.get_config_file()}).') from None
+        try:
+            print(_format_for_shell(args.setting, value))
+        except ValueError as e:
+            raise SystemExit(str(e)) from None
 
     def set_config_value(args):
         # Same reason as show: without the owning package loaded, a
@@ -980,6 +1034,16 @@ def config():
         action='store_true',
         help='Print container values in full instead of summarizing them.',
     )
+
+    get_parser = subparsers.add_parser(
+        'get',
+        description='Print the resolved value of a setting, and nothing '
+                    'else, for use in scripts. In a Windows batch file: '
+                    'for /f "usebackq delims=" %%i in '
+                    '(`psi-config get PSI_DATA_ROOT`) do set "DATA_ROOT=%%i"',
+    )
+    get_parser.set_defaults(func=get_config_value)
+    get_parser.add_argument('setting', type=str, help='Name of the setting.')
 
     set_parser = subparsers.add_parser(
         'set',
