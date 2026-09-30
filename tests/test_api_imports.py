@@ -25,6 +25,7 @@ API_MODULES = [
     'psi.data.api',
     'psi.data.sinks.api',
     'psi.experiment.api',
+    'psi.launcher.api',
     'psi.token.api',
 ]
 

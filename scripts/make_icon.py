@@ -2,11 +2,9 @@
 # psi.experiment.util.load_icon. Run from anywhere:
 #   python scripts/make_icon.py
 #
-# The frame, palette and output sizes come from psiapp.icons, shared with the
-# launchers built on psi, so that psi reads as part of the same family. That
-# makes psiapp (pip install psiapp[icons]) a requirement for running this
-# script only -- psi itself does not, and must not, depend on psiapp, which is
-# built on psi.
+# The frame, palette and output sizes come from psi.launcher.icons, shared with
+# the launchers built on psi, so that psi reads as part of the same family.
+# Needs matplotlib and Pillow (pip install psiexperiment[icons]).
 #
 # Only the motif is drawn here: psi's circuit-board trident, as white traces
 # ending in cornflowerblue pads. The white frame stands in for the circuit box
@@ -15,7 +13,7 @@ from pathlib import Path
 
 from matplotlib.patches import Circle
 
-from psiapp.icons import FILL, FOREGROUND, TRACE_WIDTH, make_icon
+from psi.launcher.icons import FILL, FOREGROUND, TRACE_WIDTH, make_icon
 
 
 OUTPUT = Path(__file__).parents[1] / 'psi' / 'experiment' / 'psi-logo.png'

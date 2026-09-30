@@ -7,7 +7,7 @@ same contract to the `from psi.X import ...` statements found in .enaml
 sources.
 
 Layer order (low to high): util, core, context, token, controller, data,
-experiment, application. A module may only import from layers at or below
+experiment, application, launcher. A module may only import from layers at or below
 its own.
 
 Exceptions (feature packages that sit above the data layer even though they
@@ -24,7 +24,7 @@ import sys
 from pathlib import Path
 
 LAYERS = ['util', 'core', 'context', 'token', 'controller', 'data',
-          'experiment', 'application']
+          'experiment', 'application', 'launcher']
 
 # Packages excluded from checking entirely.
 EXCLUDED = ('psi/paradigms/', 'psi/templates/')

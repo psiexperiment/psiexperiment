@@ -35,9 +35,12 @@ ni = ["pydaqmx"]
 tdt = ["tdtpy >=0.10.4"]
 soundcard = ["sounddevice", "rtmixer"]
 docs = ["sphinx", "sphinx_rtd_theme", "pygments-enaml"]
-test = ["pytest", "pytest-console-scripts", "pytest-cov", "matplotlib"] # Matplotlib is used in some of the validation scripts.
+test = ["pytest", "pytest-console-scripts", "pytest-cov", "matplotlib", "pillow"] # Matplotlib is used in some of the validation scripts.
 lint = ["ruff"]
 zarr = ["zarr"]
+# Only needed to (re)generate program icons with psi.launcher.icons -- the
+# icons themselves ship as image files.
+icons = ["matplotlib", "pillow"]
 dev = ["coloredlogs"]
 
 [project.scripts]
@@ -100,6 +103,7 @@ root_package = "psi"
 name = "Layered architecture"
 type = "layers"
 layers = [
+    "psi.launcher",
     "psi.application",
     "psi.experiment",
     "psi.data",

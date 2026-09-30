@@ -1,0 +1,414 @@
+import logging
+log = logging.getLogger(__name__)
+
+from pathlib import Path
+
+from .experiment import Experiment
+
+from enaml.core.api import Conditional, Include, Looper
+from enaml.layout.api import align, hbox, spacer, vbox
+from enaml.drag_drop import DragData, DropAction
+from enaml.stdlib.fields import RegexField
+from enaml.stdlib.message_box import critical
+from enaml.styling import StyleSheet, Style, Setter
+from enaml.widgets.api import (
+    CheckBox, Container, Feature, Field, Form, HGroup, Label, ObjectCombo,
+    PopupView, PushButton, VGroup,
+)
+
+from psi.experiment.api import paradigm_manager
+
+
+enamldef AddParadigmPopup(PopupView): popup:
+
+    attr experiment_box
+    attr mode = 'classic'
+    attr paradigms
+    attr exp_class = Experiment
+    arrow_size = 20
+
+    Container:
+        constraints = [vbox(combo, hbox(spacer(0), pb_add))]
+        ObjectCombo: combo:
+            items = paradigms
+            to_string = lambda x: x.title
+        PushButton: pb_add:
+            text = 'OK'
+            clicked ::
+                exp = popup.exp_class(paradigm=combo.selected)
+                if mode == 'sequence':
+                    exp = exp.freeze()
+                seq = experiment_box.sequence[:]
+                seq.append(exp)
+                experiment_box.sequence = seq
+                popup.close()
+
+
+enamldef PluginPopup(PopupView): popup:
+    attr experiment
+    attr available_plugins
+    attr modes
+
+    #: Optional factory, called with `experiment` and returning a list of
+    #: Enaml objects to embed inline in this popup -- e.g. CFTS's
+    #: per-paradigm monitor-inputs channel picker. Embeds nothing when
+    #: None (the default), so callers with no such feature need no
+    #: changes here.
+    attr build_channels_view = None
+
+    arrow_size = 20
+    VGroup:
+        Form:
+            padding = 0
+            Looper:
+                iterable = modes
+                Label:
+                    text = f'{loop_item.capitalize()} note'
+                Field:
+                    text = experiment.mode_notes.get(loop_item, '')
+                    text ::
+                        experiment.mode_notes[loop_item] = text
+        Looper:
+            iterable = available_plugins
+            CheckBox:
+                checked = bool(loop_item.id in experiment.plugins)
+                checked ::
+                    if checked:
+                        if loop_item.id not in experiment.plugins:
+                            experiment.plugins.append(loop_item.id)
+                    else:
+                        experiment.plugins.remove(loop_item.id)
+                text = loop_item.title
+        Include:
+            objects << (
+                build_channels_view(experiment)
+                if build_channels_view is not None else []
+            )
+
+
+enamldef ExperimentSequence(Container): experiment_box:
+
+    attr start_enabled = True
+    attr save = True
+    attr mode = 'classic'
+
+    #: Only paradigms of this type (see `ParadigmDescription`) can be added.
+    #: None allows every paradigm.
+    attr paradigm_type = None
+
+    #: Class used for new rows. A launcher subclassing `Experiment` sets this
+    #: to its own class.
+    attr exp_class = Experiment
+
+    attr sequence
+    attr edit_mode = False
+    attr settings
+    attr autostart = False
+
+    #: Optional factory, called with the row's Experiment/FrozenExperiment
+    #: and returning a list of Enaml objects to embed inline in that row's
+    #: ⚙ popup -- e.g. CFTS's per-paradigm monitor-inputs channel picker.
+    #: Embeds nothing when None (the default), so callers with no such
+    #: feature need no changes here.
+    attr build_channels_view = None
+
+    #: Optional factory, called with a row's FrozenExperiment in sequence
+    #: mode while editing and returning a list of Enaml widgets to show after
+    #: the mode selector -- e.g. CFTS's ear selector. Embeds nothing when
+    #: None (the default).
+    attr build_row_editor = None
+
+    #: Called with a row's FrozenExperiment in sequence mode (when not
+    #: editing) and returning the text describing how that row will run. The
+    #: label is rebuilt each time editing ends, so it picks up changes made
+    #: with `build_row_editor`.
+    attr row_label = lambda experiment: experiment.mode
+
+    StyleSheet:
+        Style:
+            element = 'Container'
+            style_class = 'hover'
+            Setter:
+                field = 'background'
+                value = 'lightblue'
+
+    layout_constraints => ():
+        # Align the subwidgets vertically
+        widgets = self.visible_widgets()
+        subwidgets = [w.visible_widgets() for w in widgets]
+        return [
+            vbox(*widgets),
+            *[align('width', *c) for c in zip(*subwidgets)],
+            *[align('left', *c) for c in zip(*subwidgets)],
+        ]
+
+    Looper: exp_loop:
+        iterable << experiment_box.sequence
+
+        Container: row:
+            share_layout = True
+            style_class = ''
+
+            features << (Feature.DropEnabled | Feature.DragEnabled)
+
+            drag_start => ():
+                if not edit_mode:
+                    return
+                data = DragData()
+                data.supported_actions = DropAction.Copy
+                i = experiment_box.sequence.index(loop_item)
+                data.mime_data.set_data('text/plain', f'::experiment::{i}'.encode('utf-8'))
+                return data
+
+            drag_enter => (event):
+                if not edit_mode:
+                    return
+                if event.mime_data().has_format('text/plain'):
+                    data = event.mime_data().data('text/plain').decode('utf-8')
+                    if not data.startswith('::experiment::'):
+                        return
+                    else:
+                        self.style_class = 'hover'
+                        event.accept_proposed_action()
+
+            drag_leave => ():
+                self.style_class = ''
+
+            drop => (event):
+                if not edit_mode:
+                    return
+                self.style_class = ''
+                data = event.mime_data().data('text/plain').decode('utf-8')
+                i = int(data.rsplit('::', 1)[1])
+                j = experiment_box.sequence.index(loop_item)
+                sequence = experiment_box.sequence[:]
+                sequence.insert(j, sequence.pop(i))
+                experiment_box.sequence = sequence
+
+            layout_constraints => ():
+                widgets = self.visible_widgets()
+                return [
+                    hbox(*widgets),
+                    align('v_center', *widgets),
+                ]
+            padding = 0
+
+            PushButton:
+                name = 'remove_paradigm'
+                visible << edit_mode
+                constraints = [width == 30]
+                text = '-'
+                clicked ::
+                    seq = experiment_box.sequence[:]
+                    seq.remove(loop_item)
+                    experiment_box.sequence = seq
+
+            Label:
+                text = loop_item.paradigm.title
+
+            Conditional:
+                condition = experiment_box.mode == 'classic'
+
+                HGroup:
+                    padding = 0
+                    spacing = 0
+                    enabled << (experiment_box.start_enabled or edit_mode) and \
+                        settings.process_manager.current_subprocess is None
+
+                    Looper: mode_loop:
+                        attr experiment = loop_item
+                        iterable << loop_item.modes
+
+                        PushButton:
+                            text = loop_item.capitalize()
+                            clicked ::
+                                try:
+                                    settings.run_experiment(mode_loop.experiment,
+                                                            loop_item,
+                                                            save=save,
+                                                            autostart=autostart)
+                                except Exception as e:
+                                    log.exception(e)
+                                    critical(experiment_box, 'Error starting experiment', str(e))
+
+            Conditional:
+                condition << (mode == 'sequence' and edit_mode)
+
+                ObjectCombo:
+                    items = loop_item.modes
+                    selected := loop_item.mode
+
+                Include:
+                    objects = (build_row_editor(loop_item)
+                               if build_row_editor is not None else [])
+
+            Conditional:
+                condition << (mode == 'sequence' and not edit_mode)
+
+                Label:
+                    text << row_label(loop_item)
+
+            ObjectCombo: preferences:
+                items << [str(p) for p in loop_item.preferences[:]]
+                selected := loop_item.preference
+                to_string = lambda x: Path(x).stem
+
+            PushButton:
+                attr plugins = [p for p in loop_item.paradigm.plugins \
+                                if not p.required and not p.info.get('hide', False)]
+                constraints = [width == 30]
+                text = '⚙'
+                clicked ::
+                    popup = PluginPopup(
+                        parent=self,
+                        experiment=loop_item,
+                        available_plugins=plugins,
+                        modes=loop_item.paradigm.info.get('modes', []),
+                        build_channels_view=build_channels_view,
+                    )
+                    popup.show()
+
+    Container:
+        padding = 0
+        layout_constraints => ():
+            return [
+                hbox(*self.visible_widgets()),
+                align('v_center', *self.visible_widgets()),
+            ]
+        PushButton: pb_add_seq:
+            visible << edit_mode
+            constraints = [width == 30]
+            text = '+'
+            clicked ::
+                popup = AddParadigmPopup(
+                    parent=self,
+                    paradigms=paradigm_manager.list_paradigms(paradigm_type),
+                    experiment_box=experiment_box,
+                    mode=experiment_box.mode,
+                    exp_class=experiment_box.exp_class,
+                )
+                popup.show()
+
+        # A bit of a hack but enables us to ensure all columns lined up properly
+        Label:
+            pass
+        Label:
+            pass
+        Label:
+            pass
+        Label:
+            pass
+
+
+enamldef AddItem(PopupView): popup:
+
+    attr combo
+    window_type = 'popup'
+    arrow_size = 20
+    arrow_edge = 'top'
+    alias label: label.text
+    alias regex: field.regex
+
+    #: Live (per-keystroke) mirror of the field's raw editor text, kept
+    #: only for driving OK's enabled state -- distinct from field.text
+    #: itself, which (deliberately, see below) only updates on Enter.
+    #: field.field_text() gives the same live value but as a plain
+    #: method call, which Enaml's binding tracer can't see through to
+    #: react to, so it can't drive `enabled <<` on its own; mirroring it
+    #: into this attr via a direct Qt signal connection (below) gives
+    #: something bindable.
+    attr _live_text = ''
+
+    func _add_item():
+        # field.text only updates via submit_triggers (Enter) -- when
+        # this runs from the OK button click instead, it's still
+        # whatever it was before (typically empty), which added a blank
+        # entry. field.field_text() reads the live widget content
+        # directly regardless of how _add_item() was triggered.
+        text = field.field_text()
+        items = combo.items[:]
+        items.append(text)
+        combo.items = items
+        combo.selected = text
+        popup.close()
+
+    Container:
+        constraints = [
+            vbox(
+                hbox(label, field),
+                hbox(spacer(0), pb_ok, pb_cancel, spacing=0)
+            ),
+            align('v_center', label, field),
+            align('v_center', pb_ok, pb_cancel),
+            align('width', pb_ok, pb_cancel),
+        ]
+
+        Label: label:
+            pass
+        RegexField: field:
+            regex = f'^[\w\d-]+$'
+            # Only submit on Enter -- not on focus loss, since clicking
+            # Cancel (or anything else) shouldn't add the typed text.
+            # The client-side validator (above) blocks the submit from
+            # ever updating `text` with input that fails the regex, so
+            # this fires exactly when the field both validates and Enter
+            # is pressed.
+            submit_triggers = ['return_pressed']
+            text ::
+                popup._add_item()
+            activated ::
+                # Mirror every keystroke into popup._live_text so OK can
+                # react immediately (see its attr docstring above) --
+                # hooked directly on the Qt widget since submit_triggers
+                # excludes 'auto_sync' (adding it would make `text ::`
+                # above fire mid-typing too, prematurely submitting and
+                # closing the popup on any pause over sync_time).
+                self.proxy.widget.textEdited.connect(
+                    lambda text: setattr(popup, '_live_text', text)
+                )
+        PushButton: pb_ok:
+            text = 'OK'
+            enabled << bool(popup._live_text)
+            clicked ::
+                popup._add_item()
+
+        PushButton: pb_cancel:
+            text = 'Cancel'
+            clicked ::
+                popup.close()
+
+
+enamldef AddRemoveCombo(Container): container:
+
+    alias items: combo.items
+    alias selected: combo.selected
+    alias remove_clicked: pb_remove.clicked
+
+    attr regex = '.*'
+    attr editable = True
+    attr removed
+
+    padding = 0
+
+    constraints << [hbox(combo, hbox(pb_add, pb_remove, spacing=0))] if editable else [hbox(combo)]
+
+    ObjectCombo: combo:
+        pass
+
+    PushButton: pb_add:
+        text = '+'
+        constraints = [width == 30]
+        visible << editable
+        clicked ::
+            popup = AddItem(parent=self, combo=combo, regex=regex)
+            popup.show()
+
+    PushButton: pb_remove:
+        text = '-'
+        constraints = [width == 30]
+        visible << editable
+        enabled << bool(combo.items)
+        clicked ::
+            items = combo.items[:]
+            items.remove(combo.selected)
+            combo.items = items

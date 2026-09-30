@@ -13,6 +13,7 @@ Subpackages
    psi.core
    psi.data
    psi.experiment
+   psi.launcher
    psi.templates
    psi.token
 
