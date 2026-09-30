@@ -137,12 +137,11 @@ class WebsocketServer:
             payload = await self.plugin.send_queue.get()
             client_id, mesg = json.loads(payload)
             if client_id == 'broadcast':
-                queues = self.clients.values()
+                queues = list(self.clients.values())
             else:
-                for comm, queue in self.clients.items():
-                    if comm.pid_info['ppid'] == client_id:
-                        queues = [queue]
-                else:
+                queues = [q for c, q in self.clients.items()
+                          if getattr(c, 'client_id', None) == client_id]
+                if not queues:
                     log.warning('No such client %r', client_id)
 
             for queue in queues:
