@@ -9,7 +9,10 @@ each one, and nothing would keep the copies in agreement. That is not
 hypothetical -- before this table existed, ``LOG_FILENAME`` defaulted to
 ``''`` in one module and ``None`` in another.
 
-Every entry is a zero-argument callable, not a value. Two reasons:
+Every entry is a :class:`psi.config.Setting`, which states the setting's
+type outright rather than leaving it to be inferred from the default.
+Defaults that depend on anything are zero-argument callables, not values.
+Two reasons:
 
 - The derived roots are defined in terms of ``PSI_BASE_DIRECTORY``, which
   is itself configurable. Resolving them at import would freeze the
@@ -26,7 +29,7 @@ import os
 import socket
 from pathlib import Path
 
-from .config import get_config
+from .config import Setting, get_config
 
 
 def _local_state_directory():
@@ -49,25 +52,37 @@ DEFAULTS = {
     #: Root of the psiexperiment paths that belong with the data.
     #: Overriding this alone moves data, settings and IO manifests with
     #: it. Logs deliberately do not follow it; see PSI_LOG_ROOT.
-    'PSI_BASE_DIRECTORY': lambda: Path('~/Documents/psi').expanduser(),
+    'PSI_BASE_DIRECTORY': Setting(
+        Path, lambda: Path('~/Documents/psi').expanduser(),
+        doc='Root of the data, settings and IO manifest folders.'),
 
     #: Log files and profiling output. Local by default rather than
     #: derived from PSI_BASE_DIRECTORY, so that pointing the base
     #: directory at a network share does not send continuous log writes
     #: over the network as well.
-    'PSI_LOG_ROOT': lambda: _local_state_directory() / 'logs',
+    'PSI_LOG_ROOT': Setting(
+        Path, lambda: _local_state_directory() / 'logs',
+        doc='Log files and profiling output.'),
 
-    'PSI_DATA_ROOT': lambda: get_config('PSI_BASE_DIRECTORY') / 'data',
-    'PSI_IO_ROOT': lambda: get_config('PSI_BASE_DIRECTORY') / 'io',
+    'PSI_DATA_ROOT': Setting(
+        Path, lambda: get_config('PSI_BASE_DIRECTORY') / 'data',
+        doc='Where experiment data is saved.'),
+    'PSI_IO_ROOT': Setting(
+        Path, lambda: get_config('PSI_BASE_DIRECTORY') / 'io',
+        doc='IO manifests describing the hardware.'),
 
     #: Per-paradigm saved layouts and preferences, as
     #: <root>/layout/<paradigm> and <root>/preferences/<paradigm>. One
     #: setting rather than two: they have the same lifecycle, the same
     #: structure, and the same readers.
-    'PSI_SETTINGS_ROOT': lambda: get_config('PSI_BASE_DIRECTORY') / 'settings',
+    'PSI_SETTINGS_ROOT': Setting(
+        Path, lambda: get_config('PSI_BASE_DIRECTORY') / 'settings',
+        doc='Saved layouts and preferences, per paradigm.'),
 
     #: Name of this machine. Used to pick a hostname-specific IO manifest.
-    'PSI_HOSTNAME': socket.gethostname,
+    'PSI_HOSTNAME': Setting(
+        str, socket.gethostname,
+        doc='Name of this machine, for picking its IO manifest.'),
 
     #: Address of the websocket server an experiment reports back to.
     #: This is a handoff rather than a setting: the cfts launcher runs the
@@ -78,5 +93,7 @@ DEFAULTS = {
     #: -- nobody supplied an address, so there is no server to talk to.
     #: TOML has no null, so None can only ever come from here; a value in
     #: the file or the environment is always a string.
-    'PSI_WEBSOCKETS_URI': lambda: None,
+    'PSI_WEBSOCKETS_URI': Setting(
+        str, None,
+        doc='Websocket server an experiment reports back to, if any.'),
 }

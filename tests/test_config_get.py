@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 
-from psi.application import _format_for_shell
+from psi.config_cli import _format_for_shell
 
 
 class TestFormatForShell:
@@ -59,8 +59,8 @@ class TestGetCommand:
         from psi import config as psi_config
 
         defaults = {
-            'FAKEPKG_ROOT': lambda: tmp_path / 'fakepkg',
-            'FAKEPKG_TABLE': lambda: {},
+            'FAKEPKG_ROOT': psi_config.Setting(Path, tmp_path / 'fakepkg'),
+            'FAKEPKG_TABLE': psi_config.Setting(dict, {}),
         }
         entry = SimpleNamespace(name='fakepkg', load=lambda: defaults)
         monkeypatch.setattr(importlib.metadata, 'entry_points',
@@ -70,7 +70,7 @@ class TestGetCommand:
             psi_config._defaults.pop(name, None)
 
     def _get(self, monkeypatch, capsys, setting):
-        from psi.application import config
+        from psi.config_cli import main as config
 
         monkeypatch.setattr(sys, 'argv', ['psi-config', 'get', setting])
         config()

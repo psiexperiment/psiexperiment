@@ -143,22 +143,22 @@ def test_bool_coercion(raw, expected):
     bool('false') is True, which would make every spelling of "off" mean
     "on". Coercion must not go through the bool constructor.
     '''
-    assert psi_config._coerce(raw, True) is expected
+    assert psi_config._coerce(raw, bool) is expected
 
 
 def test_bool_coercion_rejects_nonsense():
     with pytest.raises(ValueError):
-        psi_config._coerce('maybe', True)
+        psi_config._coerce('maybe', bool)
 
 
 def test_numeric_and_path_coercion():
-    assert psi_config._coerce('48000', 0) == 48000
-    assert psi_config._coerce('96000.5', 0.0) == 96000.5
-    assert psi_config._coerce('C:/x', Path('.')) == Path('C:/x')
+    assert psi_config._coerce('48000', int) == 48000
+    assert psi_config._coerce('96000.5', float) == 96000.5
+    assert psi_config._coerce('C:/x', Path) == Path('C:/x')
 
 
 def test_list_coercion_from_environment():
-    assert psi_config._coerce('a, b ,c', []) == ['a', 'b', 'c']
+    assert psi_config._coerce('a, b ,c', list) == ['a', 'b', 'c']
 
 
 def test_list_from_toml_is_untouched(config_file):
@@ -199,16 +199,20 @@ def test_save_config_leaves_no_temp_file(config_file):
     assert list(config_file.parent.glob('*.tmp')) == []
 
 
-def test_register_defaults_rejects_non_callable():
-    with pytest.raises(ValueError):
-        psi_config.register_defaults({'PSI_X': 'not callable'})
+def test_register_defaults_rejects_anything_but_a_setting():
+    with pytest.raises(ValueError, match='must be declared with Setting'):
+        psi_config.register_defaults({'PSI_X': 'not a setting'})
+    # The bare-callable form from before Setting existed is gone too.
+    with pytest.raises(ValueError, match='must be declared with Setting'):
+        psi_config.register_defaults({'PSI_X': lambda: 0})
 
 
 def test_register_defaults_rejects_conflict():
-    psi_config.register_defaults({'PSI_TEST_ONLY': lambda: 1})
+    psi_config.register_defaults({'PSI_TEST_ONLY': psi_config.Setting(int, 1)})
     try:
         with pytest.raises(ValueError):
-            psi_config.register_defaults({'PSI_TEST_ONLY': lambda: 2})
+            psi_config.register_defaults(
+                {'PSI_TEST_ONLY': psi_config.Setting(int, 2)})
     finally:
         psi_config._defaults.pop('PSI_TEST_ONLY', None)
 
@@ -326,7 +330,8 @@ def test_a_default_that_raises_does_not_hide_a_configured_value(config_file):
     def boom():
         raise RuntimeError('cannot compute')
 
-    psi_config._defaults['PSI_BOOM_TEST'] = boom
+    psi_config.register_defaults(
+        {'PSI_BOOM_TEST': psi_config.Setting(str, boom)})
     try:
         write(config_file, 'PSI_BOOM_TEST = "set by hand"\n')
         assert get_config('PSI_BOOM_TEST') == 'set by hand'
@@ -342,7 +347,7 @@ def test_a_default_that_raises_does_not_hide_a_configured_value(config_file):
 
 def test_empty_path_is_refused():
     with pytest.raises(ValueError, match='empty value cannot be a path'):
-        psi_config._coerce('', Path('.'))
+        psi_config._coerce('', Path)
 
 
 def test_unquoted_path_in_toml_is_refused(config_file):
@@ -359,3 +364,78 @@ def test_nested_none_is_dropped_on_save(config_file):
 def test_none_inside_a_list_is_refused(config_file):
     with pytest.raises(ValueError, match='element 1 is None'):
         psi_config.save_config({'PSI_LIST_TEST': ['a', None]})
+
+
+class TestSetting:
+    '''
+    A setting declared with its type, rather than having the type inferred
+    from its default.
+    '''
+
+    @pytest.fixture
+    def declared(self):
+        names = {
+            'PSI_T_RATE': psi_config.Setting(float, 48000),
+            'PSI_T_URI': psi_config.Setting(str, None),
+            'PSI_T_PATH': psi_config.Setting(Path, None),
+            'PSI_T_LIST': psi_config.Setting(list, []),
+        }
+        psi_config.register_defaults(names)
+        yield names
+        for name in names:
+            psi_config._defaults.pop(name, None)
+
+    def test_unknown_type_is_refused(self):
+        with pytest.raises(ValueError, match='must be one of'):
+            psi_config.Setting(complex, 0j)
+
+    def test_type_does_not_come_from_the_default(self, declared, config_file):
+        # An int default no longer makes the setting int-only.
+        write(config_file, 'PSI_T_RATE = 96000.5\n')
+        assert get_config('PSI_T_RATE') == 96000.5
+
+    def test_file_and_environment_agree(self, declared, config_file,
+                                        monkeypatch):
+        monkeypatch.setenv('PSI_T_RATE', '96000.5')
+        assert get_config('PSI_T_RATE') == 96000.5
+
+    def test_unset_default_still_has_a_type(self, declared, config_file,
+                                            monkeypatch):
+        assert get_config('PSI_T_PATH') is None
+        monkeypatch.setenv('PSI_T_PATH', 'C:/x')
+        assert get_config('PSI_T_PATH') == Path('C:/x')
+
+    def test_wrong_toml_type_names_the_setting(self, declared, config_file):
+        write(config_file, 'PSI_T_URI = 5\n')
+        with pytest.raises(ValueError, match='PSI_T_URI: Expected a string'):
+            get_config('PSI_T_URI')
+
+    def test_bool_is_not_a_number(self, declared, config_file):
+        write(config_file, 'PSI_T_RATE = true\n')
+        with pytest.raises(ValueError, match='Expected a number'):
+            get_config('PSI_T_RATE')
+
+    def test_value_default_is_not_shared(self, declared):
+        get_config('PSI_T_LIST').append('x')
+        assert get_config('PSI_T_LIST') == []
+
+    def test_reading_a_value_does_not_compute_the_default(self, config_file):
+        def boom():
+            raise AssertionError('default computed')
+
+        psi_config.register_defaults(
+            {'PSI_T_DERIVED': psi_config.Setting(Path, boom)})
+        try:
+            write(config_file, 'PSI_T_DERIVED = "C:/x"\n')
+            assert get_config('PSI_T_DERIVED') == Path('C:/x')
+        finally:
+            psi_config._defaults.pop('PSI_T_DERIVED', None)
+
+    def test_registering_the_same_table_twice(self, declared):
+        psi_config.register_defaults(declared)
+
+    def test_parse_setting(self, declared):
+        assert psi_config.parse_setting('PSI_T_RATE', '44100') == 44100.0
+        assert psi_config.parse_setting('PSI_T_LIST', 'a,b') == ['a', 'b']
+        with pytest.raises(ValueError):
+            psi_config.parse_setting('PSI_T_RATE', 'fast')

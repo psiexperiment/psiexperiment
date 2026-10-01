@@ -376,8 +376,10 @@ directly, so those two settings have no configuration-file spelling.
    Executes the old file once to capture computed values (`BASE_DIRECTORY /
    'data'` and the like), maps the names, and folds in cftscal's
    `workspace.json` and its per-plugin `cfts/calibration/*.json` files when
-   present. `--dry-run` shows what it would write; `PSI_CONFIG_FILE` controls
-   where the result goes.
+   present. cftscal converts those itself, through its `psi.migrations`
+   entry point, so it must be installed (and current) when this runs.
+   `--dry-run` shows what it would write; `PSI_CONFIG_FILE` controls where
+   the result goes.
 
 4. **Verify:**
 

@@ -30,6 +30,7 @@ Two things deliberately live outside this system:
   log filename) are not configuration. They live in :mod:`psi.runtime`,
   which has no environment or file path at all.
 '''
+import copy
 import logging
 import os
 import tomllib
@@ -44,9 +45,59 @@ log = logging.getLogger(__name__)
 NoDefault = object()
 
 
-#: Default for every known setting, as {name: zero-argument callable}.
-#: Populated by `register_defaults`; psi registers its own table on
-#: import, and each downstream package registers its own.
+#: The types a setting can be declared as: what TOML and an environment
+#: variable can both spell.
+SETTING_TYPES = (bool, int, float, str, Path, list, dict)
+
+
+class Setting:
+    '''
+    Declaration of one setting: its type, its default and what it is for.
+
+    The type is stated rather than inferred from the default. Inferring
+    it meant a setting whose default is None had no type at all, that an
+    int default made a configured 96000.5 an error, and that reading any
+    configured value first had to compute the default just to learn what
+    to convert to.
+
+    Parameters
+    ----------
+    type : type
+        One of `SETTING_TYPES`. A value from the configuration file or
+        the environment is converted to it.
+    default : object
+        The value when nothing is configured, or a zero-argument callable
+        returning it. A callable is needed for a default derived from
+        another setting (most psi roots derive from
+        ``PSI_BASE_DIRECTORY``), so that it resolves after the
+        configuration file is read rather than being frozen at import.
+        None means the setting is unset unless configured.
+    doc : str
+        One line saying what the setting is for.
+    '''
+
+    def __init__(self, type, default=None, doc=''):
+        if type not in SETTING_TYPES:
+            names = ', '.join(t.__name__ for t in SETTING_TYPES)
+            raise ValueError(f'A setting must be one of {names}, not {type!r}.')
+        self.type = type
+        self._default = default
+        self.doc = doc
+
+    def default(self):
+        if callable(self._default):
+            return self._default()
+        # A copy, so a caller appending to a list default cannot change
+        # the default for everybody after it.
+        return copy.deepcopy(self._default)
+
+    def __repr__(self):
+        return f'Setting({self.type.__name__}, {self._default!r})'
+
+
+#: Every known setting, as {name: Setting}. Populated by
+#: `register_defaults`; psi registers its own table on import, and each
+#: downstream package registers its own.
 _defaults = {}
 
 #: Parsed contents of the config file. None until first read.
@@ -70,34 +121,68 @@ environment variable to point at an existing file.
 
 def register_defaults(defaults):
     '''
-    Register a package's default values.
+    Register a package's settings.
 
     Parameters
     ----------
     defaults : dict
-        Maps setting name to a zero-argument callable returning the
-        default. Callables rather than values so that defaults derived
-        from other settings (most of the psi roots are defined relative
-        to ``PSI_BASE_DIRECTORY``) resolve *after* the config file is
-        read rather than being frozen at import.
+        Maps setting name to a `Setting`.
 
     Raises
     ------
     ValueError
-        If a setting is registered twice with a different callable. Two
-        packages claiming one name is a bug, not a merge.
+        If a value is not a `Setting`, or a setting is registered twice
+        with a different declaration. Two packages claiming one name is a
+        bug, not a merge; registering the same table twice (on import and
+        again through the entry point) is not.
     '''
-    for name, factory in defaults.items():
-        if not callable(factory):
+    for name, setting in defaults.items():
+        if not isinstance(setting, Setting):
             raise ValueError(
-                f'Default for {name} must be a zero-argument callable, not '
-                f'{type(factory).__name__}. Defaults are called after the '
-                'config file is read so that derived values pick up '
-                'overrides.')
+                f'{name} must be declared with Setting(type, default), not '
+                f'{type(setting).__name__}.')
         existing = _defaults.get(name)
-        if existing is not None and existing is not factory:
+        if existing is not None and existing is not setting:
             raise ValueError(f'{name} already has a registered default.')
-        _defaults[name] = factory
+        _defaults[name] = setting
+
+
+def get_setting(name):
+    '''
+    The registered declaration for `name`, or None if nothing registered
+    it.
+    '''
+    return _defaults.get(name)
+
+
+def setting_names():
+    '''
+    Names of every registered setting, sorted.
+    '''
+    return sorted(_defaults)
+
+
+def setting_type(name, default=NoDefault):
+    '''
+    The type a value of `name` is converted to, or None if it has none.
+
+    A registered setting declares it. An unregistered one goes by the type
+    of the caller's `default`, if any.
+    '''
+    setting = _defaults.get(name)
+    if setting is not None:
+        return setting.type
+    return _type_of(default)
+
+
+def _type_of(value):
+    # bool before int: bool is a subclass of int.
+    for t in (bool, Path, int, float, str, dict):
+        if isinstance(value, t):
+            return t
+    if isinstance(value, (list, tuple)):
+        return list
+    return None
 
 
 def get_config_file():
@@ -151,72 +236,107 @@ def _ensure_config():
     return _config
 
 
-def _coerce(value, template):
+def _coerce(value, type_):
     '''
-    Convert `value` to the type of `template`.
+    Convert `value` to `type_`.
 
     Environment variables are always strings, and TOML has no path type,
-    so a setting must be converted to whatever its default is -- callers
-    do ``get_config('PSI_DATA_ROOT') / filename`` and are entitled to a
-    Path regardless of where the value came from.
+    so a setting must be converted to its type -- callers do
+    ``get_config('PSI_DATA_ROOT') / filename`` and are entitled to a Path
+    regardless of where the value came from. A `type_` of None leaves the
+    value as it is.
     '''
-    if template is None:
+    if type_ is None:
         return value
-    if not isinstance(value, str):
-        # A TOML value that is already the right shape needs nothing. One
-        # that is not -- `PSI_DATA_ROOT = 5` -- would otherwise surface
-        # much later as a TypeError at the `/` operator, naming neither
-        # the setting nor the file.
-        if isinstance(template, Path) and not isinstance(value, Path):
-            raise ValueError(
-                f'Expected a path, but the configured value is '
-                f'{value!r} ({type(value).__name__}). Quote it: '
-                f'a path has to be a string in TOML.')
-        return value
+    if isinstance(value, str):
+        return _parse(value, type_)
 
-    # bool before int: bool is a subclass of int, and bool('false') is
-    # True, which would make every spelling of "off" mean "on".
-    if isinstance(template, bool):
-        lowered = value.strip().lower()
+    # A TOML value of the wrong shape -- `PSI_DATA_ROOT = 5` -- would
+    # otherwise surface much later as a TypeError at the `/` operator,
+    # naming neither the setting nor the file.
+    if type_ is Path:
+        if isinstance(value, Path):
+            return value
+        raise ValueError(
+            f'Expected a path, but the configured value is {value!r} '
+            f'({type(value).__name__}). Quote it: a path has to be a '
+            'string in TOML.')
+    # bool is a subclass of int, so it has to be excluded from the
+    # numeric types by hand: `true` is not a sample rate.
+    if type_ is float and isinstance(value, (int, float)) \
+            and not isinstance(value, bool):
+        return float(value)
+    if type_ is int and isinstance(value, int) \
+            and not isinstance(value, bool):
+        return value
+    if type_ is list and isinstance(value, (list, tuple)):
+        return list(value)
+    if type_ in (bool, dict) and isinstance(value, type_):
+        return value
+    raise ValueError(
+        f'Expected {_describe(type_)}, but the configured value is '
+        f'{value!r} ({type(value).__name__}).')
+
+
+def _parse(text, type_):
+    '''
+    Convert the text of an environment variable (or a quoted TOML value)
+    to `type_`.
+    '''
+    if type_ is str:
+        return text
+    # bool('false') is True, which would make every spelling of "off"
+    # mean "on".
+    if type_ is bool:
+        lowered = text.strip().lower()
         if lowered in ('1', 'true', 'yes', 'on'):
             return True
         if lowered in ('0', 'false', 'no', 'off'):
             return False
         raise ValueError(
-            f'Cannot interpret {value!r} as true/false. Use one of '
+            f'Cannot interpret {text!r} as true/false. Use one of '
             '1/0, true/false, yes/no, on/off.')
-
-    if isinstance(template, Path):
-        if not value.strip():
+    if type_ is Path:
+        if not text.strip():
             raise ValueError(
                 'An empty value cannot be a path. Path("") is the '
                 'working directory, which is never what was meant.')
-        return Path(value)
-    if isinstance(template, int):
-        return int(value)
-    if isinstance(template, float):
-        return float(value)
-    if isinstance(template, (list, tuple)):
+        return Path(text)
+    if type_ is int:
+        return int(text)
+    if type_ is float:
+        return float(text)
+    if type_ is list:
         # TOML gives a real array; only an environment variable arrives as
         # a string, where comma is the only separator that does not
         # collide with Windows paths.
-        return [v.strip() for v in value.split(',') if v.strip()]
-    return value
+        return [v.strip() for v in text.split(',') if v.strip()]
+    raise ValueError(
+        f'Expected {_describe(type_)}, which cannot be written as text. '
+        'Set it in the configuration file.')
 
 
-def _resolve_default(setting, default=NoDefault):
+def _describe(type_):
+    return {
+        bool: 'true or false', int: 'a whole number', float: 'a number',
+        str: 'a string', Path: 'a path', list: 'a list', dict: 'a table',
+    }[type_]
+
+
+def parse_setting(name, text):
     '''
-    The registered default for `setting`, else the caller's `default`.
+    Convert `text` to the type of setting `name`, as the environment would.
 
-    The registered table wins. A call site passing its own default for a
-    setting that has a registered one is a bug -- it is how the same
-    setting ends up with two different defaults in two modules -- and is
-    caught by a test rather than silently honoured here.
+    For a tool taking a value on the command line, so that it can be
+    checked -- and written to the file as a real number, switch or
+    array -- before anything is saved.
+
+    Raises
+    ------
+    ValueError
+        If `text` is not a valid value for the setting.
     '''
-    factory = _defaults.get(setting)
-    if factory is not None:
-        return factory()
-    return default
+    return _coerce(text, setting_type(name))
 
 
 def get_config(setting=None, default=NoDefault):
@@ -256,25 +376,23 @@ def get_config(setting=None, default=NoDefault):
         config = _ensure_config()
         value = config[setting] if setting in config else _MISSING
 
+    registered = _defaults.get(setting)
     if value is _MISSING:
-        # Only here is the default needed as a value rather than as a
-        # type template, so only here may it raise.
-        fallback = _resolve_default(setting, default)
-        if fallback is NoDefault:
+        # The registered default wins over the caller's. A call site
+        # passing its own default for a registered setting is a bug -- it
+        # is how one setting ends up with two defaults in two modules --
+        # and is caught by a test rather than silently honoured here.
+        if registered is not None:
+            return registered.default()
+        if default is NoDefault:
             raise KeyError(
                 CFG_ERR_MESG.strip().format(setting, get_config_file()))
-        return fallback
+        return default
 
-    # A value was supplied, so the default is wanted only to say what
-    # type to coerce to -- and a default that cannot be computed must not
-    # make an explicitly configured setting unreadable.
     try:
-        template = _resolve_default(setting, default)
-    except Exception as e:
-        log.warning('Could not compute the default for %s, so its value is '
-                    'used as written: %s', setting, e)
-        template = None
-    return _coerce(value, None if template is NoDefault else template)
+        return _coerce(value, setting_type(setting, default))
+    except ValueError as e:
+        raise ValueError(f'{setting}: {e}') from None
 
 
 def config_source(setting):

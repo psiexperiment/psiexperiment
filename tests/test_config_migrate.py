@@ -8,7 +8,8 @@ success:
 - the cftscal per-plugin tables were keyed by the filename *stem* while
   cftscal reads them by the full filename, so every plugin silently
   reverted to defaults -- and MIGRATION.md then told the user to delete
-  the source files;
+  the source files (cftscal converts its own files now, and tests that
+  conversion itself);
 - a None anywhere inside a collected value aborted the write with a raw
   tomlkit traceback, after the full and correct-looking report had
   already printed.
@@ -16,8 +17,8 @@ success:
 The fixtures below are shaped like what `psi-config create` actually
 produced, since that is what a rig is migrating from.
 '''
-import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -43,70 +44,37 @@ IO_ROOT = BASE_DIRECTORY / 'io'
 '''
 
 
+def package_migrations(monkeypatch, **migrations):
+    '''
+    Stand in for the installed packages' ``psi.migrations`` entry points.
+    '''
+    import importlib.metadata
+
+    entries = [SimpleNamespace(name=name, load=lambda fn=fn: fn)
+               for name, fn in migrations.items()]
+    monkeypatch.setattr(importlib.metadata, 'entry_points',
+                        lambda group=None: entries)
+
+
 @pytest.fixture
 def rig(tmp_path, monkeypatch):
     '''
     A legacy configuration directory, plus the file psi will migrate into.
+
+    No package migrations are installed unless a test adds them, so these
+    tests do not depend on what else happens to be installed.
     '''
     source = tmp_path / 'config.py'
     source.write_text(LEGACY_CONFIG, encoding='utf-8')
     monkeypatch.setenv('PSI_CONFIG_FILE', str(tmp_path / 'config.toml'))
+    package_migrations(monkeypatch)
     psi_config.reload_config()
     yield source
     psi_config.reload_config()
 
 
-def write_plugin(source, name, data):
-    path = source.parent / 'cfts' / 'calibration' / name
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data), encoding='utf-8')
-    return path
-
-
-def write_workspace(source, data):
-    path = source.parent / 'cfts' / 'workspace.json'
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data), encoding='utf-8')
-    return path
-
-
-class TestPluginTables:
-
-    def test_keyed_by_the_name_cftscal_reads(self, rig):
-        '''
-        CalibrationSettings.settings_filename is 'microphone.json', and it
-        is used verbatim as the key. Keying by the stem wrote a table
-        nothing read.
-        '''
-        write_plugin(rig, 'microphone-measurement.json', {'gain': 20})
-        updates, _ = collect(rig)
-        assert 'microphone-measurement.json' in updates['CFTSCAL_PLUGIN']
-        assert 'microphone-measurement' not in updates['CFTSCAL_PLUGIN']
-
-    def test_round_trips_to_what_cftscal_looks_up(self, rig):
-        write_plugin(rig, 'speaker.json', {'output': 'ao0'})
-        migrate(rig)
-        # The exact lookup in CalibrationSettings.load_config. A plain
-        # dict either way -- CFTSCAL_PLUGIN has no registered default
-        # here, but a table is a table.
-        table = get_config('CFTSCAL_PLUGIN')
-        assert table.get('speaker.json') == {'output': 'ao0'}
-
-    def test_every_plugin_survives(self, rig):
-        for name in ('microphone-measurement.json', 'speaker.json',
-                     'starship.json'):
-            write_plugin(rig, name, {'name': name})
-        migrate(rig)
-        assert set(get_config('CFTSCAL_PLUGIN')) == {
-            'microphone-measurement.json', 'speaker.json', 'starship.json'}
-
-    def test_unreadable_plugin_is_skipped_not_fatal(self, rig):
-        write_plugin(rig, 'good.json', {'a': 1})
-        bad = rig.parent / 'cfts' / 'calibration' / 'bad.json'
-        bad.write_text('{not json', encoding='utf-8')
-        updates, notes = collect(rig)
-        assert 'good.json' in updates['CFTSCAL_PLUGIN']
-        assert any('bad.json' in n and 'skipped' in n for n in notes)
+def add_to_config(source, text):
+    source.write_text(LEGACY_CONFIG + text, encoding='utf-8')
 
 
 class TestNullValues:
@@ -116,23 +84,14 @@ class TestNullValues:
         A launcher writes this on a fresh install, where no device has
         been chosen yet. It used to abort the whole migration.
         '''
-        write_workspace(rig, {'data_path': 'C:/cal', 'sample_rate': None})
-        # Asserted on the mapping rather than the resolved value: these
-        # are cftscal's settings, and psiexperiment's tests do not import
-        # cftscal, so nothing has registered a default to coerce against.
-        updates, _ = collect(rig)
-        assert updates['CFTSCAL_ROOT'] == 'C:/cal'
+        add_to_config(rig, "PSI_T_TABLE = {'device': 'a', 'gain': None}\n")
         # collect reports what the old file held, including the None;
         # dropping it is the writer's job.
-        assert updates['CFTSCAL_SAMPLE_RATE'] is None
+        updates, _ = collect(rig)
+        assert updates['PSI_T_TABLE'] == {'device': 'a', 'gain': None}
 
         migrate(rig)
-        assert 'CFTSCAL_SAMPLE_RATE' not in psi_config.load_config()
-
-    def test_none_in_a_plugin_table_is_dropped(self, rig):
-        write_plugin(rig, 'microphone.json', {'gain': 20, 'device': None})
-        migrate(rig)
-        assert get_config('CFTSCAL_PLUGIN')['microphone.json'] == {'gain': 20}
+        assert psi_config.load_config()['PSI_T_TABLE'] == {'device': 'a'}
 
 
 class TestSettingsRoots:
@@ -157,37 +116,44 @@ class TestSettingsRoots:
         assert get_config('PSI_LOG_ROOT') == Path(r'C:\Data\psi\logs')
 
 
-class TestWorkspace:
+class TestPackageMigrations:
+    '''
+    Packages convert the settings files they kept in the legacy folder
+    themselves, through the ``psi.migrations`` entry point.
+    '''
 
-    def test_workspace_wins_over_cal_root(self, rig):
-        '''
-        Both name the calibration folder, and workspace.json is the one
-        cftscal actually used, so it must not be clobbered by CAL_ROOT.
-        '''
-        write_workspace(rig, {'data_path': 'C:/Calibration/real'})
+    def test_package_gets_the_legacy_folder(self, rig, monkeypatch):
+        seen = []
+
+        def convert(folder):
+            seen.append(folder)
+            return {'FAKEPKG_ROOT': 'C:/fake'}, ['fakepkg: converted']
+
+        package_migrations(monkeypatch, fakepkg=convert)
+        updates, notes = collect(rig)
+        assert seen == [rig.parent]
+        assert updates['FAKEPKG_ROOT'] == 'C:/fake'
+        assert 'fakepkg: converted' in notes
+
+    def test_package_wins_over_config_py(self, rig, monkeypatch):
+        # config.py's CAL_ROOT becomes CFTSCAL_ROOT, but the folder cftscal
+        # actually used was the one in its own files.
+        package_migrations(monkeypatch, cftscal=lambda folder: (
+            {'CFTSCAL_ROOT': 'C:/Calibration/real'}, []))
         updates, _ = collect(rig)
         assert updates['CFTSCAL_ROOT'] == 'C:/Calibration/real'
 
-    def test_device_identity_is_carried_over(self, rig):
-        write_workspace(rig, {'selected_device_name': 'Fireface',
-                              'selected_device_hostapi': 'ASIO',
-                              'sample_rate': 96000})
-        updates, _ = collect(rig)
-        assert updates['CFTSCAL_DEVICE_NAME'] == 'Fireface'
-        assert updates['CFTSCAL_DEVICE_HOSTAPI'] == 'ASIO'
-        assert updates['CFTSCAL_SAMPLE_RATE'] == 96000
+    def test_failing_package_is_a_note_not_fatal(self, rig, monkeypatch):
+        def broken(folder):
+            raise RuntimeError('unreadable')
 
-    def test_unreadable_workspace_is_not_fatal(self, rig):
-        '''
-        A truncated workspace.json must not abort the conversion of
-        everything else -- the plugin reader already behaves this way.
-        '''
-        path = rig.parent / 'cfts' / 'workspace.json'
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text('{not json', encoding='utf-8')
+        package_migrations(
+            monkeypatch, broken=broken,
+            fakepkg=lambda folder: ({'FAKEPKG_ROOT': 'C:/fake'}, []))
         updates, notes = collect(rig)
+        assert updates['FAKEPKG_ROOT'] == 'C:/fake'
         assert updates['PSI_DATA_ROOT'] == r'C:\Data\psi\data'
-        assert any('workspace.json' in n for n in notes)
+        assert any('broken' in n and 'unreadable' in n for n in notes)
 
 
 class TestDryRun:
@@ -205,7 +171,7 @@ class TestDryRun:
         # A value the writer will reject, not merely one it transforms:
         # comparing two collect() dicts passed while the property was
         # false, because collect is not where the conversion happens.
-        write_workspace(rig, {'enabled_plugins': ['microphone', None]})
+        add_to_config(rig, "PSI_T_LIST = ['microphone', None]\n")
         with pytest.raises(ValueError, match='element 1 is None'):
             migrate(rig, dry_run=True)
         with pytest.raises(ValueError, match='element 1 is None'):

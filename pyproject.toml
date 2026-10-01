@@ -45,7 +45,7 @@ dev = ["coloredlogs"]
 
 [project.scripts]
 psi = "psi.application.psi_launcher:main"
-psi-config = "psi.application:config"
+psi-config = "psi.config_cli:main"
 # Same target as `psi`, under a name frozen consumers (cftscal's
 # _run_cal) can invoke unconditionally: PyInstaller can't freeze a
 # script named psi.py (it would collide with the `psi` package itself

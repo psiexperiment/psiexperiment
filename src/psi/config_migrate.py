@@ -116,54 +116,50 @@ def collect(source):
         updates['PSI_SETTINGS_ROOT'] = str(settings_root)
     notes.extend(settings_notes)
 
-    workspace = source.parent / 'cfts' / 'workspace.json'
-    if workspace.exists():
-        ws_updates, ws_notes = collect_workspace(workspace)
-        # workspace.json wins: if a rig set the calibration folder in both
-        # places, the value cftscal actually used was this one, so it must
-        # not be clobbered by the CAL_ROOT that config.py happened to
-        # carry.
-        updates.update(ws_updates)
-        notes.extend(ws_notes)
-
-    plugins, plugin_notes = collect_plugins(source.parent / 'cfts' / 'calibration')
-    if plugins:
-        updates['CFTSCAL_PLUGIN'] = plugins
-        notes.extend(plugin_notes)
+    # A package's own files win over config.py: if a rig set cftscal's
+    # calibration folder in both places, the value cftscal actually used
+    # was the one in its workspace.json, so it must not be clobbered by
+    # the CAL_ROOT that config.py happened to carry.
+    package_updates, package_notes = collect_packages(source.parent)
+    updates.update(package_updates)
+    notes.extend(package_notes)
 
     return updates, notes
 
 
-def collect_plugins(directory):
+def collect_packages(folder):
     '''
-    Read the per-plugin calibration settings files.
+    Run every installed package's legacy-settings conversion.
 
-    cftscal used to write one JSON per plugin into the psi config folder.
-    They are one table each under ``CFTSCAL_PLUGIN`` now, keyed by the
-    same filename stem the plugin already used.
+    Some packages kept settings files of their own in the legacy
+    configuration folder, beside ``config.py`` (cftscal's
+    ``cfts/workspace.json``, for one). Only the package knows what those
+    files hold, so each converts its own, declared by entry point::
+
+        [project.entry-points."psi.migrations"]
+        cftscal = "cftscal.migrate_settings:collect_legacy_settings"
+
+    The entry point names a callable taking the legacy folder and
+    returning ``(updates, notes)`` in the same form as `collect`.
+
+    One package whose conversion fails is reported in the notes rather
+    than raised, so it cannot stop everything else from being migrated.
     '''
-    import json
+    from importlib.metadata import entry_points
 
-    plugins = {}
+    updates = {}
     notes = []
-    if not directory.exists():
-        return plugins, notes
-
-    for path in sorted(directory.glob('*.json')):
+    for entry in entry_points(group='psi.migrations'):
         try:
-            data = json.loads(path.read_text(encoding='utf-8-sig'))
-        except (OSError, ValueError) as e:
-            notes.append(f'{path.name}: could not be read ({e}); skipped')
+            package_updates, package_notes = entry.load()(Path(folder))
+        except Exception as e:
+            log.exception('Migration from %s failed', entry.name)
+            notes.append(f'{entry.name}: could not convert its settings '
+                         f'({e}); skipped')
             continue
-        # Keyed by the full filename, extension included, because that is
-        # what cftscal looks up: CalibrationSettings.settings_filename is
-        # 'microphone-measurement.json' and is used verbatim as the key.
-        # Keying by the stem wrote a table nothing ever read, so every
-        # plugin silently reverted to defaults -- and the note said it had
-        # migrated.
-        plugins[path.name] = data
-        notes.append(f'{path.name} -> CFTSCAL_PLUGIN."{path.name}"')
-    return plugins, notes
+        updates.update(package_updates)
+        notes.extend(package_notes)
+    return updates, notes
 
 
 def _collapse_settings_roots(values):
@@ -193,49 +189,6 @@ def _collapse_settings_roots(values):
         notes.append(f'{layout_key} + {preferences_key} -> PSI_SETTINGS_ROOT')
         return root, notes
     return None, notes
-
-
-#: workspace.json key -> setting name.
-WORKSPACE_KEYS = {
-    'data_path': 'CFTSCAL_ROOT',
-    'hw_mode': 'CFTSCAL_HW_MODE',
-    'custom_io_path': 'CFTSCAL_CUSTOM_IO_PATH',
-    'custom_io_class': 'CFTSCAL_CUSTOM_IO_CLASS',
-    'selected_device_name': 'CFTSCAL_DEVICE_NAME',
-    'selected_device_hostapi': 'CFTSCAL_DEVICE_HOSTAPI',
-    'sample_rate': 'CFTSCAL_SAMPLE_RATE',
-    'enabled_plugins': 'CFTSCAL_ENABLED_PLUGINS',
-}
-
-
-def collect_workspace(path):
-    '''
-    Read a cftscal ``workspace.json`` and return what should be written.
-    '''
-    import json
-
-    path = Path(path)
-    updates = {}
-    notes = []
-    try:
-        config = json.loads(path.read_text(encoding='utf-8-sig'))
-    except (OSError, ValueError) as e:
-        # As with the per-plugin files: one unreadable input must not
-        # abort the conversion of everything else. A rig only runs this
-        # once, and failing at the end of a long report is the worst
-        # moment to discover a truncated file.
-        notes.append(f'{path.name}: could not be read ({e}); skipped')
-        return updates, notes
-    for key, value in config.items():
-        setting = WORKSPACE_KEYS.get(key)
-        if setting is None:
-            # hw_configuration and selected_device are legacy keys that
-            # cftscal's own loader already treated as superseded.
-            notes.append(f'{path.name}: dropped legacy key {key}')
-            continue
-        updates[setting] = _tomlable(value)
-        notes.append(f'{path.name}: {key} -> {setting}')
-    return updates, notes
 
 
 def migrate(source, dry_run=False):

@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 
-from psi.application import _group_label, _render_setting
+from psi.config_cli import _group_label, _render_setting
 
 
 class TestRenderSetting:
@@ -117,16 +117,16 @@ class TestRegisterDownstreamSettings:
         '''
         import importlib.metadata
 
-        from psi import application
+        from psi import config_cli
 
         monkeypatch.setattr(importlib.metadata, 'entry_points',
                             lambda group=None: entries)
-        return application._register_downstream_settings()
+        return config_cli._register_downstream_settings()
 
     def test_registers_what_the_entry_point_returns(self, monkeypatch):
         from psi import config as psi_config
 
-        table = {'FAKEPKG_SETTING': lambda: 'value'}
+        table = {'FAKEPKG_SETTING': psi_config.Setting(str, 'value')}
         try:
             loaded = self._call(monkeypatch, [self._entry('fakepkg', table)])
             assert loaded == ['fakepkg']
@@ -147,7 +147,7 @@ class TestRegisterDownstreamSettings:
         def boom():
             raise ImportError('no such module')
 
-        good = {'FAKEPKG_SETTING': lambda: 'value'}
+        good = {'FAKEPKG_SETTING': psi_config.Setting(str, 'value')}
         entries = [
             SimpleNamespace(name='broken', load=boom),
             self._entry('fakepkg', good),
@@ -181,8 +181,8 @@ class TestCreateCommandsMakeDownstreamFolders:
         from psi import config as psi_config
 
         root = tmp_path / 'fakepkg'
-        entry = SimpleNamespace(name='fakepkg',
-                                load=lambda: {'FAKEPKG_ROOT': lambda: root})
+        table = {'FAKEPKG_ROOT': psi_config.Setting(Path, root)}
+        entry = SimpleNamespace(name='fakepkg', load=lambda: table)
         monkeypatch.setattr(importlib.metadata, 'entry_points',
                             lambda group=None: [entry])
         yield root
@@ -191,7 +191,7 @@ class TestCreateCommandsMakeDownstreamFolders:
     def _run(self, monkeypatch, *argv):
         import sys
 
-        from psi.application import config
+        from psi.config_cli import main as config
 
         monkeypatch.setattr(sys, 'argv', ['psi-config', *argv])
         config()

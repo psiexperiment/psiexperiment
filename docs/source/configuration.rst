@@ -74,6 +74,12 @@ Comments and formatting in a hand-edited file survive a programmatic
 write, and the file is replaced atomically, so an interrupted write cannot
 leave a truncated configuration behind.
 
+``psi-config set`` checks the value before writing it, and writes numbers,
+switches and lists as real TOML values. It refuses a name that no installed
+package declares, suggesting the closest one, since a misspelled key would
+otherwise be written and read by nothing. Pass ``--force`` to write a
+setting owned by a package that is not installed on this machine.
+
 If a setting is currently being forced by an environment variable,
 ``psi-config set`` still writes the file but warns that the write will not
 take effect until the variable is cleared. Applications with a settings
@@ -217,8 +223,10 @@ Type conversion
 ===============
 
 Environment variables are always strings, and TOML has no path type, so a
-value is converted to the type of the setting's default. ``Path``,
-``int`` and ``float`` convert as you would expect. Booleans accept
+value is converted to the type its setting declares. ``Path``, ``int`` and
+``float`` convert as you would expect; a TOML value of the wrong type (an
+unquoted path, ``true`` for a number) is an error naming the setting.
+Booleans accept
 ``1``/``0``, ``true``/``false``, ``yes``/``no`` and ``on``/``off``; a
 value that is none of those is an error rather than a silent ``True``.
 Lists are native arrays in TOML and comma-separated in the environment.
@@ -228,7 +236,22 @@ Adding a setting
 
 Settings are declared in one table per package — ``psi/config_defaults.py``
 and its equivalents — and registered with
-:func:`psi.config.register_defaults`.
+:func:`psi.config.register_defaults`. Each entry is a
+:class:`psi.config.Setting` giving the setting's type, its default and one
+line saying what it is for (``psi-config show --verbose`` prints it)::
+
+    DEFAULTS = {
+        'CFTSCAL_SAMPLE_RATE': Setting(float, 0.0, doc='Sound card rate.'),
+        'CFTS_ROOT': Setting(
+            Path, lambda: get_config('PSI_BASE_DIRECTORY') / 'cfts',
+            doc='Saved presets.'),
+        'PSI_WEBSOCKETS_URI': Setting(str, None),
+    }
+
+The type is one of ``bool``, ``int``, ``float``, ``str``, ``Path``,
+``list`` or ``dict``. A default of None means the setting is unset unless
+configured; a configured value is still converted to the declared type.
+Anything other than a ``Setting`` is refused at registration.
 
 A package that owns settings should also declare them as an entry point, so
 that tools which do not import the package can still see them::
@@ -246,8 +269,8 @@ Two rules matter for the table itself:
 
 * **Every setting needs a usable default**, because a missing
   configuration file is a supported state.
-* **Defaults are zero-argument callables, not values.** A default derived
-  from another setting (all the psi roots are derived from
+* **A derived default must be a zero-argument callable, not a value.** A
+  default derived from another setting (all the psi roots are derived from
   ``PSI_BASE_DIRECTORY``) has to resolve *after* the configuration file is
   read. Resolving at import would freeze the built-in base directory into
   the derived values, so setting ``PSI_BASE_DIRECTORY`` in the file would
@@ -280,5 +303,13 @@ Then convert::
     psi-config show
 
 ``migrate`` executes the old file once to capture computed values, maps
-the names, and folds in cftscal's ``workspace.json`` and per-plugin
-calibration settings if they are present.
+the names, and folds in the settings files any installed package kept in
+the same folder -- cftscal's ``workspace.json`` and per-plugin calibration
+settings, for one. Each package converts its own files, declared as an
+entry point taking the legacy folder and returning ``(updates, notes)``::
+
+    [project.entry-points."psi.migrations"]
+    cftscal = "cftscal.migrate_settings:collect_legacy_settings"
+
+A package's own files win over a ``config.py`` key naming the same
+setting, since they are what that package actually read.

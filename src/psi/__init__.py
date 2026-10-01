@@ -9,9 +9,10 @@ log.addHandler(logging.NullHandler())
 
 
 from .config import (  # noqa: E402,F401
-    NoDefault, config_source, create_config_dirs, get_all_config, get_config,
-    get_config_file, load_config, register_defaults, reload_config,
-    save_config
+    NoDefault, Setting, config_source, create_config_dirs, get_all_config,
+    get_config, get_config_file, get_setting, load_config, parse_setting,
+    register_defaults, reload_config, save_config, setting_names,
+    setting_type
 )
 from .config_defaults import DEFAULTS as _PSI_DEFAULTS  # noqa: E402
 from .runtime import get_runtime, set_runtime  # noqa: E402,F401
