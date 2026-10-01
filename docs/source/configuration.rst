@@ -299,13 +299,17 @@ finds anything, so it can gate a deployment script.
 
 Then convert::
 
-    psi-config migrate path/to/config.py
+    psi-config migrate
     psi-config show
 
-``migrate`` executes the old file once to capture computed values, maps
-the names, and folds in the settings files any installed package kept in
-the same folder -- cftscal's ``workspace.json`` and per-plugin calibration
-settings, for one. Each package converts its own files, declared as an
+With no argument, ``migrate`` reads the legacy configuration folder:
+``~/psi``, or the folder the old ``PSI_CONFIG`` variable named. Pass a
+``config.py`` or a folder to read somewhere else. It executes the old
+``config.py`` once to capture computed values and maps the names, then
+folds in the settings files any installed package kept in the same folder
+-- cftscal's ``workspace.json`` and per-plugin calibration settings, for
+one. The folder need not have a ``config.py``: a machine that only ever
+ran cftscal has just cftscal's files, and those are still converted. Each package converts its own files, declared as an
 entry point taking the legacy folder and returning ``(updates, notes)``::
 
     [project.entry-points."psi.migrations"]

@@ -372,14 +372,20 @@ def build_parser():
 
     migrate = subparsers.add_parser(
         'migrate',
-        description='Convert a pre-rework config.py (and any cftscal '
-                    'workspace.json beside it) into config.toml.',
+        description='Convert a pre-rework configuration into config.toml: '
+                    'the legacy config.py, if there is one, and the '
+                    'settings files installed packages kept beside it '
+                    '(such as the workspace.json cftscal kept).',
     )
     migrate.set_defaults(func=migrate_config)
     migrate.add_argument(
         'source',
         type=Path,
-        help='Path to the legacy config.py to convert.',
+        nargs='?',
+        default=None,
+        help='The legacy config.py, or the folder holding the legacy files '
+             '(default: $PSI_CONFIG, or ~/psi). The folder need not have a '
+             'config.py.',
     )
     migrate.add_argument(
         '--dry-run',

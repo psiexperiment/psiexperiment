@@ -24,7 +24,9 @@ import pytest
 
 from psi import config as psi_config
 from psi import get_config
-from psi.config_migrate import collect, migrate
+from psi.config_migrate import (
+    collect, default_legacy_folder, migrate, resolve_source
+)
 
 
 LEGACY_CONFIG = '''
@@ -154,6 +156,67 @@ class TestPackageMigrations:
         assert updates['FAKEPKG_ROOT'] == 'C:/fake'
         assert updates['PSI_DATA_ROOT'] == r'C:\Data\psi\data'
         assert any('broken' in n and 'unreadable' in n for n in notes)
+
+
+class TestWithoutConfigPy:
+    '''
+    A machine that only ever ran a package with settings files of its own
+    (cftscal, for one) has those files in the legacy folder and no
+    config.py at all.
+    '''
+
+    @pytest.fixture
+    def folder(self, tmp_path, monkeypatch):
+        folder = tmp_path / 'legacy'
+        folder.mkdir()
+        monkeypatch.setenv('PSI_CONFIG', str(folder))
+        monkeypatch.setenv('PSI_CONFIG_FILE', str(tmp_path / 'config.toml'))
+        psi_config.reload_config()
+        yield folder
+        psi_config.reload_config()
+
+    def test_default_folder_follows_psi_config(self, folder):
+        assert default_legacy_folder() == folder
+
+    def test_default_folder_is_home(self, monkeypatch):
+        monkeypatch.delenv('PSI_CONFIG', raising=False)
+        assert default_legacy_folder() == Path('~/psi').expanduser()
+
+    def test_resolve_folder_without_config_py(self, folder):
+        assert resolve_source(folder) == (folder, None)
+        assert resolve_source() == (folder, None)
+
+    def test_resolve_folder_with_config_py(self, folder):
+        config_py = folder / 'config.py'
+        config_py.write_text(LEGACY_CONFIG, encoding='utf-8')
+        assert resolve_source(folder) == (folder, config_py)
+        assert resolve_source() == (folder, config_py)
+        assert resolve_source(config_py) == (folder, config_py)
+
+    def test_missing_source_raises(self, tmp_path):
+        with pytest.raises(FileNotFoundError):
+            resolve_source(tmp_path / 'nowhere' / 'config.py')
+
+    @pytest.mark.parametrize('source', ['folder', None])
+    def test_packages_are_migrated(self, folder, monkeypatch, tmp_path,
+                                   source):
+        seen = []
+
+        def convert(f):
+            seen.append(f)
+            return {'CFTSCAL_ROOT': 'C:/Calibration'}, ['cftscal: converted']
+
+        package_migrations(monkeypatch, cftscal=convert)
+        migrate(folder if source == 'folder' else None)
+        assert seen == [folder]
+        assert psi_config.load_config()['CFTSCAL_ROOT'] == 'C:/Calibration'
+
+    def test_nothing_to_migrate_writes_nothing(self, folder, monkeypatch,
+                                               tmp_path, capsys):
+        package_migrations(monkeypatch, cftscal=lambda f: ({}, []))
+        assert migrate() == {}
+        assert not (tmp_path / 'config.toml').exists()
+        assert 'Nothing to migrate' in capsys.readouterr().out
 
 
 class TestDryRun:

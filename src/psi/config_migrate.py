@@ -1,5 +1,12 @@
 '''
-Convert a pre-rework ``config.py`` into ``config.toml``.
+Convert a pre-rework configuration into ``config.toml``.
+
+The legacy configuration folder (``~/psi``, or the folder the
+``PSI_CONFIG`` environment variable named) held ``config.py`` and, beside
+it, settings files that some packages kept for themselves (cftscal's
+``cfts/workspace.json``, for one). Either may be missing: a machine that
+only ever ran cftscal has the package files and no ``config.py``. Each is
+converted when present.
 
 The old configuration file was executable Python whose values were often
 computed (``BASE_DIRECTORY / 'data'``), so parsing it is not enough --
@@ -16,6 +23,7 @@ committed to anything.
 '''
 import importlib.util
 import logging
+import os
 from pathlib import Path
 
 from .config import _tomlify, get_config_file, save_config
@@ -50,9 +58,92 @@ def _tomlable(value):
     return value
 
 
-def collect(source):
+def default_legacy_folder():
     '''
-    Read a legacy config file and return what should be written.
+    The folder psi kept its configuration in before ``config.toml``.
+
+    Returns
+    -------
+    folder : pathlib.Path
+        The folder named by the ``PSI_CONFIG`` environment variable, or
+        ``~/psi`` if it is not set. That variable no longer configures
+        anything; it is read here only to find what is left to migrate.
+    '''
+    return Path(os.environ.get('PSI_CONFIG') or '~/psi').expanduser()
+
+
+def resolve_source(source=None):
+    '''
+    Find the legacy folder and the ``config.py`` in it, if there is one.
+
+    Parameters
+    ----------
+    source : {None, path-like}
+        A legacy ``config.py``, or the folder holding the legacy files
+        (whether or not it has a ``config.py``). Defaults to
+        `default_legacy_folder`.
+
+    Returns
+    -------
+    folder : pathlib.Path
+        The legacy folder, which the packages' own conversions read.
+    config_py : {pathlib.Path, None}
+        The ``config.py`` to convert, or None if there is none.
+
+    Raises
+    ------
+    FileNotFoundError
+        If `source` was given and does not exist.
+    '''
+    if source is None:
+        folder = default_legacy_folder()
+    else:
+        source = Path(source).expanduser()
+        if not source.exists():
+            raise FileNotFoundError(f'{source} does not exist.')
+        if not source.is_dir():
+            return source.parent, source
+        folder = source
+    config_py = folder / 'config.py'
+    return folder, config_py if config_py.exists() else None
+
+
+def collect(source=None):
+    '''
+    Read a legacy configuration and return what should be written.
+
+    Parameters
+    ----------
+    source : {None, path-like}
+        See `resolve_source`.
+
+    Returns
+    -------
+    updates : dict
+        Settings to write, under their new names.
+    notes : list of str
+        Human-readable notes about anything not carried over.
+    '''
+    folder, config_py = resolve_source(source)
+    if config_py is None:
+        updates, notes = {}, []
+    else:
+        updates, notes = collect_config_py(config_py)
+
+    # A package's own files win over config.py: if a rig set cftscal's
+    # calibration folder in both places, the value cftscal actually used
+    # was the one in its workspace.json, so it must not be clobbered by
+    # the CAL_ROOT that config.py happened to carry.
+    package_updates, package_notes = collect_packages(folder)
+    updates.update(package_updates)
+    notes.extend(package_notes)
+
+    return updates, notes
+
+
+def collect_config_py(source):
+    '''
+    Read a legacy ``config.py`` and return what should be written.
 
     Returns
     -------
@@ -115,15 +206,6 @@ def collect(source):
     if settings_root is not None:
         updates['PSI_SETTINGS_ROOT'] = str(settings_root)
     notes.extend(settings_notes)
-
-    # A package's own files win over config.py: if a rig set cftscal's
-    # calibration folder in both places, the value cftscal actually used
-    # was the one in its workspace.json, so it must not be clobbered by
-    # the CAL_ROOT that config.py happened to carry.
-    package_updates, package_notes = collect_packages(source.parent)
-    updates.update(package_updates)
-    notes.extend(package_notes)
-
     return updates, notes
 
 
@@ -191,12 +273,34 @@ def _collapse_settings_roots(values):
     return None, notes
 
 
-def migrate(source, dry_run=False):
+def migrate(source=None, dry_run=False):
     '''
-    Convert `source` and write the result to the current config file.
+    Convert a legacy configuration and write it to the current config file.
+
+    Parameters
+    ----------
+    source : {None, path-like}
+        See `resolve_source`.
+    dry_run : bool
+        If True, print what would be written without writing it.
+
+    Returns
+    -------
+    updates : dict
+        The settings written (or that would have been, for a dry run).
     '''
+    folder, config_py = resolve_source(source)
     updates, notes = collect(source)
     target = get_config_file()
+
+    if config_py is None:
+        print(f'No config.py in {folder}; converting only the settings '
+              'files installed packages kept there.')
+    if not updates:
+        for note in notes:
+            print(f'  {note}')
+        print(f'Nothing to migrate in {folder}.')
+        return updates
 
     # Convert everything up front, so a dry run fails on exactly the
     # input the real run would fail on. Previously the conversion only
@@ -206,7 +310,7 @@ def migrate(source, dry_run=False):
     for name in sorted(updates):
         _tomlify(updates[name], name)
 
-    print(f'Reading {Path(source).expanduser()}')
+    print(f'Reading {folder}')
     print(f'Writing {target}')
     print()
     for note in notes:

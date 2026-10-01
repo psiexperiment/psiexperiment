@@ -370,10 +370,15 @@ directly, so those two settings have no configuration-file spelling.
 3. **Convert the configuration:**
 
    ```bash
-   psi-config migrate path/to/config.py
+   psi-config migrate
    ```
 
-   Executes the old file once to capture computed values (`BASE_DIRECTORY /
+   Reads the legacy configuration folder (`~/psi`, or the folder the old
+   `PSI_CONFIG` variable named); pass a `config.py` or a folder to read
+   somewhere else. The folder need not have a `config.py` -- a machine that
+   only ever ran cftscal has only cftscal's files, and they are still
+   converted (cftscal also converts them itself the first time it starts).
+   Executes the old `config.py` once to capture computed values (`BASE_DIRECTORY /
    'data'` and the like), maps the names, and folds in cftscal's
    `workspace.json` and its per-plugin `cfts/calibration/*.json` files when
    present. cftscal converts those itself, through its `psi.migrations`
