@@ -132,10 +132,10 @@ class ExperimentAction(ExperimentActionBase):
         return core.invoke_command(self.command, parameters=params)
 
     def __str__(self):
-        return self.command
+        return f'On {self.event} call {self.command}'
 
     def __repr__(self):
-        return f'<ExperimentAction: {self.command} {self.kwargs}>'
+        return f'<ExperimentAction: {self} {self.kwargs}>'
 
 
 class ExperimentCallback(ExperimentActionBase):
