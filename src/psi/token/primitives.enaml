@@ -56,18 +56,20 @@ enamldef Envelope(Gate): block:
 
     EnumParameter:
         name = 'envelope'
-        label = 'Envelope'
+        label = 'envelope'
         compact_label = 'env'
-        default = 'bartlett'
+        default = 'cosine-squared'
         choices = {
             'bartlett': "'bartlett'",
+            'blackman': "'blackman'",
+            'cosine-squared': "'cosine-squared'",
         }
 
     Parameter:
         name = 'rise_time'
-        label = 'Rise Time'
+        label = 'rise time (s)'
         compact_label = 'rise'
-        default = None
+        default = 1
 
     Parameter:
         name = 'transform'
