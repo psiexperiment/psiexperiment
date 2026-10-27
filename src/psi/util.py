@@ -153,22 +153,70 @@ def copy_declarative(old, exclude=None, **kw):
 
 
 class _FullNameGetter(ast.NodeVisitor):
+    '''
+    Collects the names an expression reads from its namespace. Names the
+    expression binds itself (lambda arguments, comprehension variables) are
+    not dependencies.
+    '''
 
     def __init__(self, *args, **kwargs):
         self.names = []
+        self._bound = []
         super(_FullNameGetter, self).__init__(*args, **kwargs)
 
+    def _is_bound(self, name):
+        return any(name in b for b in self._bound)
+
+    def _visit_scope(self, bound, nodes):
+        self._bound.append(set(bound))
+        for node in nodes:
+            self.visit(node)
+        self._bound.pop()
+
     def visit_Name(self, node):
-        self.names.append(node.id)
+        if not self._is_bound(node.id):
+            self.names.append(node.id)
 
     def visit_Attribute(self, node):
         names = []
         while isinstance(node, ast.Attribute):
             names.append(node.attr)
             node = node.value
+        if not isinstance(node, ast.Name):
+            # Attribute of something other than a name (e.g., a call's
+            # result); its dependencies are whatever that reads.
+            self.visit(node)
+            return
+        if self._is_bound(node.id):
+            return
         names.append(node.id)
         name = '.'.join(names[::-1])
         self.names.append(name)
+
+    def visit_Lambda(self, node):
+        a = node.args
+        # Defaults are evaluated where the lambda is defined.
+        for default in a.defaults + [d for d in a.kw_defaults if d]:
+            self.visit(default)
+        args = a.posonlyargs + a.args + a.kwonlyargs             + [x for x in (a.vararg, a.kwarg) if x is not None]
+        self._visit_scope([x.arg for x in args], [node.body])
+
+    def _visit_comprehension(self, node, elements):
+        bound = {n.id for g in node.generators for n in ast.walk(g.target)
+                 if isinstance(n, ast.Name)}
+        # The first iterable is evaluated in the enclosing scope.
+        self.visit(node.generators[0].iter)
+        inner = [g.iter for g in node.generators[1:]]             + [c for g in node.generators for c in g.ifs] + elements
+        self._visit_scope(bound, inner)
+
+    def visit_ListComp(self, node):
+        self._visit_comprehension(node, [node.elt])
+
+    visit_SetComp = visit_ListComp
+    visit_GeneratorExp = visit_ListComp
+
+    def visit_DictComp(self, node):
+        self._visit_comprehension(node, [node.key, node.value])
 
 
 def get_dependencies(expression):

@@ -34,6 +34,27 @@ def test_get_dependencies_call():
     assert set(deps) >= {'foo', 'bar', 'qux'}
 
 
+def test_get_dependencies_lambda_arguments_are_not_dependencies():
+    deps = get_dependencies('lambda x: dbi((hi - lo) * (x - 1)) + x.real')
+    assert set(deps) == {'dbi', 'hi', 'lo'}
+
+
+def test_get_dependencies_lambda_default_is_a_dependency():
+    assert set(get_dependencies('lambda x=a: x')) == {'a'}
+
+
+def test_get_dependencies_comprehension_variables_are_not_dependencies():
+    deps = get_dependencies('[f(v) for v in levels if v > lb]')
+    assert set(deps) == {'f', 'levels', 'lb'}
+    deps = get_dependencies('{k: v for k, v in items}')
+    assert set(deps) == {'items'}
+
+
+def test_get_dependencies_attribute_of_call():
+    deps = get_dependencies('f(x).real')
+    assert set(deps) == {'f', 'x'}
+
+
 # -------- tagged member helpers --------
 
 class _Tagged(Atom):
