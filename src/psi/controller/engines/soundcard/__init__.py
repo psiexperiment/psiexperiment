@@ -284,6 +284,10 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
         self.complete()
 
     def get_ts(self):
+        if not self._running:
+            # The stream clock means nothing until the stream is started
+            # (`t0` is captured then), so time starts at 0.
+            return 0.0
         try:
             ts = self._stream.stream.time - self.t0
             log.error('Timestamp: %.2f, write time %.2f, read time %.2f',

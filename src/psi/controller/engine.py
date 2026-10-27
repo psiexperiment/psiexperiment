@@ -235,8 +235,14 @@ class Engine(PSIContribution):
     def get_buffer_size(self, channel_name):
         raise NotImplementedError
 
-    def update_hw_ao_multiple(self, channel_names, offsets):
-        raise NotImplementedError
+    def update_hw_ao_multiple(self, names, offsets):
+        '''
+        Update several hardware-timed analog outputs at once (e.g., the
+        outputs of a `Synchronized` group). Engines that can update them
+        together should override this; by default each is updated in turn.
+        '''
+        for name, offset in zip(names, offsets):
+            self.update_hw_ao(name, offset)
 
     def update_hw_ao(self, channel_name, offset, method=None):
         pass
