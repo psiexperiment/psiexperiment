@@ -2,13 +2,16 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+from atom.api import Atom, Float, List
 
 from psiaudio import util
 from psiaudio.calibration import FlatCalibration
+from psiaudio.pipeline import PipelineData
 
 from psi.data.plot_groups import EpochGroupAccumulator
 from psi.data.plots import (
-    GroupedEpochAveragePlot, GroupedEpochFFTPlot, make_color,
+    EpochTimeContainer, GroupedEpochAveragePlot, GroupedEpochFFTPlot,
+    StackedEpochAveragePlot, ViewBox, make_color,
 )
 
 
@@ -184,3 +187,32 @@ def test_time_axis_labels_hide_floating_point_error(app):
     assert axis.tickStrings(values, 1, 0.05)[3] == '0.15'
     axis = TimeAxisItem(fmt='{S}', orientation='bottom')
     assert axis.tickStrings(np.arange(4) * 0.001, 1, 0.001)[3] == '0.003'
+
+
+class _FakeEpochSource(Atom):
+
+    fs = Float(1000)
+    duration = Float(0.01)
+    callbacks = List()
+
+    def add_callback(self, cb):
+        self.callbacks.append(cb)
+
+    def send(self, data):
+        for cb in self.callbacks:
+            cb(data)
+
+
+@pytest.mark.parametrize('plot_class', [GroupedEpochAveragePlot,
+                                        StackedEpochAveragePlot])
+def test_epoch_plot_sets_container_range(app, plot_class):
+    # The time container starts at its span (fixed when it is built, before
+    # the experiment sizes the epochs) and must widen to the epochs plotted.
+    container = EpochTimeContainer(span=8.5e-3)
+    viewbox = ViewBox(parent=container)
+    plot = plot_class(parent=viewbox)
+    source = _FakeEpochSource()
+    plot.source = source
+    source.send(PipelineData(np.zeros((1, 1, 65)), fs=1000, s0=0,
+                             metadata=[{}]))
+    assert container.data_range.current_range == (0, 0.065)

@@ -1456,6 +1456,11 @@ class StackedEpochAveragePlot(EpochGroupMixin, BasePlot):
             n_time = round(self.source.fs * self.source.duration)
             self._x = np.arange(n_time)/self.source.fs
 
+    def _observe_source(self, event):
+        super()._observe_source(event)
+        if self.source is not None:
+            self.parent.data_range.add_source(self.source)
+
     def update(self, *args, **kwargs):
         super().update(*args, **kwargs)
         if self._offset_update_needed:
