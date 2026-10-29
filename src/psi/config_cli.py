@@ -337,7 +337,11 @@ def build_parser():
     show = subparsers.add_parser(
         'show',
         description='Show the config file location, every setting, its '
-                    'resolved value and which layer supplied it.',
+                    'resolved value and which layer supplied it. The config '
+                    'file is ~/psi/config.toml unless the PSI_CONFIG_FILE '
+                    'environment variable names another file; set it before '
+                    'running psi or psi-config to use a different '
+                    'configuration.',
     )
     show.set_defaults(func=show_config)
     show.add_argument(
