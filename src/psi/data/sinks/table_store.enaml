@@ -4,6 +4,7 @@ log = logging.getLogger(__name__)
 import atexit
 from collections.abc import Mapping
 from functools import partial
+from threading import RLock
 
 from atom.api import Bool, ContainerList, Value
 from enaml.core.api import Conditional, d_
@@ -30,6 +31,12 @@ class TableStore(BaseStore):
     _store = Value()
     _columns = Value()
 
+    #: `prepare` runs on the control dispatcher while rows can arrive from
+    #: other threads (e.g., the event log, from the GUI thread). Without
+    #: this, a row could be written between `prepare` choosing the columns
+    #: and writing the header, leaving rows above the header.
+    _lock = Value(factory=RLock)
+
     def get_filename(self):
         return super().get_filename(self.name, '.csv')
 
@@ -37,9 +44,10 @@ class TableStore(BaseStore):
         if not self.save_data:
             return
         path = self.get_filename()
-        self._store = path.open('w', newline='\n')
-        # Save data that has been queued up
-        self._save_data(self._data)
+        with self._lock:
+            self._store = path.open('w', newline='\n')
+            # Save data that has been queued up
+            self._save_data(self._data)
         atexit.register(self._store.close)
 
     def _save_data(self, data):
@@ -69,14 +77,15 @@ class TableStore(BaseStore):
             self.flush()
 
     def process_table(self, data):
-        if self.save_data and self._store is not None:
-            self._save_data(data)
-            if flush:
-                self.flush()
-        if isinstance(data, Mapping):
-            self._data.append(data)
-        else:
-            self._data.extend(data)
+        with self._lock:
+            if self.save_data and self._store is not None:
+                self._save_data(data)
+                if flush:
+                    self.flush()
+            if isinstance(data, Mapping):
+                self._data.append(data)
+            else:
+                self._data.extend(data)
 
     def flush(self):
         if self._store.closed:
