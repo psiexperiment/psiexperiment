@@ -410,7 +410,7 @@ class MultiSelectParameter(Parameter):
     @observe('selected')
     def _notify_update(self, event):
         if self.is_initialized:
-            log.error(self.selected)
+            log.debug(self.selected)
             self.notify('expression', self.expression)
 
     def to_expression(self, value):

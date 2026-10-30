@@ -290,7 +290,7 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
             return 0.0
         try:
             ts = self._stream.stream.time - self.t0
-            log.error('Timestamp: %.2f, write time %.2f, read time %.2f',
+            log.debug('Timestamp: %.2f, write time %.2f, read time %.2f',
                       ts, self._total_samples_written / self.fs,
                       self._total_samples_read / self.fs)
             return ts
