@@ -155,6 +155,22 @@ def install_qt_message_handler():
     qInstallMessageHandler(_handler)
 
 
+def ensure_application():
+    '''
+    Create the Qt application if there isn't one yet.
+
+    Call before building a paradigm's manifests: some of them create Qt
+    widgets as they are built (e.g., a plot given fixed axis limits creates
+    its view box), which Qt refuses to do before there is an application.
+    The workbench's UI plugin uses the application created here rather than
+    making its own.
+    '''
+    from enaml.application import Application
+    if Application.instance() is None:
+        from enaml.qt.qt_application import QtApplication
+        QtApplication()
+
+
 def configure_logging(level_console=None, level_file=None, filename=None,
                       debug_exclude=None):
 
@@ -249,6 +265,7 @@ def _main(args):
 
     from psi.application.workbench import PSIWorkbench
 
+    ensure_application()
     workbench = PSIWorkbench()
     plugins = [p.manifest for p in args.controller.plugins \
                if p.selected or p.required]
