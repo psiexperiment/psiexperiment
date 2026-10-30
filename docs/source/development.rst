@@ -75,6 +75,30 @@ Tests are written using ``pytest``. To run the full test suite:
 
     pytest tests
 
+Testing paradigms through a loopback
+------------------------------------
+
+``psi.loopback`` runs paradigms unattended on a sound card whose outputs are
+routed back to its inputs (e.g., an RME Fireface set up in TotalMix), so what
+a paradigm says it played can be checked against what it recorded. cfts and
+abts use it for their hardware tests (``tests/hardware`` in each). It
+provides:
+
+* ``rig``: describes the sound card and measures which output reaches which
+  input, at what gain and delay.
+* ``runner``: runs a paradigm in a subprocess with the test's settings, and
+  any extra manifests the test needs, then reports how it ended.
+* ``fit``: fits the stimuli a paradigm logged to the recording.
+* ``continuity`` and ``pilot.PilotManifest``: plays a known noise on a spare
+  output for the whole run and finds any buffer that was dropped, repeated
+  or zeroed between the sound card and psi's stores (the sound card's own
+  under/overrun flags can't be relied on). The pilot also records how far
+  psi's input processing falls behind the sound card.
+* ``report``: an HTML page of checks and figures for each run.
+* ``pytest_plugin``: the ``--fireface`` option (the tests are skipped
+  without it) and the session fixtures. See its docstring for how to use it
+  from a project's ``conftest.py``.
+
 Building Documentation
 ......................
 

@@ -1,0 +1,193 @@
+'''
+Plays the pilot signal (see `continuity`) on a spare output for the whole
+run and records it from a spare input, so `continuity.check_continuity` can
+find any buffer that was dropped, repeated or zeroed along the way.
+
+Route the output to the input in the sound card's mixer. Load it in a run
+with::
+
+    run_paradigm(..., manifests={'psi.loopback.pilot.PilotManifest': {
+        'output_name': 'speaker_2', 'input_name': 'output_monitor'}})
+
+The recording is saved as `loopback_pilot` (in the `loopback_pilot_data`
+store) and the pilot's settings in the experiment's metadata. Regenerate the
+pilot with `continuity.pilot_sequence(fs, seed, amplitude)`.
+
+It also measures how far psi's processing of the input falls behind the
+sound card: every `backlog_interval` seconds it notes how many samples the
+sound card has delivered and how many have made it through to the pilot's
+input (and so to every other input's pipeline and store, which run on the
+same thread). The difference is written to `loopback_pilot_backlog.csv` in
+the data folder (columns `time`, `read` and `processed`, in seconds). A
+backlog delays everything computed from the inputs (e.g., IR poke
+detection), and whatever is still queued when psi quits is never saved.
+'''
+import csv
+from threading import Event, Thread
+import time
+
+import logging
+log = logging.getLogger(__name__)
+
+from atom.api import Float, Int, Typed, Value
+import numpy as np
+from enaml.core.api import d_
+from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
+
+from psi.controller.api import Callback, ContinuousInput, ExperimentAction
+from psi.controller.output import HardwareOutput
+from psi.core.enaml.api import ExperimentManifest
+from psi.data.sinks.api import BinaryStore
+
+from .continuity import pilot_sequence
+
+
+class PilotOutput(HardwareOutput):
+    '''
+    Adds the pilot to its channel. Sample k of the channel is always sample k
+    of the pilot, whatever else is playing.
+    '''
+    seed = d_(Int(0)).tag(metadata=True)
+    amplitude = d_(Float(0.1)).tag(metadata=True)
+
+    sequence = Value()
+    _scratch = Typed(np.ndarray)
+
+    def prepare(self):
+        # Built before the stream starts: computing the cycle takes long
+        # enough to underrun the first buffer if left to the callback.
+        self.sequence = pilot_sequence(self.fs, self.seed, self.amplitude)
+        self._scratch = np.zeros((1, 2 ** 16), dtype='float32')
+
+    def is_ready(self):
+        return True
+
+    def get_samples(self, offset, samples, out):
+        if self.sequence is None:
+            log.warning('Pilot was not prepared before the stream started')
+            self.prepare()
+        if samples > self._scratch.shape[-1]:
+            self._scratch = np.zeros((1, samples), dtype='float32')
+        buffer = self._scratch[:, :samples]
+        self.sequence.fill(offset, buffer)
+        out[:samples] += buffer[0]
+
+
+def prepare_pilot(event):
+    controller = event.workbench.get_plugin('psi.controller')
+    controller.get_output('loopback_pilot_output').prepare()
+
+
+class BacklogMonitor:
+
+    def __init__(self, interval):
+        self.interval = interval
+        self.processed = 0
+        self.rows = []
+        self._stop = Event()
+        self._thread = None
+
+    def received(self, data):
+        # Runs on the engine's input thread.
+        self.processed = data.s0 + data.shape[-1]
+
+    def start(self, engine):
+        def run():
+            t0 = time.monotonic()
+            while not self._stop.wait(self.interval):
+                self.rows.append((time.monotonic() - t0,
+                                  engine._total_samples_read / engine.fs,
+                                  self.processed / engine.fs))
+        self._thread = Thread(target=run, daemon=True)
+        self._thread.start()
+
+    def stop(self, path):
+        self._stop.set()
+        if self._thread is not None:
+            self._thread.join()
+        with open(path, 'w', newline='') as fh:
+            writer = csv.writer(fh)
+            writer.writerow(['time', 'read', 'processed'])
+            writer.writerows(self.rows)
+
+
+def start_monitor(monitor, event):
+    controller = event.workbench.get_plugin('psi.controller')
+    engine = controller.get_input('loopback_pilot').channel.engine
+    monitor.start(engine)
+
+
+def stop_monitor(monitor, event):
+    data = event.workbench.get_plugin('psi.data')
+    monitor.stop(data.base_path / 'loopback_pilot_backlog.csv')
+
+
+enamldef PilotManifest(ExperimentManifest): manifest:
+
+    id = 'psi_loopback_pilot'
+
+    #: Hardware output (`hw_ao::<name>`) to play the pilot on, and hardware
+    #: input (`hw_ai::<name>`) it comes back on.
+    attr output_name
+    attr input_name
+    attr seed = 0
+    attr amplitude = 0.1
+    attr backlog_interval = 0.25
+    attr monitor = BacklogMonitor(backlog_interval)
+
+    Extension:
+        id = manifest.id + '.io'
+        point = 'psi.controller.io'
+
+        PilotOutput:
+            name = 'loopback_pilot_output'
+            label = 'Loopback pilot'
+            target_name = f'hw_ao::{manifest.output_name}'
+            configurable = False
+            seed = manifest.seed
+            amplitude = manifest.amplitude
+
+        ContinuousInput:
+            name = 'loopback_pilot'
+            label = 'Loopback pilot'
+            source_name = f'hw_ai::{manifest.input_name}'
+
+            Callback:
+                function = manifest.monitor.received
+
+    Extension:
+        id = manifest.id + '.commands'
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = manifest.id + '.prepare'
+            handler = prepare_pilot
+        Command:
+            id = manifest.id + '.start_monitor'
+            handler = lambda e: start_monitor(manifest.monitor, e)
+        Command:
+            id = manifest.id + '.stop_monitor'
+            handler = lambda e: stop_monitor(manifest.monitor, e)
+
+    Extension:
+        id = manifest.id + '.actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            event = 'experiment_prepare'
+            command = manifest.id + '.prepare'
+        ExperimentAction:
+            event = 'experiment_start'
+            command = manifest.id + '.start_monitor'
+        ExperimentAction:
+            event = 'experiment_end'
+            command = manifest.id + '.stop_monitor'
+
+    Extension:
+        id = manifest.id + '.data'
+        point = 'psi.data.sinks'
+
+        BinaryStore:
+            name = 'loopback_pilot_data'
+            continuous_inputs = ['loopback_pilot']

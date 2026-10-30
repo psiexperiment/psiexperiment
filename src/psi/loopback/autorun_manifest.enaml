@@ -1,0 +1,161 @@
+'''
+Runs a paradigm unattended: applies the test's context settings, starts the
+experiment, optionally stops it after a set time, and quits once psi has
+finished wrapping it up.
+
+Only `autorun.py` loads this; it is never registered with a paradigm, so it
+can't be selected from the launcher.
+'''
+import json
+import logging
+import math
+log = logging.getLogger(__name__)
+from pathlib import Path
+
+from enaml.application import deferred_call, timed_call
+from enaml.workbench.api import Extension
+from enaml.workbench.core.api import Command
+
+from psi.context.selector import FriendlyCartesianProductList
+from psi.context.context_item import EnumParameter
+from psi.controller.api import ExperimentAction
+from psi.core.enaml.api import ExperimentManifest
+
+
+def write_result(path, **result):
+    Path(path).write_text(json.dumps(result, indent=2))
+
+
+def set_parameter(item, value):
+    if isinstance(item, EnumParameter):
+        # Accept either the label shown in the GUI or the value it maps to.
+        for label, expression in item.choices.items():
+            if value == label or repr(value) == expression \
+                    or json.dumps(value) == expression:
+                item.selected = label
+                return
+        # No !r in f-strings: enaml's parser can't handle it.
+        raise ValueError(f'{repr(value)} is not a choice for {item.name}: '
+                         f'{list(item.choices)}')
+    if isinstance(value, float) and not math.isfinite(value):
+        item.expression = f"float('{value}')"
+    else:
+        item.expression = repr(value)
+
+
+def soundcard_engines(workbench):
+    from psi.controller.engines.soundcard import SoundcardEngine
+    controller = workbench.get_plugin('psi.controller')
+    return [e for e in controller.io.engines.values()
+            if isinstance(e, SoundcardEngine)]
+
+
+def apply_settings(settings, event):
+    '''
+    `settings` has `parameters` (name -> value), `selectors` (selector name
+    -> {item name -> list of values}) and `engine` (attribute -> value, set on
+    the sound card engine, e.g. `latency_samples`).
+    '''
+    for engine in soundcard_engines(event.workbench):
+        for name, value in settings.get('engine', {}).items():
+            setattr(engine, name, value)
+    context = event.workbench.get_plugin('psi.context')
+    for name, value in settings.get('parameters', {}).items():
+        set_parameter(context.get_item(name), value)
+    for selector_name, items in settings.get('selectors', {}).items():
+        selector = context.get_selector(selector_name)
+        for name, values in items.items():
+            setting = selector.change_setting(context.get_item(name),
+                                              FriendlyCartesianProductList)
+            # Values are given in the item's own units (e.g., Hz), but the
+            # selector stores what the user types (e.g., kHz).
+            setting.values = [setting.inverse_transform_fn(v) for v in values]
+    context.apply_changes()
+    core = event.workbench.get_plugin('enaml.workbench.core')
+    deferred_call(core.invoke_command, 'psi.controller.start')
+
+
+def schedule_stop(duration, event):
+    # Actions run on the control dispatcher; Qt timers belong to the GUI
+    # thread.
+    core = event.workbench.get_plugin('enaml.workbench.core')
+    deferred_call(timed_call, int(duration * 1e3), core.invoke_command,
+                  'psi.controller.stop')
+
+
+def make_wrapup(workbench, result_path):
+    # A plain closure: psi can't call a lambda defined inside an enaml one.
+    def record_wrapup(message='', stop_reason='', error_message='',
+                      traceback=''):
+        engines = {e.name: {'fs': e.fs, 'blocksize': e.blocksize,
+                            'latency_samples': e.latency_samples,
+                            'samples_written': e._total_samples_written,
+                            'samples_read': e._total_samples_read}
+                   for e in soundcard_engines(workbench)}
+        write_result(result_path, message=message, stop_reason=stop_reason,
+                     error_message=error_message, traceback=traceback,
+                     engines=engines)
+        quit_when_saved(workbench)
+    return record_wrapup
+
+
+def quit_when_saved(workbench, waited=0, timeout=60):
+    '''
+    Quit once every sample the sound cards read has been through the
+    pipelines (and so into the stores), as it would be if the user left psi
+    open after stopping. Their input threads are daemons, so anything still
+    queued when the application quits is lost.
+    '''
+    pending = sum(e._total_samples_read - e.hw_ai_thread.samples_processed
+                  for e in soundcard_engines(workbench)
+                  if e.hw_ai_thread is not None)
+    if pending and waited < timeout:
+        timed_call(100, quit_when_saved, workbench, waited + 0.1, timeout)
+        return
+    if pending:
+        log.error('Quitting with %d samples not yet saved', pending)
+    # Let the stores finish anything they deferred before quitting.
+    ui = workbench.get_plugin('enaml.workbench.ui')
+    timed_call(1000, ui.stop_application)
+
+
+enamldef AutorunManifest(ExperimentManifest): manifest:
+
+    id = 'psi_loopback_autorun'
+    attr settings = {}
+    attr result_path
+    #: Seconds after the start to stop the experiment, or None to let it
+    #: end on its own.
+    attr duration = None
+
+    Extension:
+        id = manifest.id + '.commands'
+        point = 'enaml.workbench.core.commands'
+
+        Command:
+            id = manifest.id + '.apply_settings'
+            handler = lambda e: apply_settings(manifest.settings, e)
+        Command:
+            id = manifest.id + '.schedule_stop'
+            handler = lambda e: schedule_stop(manifest.duration, e) \
+                if manifest.duration is not None else None
+
+    Extension:
+        id = manifest.id + '.actions'
+        point = 'psi.controller.actions'
+
+        ExperimentAction:
+            # After the paradigm's own plugins_started setup (e.g., reading
+            # the input amplifier from the environment).
+            event = 'plugins_started'
+            command = manifest.id + '.apply_settings'
+            weight = 1000
+        ExperimentAction:
+            event = 'experiment_start'
+            command = manifest.id + '.schedule_stop'
+            weight = 1000
+
+    Extension:
+        id = manifest.id + '.wrapup'
+        point = 'psi.controller.wrapup'
+        factory = lambda w: make_wrapup(w, manifest.result_path)

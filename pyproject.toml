@@ -97,6 +97,7 @@ root_package = "psi"
 name = "Layered architecture"
 type = "layers"
 layers = [
+    "psi.loopback",
     "psi.launcher",
     "psi.application",
     "psi.experiment",

@@ -33,6 +33,10 @@ class SDAIThread(Thread):
         self.callbacks = callbacks
         self.sf = sf
         self.poll_interval = poll_interval
+        #: Samples that have been through every callback (and so into the
+        #: stores). Compare with the engine's `_total_samples_read` to see
+        #: how far behind processing is.
+        self.samples_processed = 0
 
     def run(self):
         # This is a rather complicated piece of code because we need to
@@ -57,6 +61,7 @@ class SDAIThread(Thread):
                     data = PipelineData(data / self.sf[..., np.newaxis], fs=self.fs, s0=s0)
                     for _channel_name, s, cb in self.callbacks.get('ai', []):
                         cb(data[s])
+                    self.samples_processed = s0 + data.shape[-1]
                 time.sleep(self.poll_interval)
         except Exception:
             deferred_call(sys.excepthook, *sys.exc_info())
