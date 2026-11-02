@@ -184,6 +184,11 @@ class ToneCalibrate(BaseCalibrate):
     #: the noise floor, this raises a calibration error.
     min_snr = d_(Value(None))
 
+    #: Name of the selector whose settings give the frequencies to calibrate.
+    #: None for a paradigm without a selector (the frequencies then come from
+    #: the current context values).
+    selector = d_(Value('default'))
+
     @d_func
     def get_values(self, values):
         return {si for i in values for si in i}
@@ -194,7 +199,7 @@ class ToneCalibrate(BaseCalibrate):
         for output_name, parameter_names in self.outputs.items():
             output = controller.get_output(output_name)
             ao_info = ao.setdefault(output.channel, {'frequencies': set()})
-            p = {'item_names': parameter_names}
+            p = {'item_names': parameter_names, 'iterator': self.selector}
             new = core.invoke_command('psi.context.unique_values', p)
             ao_info['frequencies'].update(self.get_values(new))
 

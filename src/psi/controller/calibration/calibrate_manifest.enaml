@@ -8,11 +8,23 @@ from functools import partial
 
 import pandas as pd
 
+from enaml.application import deferred_call
 from enaml.core.api import Conditional
 from enaml.widgets.api import Container, DockItem
 from enaml.workbench.api import Extension
 from psi.core.enaml.api import DataFrameTable, PSIDockItem, PSIManifest
 from psi.data.api import FFTContainer, ResultPlot, TimeContainer, ViewBox
+
+
+def observe_result(workbench, manifest, plot_result):
+    '''
+    Call `plot_result` whenever the calibration result changes. The result is
+    set on the thread running the calibration (the dispatcher thread), but
+    plot items must be created on the GUI thread.
+    '''
+    cb = partial(plot_result, workbench, manifest)
+    manifest.contribution.observe('result',
+                                  lambda event: deferred_call(cb, event))
 
 
 def plot_chirp_result(workbench, manifest, event):
@@ -65,8 +77,7 @@ enamldef ChirpCalibrateManifest(PSIManifest): manifest:
         point = 'psi.data.plots'
 
         initialized ::
-            cb = partial(plot_chirp_result, workbench, manifest)
-            manifest.contribution.observe('result', cb)
+            observe_result(workbench, manifest, plot_chirp_result)
 
         Conditional:
             condition << manifest.contribution.show_widget
@@ -129,8 +140,7 @@ enamldef ClickCalibrateManifest(BaseCalibrateManifest): manifest:
         point = 'psi.data.plots'
 
         initialized ::
-            cb = partial(plot_click_result, workbench, manifest)
-            manifest.contribution.observe('result', cb)
+            observe_result(workbench, manifest, plot_click_result)
 
         Conditional:
             condition << manifest.contribution.show_widget
