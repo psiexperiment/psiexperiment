@@ -283,6 +283,14 @@ enamldef BandlimitedFIRNoise(BroadbandNoise):
         default = 'none'
         choices = {'none': None, 'mouse': "'mouse'"}
 
+    # See `BandlimitedFIRNoiseFactory`: without it, the noise plays below
+    # its level by the fraction of fs / 2 its band spans.
+    EnumParameter:
+        name = 'correct_level'
+        label = 'Correct level for bandwidth'
+        default = 'no'
+        choices = {'yes': True, 'no': False}
+
 
 enamldef Tone(ContinuousBlock):
 
