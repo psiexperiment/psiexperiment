@@ -122,6 +122,12 @@ class Expression(Declarative):
     #: Expression to be evaluated
     expression = d_(Str())
 
+    #: If True, `parameter` need not be a context item. The result is still
+    #: available to other expressions, so this defines an intermediate value
+    #: (e.g., one shared by several parameters). Otherwise, a missing
+    #: parameter is an error (usually a typo or a renamed token).
+    allow_missing = d_(Bool(False))
+
 
 ################################################################################
 # ContextGroup and ContextSet

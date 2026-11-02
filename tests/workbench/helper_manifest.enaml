@@ -3,7 +3,7 @@ import numpy as np
 from enaml.workbench.api import Extension, Plugin
 from enaml.workbench.core.api import Command
 
-from psi.context.api import (ContextGroup, Parameter, Result, Parameter,
+from psi.context.api import (ContextGroup, Expression, Parameter, Result,
                              SequenceSelector)
 from psi.controller.api import (ControllerManifest, Blocked, Downsample,
                                 ExperimentAction, ExperimentEvent,
@@ -68,6 +68,33 @@ enamldef ContextItemOption2(ExperimentManifest):
             name = 'repetitions_2'
             default = 80
             group_name = 'default'
+
+
+enamldef MissingParameterExpression(ExperimentManifest):
+
+    Extension:
+        id = 'helper_items'
+        point = 'psi.context.items'
+
+        Expression:
+            parameter = 'repetitionz'
+            expression = '3'
+
+
+enamldef IntermediateExpression(ExperimentManifest):
+
+    Extension:
+        id = 'helper_items'
+        point = 'psi.context.items'
+
+        Expression:
+            parameter = 'twice_level'
+            expression = 'level * 2'
+            allow_missing = True
+
+        Expression:
+            parameter = 'fc'
+            expression = 'twice_level'
 
 
 enamldef TestControllerManifest(ControllerManifest): manifest:

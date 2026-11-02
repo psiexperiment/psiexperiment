@@ -102,6 +102,10 @@ class ContextPlugin(PSIPlugin):
     # extension is unregistered.
     _adopted_items = Typed(dict, ())
 
+    # Maps the parameter of each context expression that does not match a
+    # context item (and does not allow that) to its expression.
+    _missing_parameters = Typed(dict, ())
+
     # Subset of context_items that are parameters
     parameters = Property()
 
@@ -224,23 +228,23 @@ class ContextPlugin(PSIPlugin):
                     else:
                         context_items[item.name] = item
 
-        available_items = ', '.join(context_items)
+        # An expression whose parameter does not exist is usually a typo or a
+        # renamed token, and otherwise fails silently (the parameter keeps its
+        # default). Items are refreshed as each manifest registers, so a
+        # parameter may not exist *yet*; `validate_expressions` raises the
+        # error once everything is registered.
+        missing = {}
         for expression in context_expressions.values():
             try:
                 item = context_items.pop(expression.parameter)
                 item.visible = False
             except KeyError:
-                # It's best to make this an error. Previously I just logged a
-                # warning, but this makes debugging more difficult sometimes if
-                # you write an expression referencing a parameter that does not
-                # exist (e.g., because of a typo or a change to a token name).
-                # If, in the future, we need the ability to ignore missing
-                # parameters, I would add an attribute to the Expression class
-                # indicating that it's OK to ignore if the parameter does not exist.
-                log.warning(f'{expression.parameter} referenced by '
-                            f'expression {expression.expression} '
-                             'does not exist. Available names include '
-                            f'{available_items}.')
+                if not expression.allow_missing:
+                    missing[expression.parameter] = expression.expression
+        if missing:
+            log.debug('Expressions for parameters that do not exist (yet): '
+                      '%r', missing)
+        self._missing_parameters = missing
 
         load_manifests(context_groups.values(), self.workbench)
         self.context_expressions = context_expressions
@@ -469,8 +473,9 @@ class ContextPlugin(PSIPlugin):
 
     def validate_expressions(self):
         '''
-        Verify that every context expression parses and references only
-        known names (other context items, symbols, or Python builtins).
+        Verify that every context expression parses, references only known
+        names (other context items, symbols, or Python builtins) and sets a
+        parameter that exists (unless the expression has `allow_missing`).
 
         Expressions are evaluated per-trial, so without this check a typo
         surfaces as an exception partway through a running experiment. It is
@@ -486,6 +491,15 @@ class ContextPlugin(PSIPlugin):
             {n: i.expression for n, i in self.context_expressions.items()})
 
         errors = []
+        for name, expression in self._missing_parameters.items():
+            close = difflib.get_close_matches(name, sorted(self.context_items),
+                                              n=3)
+            hint = ' Did you mean: {}?'.format(', '.join(close)) \
+                if close else ''
+            errors.append(f'"{name}": set by expression {expression!r}, but '
+                          'there is no such parameter. Set allow_missing on '
+                          'the Expression if it is an intermediate value.'
+                          f'{hint}')
         for name, expression in expressions.items():
             # EnumParameter expressions may be non-string values (e.g., the
             # integer mapped to a choice); the namespace str()s them before

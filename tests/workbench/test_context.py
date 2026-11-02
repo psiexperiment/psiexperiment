@@ -260,3 +260,23 @@ def test_revert_changes_restores_state(workbench):
     context.revert_changes()
     assert context.context_items['level'].expression == original_expr
     assert context.changes_pending is False
+
+
+def test_expression_for_missing_parameter_is_an_error(workbench, helpers):
+    # E.g., a typo, or a token that was renamed. Raised once everything is
+    # registered (when changes are applied), not while manifests register.
+    workbench.register(helpers.MissingParameterExpression())
+    context = workbench.get_plugin('psi.context')
+    with pytest.raises(ValueError) as excinfo:
+        context.apply_changes()
+    mesg = str(excinfo.value)
+    assert '"repetitionz": set by expression' in mesg
+    assert 'Did you mean: repetitions' in mesg
+
+
+def test_expression_allow_missing_defines_intermediate(workbench, helpers):
+    workbench.register(helpers.IntermediateExpression())
+    context = workbench.get_plugin('psi.context')
+    context.apply_changes()
+    context.next_setting('default')
+    assert context.get_value('fc') == 120
