@@ -34,8 +34,11 @@ class EpochCounter(SinkWithSource):
     @d_func
     def set_requested_n(self, controller):
         output = controller.get_output(self.output_name)
-        self.requested_n = output.queue.count_requested_trials()
-        log.info('Expecting %d trials for %s', self.requested_n, self.output_name)
+        requested_n = output.queue.count_requested_trials()
+        log.info('Expecting %d trials for %s', requested_n, self.output_name)
+        # Shown in the progress bar, so set on the GUI thread (this is called
+        # from the dispatcher thread).
+        deferred_call(setattr, self, 'requested_n', requested_n)
 
     def _update_data(self, epochs):
         n = epochs.shape[0]
