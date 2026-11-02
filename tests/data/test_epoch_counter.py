@@ -74,3 +74,17 @@ def test_grouped_epoch_counter_caps_at_requested_group_n():
     gc._update_data(epochs)
     # All 5 share one key; capped at requested_group_n.
     assert gc.current_n == 2
+
+
+def test_grouped_epoch_counter_extra_groups_accepts_names():
+    # Without `groups`, and with names and context items mixed.
+    from psi.context.api import Parameter
+    gc = GroupedEpochCounter(name='gc', output_name='dummy',
+                             extra_groups=['stim', Parameter(name='level')])
+    epochs = [
+        _Epoch({'stim': 'A', 'level': 60}),
+        _Epoch({'stim': 'A', 'level': 60}),
+        _Epoch({'stim': 'A', 'level': 70}),
+    ]
+    gc._update_data(epochs)
+    assert dict(gc.counts) == {('A', 60): 2, ('A', 70): 1}

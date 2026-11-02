@@ -45,6 +45,8 @@ class EpochCounter(SinkWithSource):
 class GroupedEpochCounter(EpochCounter):
 
     groups = d_(Typed(ContextMeta))
+
+    #: Additional context items (or their names) to group by.
     extra_groups = d_(List())
 
     #: Number of epochs requested per group. Does not allow for per-group
@@ -55,9 +57,10 @@ class GroupedEpochCounter(EpochCounter):
     get_key = Typed(object)
 
     def _default_get_key(self):
-        groups = list(self.groups.values) + list(self.extra_groups)
+        groups = list(self.groups.values) if self.groups is not None else []
+        groups += list(self.extra_groups)
         if len(groups):
-            group_names = [v.name for v in groups]
+            group_names = [v if isinstance(v, str) else v.name for v in groups]
             return operator.itemgetter(*group_names)
 
     def _update_data(self, epochs):
