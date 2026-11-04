@@ -120,6 +120,26 @@ def install_exception_handler():
     sys.excepthook = exception_handler
 
 
+#: Qt warnings that are known to be harmless and must NOT abort an experiment.
+#: Matched against the start of the message.
+#:
+#: * ``QWindowsWindow::setGeometry: Unable to set geometry`` -- a window asked
+#:   for a size that doesn't fit on the monitor (e.g. a tall paradigm window on
+#:   a 1080p screen), so Windows clamped it. The window is still usable; Qt is
+#:   just reporting that it got a smaller size than requested.
+BENIGN_QT_MESSAGES = (
+    'QWindowsWindow::setGeometry: Unable to set geometry',
+)
+
+
+def is_benign_qt_message(message):
+    '''
+    Return True if `message` is a Qt warning known to be harmless (see
+    BENIGN_QT_MESSAGES).
+    '''
+    return message.startswith(BENIGN_QT_MESSAGES)
+
+
 def install_qt_message_handler():
     '''
     Install a Qt message handler that treats Qt-level warnings/errors (e.g.
@@ -135,7 +155,8 @@ def install_qt_message_handler():
     `QtInfoMsg` are logged only; `QtWarningMsg` and above are additionally
     routed through psiexperiment's own exception handler (see
     install_exception_handler) so they get the same graceful-shutdown
-    treatment as any other uncaught exception.
+    treatment as any other uncaught exception. Messages listed in
+    BENIGN_QT_MESSAGES are only logged as warnings.
 
     Called automatically by launch_experiment.
     '''
@@ -143,6 +164,9 @@ def install_qt_message_handler():
     from enaml.qt.QtCore import QtMsgType, qInstallMessageHandler
 
     def _handler(msg_type, context, message):
+        if is_benign_qt_message(message):
+            log.warning('[QT MESSAGE] %s', message)
+            return
         stack = ''.join(traceback.format_stack(limit=20))
         log.error('[QT MESSAGE] %s\n%s', message, stack)
         if msg_type in (QtMsgType.QtDebugMsg, QtMsgType.QtInfoMsg):
