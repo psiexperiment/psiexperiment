@@ -68,8 +68,8 @@ class BaseCalibrate(PSIContribution):
         parameters = {'name': name, 'dataframe': dataframe}
         deferred_call(core_plugin.invoke_command, save_command, parameters)
 
-    def save(self, core_plugin):
-        for key, value in self.result.items():
+    def save(self, core_plugin, result):
+        for key, value in result.items():
             name = self.name if key == 'calibration' else f'{self.name}_{key}'
             self.save_dataframe(core_plugin, value, name)
 
@@ -90,7 +90,12 @@ class BaseCalibrate(PSIContribution):
         for ao_channel, kwargs in self.get_config(controller, core).items():
             log.debug('Running calibration for %s', ao_channel.name)
             results[(ao_channel.name,)] = self.run_calibration(ao_channel, ai_channel, kwargs)
-        self.result = merge_results(results)
+        result = merge_results(results)
+        # Observers of result update plots and widgets, so set it on the GUI
+        # thread. Callers that need the result now (e.g., to save it) must use
+        # the return value instead, since self.result is not updated yet.
+        deferred_call(setattr, self, 'result', result)
+        return result
 
     def get_config(self, controller, core):
         raise NotImplementedError
