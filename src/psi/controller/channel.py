@@ -130,12 +130,19 @@ class HardwareMixin(Declarative):
 
     fs = d_(Float()).tag(metadata=True)
 
+    #: Callables notified with `(offset, out)` each time the samples starting
+    #: at `offset` are generated (e.g., to read back what an output plays).
+    #: `out` is reused by the engine, so copy it to keep it.
+    monitors = List()
+
     def get_samples(self, offset, samples, out):
         '''
         Generate samples starting at offset
         '''
         for output in self.outputs:
             output.get_samples(offset, samples, out=out)
+        for monitor in self.monitors:
+            monitor(offset, out)
 
 
 class SoftwareMixin(Declarative):

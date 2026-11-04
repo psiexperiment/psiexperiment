@@ -399,6 +399,12 @@ class ExtractPower(ContinuousInput):
         samples = self.duration * self.parent.fs
         return self.parent.fs / samples
 
+    def _observe_duration(self, event):
+        # The sampling rate follows the chunk duration; tell whatever already
+        # depends on it (e.g., plots) when the duration is changed later.
+        if event['type'] == 'update' and self.parent is not None:
+            self._fs_updated(event)
+
     def configure_callback(self):
         if self.duration <= 0:
             m = 'Duration for {} must be > 0'.format(self.name)

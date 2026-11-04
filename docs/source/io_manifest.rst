@@ -74,6 +74,26 @@ For behavioral experiments, you may need to convert analog signals (e.g., from a
 .. literalinclude:: ../../psi/templates/io/_gonogo_behavior.enaml
     :language: enaml
 
+Behavior on any computer, with keys for sensors
+...............................................
+
+``psi.controller.engines.keyboard.KeyboardEngine`` stands in for a rig's
+sensors so a behavioral paradigm can run on a computer with only a sound card.
+Its inputs are sampled streams, like the sensors they replace, so the same
+processing chains, plots and stored data are exercised:
+
+*   ``KeyboardAIChannel`` reads back what the engine's ``KeyboardAOChannel``
+    outputs play (as an IR sensor reads back its emitter), dropping while its
+    ``key`` is held (the beam is broken).
+*   ``LoopbackAIChannel`` reads back the samples written to an output channel
+    on the clock engine (a digital loopback of, e.g., the speaker).
+*   Software-timed digital outputs (e.g., pellet dispensers) are logged.
+
+Set ``clock`` to the engine playing the stimuli (normally the master clock).
+The keyboard inputs keep pace with it and key presses are timestamped on it,
+so edges line up with the stimuli. Keys are read whichever widget has focus,
+except fields the user types into.
+
 ---------------------------
 How to use an IO Manifest
 ---------------------------
