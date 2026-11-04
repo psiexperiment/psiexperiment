@@ -10,10 +10,12 @@ import pytest
 from psiaudio.calibration import FlatCalibration
 from psiaudio.stim import ToneFactory
 
-from psi.controller.api import ContinuousCallbackOutput, HardwareAOChannel
+from psi.controller.api import (
+    ContinuousCallbackOutput, HardwareAOChannel, TimedTrigger
+)
 from psi.controller.engines.keyboard import (
-    KeyboardAIChannel, KeyboardAOChannel, KeyboardEngine, LoopbackAIChannel,
-    make_key_filter, qt_key
+    KeyboardAIChannel, KeyboardAOChannel, KeyboardDOChannel, KeyboardEngine,
+    LoopbackAIChannel, make_key_filter, qt_key
 )
 from psi.controller.engines.null import NullEngine
 from psi.controller.input import (
@@ -193,6 +195,43 @@ def test_loopback_reads_back_source():
     assert speaker.monitors == []
 
 
+def test_loopback_reads_back_timed_trigger():
+    '''
+    A TTL scheduled on a hardware-timed digital output on the keyboard engine
+    (e.g., a sync pulse) is read back by a loopback of it.
+    '''
+    sound = NullEngine(name='sound', buffer_size=10)
+    engine = KeyboardEngine(name='keyboard', fs=FS, clock=sound)
+    sync = KeyboardDOChannel(name='sync_trigger', parent=engine)
+    engine.add_channel(sync)
+    trigger = TimedTrigger(name='sync_trigger')
+    sync.add_output(trigger)
+    loopback = LoopbackAIChannel(name='sync_monitor',
+                                 source_name='sync_trigger', parent=engine)
+    engine.add_channel(loopback)
+    assert sync.fs == FS
+    assert loopback.fs == FS
+    data = record(loopback)
+    engine.configure()
+
+    trigger.trigger(0.25, 0.1)
+    engine.generate(0.2)
+    engine.generate(0.5)
+    expected = np.zeros(500)
+    expected[250:350] = 1
+    np.testing.assert_array_equal(concat(data), expected)
+
+
+def test_loopback_unknown_source():
+    sound = NullEngine(name='sound', buffer_size=10)
+    engine = KeyboardEngine(name='keyboard', fs=FS, clock=sound)
+    loopback = LoopbackAIChannel(name='loopback', source_name='missing',
+                                 parent=engine)
+    engine.add_channel(loopback)
+    with pytest.raises(AttributeError, match='missing'):
+        loopback.source
+
+
 def test_strobed_ir_pipeline_detects_key():
     '''
     The keys drive the same processing chain as the IR sensors on a rig
@@ -311,6 +350,33 @@ def test_key_filter(app):
         assert not send(field, QEvent.Type.KeyPress)
         assert not engine._pressed['np_contact']
     field.close()
+
+
+def test_key_shared_by_channels(app):
+    '''
+    Channels that share a key are all driven by it, as when a rig makes one
+    sensor available under two names.
+    '''
+    from enaml.qt.QtCore import QEvent, Qt
+    from enaml.qt.QtGui import QKeyEvent
+    from enaml.qt.QtWidgets import QPushButton
+
+    engine = make_engine()
+    shared = KeyboardAIChannel(name='reward_contact', key='Right',
+                               parent=engine)
+    engine.add_channel(shared)
+    for name in ('resp_contact_1', 'reward_contact'):
+        record(engine.get_channel(name))
+    engine.configure()
+    engine._install_key_filter()
+    try:
+        event = QKeyEvent(QEvent.Type.KeyPress, Qt.Key.Key_Right,
+                          Qt.KeyboardModifier.NoModifier, '', False)
+        assert engine._key_filter.eventFilter(QPushButton(), event)
+        assert engine._pressed['resp_contact_1']
+        assert engine._pressed['reward_contact']
+    finally:
+        engine._remove_key_filter()
 
 
 def test_thread_generates_samples():
