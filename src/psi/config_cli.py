@@ -7,6 +7,7 @@ calling ``psi-config get`` should not pay for loading it.
 '''
 import argparse
 import logging
+import os
 from pathlib import Path
 
 import psi
@@ -156,11 +157,81 @@ def _format_for_shell(name, value):
     return str(value)
 
 
-def show_config(args):
-    loaded = _register_downstream_settings()
+#: How to point psi at a different configuration file, for --help. Both
+#: shells are given because rigs use either, and the per-environment
+#: recipes because a separate file per environment is how psi supports
+#: more than one configuration on a machine (see psi.config.get_config_file).
+CONFIG_FILE_OVERRIDE_HELP = '''\
+To use a different configuration file, set the PSI_CONFIG_FILE environment
+variable to its path before running psi or psi-config. Leave it unset (or
+empty) to use the default, ~/psi/config.toml.
+
+For the current window only (lasts until the window is closed):
+
+  Command Prompt:  set PSI_CONFIG_FILE=D:\\rig\\config.toml
+  PowerShell:      $env:PSI_CONFIG_FILE = 'D:\\rig\\config.toml'
+
+Permanently, for your Windows user account (every psi install and every
+environment; a conda or venv setting below takes precedence once that
+environment is activated):
+
+  setx PSI_CONFIG_FILE D:\\rig\\config.toml
+
+  This affects only windows opened afterwards -- not the one you ran it
+  in. Add /M (from an administrator window) to set it for all users.
+  Remove it with `reg delete HKCU\\Environment /v PSI_CONFIG_FILE /f`,
+  then open a new window. On Linux and macOS, add the `export` line
+  shown under venv below to ~/.bashrc or ~/.zshrc instead.
+
+For a conda environment (set whenever the environment is activated):
+
+  conda activate psi
+  conda env config vars set PSI_CONFIG_FILE=D:\\rig\\config.toml
+  conda activate psi
+
+  Re-activating is required for it to take effect. Check it with
+  `conda env config vars list`; remove it with
+  `conda env config vars unset PSI_CONFIG_FILE`.
+
+For a venv (set whenever the environment is activated): add a line to the
+end of the activation script for each shell you use, in the venv's
+Scripts folder (bin/activate on Linux and macOS):
+
+  Scripts\\activate.bat:  set "PSI_CONFIG_FILE=D:\\rig\\config.toml"
+  Scripts\\Activate.ps1:  $env:PSI_CONFIG_FILE = 'D:\\rig\\config.toml'
+  bin/activate:          export PSI_CONFIG_FILE=/data/rig/config.toml
+
+  Deactivating the venv does not clear it; close the window or clear it
+  by hand. Recreating the venv discards these edits.'''
+
+
+def describe_config_file():
+    '''
+    Lines saying which configuration file is in use and why.
+
+    "Why" is the part that matters: when settings are not what someone
+    expects, the first thing to rule out is that PSI_CONFIG_FILE (set in
+    a batch file, a shortcut or a forgotten terminal) is pointing psi at
+    a different file than the one they have been editing.
+    '''
     config_file = psi.get_config_file()
     exists = 'exists' if config_file.exists() else 'does not exist'
-    print(f'Configuration file: {config_file} ({exists})')
+    lines = [f'Configuration file: {config_file} ({exists})']
+    override = os.environ.get('PSI_CONFIG_FILE')
+    if override:
+        lines.append('  Chosen by the PSI_CONFIG_FILE environment variable, '
+                     'overriding the default (~/psi/config.toml).')
+    else:
+        lines.append('  The default location. Set the PSI_CONFIG_FILE '
+                     'environment variable to use another file '
+                     '(see psi-config --help).')
+    return lines
+
+
+def show_config(args):
+    loaded = _register_downstream_settings()
+    for line in describe_config_file():
+        print(line)
     if loaded:
         print(f'Also loaded: {", ".join(sorted(loaded))}')
 
@@ -290,6 +361,11 @@ def set_config_value(args):
     if isinstance(value, Path):
         value = str(value)
     print(f'{args.setting} = {value}')
+    # Name the file: with PSI_CONFIG_FILE set, it is not the one under
+    # ~/psi that someone may then open to check the write.
+    print(f'Written to {psi.get_config_file()}'
+          + (' (chosen by PSI_CONFIG_FILE)'
+             if os.environ.get('PSI_CONFIG_FILE') else ''))
     if source == 'environment':
         # Writing succeeded but changed nothing the application will
         # see. Saying so here avoids a long hunt later.
@@ -326,7 +402,12 @@ def create_io(args):
 def build_parser():
     parser = argparse.ArgumentParser(
         'psi-config',
-        description='Configure psiexperiment'
+        description='Configure psiexperiment. Run `psi-config show` to see '
+                    'which configuration file is in use.',
+        epilog=CONFIG_FILE_OVERRIDE_HELP,
+        # Keep the epilog's line breaks; argparse would otherwise rewrap
+        # the two example commands into one paragraph.
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     subparsers = parser.add_subparsers(
         dest='cmd',
@@ -336,12 +417,11 @@ def build_parser():
 
     show = subparsers.add_parser(
         'show',
-        description='Show the config file location, every setting, its '
-                    'resolved value and which layer supplied it. The config '
-                    'file is ~/psi/config.toml unless the PSI_CONFIG_FILE '
-                    'environment variable names another file; set it before '
-                    'running psi or psi-config to use a different '
-                    'configuration.',
+        description='Show the config file location (and whether '
+                    'PSI_CONFIG_FILE overrode it), every setting, its '
+                    'resolved value and which layer supplied it.',
+        epilog=CONFIG_FILE_OVERRIDE_HELP,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     show.set_defaults(func=show_config)
     show.add_argument(

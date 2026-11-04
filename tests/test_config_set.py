@@ -79,3 +79,9 @@ def test_invalid_value_is_not_written(config_file, declared, monkeypatch):
 def test_table_is_refused(config_file, declared, monkeypatch):
     with pytest.raises(SystemExit, match='holds a table'):
         _set(monkeypatch, 'PSI_T_TABLE', 'x')
+
+
+def test_names_the_file_written(config_file, declared, monkeypatch, capsys):
+    _set(monkeypatch, 'PSI_T_RATE', '96000')
+    out = capsys.readouterr().out
+    assert f'Written to {config_file} (chosen by PSI_CONFIG_FILE)' in out

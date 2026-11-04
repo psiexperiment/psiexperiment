@@ -205,3 +205,47 @@ class TestCreateCommandsMakeDownstreamFolders:
     def test_create_folders(self, downstream_root, monkeypatch):
         self._run(monkeypatch, 'create-folders')
         assert downstream_root.is_dir()
+
+
+class TestDescribeConfigFile:
+    '''
+    `psi-config show` must say which file it read and whether
+    PSI_CONFIG_FILE chose it: a variable left set in a batch file or a
+    terminal silently points psi at a file other than the one being edited.
+    '''
+
+    def test_default_location_explains_override(self, monkeypatch):
+        from psi.config_cli import describe_config_file
+        monkeypatch.delenv('PSI_CONFIG_FILE', raising=False)
+        lines = describe_config_file()
+        assert str(Path('~/psi/config.toml').expanduser()) in lines[0]
+        assert 'default location' in lines[1]
+        assert 'PSI_CONFIG_FILE' in lines[1]
+
+    def test_reports_override(self, monkeypatch, tmp_path):
+        from psi.config_cli import describe_config_file
+        path = tmp_path / 'rig.toml'
+        path.write_text('', encoding='utf-8')
+        monkeypatch.setenv('PSI_CONFIG_FILE', str(path))
+        lines = describe_config_file()
+        assert lines[0] == f'Configuration file: {path} (exists)'
+        assert 'Chosen by the PSI_CONFIG_FILE' in lines[1]
+
+    def test_empty_variable_is_not_an_override(self, monkeypatch):
+        # get_config_file treats an empty PSI_CONFIG_FILE as unset; the
+        # description must agree rather than claim an override.
+        from psi.config_cli import describe_config_file
+        monkeypatch.setenv('PSI_CONFIG_FILE', '')
+        assert 'default location' in describe_config_file()[1]
+
+    def test_help_explains_override(self, capsys):
+        from psi.config_cli import build_parser
+        with pytest.raises(SystemExit):
+            build_parser().parse_args(['--help'])
+        out = capsys.readouterr().out
+        assert 'PSI_CONFIG_FILE' in out
+        # The example commands keep their own lines.
+        assert '\n  PowerShell:' in out
+        assert 'conda env config vars set PSI_CONFIG_FILE=' in out
+        assert 'Scripts\\activate.bat' in out
+        assert 'setx PSI_CONFIG_FILE' in out
