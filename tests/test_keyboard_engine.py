@@ -238,6 +238,29 @@ def test_strobed_ir_pipeline_detects_key():
     assert events[1][1] == pytest.approx(2.0, abs=0.1)
 
 
+def test_extract_power_duration_updates_fs():
+    '''
+    Changing the chunk duration after the chain is built (as StrobedIR does
+    for a channel's settings) tells the inputs downstream of the new rate.
+    '''
+    engine = KeyboardEngine(name='keyboard', fs=10000)
+    channel = KeyboardAIChannel(name='np_contact', key='Space', parent=engine)
+    engine.add_channel(channel)
+    power = ExtractPower(name='np_raw', duration=0.05, frequency=500)
+    power.set_parent(channel)
+    channel.add_input(power)
+    scale = AutoScale(name='np_analog', baseline=-1)
+    scale.set_parent(power)
+    power.add_input(scale)
+
+    rates = []
+    scale.observe('fs', lambda e: rates.append(e['value']))
+    assert scale.fs == pytest.approx(20)
+    power.duration = 0.01
+    assert scale.fs == pytest.approx(100)
+    assert rates == [pytest.approx(100)]
+
+
 def test_qt_key():
     from enaml.qt.QtCore import Qt
     assert qt_key('Space') == Qt.Key.Key_Space
