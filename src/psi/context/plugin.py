@@ -476,6 +476,8 @@ class ContextPlugin(PSIPlugin):
         Verify that every context expression parses, references only known
         names (other context items, symbols, or Python builtins) and sets a
         parameter that exists (unless the expression has `allow_missing`).
+        Then evaluates those that do not depend on the trial (see
+        `_evaluate_expressions`), catching errors such as `1/0`.
 
         Expressions are evaluated per-trial, so without this check a typo
         surfaces as an exception partway through a running experiment. It is
@@ -520,10 +522,50 @@ class ContextPlugin(PSIPlugin):
                     if close else ''
                 errors.append(f'"{name}": expression {expression!r} '
                               f'references unknown name "{dep}".{hint}')
+        if not errors:
+            errors = self._evaluate_expressions()
         if errors:
             mesg = 'Cannot apply the current context settings:\n' + \
                 '\n'.join(f' - {e}' for e in errors)
             raise ValueError(mesg)
+
+    def _evaluate_expressions(self):
+        '''
+        Evaluate every expression whose value does not depend on the trial,
+        returning a message for each that fails (e.g., `1/0`).
+
+        An expression is skipped if it depends, directly or through other
+        expressions, on a roved parameter or on a context item that has no
+        expression (e.g., a `Result`); those are only known once a trial is
+        prepared. Run once names are known to be valid, so any other
+        `NameError` is an error too.
+        '''
+        expressions = {n: str(e) for n, e in self.expressions.items()}
+        per_trial = {n for n, i in self.context_items.items()
+                     if not isinstance(i, Parameter) or i.rove}
+
+        dependencies = {}
+        for name, expression in expressions.items():
+            dependencies[name] = {d.split('.')[0]
+                                  for d in get_dependencies(expression)}
+        while True:
+            depends_on_trial = {n for n, d in dependencies.items()
+                                if n not in per_trial and d & per_trial}
+            if not depends_on_trial:
+                break
+            per_trial |= depends_on_trial
+
+        namespace = ExpressionNamespace(expressions, dict(self.symbols))
+        errors = []
+        for name, expression in expressions.items():
+            if name in per_trial:
+                continue
+            try:
+                namespace.get_value(name)
+            except Exception as e:
+                errors.append(f'"{name}": expression {expression!r} cannot be '
+                              f'evaluated ({type(e).__name__}: {e}).')
+        return errors
 
     def apply_changes(self, cycles=np.inf):
         log.debug('Applying changes')

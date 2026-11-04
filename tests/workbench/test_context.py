@@ -251,6 +251,37 @@ def test_apply_changes_valid_after_fixing_error(workbench):
     assert context.get_value('fc') == 120
 
 
+def test_apply_changes_rejects_expression_that_fails(workbench):
+    # Valid Python with known names, but it cannot be evaluated.
+    context = workbench.get_plugin('psi.context')
+    context.context_items['level'].expression = '60 / 0'
+    with pytest.raises(ValueError) as excinfo:
+        context.apply_changes()
+    assert '''"level": expression '60 / 0' cannot be evaluated ''' \
+        '(ZeroDivisionError' in str(excinfo.value)
+
+
+def test_apply_changes_skips_expressions_known_per_trial(workbench):
+    # fc depends on repetitions, which is roved, and level depends on fc, so
+    # neither can be evaluated until a trial is prepared.
+    context = workbench.get_plugin('psi.context')
+    context.context_items['fc'].expression = '32e3 / (repetitions - 2)'
+    context.context_items['level'].expression = 'fc * 0 + 60'
+    context.apply_changes()
+    context.next_setting('default')
+    with pytest.raises(ZeroDivisionError):
+        context.get_value('fc')
+
+
+def test_apply_changes_skips_expressions_using_results(workbench, helpers):
+    workbench.register(helpers.ResultExpression())
+    context = workbench.get_plugin('psi.context')
+    context.apply_changes()
+    context.next_setting('default')
+    context.set_value('reaction_time', 0.5)
+    assert context.get_value('level') == 120
+
+
 def test_revert_changes_restores_state(workbench):
     context = workbench.get_plugin('psi.context')
     context.apply_changes()

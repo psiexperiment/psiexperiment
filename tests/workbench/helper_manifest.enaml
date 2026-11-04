@@ -81,6 +81,25 @@ enamldef MissingParameterExpression(ExperimentManifest):
             expression = '3'
 
 
+enamldef ResultExpression(ExperimentManifest):
+    '''
+    An expression that depends on a result, which is only known once a
+    trial has run.
+    '''
+
+    Extension:
+        id = 'helper_items'
+        point = 'psi.context.items'
+
+        Result:
+            name = 'reaction_time'
+            group_name = 'default'
+
+        Expression:
+            parameter = 'level'
+            expression = '60 / reaction_time'
+
+
 enamldef IntermediateExpression(ExperimentManifest):
 
     Extension:
