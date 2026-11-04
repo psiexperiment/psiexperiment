@@ -84,9 +84,13 @@ processing chains, plots and stored data are exercised:
 
 *   ``KeyboardAIChannel`` reads back what the engine's ``KeyboardAOChannel``
     outputs play (as an IR sensor reads back its emitter), dropping while its
-    ``key`` is held (the beam is broken).
+    ``key`` is held (the beam is broken). Channels can share a key (e.g., one
+    sensor a rig makes available under two names).
+*   ``KeyboardDOChannel`` is a hardware-timed digital output (e.g., a TTL sync
+    pulse scheduled by a ``TimedTrigger``).
 *   ``LoopbackAIChannel`` reads back the samples written to an output channel
-    on the clock engine (a digital loopback of, e.g., the speaker).
+    on the clock engine or a ``KeyboardDOChannel`` (a digital loopback of,
+    e.g., the speaker or the sync pulse).
 *   Software-timed digital outputs (e.g., pellet dispensers) are logged.
 
 Set ``clock`` to the engine playing the stimuli (normally the master clock).

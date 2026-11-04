@@ -12,7 +12,12 @@ is held (the beam is broken), the signal drops to `held_level`. Without an
 active output, the inputs read 1 while the key is up.
 
 A `LoopbackAIChannel` reads back the samples written to an output channel on
-the clock engine (e.g., the speaker on a sound card), as a digital loopback.
+the clock engine (e.g., the speaker on a sound card), or to a
+`KeyboardDOChannel` on this engine, as a digital loopback.
+
+A `KeyboardDOChannel` is a hardware-timed digital output (e.g., a TTL sync
+pulse scheduled by a `TimedTrigger`). Its samples are generated with the
+inputs, so a loopback of it records the pulse where a rig would record it.
 
 The engine has no clock of its own. It generates samples to keep pace with
 `clock` (typically the sound card playing the stimuli), and key presses are
@@ -50,7 +55,7 @@ import numpy as np
 
 from psiaudio.pipeline import PipelineData
 
-from ..channel import HardwareAIChannel, HardwareAOChannel
+from ..channel import HardwareAIChannel, HardwareAOChannel, HardwareDOChannel
 from ..engine import Engine
 from .callback import BaseCallbackMixin
 
@@ -61,7 +66,7 @@ class KeyboardAIChannel(HardwareAIChannel):
     while `key` is held.
     '''
     #: Qt name of the key, without the `Key_` prefix (e.g., 'Space', 'Left',
-    #: 'J').
+    #: 'J'). Several channels can share a key.
     key = d_(Str()).tag(metadata=True)
 
     #: Fraction of the signal read back while the key is held.
@@ -84,10 +89,21 @@ class KeyboardAOChannel(HardwareAOChannel):
         return self.engine.fs
 
 
+class KeyboardDOChannel(HardwareDOChannel):
+    '''
+    Hardware-timed digital output (e.g., a TTL sync pulse). Its samples are
+    generated at the engine's rate, so a `LoopbackAIChannel` can read it back.
+    '''
+    fs = Property().tag(metadata=True)
+
+    def _get_fs(self):
+        return self.engine.fs
+
+
 class LoopbackAIChannel(HardwareAIChannel):
     '''
     Input that reads back the samples written to `source_name`, an output
-    channel on the engine's clock engine.
+    channel on the engine's clock engine or on this engine.
     '''
     #: Name of the output channel to read back (e.g., 'speaker_1').
     source_name = d_(Str()).tag(metadata=True)
@@ -99,7 +115,14 @@ class LoopbackAIChannel(HardwareAIChannel):
 
     @property
     def source(self):
-        return self.engine.clock.get_channel(self.source_name)
+        engines = [self.engine.clock, self.engine]
+        for engine in engines:
+            for channel in engine.get_channels(active=False):
+                if channel.name == self.source_name:
+                    return channel
+        names = ', '.join(sorted({e.name for e in engines}))
+        raise AttributeError(f'{self.source_name} channel does not exist on '
+                             f'{names}.')
 
 
 class KeyboardEngine(BaseCallbackMixin, Engine):
@@ -265,7 +288,7 @@ class KeyboardEngine(BaseCallbackMixin, Engine):
     def _install_key_filter(self):
         key_map = {}
         for channel in self.key_channels():
-            key_map[qt_key(channel.key)] = channel.name
+            key_map.setdefault(qt_key(channel.key), []).append(channel.name)
         self._key_filter = make_key_filter(self, key_map)
         from enaml.qt.QtWidgets import QApplication
         QApplication.instance().installEventFilter(self._key_filter)
@@ -302,6 +325,8 @@ class KeyboardEngine(BaseCallbackMixin, Engine):
             ts = self.get_ts()
         if not np.isfinite(ts):
             return
+        # Generates the digital outputs too, so must come before the
+        # loopbacks of them.
         self._generate_key_samples(ts)
         self._generate_loopback_samples(ts)
 
@@ -311,6 +336,11 @@ class KeyboardEngine(BaseCallbackMixin, Engine):
         if n <= 0:
             return
         channels = self.key_channels()
+
+        # Generating the samples of the hardware-timed digital outputs passes
+        # them to their monitors (i.e., loopbacks).
+        for channel in self.get_channels('digital', 'output', 'hardware'):
+            channel.get_samples(s0, n, np.zeros(n))
 
         emitter = np.zeros(n)
         outputs = self.get_channels('analog', 'output')
@@ -398,7 +428,9 @@ def qt_key(name):
 def make_key_filter(engine, key_map):
     '''
     An application-wide event filter that passes the keys in `key_map` (Qt
-    key code to channel name) to `engine`.
+    key code to a channel name, or a list of them) to `engine`. A key mapped
+    to several channels drives them all (e.g., one sensor that a rig makes
+    available under two names).
 
     Keys are read whichever widget has focus, except a widget the user types
     into (e.g., a parameter field). Key repeats while a key is held are
@@ -422,11 +454,14 @@ def make_key_filter(engine, key_map):
         def eventFilter(self, obj, event):
             kind = event.type()
             if kind in (QEvent.Type.KeyPress, QEvent.Type.KeyRelease):
-                name = key_map.get(event.key())
-                if name is None or typing():
+                names = key_map.get(event.key())
+                if names is None or typing():
                     return False
+                if isinstance(names, str):
+                    names = [names]
                 if not event.isAutoRepeat():
-                    engine.set_key(name, kind == QEvent.Type.KeyPress)
+                    for name in names:
+                        engine.set_key(name, kind == QEvent.Type.KeyPress)
                 return True
             if kind == QEvent.Type.ApplicationDeactivate:
                 engine.release_keys()
