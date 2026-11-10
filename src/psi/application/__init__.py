@@ -128,7 +128,13 @@ def install_exception_handler():
 #:   a 1080p screen), so Windows clamped it. The window is still usable; Qt is
 #:   just reporting that it got a smaller size than requested.
 BENIGN_QT_MESSAGES = (
+    # Windows clamps a window taller than the monitor.
     'QWindowsWindow::setGeometry: Unable to set geometry',
+    # Qt's own drag-and-drop bookkeeping over a plot: a drag that started
+    # outside the view (e.g., dragging a dock, or input over Remote Desktop)
+    # left it without having entered. Raised from Qt's event loop, with no
+    # psi code involved, and used to stop a running experiment.
+    'QGraphicsView::dragLeaveEvent: drag leave received before drag enter',
 )
 
 
