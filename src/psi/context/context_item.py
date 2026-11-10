@@ -352,6 +352,18 @@ class EnumParameter(Parameter):
             return next(iter(self.choices))
         return self.default
 
+    def _post_validate_selected(self, old, new):
+        # An unknown choice (e.g., one saved in a preferences file before the
+        # choices were renamed) used to leave the value silently None, and a
+        # paradigm reading it could then run with nothing to do: an ABR click
+        # polarity of None queued no trials and the experiment "finished" at
+        # once.
+        if self.choices and new not in self.choices:
+            valid = ', '.join(repr(k) for k in self.choices)
+            raise ValueError(f'{new!r} is not a choice for {self.name}. '
+                             f'Valid choices are {valid}.')
+        return new
+
     @observe('selected')
     def _notify_update(self, event):
         if self.is_initialized:

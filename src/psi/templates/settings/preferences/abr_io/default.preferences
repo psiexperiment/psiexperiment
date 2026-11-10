@@ -34,7 +34,7 @@ context:
         compact_label: Detrend mode
         label: Detrend mode
         rove: false
-        selected: None
+        selected: Do not
         visible: true
       reject_mode:
         compact_label: Rej. mode

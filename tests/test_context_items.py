@@ -138,6 +138,22 @@ def test_enum_parameter_default_selected_falls_back_to_first():
     assert item.selected == 'fast'
 
 
+def test_enum_parameter_unknown_saved_choice_raises():
+    # E.g., a preferences file saved before the choices were renamed
+    # ('alternating' became 'alt.'). The value used to become None silently,
+    # and the click ABR then queued no trials and "finished" at once.
+    item = EnumParameter(
+        name='click_polarity',
+        choices={'cond.': '"condensation"', 'alt.': '"alternating"'},
+    )
+    with pytest.raises(ValueError, match="'alternating' is not a choice "
+                       "for click_polarity"):
+        item.set_preferences({'selected': 'alternating'})
+    assert item.selected == 'cond.'
+    item.set_preferences({'selected': 'alt.'})
+    assert item.expression == '"alternating"'
+
+
 def test_multi_select_invalid_key_raises():
     item = MultiSelectParameter(
         name='stim',
