@@ -46,6 +46,20 @@ def _reindex(x):
     return x.set_index(['repeat', 't0'])
 
 
+def clone_engines(engines):
+    '''
+    Clone `engines`, keeping each one that follows another's clock (e.g., a
+    `KeyboardEngine`, whose inputs keep pace with the sound card) following
+    that one's clone.
+    '''
+    clones = {e: e.clone() for e in engines}
+    for engine, clone in clones.items():
+        clock = getattr(engine, 'clock', None)
+        if clock is not None and clock is not engine and clock in clones:
+            clone.clock = clones[clock]
+    return list(clones.values())
+
+
 def acquire(engines, ao_channel_name, ai_channel_names, setup_queue_cb,
             epoch_size, trim=0):
     '''
@@ -57,7 +71,7 @@ def acquire(engines, ao_channel_name, ai_channel_names, setup_queue_cb,
     if not isinstance(engines, (tuple, list)):
         engines = [engines]
 
-    engines = [e.clone() for e in engines]
+    engines = clone_engines(engines)
     channel_map = {}
     for engine in engines:
         for channel in engine.get_channels(active=False):

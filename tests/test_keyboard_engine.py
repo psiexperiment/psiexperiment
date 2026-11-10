@@ -222,6 +222,100 @@ def test_loopback_reads_back_timed_trigger():
     np.testing.assert_array_equal(concat(data), expected)
 
 
+def make_speakers(sound, *callbacks):
+    '''
+    One output channel on `sound` per callback, playing it (None leaves the
+    channel unused).
+    '''
+    speakers = []
+    for i, callback in enumerate(callbacks):
+        speaker = HardwareAOChannel(
+            name=f'speaker_{i + 1}', fs=FS,
+            calibration=FlatCalibration.as_attenuation(), parent=sound)
+        sound.add_channel(speaker)
+        if callback is not None:
+            output = ContinuousCallbackOutput(name=f'stim_{i + 1}',
+                                              callback=callback)
+            speaker.add_output(output)
+            output.active = True
+        speakers.append(speaker)
+    return speakers
+
+
+def test_loopback_sums_sources():
+    '''
+    A loopback of several outputs (e.g., a starship's microphone) reads back
+    their sum, and only as far as all of them have been written.
+    '''
+    sound = NullEngine(name='sound', buffer_size=10)
+    s1, s2 = make_speakers(
+        sound,
+        lambda n, _: np.ones(n),
+        lambda n, _: np.full(n, 2.0),
+    )
+    engine = KeyboardEngine(name='keyboard', fs=FS, clock=sound)
+    loopback = LoopbackAIChannel(name='microphone',
+                                 source_names=['speaker_1', 'speaker_2'],
+                                 parent=engine)
+    engine.add_channel(loopback)
+    assert loopback.sources == [s1, s2]
+    data = record(loopback)
+    engine.configure()
+
+    s1.get_samples(0, 500, np.zeros(500))
+    s2.get_samples(0, 300, np.zeros(300))
+    engine.generate(1.0)
+    np.testing.assert_array_equal(concat(data), np.full(300, 3.0))
+
+    # Speaker 2 is now ahead, so speaker 1 holds it back.
+    s2.get_samples(300, 400, np.zeros(400))
+    engine.generate(1.0)
+    np.testing.assert_array_equal(concat(data), np.full(500, 3.0))
+
+    s1.get_samples(500, 500, np.zeros(500))
+    engine.generate(1.0)
+    np.testing.assert_array_equal(concat(data), np.full(700, 3.0))
+
+    engine.start()
+    engine.stop()
+    assert s1.monitors == [] and s2.monitors == []
+
+
+def test_loopback_unused_source_is_silent():
+    '''
+    An output that is not in use (e.g., the starship speaker not selected)
+    contributes silence rather than holding up the loopback.
+    '''
+    sound = NullEngine(name='sound', buffer_size=10)
+    s1, s2 = make_speakers(sound, lambda n, _: np.ones(n), None)
+    engine = KeyboardEngine(name='keyboard', fs=FS, clock=sound)
+    loopback = LoopbackAIChannel(name='microphone',
+                                 source_names=['speaker_1', 'speaker_2'],
+                                 parent=engine)
+    engine.add_channel(loopback)
+    data = record(loopback)
+    engine.configure()
+    assert s2.monitors == []
+
+    s1.get_samples(0, 500, np.zeros(500))
+    engine.generate(0.4)
+    np.testing.assert_array_equal(concat(data), np.ones(400))
+
+
+def test_loopback_without_sources_in_use_is_silent():
+    sound = NullEngine(name='sound', buffer_size=10)
+    make_speakers(sound, None, None)
+    engine = KeyboardEngine(name='keyboard', fs=FS, clock=sound)
+    loopback = LoopbackAIChannel(name='eeg',
+                                 source_names=['speaker_1', 'speaker_2'],
+                                 parent=engine)
+    engine.add_channel(loopback)
+    data = record(loopback)
+    engine.configure()
+    engine.generate(0.25)
+    np.testing.assert_array_equal(concat(data), np.zeros(250))
+
+
 def test_loopback_unknown_source():
     sound = NullEngine(name='sound', buffer_size=10)
     engine = KeyboardEngine(name='keyboard', fs=FS, clock=sound)
@@ -389,8 +483,75 @@ def test_thread_generates_samples():
     engine.set_key('np_contact', True)
     time.sleep(0.2)
     engine.stop()
+    engine._thread.join(1)
     data = concat(np_data)
     # Within a poll interval or two of real time.
     assert 0.35 * FS <= data.shape[-1] <= 0.45 * FS
     assert data[0] == 1
     assert data[-1] == 0.1
+
+
+def test_stop_does_not_wait_on_input_callbacks():
+    '''
+    An input's callback can wait on the thread that stops the engine (e.g., a
+    DPOAE's action waits on the control dispatcher, which is the thread
+    stopping the engines). Stopping must not wait for that callback.
+    '''
+    import threading
+    engine = make_engine()
+    stopped = threading.Event()
+    entered = threading.Event()
+
+    def wait_for_stop(data):
+        entered.set()
+        stopped.wait(5)
+
+    engine.get_channel('np_contact').add_input(Callback(function=wait_for_stop))
+    engine.configure()
+    engine.start()
+    assert entered.wait(2)
+    stopper = threading.Thread(target=engine.stop)
+    stopper.start()
+    stopper.join(2)
+    assert not stopper.is_alive(), 'stop() waited on the input callback'
+    stopped.set()
+    engine._thread.join(2)
+    assert not engine._thread.is_alive()
+
+
+def test_loopback_sync_start():
+    '''
+    Calibrations (`psi.controller.calibration.acquire`) sync each input with
+    the output they play. A loopback is in sync with its clock's outputs.
+    '''
+    sound = NullEngine(name='sound', buffer_size=10)
+    speaker, = make_speakers(sound, None)
+    engine = KeyboardEngine(name='keyboard', fs=FS, clock=sound)
+    loopback = LoopbackAIChannel(name='microphone', source_name='speaker_1',
+                                 parent=engine)
+    engine.add_channel(loopback)
+    loopback.sync_start(speaker)
+
+    other = NullEngine(name='other', buffer_size=10)
+    other_speaker, = make_speakers(other, None)
+    with pytest.raises(ValueError, match='synced'):
+        loopback.sync_start(other_speaker)
+
+
+def test_cloned_engine_keeps_clock():
+    '''
+    Calibrations run on clones of the engines. A cloned keyboard engine must
+    read back the cloned sound card's outputs, which are the ones that play.
+    '''
+    from psi.controller.calibration.acquire import clone_engines
+    sound = NullEngine(name='sound', buffer_size=10)
+    make_speakers(sound, None)
+    engine = KeyboardEngine(name='keyboard', fs=FS, clock=sound)
+    loopback = LoopbackAIChannel(name='microphone', source_name='speaker_1',
+                                 parent=engine)
+    engine.add_channel(loopback)
+
+    sound_clone, engine_clone = clone_engines([sound, engine])
+    assert engine_clone.clock is sound_clone
+    assert engine_clone.get_channel('microphone').source is \
+        sound_clone.get_channel('speaker_1')

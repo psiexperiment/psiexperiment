@@ -13,7 +13,9 @@ active output, the inputs read 1 while the key is up.
 
 A `LoopbackAIChannel` reads back the samples written to an output channel on
 the clock engine (e.g., the speaker on a sound card), or to a
-`KeyboardDOChannel` on this engine, as a digital loopback.
+`KeyboardDOChannel` on this engine, as a digital loopback. Given several
+outputs, it reads back their sum (e.g., both speakers of a starship, as its
+microphone would hear them).
 
 A `KeyboardDOChannel` is a hardware-timed digital output (e.g., a TTL sync
 pulse scheduled by a `TimedTrigger`). Its samples are generated with the
@@ -102,27 +104,61 @@ class KeyboardDOChannel(HardwareDOChannel):
 
 class LoopbackAIChannel(HardwareAIChannel):
     '''
-    Input that reads back the samples written to `source_name`, an output
-    channel on the engine's clock engine or on this engine.
+    Input that reads back the samples written to `source_name` (or the sum of
+    those written to `source_names`), output channels on the engine's clock
+    engine or on this engine.
+
+    Outputs that are not in use contribute silence. If none is in use, the
+    input reads silence, as a rig's input would.
     '''
     #: Name of the output channel to read back (e.g., 'speaker_1').
     source_name = d_(Str()).tag(metadata=True)
+
+    #: Names of the output channels to read back the sum of (e.g., both
+    #: speakers of a starship). Overrides `source_name`. The outputs must
+    #: share a sampling rate.
+    source_names = d_(List(Str())).tag(metadata=True)
 
     fs = Property().tag(metadata=True)
 
     def _get_fs(self):
         return self.source.fs
 
+    def sync_start(self, channel):
+        # Sample 0 read back is sample 0 written by the clock engine (or by
+        # this engine), so the loopback is already in sync with outputs on
+        # either.
+        if channel.engine not in (self.engine, self.engine.clock):
+            raise ValueError(f'{self.name} can only be synced with outputs '
+                             f'on {self.engine.clock.name} or '
+                             f'{self.engine.name}.')
+
     @property
     def source(self):
+        '''
+        The first output read back (sets the sampling rate).
+        '''
+        return self.sources[0]
+
+    @property
+    def sources(self):
+        names = self.source_names or [self.source_name]
         engines = [self.engine.clock, self.engine]
+        channels = {}
         for engine in engines:
             for channel in engine.get_channels(active=False):
-                if channel.name == self.source_name:
-                    return channel
-        names = ', '.join(sorted({e.name for e in engines}))
-        raise AttributeError(f'{self.source_name} channel does not exist on '
-                             f'{names}.')
+                channels.setdefault(channel.name, channel)
+        sources = []
+        for name in names:
+            if name not in channels:
+                engine_names = ', '.join(sorted({e.name for e in engines}))
+                raise AttributeError(f'{name} channel does not exist on '
+                                     f'{engine_names}.')
+            sources.append(channels[name])
+        if len({s.fs for s in sources}) > 1:
+            raise ValueError(f'Outputs read back by {self.name} must share a '
+                             'sampling rate.')
+        return sources
 
 
 class KeyboardEngine(BaseCallbackMixin, Engine):
@@ -156,8 +192,9 @@ class KeyboardEngine(BaseCallbackMixin, Engine):
     #: Samples generated so far (at `fs`).
     _samples = Value(0)
 
-    #: For each loopback channel, the samples written to its source not yet
-    #: read back, as (offset, samples), and the samples read back so far.
+    #: For each loopback channel, the samples written to each of its sources
+    #: in use not yet read back, as (offset, samples) by source name, and the
+    #: samples read back so far.
     _loopback_queue = Dict()
     _loopback_samples = Dict()
     _monitors = List()
@@ -187,11 +224,17 @@ class KeyboardEngine(BaseCallbackMixin, Engine):
         self._loopback_samples = {}
         self._monitors = []
         for channel in self.loopback_channels(active):
-            self._loopback_queue[channel.name] = deque()
+            queues = self._loopback_queue[channel.name] = {}
             self._loopback_samples[channel.name] = 0
-            monitor = self._make_monitor(channel.name)
-            channel.source.monitors.append(monitor)
-            self._monitors.append((channel.source, monitor))
+            # Outputs not in use are never written, so would hold up the
+            # others. They contribute silence instead.
+            for source in channel.sources:
+                if not source.active:
+                    continue
+                queue = queues[source.name] = deque()
+                monitor = self._make_monitor(queue)
+                source.monitors.append(monitor)
+                self._monitors.append((source, monitor))
 
         super().configure()
         if Application.instance() is not None:
@@ -210,8 +253,12 @@ class KeyboardEngine(BaseCallbackMixin, Engine):
         if self._stop_requested is None or self._stop_requested.is_set():
             return
         log.info('Stopping keyboard engine %s', self.name)
+        # The thread exits once its current block is through the inputs. It
+        # is not joined: an input's callback can wait on the thread stopping
+        # the engine (e.g., a DPOAE's `dpoae_acquired` action waits on the
+        # control dispatcher), so joining would deadlock. The sound card's
+        # input thread is not joined either.
         self._stop_requested.set()
-        self._thread.join()
         self._t0 = None
         for source, monitor in self._monitors:
             source.monitors.remove(monitor)
@@ -303,8 +350,7 @@ class KeyboardEngine(BaseCallbackMixin, Engine):
     ############################################################################
     # Sample generation
     ############################################################################
-    def _make_monitor(self, channel_name):
-        queue = self._loopback_queue[channel_name]
+    def _make_monitor(self, queue):
         def monitor(offset, out):
             queue.append((offset, out.copy()))
         return monitor
@@ -380,34 +426,54 @@ class KeyboardEngine(BaseCallbackMixin, Engine):
 
     def _generate_loopback_samples(self, ts):
         for channel in self.loopback_channels():
-            queue = self._loopback_queue[channel.name]
+            queues = self._loopback_queue[channel.name]
             s0 = self._loopback_samples[channel.name]
+            # Read back what has been played, but only as far as every source
+            # in use has been written.
             s1 = int(np.floor(ts * channel.fs))
-            blocks = []
-            while queue and s0 < s1:
-                offset, samples = queue[0]
-                if offset + samples.shape[-1] <= s0:
-                    queue.popleft()
-                    continue
-                if offset > s0:
-                    # Nothing was written for these samples.
-                    gap = min(offset, s1) - s0
-                    blocks.append(np.zeros(gap))
-                    s0 += gap
-                    continue
-                block = samples[s0 - offset:s1 - offset]
-                blocks.append(block)
-                s0 += block.shape[-1]
-                if offset + samples.shape[-1] <= s0:
-                    queue.popleft()
-            if not blocks:
+            for queue in queues.values():
+                s1 = min(s1, queued_end(queue, s0))
+            if s1 <= s0:
                 continue
-            s_start = self._loopback_samples[channel.name]
-            data = PipelineData(np.concatenate(blocks)[np.newaxis],
-                                fs=channel.fs, s0=s_start)
-            self._loopback_samples[channel.name] = s0
+            samples = np.zeros(s1 - s0)
+            for queue in queues.values():
+                samples += read_queue(queue, s0, s1)
+            data = PipelineData(samples[np.newaxis], fs=channel.fs, s0=s0)
+            self._loopback_samples[channel.name] = s1
             for cb in self._ai_callbacks.get(channel.name, []):
                 cb(data)
+
+
+def queued_end(queue, s0):
+    '''
+    The sample after the last one written to `queue` (`s0` if nothing is
+    queued).
+    '''
+    try:
+        offset, samples = queue[-1]
+    except IndexError:
+        return s0
+    return max(s0, offset + samples.shape[-1])
+
+
+def read_queue(queue, s0, s1):
+    '''
+    Samples `s0` up to `s1` from `queue` of (offset, samples), dropping blocks
+    once read. Samples nothing was written for are 0.
+    '''
+    result = np.zeros(s1 - s0)
+    while queue:
+        offset, samples = queue[0]
+        end = offset + samples.shape[-1]
+        if offset >= s1:
+            break
+        lb, ub = max(offset, s0), min(end, s1)
+        if ub > lb:
+            result[lb - s0:ub - s0] = samples[lb - offset:ub - offset]
+        if end > s1:
+            break
+        queue.popleft()
+    return result
 
 
 ################################################################################
