@@ -52,10 +52,15 @@ class _RecordingEngine(NullEngine):
     journal = Value()
     done_callback = Value()
 
-    def get_channels(self, *args, **kwargs):
-        # Pretend the engine has active channels so the lifecycle methods
-        # do not skip it.
+    #: What get_channels returns. Pretend the engine has active channels so
+    #: the lifecycle methods do not skip it, unless told otherwise.
+    used_channels = Value()
+
+    def _default_used_channels(self):
         return ['fake_channel']
+
+    def get_channels(self, *args, **kwargs):
+        return self.used_channels
 
     def configure(self, active=True):
         self.journal.append((self.name, 'configure'))
@@ -101,6 +106,42 @@ def test_io_manager_engine_lifecycle():
     assert journal[-2:] == [('a', 'stop'), ('b', 'stop')]
     with pytest.raises(ValueError, match='not running'):
         io.stop_engines()
+
+
+def test_io_manager_runs_idle_master_engine():
+    # E.g., an EEG monitor on a keyboard loopback: the keyboard engine is in
+    # use, the sound card (the master, whose clock it follows) is not. The
+    # master still runs; an unused engine that isn't the master does not.
+    journal = []
+    keyboard = _RecordingEngine(name='keyboard', buffer_size=10,
+                                journal=journal)
+    unused = _RecordingEngine(name='unused', buffer_size=10, journal=journal,
+                              used_channels=[])
+    sound = _RecordingEngine(name='sound', buffer_size=10, journal=journal,
+                             used_channels=[])
+    io = IOManager(engines={'keyboard': keyboard, 'unused': unused,
+                            'sound': sound},
+                   master_engine=sound)
+    assert io.engines_in_use() == [keyboard, sound]
+
+    io.configure_engines()
+    io.start_engines()
+    io.stop_engines()
+    assert journal == [
+        ('keyboard', 'configure'), ('sound', 'configure'),
+        ('keyboard', 'start'), ('sound', 'start'),
+        ('keyboard', 'stop'), ('sound', 'stop'),
+    ]
+
+
+def test_io_manager_no_engines_in_use():
+    journal = []
+    sound = _RecordingEngine(name='sound', buffer_size=10, journal=journal,
+                             used_channels=[])
+    io = IOManager(engines={'sound': sound}, master_engine=sound)
+    assert io.engines_in_use() == []
+    io.configure_engines()
+    assert journal == []
 
 
 def test_io_manager_connect_output_unknown_target_raises():

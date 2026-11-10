@@ -259,9 +259,23 @@ class IOManager(Atom):
         m = 'Connected input %s to source %s'
         log.debug(m, input_name, source_name)
 
+    def engines_in_use(self):
+        '''
+        Engines with active channels, plus the master engine if any are.
+
+        The master engine runs even with no channels of its own in use: it
+        keeps the experiment's time (`get_ts`), and other engines may follow
+        its clock (e.g., `KeyboardEngine` keeps pace with a sound card, so an
+        EEG monitor on a keyboard loopback uses no sound card channel).
+        '''
+        engines = [e for e in self.engines.values() if e.get_channels()]
+        if engines and self.master_engine not in engines:
+            engines.append(self.master_engine)
+        return engines
+
     def configure_engines(self, done_callback_factory=None):
         '''
-        Configure every engine that has active channels.
+        Configure every engine in use (see `engines_in_use`).
 
         Parameters
         ----------
@@ -270,24 +284,22 @@ class IOManager(Atom):
             register as that engine's done callback.
         '''
         with self._lock:
-            for engine in self.engines.values():
-                # Check to see if engine is being used
-                if engine.get_channels():
-                    engine.configure()
-                    if done_callback_factory is not None:
-                        engine.register_done_callback(
-                            done_callback_factory(engine))
+            for engine in self.engines_in_use():
+                engine.configure()
+                if done_callback_factory is not None:
+                    engine.register_done_callback(
+                        done_callback_factory(engine))
 
     def start_engines(self):
         with self._lock:
             if self.engines_running:
                 raise ValueError('Engines already running')
             log.debug('Starting engines')
-            for engine in self.engines.values():
-                # Check to see if engine is being used
-                if engine.get_channels():
-                    if engine is not self.master_engine:
-                        engine.start()
+            # The master engine last, so the others are ready when its clock
+            # starts.
+            for engine in self.engines_in_use():
+                if engine is not self.master_engine:
+                    engine.start()
             self.master_engine.start()
             self.engines_running = True
 
@@ -295,10 +307,9 @@ class IOManager(Atom):
         with self._lock:
             if not self.engines_running:
                 raise ValueError('Engines not running')
-            for engine in self.engines.values():
-                if engine.get_channels():
-                    log.info('Stopping engine %r', engine)
-                    engine.stop()
+            for engine in self.engines_in_use():
+                log.info('Stopping engine %r', engine)
+                engine.stop()
             self.engines_running = False
 
     def reset_engines(self):

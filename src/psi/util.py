@@ -11,7 +11,8 @@ import uuid
 
 import numpy as np
 import pandas as pd
-from atom.api import Atom, Property
+from atom.api import Atom, Event, Property
+from enaml.application import Application, deferred_call
 
 from psiaudio.calibration import BaseCalibration
 
@@ -20,6 +21,50 @@ def as_numeric(x):
     if not isinstance(x, (np.ndarray, pd.DataFrame, pd.Series)):
         x = np.asanyarray(x)
     return x
+
+
+def call_on_gui_thread(fn):
+    '''
+    Call `fn` (a zero-argument callable) on the GUI thread and block the
+    calling thread until it completes, returning its result and re-raising
+    any exception it raised.
+
+    Experiment control runs on psi's control-dispatcher thread (see
+    ``psi.controller.dispatcher``), not the GUI thread. Use this from there
+    for anything that must run on the GUI thread, e.g.:
+
+    * setting a member that widgets observe or are bound to (Qt refuses to
+      start timers, add plot items, etc. from another thread, and psi turns
+      that Qt warning into an error);
+    * opening, starting and stopping PortAudio streams (some Windows audio
+      backends hang unless called from the thread pumping the Windows
+      message loop; see ``psi.controller.engines.soundcard.playrec``).
+
+    This waits on the GUI thread, which keeps pumping events while the
+    dispatcher runs work it is waiting on (see `ControlDispatcher.
+    submit_sync`). If there's no GUI application running (e.g., a script or
+    a test) or we're already on the GUI thread, `fn` is called directly.
+    '''
+    app = Application.instance()
+    if app is None or app.is_main_thread():
+        return fn()
+
+    result = {}
+    done = threading.Event()
+
+    def _call():
+        try:
+            result['value'] = fn()
+        except Exception as e:
+            result['error'] = e
+        finally:
+            done.set()
+
+    deferred_call(_call)
+    done.wait()
+    if 'error' in result:
+        raise result['error']
+    return result['value']
 
 
 def rpc(plugin_name, method_name):
@@ -143,7 +188,29 @@ def dict_to_declarative(obj, info, skip_errors=False):
 
 
 def copy_declarative(old, exclude=None, **kw):
+    '''
+    Create a new instance of `old`'s class with the same settings.
+
+    Copies every member tagged ``metadata`` and every declarative (``d_``)
+    member, which is what an IO manifest can set (e.g., a sound card's
+    `fs`). Untagged declarative members used to be left at their defaults,
+    so a cloned engine could open the device at the wrong sampling rate.
+    Events and properties are not copied.
+
+    Parameters
+    ----------
+    old : Atom
+        Object to copy.
+    exclude : {None, list of str}
+        Members not to copy.
+    **kw
+        Values to set on the copy instead.
+    '''
     attributes = get_tagged_values(old, 'metadata', exclude_properties=True)
+    for name, member in get_tagged_members(old, 'd_member',
+                                           exclude_properties=True).items():
+        if not isinstance(member, Event):
+            attributes.setdefault(name, getattr(old, name))
     if exclude is not None:
         for k in exclude:
             attributes.pop(k, None)

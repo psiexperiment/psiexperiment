@@ -7,6 +7,7 @@ from enaml.core.api import d_, d_func
 import pandas as pd
 
 from psi.core.enaml.api import PSIContribution
+from psi.util import call_on_gui_thread
 
 from psiaudio.calibration import FlatCalibration, InterpCalibration, PointCalibration
 from .chirp import chirp_sens
@@ -90,7 +91,12 @@ class BaseCalibrate(PSIContribution):
         for ao_channel, kwargs in self.get_config(controller, core).items():
             log.debug('Running calibration for %s', ao_channel.name)
             results[(ao_channel.name,)] = self.run_calibration(ao_channel, ai_channel, kwargs)
-        self.result = merge_results(results)
+        merged = merge_results(results)
+        # Calibration runs on the control dispatcher thread, but the result
+        # table and plots (calibrate_manifest.enaml) redraw as soon as
+        # `result` changes, which Qt allows only on the GUI thread. Waits, so
+        # `save` sees the result.
+        call_on_gui_thread(lambda: setattr(self, 'result', merged))
 
     def get_config(self, controller, core):
         raise NotImplementedError

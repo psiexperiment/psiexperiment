@@ -211,6 +211,13 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
             pr_kw['ao_channels'] = [c.channel for c in ao_channels]
             pr_kw['ao_cb'] = self._hw_ao_callback
             self._configure_ao_cb(ao_channels)
+        if not ai_channels and not ao_channels:
+            # Nothing to play or record, but the engine still runs when it is
+            # the master engine (see `IOManager.engines_in_use`): play
+            # silence on one output to keep its clock going.
+            pr_kw['ao_channels'] = [self._idle_output_channel()]
+            pr_kw['ao_cb'] = self._hw_ao_callback
+            self._configure_ao_cb(())
 
         self._stream = PlayRec(**pr_kw)
 
@@ -223,6 +230,19 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
 
         self._configured = True
         super().configure()
+
+    def _idle_output_channel(self):
+        '''
+        Output channel to play silence on when no channel is in use.
+        '''
+        channels = self.get_channels('analog', 'output', 'hardware',
+                                     active=False)
+        if not channels:
+            raise ValueError(
+                f'Sound card {self.name} has no channels in use and no '
+                'output to play silence on, so it cannot keep time.'
+            )
+        return channels[0].channel
 
     def _configure_ai_cb(self, ai_channels):
         log.info('Configuring AI callback for %r', ai_channels)
