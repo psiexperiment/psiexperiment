@@ -17,8 +17,11 @@ from psi.config_cli import _group_label, _render_setting
 class TestRenderSetting:
 
     def test_path_is_pasteable(self):
-        # Not WindowsPath('C:/data'): this is read to check a location.
-        assert _render_setting(Path('C:/data')) == 'C:\\data'
+        # Not WindowsPath('C:/data'): this is read to check a location. As
+        # the platform writes it (C:\data on Windows).
+        path = Path('C:/data')
+        assert _render_setting(path) == str(path)
+        assert 'Path(' not in _render_setting(path)
 
     def test_string_is_unquoted(self):
         assert _render_setting('info') == 'info'

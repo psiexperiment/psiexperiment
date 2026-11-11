@@ -46,6 +46,12 @@ IO_ROOT = BASE_DIRECTORY / 'io'
 '''
 
 
+#: BASE_DIRECTORY in LEGACY_CONFIG. Paths under it are built with the
+#: platform's separator (on Linux, C:\Data\psi is one odd name, and
+#: 'data' under it is C:\Data\psi/data).
+BASE = Path(r'C:\Data\psi')
+
+
 def package_migrations(monkeypatch, **migrations):
     '''
     Stand in for the installed packages' ``psi.migrations`` entry points.
@@ -100,7 +106,7 @@ class TestSettingsRoots:
 
     def test_layout_and_preferences_collapse(self, rig):
         migrate(rig)
-        assert get_config('PSI_SETTINGS_ROOT') == Path(r'C:\Data\psi\settings')
+        assert get_config('PSI_SETTINGS_ROOT') == BASE / 'settings'
 
     def test_dead_settings_are_dropped(self, rig):
         updates, notes = collect(rig)
@@ -111,11 +117,11 @@ class TestSettingsRoots:
 
     def test_surviving_roots_keep_their_paths(self, rig):
         migrate(rig)
-        assert get_config('PSI_DATA_ROOT') == Path(r'C:\Data\psi\data')
-        assert get_config('PSI_IO_ROOT') == Path(r'C:\Data\psi\io')
+        assert get_config('PSI_DATA_ROOT') == BASE / 'data'
+        assert get_config('PSI_IO_ROOT') == BASE / 'io'
         # Migrated rigs keep the log location they had, even though the
         # default no longer derives from the base directory.
-        assert get_config('PSI_LOG_ROOT') == Path(r'C:\Data\psi\logs')
+        assert get_config('PSI_LOG_ROOT') == BASE / 'logs'
 
 
 class TestPackageMigrations:
@@ -154,7 +160,7 @@ class TestPackageMigrations:
             fakepkg=lambda folder: ({'FAKEPKG_ROOT': 'C:/fake'}, []))
         updates, notes = collect(rig)
         assert updates['FAKEPKG_ROOT'] == 'C:/fake'
-        assert updates['PSI_DATA_ROOT'] == r'C:\Data\psi\data'
+        assert updates['PSI_DATA_ROOT'] == str(BASE / 'data')
         assert any('broken' in n and 'unreadable' in n for n in notes)
 
 
