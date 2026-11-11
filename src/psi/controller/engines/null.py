@@ -78,9 +78,9 @@ class NullEngine(Engine):
         # Regression note: this used to zip a single tuple and reference an
         # undefined name, so it crashed as soon as it was called.
         for o, c_name in zip(offsets, channel_names):
-            self.update_hw_ao(o, c_name, method)
+            self.update_hw_ao(c_name, o, method)
 
-    def update_hw_ao(self, offset, channel_name=None, method='space_available'):
+    def update_hw_ao(self, channel_name, offset, method='space_available'):
         return
         #if method == 'space_available':
         #    samples

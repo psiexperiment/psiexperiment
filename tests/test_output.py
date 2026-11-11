@@ -43,16 +43,20 @@ def test_epoch_output_pause(epoch_output, tb1):
 
     # Pause on EpochOutput is an immediate boolean gate (the timestamp is
     # ignored): while paused, get_samples leaves the buffer untouched and does
-    # not advance the playback position.
+    # not consume the source. The hardware keeps requesting samples at
+    # increasing offsets, so the output must keep pace with it.
     epoch_output.pause(1000 / epoch_output.fs)
-    out = np.zeros(1000)
-    epoch_output.get_samples(1000, 1000, out)
-    assert np.all(out == 0)
+    for offset in (1000, 2000):
+        out = np.zeros(1000)
+        epoch_output.get_samples(offset, 1000, out)
+        assert np.all(out == 0)
 
-    # After resume, playback continues from where it left off.
-    epoch_output.resume(2000 / epoch_output.fs)
+    # After resume, the source continues from where it left off, at whatever
+    # offset the hardware has reached (regression: this used to raise "Missed
+    # chance to play signal" because the output's position froze while paused).
+    epoch_output.resume(3000 / epoch_output.fs)
     out = np.zeros(1000)
-    epoch_output.get_samples(1000, 1000, out)
+    epoch_output.get_samples(3000, 1000, out)
     np.testing.assert_array_equal(full_waveform1[1000:2000], out)
 
 

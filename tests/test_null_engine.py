@@ -105,3 +105,11 @@ def test_remove_channel(populated_engine):
     populated_engine.remove_channel(ch)
     assert ch not in populated_engine.channels
     assert ch.engine is None
+
+
+def test_update_hw_ao_takes_channel_name_first():
+    # output_pause/output_resume call update_hw_ao(channel_name, offset), as
+    # the base Engine and the hardware engines define it.
+    engine = NullEngine(buffer_size=10)
+    engine.update_hw_ao('ao', 100)
+    engine.update_hw_ao(channel_name='ao', offset=100)
