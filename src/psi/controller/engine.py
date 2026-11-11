@@ -2,8 +2,9 @@ import logging
 log = logging.getLogger(__name__)
 
 import threading
+import time
 
-
+import numpy as np
 from atom.api import (Str, Float, Bool, Int, List,
                       Typed, Value)
 from enaml.core.api import d_
@@ -231,6 +232,26 @@ class Engine(PSIContribution):
     def get_ts(self):
         raise NotImplementedError
 
+    def input_time(self):
+        '''
+        How far the inputs have been delivered to psi (s, on this engine's
+        clock, `get_ts`), or None if the engine has no inputs that can lag
+        behind its clock.
+
+        Inputs arrive in blocks (and, on a sound card, a round trip late), so
+        when an experiment stops as an output ends, the end of the output had
+        not been read yet. `wait_for_inputs`, called before the engines are
+        stopped, waits for this to reach the clock.
+        '''
+        return None
+
+    def input_wait_timeout(self):
+        '''
+        Longest `wait_for_inputs` waits for this engine's inputs to catch up
+        (s): the most they can lag behind its clock.
+        '''
+        return 0.0
+
     def start(self):
         raise NotImplementedError
 
@@ -290,3 +311,54 @@ class Engine(PSIContribution):
                                                exclude=['inputs', 'outputs'])
                 new.add_channel(new_channel)
         return new
+
+
+#: How often `wait_for_inputs` checks the engines' inputs (s).
+INPUT_POLL_INTERVAL = 0.005
+
+
+def wait_for_inputs(engines, poll_interval=INPUT_POLL_INTERVAL):
+    '''
+    Wait until each engine's inputs have been delivered up to where its clock
+    was when this was called (see `Engine.input_time`), so that stopping the
+    engines doesn't cut off the end of the recording. The engines keep
+    running (outputs included) while this waits.
+
+    Each engine is waited for at most its `input_wait_timeout`, and a
+    warning is logged for any whose inputs did not catch up. Returns those
+    engines.
+    '''
+    pending = []
+    for engine in engines:
+        try:
+            if engine.input_time() is None:
+                continue
+            target = engine.get_ts()
+            timeout = engine.input_wait_timeout()
+        except Exception as e:
+            log.exception('Cannot wait for the inputs of %s: %s', engine.name,
+                          e)
+            continue
+        if np.isfinite(target):
+            pending.append((engine, target, timeout))
+
+    start = time.monotonic()
+    late = []
+    while pending:
+        waited = time.monotonic() - start
+        still = []
+        for engine, target, timeout in pending:
+            behind = target - engine.input_time()
+            if behind <= 0:
+                log.info('Waited %.0f ms for the inputs of %s before stopping',
+                         waited * 1e3, engine.name)
+            elif waited >= timeout:
+                log.warning('Stopping %s %.0f ms before its inputs caught up',
+                            engine.name, behind * 1e3)
+                late.append(engine)
+            else:
+                still.append((engine, target, timeout))
+        pending = still
+        if pending:
+            time.sleep(poll_interval)
+    return late
