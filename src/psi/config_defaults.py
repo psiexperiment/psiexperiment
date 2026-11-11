@@ -84,6 +84,14 @@ DEFAULTS = {
         str, socket.gethostname,
         doc='Name of this machine, for picking its IO manifest.'),
 
+    #: Most times per second each plot redraws (`BasePlot.max_redraw_rate`
+    #: overrides it per plot). Painting holds the GIL, which delays the
+    #: sound card callback: redrawing on every block of data made a
+    #: keyboard rig's output play silence. 0 removes the limit.
+    'PSI_PLOT_MAX_REDRAW_RATE': Setting(
+        float, 20.0,
+        doc='Most redraws per second for each plot (0 for no limit).'),
+
     #: Address of the websocket server an experiment reports back to.
     #: This is a handoff rather than a setting: the cfts launcher runs the
     #: server and writes the address into the environment of each `psi`

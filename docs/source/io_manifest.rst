@@ -48,7 +48,7 @@ Engines and Syncing
 
 The **Engine** is responsible for the hardware timing and control loop. You can have multiple engines in a single experiment (e.g., an NI DAQ for high-speed audio and an Arduino for simple digital triggers). 
 
-*   **Master Clock**: One engine must be designated as the ``master_clock``. This engine provides the reference timing for the entire experimental loop.
+*   **Master Clock**: One engine may be designated as the ``master_clock`` (otherwise the last engine by weight is). This engine provides the reference timing for the entire experimental loop. Only engines with channels in use run; if the designated master has none in use (e.g., a paradigm plays nothing on the sound card), the last engine in use takes over for that experiment.
 *   **Hardware Timed**: High-speed channels (like ``AnalogInput``) are usually hardware-timed by the engine's clock.
 *   **Software Timed**: Low-speed channels (like digital toggles) can be software-timed.
 

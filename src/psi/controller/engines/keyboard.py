@@ -21,10 +21,13 @@ A `KeyboardDOChannel` is a hardware-timed digital output (e.g., a TTL sync
 pulse scheduled by a `TimedTrigger`). Its samples are generated with the
 inputs, so a loopback of it records the pulse where a rig would record it.
 
-The engine has no clock of its own. It generates samples to keep pace with
-`clock` (typically the sound card playing the stimuli), and key presses are
-timestamped on that clock, so edges line up with the stimuli. Software-timed
-digital outputs (e.g., a pellet dispenser) are accepted and logged.
+The engine generates samples to keep pace with `clock` (typically the sound
+card playing the stimuli), and key presses are timestamped on that clock, so
+edges line up with the stimuli. If `clock` is not in use (e.g., a paradigm
+that only monitors a loopback plays nothing on the sound card), the engine
+keeps its own time and becomes the master engine (see
+`IOManager.configure_engines`). Software-timed digital outputs (e.g., a
+pellet dispenser) are accepted and logged.
 
 Example IO manifest::
 
@@ -50,7 +53,7 @@ import sys
 from threading import Event, Thread, Timer
 import time
 
-from atom.api import Dict, Float, List, Property, Str, Typed, Value
+from atom.api import Bool, Dict, Float, List, Property, Str, Typed, Value
 from enaml.application import Application, deferred_call
 from enaml.core.api import d_
 import numpy as np
@@ -170,6 +173,10 @@ class KeyboardEngine(BaseCallbackMixin, Engine):
     #: keeps its own clock.
     clock = d_(Value())
 
+    #: Whether `get_ts` reads `clock` (set by `configure`): only if that
+    #: engine is in use, since otherwise it is never started.
+    _follow_clock = Bool(False)
+
     #: How often (in seconds) new input samples are generated.
     poll_interval = d_(Float(0.01)).tag(metadata=True)
 
@@ -212,6 +219,10 @@ class KeyboardEngine(BaseCallbackMixin, Engine):
     ############################################################################
     def configure(self, active=True):
         log.info('Configuring keyboard engine %s', self.name)
+        self._follow_clock = self.clock is not self and self.clock.in_use()
+        if not self._follow_clock and self.clock is not self:
+            log.info('Clock engine %s is not in use. Keeping own time.',
+                     self.clock.name)
         self._samples = 0
         self._events = deque()
         self._held = {}
@@ -268,7 +279,7 @@ class KeyboardEngine(BaseCallbackMixin, Engine):
         self.complete()
 
     def get_ts(self):
-        if self.clock is not self:
+        if self._follow_clock:
             return self.clock.get_ts()
         if self._t0 is None:
             return 0.0

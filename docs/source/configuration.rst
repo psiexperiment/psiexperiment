@@ -177,6 +177,25 @@ The older ``PSI_PARADIGM_DESCRIPTIONS``, which pre-imported a list of
 modules so that a bare name would resolve, has been removed; so has
 ``PSI_STANDARD_IO``, which only ever padded an error listing.
 
+Plotting
+--------
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 35 35
+
+   * - Setting
+     - Default
+     - Contents
+   * - ``PSI_PLOT_MAX_REDRAW_RATE``
+     - ``20``
+     - Most times per second each plot redraws; ``0`` removes the limit.
+       A plot's ``max_redraw_rate`` overrides it.
+
+Painting a plot holds Python's GIL for the whole of each Qt call, which
+delays the sound card's callback; when it is late, the device plays silence.
+Redrawing on every block of data was enough to do that on a keyboard rig.
+
 Other
 -----
 

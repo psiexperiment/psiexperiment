@@ -149,6 +149,14 @@ class Engine(PSIContribution):
 
         return tuple(channels)
 
+    def in_use(self):
+        '''
+        True if any channel has configured inputs or outputs. Only engines in
+        use are configured, started and stopped, and the master engine is
+        one of them (see `IOManager.configure_engines`).
+        '''
+        return bool(self.get_channels())
+
     def get_channel(self, channel_name):
         # Channel names are sometimes prefixed with the channel type (e.g.,
         # hw_ao) and will appear as "hw_ao::speaker_1" instead of "speaker_1".

@@ -104,7 +104,8 @@ def test_request_update_coalesces(monkeypatch):
         def update(self, event=None):
             updates.append(1)
 
-    plot = _Plot()
+    # No redraw limit here (see test_request_update_limits_rate).
+    plot = _Plot(max_redraw_rate=0)
 
     # A burst of data callbacks posts exactly one deferred redraw.
     plot.request_update()
@@ -122,6 +123,53 @@ def test_request_update_coalesces(monkeypatch):
     assert len(deferred) == 1
     deferred.pop()()
     assert updates == [1, 1]
+
+
+def test_request_update_limits_rate(monkeypatch):
+    """Redraws are spaced at least 1 / max_redraw_rate apart: painting
+    holds the GIL and delayed the sound card callback (the device then
+    played silence)."""
+    from psi.data import plots
+
+    now = [100.0]
+    deferred, timed = [], []
+    monkeypatch.setattr(plots, 'perf_counter', lambda: now[0])
+    monkeypatch.setattr(plots, 'deferred_call',
+                        lambda cb, *a: deferred.append(cb))
+    monkeypatch.setattr(plots, 'timed_call',
+                        lambda ms, cb, *a: timed.append((ms, cb)))
+
+    updates = []
+
+    class _Plot(plots.BasePlot):
+        def update(self, event=None):
+            updates.append(now[0])
+
+    # The default comes from the PSI_PLOT_MAX_REDRAW_RATE setting.
+    assert _Plot().max_redraw_rate == 20
+    plot = _Plot()
+
+    # The first redraw runs as soon as the GUI thread gets to it.
+    plot.request_update()
+    deferred.pop()()
+    assert updates == [100.0]
+
+    # 10 ms later: waits out the rest of the 50 ms, coalescing the burst.
+    now[0] = 100.01
+    plot.request_update()
+    plot.request_update()
+    assert deferred == []
+    (ms, callback), = timed
+    assert 40 <= ms <= 41  # rounded up to whole ms
+    now[0] = 100.05
+    callback()
+    assert updates == [100.0, 100.05]
+
+    # Data arriving after the interval redraws right away.
+    timed.clear()
+    now[0] = 100.2
+    plot.request_update()
+    assert timed == [] and len(deferred) == 1
 
 
 def test_running_mean_concurrent_add_and_read():

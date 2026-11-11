@@ -108,30 +108,39 @@ def test_io_manager_engine_lifecycle():
         io.stop_engines()
 
 
-def test_io_manager_runs_idle_master_engine():
+def test_io_manager_appoints_master_in_use():
     # E.g., an EEG monitor on a keyboard loopback: the keyboard engine is in
-    # use, the sound card (the master, whose clock it follows) is not. The
-    # master still runs; an unused engine that isn't the master does not.
+    # use, the declared master (the sound card) is not. The last engine in
+    # use becomes the master; engines not in use never run.
     journal = []
+    nidaq = _RecordingEngine(name='nidaq', buffer_size=10, journal=journal,
+                             weight=0)
     keyboard = _RecordingEngine(name='keyboard', buffer_size=10,
-                                journal=journal)
-    unused = _RecordingEngine(name='unused', buffer_size=10, journal=journal,
-                              used_channels=[])
+                                journal=journal, weight=1)
     sound = _RecordingEngine(name='sound', buffer_size=10, journal=journal,
-                             used_channels=[])
-    io = IOManager(engines={'keyboard': keyboard, 'unused': unused,
+                             used_channels=[], weight=2)
+    io = IOManager(engines={'nidaq': nidaq, 'keyboard': keyboard,
                             'sound': sound},
                    master_engine=sound)
-    assert io.engines_in_use() == [keyboard, sound]
 
     io.configure_engines()
+    assert io.master_engine is keyboard
     io.start_engines()
     io.stop_engines()
     assert journal == [
-        ('keyboard', 'configure'), ('sound', 'configure'),
-        ('keyboard', 'start'), ('sound', 'start'),
-        ('keyboard', 'stop'), ('sound', 'stop'),
+        ('nidaq', 'configure'), ('keyboard', 'configure'),
+        ('nidaq', 'start'), ('keyboard', 'start'),
+        ('nidaq', 'stop'), ('keyboard', 'stop'),
     ]
+
+
+def test_io_manager_keeps_master_in_use():
+    # A master in use (declared, or set by NIDAQ's start-trigger setup) is
+    # kept.
+    io, e1, e2, journal = _io_with_engines()
+    io.master_engine = e1
+    io.configure_engines()
+    assert io.master_engine is e1
 
 
 def test_io_manager_no_engines_in_use():
@@ -139,8 +148,10 @@ def test_io_manager_no_engines_in_use():
     sound = _RecordingEngine(name='sound', buffer_size=10, journal=journal,
                              used_channels=[])
     io = IOManager(engines={'sound': sound}, master_engine=sound)
-    assert io.engines_in_use() == []
     io.configure_engines()
+    io.start_engines()
+    io.stop_engines()
+    assert io.master_engine is sound
     assert journal == []
 
 

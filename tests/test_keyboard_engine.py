@@ -139,6 +139,9 @@ def test_uses_clock_engine_time():
         def get_ts(self):
             return self.ts
 
+        def in_use(self):
+            return True
+
     clock = Clock()
     engine = make_engine(clock=clock)
     np_data = record(engine.get_channel('np_contact'))
@@ -156,6 +159,21 @@ def test_uses_clock_engine_time():
     data = concat(np_data)
     assert data.shape == (500,)
     assert np.all(data[400:] == 0.1)
+
+
+def test_keeps_own_time_if_clock_not_in_use():
+    # E.g., a paradigm that only monitors a loopback plays nothing on the
+    # sound card, so it is never started; the keyboard engine keeps its own
+    # time (and becomes the master engine).
+    sound = NullEngine(name='sound', buffer_size=10)
+    engine = make_engine(clock=sound)
+    engine.configure()
+    assert engine.get_ts() == 0.0
+    engine.start()
+    try:
+        assert engine.get_ts() > 0
+    finally:
+        engine.stop()
 
 
 def test_loopback_reads_back_source():

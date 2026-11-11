@@ -4,6 +4,8 @@ log = logging.getLogger(__name__)
 
 from collections import defaultdict
 import itertools
+import math
+from time import perf_counter
 
 import numpy as np
 import pandas as pd
@@ -14,12 +16,13 @@ from pyqtgraph.Qt.QtWidgets import QSizePolicy
 from atom.api import (Str, Float, Int, Typed, Property, Bool, Enum, List, Dict, Callable, Value, observe,
                       set_default)
 
-from enaml.application import Application, deferred_call
+from enaml.application import Application, deferred_call, timed_call
 from enaml.core.api import Declarative, d_, d_func
 
 from psiaudio import util
 from psiaudio.pipeline import PipelineData
 
+from psi import get_config
 from psi.util import SignalBuffer, ConfigurationException
 from psi.core.enaml.api import make_color, PSIContribution
 
@@ -726,9 +729,22 @@ class BasePlot(PSIContribution):
 
     viewbox_name = d_(Str())
 
+    #: Most redraws per second (0 for no limit). Defaults to the
+    #: PSI_PLOT_MAX_REDRAW_RATE setting. Painting holds the GIL for the whole
+    #: of each Qt call, delaying the sound card callback, so redrawing on
+    #: every block of data could make the device play silence (see
+    #: "Sound card timing" in CLAUDE.md).
+    max_redraw_rate = d_(Float())
+
     #: True if a redraw has been scheduled on the GUI thread but has not run
     #: yet. Managed by request_update/_deferred_update.
     _update_pending = Bool(False)
+
+    #: When the last redraw started (`perf_counter`).
+    _last_update = Float(-np.inf)
+
+    def _default_max_redraw_rate(self):
+        return get_config('PSI_PLOT_MAX_REDRAW_RATE')
 
     def _get_container(self):
         return self.parent.parent
@@ -740,16 +756,25 @@ class BasePlot(PSIContribution):
         This is the only way data-plane callbacks may trigger a redraw (see
         docs/threading.md): `update` creates and mutates Qt plot items, which
         must only happen on the GUI thread. Requests are coalesced — a burst
-        of data callbacks produces a single redraw per event-loop pass.
+        of data callbacks produces a single redraw — and spaced at least
+        1 / `max_redraw_rate` s apart.
         '''
-        if not self._update_pending:
-            self._update_pending = True
+        if self._update_pending:
+            return
+        self._update_pending = True
+        wait = 0
+        if self.max_redraw_rate > 0:
+            wait = self._last_update + 1 / self.max_redraw_rate - perf_counter()
+        if wait > 0:
+            timed_call(math.ceil(wait * 1e3), self._deferred_update)
+        else:
             deferred_call(self._deferred_update)
 
     def _deferred_update(self):
         # Clear the flag before updating so data arriving while we redraw
         # schedules the next redraw.
         self._update_pending = False
+        self._last_update = perf_counter()
         self.update()
 
     def update(self, event=None):

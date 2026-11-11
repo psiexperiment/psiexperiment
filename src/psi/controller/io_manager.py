@@ -148,7 +148,8 @@ class IOManager(Atom):
 
     #: Engine responsible for the experiment clock. May be reassigned during
     #: setup (e.g., NIDAQ start-trigger configuration in
-    #: psi.controller.engines.nidaq).
+    #: psi.controller.engines.nidaq), and by `configure_engines` if it is not
+    #: in use.
     master_engine = Typed(Engine)
 
     #: Are engines running?
@@ -259,23 +260,19 @@ class IOManager(Atom):
         m = 'Connected input %s to source %s'
         log.debug(m, input_name, source_name)
 
-    def engines_in_use(self):
-        '''
-        Engines with active channels, plus the master engine if any are.
-
-        The master engine runs even with no channels of its own in use: it
-        keeps the experiment's time (`get_ts`), and other engines may follow
-        its clock (e.g., `KeyboardEngine` keeps pace with a sound card, so an
-        EEG monitor on a keyboard loopback uses no sound card channel).
-        '''
-        engines = [e for e in self.engines.values() if e.get_channels()]
-        if engines and self.master_engine not in engines:
-            engines.append(self.master_engine)
-        return engines
+    def _engines_in_use(self):
+        return [e for e in self.engines.values() if e.in_use()]
 
     def configure_engines(self, done_callback_factory=None):
         '''
-        Configure every engine in use (see `engines_in_use`).
+        Configure every engine in use (see `Engine.in_use`), first appointing
+        one of them the master if the master is not.
+
+        The master keeps the experiment's time (`get_ts`). The one declared
+        in the IO manifest (`master_clock`) may have nothing to do: e.g., an
+        EEG monitor on a keyboard loopback plays nothing on the sound card.
+        The last engine in use (by weight) then takes over, as the last
+        engine is the master when none is declared.
 
         Parameters
         ----------
@@ -284,7 +281,13 @@ class IOManager(Atom):
             register as that engine's done callback.
         '''
         with self._lock:
-            for engine in self.engines_in_use():
+            engines = self._engines_in_use()
+            if engines and self.master_engine not in engines:
+                log.info('Master engine %s has no channels in use. '
+                         'Appointing %s.', self.master_engine.name,
+                         engines[-1].name)
+                self.master_engine = engines[-1]
+            for engine in engines:
                 engine.configure()
                 if done_callback_factory is not None:
                     engine.register_done_callback(
@@ -297,17 +300,19 @@ class IOManager(Atom):
             log.debug('Starting engines')
             # The master engine last, so the others are ready when its clock
             # starts.
-            for engine in self.engines_in_use():
+            engines = self._engines_in_use()
+            for engine in engines:
                 if engine is not self.master_engine:
                     engine.start()
-            self.master_engine.start()
+            if self.master_engine in engines:
+                self.master_engine.start()
             self.engines_running = True
 
     def stop_engines(self):
         with self._lock:
             if not self.engines_running:
                 raise ValueError('Engines not running')
-            for engine in self.engines_in_use():
+            for engine in self._engines_in_use():
                 log.info('Stopping engine %r', engine)
                 engine.stop()
             self.engines_running = False

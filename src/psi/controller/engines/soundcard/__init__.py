@@ -8,7 +8,7 @@ log = logging.getLogger(__name__)
 import sys
 import time
 from collections import deque
-from threading import Thread
+from threading import Event, Lock, Thread
 
 from atom.api import (Bool, Dict, Enum, Float, List, Int, Property, Str,
                       FixedTuple, Tuple, Typed, Value)
@@ -65,6 +65,38 @@ class SDAIThread(Thread):
                 time.sleep(self.poll_interval)
         except Exception:
             deferred_call(sys.excepthook, *sys.exc_info())
+
+
+#: Fastest `SoundcardEngine.get_ts` catches up with a jump in the output lag,
+#: in seconds per second: a 50 ms gap is caught up within 0.2 s, and time
+#: keeps moving forward meanwhile.
+CLOCK_SLEW = 0.25
+
+
+class SDTimingMonitor(Thread):
+    '''
+    Calls `SoundcardEngine.log_timing` shortly after the stream starts (to
+    record the starting output lag) and then every `interval` seconds.
+    '''
+
+    def __init__(self, engine, interval, first_interval=1):
+        super().__init__(daemon=True)
+        self.engine = engine
+        self.interval = interval
+        self.first_interval = first_interval
+        self.stop_requested = Event()
+
+    def run(self):
+        wait = self.first_interval
+        while not self.stop_requested.wait(wait):
+            try:
+                self.engine.log_timing()
+            except Exception as e:
+                log.exception(e)
+            wait = self.interval
+
+    def stop(self):
+        self.stop_requested.set()
 
 
 def halt_on_error(f):
@@ -193,6 +225,27 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
     hw_ai_queue = Typed(deque)
     hw_ai_thread = Typed(Thread)
 
+    #: Seconds between log entries of the output lag and xrun counts (see
+    #: `log_timing`).
+    timing_log_interval = d_(Float(30)).tag(metadata=True)
+
+    _timing_monitor = Typed(SDTimingMonitor)
+
+    #: Output lag when first measured (see `get_ts`).
+    _initial_output_lag = Float(np.nan)
+
+    #: Largest growth of the output lag so far, how much of it `get_ts`
+    #: has subtracted so far, and the stream time it last did so (seconds).
+    _lag_growth = Float(0)
+    _clock_correction = Float(0)
+    _last_raw_ts = Float(0)
+
+    #: `get_ts` is called from several threads (control, keyboard, GUI).
+    _clock_lock = Typed(Lock, ())
+
+    #: Xrun counts as of the last `log_timing`.
+    _logged_status_counts = Dict()
+
     def configure(self, active=True):
         log.info('Initializing sound card %s', self.device_name)
         ai_channels = self.get_channels('analog', 'input', 'hardware', active=active)
@@ -211,13 +264,6 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
             pr_kw['ao_channels'] = [c.channel for c in ao_channels]
             pr_kw['ao_cb'] = self._hw_ao_callback
             self._configure_ao_cb(ao_channels)
-        if not ai_channels and not ao_channels:
-            # Nothing to play or record, but the engine still runs when it is
-            # the master engine (see `IOManager.engines_in_use`): play
-            # silence on one output to keep its clock going.
-            pr_kw['ao_channels'] = [self._idle_output_channel()]
-            pr_kw['ao_cb'] = self._hw_ao_callback
-            self._configure_ao_cb(())
 
         self._stream = PlayRec(**pr_kw)
 
@@ -230,19 +276,6 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
 
         self._configured = True
         super().configure()
-
-    def _idle_output_channel(self):
-        '''
-        Output channel to play silence on when no channel is in use.
-        '''
-        channels = self.get_channels('analog', 'output', 'hardware',
-                                     active=False)
-        if not channels:
-            raise ValueError(
-                f'Sound card {self.name} has no channels in use and no '
-                'output to play silence on, so it cannot keep time.'
-            )
-        return channels[0].channel
 
     def _configure_ai_cb(self, ai_channels):
         log.info('Configuring AI callback for %r', ai_channels)
@@ -297,27 +330,114 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
         self._stream.start()
         self._running = True
         self.t0 = self._stream.stream.time
+        self._initial_output_lag = np.nan
+        self._lag_growth = 0.0
+        self._clock_correction = 0.0
+        self._last_raw_ts = 0.0
+        self._logged_status_counts = {}
+        self._timing_monitor = SDTimingMonitor(self, self.timing_log_interval)
+        self._timing_monitor.start()
 
     def stop(self):
-        if self._running:
-            self._running = False
-        else:
+        if not self._running:
             return
+        # Final timing entry, while `get_ts` still reads the stream clock.
+        self._timing_monitor.stop()
+        self.log_timing()
+        self._running = False
         log.info('Stopping sound card %s', self.name)
         self._configured = False
         self._stream.stop()
         self.complete()
 
+    def output_lag(self):
+        '''
+        How far the output samples are behind the stream clock (seconds).
+
+        When output blocks reach the DAC (on the stream clock) minus when
+        they would if the device had played exactly `fs` samples per second
+        of stream time (see `BaseCallbackContext.output_lag_floor`). It
+        starts at the output latency. Each gap the device filled with silence
+        because a block was late adds its length (WASAPI shared mode does
+        this without flagging an underflow), and a sample clock slower than
+        the stream clock adds a steady drift. `get_ts` corrects for the
+        growth.
+
+        NaN until the first measurement, or if the host API does not report
+        DAC times.
+        '''
+        return self._stream.callback.output_lag_floor - self.t0
+
+    def log_timing(self):
+        '''
+        Log the output lag (see `output_lag`), how much it has grown, the
+        xruns PortAudio reported, and the longest gap between callbacks and
+        longest callback since the last entry. New xruns are logged as a
+        warning. WASAPI shared mode reports no xruns: there, a gap longer
+        than the audio Windows keeps queued (about 15 ms) means silence.
+        A long gap with short callbacks means the callback waited (e.g., for
+        the GIL); a long callback means generating the samples is slow.
+        '''
+        # Also brings the clock correction up to date.
+        ts = self.get_ts()
+        lag = self.output_lag()
+        counts = dict(self._stream.callback.status_counts)
+        new = {k: v - self._logged_status_counts.get(k, 0)
+               for k, v in counts.items()
+               if v != self._logged_status_counts.get(k, 0)}
+        self._logged_status_counts = counts
+
+        max_gap, max_duration = self._stream.callback.take_callback_stats()
+
+        totals = ', '.join(f'{k} {v}' for k, v in counts.items() if v)
+        level = logging.WARNING if new else logging.INFO
+        log.log(level, 'Sound card %s at %.1f s: output lag %.1f ms '
+                '(%+.1f ms since start, clock corrected by %.1f ms); '
+                'xruns: %s%s; longest callback gap %.1f ms, longest callback '
+                '%.1f ms (block is %.1f ms)',
+                self.name, ts, lag * 1e3,
+                (lag - self._initial_output_lag) * 1e3,
+                self._clock_correction * 1e3, totals or 'none',
+                f' ({new} new)' if new else '', max_gap * 1e3,
+                max_duration * 1e3, self.blocksize / self.fs * 1e3)
+
     def get_ts(self):
+        '''
+        Time since the stream started, on the sample clock: stream time less
+        how much the output lag has grown (see `output_lag`).
+
+        Stimuli are placed at sample `round(get_ts() * fs)`. On the bare
+        stream clock, every gap the device filled with silence would delay
+        all later stimuli for good (a keypress-to-sound lag that grows over
+        a session). With the correction, a gap delays only what was playing
+        during it. The correction is eased in (at most `CLOCK_SLEW` s per s)
+        so the time never runs backwards, and it never shrinks: silence only
+        ever adds to the lag, and a device ahead of the stream clock just
+        plays stimuli a fixed amount late (`allow_belated`).
+        '''
         if not self._running:
             # The stream clock means nothing until the stream is started
             # (`t0` is captured then), so time starts at 0.
             return 0.0
         try:
-            ts = self._stream.stream.time - self.t0
-            log.debug('Timestamp: %.2f, write time %.2f, read time %.2f',
-                      ts, self._total_samples_written / self.fs,
-                      self._total_samples_read / self.fs)
-            return ts
+            raw_ts = self._stream.stream.time - self.t0
         except Exception:
             return np.nan
+        with self._clock_lock:
+            lag = self.output_lag()
+            if not np.isnan(lag):
+                if np.isnan(self._initial_output_lag):
+                    self._initial_output_lag = lag
+                self._lag_growth = max(self._lag_growth,
+                                       lag - self._initial_output_lag)
+            elapsed = max(raw_ts - self._last_raw_ts, 0)
+            self._last_raw_ts = max(raw_ts, self._last_raw_ts)
+            step = min(self._lag_growth - self._clock_correction,
+                       CLOCK_SLEW * elapsed)
+            if step > 0:
+                self._clock_correction += step
+            ts = raw_ts - self._clock_correction
+        log.debug('Timestamp: %.2f, write time %.2f, read time %.2f',
+                  ts, self._total_samples_written / self.fs,
+                  self._total_samples_read / self.fs)
+        return ts
