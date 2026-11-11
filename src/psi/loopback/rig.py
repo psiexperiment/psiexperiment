@@ -8,6 +8,13 @@ TotalMix), not in the IO manifest, so before any paradigm runs the probe
 plays independent noise on every output and finds where each one comes back,
 at what gain and with what delay. Tests then check that the routes they need
 exist, and use the measured gain as the reference for level checks.
+
+Because the gain is the reference for every level check, the probe guards
+against a stream that loses part of the noise (e.g., while it starts up),
+which once read a route 0.6 dB low and failed every level check of the run
+that followed: the noise starts after a lead-in of silence, each route's gain
+is the median of its gains over short blocks, and the probe is repeated until
+two measurements agree.
 '''
 from dataclasses import dataclass, field
 
@@ -42,6 +49,16 @@ class Rig:
     #: Longest round-trip delay through the sound card to allow for, in
     #: seconds.
     max_latency: float = 0.5
+    #: Silence before the probe noise (s), so anything lost while the stream
+    #: starts is silence rather than noise.
+    probe_lead_in: float = 0.25
+    #: Blocks (s) the gain of each route is measured in; the route's gain is
+    #: the median over them.
+    probe_block: float = 0.05
+    #: How closely (dB) two probes must agree on every route's gain.
+    probe_tolerance_db: float = 0.05
+    #: Probes to run before giving up on two agreeing.
+    probe_attempts: int = 4
 
 
 @dataclass
@@ -52,6 +69,9 @@ class Route:
     gain: float
     #: Delay through the sound card, in samples.
     lag: int
+    #: Largest difference (dB) of a block's gain from `gain`. Near 0 on a
+    #: clean digital route; large if part of the noise went missing.
+    gain_spread_db: float = 0.0
 
     @property
     def gain_db(self):
@@ -86,11 +106,42 @@ class Routing:
         return [f'{o} -> {i}' for i, outputs in required.items()
                 for o in outputs if self.get(o, i) is None]
 
+    def agrees(self, other, tolerance_db):
+        '''
+        True if `other` found the same routes, with the same delays and gains
+        within `tolerance_db`.
+        '''
+        if {(r.output, r.input) for r in self.routes} != \
+                {(r.output, r.input) for r in other.routes}:
+            return False
+        for r in self.routes:
+            o = other.get(r.output, r.input)
+            if o.lag != r.lag or np.sign(o.gain) != np.sign(r.gain) \
+                    or abs(o.gain_db - r.gain_db) > tolerance_db:
+                return False
+        return True
+
 
 def measure_routing(rig, fs=96000, duration=1):
     '''
     Play independent noise on every output of `rig` and find which inputs it
-    reaches.
+    reaches, probing until two measurements agree (see `Rig.probe_*`).
+    '''
+    previous = None
+    for _ in range(rig.probe_attempts):
+        routing = probe_routing(rig, fs, duration)
+        if previous is not None \
+                and routing.agrees(previous, rig.probe_tolerance_db):
+            return routing
+        previous = routing
+    raise RuntimeError(f'{rig.probe_attempts} measurements of the routing did '
+                       f'not agree to {rig.probe_tolerance_db} dB')
+
+
+def probe_routing(rig, fs=96000, duration=1):
+    '''
+    Play the probe noise on every output of `rig` once, and analyze what came
+    back (see `analyze_routing`).
     '''
     # Imported first: it enables sounddevice's ASIO support, which has to
     # happen before sounddevice is.
@@ -98,46 +149,92 @@ def measure_routing(rig, fs=96000, duration=1):
     import sounddevice as sd
 
     outputs, inputs = rig.outputs, rig.inputs
-    n = int(fs * duration)
+    noise = probe_noise(rig, fs, duration)
+    n = len(noise)
+    start = int(fs * rig.probe_lead_in)
     n_ch = max(max(outputs.values()), max(inputs.values())) + 1
-    rng = np.random.default_rng(0)
-    noise = rng.uniform(-1, 1, (n, len(outputs))).astype('float32')
-    noise *= rig.probe_amplitude
     # Keep recording after the noise ends so all of it comes back despite the
-    # round-trip delay; otherwise the gain reads low by the fraction missed.
-    played = np.zeros((n + int(fs * rig.max_latency), n_ch), 'float32')
+    # round-trip delay.
+    played = np.zeros((start + n + int(fs * rig.max_latency), n_ch),
+                      'float32')
     for i, ch in enumerate(outputs.values()):
-        played[:n, ch] = noise[:, i]
+        played[start:start + n, ch] = noise[:, i]
     mapping = list(range(1, n_ch + 1))
     recorded = sd.playrec(played, fs, input_mapping=mapping,
                           output_mapping=mapping, device=rig.device,
                           blocking=True)
+    return analyze_routing(rig, noise, recorded, fs, start)
 
-    routing = Routing(fs=fs, output_names=list(outputs),
+
+def probe_noise(rig, fs, duration):
+    '''
+    Independent noise for each output of `rig`, (samples, outputs).
+    '''
+    rng = np.random.default_rng(0)
+    noise = rng.uniform(-1, 1, (int(fs * duration), len(rig.outputs)))
+    return (noise * rig.probe_amplitude).astype('float32')
+
+
+def analyze_routing(rig, noise, recorded, fs, start=0):
+    '''
+    Find where the probe noise came back.
+
+    Parameters
+    ----------
+    rig : Rig
+    noise : array (samples, outputs)
+        The noise each output of `rig` played.
+    recorded : array (samples, channels)
+        What every channel of the sound card recorded.
+    start : int
+        Sample the noise started at.
+    '''
+    inputs = rig.inputs
+    n = len(noise)
+    block = max(int(fs * rig.probe_block), 1)
+    routing = Routing(fs=fs, output_names=list(rig.outputs),
                       input_names=list(inputs), threshold=rig.route_threshold)
-    routing.gain = np.zeros((len(inputs), len(outputs)))
-    out_names = list(outputs)
+    routing.gain = np.zeros((len(inputs), len(rig.outputs)))
+    out_names = list(rig.outputs)
     for i, (in_name, in_ch) in enumerate(inputs.items()):
-        x = recorded[:, in_ch]
-        lags = {}
+        x = np.asarray(recorded[:, in_ch], dtype=float)
+        positions = {}
         for o in range(len(out_names)):
             c = signal.correlate(x, noise[:, o], 'full', 'fft')
             peak = np.argmax(np.abs(c))
             routing.gain[i, o] = c[peak] / np.sum(noise[:, o] ** 2)
             if abs(routing.gain[i, o]) > rig.route_threshold:
-                lags[o] = peak - (n - 1)
-        if not lags:
+                positions[o] = peak - (n - 1)
+        if not positions:
             continue
         # Where several outputs sum into one input, each one's correlation
-        # also picks up the others by chance, so fit them jointly for the
-        # gains.
-        sources = np.zeros((len(x), len(lags)))
-        for j, (o, lag) in enumerate(lags.items()):
-            sources[lag:lag + n, j] = noise[:, o]
-        gains = np.linalg.lstsq(sources, x, rcond=None)[0]
-        for (o, lag), gain in zip(lags.items(), gains):
-            routing.gain[i, o] = gain
-            routing.routes.append(Route(out_names[o], in_name, gain, lag))
+        # also picks up the others by chance, so fit them jointly. The fit is
+        # made block by block over where every source is playing, and each
+        # gain is the median over blocks, so a stretch of the recording that
+        # lost the noise (or shifted it) doesn't pull the gain down.
+        sources = np.zeros((len(x), len(positions)))
+        for j, (o, p) in enumerate(positions.items()):
+            lb, ub = max(p, 0), min(p + n, len(x))
+            sources[lb:ub, j] = noise[lb - p:ub - p, o]
+        lb = max(max(positions.values()), 0)
+        ub = min(min(positions.values()) + n, len(x))
+        edges = range(lb, ub - block + 1, block)
+        if len(edges):
+            fits = np.array([
+                np.linalg.lstsq(sources[e:e + block], x[e:e + block],
+                                rcond=None)[0]
+                for e in edges])
+            gains = np.median(fits, axis=0)
+        else:
+            fits = gains = np.linalg.lstsq(sources, x, rcond=None)[0][None]
+            gains = gains[0]
+        with np.errstate(divide='ignore'):
+            spread = np.max(np.abs(20 * np.log10(np.abs(fits / gains))),
+                            axis=0)
+        for j, (o, p) in enumerate(positions.items()):
+            routing.gain[i, o] = gains[j]
+            routing.routes.append(Route(out_names[o], in_name, gains[j],
+                                        p - start, spread[j]))
     return routing
 
 

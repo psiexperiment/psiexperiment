@@ -207,6 +207,9 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
     #: Flag indicating experiment is running and actively streaming data.
     _running = Bool(False)
 
+    #: Whether the stream records any inputs (set by `configure`).
+    _has_input = Bool(False)
+
     #: These are standard sampling rates in most sound cards. Not all sound
     #: cards may support the highest sampling rates. Calling the result of
     #: `Enum` with a value sets the default.
@@ -250,6 +253,7 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
         log.info('Initializing sound card %s', self.device_name)
         ai_channels = self.get_channels('analog', 'input', 'hardware', active=active)
         ao_channels = self.get_channels('analog', 'output', 'hardware', active=active)
+        self._has_input = bool(ai_channels)
 
         pr_kw = {
             'fs': self.fs,
@@ -349,6 +353,22 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
         self._configured = False
         self._stream.stop()
         self.complete()
+
+    def input_time(self):
+        '''
+        See `Engine.input_time`. Input comes back `latency_samples` after it
+        is played, and in whole blocks, so when an experiment stops as an
+        output ends (e.g., a noise exposure that stops on `exposure_end`), up
+        to `latency_samples + blocksize` of the end of the output has not
+        been read yet: about 130 ms on a Fireface at 96 kHz with 8192-sample
+        blocks.
+        '''
+        if not self._has_input:
+            return None
+        return self._total_samples_read / self.fs
+
+    def input_wait_timeout(self):
+        return (self.latency_samples + 2 * self.blocksize) / self.fs
 
     def output_lag(self):
         '''

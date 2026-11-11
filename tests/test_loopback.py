@@ -6,7 +6,10 @@ import pytest
 
 from psi.loopback.continuity import (check_continuity, CyclicSequence,
                                      pilot_sequence, pseudorandom_sequence)
+from psi.loopback import rig as loopback_rig
 from psi.loopback.fit import fit_stimuli
+from psi.loopback.rig import (analyze_routing, measure_routing,
+                              probe_noise, Rig, Route, Routing)
 from psi.loopback.runner import log_problems
 
 
@@ -117,3 +120,111 @@ def test_log_problems(tmp_path):
     assert problems[0].endswith('broke\nTraceback (most recent call last):'
                                 '\n  ValueError')
     assert len(log_problems(log, level='WARNING')) == 3
+
+
+################################################################################
+# Routing probe
+################################################################################
+PROBE_FS = 10000
+
+#: in_0 hears a (x0.9) and b (x0.3) 37 samples late; in_1 hears b (x0.5) 50
+#: samples late.
+ROUTES = [('a', 'in_0', 0.9, 37), ('b', 'in_0', 0.3, 37),
+          ('b', 'in_1', 0.5, 50)]
+
+
+@pytest.fixture
+def probe_rig():
+    return Rig(io_manifest='', device='', outputs={'a': 0, 'b': 1},
+               inputs={'in_0': 0, 'in_1': 1})
+
+
+def probe_recording(rig, noise, start, routes=ROUTES):
+    n = len(noise)
+    recorded = np.zeros((start + n + PROBE_FS // 10, 2))
+    outputs = list(rig.outputs)
+    for output, input, gain, lag in routes:
+        o = outputs.index(output)
+        i = rig.inputs[input]
+        recorded[start + lag:start + lag + n, i] += gain * noise[:, o]
+    return recorded
+
+
+def check_routes(routing, routes=ROUTES, tolerance_db=1e-6):
+    assert len(routing.routes) == len(routes)
+    for output, input, gain, lag in routes:
+        r = routing.get(output, input)
+        assert r is not None, (output, input)
+        assert r.lag == lag
+        assert abs(r.gain_db - 20 * np.log10(gain)) < tolerance_db
+
+
+def test_analyze_routing(probe_rig):
+    noise = probe_noise(probe_rig, PROBE_FS, 1)
+    start = int(PROBE_FS * probe_rig.probe_lead_in)
+    recorded = probe_recording(probe_rig, noise, start)
+    routing = analyze_routing(probe_rig, noise, recorded, PROBE_FS, start)
+    check_routes(routing)
+    assert routing.get('a', 'in_1') is None
+    assert all(r.gain_spread_db < 1e-6 for r in routing.routes)
+
+
+@pytest.mark.parametrize('lost', ['zeroed', 'dropped'])
+def test_analyze_routing_lost_noise(probe_rig, lost):
+    '''
+    A stretch of the noise that never came back (7%, as when a route once
+    read 0.6 dB low) doesn't change the gain, but shows in its spread.
+    '''
+    noise = probe_noise(probe_rig, PROBE_FS, 1)
+    start = int(PROBE_FS * probe_rig.probe_lead_in)
+    recorded = probe_recording(probe_rig, noise, start)
+    lb, n_lost = start + 2000, int(0.07 * PROBE_FS)
+    if lost == 'zeroed':
+        recorded[lb:lb + n_lost] = 0
+        routes = ROUTES
+    else:
+        # The rest of the recording comes back that much earlier, so it is
+        # the larger part that sets the delay.
+        recorded = np.delete(recorded, np.s_[lb:lb + n_lost], axis=0)
+        routes = [(o, i, g, lag - n_lost) for o, i, g, lag in ROUTES]
+    routing = analyze_routing(probe_rig, noise, recorded, PROBE_FS, start)
+    check_routes(routing, routes)
+    assert routing.get('a', 'in_0').gain_spread_db > 1
+
+
+def routing_with_gain(gain, lag=37):
+    routing = Routing(fs=PROBE_FS, output_names=['a'], input_names=['in_0'],
+                      threshold=0.05)
+    routing.routes.append(Route('a', 'in_0', gain, lag))
+    return routing
+
+
+@pytest.mark.parametrize('other, agrees', [
+    (routing_with_gain(0.9), True),
+    (routing_with_gain(0.9 * 10 ** (0.04 / 20)), True),
+    (routing_with_gain(0.9 * 10 ** (0.06 / 20)), False),
+    (routing_with_gain(-0.9), False),
+    (routing_with_gain(0.9, lag=38), False),
+    (Routing(fs=PROBE_FS, output_names=['a'], input_names=['in_0'],
+             threshold=0.05), False),
+])
+def test_routing_agrees(other, agrees):
+    assert routing_with_gain(0.9).agrees(other, 0.05) == agrees
+
+
+def test_measure_routing_repeats_until_two_agree(probe_rig, monkeypatch):
+    probes = iter([routing_with_gain(0.84), routing_with_gain(0.9),
+                   routing_with_gain(0.9), routing_with_gain(0.7)])
+    monkeypatch.setattr(loopback_rig, 'probe_routing',
+                        lambda *args, **kwargs: next(probes))
+    routing = measure_routing(probe_rig)
+    assert routing.get('a', 'in_0').gain == 0.9
+    assert next(probes).get('a', 'in_0').gain == 0.7
+
+
+def test_measure_routing_gives_up(probe_rig, monkeypatch):
+    gains = iter([0.5, 0.6, 0.7, 0.8])
+    monkeypatch.setattr(loopback_rig, 'probe_routing',
+                        lambda *args, **kwargs: routing_with_gain(next(gains)))
+    with pytest.raises(RuntimeError, match='did not agree'):
+        measure_routing(probe_rig)

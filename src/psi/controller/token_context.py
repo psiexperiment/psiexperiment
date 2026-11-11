@@ -28,6 +28,8 @@ def load_items(output, block):
     so it can be registered with the context plugin without colliding with
     other outputs using the same token. The mapping from the new (global)
     name back to the block's own parameter name is recorded on the output.
+    Parameters the block fixes (its ``values``) are fixed at that value (see
+    ``Parameter.fix_value``).
 
     Parameters
     ----------
@@ -66,6 +68,11 @@ def _load_block_items(output, block):
             .format(block.compact_label, parameter.compact_label)
         new_parameter.group_name = output.name
         new_parameter.scope = scope
+        # A value the paradigm fixes (the block's `values`) is what
+        # `initialize_factory` builds the stimulus with, so the context item
+        # (which is what gets recorded) has to hold it too, not the default.
+        if parameter.name in block.values:
+            new_parameter.fix_value(block.values[parameter.name])
         parameters.append(new_parameter)
         block_map[new_parameter.name] = parameter.name
 

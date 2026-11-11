@@ -126,3 +126,68 @@ def test_log_timing_reports_lag_growth_and_new_xruns(caplog):
     assert 'new' not in record.getMessage()
     assert 'longest callback gap 15.6 ms, longest callback 0.2 ms ' \
         '(block is 10.7 ms)' in record.getMessage()
+
+
+class FakeAudioTime:
+    '''
+    Stands in for the `time` module in `psi.controller.engine`: each wait
+    advances the clock, and the audio thread delivers `block` more input
+    samples.
+    '''
+
+    def __init__(self, engine, block):
+        self.engine = engine
+        self.block = block
+        self.now = 0.0
+        self.sleeps = 0
+
+    def monotonic(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.now += seconds
+        self.sleeps += 1
+        self.engine._total_samples_read += self.block
+
+
+def recording_engine(read, has_input=True):
+    '''
+    A running engine 1 s (48000 samples) in that has read `read` samples
+    of input.
+    '''
+    engine = running_engine()
+    engine._stream.stream.time = 101
+    engine._has_input = has_input
+    engine._total_samples_read = read
+    return engine
+
+
+def test_input_time():
+    engine = recording_engine(24000)
+    assert engine.input_time() == pytest.approx(0.5)
+    engine.latency_samples = 100
+    assert engine.input_wait_timeout() == pytest.approx((100 + 2 * 512)
+                                                        / 48000)
+
+
+def test_input_time_without_input():
+    '''
+    An output-only stream has nothing to wait for.
+    '''
+    assert recording_engine(0, has_input=False).input_time() is None
+
+
+def test_stop_waits_for_input(monkeypatch):
+    '''
+    Stopping as an output ended used to cut off the end of the recording of
+    it (the latency plus up to a block). `wait_for_inputs`, which the IO
+    manager calls before stopping the engines, keeps the stream open until
+    the input has read up to the engine's clock.
+    '''
+    from psi.controller import engine as engine_module
+    engine = recording_engine(47000)
+    clock = FakeAudioTime(engine, 512)
+    monkeypatch.setattr(engine_module, 'time', clock)
+    assert engine_module.wait_for_inputs([engine]) == []
+    assert engine._total_samples_read >= 48000
+    assert clock.sleeps == 2

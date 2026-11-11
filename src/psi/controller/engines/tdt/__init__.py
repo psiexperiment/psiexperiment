@@ -118,6 +118,9 @@ class TDTEngine(Engine):
     _stop_requested = Value()
     _sf = Typed(dict, {})
 
+    #: How often the input buffers are read (s).
+    _hw_ai_monitor_period = Float(0.1)
+
     def _get_circuit_path(self):
         return Path(__file__).parent / f'{self.circuit}.rcx'
 
@@ -231,10 +234,28 @@ class TDTEngine(Engine):
             b._total_samples_read = 0
             buffers[c.name] = b
         self._buffers['hw_ai'] = buffers
+        self._hw_ai_monitor_period = c.monitor_period
         self._threads['hw_ai'] = DAQThread(c.monitor_period,
                                            self._stop_requested,
                                            self._hw_ai_callback,
                                            name='hw_ai')
+
+    def input_time(self):
+        '''
+        See `Engine.input_time`. The input buffers are read every
+        `monitor_period`, so up to that much (plus each channel's filter
+        delay) of what the engine's clock has passed has not been delivered
+        yet. Stopping ends the reads, which used to leave it unread.
+        '''
+        buffers = self._buffers.get('hw_ai')
+        if not self._configured or not buffers:
+            return None
+        return min(b._total_samples_read / b.fs for b in buffers.values())
+
+    def input_wait_timeout(self):
+        buffers = self._buffers.get('hw_ai', {})
+        delay = max((b._discard / b.fs for b in buffers.values()), default=0)
+        return 2 * self._hw_ai_monitor_period + delay
 
     def _hw_ai_callback(self):
         # TODO: Get lock?

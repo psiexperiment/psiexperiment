@@ -315,6 +315,19 @@ class Parameter(ContextItem):
     def set_value(self, value):
         self.expression = self.to_expression(value)
 
+    def fix_value(self, value):
+        '''
+        Fix the item at `value` (a Python value, not an expression), e.g.
+        for a token parameter a paradigm sets with its block's `values`.
+
+        The item is hidden and not editable, so neither the user nor saved
+        preferences (which skip items that are not editable) can change it,
+        and its value is the one used rather than its default.
+        '''
+        self.expression = repr(value)
+        self.editable = False
+        self.visible = False
+
     def get_flags(self):
         flags = super().get_flags()
         flags.append(f'scope {self.scope}')
@@ -376,6 +389,25 @@ class EnumParameter(Parameter):
             return self.choices[value]
         else:
             return f'"{value}"'
+
+    def fix_value(self, value):
+        '''
+        Fix the item at the choice whose value is `value` (e.g., True for a
+        choice of `{'yes': True}` or 'mouse' for `{'mouse': "'mouse'"}`).
+        See `Parameter.fix_value`.
+        '''
+        for label, choice in self.choices.items():
+            # Compared by type as well, since True == 1.
+            same = type(choice) is type(value) and choice == value
+            if same or (isinstance(choice, str) and choice == repr(value)):
+                self.selected = label
+                break
+        else:
+            valid = ', '.join(repr(c) for c in self.choices.values())
+            raise ValueError(f'Cannot fix {self.name} at {value!r}. Valid '
+                             f'values are {valid}.')
+        self.editable = False
+        self.visible = False
 
     def coerce_to_type(self, value):
         return str(value)

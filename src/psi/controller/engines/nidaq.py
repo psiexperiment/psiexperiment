@@ -1053,6 +1053,9 @@ def setup_hw_ai(channels, callback_duration, callback, lock, task_name='hw_ao'):
     task._properties['names'] = verify_channel_names(task, names)
     task._properties['devices'] = device_list(task)
     task._properties['sf'] = dbi(gains)[..., np.newaxis]
+    # Samples discarded from the start of the input to compensate for it
+    # (see hw_input_helper).
+    task._properties['filter delay'] = filter_delay
     task._properties.update(get_timing_config(task))
     log.info('%s timing properties: %r', task._name, task._properties)
     return task
@@ -1225,6 +1228,10 @@ class NIDAQEngine(ChannelSliceCallbackMixin, Engine):
     ai_fs = Typed(float).tag(metadata=True)
     ci_fs = Typed(float).tag(metadata=True)
 
+    #: Samples delivered so far by each hardware-timed input ('ai', 'ci'),
+    #: after the filter delay is discarded (see `input_time`).
+    _input_samples = Typed(dict)
+
     # This defines the function for the clock that synchronizes the tasks.
     sample_time = Callable()
 
@@ -1233,11 +1240,13 @@ class NIDAQEngine(ChannelSliceCallbackMixin, Engine):
         self._tasks = {}
         self._callbacks = {}
         self._timers = {}
+        self._input_samples = {}
         self._configured = False
         self._hw_input_lock = RLock()
 
     def configure(self, active=True):
         log.debug('Configuring {} engine'.format(self.name))
+        self._input_samples = {}
 
         hw_ci_channels = self.get_channels('counter', 'input', 'hardware', active=active)
         hw_co_channels = self.get_channels('counter', 'output', 'hardware', active=active)
@@ -1483,7 +1492,28 @@ class NIDAQEngine(ChannelSliceCallbackMixin, Engine):
         samples /= task._properties['sf']
         for _channel_name, s, cb in self._callbacks.get(ctype, []):
             cb(samples[s])
+        self._input_samples[ctype] = samples.s0 + samples.shape[-1]
         self._log_sample_clock_heartbeat()
+
+    def input_time(self):
+        '''
+        See `Engine.input_time`. The inputs are read every
+        `hw_ai_monitor_period`, so up to that much (plus the filter delay of
+        the AI task) of what the engine's clock has passed has not been
+        delivered yet. Stopping clears the tasks, which used to throw that
+        away.
+        '''
+        fs = {'ai': self.ai_fs, 'ci': self.ci_fs}
+        times = [self._input_samples.get(ctype, 0) / fs[ctype]
+                 for ctype in fs if f'hw_{ctype}' in self._tasks]
+        return min(times) if times else None
+
+    def input_wait_timeout(self):
+        timeout = 2 * self.hw_ai_monitor_period
+        task = self._tasks.get('hw_ai')
+        if task is not None:
+            timeout += task._properties.get('filter delay', 0) / self.ai_fs
+        return timeout
 
     def _log_sample_clock_heartbeat(self):
         '''

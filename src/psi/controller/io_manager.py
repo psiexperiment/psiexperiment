@@ -7,7 +7,7 @@ from atom.api import Atom, Bool, Typed, Value
 from enaml.workbench.api import Extension
 
 from .channel import Channel, OutputMixin, InputMixin
-from .engine import Engine
+from .engine import Engine, wait_for_inputs
 from .output import BaseOutput, Synchronized
 from .input import Input
 
@@ -312,7 +312,13 @@ class IOManager(Atom):
         with self._lock:
             if not self.engines_running:
                 raise ValueError('Engines not running')
-            for engine in self._engines_in_use():
+            engines = self._engines_in_use()
+        # Let every input catch up with its engine's clock first, so the end
+        # of the recording isn't cut off (see `wait_for_inputs`). Outside the
+        # lock: the engines keep running while this waits.
+        wait_for_inputs(engines)
+        with self._lock:
+            for engine in engines:
                 log.info('Stopping engine %r', engine)
                 engine.stop()
             self.engines_running = False
