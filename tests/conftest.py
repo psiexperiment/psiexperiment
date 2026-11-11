@@ -34,6 +34,28 @@ def isolated_config(tmp_path, monkeypatch):
     psi_config.reload_config()
 
 
+@pytest.fixture(autouse=True)
+def process_qt_events():
+    '''
+    Process the Qt events each test leaves pending, at the end of that test.
+
+    Most tests never run the event loop, so what they queue (e.g., the rest
+    of closing and destroying their windows, and `deferred_call`s) used to
+    pile up until a test that did. On CI (PySide6, coverage, a cold start),
+    delivering that backlog -- over a thousand events, from seven windows,
+    by the time test_keyboard_engine's `test_key_filter` processed them --
+    crashed Python inside Qt.
+    '''
+    yield
+    import sys
+    # Only if a test has already brought Qt in (see `app`).
+    if 'enaml.qt.QtWidgets' not in sys.modules:
+        return
+    from enaml.qt.QtWidgets import QApplication
+    if QApplication.instance() is not None:
+        QApplication.processEvents()
+
+
 @pytest.fixture(scope='session')
 def app():
     """
