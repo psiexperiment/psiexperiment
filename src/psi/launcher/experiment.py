@@ -50,6 +50,10 @@ class Experiment(Atom):
         # This will force a change notification in the Enaml ObjectCombo,
         # thereby refreshing the list of options.
         self.preferences = self.paradigm.list_preferences().copy()
+        # If the selected preference file was deleted or renamed, clear the
+        # selection rather than leave a path that no longer exists.
+        if self.preference and Path(self.preference) not in self.preferences:
+            self.preference = ''
 
     def __init__(self, paradigm, plugins=None, preference=None, **kwargs):
         if isinstance(paradigm, str):
