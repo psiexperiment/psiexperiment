@@ -18,6 +18,10 @@ dependencies = [
     "psidata >= 0.1.12",
     "psiaudio >= 0.4.4",
     "enaml >=0.19.0",
+    # enaml's Qt backend (enaml.qt, used throughout psi) imports qtpy but
+    # only declares it in its Qt extras. qtpy still needs a Qt binding
+    # (e.g. PySide6 or PyQt5), which is left to the user.
+    "qtpy",
     "numpy",
     "palettable",
     "pyqtgraph >=0.14.0",

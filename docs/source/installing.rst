@@ -42,6 +42,8 @@ Dependencies
 Psiexperiment requires Python >= 3.7. The core dependencies include:
 
 * **enaml**: The declarative UI and plugin framework.
+* **qtpy** and a Qt binding: psiexperiment does not install a binding, so
+  install one yourself (e.g., ``pip install PySide6``, or PyQt5 from conda).
 * **numpy** and **scipy**: For signal processing and math.
 * **pandas**: For data management.
 * **pyqtgraph**: For high-performance real-time plotting.
