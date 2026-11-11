@@ -24,8 +24,8 @@ def run_calibration(event):
     core = event.workbench.get_plugin('enaml.workbench.core')
     for calibrator in plugin._calibrators:
         log.info('... running %s', calibrator)
-        calibrator.calibrate(controller, core)
-        calibrator.save(core)
+        result = calibrator.calibrate(controller, core)
+        calibrator.save(core, result)
 
 
 enamldef CalibrationManifest(PluginManifest): manifest:

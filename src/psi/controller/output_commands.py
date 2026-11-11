@@ -333,6 +333,10 @@ def output_pause(event, output):
         time = output.engine.get_ts() + delay
         log.debug('Pausing output %s at %f', output.name, time)
         output.pause(time)
+        # Overwrite samples already buffered past the pause point (the
+        # hardware buffer may extend several seconds ahead).
+        output.engine.update_hw_ao(output.channel.name,
+                                   round(time * output.fs))
     # Never invoke actions while holding an engine lock (see
     # docs/threading.md): actions may themselves acquire engine locks.
     controller.invoke_actions(output.name + '_paused', time)
@@ -345,6 +349,9 @@ def output_resume(event, output):
         time = output.engine.get_ts() + delay
         log.debug('Resuming output %s at %f', output.name, time)
         output.resume(time)
+        # Overwrite the silence already buffered past the resume point.
+        output.engine.update_hw_ao(output.channel.name,
+                                   round(time * output.fs))
     controller.invoke_actions(output.name + '_resumed', time)
 
 

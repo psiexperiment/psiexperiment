@@ -7,7 +7,6 @@ from enaml.core.api import d_, d_func
 import pandas as pd
 
 from psi.core.enaml.api import PSIContribution
-from psi.util import call_on_gui_thread
 
 from psiaudio.calibration import FlatCalibration, InterpCalibration, PointCalibration
 from .chirp import chirp_sens
@@ -69,8 +68,8 @@ class BaseCalibrate(PSIContribution):
         parameters = {'name': name, 'dataframe': dataframe}
         deferred_call(core_plugin.invoke_command, save_command, parameters)
 
-    def save(self, core_plugin):
-        for key, value in self.result.items():
+    def save(self, core_plugin, result):
+        for key, value in result.items():
             name = self.name if key == 'calibration' else f'{self.name}_{key}'
             self.save_dataframe(core_plugin, value, name)
 
@@ -91,12 +90,12 @@ class BaseCalibrate(PSIContribution):
         for ao_channel, kwargs in self.get_config(controller, core).items():
             log.debug('Running calibration for %s', ao_channel.name)
             results[(ao_channel.name,)] = self.run_calibration(ao_channel, ai_channel, kwargs)
-        merged = merge_results(results)
-        # Calibration runs on the control dispatcher thread, but the result
-        # table and plots (calibrate_manifest.enaml) redraw as soon as
-        # `result` changes, which Qt allows only on the GUI thread. Waits, so
-        # `save` sees the result.
-        call_on_gui_thread(lambda: setattr(self, 'result', merged))
+        result = merge_results(results)
+        # Observers of result update plots and widgets, so set it on the GUI
+        # thread. Callers that need the result now (e.g., to save it) must use
+        # the return value instead, since self.result is not updated yet.
+        deferred_call(setattr, self, 'result', result)
+        return result
 
     def get_config(self, controller, core):
         raise NotImplementedError
@@ -190,6 +189,11 @@ class ToneCalibrate(BaseCalibrate):
     #: the noise floor, this raises a calibration error.
     min_snr = d_(Value(None))
 
+    #: Name of the selector whose settings give the frequencies to calibrate.
+    #: None for a paradigm without a selector (the frequencies then come from
+    #: the current context values).
+    selector = d_(Value('default'))
+
     @d_func
     def get_values(self, values):
         return {si for i in values for si in i}
@@ -200,7 +204,7 @@ class ToneCalibrate(BaseCalibrate):
         for output_name, parameter_names in self.outputs.items():
             output = controller.get_output(output_name)
             ao_info = ao.setdefault(output.channel, {'frequencies': set()})
-            p = {'item_names': parameter_names}
+            p = {'item_names': parameter_names, 'iterator': self.selector}
             new = core.invoke_command('psi.context.unique_values', p)
             ao_info['frequencies'].update(self.get_values(new))
 

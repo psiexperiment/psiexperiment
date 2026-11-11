@@ -48,14 +48,12 @@ def plot_click_result(workbench, manifest, event):
         psd_vb.plot(n_spl.index.get_level_values('frequency'), n_spl.values,
                 log_x=True, label=label)
 
-    log.error(manifest.contribution.result.keys())
     waveforms = manifest.contribution.result['waveforms'].dropna()
     for (s, m), w in waveforms.groupby(['ao_channel', 'channel']):
         label = f'{s} ({m})'
         w_mean = w.mean(axis=0)
-        log.error(w_mean)
         waveform_vb.plot(w_mean.index.get_level_values('time'),
-                         w_mean.values, log_x=True, label=label)
+                         w_mean.values, label=label)
 
 
 enamldef ChirpCalibrateManifest(PSIManifest): manifest:
@@ -65,6 +63,7 @@ enamldef ChirpCalibrateManifest(PSIManifest): manifest:
         point = 'psi.data.plots'
 
         initialized ::
+            # BaseCalibrate.calibrate sets result on the GUI thread.
             cb = partial(plot_chirp_result, workbench, manifest)
             manifest.contribution.observe('result', cb)
 
@@ -129,6 +128,7 @@ enamldef ClickCalibrateManifest(BaseCalibrateManifest): manifest:
         point = 'psi.data.plots'
 
         initialized ::
+            # BaseCalibrate.calibrate sets result on the GUI thread.
             cb = partial(plot_click_result, workbench, manifest)
             manifest.contribution.observe('result', cb)
 

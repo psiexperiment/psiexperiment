@@ -34,8 +34,11 @@ class EpochCounter(SinkWithSource):
     @d_func
     def set_requested_n(self, controller):
         output = controller.get_output(self.output_name)
-        self.requested_n = output.queue.count_requested_trials()
-        log.info('Expecting %d trials for %s', self.requested_n, self.output_name)
+        requested_n = output.queue.count_requested_trials()
+        log.info('Expecting %d trials for %s', requested_n, self.output_name)
+        # Shown in the progress bar, so set on the GUI thread (this is called
+        # from the dispatcher thread).
+        deferred_call(setattr, self, 'requested_n', requested_n)
 
     def _update_data(self, epochs):
         n = epochs.shape[0]
@@ -44,6 +47,7 @@ class EpochCounter(SinkWithSource):
 
 class GroupedEpochCounter(EpochCounter):
 
+    #: Context items to group by (optional).
     groups = d_(Typed(ContextMeta))
 
     #: Additional context items (or their names) to group by.
@@ -62,6 +66,8 @@ class GroupedEpochCounter(EpochCounter):
         if len(groups):
             group_names = [v if isinstance(v, str) else v.name for v in groups]
             return operator.itemgetter(*group_names)
+        # Nothing to group by: count every epoch in one group.
+        return lambda metadata: None
 
     def _update_data(self, epochs):
         for e in epochs:

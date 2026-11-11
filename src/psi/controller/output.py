@@ -271,9 +271,7 @@ class BaseAnalogOutput(HardwareOutput):
             # nothing. 
             return
         if offset > self._offset:
-            delay = (self._offset - offset) / self.fs * 1e3
-            raise ValueError(f'Missed chance to play signal. '
-                             f'Start at {offset} but currently at {self._offset} ({delay:.0f} msec).')
+            raise ValueError(self._missed_message(offset))
         if offset < self._offset:
             # The output starts partway through the buffer section that is
             # requested.
@@ -284,6 +282,12 @@ class BaseAnalogOutput(HardwareOutput):
         else:
             out[:] += self.get_next_samples(samples)
             self._offset += samples
+
+    def _missed_message(self, offset):
+        late = (offset - self._offset) / self.fs * 1e3
+        return (f'Missed chance to play signal on {self.name}. Signal was due '
+                f'at sample {self._offset} but the hardware is already at '
+                f'sample {offset} ({late:.0f} msec late).')
 
     def get_next_samples(self, samples):
         raise NotImplementedError
@@ -318,7 +322,14 @@ class AnalogOutputWithSource(BaseAnalogOutput):
         return self.source is not None
 
     def get_samples(self, offset, samples, out):
-        if not self.active or self.paused:
+        if not self.active:
+            return
+        if self.paused:
+            # The hardware keeps requesting samples at increasing offsets
+            # while we are paused. Track its position (without consuming the
+            # source) so that, on resume, playback continues from wherever the
+            # hardware has reached rather than from where it was when paused.
+            self._offset = max(self._offset, offset + samples)
             return
         super().get_samples(offset, samples, out)
 
@@ -387,9 +398,7 @@ class RampedEpochOutput(EpochOutput):
             # nothing. 
             return
         if offset > self._offset:
-            delay = (self._offset - offset) / self.fs * 1e3
-            raise ValueError(f'Missed chance to play signal. '
-                             f'Start at {self._offset} but currently at {offset} ({delay:.0f} msec).')
+            raise ValueError(self._missed_message(offset))
         if offset < self._offset:
             # The output starts partway through the buffer section that is
             # requested.
@@ -471,17 +480,31 @@ class QueuedEpochOutput(EpochOutput):
             raise KeyError(f'Event "{event}" not valid')
         self.event_notifiers[event].append(callback)
 
-    def rebuffer(self, time):
-        self.queue.cancel(time)
-        self.queue.rewind_samples(time)
-        super().rebuffer(time)
-
     def pause(self, time):
+        '''
+        Pause the output at `time` (sec re. acquisition start).
+
+        The queue cancels (and requeues) trials that would still be playing at
+        `time` and rewinds its clock to `time`; the output's playback position
+        is moved to the same sample. The caller must then rewrite the hardware
+        buffer from `time` (see `output_pause`) so samples already buffered
+        beyond that point are silenced.
+        '''
         self.queue.pause(time)
+        self._offset = round(time * self.fs)
         super().pause(time)
 
-    def resume(self, time, delay=0):
+    def resume(self, time):
+        '''
+        Resume the output at `time` (sec re. acquisition start).
+
+        Moves both the queue's clock and the output's playback position to
+        `time` so new trials are timestamped where they are actually played.
+        The caller must then rewrite the hardware buffer from `time` (see
+        `output_resume`).
+        '''
         self.queue.resume(time)
+        self._offset = round(time * self.fs)
         super().resume(time)
 
     def _observe_queue(self, event):

@@ -2,6 +2,7 @@
 Tests for :mod:`psi.launcher.experiment`.
 '''
 import json
+from pathlib import Path
 
 from atom.api import Enum, Str
 
@@ -84,6 +85,21 @@ def test_state_is_json_serializable():
 def test_empty_preference_is_not_warned_about(caplog):
     Experiment(FakeParadigm(), preference='')
     assert 'Invalid preference' not in caplog.text
+
+
+def test_refresh_clears_removed_preference():
+    paradigm = FakeParadigm(preferences=['x/a.preferences', 'x/b.preferences'])
+    exp = Experiment(paradigm, preference='a.preferences')
+    paradigm._preferences = [p for p in paradigm._preferences if p.stem != 'a']
+    exp.update_preferences()
+    assert exp.preference == ''
+
+
+def test_refresh_keeps_existing_preference():
+    paradigm = FakeParadigm(preferences=['x/a.preferences', 'x/b.preferences'])
+    exp = Experiment(paradigm, preference='a.preferences')
+    exp.update_preferences()
+    assert exp.preference == str(Path('x/a.preferences'))
 
 
 def test_invalid_plugins_are_dropped():

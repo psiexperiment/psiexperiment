@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import pandas as pd
 
-import psi.util as util_module
+import psi.controller.calibration.calibrate as calibrate_module
 from psi.controller.calibration.calibrate import BaseCalibrate
 
 
@@ -27,23 +27,31 @@ def test_result_set_on_gui_thread(monkeypatch):
     # table and plots redraw when `result` changes, which Qt allows only on
     # the GUI thread (a click calibration's plot failed with "Timers cannot
     # be started from another thread").
-    app = SimpleNamespace(is_main_thread=lambda: False)
-    monkeypatch.setattr(util_module, 'Application',
-                        SimpleNamespace(instance=lambda: app))
-
-    def fake_deferred_call(fn, *args, **kwargs):
-        threading.Thread(target=fn, args=args, kwargs=kwargs,
-                         name='fake-gui-thread', daemon=True).start()
-
-    monkeypatch.setattr(util_module, 'deferred_call', fake_deferred_call)
+    calls = []
+    monkeypatch.setattr(calibrate_module, 'deferred_call',
+                        lambda fn, *args: calls.append((fn, args)))
 
     calibrator = FakeCalibrate(input_name='hw_ai::microphone')
     seen = {}
     calibrator.observe(
         'result', lambda e: seen.setdefault('thread', threading.current_thread()))
     controller = SimpleNamespace(get_channel=lambda name: None)
-    calibrator.calibrate(controller, None)
 
-    # Set (on the GUI thread) by the time calibrate returns, for `save`.
-    assert seen['thread'].name == 'fake-gui-thread'
-    assert calibrator.result['calibration'].loc[('speaker_1', 1000), 'spl'] == 60
+    def run_on_dispatcher():
+        seen['returned'] = calibrator.calibrate(controller, None)
+
+    dispatcher = threading.Thread(target=run_on_dispatcher, name='dispatcher')
+    dispatcher.start()
+    dispatcher.join()
+
+    # Not set on the dispatcher thread. The result is returned instead, for
+    # `save`.
+    assert 'thread' not in seen
+    result = seen['returned']
+    assert result['calibration'].loc[('speaker_1', 1000), 'spl'] == 60
+
+    # Set when the GUI thread runs the deferred call.
+    for fn, args in calls:
+        fn(*args)
+    assert seen['thread'] is threading.main_thread()
+    assert calibrator.result['calibration'].equals(result['calibration'])

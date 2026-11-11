@@ -88,3 +88,21 @@ def test_grouped_epoch_counter_extra_groups_accepts_names():
     ]
     gc._update_data(epochs)
     assert dict(gc.counts) == {('A', 60): 2, ('A', 70): 1}
+
+
+def test_grouped_epoch_counter_groups_and_extra_groups():
+    from enaml.core.import_hooks import imports
+    with imports():
+        from psi.context.api import OrderedContextMeta, Parameter
+    meta = OrderedContextMeta(name='settings')
+    meta.values = [Parameter(name='level')]
+    gc = GroupedEpochCounter(name='gc', output_name='dummy', groups=meta,
+                             extra_groups=['stim'])
+    assert gc.get_key({'level': 60, 'stim': 'A'}) == (60, 'A')
+
+
+def test_grouped_epoch_counter_no_groups():
+    gc = GroupedEpochCounter(name='gc', output_name='dummy',
+                             requested_group_n=10)
+    gc._update_data([_Epoch({'stim': 'A'}), _Epoch({'stim': 'B'})])
+    assert gc.current_n == 2
