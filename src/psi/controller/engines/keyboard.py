@@ -499,7 +499,7 @@ def qt_key(name):
     try:
         return getattr(Qt.Key, attr)
     except AttributeError:
-        raise ValueError(f'Unknown key "{name}"')
+        raise ValueError(f'Unknown key "{name}"') from None
 
 
 def make_key_filter(engine, key_map):

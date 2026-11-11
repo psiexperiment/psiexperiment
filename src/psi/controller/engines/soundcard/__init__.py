@@ -244,7 +244,8 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
     _last_raw_ts = Float(0)
 
     #: `get_ts` is called from several threads (control, keyboard, GUI).
-    _clock_lock = Typed(Lock, ())
+    #: Not Typed: before Python 3.13, threading.Lock is a function.
+    _clock_lock = Value(factory=Lock)
 
     #: Xrun counts as of the last `log_timing`.
     _logged_status_counts = Dict()

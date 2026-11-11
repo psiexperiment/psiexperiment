@@ -341,7 +341,7 @@ def test_loopback_unknown_source():
                                  parent=engine)
     engine.add_channel(loopback)
     with pytest.raises(AttributeError, match='missing'):
-        loopback.source
+        _ = loopback.source
 
 
 def test_strobed_ir_pipeline_detects_key():
