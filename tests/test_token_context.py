@@ -96,7 +96,7 @@ def fixed_noise():
     token = Cos2Envelope(name='noise_burst', values={'start_time': 0.5})
     BandlimitedFIRNoise(parent=token, values={
         'polarity': -1,
-        'correct_level': True,
+        'legacy_level': True,
         'audiogram_weighting': 'mouse',
     })
     return token
@@ -110,7 +110,7 @@ def items_by_name(output, token):
     ('target_noise_burst_start_time', '0.5'),
     ('target_bandlimited_noise_polarity', '-1'),
     # Drop-downs hold the choice's value as their expression.
-    ('target_bandlimited_noise_correct_level', True),
+    ('target_bandlimited_noise_legacy_level', True),
     ('target_bandlimited_noise_audiogram_weighting', "'mouse'"),
 ])
 def test_load_items_fixes_values(output, fixed_noise, name, expression):
@@ -139,10 +139,10 @@ def test_load_items_does_not_change_token(output, fixed_noise):
     '''
     load_items(output, fixed_noise)
     noise, = fixed_noise.blocks
-    correct_level, = [p for p in noise.parameters
-                      if p.name == 'correct_level']
-    assert correct_level.selected == 'no'
-    assert correct_level.editable
+    legacy_level, = [p for p in noise.parameters
+                     if p.name == 'legacy_level']
+    assert legacy_level.selected == 'no'
+    assert legacy_level.editable
 
 
 def test_load_items_rejects_fixed_value_not_a_choice(output):

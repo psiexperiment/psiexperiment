@@ -283,11 +283,14 @@ enamldef BandlimitedFIRNoise(BroadbandNoise):
         default = 'none'
         choices = {'none': None, 'mouse': "'mouse'"}
 
-    # See `BandlimitedFIRNoiseFactory`: without it, the noise plays below
-    # its level by the fraction of fs / 2 its band spans.
+    # See `BandlimitedFIRNoiseFactory`: 'yes' scales the noise the way
+    # psiaudio did before its level was fixed, to repeat stimuli made then.
+    # That noise is not at its level (usually quieter by the fraction of
+    # fs / 2 its band spans, and louder through a calibration with deep
+    # notches).
     EnumParameter:
-        name = 'correct_level'
-        label = 'Correct level for bandwidth'
+        name = 'legacy_level'
+        label = 'Legacy level scaling'
         default = 'no'
         choices = {'yes': True, 'no': False}
 
