@@ -5,7 +5,7 @@ The view looks up `workbench` dynamically (for the item's scope and the
 experiment state), which in the running application comes from the dock
 item holding it. This provides the same thing for a test.
 '''
-from enaml.widgets.api import Container
+from enaml.widgets.api import Container, Window
 
 from psi.context.context_item_view import ContextItemView
 
@@ -17,3 +17,16 @@ enamldef ContextItemViewHarness(Container): harness:
 
     ContextItemView:
         context_item << harness.context_item
+
+
+enamldef ContextItemViewWindow(Window): window:
+    '''
+    A ContextItemView in a window, so it can be shown and laid out (e.g., to
+    measure its widgets).
+    '''
+    attr workbench
+    attr context_item
+
+    Container:
+        ContextItemView:
+            context_item << window.context_item

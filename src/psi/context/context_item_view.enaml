@@ -34,7 +34,7 @@ from psi.core.enaml.editable_table_widget import ListTable
 from .context_item import (Result, Parameter, EnumParameter, FileParameter,
                            BoolParameter, MultiSelectParameter,
                            OrderedContextMeta, UnorderedContextMeta,
-                           ContextRow)
+                           ContextRow, ROW_FIELD_WIDTH)
 
 from .expression import ExpressionNamespace
 
@@ -146,7 +146,8 @@ template ContextItemTemplate(row, MemberType: ContextRow):
             constraints = [hbox(*widgets, spacing=5)]
             for item, widget in zip(row.fmt, widgets):
                 if isinstance(widget, Field):
-                    constraints.append(widget.width == 45)
+                    width = getattr(item, 'field_width', ROW_FIELD_WIDTH)
+                    constraints.append(widget.width == width)
             constraints.append(align('v_center', *widgets[:-1]))
             return constraints
         Looper:

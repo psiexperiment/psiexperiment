@@ -10,10 +10,11 @@ import enaml
 import pytest
 from enaml.widgets.api import Label
 
-from psi.context.api import EnumParameter, Parameter
+from psi.context.api import ContextRow, EnumParameter, Parameter
 
 with enaml.imports():
-    from .context_item_view_helper import ContextItemViewHarness
+    from .context_item_view_helper import (ContextItemViewHarness,
+                                           ContextItemViewWindow)
 
 
 def render(workbench, context_item):
@@ -88,3 +89,45 @@ class TestEditableItem:
         controller.experiment_state = 'running'
         assert label_widget(harness).isEnabled()
         assert not value_widget(harness, Field).isEnabled()
+
+
+class TestRowFieldWidth:
+    '''
+    In a ContextRow, each value's field is `field_width` pixels wide, 45 unless
+    the item says otherwise.
+    '''
+
+    def field_widths(self, workbench, app, row):
+        from enaml.qt.QtWidgets import QApplication
+        from enaml.widgets.api import Field
+        window = ContextItemViewWindow(workbench=workbench, context_item=row)
+        window.show()
+        try:
+            QApplication.processEvents()
+            return [f.proxy.widget.width() for f in window.traverse()
+                    if isinstance(f, Field)]
+        finally:
+            window.close()
+
+    def test_default_width(self, workbench, app):
+        level = Parameter(name='level', default=60, scope='experiment')
+        row = ContextRow(name='row', fmt=['Level', level, 'dB SPL'])
+        assert level.field_width == 45
+        assert self.field_widths(workbench, app, row) == [45]
+
+    def test_item_width(self, workbench, app):
+        duration = Parameter(name='duration', default=7200, field_width=90,
+                             scope='experiment')
+        ramp = Parameter(name='ramp', default=1, scope='experiment')
+        row = ContextRow(name='row', fmt=['Duration', duration, 's with',
+                                          ramp, 's ramp'])
+        assert self.field_widths(workbench, app, row) == [90, 45]
+
+    def test_width_not_saved(self):
+        '''
+        The width is layout, not a setting: saved preferences don't change
+        with it.
+        '''
+        default = Parameter(name='a', default=1)
+        wide = Parameter(name='a', default=1, field_width=90)
+        assert wide.get_preferences() == default.get_preferences()

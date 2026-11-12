@@ -11,6 +11,11 @@ from psi.core.enaml.api import PSIContribution
 from ..util import get_tagged_members, get_tagged_values
 
 
+#: Default width (pixels) of a value's field in a ContextRow (see
+#: `Parameter.field_width`).
+ROW_FIELD_WIDTH = 45
+
+
 ################################################################################
 # ContextMeta
 ################################################################################
@@ -299,6 +304,11 @@ class Parameter(ContextItem):
 
     # Is the value of this item managed by a selector?
     rove = d_(Bool()).tag(preference=True)
+
+    #: Width (pixels) of the field the value is typed into when the item is
+    #: laid out in a ContextRow. The default suits a number; widen it for an
+    #: item whose value is often typed as an expression (e.g., `60*60*2`).
+    field_width = d_(Int(ROW_FIELD_WIDTH))
 
     def _default_expression(self):
         return str(self.default)

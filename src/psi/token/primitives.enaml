@@ -73,7 +73,7 @@ enamldef Envelope(Gate): block:
 
     Parameter:
         name = 'transform'
-        label = 'Transform'
+        label = 'transform'
         compact_label = 'T'
         default = None
 
@@ -92,19 +92,19 @@ enamldef SquareWaveEnvelope(ContinuousBlock): block:
 
     Parameter:
         name = 'fm'
-        label = 'Modulation frequency (Hz)'
+        label = 'modulation frequency (Hz)'
         compact_label = 'fm'
         default = 5.0
 
     Parameter:
         name = 'duty_cycle'
-        label = 'Duty cycle (frac.)'
+        label = 'duty cycle (frac.)'
         compact_label = 'dc'
         default = 0.5
 
     Parameter:
         name = 'alpha'
-        label = 'Tukey Window shape'
+        label = 'Tukey window shape'
         compact_label = 'alpha'
         default = 0
 
@@ -123,7 +123,7 @@ enamldef SAMEnvelope(ContinuousBlock): block:
 
     Parameter:
         name = 'fm'
-        label = 'Modulation frequency (Hz)'
+        label = 'modulation frequency (Hz)'
         compact_label = 'fm'
         default = 5.0
 
@@ -135,7 +135,7 @@ enamldef SAMEnvelope(ContinuousBlock): block:
 
     EnumParameter:
         name = 'direction'
-        label = 'Initial AM direction'
+        label = 'initial AM direction'
         compact_label = 'dir'
         default = 'positive'
         choices = {'positive': 1, 'negative': -1}
@@ -155,13 +155,13 @@ enamldef SAMTone(ContinuousBlock): block:
 
     Parameter:
         name = 'fc'
-        label = 'Carrier frequency (Hz)'
+        label = 'carrier frequency (Hz)'
         compact_label = 'fc'
         default = 8e3
 
     Parameter:
         name = 'fm'
-        label = 'Modulation frequency (Hz)'
+        label = 'modulation frequency (Hz)'
         compact_label = 'fm'
         default = 5.0
 
@@ -274,12 +274,12 @@ enamldef BandlimitedFIRNoise(BroadbandNoise):
 
     Parameter:
         name = 'max_correction'
-        label = 'Max. eq. correction (dB)'
+        label = 'max eq. correction (dB)'
         default = 20
 
     EnumParameter:
         name = 'audiogram_weighting'
-        label = 'Audiogram weighting'
+        label = 'audiogram weighting'
         default = 'none'
         choices = {'none': None, 'mouse': "'mouse'"}
 
@@ -290,7 +290,7 @@ enamldef BandlimitedFIRNoise(BroadbandNoise):
     # notches).
     EnumParameter:
         name = 'legacy_level'
-        label = 'Legacy level scaling'
+        label = 'legacy level scaling'
         default = 'no'
         choices = {'yes': True, 'no': False}
 
@@ -450,12 +450,12 @@ enamldef Chirp(EpochBlock):
 
     Parameter:
         name = 'max_correction'
-        label = 'Max. eq. correction (dB)'
+        label = 'max eq. correction (dB)'
         default = 20
 
     EnumParameter:
         name = 'audiogram_weighting'
-        label = 'Audiogram weighting'
+        label = 'audiogram weighting'
         default = 'none'
         choices = {'none': None, 'mouse': "'mouse'"}
 
@@ -515,12 +515,12 @@ enamldef BandlimitedClick(EpochBlock):
 
     Parameter:
         name = 'max_correction'
-        label = 'Max. eq. correction (dB)'
+        label = 'max eq. correction (dB)'
         default = 20
 
     EnumParameter:
         name = 'audiogram_weighting'
-        label = 'Audiogram weighting'
+        label = 'audiogram weighting'
         default = 'none'
         choices = {'none': None, 'mouse': "'mouse'"}
 
