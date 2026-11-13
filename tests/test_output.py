@@ -2,10 +2,11 @@ import pytest
 
 import numpy as np
 
+from psiaudio.gain import GainSchedule
 from psiaudio.stim import Cos2EnvelopeFactory, ToneFactory
 
 from psi.controller.api import (
-    MUXOutput, NullOutput, RampedEpochOutput, Synchronized,
+    MUXOutput, NullOutput, Synchronized,
 )
 from psi.controller.engines.null import NullEngine
 
@@ -189,25 +190,42 @@ def test_epoch_output_rejects_downstream_outputs(epoch_output):
         epoch_output.add_output(NullOutput())
 
 
-# -------- RampedEpochOutput --------
+# -------- gain --------
 
-def test_ramped_epoch_output_creates_ramp(ao_channel):
-    ramped = RampedEpochOutput(name='ramped')
-    ao_channel.add_output(ramped)
-    waveform = np.ones(1000)
-    ramped.set_waveform(waveform, ramp_time=0.1)
-    assert ramped.ramp is not None
-    # The cos2envelope-based ramp has the same length as the waveform.
-    n_samples = ramped.ramp.next(waveform.shape[-1]).shape[-1]
-    assert n_samples == waveform.shape[-1]
+def test_epoch_output_without_gain_unchanged(epoch_output, tb1):
+    '''
+    An output with no gain schedule plays its source exactly.
+    '''
+    expected = tb1.get_samples_remaining()[:1000]
+    tb1.reset()
+    epoch_output.source = tb1
+    epoch_output.activate(0)
+    out = np.zeros(1000)
+    epoch_output.get_samples(0, 1000, out)
+    np.testing.assert_array_equal(out, expected)
 
 
-def test_ramped_epoch_output_ramp_none_path(ao_channel):
-    ramped = RampedEpochOutput(name='ramped')
-    ao_channel.add_output(ramped)
-    waveform = np.ones(100)
-    ramped.set_waveform(waveform, ramp_time=None)
-    # When ramp_time is None, the ramp array is all zeros (no attenuation
-    # change applied later in write_next_samples).
-    ramp_samples = ramped.ramp.next(100)
-    np.testing.assert_array_equal(ramp_samples, np.zeros(100))
+def test_epoch_output_gain_by_hardware_sample(epoch_output, tb1):
+    '''
+    The gain is applied by the sample on the hardware's clock, including when
+    the output starts partway through a block, and a change starts at the
+    first sample not yet rendered.
+    '''
+    source = tb1.get_samples_remaining()
+    tb1.reset()
+    epoch_output.source = tb1
+    epoch_output.gain = GainSchedule(epoch_output.fs, ramp_time=0)
+    epoch_output.activate(250)
+
+    out = np.zeros(500)
+    epoch_output.get_samples(0, 500, out)       # plays samples 250-499
+    assert epoch_output.gain.set(-6) == 500
+    out2 = np.zeros(500)
+    epoch_output.get_samples(500, 500, out2)    # plays samples 500-999
+
+    np.testing.assert_array_equal(out[:250], 0)
+    np.testing.assert_array_equal(out[250:], source[:250])
+    np.testing.assert_allclose(out2, source[250:750] * 10 ** (-6 / 20))
+    assert epoch_output.gain.constant_over(250, 500) == 0
+    assert epoch_output.gain.constant_over(500, 1000) == -6
+

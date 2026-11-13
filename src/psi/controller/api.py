@@ -17,7 +17,7 @@ from .input import (
 
 from .output import (
     ContinuousOutput, ContinuousCallbackOutput, ContinuousQueuedOutput, EpochOutput, EpochWaveform, MUXOutput,
-    NullOutput, RampedEpochOutput, QueuedEpochOutput, Synchronized, TimedTrigger, Toggle, Trigger, WaveformOutput,
+    NullOutput, QueuedEpochOutput, Synchronized, TimedTrigger, Toggle, Trigger, WaveformOutput,
 )
 
 from psi.core.experiment_action import (
