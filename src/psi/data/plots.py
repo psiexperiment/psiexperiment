@@ -795,7 +795,7 @@ class SinglePlot(PenMixin, BasePlot):
 
     #: Add `label` to the container legend. Off by default to match earlier
     #: behavior, where only ResultPlot appeared in the legend.
-    show_in_legend = False
+    show_in_legend = d_(Bool(False))
 
     def initialized(self, event=None):
         super().initialized()
@@ -1509,7 +1509,7 @@ class ResultPlot(SourceMixin, SymbolMixin, GroupMixin, SinglePlot):
     y_column = d_(Str())
     average = d_(Bool())
 
-    show_in_legend = True
+    show_in_legend = set_default(True)
 
     def _default_name(self):
         return '.'.join((self.parent.name, self.source_name, 'result_plot',

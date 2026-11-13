@@ -114,3 +114,16 @@ def test_marker_matches_plot_before_data(app):
     assert scatter['pen'].color().name() == pg.mkColor('indianred').name()
     assert scatter['symbol'] == 's'
     assert scatter['size'] == 12
+
+
+def test_show_in_legend_declarative(app):
+    '''
+    A paradigm can put any plot in the legend (e.g., a ChannelPlot, which
+    is left out by default) or take a ResultPlot out of it.
+    '''
+    from psi.data.plots import ChannelPlot, ResultPlot
+    assert ChannelPlot.members()['show_in_legend'].metadata['d_member']
+    assert not ChannelPlot().show_in_legend
+    assert ChannelPlot(show_in_legend=True).show_in_legend
+    assert ResultPlot().show_in_legend
+    assert not ResultPlot(show_in_legend=False).show_in_legend
