@@ -37,8 +37,16 @@ class Fit:
         Energy in the recording that the fitted stimuli don't account for
         (e.g., stimuli that were played but not logged), re the recording.
         '''
-        error = self.recorded - self.reconstructed
-        return 10 * np.log10(np.sum(error ** 2) / np.sum(self.recorded ** 2))
+        error = np.sum((self.recorded - self.reconstructed) ** 2)
+        total = np.sum(self.recorded ** 2)
+        # A perfect fit (e.g., a digital loopback) leaves nothing unexplained:
+        # -inf dB, returned directly rather than via log10(0), which warns.
+        if error == 0:
+            return -np.inf
+        # Energy where nothing was recorded is all unexplained.
+        if total == 0:
+            return np.inf
+        return 10 * np.log10(error / total)
 
 
 def find_latency(x, fs, onsets, templates, max_latency=0.5):

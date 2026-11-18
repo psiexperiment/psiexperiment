@@ -104,6 +104,20 @@ def test_fit_stimuli():
     assert fit.unexplained_db < -100
 
 
+def test_unexplained_db_edge_cases():
+    from psi.loopback.fit import Fit
+    x = np.array([0.0, 1.0, -1.0])
+    def make(recorded, reconstructed):
+        return Fit(latency=0, epochs=None, recorded=recorded,
+                   reconstructed=reconstructed, fs=FS)
+    # An exact fit, without numpy's divide-by-zero warning.
+    with np.errstate(all='raise'):
+        assert make(x, x).unexplained_db == -np.inf
+        # Nothing recorded, but something fitted: all unexplained.
+        assert make(np.zeros(3), x).unexplained_db == np.inf
+    assert make(x, x / 2).unexplained_db == pytest.approx(10 * np.log10(0.25))
+
+
 def test_log_problems(tmp_path):
     log = tmp_path / 'psi.log'
     log.write_text(
