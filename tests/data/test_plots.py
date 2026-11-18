@@ -16,8 +16,9 @@ from psi.data.plots import (
 
 
 def test_make_color():
-    make_color('red')
-    make_color('seagreen')
+    assert make_color('red').name() == '#ff0000'
+    assert make_color('seagreen').name() == '#2e8b57'
+    assert make_color('red', alpha=0.5).alphaF() == pytest.approx(0.5, abs=0.01)
     make_color((0, 0, 0, 0))
     make_color((0, 0, 0))
 

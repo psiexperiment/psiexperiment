@@ -48,8 +48,8 @@ def make_color(color, alpha=None):
     elif isinstance(color, (tuple, list)):
         obj = QColor(*color)
     elif isinstance(color, str):
-        obj = QColor()
-        obj.setNamedColor(color)
+        # Not QColor.setNamedColor, which Qt has deprecated.
+        obj = QColor(color)
     elif isinstance(color, Color):
         return QColor(color.red, color.green, color.blue, color.alpha)
     else:
