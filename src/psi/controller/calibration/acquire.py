@@ -60,6 +60,31 @@ def clone_engines(engines):
     return list(clones.values())
 
 
+def wait_for_epochs(queue, epoch_inputs, poll_interval=0.1):
+    '''
+    Block until every stimulus in `queue` has been played and every input in
+    `epoch_inputs` has extracted all of its epochs.
+
+    Each input must be waited on: inputs do not necessarily receive their
+    samples together. For example, a `KeyboardEngine` loopback of an output
+    being played gets its samples as soon as the sound card writes them
+    (ahead of playback), while one of outputs not in use is silent and paced
+    by the clock. Waiting on only one of them stopped the engines before the
+    other's last epoch had any samples.
+
+    Parameters
+    ----------
+    queue : psiaudio.queue.SignalQueue
+        Queue of stimuli being played.
+    epoch_inputs : list of ExtractEpochs
+        Inputs extracting the epochs.
+    poll_interval : float
+        How often to check, in seconds.
+    '''
+    while not (queue.is_empty() and all(e.complete for e in epoch_inputs)):
+        time.sleep(poll_interval)
+
+
 def acquire(engines, ao_channel_name, ai_channel_names, setup_queue_cb,
             epoch_size, trim=0):
     '''
@@ -98,6 +123,7 @@ def acquire(engines, ao_channel_name, ai_channel_names, setup_queue_cb,
         epochs.extend(epoch)
 
     to_remove = []
+    epoch_inputs = []
     for ai_channel in ai_channels:
         epoch_input = ExtractEpochs(epoch_size=epoch_size)
         cb = partial(accumulate, data[ai_channel])
@@ -107,6 +133,7 @@ def acquire(engines, ao_channel_name, ai_channel_names, setup_queue_cb,
         queue.connect(epoch_input.source_complete, 'empty')
         ai_channel.add_input(epoch_input)
         to_remove.append((ai_channel, epoch_input))
+        epoch_inputs.append(epoch_input)
 
     extra_engines = []
     for engine in set(c.engine for c in ai_channels):
@@ -117,10 +144,7 @@ def acquire(engines, ao_channel_name, ai_channel_names, setup_queue_cb,
 
     ao_channel.engine.configure()
     ao_channel.engine.start()
-    while True:
-        if queue.is_empty() and epoch_input.complete:
-            break
-        time.sleep(0.1)
+    wait_for_epochs(queue, epoch_inputs)
     time.sleep(0.1)
 
     ao_channel.engine.stop()
