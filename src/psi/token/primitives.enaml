@@ -12,7 +12,9 @@ from psiaudio.stim import (
     WavFileFactory, WavSequenceFactory
 )
 
-from psi.context.api import BoolParameter, EnumParameter, Parameter
+from psi.context.api import (
+    BoolParameter, EnumParameter, LevelParameter, Parameter
+)
 from .block import EpochBlock, ContinuousBlock
 
 
@@ -165,9 +167,10 @@ enamldef SAMTone(ContinuousBlock): block:
         compact_label = 'fm'
         default = 5.0
 
-    Parameter:
+    # The unit follows the output's calibration (see LevelParameter).
+    LevelParameter:
         name = 'level'
-        label = 'level (dB SPL)'
+        level_unit = 'dB SPL'
         default = 60.0
 
     EnumParameter:
@@ -187,10 +190,10 @@ enamldef BroadbandNoise(ContinuousBlock):
     name = 'broadband_noise'
     label = 'broadband noise'
 
-    Parameter:
+    # The unit follows the output's calibration (see LevelParameter).
+    LevelParameter:
         name = 'level'
-        label = 'level (dB SPL)'
-        compact_label = 'level'
+        level_unit = 'dB SPL'
         default = 60.0
 
     Parameter:
@@ -301,10 +304,10 @@ enamldef Tone(ContinuousBlock):
     name = 'tone'
     label = 'tone'
 
-    Parameter:
+    # The unit follows the output's calibration (see LevelParameter).
+    LevelParameter:
         name = 'level'
-        label = 'level (dB SPL)'
-        compact_label = 'level'
+        level_unit = 'dB SPL'
         default = 60.0
 
     Parameter:
@@ -340,10 +343,10 @@ enamldef ShapedNoise(ContinuousBlock):
     name = 'shaped_noise'
     label = 'shaped noise'
 
-    Parameter:
+    # The unit follows the output's calibration (see LevelParameter).
+    LevelParameter:
         name = 'level'
-        label = 'level (dB SPL)'
-        compact_label = 'level'
+        level_unit = 'dB SPL'
         default = 60.0
 
     Parameter:
@@ -416,9 +419,10 @@ enamldef Chirp(EpochBlock):
     name = 'chirp'
     label = 'chirp'
 
-    Parameter:
+    # The unit follows the output's calibration (see LevelParameter).
+    LevelParameter:
         name = 'level'
-        label = 'level (dB)'
+        level_unit = 'dB'
         default = -40
 
     Parameter:
@@ -466,9 +470,10 @@ enamldef Click(EpochBlock):
     name = 'click'
     label = 'click'
 
-    Parameter:
+    # The unit follows the output's calibration (see LevelParameter).
+    LevelParameter:
         name = 'level'
-        label = 'level (dB)'
+        level_unit = 'dB'
         default = 1
 
     Parameter:
@@ -508,9 +513,10 @@ enamldef BandlimitedClick(EpochBlock):
         label = 'window (s)'
         default = 5e-3
 
-    Parameter:
+    # The unit follows the output's calibration (see LevelParameter).
+    LevelParameter:
         name = 'level'
-        label = 'level (dB)'
+        level_unit = 'dB'
         default = 1
 
     EnumParameter:
@@ -541,9 +547,10 @@ enamldef WavFile(EpochBlock):
         label = 'filename'
         dtype = 'U'
 
-    Parameter:
+    # The unit follows the output's calibration (see LevelParameter).
+    LevelParameter:
         name = 'level'
-        label = 'level (dB SPL)'
+        level_unit = 'dB SPL'
         dtype = 'double'
 
     EnumParameter:
@@ -575,9 +582,10 @@ enamldef WavSequence(ContinuousBlock):
         label = 'folder'
         dtype = 'S'
 
-    Parameter:
+    # The unit follows the output's calibration (see LevelParameter).
+    LevelParameter:
         name = 'level'
-        label = 'level (dB)'
+        level_unit = 'dB'
         dtype = 'double'
 
     EnumParameter:

@@ -236,3 +236,16 @@ def test_ordered_meta_get_choices_lists():
     # A forbidden item gets no choices at all.
     meta = OrderedContextMeta(name='ordered', forbidden_items=['x'])
     assert meta.get_choices('x') == []
+
+
+def test_level_parameter_label():
+    from psi.context.api import LevelParameter
+    item = LevelParameter(name='level')
+    assert item.label == 'level'
+    assert item.compact_label == 'level'
+    item.level_unit = 'dB SPL'
+    assert item.label == 'level (dB SPL)'
+    item.quantity = 'tone level'
+    assert item.label == 'tone level (dB SPL)'
+    declared = LevelParameter(name='level', level_unit='dB re 1 Vrms')
+    assert declared.label == 'level (dB re 1 Vrms)'

@@ -19,6 +19,8 @@ log = logging.getLogger(__name__)
 
 import copy
 
+from psi.context.api import LevelParameter
+
 
 def load_items(output, block):
     '''
@@ -49,7 +51,14 @@ def load_items(output, block):
     # Rebuild the map from scratch so entries from a previously-assigned
     # token do not linger.
     output._block_context_map = {}
-    return _load_block_items(output, block)
+    parameters = _load_block_items(output, block)
+    output._level_items = [p for p in parameters
+                           if isinstance(p, LevelParameter)]
+    # The output may already know what unit its levels are in.
+    if getattr(output, 'level_unit', ''):
+        for p in output._level_items:
+            p.level_unit = output.level_unit
+    return parameters
 
 
 def _load_block_items(output, block):
@@ -62,8 +71,14 @@ def _load_block_items(output, block):
         new_parameter = copy.copy(parameter)
         new_parameter.name = '{}_{}_{}' \
             .format(output.name, block.name, parameter.name)
-        new_parameter.label = '{} {}' \
-            .format(block.label, parameter.label)
+        if isinstance(parameter, LevelParameter):
+            # The label is built from the quantity and unit (which can change
+            # once the output's calibration is known).
+            new_parameter.quantity = '{} {}' \
+                .format(block.label, parameter.quantity)
+        else:
+            new_parameter.label = '{} {}' \
+                .format(block.label, parameter.label)
         new_parameter.compact_label = '{} {}' \
             .format(block.compact_label, parameter.compact_label)
         new_parameter.group_name = output.name

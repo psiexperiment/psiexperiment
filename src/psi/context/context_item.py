@@ -344,6 +344,43 @@ class Parameter(ContextItem):
         return flags
 
 
+class LevelParameter(Parameter):
+    '''
+    A stimulus level, labeled with the unit it is in (e.g., "level (dB SPL)").
+
+    What a level means depends on the calibration of the output the stimulus
+    plays on (dB SPL with a speaker calibration, dB re 1 Vrms with a unity
+    one, ...), which is often not known until the experiment is configured.
+    The output sets `level_unit` from its calibration once it is (see
+    `HardwareOutput.level_unit`), and the label follows. Until then the label
+    shows the `level_unit` the parameter was declared with.
+    '''
+    #: What the parameter is, without the unit (e.g., 'level'). The label is
+    #: built from this and `level_unit`, so set these rather than `label`.
+    quantity = d_(Str('level'))
+
+    #: Unit the level is in (e.g., 'dB SPL'). The label omits the unit when
+    #: this is empty.
+    level_unit = d_(Str())
+
+    def _make_label(self):
+        if self.level_unit:
+            return f'{self.quantity} ({self.level_unit})'
+        return self.quantity
+
+    def _default_label(self):
+        return self._make_label()
+
+    def _default_compact_label(self):
+        return self.quantity
+
+    def _observe_quantity(self, event):
+        self.label = self._make_label()
+
+    def _observe_level_unit(self, event):
+        self.label = self._make_label()
+
+
 class EnumParameter(Parameter):
 
     expression = Property().tag(transient=True)

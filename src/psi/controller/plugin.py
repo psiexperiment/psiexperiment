@@ -277,6 +277,12 @@ class ControllerPlugin(Plugin):
     def get_output(self, output_name):
         return self.io.get_output(output_name)
 
+    def set_level_unit(self, name, calibration):
+        '''
+        See `psi.controller.io_manager.IOManager.set_level_unit`.
+        '''
+        self.io.set_level_unit(name, calibration)
+
     def get_input(self, input_name):
         return self.io.get_input(input_name)
 

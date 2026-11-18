@@ -211,3 +211,26 @@ def test_wav_tokens_default_to_legacy_scaling(token_name, item_name):
     assert item.expression is True
     item.selected = 'no'
     assert item.expression is False
+
+
+def test_level_item_label_follows_output_unit(output, tone_burst):
+    from psi.context.api import LevelParameter
+    item = items_by_name(output, tone_burst)['target_tone_level']
+    assert isinstance(item, LevelParameter)
+    # Until the output knows its calibration, the unit the token declares.
+    assert item.label == 'tone level (dB SPL)'
+    output.level_unit = 'dB re 1 Vrms'
+    assert item.label == 'tone level (dB re 1 Vrms)'
+
+
+def test_level_unit_known_before_token_is_loaded(output, tone_burst):
+    output.level_unit = 'dB re 1 Vrms'
+    item = items_by_name(output, tone_burst)['target_tone_level']
+    assert item.label == 'tone level (dB re 1 Vrms)'
+
+
+def test_level_unit_does_not_relabel_other_items(output, tone_burst):
+    items = items_by_name(output, tone_burst)
+    before = items['target_tone_frequency'].label
+    output.level_unit = 'dB re 1 Vrms'
+    assert items['target_tone_frequency'].label == before

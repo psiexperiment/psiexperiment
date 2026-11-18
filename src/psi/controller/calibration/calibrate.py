@@ -230,7 +230,8 @@ class ToneCalibrate(BaseCalibrate):
         )
         result = result.sort_index()
         sens = result.loc[ai_channel.name, 'sens']
-        ao_channel.calibration = PointCalibration(sens.index, sens.values)
+        ao_channel.calibration = PointCalibration(sens.index, sens.values,
+                                                  reference='SPL')
         return result
 
 
@@ -293,7 +294,8 @@ class ChirpCalibrate(BaseCalibrate):
         sens = result.loc[ai_channel.name, 'sens']
 
         # Ensure that calibration is set
-        ao_channel.calibration = InterpCalibration(sens.index, sens.values)
+        ao_channel.calibration = InterpCalibration(sens.index, sens.values,
+                                                   reference='SPL')
         result['gain'] = self.gain
         result['duration'] = self.duration
         result['repetitions'] = self.repetitions

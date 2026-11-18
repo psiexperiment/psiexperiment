@@ -214,6 +214,70 @@ class IOManager(Atom):
             else:
                 n_init = len(to_init)
 
+        # Now that each output knows its channel, label its levels with the
+        # unit the channel's calibration uses.
+        for o in self.outputs.values():
+            if hasattr(o, 'follow_calibration'):
+                o.follow_calibration()
+
+    def outputs_feeding(self, name):
+        '''
+        Find the outputs that play into `name`, directly or through other
+        outputs (e.g., an output targeting a `MUXOutput` that targets the
+        channel), going by their `target_name`.
+
+        Works before the outputs are connected (unlike following `target`),
+        which is what allows setting `level_unit` as soon as a calibration
+        is loaded.
+
+        Parameters
+        ----------
+        name : str
+            Name of an output, or of a channel (e.g., 'hw_ao::speaker_1').
+
+        Returns
+        -------
+        list
+            The outputs feeding into `name`.
+        '''
+        found = []
+        pending = [name]
+        while pending:
+            target = pending.pop()
+            for o in self.outputs.values():
+                try:
+                    target_name = o.target_name
+                except Exception as e:
+                    # Some target names are computed from the context (e.g.,
+                    # an output that plays on whichever channel a context
+                    # item selects), which can't be read until the context is
+                    # initialized. Such an output can't be followed yet; its
+                    # expression is evaluated again when the outputs are
+                    # connected.
+                    log.debug('Skipping output %s: target not known yet (%s)',
+                              o.name, e)
+                    continue
+                if target_name == target and o not in found:
+                    found.append(o)
+                    pending.append(o.name)
+        return found
+
+    def set_level_unit(self, name, calibration):
+        '''
+        Label the levels of every output feeding into `name` with the unit
+        `calibration` uses (see `outputs_feeding`).
+
+        For code that loads a calibration before the outputs are connected
+        (e.g., from settings when the plugins start), so that the levels are
+        labeled correctly while the user is still setting them. Does nothing
+        if the calibration does not say what its levels are in.
+        '''
+        unit = calibration.get_level_unit()
+        if not unit:
+            return
+        for o in self.outputs_feeding(name):
+            o.level_unit = unit
+
     def connect_inputs(self):
         for i in self.inputs.values():
             # First, make sure the input is connected to a source

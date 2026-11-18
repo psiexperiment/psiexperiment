@@ -5,8 +5,8 @@ from .choice import (
 
 from .context_item import (
     BoolParameter, ContextGroup, ContextMeta, ContextRow, EnumParameter, Expression,
-    FileParameter, MultiSelectParameter, OrderedContextMeta, Parameter, Result,
-    UnorderedContextMeta
+    FileParameter, LevelParameter, MultiSelectParameter, OrderedContextMeta,
+    Parameter, Result, UnorderedContextMeta
 )
 
 from .selector import (

@@ -16,6 +16,7 @@ from psiaudio.queue import AbstractSignalQueue
 from psi.core.enaml.api import PSIContribution
 
 from .token_context import initialize_factory
+from psi.util import call_on_gui_thread
 
 
 class Synchronized(PSIContribution):
@@ -51,6 +52,34 @@ class BaseOutput(PSIContribution):
     #: Populated by psi.controller.token_context.load_items when a token is
     #: assigned to this output.
     _block_context_map = Typed(dict, ())
+
+    #: Unit the levels of this output's stimuli are in (e.g., 'dB SPL'), as
+    #: given by the calibration of the channel it plays on. Empty until
+    #: known. Setting it relabels the level context items of the output's
+    #: token (`psi.context.api.LevelParameter`), so the GUI shows the unit.
+    #: It is set from the channel's calibration once the outputs are
+    #: connected (see `HardwareOutput.follow_calibration`), and can be set
+    #: earlier by whatever loads the calibration (see
+    #: `IOManager.set_level_unit`).
+    level_unit = Str()
+
+    #: The `LevelParameter` context items of the output's token. Populated by
+    #: psi.controller.token_context.load_items.
+    _level_items = List()
+
+    def _observe_level_unit(self, event):
+        unit = self.level_unit
+        items = list(self._level_items)
+        if not unit or not items:
+            return
+
+        def relabel():
+            for item in items:
+                item.level_unit = unit
+
+        # The labels are shown in the GUI; this may be called from psi's
+        # control thread.
+        call_on_gui_thread(relabel)
 
     def _get_engine(self):
         if self.channel is None:
@@ -104,6 +133,27 @@ class HardwareOutput(BaseOutput):
 
     def _get_calibration(self):
         return self.channel.calibration
+
+    def follow_calibration(self):
+        '''
+        Keep `level_unit` in step with the calibration of the channel this
+        output plays on, including when the calibration is replaced later
+        (e.g., by a paradigm that calibrates the output before using it).
+
+        Called once the outputs are connected, since the channel is not known
+        before that. A calibration that does not say what its levels are in
+        (`get_level_unit()` returns None) leaves `level_unit` unchanged.
+        '''
+        channel = self.channel
+        if channel is None:
+            return
+        channel.observe('calibration', self._calibration_changed)
+        self._calibration_changed()
+
+    def _calibration_changed(self, event=None):
+        unit = self.channel.calibration.get_level_unit()
+        if unit:
+            self.level_unit = unit
 
 
 class EpochWaveform:

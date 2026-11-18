@@ -298,3 +298,64 @@ def test_io_manager_waits_for_inputs_before_stopping(monkeypatch):
     assert ('clock', 'sleep') in journal[:stops]
     assert ('clock', 'sleep') not in journal[stops:]
     assert inputs.delivered >= 10.0
+
+
+################################################################################
+# Level units
+################################################################################
+def test_outputs_feeding_follows_target_names():
+    # Works before anything is connected: o1 -> o2 -> channel.
+    o1 = NullOutput(name='o1', target_name='o2')
+    o2 = NullOutput(name='o2', target_name='hw_ao::speaker')
+    o3 = NullOutput(name='o3', target_name='hw_ao::other')
+    io = IOManager(outputs={'o1': o1, 'o2': o2, 'o3': o3})
+    assert set(io.outputs_feeding('hw_ao::speaker')) == {o1, o2}
+    assert io.outputs_feeding('o2') == [o1]
+
+
+def test_set_level_unit_by_name():
+    from psiaudio.calibration import FlatCalibration
+    o1 = NullOutput(name='o1', target_name='o2')
+    o2 = NullOutput(name='o2', target_name='hw_ao::speaker')
+    io = IOManager(outputs={'o1': o1, 'o2': o2})
+    io.set_level_unit('hw_ao::speaker', FlatCalibration.from_spl(90))
+    assert o1.level_unit == o2.level_unit == 'dB SPL'
+    # A calibration that does not say what its levels are in changes
+    # nothing.
+    io.set_level_unit('hw_ao::speaker', FlatCalibration(sensitivity=0))
+    assert o1.level_unit == 'dB SPL'
+
+
+def test_connected_output_follows_channel_calibration(ao_channel):
+    from psiaudio.calibration import FlatCalibration
+    o = NullOutput(name='o1', target_name=ao_channel.reference)
+    io = IOManager(channels={ao_channel.reference: ao_channel},
+                   outputs={'o1': o})
+    io.connect_outputs()
+    # The fixture's channel is calibrated as attenuation re 1 Vrms.
+    assert o.level_unit == 'dB re 1 Vrms'
+    # A paradigm that replaces the calibration later (e.g., after
+    # calibrating the speaker) relabels the levels too.
+    ao_channel.calibration = FlatCalibration.from_spl(90)
+    assert o.level_unit == 'dB SPL'
+
+
+def test_outputs_feeding_skips_targets_not_known_yet():
+    # An output whose target is computed from the context (e.g., cftscal's
+    # objects.Output: 'hw_ao::' + getattr(C, ...)) can't be read before the
+    # context is initialized, which is when units are first set.
+    from atom.api import Property
+    from psiaudio.calibration import FlatCalibration
+
+    class ContextTargetOutput(NullOutput):
+        target_name = Property()
+
+        def _get_target_name(self):
+            raise ValueError('Context not initialized')
+
+    mux = ContextTargetOutput(name='mux')
+    stimulus = NullOutput(name='stimulus', target_name='mux')
+    io = IOManager(outputs={'mux': mux, 'stimulus': stimulus})
+    assert io.outputs_feeding('mux') == [stimulus]
+    io.set_level_unit('mux', FlatCalibration.from_spl(90))
+    assert stimulus.level_unit == 'dB SPL'
