@@ -476,10 +476,15 @@ enamldef Click(EpochBlock):
         label = 'duration (s)'
         default = 100e-6
 
-    Parameter:
+    # ClickFactory multiplies the click by the polarity, so it must be a
+    # number. (The default used to be the string "condensation", which only
+    # worked when the paradigm replaced it before the click was generated.)
+    EnumParameter:
         name = 'polarity'
         label = 'polarity'
-        default = '"condensation"'
+        compact_label = 'pol'
+        default = 'condensation'
+        choices = {'condensation': 1, 'rarefaction': -1}
 
 
 enamldef BandlimitedClick(EpochBlock):
@@ -549,6 +554,15 @@ enamldef WavFile(EpochBlock):
         # `ast.literal_eval`).
         choices = {'None': "None", 'RMS': "'rms'", 'peak': "'pe'"}
 
+    # Scales the file exactly as psiaudio did before its wav scaling was
+    # corrected (see psiaudio.stim.load_wav), so stimuli match those played
+    # when earlier data was collected. Choose 'no' for the corrected scaling.
+    EnumParameter:
+        name = 'legacy_scaling'
+        label = 'legacy wav scaling'
+        default = 'yes'
+        choices = {'yes': True, 'no': False}
+
 
 enamldef WavSequence(ContinuousBlock):
 
@@ -573,3 +587,12 @@ enamldef WavSequence(ContinuousBlock):
         # to include the string delimiter as it will be evaluated by
         # `ast.literal_eval`).
         choices = {'RMS': "'rms'", 'peak': "'pe'"}
+
+    # Scales the file exactly as psiaudio did before its wav scaling was
+    # corrected (see psiaudio.stim.load_wav), so stimuli match those played
+    # when earlier data was collected. Choose 'no' for the corrected scaling.
+    EnumParameter:
+        name = 'legacy_scaling'
+        label = 'legacy wav scaling'
+        default = 'yes'
+        choices = {'yes': True, 'no': False}

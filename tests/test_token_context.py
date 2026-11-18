@@ -163,3 +163,51 @@ def test_enum_fix_value_tells_true_from_one():
     assert item.selected == 'true'
     item.fix_value(1)
     assert item.selected == 'one'
+
+
+def test_click_default_polarity_builds_a_click():
+    '''
+    The click's default polarity must be something `ClickFactory` can
+    multiply by. It used to be the string "condensation", so any paradigm
+    that did not replace it failed when the click was generated.
+    '''
+    from psiaudio.calibration import FlatCalibration
+    with enaml.imports():
+        from psi.token.primitives import Click
+
+    output = EpochOutput(name='target')
+    click = Click(name='click')
+    items = items_by_name(output, click)
+    polarity = items['target_click_polarity']
+    assert isinstance(polarity, EnumParameter)
+    assert polarity.expression == 1
+
+    context = {name: eval(str(item.expression)) for name, item in items.items()}
+    context['fs'] = 100e3
+    context['calibration'] = FlatCalibration.unity()
+    waveform = initialize_factory(output, click, context).get_samples_remaining()
+    assert waveform.min() > 0
+
+    context['target_click_polarity'] = -1
+    waveform = initialize_factory(output, click, context).get_samples_remaining()
+    assert waveform.max() < 0
+
+
+@pytest.mark.parametrize('token_name, item_name', [
+    ('WavFile', 'target_Wav file_legacy_scaling'),
+    ('WavSequence', 'target_Sequence of wav files_legacy_scaling'),
+])
+def test_wav_tokens_default_to_legacy_scaling(token_name, item_name):
+    '''
+    Wav stimuli keep the scaling earlier data was collected with unless the
+    user picks the corrected scaling (psiaudio's `legacy_scaling`).
+    '''
+    with enaml.imports():
+        from psi.token import primitives
+    output = EpochOutput(name='target')
+    token = getattr(primitives, token_name)()
+    item = items_by_name(output, token)[item_name]
+    assert isinstance(item, EnumParameter)
+    assert item.expression is True
+    item.selected = 'no'
+    assert item.expression is False
