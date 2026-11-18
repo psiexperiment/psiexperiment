@@ -191,3 +191,34 @@ def test_stop_waits_for_input(monkeypatch):
     assert engine_module.wait_for_inputs([engine]) == []
     assert engine._total_samples_read >= 48000
     assert clock.sleeps == 2
+
+
+def test_auto_manifest_channels_accept_any_device(monkeypatch):
+    '''
+    `AutoSoundCardManifest` knows nothing about what is wired to the card, so
+    every input must be offered for microphones and IR detectors, and every
+    output for speakers and IR emitters (cftscal's IR Sensor workspace only
+    appears when it finds both).
+    '''
+    import sounddevice as sd
+    from psi.application import initialize_io_manifest
+    from psi.controller.api import Channel
+
+    monkeypatch.setenv('PSI_SOUND_DEVICE_NAME', 'Fake card')
+    monkeypatch.setenv('PSI_SOUND_DEVICE_FS', '48000')
+    monkeypatch.setattr(sd, 'query_devices', lambda name: {
+        'max_input_channels': 2,
+        'max_output_channels': 3,
+    })
+    manifest = initialize_io_manifest(
+        'psi.controller.engines.soundcard.standard_io.AutoSoundCardManifest')
+    channels = [o for o in manifest.traverse() if isinstance(o, Channel)]
+    ai = [c for c in channels if c.type_code == 'hw_ai']
+    ao = [c for c in channels if c.type_code == 'hw_ao']
+    assert len(ai) == 2
+    assert len(ao) == 3
+    for c in ai:
+        assert set(c.supported_devices) == {
+            'generic_microphone', 'measurement_microphone', 'ir_sensor'}
+    for c in ao:
+        assert set(c.supported_devices) == {'speaker', 'ir_emitter'}

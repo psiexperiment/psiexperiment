@@ -41,7 +41,10 @@ enamldef BaseSoundcardEngine(SoundcardEngine):
             label = loop_item[1]['label']
             name = loop_item[1]['name']
             dBFS = loop_item[1].get('dBFS', (19, 'dBu'))
-            supported_devices = ['generic_microphone', 'measurement_microphone']
+            # Any analog input can take an IR detector as well as a
+            # microphone.
+            supported_devices = ['generic_microphone', 'measurement_microphone',
+                                 'ir_sensor']
             gain = 0
 
     Looper:
@@ -51,7 +54,8 @@ enamldef BaseSoundcardEngine(SoundcardEngine):
             channel = loop_item[0]
             label = loop_item[1]['label']
             name = loop_item[1]['name']
-            supported_devices = ['speaker']
+            # Any analog output can drive an IR emitter as well as a speaker.
+            supported_devices = ['speaker', 'ir_emitter']
 
 
 enamldef ASIOFirefaceUSBEngine(BaseSoundcardEngine):
