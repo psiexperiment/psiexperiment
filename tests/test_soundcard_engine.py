@@ -222,3 +222,13 @@ def test_auto_manifest_channels_accept_any_device(monkeypatch):
             'generic_microphone', 'measurement_microphone', 'ir_sensor'}
     for c in ao:
         assert set(c.supported_devices) == {'speaker', 'ir_emitter'}
+
+
+def test_sound_card_outputs_refuse_more_than_full_scale():
+    # Anything beyond full scale clips on a sound card, so the channel's
+    # range stops a stimulus that would clip before it plays.
+    channel = SoundcardHardwareAOChannel()
+    assert channel.max_range == (-1.0, 1.0)
+    channel.expected_range = (-0.5, 0.5)
+    with pytest.raises(ValueError, match='exceeds max range'):
+        channel.expected_range = (-2.0, 2.0)

@@ -11,7 +11,7 @@ from collections import deque
 from threading import Event, Lock, Thread
 
 from atom.api import (Bool, Dict, Enum, Float, List, Int, Property, Str,
-                      FixedTuple, Tuple, Typed, Value)
+                      FixedTuple, Tuple, Typed, Value, set_default)
 from enaml.application import deferred_call
 from enaml.core.api import d_
 import numpy as np
@@ -154,6 +154,11 @@ class SoundcardHardwareAIChannel(SoundcardTimingMixin, HardwareAIChannel):
 class SoundcardHardwareAOChannel(SoundcardTimingMixin, HardwareAOChannel):
 
     channel = d_(Int()).tag(metadata=True)
+
+    #: A sound card clips anything beyond full scale (1.0), so outputs that
+    #: check their range (e.g., `QueuedEpochOutput.add_setting`) refuse a
+    #: stimulus that would clip instead of playing it distorted.
+    max_range = set_default((-1.0, 1.0))
 
     # This is set by the sound card containing this engine, so we cannot set it
     # manually on a per-channel basis.
