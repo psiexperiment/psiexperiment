@@ -101,6 +101,30 @@ def test_declarative_to_dict_ndarray():
     assert declarative_to_dict(np.array([1, 2, 3]), 'metadata') == [1, 2, 3]
 
 
+def test_declarative_to_dict_calibration_saves_constructor_arguments():
+    from psiaudio.calibration import FlatCalibration, InterpCalibration
+
+    class _Calibration(FlatCalibration):
+        # A public property is not a constructor argument, so it must not
+        # be saved (psidata passes what was saved back to the constructor).
+        @property
+        def extra(self):
+            return 1
+
+    result = declarative_to_dict(_Calibration(3.0, reference='V'), 'metadata')
+    assert result.pop('__type__') == '_Calibration'
+    result.pop('__id__')
+    assert result == {'sensitivity': 3.0, 'fixed_gain': 0, 'reference': 'V',
+                      'attrs': None}
+
+    cal = InterpCalibration([1e3, 2e3], [90, 92], phase=[0, 1])
+    result = declarative_to_dict(cal, 'metadata', include_dunder=False)
+    assert result == {'frequency': [1e3, 2e3], 'sensitivity': [90, 92],
+                      'fixed_gain': 0, 'phase': [0, 1], 'reference': None,
+                      'attrs': None}
+    InterpCalibration(**result)
+
+
 def test_declarative_to_dict_atom_with_dunder():
     obj = _MetaAtom(name='hello', value=2.5)
     result = declarative_to_dict(obj, 'metadata')

@@ -140,12 +140,10 @@ def declarative_to_dict(value, tag_name, tag_value=True, include_dunder=True,
         return {k: declarative_to_dict(v, *args) for k, v in value.items()}
 
     if isinstance(value, BaseCalibration):
-        # Special case for the Calibration data since it's from psiaudio (and
-        # we do not wish to introduce extra dependencies in psiaudio).
-        attrs = [a for a in dir(value) if not \
-                 (a.startswith('_') or callable(getattr(value, a)))]
-        result = {a: declarative_to_dict(getattr(value, a), *args) \
-                  for a in attrs}
+        # psiaudio calibrations are not Atoms. Save their constructor
+        # arguments, which is what psidata passes back to rebuild them.
+        result = {k: declarative_to_dict(v, *args)
+                  for k, v in value.to_dict().items()}
         if include_dunder:
             result.update({
                 '__type__': value.__class__.__name__,
