@@ -1,5 +1,3 @@
-import pytest
-
 import unittest
 import numpy as np
 
@@ -86,9 +84,11 @@ class ANT(Atom):
         self.observed = True
 
 
-@pytest.mark.skip(reason='disabled notification for value change ' \
-                  'since this produced high overhead')
 class TestAtomNotification(unittest.TestCase):
+
+    # Computing a value in get_value no longer notifies observers of _locals
+    # (it was disabled because it produced high overhead). Setting a value
+    # still does.
 
     def setUp(self):
         expressions = {
@@ -99,24 +99,7 @@ class TestAtomNotification(unittest.TestCase):
         self.ns = ExpressionNamespace(expressions)
         self.ns.observe('_locals', self.ant.mark_observed)
 
-    def test_get_value_notification(self):
-        for v in ('a', 'b'):
-            self.ant.observed = False
-            self.ns.get_value(v)
-            self.assertTrue(self.ant.observed)
-
     def test_set_value_notification(self):
         self.ant.observed = False
         self.ns.set_value('c', 5)
         self.assertTrue(self.ant.observed)
-
-    def test_get_value_notification_no_change(self):
-        self.ant.observed = False
-        self.ns.get_value('b')
-        self.assertTrue(self.ant.observed)
-
-        # Should not trigger notification because 'a' was already computed when
-        # getting 'b', so there was no change in value.
-        self.ant.observed = False
-        self.ns.get_value('a')
-        self.assertFalse(self.ant.observed)

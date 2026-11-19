@@ -80,9 +80,6 @@ def test_event_notify_isolates_events(queued_epoch_output):
     assert seen == []  # subscribers to 'removed' should not fire on 'added'
 
 
-@pytest.mark.skip(reason="InterleavedFIFOSignalQueue.append doesn't fire 'added' "
-                         "synchronously on append; would need pop_buffer or a "
-                         "different queue subclass to exercise propagation.")
 def test_queue_added_event_propagates(ao_channel):
     out = QueuedEpochOutput(name='q')
     out.queue = InterleavedFIFOSignalQueue()
@@ -95,6 +92,10 @@ def test_queue_added_event_propagates(ao_channel):
     envelope = Cos2EnvelopeFactory(fs=out.fs, start_time=0, rise_time=0.1,
                                    duration=1.0, input_factory=tone)
     out.queue.append(envelope, 1)
+    # 'added' fires when the queue starts the next waveform, not on append.
+    # Callbacks run on the notifier's worker thread, so wait for it to drain.
+    out.queue.pop_buffer(10)
+    assert out.queue.notifier.join(timeout=5)
     assert len(received) == 1
 
 

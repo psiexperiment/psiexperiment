@@ -1,5 +1,3 @@
-import pytest
-
 import unittest
 from copy import deepcopy
 
@@ -24,32 +22,19 @@ class TestSettingSequence(unittest.TestCase):
         ]
         self.selector = SequenceSelector()
         for parameter in self.parameters:
-            self.selector.append_item(parameter.name)
-        self.names = [p.name for p in self.parameters]
+            self.selector.append_item(parameter)
 
     def test_selector_append(self):
         self.assertEqual(len(self.selector.context_items), len(self.parameters))
 
     def test_selector_remove(self):
         which = 1
-        self.selector.remove_item(self.parameters[which].name)
+        self.selector.remove_item(self.parameters[which])
         self.assertEqual(len(self.selector.context_items), len(self.parameters)-1)
-        expected_names = self.names[:]
+        expected_names = [p.name for p in self.parameters]
         expected_names.pop(which)
-        self.assertEqual(expected_names, self.selector.context_items)
-
-    @pytest.mark.skip(reason='requires context plugin to be present')
-    def test_deepcopy_equality(self):
-        c1 = deepcopy(self.selector.__getstate__())
-        self.selector.add_setting({'a': 4, 'b': 5})
-        self.selector.add_setting({'a': 7})
-        c2 = deepcopy(self.selector.__getstate__())
-        self.selector.set_value(0, 'a', 1)
-        c3 = deepcopy(self.selector.__getstate__())
-        c4 = deepcopy(self.selector.__getstate__())
-        self.assertFalse(c1 == c2)
-        self.assertFalse(c2 == c3)
-        self.assertTrue(c3 == c4)
+        self.assertEqual(expected_names,
+                         [i.name for i in self.selector.context_items])
 
 
 # -------- SingleSetting --------
@@ -204,6 +189,25 @@ def test_selector_context_item_order_reorders():
     s.append_item(level)
     s.context_item_order = ['level', 'freq']
     assert [i.name for i in s.context_items] == ['level', 'freq']
+
+
+def test_selector_preferences_snapshot_tracks_changes():
+    # The context plugin keeps a deep copy of the preferences, so each
+    # snapshot has to be independent and change only when the settings do.
+    freq, level = _params()
+    s = SequenceSelector(order='ascending')
+    s.append_item(freq)
+    s.append_item(level)
+    p1 = deepcopy(s.get_preferences())
+    s.add_setting({'freq': 4000.0, 'level': 40.0})
+    s.add_setting({'freq': 8000.0})
+    p2 = deepcopy(s.get_preferences())
+    s.set_value(0, freq, 2000.0)
+    p3 = deepcopy(s.get_preferences())
+    p4 = deepcopy(s.get_preferences())
+    assert p1 != p2
+    assert p2 != p3
+    assert p3 == p4
 
 
 # -------- FriendlyCartesianProduct --------
