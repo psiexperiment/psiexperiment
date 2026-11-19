@@ -21,6 +21,12 @@ same thread). The difference is written to `loopback_pilot_backlog.csv` in
 the data folder (columns `time`, `read` and `processed`, in seconds). A
 backlog delays everything computed from the inputs (e.g., IR poke
 detection), and whatever is still queued when psi quits is never saved.
+
+Once the engines have stopped, it saves the timing of every callback of the
+pilot's sound card (see `playrec.CallbackRecord`) to
+`loopback_pilot_callbacks.csv` in the data folder. A callback that hands its
+block over late is not reported by ASIO: the device plays silence until the
+block arrives, which shows in the pilot as zeros at the start of a block.
 '''
 import csv
 from threading import Event, Thread
@@ -123,6 +129,16 @@ def stop_monitor(monitor, event):
     monitor.stop(data.base_path / 'loopback_pilot_backlog.csv')
 
 
+def save_callback_record(event):
+    controller = event.workbench.get_plugin('psi.controller')
+    engine = controller.get_input('loopback_pilot').channel.engine
+    if not hasattr(engine, 'save_callback_record'):
+        log.info('%s does not record its callbacks', engine.name)
+        return
+    data = event.workbench.get_plugin('psi.data')
+    engine.save_callback_record(data.base_path / 'loopback_pilot_callbacks.csv')
+
+
 enamldef PilotManifest(ExperimentManifest): manifest:
 
     id = 'psi_loopback_pilot'
@@ -169,6 +185,9 @@ enamldef PilotManifest(ExperimentManifest): manifest:
         Command:
             id = manifest.id + '.stop_monitor'
             handler = lambda e: stop_monitor(manifest.monitor, e)
+        Command:
+            id = manifest.id + '.save_callback_record'
+            handler = save_callback_record
 
     Extension:
         id = manifest.id + '.actions'
@@ -183,6 +202,9 @@ enamldef PilotManifest(ExperimentManifest): manifest:
         ExperimentAction:
             event = 'experiment_end'
             command = manifest.id + '.stop_monitor'
+        ExperimentAction:
+            event = 'engines_stopped'
+            command = manifest.id + '.save_callback_record'
 
     Extension:
         id = manifest.id + '.data'

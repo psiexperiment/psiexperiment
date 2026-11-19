@@ -64,6 +64,14 @@ def test_input_stream_opened_with_fully_qualified_selector(monkeypatch):
     assert fake.opened['device'] == selector
 
 
+def _time(dac=0, current=0, adc=0):
+    '''
+    Stand-in for the time info PortAudio passes the callback.
+    '''
+    return SimpleNamespace(outputBufferDacTime=dac, currentTime=current,
+                           inputBufferAdcTime=adc)
+
+
 class _Status:
     '''
     Stand-in for ``sounddevice.CallbackFlags``: false when no flag is set.
@@ -82,7 +90,7 @@ def test_play_callback_counts_xruns():
     # delayed every later stimulus for good) went unnoticed.
     context = playrec_module.PlayCallbackContext(lambda *args: None)
     outdata = np.zeros((512, 1))
-    time = SimpleNamespace(outputBufferDacTime=0)
+    time = _time()
     for status in [_Status(), _Status(output_underflow=True), _Status()]:
         context(outdata, 512, time, status)
     assert context.status_counts['output_underflow'] == 1
@@ -92,7 +100,7 @@ def test_play_callback_counts_xruns():
 def test_record_callback_counts_xruns():
     context = playrec_module.RecordCallbackContext(lambda *args: None)
     indata = np.zeros((512, 1))
-    time = SimpleNamespace(outputBufferDacTime=0)
+    time = _time()
     context(indata, 512, time, _Status(input_overflow=True))
     assert context.status_counts['input_overflow'] == 1
 
@@ -108,7 +116,7 @@ def test_output_lag_floor():
         for _ in range(blocks):
             k = context.ao_s0 // 10
             dac_time = 1 + k * 0.01 + 0.004 * (k % 2) + silence
-            context(outdata, 10, SimpleNamespace(outputBufferDacTime=dac_time),
+            context(outdata, 10, _time(dac_time),
                     _Status())
 
     play(10)
@@ -127,9 +135,10 @@ def test_output_lag_needs_dac_times():
     # Host APIs that do not report DAC times pass 0.
     context = playrec_module.PlayCallbackContext(lambda *args: None, fs=1000)
     for _ in range(100):
-        context(np.zeros((10, 1)), 10, SimpleNamespace(outputBufferDacTime=0),
+        context(np.zeros((10, 1)), 10, _time(),
                 _Status())
     assert np.isnan(context.output_lag_floor)
+
 
 def test_callback_gap_and_duration(monkeypatch):
     # WASAPI shared mode flags no underflows, so a callback that runs late
@@ -138,10 +147,43 @@ def test_callback_gap_and_duration(monkeypatch):
     monkeypatch.setattr(playrec_module, 'perf_counter', clock)
     context = playrec_module.PlayCallbackContext(lambda *args: None)
     outdata = np.zeros((512, 1))
-    time = SimpleNamespace(outputBufferDacTime=0)
+    time = _time()
     for _ in range(3):
         context(outdata, 512, time, _Status())
     gap, duration = context.take_callback_stats()
     assert gap == pytest.approx(0.025)
     assert duration == pytest.approx(0.001)
     assert context.take_callback_stats() == (0, 0)
+
+
+def test_callback_record(monkeypatch, tmp_path):
+    # Each callback's timing is kept, so late ones can be found afterwards:
+    # the second block below reaches the DAC 2 ms after the callback that
+    # made it began.
+    clock = iter([10.0, 10.001, 10.1, 10.102]).__next__
+    monkeypatch.setattr(playrec_module, 'perf_counter', clock)
+    context = playrec_module.PlayCallbackContext(lambda *args: None)
+    outdata = np.zeros((512, 1))
+    context(outdata, 512, _time(dac=1.05, current=1.0), _Status())
+    context(outdata, 512, _time(dac=1.102, current=1.1), _Status())
+    rows = context.record.get()
+    assert rows.shape == (2, len(playrec_module.CallbackRecord.columns))
+    entered, current, dac, adc, duration, ao_s0, ai_s0 = rows.T
+    np.testing.assert_allclose(entered, [10.0, 10.1])
+    np.testing.assert_allclose(dac - (entered - 9), [0.05, 0.002])
+    np.testing.assert_allclose(duration, [0.001, 0.002])
+    np.testing.assert_array_equal(ao_s0, [0, 512])
+
+    path = tmp_path / 'callbacks.csv'
+    context.record.save(path)
+    lines = path.read_text().splitlines()
+    assert lines[0].startswith('# entered - current median 9.0')
+    assert lines[1] == ','.join(playrec_module.CallbackRecord.columns)
+    assert len(lines) == 4
+
+
+def test_callback_record_keeps_the_most_recent():
+    record = playrec_module.CallbackRecord(size=3)
+    for i in range(5):
+        record.add(i, 0, 0, 0, 0, i, 0)
+    np.testing.assert_array_equal(record.get()[:, 0], [2, 3, 4])

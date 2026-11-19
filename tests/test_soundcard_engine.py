@@ -232,3 +232,31 @@ def test_sound_card_outputs_refuse_more_than_full_scale():
     channel.expected_range = (-0.5, 0.5)
     with pytest.raises(ValueError, match='exceeds max range'):
         channel.expected_range = (-2.0, 2.0)
+
+
+def test_stop_logs_callbacks_while_stopping(caplog, monkeypatch):
+    # The callbacks run until the stream stops, after the last timing entry.
+    # A late one there leaves a gap at the end of the recording, so the
+    # stats are logged again once the stream has stopped.
+    engine = running_engine()
+    calls = []
+    stats = iter([(0.086, 0.001), (0.120, 0.002)])
+    engine._stream.callback.take_callback_stats = lambda: next(stats)
+    engine._stream.stop = lambda: calls.append('stream stopped')
+    engine._timing_monitor = soundcard_module.SDTimingMonitor(engine, 30)
+    monkeypatch.setattr(SoundcardEngine, 'complete',
+                        lambda self: calls.append('complete'))
+    caplog.set_level('INFO', logger=soundcard_module.__name__)
+    engine.stop()
+    assert calls == ['stream stopped', 'complete']
+    message = caplog.records[-1].getMessage()
+    assert 'stopped' in message
+    assert 'longest callback gap 120.0 ms' in message
+
+
+def test_save_callback_record(tmp_path):
+    engine = running_engine()
+    saved = []
+    engine._stream.callback.record = SimpleNamespace(save=saved.append)
+    engine.save_callback_record(tmp_path / 'callbacks.csv')
+    assert saved == [tmp_path / 'callbacks.csv']

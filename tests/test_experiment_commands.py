@@ -146,3 +146,29 @@ class TestDefaultPath:
         workbench = self._workbench(tmp_path, monkeypatch, name='')
         with pytest.raises(ValueError, match='experiment name'):
             get_default_path(workbench, 'layout')
+
+
+@pytest.mark.parametrize('command, parameters, style', [
+    ('update_dock_style', {'stop_reason': ''}, 'complete'),
+    ('update_dock_style', {'stop_reason': 'error'}, 'error'),
+    ('set_dock_style', {'style_name': 'error'}, 'error'),
+])
+def test_dock_style_set_on_gui_thread(monkeypatch, command, parameters,
+                                      style):
+    # These run on the control dispatcher (e.g., on `experiment_end`), and
+    # restyling touches every widget in the window, which Qt allows only on
+    # the GUI thread.
+    import psi.experiment.experiment_commands as commands
+    deferred = []
+    monkeypatch.setattr(commands, 'deferred_call',
+                        lambda fn, *args: deferred.append((fn, args)))
+    dock_area = SimpleNamespace(style='default')
+    ui = SimpleNamespace(workspace=SimpleNamespace(dock_area=dock_area))
+    event = SimpleNamespace(
+        workbench=SimpleNamespace(get_plugin=lambda name: ui),
+        parameters=parameters)
+    getattr(commands, command)(event)
+    assert dock_area.style == 'default'
+    fn, args = deferred.pop()
+    fn(*args)
+    assert dock_area.style == style

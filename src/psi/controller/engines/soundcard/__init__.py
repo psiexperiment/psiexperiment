@@ -358,7 +358,25 @@ class SoundcardEngine(ChannelSliceCallbackMixin, Engine):
         log.info('Stopping sound card %s', self.name)
         self._configured = False
         self._stream.stop()
+        # The callbacks run until the stream stops, and the last log entry
+        # (above) was before it. Late ones here leave gaps at the end of the
+        # recording.
+        callback = self._stream.callback
+        max_gap, max_duration = callback.take_callback_stats()
+        totals = ', '.join(f'{k} {v}' for k, v in
+                           callback.status_counts.items() if v)
+        log.info('Sound card %s stopped: xruns: %s; longest callback gap '
+                 '%.1f ms, longest callback %.1f ms while stopping',
+                 self.name, totals or 'none', max_gap * 1e3,
+                 max_duration * 1e3)
         self.complete()
+
+    def save_callback_record(self, path):
+        '''
+        Save the timing of each callback (see `CallbackRecord`) as CSV.
+        '''
+        if self._stream is not None:
+            self._stream.callback.record.save(path)
 
     def input_time(self):
         '''

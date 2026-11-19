@@ -32,6 +32,80 @@ XRUN_FLAGS = ('output_underflow', 'output_overflow', 'input_underflow',
 #: shared mode), short enough that the clock is corrected soon after a gap.
 LAG_FLOOR_WINDOW = 0.25
 
+#: Callbacks `CallbackRecord` keeps (the most recent). About 93 minutes of
+#: 8192-sample blocks at 96 kHz.
+CALLBACK_RECORD_SIZE = 2 ** 16
+
+
+class CallbackRecord:
+    '''
+    The timing of each callback, for finding late ones.
+
+    With ASIO, a block the callback hands over late is not flagged as an
+    underflow: the device plays silence until the block arrives, then the
+    rest of it in place, so the recording shows zeros at the start of a block
+    and nothing else. Comparing when each callback ran with when its block
+    was due to play shows which callbacks were late, and by how much.
+
+    Written on the audio thread into a preallocated array (no allocation),
+    and keeps the last `size` callbacks.
+    '''
+
+    #: Columns of `rows`:
+    #: - `entered`: when the Python callback began (`time.perf_counter`),
+    #:   after any wait for the GIL.
+    #: - `current`: PortAudio's `currentTime` for the callback (stream time),
+    #:   taken in C before Python is entered, so `entered` minus `current`
+    #:   (once the clocks' offset is removed) is the wait for the GIL.
+    #: - `output_dac`, `input_adc`: when the output block reaches the DAC
+    #:   and when the input block was captured (stream time, 0 if none).
+    #: - `duration`: how long the callback took (s).
+    #: - `ao_s0`, `ai_s0`: the first output and input sample of the block.
+    columns = ('entered', 'current', 'output_dac', 'input_adc', 'duration',
+               'ao_s0', 'ai_s0')
+
+    def __init__(self, size=CALLBACK_RECORD_SIZE):
+        self.rows = np.full((size, len(self.columns)), np.nan)
+        self.n = 0
+
+    def add(self, entered, current, output_dac, input_adc, duration, ao_s0,
+            ai_s0):
+        row = self.rows[self.n % len(self.rows)]
+        row[0] = entered
+        row[1] = current
+        row[2] = output_dac
+        row[3] = input_adc
+        row[4] = duration
+        row[5] = ao_s0
+        row[6] = ai_s0
+        self.n += 1
+
+    def get(self):
+        '''
+        The callbacks recorded, oldest first.
+        '''
+        size = len(self.rows)
+        if self.n <= size:
+            return self.rows[:self.n].copy()
+        i = self.n % size
+        return np.concatenate((self.rows[i:], self.rows[:i]))
+
+    def save(self, path):
+        '''
+        Save as CSV, with the offset of `perf_counter` from the stream clock
+        (the median of `entered` minus `current`) as a comment on the first
+        line.
+        '''
+        rows = self.get()
+        with open(path, 'w', newline='') as fh:
+            if len(rows):
+                offset = float(np.median(rows[:, 0] - rows[:, 1]))
+                fh.write(f'# entered - current median {offset!r} s\n')
+            fh.write(','.join(self.columns) + '\n')
+            # The clocks count from boot, so the times need all their digits
+            # for microseconds.
+            np.savetxt(fh, rows, delimiter=',', fmt='%.17g')
+
 
 class BaseCallbackContext:
     '''
@@ -75,6 +149,9 @@ class BaseCallbackContext:
         self.max_callback_gap = 0.0
         self.max_callback_duration = 0.0
         self._last_callback_start = None
+
+        #: Timing of each callback (see `CallbackRecord`).
+        self.record = CallbackRecord()
 
     def take_callback_stats(self):
         '''
@@ -125,10 +202,15 @@ class BaseCallbackContext:
             self.max_callback_gap = max(self.max_callback_gap,
                                         start - self._last_callback_start)
         self._last_callback_start = start
+        # Taken before `process` advances them.
+        ao_s0, ai_s0 = self.ao_s0, self.ai_s0
         self.record_status(args[-1])
         self.process(*args[:-1])
-        self.max_callback_duration = max(self.max_callback_duration,
-                                         perf_counter() - start)
+        duration = perf_counter() - start
+        self.max_callback_duration = max(self.max_callback_duration, duration)
+        time = args[-2]
+        self.record.add(start, time.currentTime, time.outputBufferDacTime,
+                        time.inputBufferAdcTime, duration, ao_s0, ai_s0)
 
     def process(self, *args):
         raise NotImplementedError

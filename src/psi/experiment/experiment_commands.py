@@ -182,15 +182,21 @@ def show_window(event):
     deferred_call(ui.window.proxy.widget.showNormal)
 
 
+def _set_dock_area_style(workbench, style):
+    # Restyles every widget in the window, so it must run on the GUI thread.
+    # These commands are invoked from the control dispatcher (e.g., on
+    # `experiment_end`).
+    ui = workbench.get_plugin('enaml.workbench.ui')
+    deferred_call(setattr, ui.workspace.dock_area, 'style', style)
+
+
 def set_dock_style(event):
-    ui = event.workbench.get_plugin('enaml.workbench.ui')
-    ui.workspace.dock_area.style = event.parameters['style_name']
+    _set_dock_area_style(event.workbench, event.parameters['style_name'])
 
 
 def update_dock_style(event):
-    ui = event.workbench.get_plugin('enaml.workbench.ui')
     style = 'complete' if event.parameters.get('stop_reason', '') == '' else 'error'
-    ui.workspace.dock_area.style = style
+    _set_dock_area_style(event.workbench, style)
 
 
 def write_metadata(event):
