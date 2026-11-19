@@ -3,6 +3,7 @@ log = logging.getLogger(__name__)
 
 from functools import partial
 from pathlib import Path
+import threading
 import time
 
 from atom.api import Bool, Dict, set_default, Typed
@@ -52,6 +53,103 @@ def _append(array, data, axis):
     _retry_write(array.__setitem__, tuple(selection), data)
 
 
+class ChunkedAppender:
+    '''
+    A zarr array grown along its last axis and written a whole chunk at a
+    time.
+
+    Appending each block as it arrives rewrites the chunk it lands in, and
+    the array's metadata, on every block: a compressed read-modify-write of
+    the chunk and an atomic file replace, for every input. On Windows that
+    took most of the time between blocks of a sound card, so the inputs fell
+    behind. Instead, blocks are held here until they fill a chunk.
+
+    Reading through this (`shape`, indexing, as `ZarrSignal` does) writes
+    out whatever is held first, so readers in the experiment see everything
+    appended. Anything reading the files on disk sees whole chunks only
+    until `flush`, which writes the rest, after which appends are written
+    straight through (anything arriving after the experiment ends).
+    '''
+
+    def __init__(self, array):
+        self.array = array
+        self.attrs = array.attrs
+        self.chunks = array.chunks
+        self._chunk = array.chunks[-1]
+        self._pending = []
+        self._n_pending = 0
+        self._write_through = False
+        # Appends come from the input thread, reads from any other.
+        self._lock = threading.RLock()
+
+    @property
+    def length(self):
+        '''
+        Samples appended, written or not.
+        '''
+        with self._lock:
+            return self.array.shape[-1] + self._n_pending
+
+    def append(self, data):
+        data = np.asarray(data)
+        with self._lock:
+            self._pending.append(data)
+            self._n_pending += data.shape[-1]
+            written = self.array.shape[-1]
+            end = written + self._n_pending
+            if not self._write_through:
+                # Up to the last chunk boundary, so a chunk is written once
+                # it is full (or, after a read wrote part of one, once the
+                # rest of it arrives).
+                end = end // self._chunk * self._chunk
+            self._write(end - written)
+
+    def _write(self, n):
+        if n <= 0:
+            return
+        data = np.concatenate(self._pending, axis=-1)
+        _append(self.array, data[..., :n], axis=data.ndim - 1)
+        rest = data[..., n:]
+        self._pending = [rest] if rest.shape[-1] else []
+        self._n_pending = rest.shape[-1]
+
+    def sync(self):
+        '''
+        Write out everything appended so far.
+        '''
+        with self._lock:
+            self._write(self._n_pending)
+
+    def flush(self):
+        '''
+        Write out everything appended so far, and from now on write each
+        append as it comes.
+        '''
+        with self._lock:
+            self._write(self._n_pending)
+            self._write_through = True
+
+    @property
+    def shape(self):
+        self.sync()
+        return self.array.shape
+
+    @property
+    def ndim(self):
+        return self.array.ndim
+
+    @property
+    def dtype(self):
+        return self.array.dtype
+
+    def __getitem__(self, key):
+        self.sync()
+        return self.array[key]
+
+    def __array__(self, dtype=None, copy=None):
+        return np.asarray(self[...], dtype=dtype)
+
+
 class ZarrEpochData(BaseEpochData):
 
     metadata_filename = Typed(Path)
@@ -60,11 +158,12 @@ class ZarrEpochData(BaseEpochData):
     def append(self, data):
         epochs, metadata = self._split_epochs_metadata(data)
         epochs = np.concatenate(epochs, axis=-1)
-        _append(self.data, epochs, axis=epochs.ndim-1)
+        self.data.append(epochs)
         self.metadata.extend(metadata)
         self.dirty = True
 
     def flush(self):
+        self.data.flush()
         if self.dirty:
             pd.DataFrame(self.metadata).to_csv(self.metadata_filename)
             self.dirty = False
@@ -84,8 +183,9 @@ class ZarrStore(BaseStore):
             raise AttributeError(name)
 
     def process_ai_continuous(self, name, data):
-        self._check_continuity(name, data, self._stores[name].shape[-1])
-        _append(self._stores[name], np.asarray(data), axis=data.ndim-1)
+        store = self._stores[name]
+        self._check_continuity(name, data, store.length)
+        store.append(data)
 
     def process_ai_epochs(self, name, data):
         self._stores[name].append(data)
@@ -109,7 +209,7 @@ class ZarrStore(BaseStore):
         zarray.attrs['fs'] = fs
         for key, value in metadata.items():
             zarray.attrs[key] = value
-        return zarray
+        return ChunkedAppender(zarray)
 
     def create_ai_continuous(self, name, fs, dtype, metadata):
         self._stores[name] = self._create_array(name, fs, dtype, metadata)

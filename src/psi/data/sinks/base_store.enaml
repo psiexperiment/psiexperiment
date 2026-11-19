@@ -6,6 +6,7 @@ from functools import partial
 from pathlib import Path
 import shutil
 import tempfile
+import threading
 
 from atom.api import Atom, Bool, Dict, Float, List, set_default, Str, Typed
 from enaml.core.api import d_
@@ -18,6 +19,29 @@ from psi.controller.api import ExperimentAction
 from psi.util import declarative_to_dict
 
 from ..sink import Sink
+
+
+def _flush_at_exit(store):
+    try:
+        store.flush()
+    except Exception:
+        log.exception('Could not save the data of %s at exit', store.name)
+
+
+def register_exit_flush(store):
+    '''
+    Flush `store` when the interpreter exits, e.g., if the experiment never
+    reached `experiment_end`.
+
+    This has to happen before the thread pools shut down, since zarr writes
+    through one. Python shuts them down (`concurrent.futures`) in a hook run
+    before any `atexit` callback, so register in those hooks, which run in
+    reverse order: zarr has already imported `concurrent.futures`, so this
+    runs first. `threading._register_atexit` is CPython internal, so fall
+    back to `atexit` without it.
+    '''
+    register = getattr(threading, '_register_atexit', atexit.register)
+    register(_flush_at_exit, store)
 
 
 class BaseEpochData(Atom):
@@ -54,7 +78,7 @@ class BaseStore(Sink):
         return (self.base_path / name).with_suffix(suffix)
 
     def set_base_path(self, base_path, is_temp):
-        atexit.register(self.flush)
+        register_exit_flush(self)
         self.base_path = Path(base_path)
         self.is_temp = is_temp
 
