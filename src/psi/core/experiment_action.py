@@ -10,6 +10,43 @@ from enaml.core.api import Declarative, d_
 from psi.util import get_dependencies
 
 
+################################################################################
+# Action weights
+#
+# Actions bound to the same event run in order of weight, lowest first (ties
+# in the order they were registered). These name the actions others are
+# ordered against, so an action that must run before or after one says so
+# (e.g., `weight = STOP_ENGINES_WEIGHT - 1` to run while the engines are
+# still running). To run after something has happened, binding to the event
+# it raises (e.g., `engines_stopped`) is clearer still.
+################################################################################
+
+#: Weight of an action that doesn't set one.
+DEFAULT_WEIGHT = 50
+
+#: `experiment_prepare`: start the calibration
+#: (`psi.controller.calibration.start`).
+CALIBRATION_START_WEIGHT = 10
+
+#: `experiment_prepare`: configure the engines
+#: (`psi.controller.configure_engines`).
+CONFIGURE_ENGINES_WEIGHT = 100
+
+#: `experiment_start`: start the engines (`psi.controller.start_engines`).
+START_ENGINES_WEIGHT = DEFAULT_WEIGHT
+
+#: `experiment_end`: stop the engines (`psi.controller.stop_engines`). First,
+#: so the streams stop before anything else runs: work done while the
+#: engines wind down (e.g., restyling the window, redrawing the plots) can
+#: hold the GIL long enough to make a sound card callback miss its deadline,
+#: which plays silence. Anything after this also sees all the data.
+STOP_ENGINES_WEIGHT = 0
+
+#: `experiment_end`: flush the stores, after everything else has added to
+#: them.
+FLUSH_STORES_WEIGHT = 1000
+
+
 class ExperimentState(Declarative):
     '''
     Allows for indication of a state (e.g., `experiment_active`, `iti_active`).
@@ -69,10 +106,10 @@ class ExperimentActionBase(Declarative):
 
     match = Callable()
 
-    #: Defines order of invocation. Less than 100 invokes before default. Higher
-    #: than 100 invokes after default. Note that if concurrent is True, then
-    #: order of execution is not guaranteed.
-    weight = d_(Int(50))
+    #: Order among the actions bound to the same event: lowest first (see
+    #: the weights at the top of this module). Note that if concurrent is
+    #: True, then order of execution is not guaranteed.
+    weight = d_(Int(DEFAULT_WEIGHT))
 
     #: Arguments to pass to command by keyword
     kwargs = d_(Dict())

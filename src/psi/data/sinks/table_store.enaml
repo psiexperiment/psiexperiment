@@ -13,7 +13,8 @@ from enaml.workbench.core.api import Command
 import pandas as pd
 
 from psi.context.api import OrderedContextMeta
-from psi.controller.api import ExperimentAction, ExperimentEvent
+from psi.controller.api import (ExperimentAction, ExperimentEvent,
+                                FLUSH_STORES_WEIGHT)
 from psi.core.enaml.api import PSIManifest
 
 from .base_store import BaseStore
@@ -134,7 +135,7 @@ enamldef TableStoreManifest(PSIManifest): manifest:
             command = contribution.name + '.prepare'
 
         ExperimentAction:
-            weight = 1000
+            weight = FLUSH_STORES_WEIGHT
             event = 'experiment_end'
             command = manifest.id + '.flush'
 

@@ -137,3 +137,13 @@ def test_request_latches_flag_when_deferred(monkeypatch):
     # Handled immediately: nothing to latch.
     controller.request_resume()
     assert controller._resume_requested is False
+
+
+def test_engines_stop_first(controller):
+    # A sound card callback that misses its deadline plays silence, and work
+    # done on `experiment_end` while the engines wind down (e.g., restyling
+    # the window, redrawing the plots) made them miss it, so the engines stop
+    # before anything else runs.
+    actions = [a for a in controller._plugin_actions
+               if a.event == 'experiment_end']
+    assert actions[0].command == 'psi.controller.stop_engines'

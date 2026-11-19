@@ -15,7 +15,7 @@ from enaml.workbench.core.api import Command
 import numpy as np
 
 from psi.core.enaml.api import PSIManifest
-from psi.controller.api import ExperimentAction
+from psi.controller.api import ExperimentAction, FLUSH_STORES_WEIGHT
 from psi.util import declarative_to_dict
 
 from ..sink import Sink
@@ -189,6 +189,6 @@ enamldef BaseStoreManifest(PSIManifest): manifest:
             command = manifest.id + '.prepare'
 
         ExperimentAction:
-            weight = 1000
+            weight = FLUSH_STORES_WEIGHT
             event = 'experiment_end'
             command = manifest.id + '.flush'

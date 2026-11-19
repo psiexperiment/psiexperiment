@@ -4,7 +4,7 @@ log = logging.getLogger(__name__)
 from enaml.workbench.api import PluginManifest, Extension, ExtensionPoint
 from enaml.workbench.core.api import Command
 
-from psi.core.api import ExperimentAction
+from psi.core.api import CALIBRATION_START_WEIGHT, ExperimentAction
 from psi.data.sinks.api import TextStore
 from psi.util import log_with_header
 
@@ -59,7 +59,7 @@ enamldef CalibrationManifest(PluginManifest): manifest:
         point = 'psi.controller.actions'
 
         ExperimentAction:
-            weight = 10
+            weight = CALIBRATION_START_WEIGHT
             event = 'experiment_prepare'
             command = 'psi.controller.calibration.start'
         ExperimentAction:

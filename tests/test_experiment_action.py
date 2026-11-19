@@ -91,6 +91,16 @@ def test_action_default_weight_is_50():
     assert action.weight == 50
 
 
+def test_action_weights_order_the_anchors():
+    from psi.core import experiment_action as ea
+    # Calibration starts before the engines are configured.
+    assert ea.CALIBRATION_START_WEIGHT < ea.CONFIGURE_ENGINES_WEIGHT
+    # On `experiment_end`, the engines stop before anything that doesn't
+    # set a weight, and the stores are flushed after.
+    assert ea.STOP_ENGINES_WEIGHT < ea.DEFAULT_WEIGHT < ea.FLUSH_STORES_WEIGHT
+    assert ExperimentAction(event='x', command='do').weight ==         ea.DEFAULT_WEIGHT
+
+
 def test_actions_sort_by_weight():
     a = ExperimentAction(event='x', command='one', weight=10)
     b = ExperimentAction(event='x', command='two', weight=200)
