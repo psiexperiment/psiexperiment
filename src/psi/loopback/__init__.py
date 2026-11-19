@@ -4,12 +4,15 @@ inputs (e.g., an RME Fireface with loopbacks set up in TotalMix), so what a
 paradigm says it played can be checked against what it recorded.
 
 A project describes its sound card with a `rig.Rig` (which IO manifest the
-paradigms run on and which channel is which) and pulls in the pytest plugin
-from the conftest of its hardware tests::
+paradigms run on and which channel is which), loads the pytest plugin for
+the whole test run, and gives the hardware tests the rig::
+
+    # pyproject.toml
+    [tool.pytest.ini_options]
+    addopts = "-p psi.loopback.pytest_plugin"
 
     # tests/hardware/conftest.py
     import pytest
-    from psi.loopback.pytest_plugin import *  # noqa: F403
     from psi.loopback.rig import Rig
 
     @pytest.fixture(scope='session')

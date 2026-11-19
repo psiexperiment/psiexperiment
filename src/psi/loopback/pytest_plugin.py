@@ -1,12 +1,24 @@
 '''
 pytest options, hooks and fixtures for loopback tests.
 
-Import everything from this module into the conftest of the hardware tests
-(`from psi.loopback.pytest_plugin import *`) and define a session-scoped
-`rig` fixture returning a `psi.loopback.rig.Rig`. Tests in any folder named
-`hardware` are then skipped unless pytest is run with `--fireface`:
+Load it as a plugin for every test run, from the project's pyproject.toml:
 
+    [tool.pytest.ini_options]
+    addopts = "-p psi.loopback.pytest_plugin"
+
+and define a session-scoped `rig` fixture returning a `psi.loopback.rig.Rig`
+in the conftest of the hardware tests. Tests in any folder named `hardware`
+are then skipped unless pytest is run with `--fireface`, whether it is given
+the whole suite or just the hardware tests:
+
+    pytest tests --fireface
     pytest tests/hardware --fireface
+
+Don't import this module's hooks into a conftest instead. pytest reads
+options only from the conftests next to (or above) the paths it is given,
+so `pytest tests --fireface` would fail with "unrecognized arguments"; and
+importing them as well as loading the plugin adds the options twice. Options
+of a project's own belong in `tests/conftest.py` for the same reason.
 
 Each run writes its data, psi's log, and a report with plots under
 `tests/hardware/results/<date time>/` (or `--fireface-results`); open
@@ -20,11 +32,6 @@ import sys
 import pytest
 
 from .report import write_index
-
-
-__all__ = ['pytest_addoption', 'pytest_configure',
-           'pytest_collection_modifyitems', 'results_dir', 'routing',
-           'require_routes']
 
 
 def pytest_addoption(parser):

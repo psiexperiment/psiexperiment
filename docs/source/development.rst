@@ -81,8 +81,8 @@ Testing paradigms through a loopback
 ``psi.loopback`` runs paradigms unattended on a sound card whose outputs are
 routed back to its inputs (e.g., an RME Fireface set up in TotalMix), so what
 a paradigm says it played can be checked against what it recorded. cfts and
-abts use it for their hardware tests (``tests/hardware`` in each). It
-provides:
+abts (and noise-exp) use it for their hardware tests (``tests/hardware`` in
+each). It provides:
 
 * ``rig``: describes the sound card and measures which output reaches which
   input, at what gain and delay.
@@ -96,8 +96,10 @@ provides:
   psi's input processing falls behind the sound card.
 * ``report``: an HTML page of checks and figures for each run.
 * ``pytest_plugin``: the ``--fireface`` option (the tests are skipped
-  without it) and the session fixtures. See its docstring for how to use it
-  from a project's ``conftest.py``.
+  without it) and the session fixtures. Load it for the whole test run with
+  ``addopts = "-p psi.loopback.pytest_plugin"`` under
+  ``[tool.pytest.ini_options]``, not from ``tests/hardware/conftest.py``,
+  so that ``pytest tests --fireface`` works. See its docstring.
 
 Building Documentation
 ......................
