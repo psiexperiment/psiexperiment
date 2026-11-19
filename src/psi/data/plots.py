@@ -33,7 +33,7 @@ from .plot_groups import EpochGroupAccumulator
 from .plot_ranges import BaseDataRange, ChannelDataRange, EpochDataRange
 from .plot_util import (  # noqa: F401 -- re-exported for compatibility
     decimate_extremes, decimate_mean, format_log_ticks, format_time,
-    get_color_cycle, get_freq, prepare_decimated_curve,
+    get_color_cycle, get_freq, get_freq_x, prepare_decimated_curve,
 )
 
 #: Qt's default maximum widget size.
@@ -910,7 +910,7 @@ class FFTChannelPlot(ChannelPlot):
         if self.source.fs:
             time_span = self.time_span / self.waveform_averages
             self._freq = get_freq(self.source.fs, time_span)
-            self._x = self.container.x_transform(self._freq)
+            self._x = get_freq_x(self.container.x_transform, self._freq)
 
     def update(self, event=None):
         if self._buffer.get_time_ub() >= self.time_span:
@@ -1388,7 +1388,7 @@ class GroupedEpochFFTPlot(EpochGroupMixin, BasePlot):
         # TODO: This could be a utility function stored in the parent?
         if self.source.fs and self.duration:
             self._freq = get_freq(self.source.fs, self.duration / self.waveform_averages)
-            self._x = self.container.x_transform(self._freq)
+            self._x = get_freq_x(self.container.x_transform, self._freq)
 
     def _fold(self, epoch):
         y = np.asarray(epoch)[self.channel]
@@ -1429,7 +1429,7 @@ class GroupedEpochPhasePlot(EpochGroupMixin, BasePlot):
         # TODO: This could be a utility function stored in the parent?
         if self.source.fs and self.duration:
             self._freq = get_freq(self.source.fs, self.duration)
-            self._x = self.container.x_transform(self._freq)
+            self._x = get_freq_x(self.container.x_transform, self._freq)
 
     def _render_mean(self, mean):
         y = super()._render_mean(mean)

@@ -16,6 +16,16 @@ def get_freq(fs, duration):
     return np.fft.rfftfreq(n_time, fs**-1)
 
 
+def get_freq_x(x_transform, freq):
+    '''
+    Transform FFT frequencies for display. The DC bin (0 Hz) maps to -inf on
+    a log axis, which is expected (the plot cannot show it), so suppress the
+    divide-by-zero warning from the log transform.
+    '''
+    with np.errstate(divide='ignore'):
+        return x_transform(freq)
+
+
 def get_color_cycle(name, n):
     module_name, cmap_name = name.rsplit('.', 1)
     module = importlib.import_module(module_name)
